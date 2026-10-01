@@ -1,0 +1,81 @@
+{
+  "contents": [
+    {
+      "role": "user",
+      "parts": [
+        {
+          "text": "read README"
+        }
+      ]
+    },
+    {
+      "role": "model",
+      "parts": [
+        {
+          "thought": true,
+          "text": "need file",
+          "thoughtSignature": "c2lnLXRoaW5r"
+        },
+        {
+          "functionCall": {
+            "name": "read",
+            "args": {
+              "path": "README.md"
+            },
+            "id": "call_rsp-tool1_0"
+          },
+          "thoughtSignature": "Q2lRQ0FkSE10b29sc2ln"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "parts": [
+        {
+          "functionResponse": {
+            "name": "read",
+            "response": {
+              "output": "# Title"
+            },
+            "id": "call_rsp-tool1_0"
+          }
+        }
+      ]
+    }
+  ],
+  "systemInstruction": {
+    "parts": [
+      {
+        "text": "Be brief."
+      }
+    ]
+  },
+  "tools": [
+    {
+      "functionDeclarations": [
+        {
+          "name": "read",
+          "description": "Read a file",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "path"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "generationConfig": {
+    "maxOutputTokens": 65536,
+    "thinkingConfig": {
+      "includeThoughts": true,
+      "thinkingLevel": "HIGH"
+    }
+  }
+}

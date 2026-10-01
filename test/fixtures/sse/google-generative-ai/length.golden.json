@@ -1,0 +1,59 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 0,
+    "delta": "Once upon a time, a lighthouse keeper"
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 0,
+    "delta": " named"
+  },
+  {
+    "type": "text_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "done",
+    "reason": "length",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Once upon a time, a lighthouse keeper named"
+        }
+      ],
+      "api": "google-generative-ai",
+      "provider": "google",
+      "model": "gemini-3.1-pro-preview",
+      "usage": {
+        "input": 16,
+        "output": 16,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 32,
+        "cost": {
+          "input": 0.000032,
+          "output": 0.000192,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0.000224
+        }
+      },
+      "stopReason": "length",
+      "timestamp": 0,
+      "thinkingLevel": "low",
+      "providerThinkingLevel": "LOW",
+      "responseId": "rsp-len1",
+      "rawStopReason": "MAX_TOKENS"
+    }
+  }
+]

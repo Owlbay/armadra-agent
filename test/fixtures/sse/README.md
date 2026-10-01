@@ -31,3 +31,4 @@
 | --- | --- |
 | anthropic-messages | text、thinking、redacted-thinking、tool-single、tool-multi、length、usage-cache（1h 缓存写）、rate-limit-429、overflow-400、stream-error（流内 overloaded）、disconnect |
 | openai-completions | text、reasoning-deepseek（reasoning_content + prompt_cache_hit_tokens）、tool-single、tool-multi（按 index 交错）、tool-noindex（按 id）、stop-with-tools（finish=stop 但有工具调用）、length、usage-moonshot（choices[0].usage + 顶层 cached_tokens）、usage-groq（x_groq.usage）、rate-limit-429、overflow-400、stream-error（流内 error 对象）、disconnect |
+| google-generative-ai | text、thinking（thought part + 末尾空文本 part 的 thoughtSignature + thoughtsTokenCount）、tool-single（缺 id、签名在 functionCall 上）、tool-multi（文本后并行两调用，一个带 id）、length（MAX_TOKENS）、usage-cache（cachedContentTokenCount）、rate-limit-429（RESOURCE_EXHAUSTED）、overflow-400（INVALID_ARGUMENT）、disconnect（无 finishReason）、safety（finishReason SAFETY）、stream-error（流内 error 对象）；request-replay.golden.json 是回放请求体快照 |
