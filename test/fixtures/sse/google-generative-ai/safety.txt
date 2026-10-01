@@ -1,0 +1,6 @@
+#status 200
+#header content-type: text/event-stream
+data: {"candidates":[{"content":{"parts":[{"text":"I can"}],"role":"model"},"index":0}],"modelVersion":"gemini-3.1-pro-preview","responseId":"rsp-safe1"}
+
+data: {"candidates":[{"content":{"parts":[],"role":"model"},"index":0,"finishReason":"SAFETY"}],"usageMetadata":{"promptTokenCount":30,"candidatesTokenCount":2,"totalTokenCount":32},"modelVersion":"gemini-3.1-pro-preview","responseId":"rsp-safe1"}
+

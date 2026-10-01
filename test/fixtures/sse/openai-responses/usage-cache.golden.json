@@ -1,0 +1,56 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 0,
+    "delta": "Cached answer."
+  },
+  {
+    "type": "text_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "done",
+    "reason": "stop",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Cached answer.",
+          "textSignature": "{\"v\":1,\"id\":\"msg_cache1\"}"
+        }
+      ],
+      "api": "openai-responses",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "usage": {
+        "input": 808,
+        "output": 4,
+        "cacheRead": 8192,
+        "cacheWrite": 0,
+        "totalTokens": 9004,
+        "reasoning": 0,
+        "cost": {
+          "input": 0.00404,
+          "output": 0.00012,
+          "cacheRead": 0.004096,
+          "cacheWrite": 0,
+          "total": 0.008256
+        }
+      },
+      "stopReason": "stop",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "providerThinkingLevel": "none",
+      "responseId": "resp_cache1",
+      "rawStopReason": "completed"
+    }
+  }
+]

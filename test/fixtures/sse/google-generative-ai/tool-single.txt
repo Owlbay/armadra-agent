@@ -1,0 +1,4 @@
+#status 200
+#header content-type: text/event-stream
+data: {"candidates":[{"content":{"parts":[{"functionCall":{"name":"read","args":{"path":"README.md"}},"thoughtSignature":"Q2lRQ0FkSE10b29sc2ln"}],"role":"model"},"index":0,"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":140,"candidatesTokenCount":18,"totalTokenCount":222,"thoughtsTokenCount":64},"modelVersion":"gemini-3.1-pro-preview","responseId":"rsp-tool1"}
+

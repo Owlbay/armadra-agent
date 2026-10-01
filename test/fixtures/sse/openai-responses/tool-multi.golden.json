@@ -1,0 +1,132 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 0,
+    "delta": "Checking both files."
+  },
+  {
+    "type": "text_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 1,
+    "id": "call_a",
+    "name": "read"
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 2,
+    "id": "call_b",
+    "name": "read"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "{\"path\":"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 2,
+    "delta": "{\"path\":\"b"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "\"a.ts\"}"
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 1,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "call_a",
+      "name": "read",
+      "arguments": {
+        "path": "a.ts"
+      },
+      "thoughtSignature": "fc_a"
+    }
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 2,
+    "delta": ".ts\"}"
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 2,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "call_b",
+      "name": "read",
+      "arguments": {
+        "path": "b.ts"
+      },
+      "thoughtSignature": "fc_b"
+    }
+  },
+  {
+    "type": "done",
+    "reason": "toolUse",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Checking both files.",
+          "textSignature": "{\"v\":1,\"id\":\"msg_multi1\",\"phase\":\"commentary\"}"
+        },
+        {
+          "type": "toolCall",
+          "id": "call_a",
+          "name": "read",
+          "arguments": {
+            "path": "a.ts"
+          },
+          "thoughtSignature": "fc_a"
+        },
+        {
+          "type": "toolCall",
+          "id": "call_b",
+          "name": "read",
+          "arguments": {
+            "path": "b.ts"
+          },
+          "thoughtSignature": "fc_b"
+        }
+      ],
+      "api": "openai-responses",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "usage": {
+        "input": 256,
+        "output": 48,
+        "cacheRead": 256,
+        "cacheWrite": 0,
+        "totalTokens": 560,
+        "reasoning": 0,
+        "cost": {
+          "input": 0.00128,
+          "output": 0.00144,
+          "cacheRead": 0.000128,
+          "cacheWrite": 0,
+          "total": 0.0028480000000000003
+        }
+      },
+      "stopReason": "toolUse",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "providerThinkingLevel": "none",
+      "responseId": "resp_multi1",
+      "rawStopReason": "completed"
+    }
+  }
+]

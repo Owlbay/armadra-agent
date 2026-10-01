@@ -1,0 +1,89 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "thinking_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "thinking_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 1,
+    "id": "call_enc1",
+    "name": "ls"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "{\"dir\":"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "\"src\"}"
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 1,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "call_enc1",
+      "name": "ls",
+      "arguments": {
+        "dir": "src"
+      },
+      "thoughtSignature": "fc_enc1"
+    }
+  },
+  {
+    "type": "done",
+    "reason": "toolUse",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking": "",
+          "thinkingSignature": "{\"id\":\"rs_enc1\",\"type\":\"reasoning\",\"summary\":[],\"encrypted_content\":\"gAAAAABpZW5jLW9ubHk=\"}"
+        },
+        {
+          "type": "toolCall",
+          "id": "call_enc1",
+          "name": "ls",
+          "arguments": {
+            "dir": "src"
+          },
+          "thoughtSignature": "fc_enc1"
+        }
+      ],
+      "api": "openai-responses",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "usage": {
+        "input": 400,
+        "output": 80,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 480,
+        "reasoning": 64,
+        "cost": {
+          "input": 0.002,
+          "output": 0.0024,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0.004399999999999999
+        }
+      },
+      "stopReason": "toolUse",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "providerThinkingLevel": "none",
+      "responseId": "resp_enc1",
+      "rawStopReason": "completed"
+    }
+  }
+]

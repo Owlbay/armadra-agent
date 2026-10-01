@@ -100,6 +100,26 @@ export function budgetedMaxTokens(
   return { maxTokens, budget: Math.max(0, Math.min(adjusted, maxTokens - 1)) };
 }
 
+/** 离散思考级别（Google Gemini 3 的 `thinkingLevel`）。 */
+export type DiscreteThinkingLevel = "minimal" | "low" | "medium" | "high";
+
+const DISCRETE_LEVELS: readonly string[] = ["minimal", "low", "medium", "high"];
+
+/**
+ * 用户面级别 → 离散级别：映射表给字串就用字串（大小写不敏感），否则用级别本身；`xhigh` 落到
+ * `high`。映射值不是四个离散级别之一（例如写成了数字预算）返回 undefined，调用方改走预算。
+ */
+export function discreteThinkingLevel(
+  model: ThinkingModel,
+  level: ThinkingLevel,
+): DiscreteThinkingLevel | undefined {
+  const mapped = model.thinkingLevelMap?.[level];
+  if (typeof mapped === "number") return undefined;
+  const value = typeof mapped === "string" ? mapped.toLowerCase() : level;
+  if (value === "xhigh") return "high";
+  return DISCRETE_LEVELS.includes(value) ? (value as DiscreteThinkingLevel) : undefined;
+}
+
 /** 解析请求级别：缺省 off；钳位到模型支持的级别。 */
 export function resolveThinkingLevel(
   model: ThinkingModel,

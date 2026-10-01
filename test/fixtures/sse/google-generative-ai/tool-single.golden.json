@@ -1,0 +1,71 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 0,
+    "id": "call_rsp-tool1_0",
+    "name": "read"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 0,
+    "delta": "{\"path\":\"README.md\"}"
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 0,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "call_rsp-tool1_0",
+      "name": "read",
+      "arguments": {
+        "path": "README.md"
+      },
+      "thoughtSignature": "Q2lRQ0FkSE10b29sc2ln"
+    }
+  },
+  {
+    "type": "done",
+    "reason": "toolUse",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "toolCall",
+          "id": "call_rsp-tool1_0",
+          "name": "read",
+          "arguments": {
+            "path": "README.md"
+          },
+          "thoughtSignature": "Q2lRQ0FkSE10b29sc2ln"
+        }
+      ],
+      "api": "google-generative-ai",
+      "provider": "google",
+      "model": "gemini-3.1-pro-preview",
+      "usage": {
+        "input": 140,
+        "output": 82,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 222,
+        "reasoning": 64,
+        "cost": {
+          "input": 0.00028,
+          "output": 0.000984,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0.001264
+        }
+      },
+      "stopReason": "toolUse",
+      "timestamp": 0,
+      "thinkingLevel": "low",
+      "providerThinkingLevel": "LOW",
+      "responseId": "rsp-tool1",
+      "rawStopReason": "STOP"
+    }
+  }
+]

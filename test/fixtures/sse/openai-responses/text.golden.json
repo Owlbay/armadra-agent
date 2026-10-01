@@ -1,0 +1,61 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 0,
+    "delta": "Hello, "
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 0,
+    "delta": "世界 👋"
+  },
+  {
+    "type": "text_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "done",
+    "reason": "stop",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Hello, 世界 👋",
+          "textSignature": "{\"v\":1,\"id\":\"msg_text1\"}"
+        }
+      ],
+      "api": "openai-responses",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "usage": {
+        "input": 30,
+        "output": 6,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 36,
+        "reasoning": 0,
+        "cost": {
+          "input": 0.00015,
+          "output": 0.00018,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0.00033
+        }
+      },
+      "stopReason": "stop",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "providerThinkingLevel": "none",
+      "responseId": "resp_text1",
+      "rawStopReason": "completed"
+    }
+  }
+]

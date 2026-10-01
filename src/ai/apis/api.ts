@@ -5,8 +5,8 @@
  * `AmaError{code:"no_api_key"}`），再在首次调用时 `import()` 真正的实现并转发事件。bundle 里
  * esbuild 把这些 `import()` 内联成同步 require，懒加载只在 ESM 产物里省启动时间。
  *
- * B8 接入 `google-generative-ai` / `openai-responses` 时在 `createDefaultApiRegistry()` 里各加
- * 一条 `register({ id, load })`。
+ * 内置四条协议（anthropic-messages、openai-completions、openai-responses、google-generative-ai）
+ * 与 fake；新增协议在 `createDefaultApiRegistry()` 里加一条 `register({ id, load, detectCompat })`。
  */
 
 import { AssistantEventStreamImpl } from "../event-stream.js";
@@ -21,7 +21,9 @@ import type {
   TranscriptContext,
 } from "../types.js";
 import { detectAnthropicCompat } from "./anthropic-request.js";
+import { detectGoogleCompat } from "./google-request.js";
 import { detectCompat as detectOpenAICompat } from "./openai-compat.js";
+import { detectResponsesCompat } from "./openai-responses-request.js";
 import { createOutput, requireApiKey } from "./shared.js";
 
 export interface ApiEntry {
@@ -94,7 +96,7 @@ export class ApiRegistry {
   }
 }
 
-/** 第一期内置协议 + fake。每次返回新实例（测试可自由覆盖）。 */
+/** 内置协议 + fake。每次返回新实例（测试可自由覆盖）。 */
 export function createDefaultApiRegistry(): ApiRegistry {
   const registry = new ApiRegistry();
   registry.register({
@@ -106,6 +108,16 @@ export function createDefaultApiRegistry(): ApiRegistry {
     id: "openai-completions",
     load: async () => (await import("./openai-completions.js")).openAICompletionsApi,
     detectCompat: (model, provider) => detectOpenAICompat(model, provider),
+  });
+  registry.register({
+    id: "openai-responses",
+    load: async () => (await import("./openai-responses.js")).openAIResponsesApi,
+    detectCompat: (model, provider) => detectResponsesCompat(model, provider),
+  });
+  registry.register({
+    id: "google-generative-ai",
+    load: async () => (await import("./google-generative-ai.js")).googleGenerativeAiApi,
+    detectCompat: (model, provider) => detectGoogleCompat(model, provider),
   });
   registry.register({
     id: "fake",

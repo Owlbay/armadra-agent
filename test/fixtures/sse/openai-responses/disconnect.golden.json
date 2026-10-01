@@ -1,0 +1,89 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 0,
+    "delta": "Here is a long"
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 1,
+    "id": "call_cut",
+    "name": "write"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "{\"path\":\"x.md\",\"content\":\"par"
+  },
+  {
+    "type": "text_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 1,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "call_cut",
+      "name": "write",
+      "arguments": {
+        "path": "x.md",
+        "content": "par"
+      },
+      "thoughtSignature": "fc_cut"
+    }
+  },
+  {
+    "type": "error",
+    "reason": "error",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Here is a long"
+        },
+        {
+          "type": "toolCall",
+          "id": "call_cut",
+          "name": "write",
+          "arguments": {
+            "path": "x.md",
+            "content": "par"
+          },
+          "thoughtSignature": "fc_cut"
+        }
+      ],
+      "api": "openai-responses",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 0,
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0
+        }
+      },
+      "stopReason": "error",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "providerThinkingLevel": "none",
+      "responseId": "resp_cut1",
+      "errorMessage": "Stream ended before completion"
+    }
+  }
+]
