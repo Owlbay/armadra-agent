@@ -184,19 +184,18 @@ export function createGrepTool(): ToolDefinition<GrepInput> {
     name: "grep",
     label: "Grep",
     description:
-      "Search file contents with a JavaScript regular expression (or literal text). Respects " +
-      ".gitignore and .ignore, skips binary files and files over 2 MB. Output lines look like " +
-      "`path:line: text`.",
+      "Search file contents by JS regex. Respects .gitignore/.ignore; skips binary and >2 MB " +
+      "files. Output: `path:line: text`.",
     parameters: {
       type: "object",
       properties: {
-        pattern: { type: "string", description: "Regular expression (or text when literal)" },
-        path: { type: "string", description: "File or directory to search (default: cwd)" },
-        glob: { type: "string", description: "Only search files matching this glob, e.g. *.ts" },
-        ignoreCase: { type: "boolean", description: "Case-insensitive search" },
-        literal: { type: "boolean", description: "Treat pattern as literal text" },
-        context: { type: "integer", description: "Context lines around each match (0-5)" },
-        limit: { type: "integer", description: `Maximum matches (default ${DEFAULT_GREP_LIMIT})` },
+        pattern: { type: "string" },
+        path: { type: "string", description: "File or dir (default: cwd)" },
+        glob: { type: "string", description: "File filter, e.g. *.ts" },
+        ignoreCase: { type: "boolean" },
+        literal: { type: "boolean" },
+        context: { type: "integer", description: "0-5 lines" },
+        limit: { type: "integer", description: `Default ${DEFAULT_GREP_LIMIT}` },
       },
       required: ["pattern"],
       additionalProperties: false,
@@ -204,7 +203,7 @@ export function createGrepTool(): ToolDefinition<GrepInput> {
     permission: "read",
     executionMode: "parallel",
     annotations: { readOnly: true },
-    promptSnippet: "grep: search file contents by regex",
+    promptSnippet: "grep: search file contents",
     execute: executeGrep,
   };
 }
