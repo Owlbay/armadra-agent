@@ -77,7 +77,11 @@ function normalize(line: Line, root: string): string {
     if (typeof value !== "string") return value;
     if (UUID.test(value)) return "<uuid>";
     if (/^[0-9a-f]{8}$/.test(value)) return "<id>";
-    return value.split(root).join("<root>");
+    // Windows 上临时目录之后的路径分隔符是 \，统一成 / 才能与黄金记录比对。
+    return value
+      .split(root)
+      .join("<root>")
+      .replace(/<root>[^\s"]*/g, (path) => path.replace(/\\/g, "/"));
   });
 }
 
