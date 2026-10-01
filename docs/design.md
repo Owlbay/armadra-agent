@@ -25,7 +25,10 @@
 | D15 | 分发：仓库 `pnpm build` 产出 npm 包形状（ESM + d.ts）与 `dist/bundle/ama.cjs`；GitHub Release 附 `ama.cjs` + `SHA256SUMS`；**不执行 `npm publish`**；Armadra 以 Git 依赖或 Release 产物拉取                            | 先不占作用域、不背发布节奏；包形状保持可发布，决定发布时只需加一条 CI 步骤                                                                                             | 修订 |
 | D16 | 测试不依赖真 key：脚本化 `fake` 供应商 + 录制的 SSE 样本黄金文件；TUI 用 `MemoryTerminal` 断言帧内容                                                                                                                 | CI 三平台可跑；供应商差异收敛在样本里                                                                                                                                 | 新 |
 | D17 | 单文件 ≤ 600 行（源码），超出即拆；每个批次有明确文件所有权，跨批次只改自己拥有的文件，契约文件由 B0 所有                                                                                                             | 并行代理不互相覆盖；评审粒度可控                                                                                                                                      | 新 |
-| D18 | 加入 **codemode**（§5.5）：一个 `codemode` 工具让模型写一段 JS 脚本编排多次工具调用，只有脚本输出回到模型；脚本跑在 `node --permission` 子进程的 `vm` 上下文里，零依赖；`codemode.mode: off \| on \| only`，缺省 `on` | 长流程任务的主要成本是「每次工具结果都带着整段历史回到模型」；把多步调用合进一次往返，实测可把累计 token 降到四分之一 | 新 |
+| D18 | 加入 **codemode**（§5.5）：一个 `codemode` 工具让模型写一段 JS 脚本编排多次工具调用，只有脚本输出回到模型；脚本跑在 `node --permission` 子进程的 `vm` 上下文里，零依赖；`codemode.mode: off \| on \| only`，缺省 `off`（由工具预设 `codemode` 打开，§5.6） | 长流程任务的主要成本是「每次工具结果都带着整段历史回到模型」；把多步调用合进一次往返，实测可把累计 token 降到四分之一 | 新 |
+| D19 | **工具预设**（§5.6）：默认 `default` 预设只给模型 6 个工具（read / edit / write / bash / grep / glob），`ls`、`todo`、`task`、`codemode` 默认关；删除 `skill` 工具（`read` 即可读 SKILL.md）；预设 `minimal` / `codemode` / `coordinator` 按场景切换 | 成本主要来自往返次数而非工具定义大小（10 个工具约 1650 token、在缓存前缀里）；ama 默认要审批 bash，保留只读的 grep / glob 才能让搜索免审批、跨平台 | 新 |
+| D20 | **精简配置**：零配置可用——检测到任一供应商的标准环境变量即选其缺省模型直接运行；用户只需一个 `config.json`，常用键不超过 5 个（`defaultModel`、`tools.preset`、`permission.mode`、`providers`、`thinkingLevel`）；其余全部有缺省 | 配置越少，出错与文档成本越低；与 Pi「开箱即用」的思路一致 | 新 |
+| D21 | **缓存保证**（§9.1）：系统提示与工具表构成字节稳定的前缀，跨回合不变；预设在会话开始时固定；工具表变化只以补丁追加；测试断言前缀逐字节稳定；状态栏显示缓存命中率 | 长任务的主要用量是缓存读取，前缀一旦抖动，缓存全部失效，成本成倍上升 | 新 |
 
 ## §1 架构与目录树
 
@@ -175,7 +178,7 @@ src/
     ignore.ts               .gitignore / .ignore 解析与匹配（含嵌套、否定、目录规则）                                    280 [B3]
     ls.ts                   目录列表（类型、大小、limit）                                                                120 [B3]
     todo.ts                 会话内任务清单（`custom` 条目持久化，不进上下文；渲染给 TUI）                                160 [B3]
-    skill.ts                `skill` 工具：按名读取 SKILL.md 正文（渐进披露的模型侧入口）                                  120 [B3]
+    skill.ts                （已删除，§5.6：Skill 正文用 read 读取）                                  120 [B3]
     task.ts                 子 Agent：独立 AgentSession、工具子集、深度 / 并发限制、结果摘要、独立 JSONL                 320 [B3]
   skills/
     discover.ts             目录扫描、SKILL.md 定位、重名策略、信任过滤                                                  200 [B3]
@@ -482,7 +485,7 @@ export interface ToolResult {
 | `glob`  | `pattern, path?, limit?(1000)`                                                | read / parallel      | 内置 glob：`**`、`{a,b}`、`[...]`、`!`；按 mtime 倒序；尊重 ignore                                                                                                                                                                                                                                                                      |
 | `ls`    | `path?, limit?(500)`                                                          | read / parallel      | 目录项 `name/`、大小、符号链接标注                                                                                                                                                                                                                                                                                                      |
 | `todo`  | `action: "set" \| "get", items?: [{id, text, status: pending\|in_progress\|done}]` | read / parallel  | 写 `custom{customType:"ama.todo"}` 条目（不进上下文，TUI 渲染清单）；`get` 返回当前列表                                                                                                                                                                                                                                                 |
-| `skill` | `name`                                                                        | read / parallel      | 返回 SKILL.md 全文（`<skill name location>` 包裹）；不存在 → 列出可用名；`disable-model-invocation: true` 的技能拒绝模型调用                                                                                                                                                                                                             |
+| `skill` | —（已删除，§5.6） | — | Skill 正文改用 `read` 读取；`/skill:` 命令仍可把正文展开为本轮提示 |
 | `task`  | `prompt, description?, tools?: string[], model?, thinkingLevel?, maxTurns?(30)` | execute / sequential | 同进程新 `AgentSession`：独立 JSONL（`parentSession` 指回父文件、`custom{ama.task}` 记父 toolCallId）；深度 ≤ 1（子 Agent 无 `task`）、并发 ≤ 4；工具子集缺省为父的活动集去掉 `task`；继承父的权限模式与 broker（审批串行化到父）；父 abort 级联；结果 = 子的最后助手文本 + `details{sessionFile, usage}`；宿主可 `disable("task")` |
 
 通用安全：所有路径工具拒绝含 NUL 的路径；`paths.ts` 不做沙箱（与 Pi 相同声明：信任边界是容器 / VM），但 `permission.deny` 规则 `write(**/.git/**)`、`read(**/.ssh/**)` 等由内置缺省 deny 表给出，用户可移除。Windows：路径统一 `path`；`bash` 在 PowerShell 回退时把 `exit_code` 从 `$LASTEXITCODE` 取；`process-tree.ts` 用 `taskkill`；`grep/glob` 大小写不敏感文件系统提示。
@@ -532,13 +535,32 @@ ama 不知道画布；Armadra 适配器经 `HostApi.tools.register` 注册 `canv
 | ------ | ------------------------------------------------------------------------------------ | ---------------------------------------- |
 | `off`  | 不注册 `codemode`                                                                    | 短任务、需要最大透明度                   |
 | `on`   | 全部工具 + `codemode`；其它工具描述末尾加一行「也可在 codemode 脚本里调用」           | 缺省                                     |
-| `only` | 只有 `codemode`（与 `skill`）；其它工具只能在脚本里调用，声明列在 `codemode` 描述里 | 长流程、工具密集任务；嵌入 Armadra 的协调者可选 |
+| `only` | 只有 `codemode`；其它工具只能在脚本里调用，声明列在 `codemode` 描述里 | 长流程、工具密集任务；嵌入 Armadra 的协调者可选 |
 
 `codemode` 描述里的工具声明由 JSON Schema 生成 TypeScript 声明，总预算 `config.codemode.inlineBudget`（缺省 3 000 估算 token），超出部分只列名字，脚本用 `describeTool()` 取。
 
 **Hook 与事件**：`codemode` 本身作为一次工具调用经过 PreToolUse / 权限（权限类 `execute`）；脚本里的每次 `tools.*` 再各自经过完整流程，Hook 输入带 `viaCodemode: true` 与父 `toolCallId`。事件：`tool_execution_update` 透传脚本输出；内层调用发 `tool_execution_start/end`，带 `parentToolCallId`，TUI 把它们折叠在 codemode 调用下面。
 
 **嵌入 Armadra**：画布工具同样可在脚本里调用，协调者可以一段脚本里并行起多个成员、读取各自摘要后汇总，减少协调轮次。profile 可设 `codemode.mode`。
+
+### §5.6 工具预设：直接暴露的工具要少，脚本里可以全给
+
+**判断依据**：工具定义本身的成本很小（实测 10 个内置工具约 1 650 token，处在缓存前缀里）；真正的成本是**往返次数**——每多一次工具调用，整段历史就多读一次。所以取舍看四点：会不会诱导模型拆成很多小调用、单独成工具能否让权限细分（只读免审批、写入按路径）、跨平台可用性、使用场景。
+
+**与 Pi 的差异**：Pi 默认只开 read / bash / edit / write，因为它默认不审批；ama 的 `default` 权限模式对 `bash` 每次都问，若去掉 grep / glob，最常见的「搜代码」会每次弹审批（`-p` 下直接被拒）。用「识别只读 bash 命令」来绕开不可靠（`find -exec`、`rg --pre`、管道与命令替换都可能有副作用），所以保留只读的 grep / glob，用约 380 token 的缓存前缀换免审批且跨平台的搜索。
+
+| 预设          | 模型直接看到                                         | 脚本内可调用（codemode）              | 用途                                         |
+| ------------- | ---------------------------------------------------- | ------------------------------------- | -------------------------------------------- |
+| `default`     | read、edit、write、bash、grep、glob                  | —                                     | 独立编码，缺省                               |
+| `minimal`     | read、edit、write、bash                              | —                                     | 与 Pi 一致；适合 `full-auto`                 |
+| `codemode`    | codemode                                             | 全部内置工具（含 ls、todo、task）      | 长流程、工具密集任务                         |
+| `coordinator` | read、宿主注册的 canvas_* / context_*（codemode 可选） | canvas_* 等                           | 嵌入 Armadra 的协调者：不写文件、不跑 bash   |
+
+- 逐个工具：`ls` 默认关（glob 已覆盖，且诱导逐层翻目录）；`todo` 默认关（每次更新多一次往返；长任务在脚本里用）；`task` 默认关（`+task` 打开；嵌入 Armadra 时禁用）；**删除 `skill` 工具**（Skill 正文用 `read` 读，`/skill:` 命令保留）；Windows 上若没有 bash，`default` 预设自动退化为 PowerShell 版 bash，grep / glob 照常可用。
+- 配置：`tools.preset`（缺省 `default`）+ `tools.default` 的 `+name` / `-name` 微调；命令行 `--tools-preset <名>`、`--tools a,b,c`（整组替换）。
+- 预设在会话开始时确定并写进首条 system 消息；会话中途改预设按工具表补丁处理（§9.1）。
+- 描述精简：每个工具的描述 + 参数控制在 150 token 内（现 task 250、grep 230 需压缩）。
+- 最终缺省值以实测为准：B9 的基准任务比较 `default` / `minimal` / `codemode` 三种预设的往返次数、累计输入 + 缓存读取、费用与成功率，结果写进本节。
 
 ## §6 两层 Hook
 
@@ -718,6 +740,20 @@ tool_call（模型产出）
 | 模板     | `## Goal / ## Constraints & Preferences / ## Progress (Done · In Progress · Blocked) / ## Key Decisions / ## Next Steps / ## Critical Context` + `<read-files>` / `<modified-files>` 累计；工具结果截 2 000 字符；`cacheRetention: none`；maxTokens 4 096 |
 | 缓存     | 系统提示节顺序固定、无时间戳；工具表变化作为 `system` 补丁落盘但请求重装；档一只在阈值触发                                                                                                                                         |
 
+### §9.1 缓存保证
+
+长任务的主要用量是缓存读取；前缀一旦变化，此后每次请求都要按全价重读。以下是硬性要求，B6 组装与 B9 集成负责落实并测试：
+
+| 要求 | 做法 | 测试 |
+| --- | --- | --- |
+| 前缀字节稳定 | 系统提示节顺序固定（preamble → tools → rules → project_context → skills → cwd → host），不含时间、随机数、绝对时间戳；工具按名排序；JSON Schema 序列化键序固定 | 同一会话连续 20 个回合，发给供应商的 system + tools 部分逐字节相同 |
+| 预设与工具表固定 | 会话开始时确定预设；宿主在 `create()` 阶段注册完工具再发首个请求；之后的变化只以 system 补丁追加在末尾 | 宿主中途注册工具后，前缀前段不变、只在末尾追加 |
+| Anthropic 显式断点 | system 块末、最后一个工具定义、最后一条 user 消息三处 `cache_control` | 请求体快照 |
+| OpenAI 系前缀缓存 | `prompt_cache_key = sessionId`（官方端点）；其它兼容端点依赖前缀不变 | 请求体快照 |
+| 摘要请求不写缓存 | 档二摘要 `cacheRetention: "none"` | 请求体快照 |
+| 压缩少而一次到位 | 档一只在 70% 阈值触发；档二一次压到 keepRecentTokens | 压缩次数断言 |
+| 可观测 | 状态栏与 `get_session_stats` 显示缓存命中率 = cacheRead /（input + cacheRead + cacheWrite） | 统计单测 |
+
 ## §10 配置、密钥、profile
 
 ### §10.1 文件与位置
@@ -732,6 +768,12 @@ tool_call（模型产出）
 | `skills/`、`prompts/` | 是                                                      | 是（需信任）            | `skillDirs`、`promptDirs`   |
 | `AGENTS.md`     | 是（全局约定）                                                | 向上查找各祖先          | `instructions[]`            |
 | 会话            | `~/.local/share/ama/sessions/`（`AMA_DATA_DIR`、`--session-dir`） | —                   | `sessionDir`                |
+
+### §10.0 精简配置
+
+- **零配置可用**：没有任何配置文件时，按 §3.3 顺序找第一个设置了标准环境变量（如 `ANTHROPIC_API_KEY`、`DEEPSEEK_API_KEY`）的供应商，用它的缺省模型直接运行；本地 Ollama / LM Studio 可达时也算。找不到则交互模式弹出供应商选择并提示 `ama auth set <provider>`。
+- **一个文件、五个常用键**：`defaultModel`、`tools.preset`、`permission.mode`、`thinkingLevel`、`providers`（只在自定义供应商或覆盖时需要）；其余全部有缺省，`ama config show` 打印生效值与来源。
+- **一个模型引用格式**：`provider/model-id`，到处一致（配置、命令行、`/model`、SDK）。
 
 ### §10.2 `config.json`
 
@@ -982,7 +1024,7 @@ B0 契约与骨架（1 人，先行 1–2 天）
 | B7   | 交互模式：装配、消息区、工具视图、状态栏、审批对话框、斜杠命令、补全、选择器                                                                                                                                           | `src/modes/interactive/**`（除 line/）                                        | B2–B5     | 用 MemoryTerminal + fake 供应商的集成帧测试：一次完整 run 的帧序列黄金；审批对话框 y/n/a；Esc 回填队列；真终端与 tmux 手测：读改一个文件、Esc 中断后继续、`/model` 切换、`/tree` 分叉                                                                            |
 | B8   | `google-generative-ai`、`openai-responses` 协议与各自 compat、目录条目切换、SSE 样本                                                                                                                                 | `src/ai/apis/{google-generative-ai,openai-responses}.ts`、对应 fixtures、catalog 中 `api` 字段 | B1        | 两协议各 ≥ 8 样本黄金；fake 之外对真实端点手测一次工具调用往返                                                                                                                                                                                            |
 | B10  | codemode（§5.5）：`codemode` 工具、沙箱子进程与 JSON 行协议、`vm` 上下文与全局函数、JSON Schema → TS 声明、store 条目、三种模式、`viaCodemode` 的 Hook 输入与嵌套事件 | `src/codemode/**`（`tool.ts`、`host-side.ts`、`sandbox-entry.ts`、`protocol.ts`、`declarations.ts`、`store.ts`、`modes.ts`）；bundle 增加第二个入口 `dist/bundle/ama-sandbox.cjs` | B2、B3、B5 | 脚本并行调用三个工具、只回输出；`--permission` 子进程读文件 / 起进程被拒（Node ≥ 25 联网被拒）；内层调用被拒绝规则拦下时脚本收到 Error；超时杀子进程；store 只在成功时提交；`only` 模式下模型只见 `codemode` |
-| B9   | 集成：bundle 冒烟三平台、Windows 收尾（PowerShell 回退、taskkill、路径）、Release 流水线、`docs/{rpc,session-format,host-api,hooks,providers,tui}.md`、README、Armadra 文档 B 场景 11 配合                                | 跨批次修复走原所有者；B9 拥有 `docs/**`、`README.md`、CI release job          | 全部      | `pnpm ci` 三平台绿；`node ama.cjs` 在 `ELECTRON_RUN_AS_NODE=1` 下启动；Armadra 场景 11 1–4 步通过；Release 附件 SHA 校验                                                                                                                                      |
+| B9   | 集成：bundle 冒烟三平台、Windows 收尾（PowerShell 回退、taskkill、路径）、Release 流水线、§5.6 预设基准、§9.1 缓存稳定性测试、`docs/{rpc,session-format,host-api,hooks,providers,tui}.md`、README、Armadra 文档 B 场景 11 配合                                | 跨批次修复走原所有者；B9 拥有 `docs/**`、`README.md`、CI release job          | 全部      | `pnpm ci` 三平台绿；`node ama.cjs` 在 `ELECTRON_RUN_AS_NODE=1` 下启动；Armadra 场景 11 1–4 步通过；Release 附件 SHA 校验                                                                                                                                      |
 
 ### §16.3 并行约束
 
