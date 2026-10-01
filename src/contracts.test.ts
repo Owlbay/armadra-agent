@@ -337,4 +337,13 @@ describe("循环、SDK、RPC、Runtime 契约", () => {
     expectTypeOf<Runtime["host"]>().toMatchTypeOf<object | undefined>();
     expect(ExitCode.HostVersion).toBe(78);
   });
+
+  it("Runtime.approvals / notifier 晚绑定（契约 A4）", () => {
+    expectTypeOf<Parameters<Runtime["approvals"]["setUiBroker"]>>().toEqualTypeOf<
+      [broker: ApprovalBroker | undefined]
+    >();
+    expectTypeOf<Parameters<Runtime["notifier"]["set"]>>().toEqualTypeOf<
+      [fn?: (message: string, level: "info" | "warn" | "error") => void]
+    >();
+  });
 });

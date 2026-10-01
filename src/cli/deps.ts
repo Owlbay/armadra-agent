@@ -90,6 +90,8 @@ export interface SessionAssembly {
     /** 系统提示 host 节。 */
     instructions: readonly InstructionSource[];
   };
+  /** `Runtime.approvals.setUiBroker` 设置的 UI broker（链尾）；每次审批现取，未设置为 undefined。 */
+  uiBroker(): ApprovalBroker | undefined;
   /** SessionStart Hook 的 additionalContext（系统提示 hooks 节）；首次装配系统提示时读取。 */
   sessionStartContext(): string | undefined;
   /** print：ask → deny。 */

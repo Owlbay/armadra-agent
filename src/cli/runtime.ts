@@ -10,7 +10,12 @@ import type { Model, ModelThinkingLevel, ProviderRegistryApi } from "../ai/types
 import type { AgentSession } from "../agent/types.js";
 import type { AmaConfig } from "../config/types.js";
 import type { HookDispatcherApi } from "../hooks/types.js";
-import type { HostAdapterHandle, HostMode, InstructionSource } from "../host/types.js";
+import type {
+  ApprovalBroker,
+  HostAdapterHandle,
+  HostMode,
+  InstructionSource,
+} from "../host/types.js";
 import type { PermissionPipelineApi } from "../permissions/types.js";
 import type { SessionManagerApi } from "../session/types.js";
 import type { ToolRegistryApi } from "../tools/types.js";
@@ -46,6 +51,23 @@ export interface LoadedResources {
   instructions: readonly InstructionSource[];
 }
 
+/** UI 通知：交互模式显示在 TUI，rpc 模式转成事件。 */
+export type UiNotify = (message: string, level: "info" | "warn" | "error") => void;
+
+/** 模式层晚绑定的审批 UI（B6 / B7 在界面就绪后设置）。 */
+export interface RuntimeApprovals {
+  /**
+   * 设置 UI broker：排在宿主 broker 之后，宿主不作答（返回 undefined）时由它询问用户；
+   * undefined = 撤下（回到无人值守处理）。组装出的会话每次审批现取，设置立即生效。
+   */
+  setUiBroker(broker: ApprovalBroker | undefined): void;
+}
+
+/** 模式层晚绑定的通知出口：宿主 `ui.notify` 转到这里；undefined 恢复为写 stderr。 */
+export interface RuntimeNotifier {
+  set(fn?: UiNotify): void;
+}
+
 export interface Runtime {
   readonly mode: RuntimeMode;
   readonly paths: ResolvedPaths;
@@ -63,6 +85,8 @@ export interface Runtime {
   readonly host: HostAdapterHandle | undefined;
   readonly permission: PermissionPipelineApi;
   readonly tools: ToolRegistryApi;
+  readonly approvals: RuntimeApprovals;
+  readonly notifier: RuntimeNotifier;
   /** 启动期收集的 warning（被忽略的放宽项、文件读错等）。 */
   readonly warnings: readonly string[];
   /** 发 session_shutdown、SessionEnd Hook、适配器 dispose；幂等。 */

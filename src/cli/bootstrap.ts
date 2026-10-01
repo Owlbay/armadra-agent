@@ -21,7 +21,7 @@ import { loadHookConfigs } from "../hooks/config.js";
 import { HookDispatcher } from "../hooks/dispatcher.js";
 import { AgentEventBus, createHostApi } from "../host/api-impl.js";
 import { activateHost, disposeHost } from "../host/loader.js";
-import type { HostAdapterHandle } from "../host/types.js";
+import type { ApprovalBroker, HostAdapterHandle } from "../host/types.js";
 import { HELP_TEXT, parseArgs, UsageError, type ParsedArgs } from "./args.js";
 import type { CliIo, RuntimeDeps, SessionAssembly } from "./deps.js";
 import { ExitCode } from "./exit-codes.js";
@@ -229,6 +229,7 @@ export async function bootstrap(
     },
     stderr: io.stderr,
   });
+  let uiBroker: ApprovalBroker | undefined;
   const hostSpec = args.host;
   let host: HostAdapterHandle | undefined;
   if (hostSpec !== undefined) {
@@ -289,6 +290,7 @@ export async function bootstrap(
       tools,
       events,
       host: { handle: host, broker: binding.broker, instructions: binding.instructions },
+      uiBroker: () => uiBroker,
       sessionStartContext: () => sessionStartContext,
       unattended,
       warn,
@@ -336,6 +338,12 @@ export async function bootstrap(
       host,
       permission,
       tools,
+      approvals: {
+        setUiBroker: (broker) => {
+          uiBroker = broker;
+        },
+      },
+      notifier: { set: (fn) => binding.setNotify(fn) },
       warnings,
       dispose: (reason = "exit") => finalShutdown(reason),
     };
