@@ -4,11 +4,13 @@
  * - 同进程新会话：独立 JSONL（头的 parentSession 指回父文件；父为内存会话则子也在内存），首条
  *   `custom{customType:"ama.task"}` 记父 toolCallId。
  * - 深度 ≤ 1（子会话 depth 1、无 spawnSubagent）；并发 ≤ 4（排队等待）。
- * - 工具子集缺省 = 父的活动集，总是去掉 task；继承父的权限管线、broker、Hook 与系统提示静态部分。
+ * - 工具子集缺省 = 父的活动集，总是去掉 task；继承父的权限管线、Hook 与系统提示静态部分；
+ *   broker 包一层，请求带 `context{depth, parentToolCallId}`，审批事件转发到父会话。
  * - 父 abort 级联；结果 = 子的最后助手文本 + 用量 + 子会话文件。
  */
 
 import { AmaError } from "../errors.js";
+import type { ApprovalBroker, ApprovalRequestContext } from "../permissions/types.js";
 import { SessionManager } from "../session/manager.js";
 import type { SubagentRequest, SubagentResult } from "../tools/types.js";
 import { ZERO_USAGE } from "./loop.js";
@@ -46,6 +48,18 @@ export interface SubagentParent {
   readonly cwd: string;
   readonly depth: number;
   childBase(): Pick<AgentSessionOptions, "model" | "thinkingLevel" | "activeTools" | "system">;
+  /** 子会话的审批事件转发给父会话的订阅者（RPC 客户端 / TUI 据此作答）。 */
+  emit?(event: SessionEvent): void;
+}
+
+/** 子会话的 broker：请求带上发起方上下文（对话框标 `[task]`），其余原样交给父链。 */
+function brokersForChild(
+  brokers: AgentSessionOptions["brokers"],
+  context: ApprovalRequestContext,
+): ApprovalBroker[] {
+  return (brokers ?? []).map((broker) => ({
+    ask: (request, signal) => broker.ask({ ...request, context }, signal),
+  }));
 }
 
 export interface ChildSession {
@@ -105,6 +119,10 @@ export async function runSubagent(
       model,
       thinkingLevel: request.thinkingLevel ?? base.thinkingLevel ?? "off",
       activeTools: names,
+      brokers: brokersForChild(parent.options.brokers, {
+        depth: parent.depth + 1,
+        parentToolCallId: request.parentToolCallId,
+      }),
       depth: parent.depth + 1,
       maxTurns: request.maxTurns ?? DEFAULT_SUBAGENT_MAX_TURNS,
       subagents: false,
@@ -113,6 +131,8 @@ export async function runSubagent(
     request.signal.addEventListener("abort", onAbort, { once: true });
     const unsubscribe = child.subscribe((event) => {
       if (event.type === "tool_execution_start") request.onUpdate?.(`[task] ${event.toolName}`);
+      else if (event.type === "permission_request" || event.type === "permission_resolved")
+        parent.emit?.(event);
     });
     let error: string | undefined;
     try {

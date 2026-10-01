@@ -4,7 +4,8 @@
  * - `persistMessage`：Agent 的 message_end → 会话条目（LLM 消息 → `message`；custom → `custom_message`）。
  * - `recordModelState`：路径上最近的 model_change / thinking_level_change 与当前不同则补记。
  * - `syncSystemMessage`：目标系统提示 + 工具表与转录重放的状态比对，落全量（首条）或补丁。
- * - `runHookWithEvents`：调 HookDispatcher，逐条发 hook_executed；Hook 自身出错记 warning、按无决策处理。
+ * - `runHookWithEvents`：调 HookDispatcher（公共字段按本会话的 depth / sessionId / sessionFile 覆盖），
+ *   逐条发 hook_executed；Hook 自身出错记 warning、按无决策处理。
  */
 
 import type { Model, ModelThinkingLevel } from "../ai/types.js";
@@ -72,7 +73,7 @@ export function syncSystemMessage(
 }
 
 export async function runHookWithEvents(
-  core: Pick<SessionCore, "options" | "emit" | "log">,
+  core: Pick<SessionCore, "options" | "emit" | "log" | "depth" | "manager">,
   event: HookEvent,
   payload: HookEventPayload,
   signal?: AbortSignal,
@@ -80,7 +81,12 @@ export async function runHookWithEvents(
   const hooks = core.options.hooks;
   if (hooks === undefined || !hooks.has(event, payload.toolName)) return undefined;
   try {
-    const outcome = await hooks.run(event, payload, signal);
+    // 公共字段按本会话覆盖：子 Agent 的 depth / sessionId / sessionFile 不再沿用主会话的。
+    const outcome = await hooks.run(event, payload, signal, {
+      depth: core.depth,
+      sessionId: core.manager.id,
+      sessionFile: core.manager.file(),
+    });
     for (const result of outcome.results) {
       core.emit({
         type: "hook_executed",
