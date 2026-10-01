@@ -1,0 +1,142 @@
+import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
+import { BUILTIN_PROVIDERS } from "./builtin.js";
+import {
+  applyModelOverride,
+  checkCatalogModel,
+  loadBuiltinCatalog,
+  parseCatalogFile,
+  toModel,
+} from "./catalog.js";
+import { CATALOG_SOURCES } from "./catalog-data.js";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const catalogDir = join(here, "catalog");
+
+function jsonFiles(): Map<string, unknown> {
+  const out = new Map<string, unknown>();
+  for (const file of readdirSync(catalogDir)
+    .filter((f) => f.endsWith(".json"))
+    .sort()) {
+    out.set(file.replace(/\.json$/, ""), JSON.parse(readFileSync(join(catalogDir, file), "utf8")));
+  }
+  return out;
+}
+
+/** catalog-data.ts 的生成器（UPDATE_CATALOG=1 时写回；之后跑 prettier）。 */
+function generate(files: Map<string, unknown>): string {
+  const lines = [
+    "/**",
+    " * 由 catalog/*.json 生成，勿手改。重新生成：",
+    " * UPDATE_CATALOG=1 pnpm vitest run src/ai/providers/catalog.test.ts",
+    " */",
+    "",
+    "export const CATALOG_SOURCES: Readonly<Record<string, string>> = {",
+  ];
+  for (const [id, value] of files) {
+    const key = /^[a-z_]+$/.test(id) ? id : JSON.stringify(id);
+    lines.push(`  ${key}:`, `    ${JSON.stringify(JSON.stringify(value))},`);
+  }
+  lines.push("};", "");
+  return lines.join("\n");
+}
+
+describe("模型目录", () => {
+  it("catalog-data.ts 与 catalog/*.json 一致", () => {
+    const files = jsonFiles();
+    if (process.env["UPDATE_CATALOG"] === "1") {
+      writeFileSync(join(here, "catalog-data.ts"), generate(files));
+      return;
+    }
+    expect(Object.keys(CATALOG_SOURCES).sort()).toEqual([...files.keys()]);
+    for (const [id, value] of files)
+      expect(JSON.parse(CATALOG_SOURCES[id] ?? "null"), id).toEqual(value);
+  });
+
+  it("每家一份，文件名即供应商 id；有目录的每家 2–15 条", () => {
+    const catalog = loadBuiltinCatalog();
+    expect([...catalog.keys()].sort()).toEqual(BUILTIN_PROVIDERS.map((p) => p.id).sort());
+    for (const [id, models] of catalog) {
+      if (id === "ollama" || id === "lmstudio") expect(models).toEqual([]);
+      else {
+        expect(models.length, id).toBeGreaterThanOrEqual(2);
+        expect(models.length, id).toBeLessThanOrEqual(15);
+      }
+    }
+  });
+
+  it("数据合理：窗口 ≥ maxTokens（如有）、价格非负、阶梯阈值递增、思考映射只用已知级别", () => {
+    for (const [provider, models] of loadBuiltinCatalog()) {
+      for (const model of models) {
+        expect(checkCatalogModel(model, `${provider}/${model.id}`)).toEqual([]);
+        if (model.contextWindow !== undefined) {
+          expect(model.contextWindow, `${provider}/${model.id}`).toBeGreaterThanOrEqual(1000);
+        }
+        if (!model.reasoning) expect(model.thinkingLevelMap).toBeUndefined();
+      }
+    }
+  });
+
+  it("校验报出具体字段", () => {
+    expect(() =>
+      parseCatalogFile({ version: 1, provider: "x", models: [{ id: "a" }] }, "t"),
+    ).toThrowError(/\$\.models\[0\]\.name.*\$\.models\[0\]\.reasoning.*\$\.models\[0\]\.maxTokens/);
+    expect(() =>
+      parseCatalogFile(
+        {
+          version: 1,
+          provider: "x",
+          models: [
+            {
+              id: "a",
+              name: "a",
+              reasoning: false,
+              maxTokens: 1,
+              thinkingLevelMap: { max: "max" },
+            },
+          ],
+        },
+        "t",
+      ),
+    ).toThrowError(/thinkingLevelMap\.max/);
+    expect(() =>
+      parseCatalogFile(
+        {
+          version: 1,
+          provider: "x",
+          models: [
+            { id: "a", name: "a", reasoning: false, maxTokens: 1 },
+            { id: "a", name: "a", reasoning: false, maxTokens: 1 },
+          ],
+        },
+        "t",
+      ),
+    ).toThrowError(/duplicated/);
+  });
+
+  it("toModel 补 provider / api / input；override 只改元数据并深合并 compat / cost", () => {
+    const model = toModel(
+      { id: "m", name: "M", reasoning: true, maxTokens: 10 } as never,
+      "p",
+      "openai-completions",
+    );
+    expect(model).toMatchObject({ provider: "p", api: "openai-completions", input: ["text"] });
+    const withCost = {
+      ...model,
+      cost: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0 },
+      compat: { supportsStore: true },
+    };
+    const next = applyModelOverride(withCost, {
+      id: "m",
+      contextWindow: 5,
+      cost: { input: 9 } as never,
+      compat: { maxTokensField: "max_tokens" },
+    });
+    expect(next.contextWindow).toBe(5);
+    expect(next.cost).toEqual({ input: 9, output: 2, cacheRead: 0, cacheWrite: 0 });
+    expect(next.compat).toEqual({ supportsStore: true, maxTokensField: "max_tokens" });
+    expect(next.id).toBe("m");
+  });
+});
