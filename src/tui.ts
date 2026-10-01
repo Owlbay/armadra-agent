@@ -8,3 +8,126 @@
 
 export { CURSOR_MARKER, isFocusable } from "./tui/component.js";
 export type * from "./tui/component.js";
+
+// ---- B4 组件库再导出 ----
+export {
+  TUI,
+  SYNC_BEGIN,
+  SYNC_END,
+  WRITE_CHUNK_SIZE,
+  MIN_RENDER_INTERVAL_MS,
+  type TuiOptions,
+  type OverlayHandle,
+  type InputListener,
+  type RenderStats,
+} from "./tui/tui.js";
+export {
+  ProcessTerminal,
+  MemoryTerminal,
+  BRACKETED_PASTE_ON,
+  BRACKETED_PASTE_OFF,
+  SHOW_CURSOR,
+  HIDE_CURSOR,
+  type Terminal,
+  type ProcessTerminalOptions,
+  type MemoryTerminalOptions,
+} from "./tui/terminal.js";
+export { VirtualScreen, type ScreenModes } from "./tui/vt-screen.js";
+export { StdinBuffer, defaultEscTimeout, type StdinBufferOptions } from "./tui/stdin-buffer.js";
+export {
+  parseKey,
+  matchesKey,
+  normalizeKeyId,
+  isPasteData,
+  unwrapPaste,
+  isPrintableText,
+  PASTE_START,
+  PASTE_END,
+  type KeyEvent,
+} from "./tui/keys.js";
+export {
+  visibleWidth,
+  truncateToWidth,
+  sliceByColumn,
+  wrapTextWithAnsi,
+  padToWidth,
+  stripAnsi,
+  codePointWidth,
+  graphemeWidth,
+  SGR_RESET,
+} from "./tui/ansi.js";
+export {
+  createTheme,
+  plainTheme,
+  detectCapabilities,
+  detectColorDepth,
+  colorCode,
+  rgbTo256,
+  rgbTo16,
+  THEME_PALETTES,
+  type ThemeName,
+  type CreateThemeOptions,
+} from "./tui/theme.js";
+export {
+  Keybindings,
+  defaultKeybindings,
+  DEFAULT_KEYBINDINGS,
+  parseKeybindings,
+  loadKeybindingsFile,
+  isActionId,
+  type ActionId,
+  type KeybindingOverrides,
+  type ParsedKeybindings,
+} from "./tui/keybindings.js";
+export { Container } from "./tui/components/container.js";
+export { Text, TruncatedText, type TextOptions } from "./tui/components/text.js";
+export {
+  Markdown,
+  parseMarkdown,
+  renderInline,
+  renderBlock,
+  type MarkdownOptions,
+  type MarkdownBlock,
+  type ListItem,
+} from "./tui/components/markdown.js";
+export {
+  EditorBuffer,
+  type Position,
+  type EditorBufferOptions,
+} from "./tui/components/editor-buffer.js";
+export {
+  Editor,
+  loadHistoryFile,
+  type EditorOptions,
+  type AutocompleteProvider,
+  type AutocompleteItem,
+  type AutocompleteResult,
+  type AutocompleteContext,
+} from "./tui/components/editor.js";
+export {
+  PasteStore,
+  shouldCollapse,
+  formatMarker,
+  PASTE_LINE_THRESHOLD,
+  PASTE_CHAR_THRESHOLD,
+} from "./tui/components/editor-paste.js";
+export {
+  SelectList,
+  filterItems,
+  type SelectItem,
+  type SelectListOptions,
+} from "./tui/components/select-list.js";
+export { Box, type BoxOptions } from "./tui/components/box.js";
+export { Spacer } from "./tui/components/spacer.js";
+export {
+  Loader,
+  LOADER_FRAMES,
+  formatElapsed,
+  type LoaderOptions,
+} from "./tui/components/loader.js";
+export {
+  compositeOverlays,
+  type OverlayAnchor,
+  type OverlayOptions,
+  type OverlayLayer,
+} from "./tui/components/overlay.js";

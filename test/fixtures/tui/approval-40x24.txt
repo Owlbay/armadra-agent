@@ -1,0 +1,25 @@
+# viewport 40x24 cursor=23,39
+|
+|› 帮我检查差分渲染在小终端里是否正确，宽
+|字符 😀 也要对齐
+|
+|我先看一下 src/tui/tui.ts 的差分逻辑，然
+|后只改必要的部分。
+|
+|1. 读文件
+|2. 修改 diff()：首变化行在视口之上时全量
+|   重画
+|3. 跑测试
+|
+|╭─ ts ─────────────────────────────────╮
+|│ if (first < viewportTop) fullViewpor │
+|│ t();                                 │
+|╰──────────────────────────────────────╯
+|
+|╭─ Approve tool call ──────────────────╮
+|│ bash  git push --force origin main   │
+|│ reason: dangerous                    │
+|│                                      │
+|│ [y] allow  [n] deny  [a] allow       │
+|│ similar  [v] view                    │
+|╰──────────────────────────────────────╯
