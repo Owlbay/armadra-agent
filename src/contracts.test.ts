@@ -44,6 +44,7 @@ import type { SessionEntry, SessionEntryInput, SessionHeader } from "./session/t
 import type { Component, Focusable, Theme } from "./tui/component.js";
 import type { ToolContext, ToolDefinition, ToolResult } from "./tools/types.js";
 import type { Runtime } from "./cli/runtime.js";
+import type { HostApiBinding } from "./host/api-impl.js";
 import type { RpcCommand, RpcEvent } from "./rpc.js";
 import { HOST_API_VERSION } from "./host/types.js";
 import { ExitCode } from "./cli/exit-codes.js";
@@ -189,6 +190,12 @@ describe("宿主契约", () => {
       Promise<"started" | "queued">
     >();
     expectTypeOf<Parameters<HostApi["tools"]["register"]>[0]>().toEqualTypeOf<ToolDefinition>();
+  });
+
+  it("HostApiBinding.setNotify（契约 A8）", () => {
+    expectTypeOf<Parameters<HostApiBinding["setNotify"]>>().toEqualTypeOf<
+      [fn?: (message: string, level: "info" | "warn" | "error") => void]
+    >();
   });
 
   it("ApprovalRequest.context（契约 A3）", () => {

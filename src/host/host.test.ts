@@ -167,6 +167,34 @@ describe("HostApi 实现", () => {
     expect(err).toEqual(["ama: [host warn] a\n"]);
     expect(ui).toEqual(["b"]);
   });
+
+  it("setNotify：晚绑定覆盖构造时的 notify，传 undefined 恢复；print 仍写 stderr（契约 A8）", () => {
+    const err: string[] = [];
+    const early: string[] = [];
+    const late: string[] = [];
+    const binding = createHostApi(
+      deps({ mode: "interactive", stderr: (t) => err.push(t), notify: (m) => early.push(m) }),
+    );
+    binding.api.ui.notify("1");
+    binding.setNotify((m, level) => late.push(`${level}:${m}`));
+    binding.api.ui.notify("2", "error");
+    binding.setNotify();
+    binding.api.ui.notify("3");
+    expect(early).toEqual(["1", "3"]);
+    expect(late).toEqual(["error:2"]);
+
+    const bare = createHostApi(deps({ mode: "rpc", stderr: (t) => err.push(t) }));
+    bare.api.ui.notify("4");
+    bare.setNotify((m) => late.push(m));
+    bare.api.ui.notify("5");
+    bare.setNotify(undefined);
+    bare.api.ui.notify("6");
+    const printing = createHostApi(deps({ stderr: (t) => err.push(t) }));
+    printing.setNotify((m) => late.push(m));
+    printing.api.ui.notify("7");
+    expect(late).toEqual(["error:2", "5"]);
+    expect(err).toEqual(["ama: [host] 4\n", "ama: [host] 6\n", "ama: [host] 7\n"]);
+  });
 });
 
 describe("loader", () => {
