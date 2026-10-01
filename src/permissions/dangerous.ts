@@ -26,11 +26,47 @@ export interface DangerousMatch {
 
 const WRAPPERS = new Set(["command", "exec", "nohup", "time", "env", "builtin", "nice", "xargs"]);
 
-/** 粗略分词：按空白切，去掉成对引号。 */
+/**
+ * 分词：按未加引号的空白切；单引号内原样，双引号内反斜杠只转义 `\`、`"`、`$`、反引号，引号外反斜杠转义下一个字符；
+ * 相邻的引号段与普通字符拼成一个词（`'a'"b"c` → `abc`）。不做变量与通配展开。
+ */
 export function shellWords(segment: string): string[] {
   const words: string[] = [];
-  const re = /"((?:[^"\\]|\\.)*)"|'([^']*)'|(\S+)/g;
-  for (const m of segment.matchAll(re)) words.push(m[1] ?? m[2] ?? m[3] ?? "");
+  let cur = "";
+  let inWord = false;
+  for (let i = 0; i < segment.length; i++) {
+    const ch = segment[i] as string;
+    if (/\s/.test(ch)) {
+      if (inWord) words.push(cur);
+      cur = "";
+      inWord = false;
+      continue;
+    }
+    inWord = true;
+    if (ch === "'") {
+      const end = segment.indexOf("'", i + 1);
+      const stop = end === -1 ? segment.length : end;
+      cur += segment.slice(i + 1, stop);
+      i = stop;
+    } else if (ch === '"') {
+      i++;
+      while (i < segment.length && segment[i] !== '"') {
+        const c = segment[i] as string;
+        if (c === "\\" && i + 1 < segment.length && '\\"$`'.includes(segment[i + 1] as string)) {
+          cur += segment[i + 1];
+          i += 2;
+        } else {
+          cur += c;
+          i++;
+        }
+      }
+    } else if (ch === "\\" && i + 1 < segment.length) {
+      cur += segment[++i];
+    } else {
+      cur += ch;
+    }
+  }
+  if (inWord) words.push(cur);
   return words;
 }
 

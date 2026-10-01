@@ -107,6 +107,10 @@ describe("危险命令表", () => {
 
   it("分词与前缀剥离", () => {
     expect(shellWords(`a "b c" 'd'`)).toEqual(["a", "b c", "d"]);
+    expect(shellWords(`'a'"b"c d`)).toEqual(["abc", "d"]);
+    expect(shellWords(`"x \\"y\\" \\$z" 'p\\q'`)).toEqual(['x "y" $z', "p\\q"]);
+    expect(shellWords(`find . -exec rm {} \\;`)).toEqual(["find", ".", "-exec", "rm", "{}", ";"]);
+    expect(shellWords(`a\\ b ""`)).toEqual(["a b", ""]);
     expect(commandWords("FOO=1 nohup sudo -E rm -rf /")).toEqual(["rm", "-rf", "/"]);
     expect(commandWords("sudo ls", true)).toEqual(["sudo", "ls"]);
   });
