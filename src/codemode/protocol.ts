@@ -9,7 +9,7 @@
  * 子 → 父（子进程 stdout）：
  * - `tool_call`：脚本里的 `tools.<name>(input)`；
  * - `output`：`text()` / `console.log()` / `return` 产出的一段输出；
- * - `store`：脚本结束前写过的键（`null` 值 = 删除），父进程只在 `done.ok` 时提交；
+ * - `store`：脚本成功结束且写过 store 时的完整快照，父进程只在 `done.ok` 时提交；
  * - `done`：脚本结束（成功或失败），带用时。
  *
  * 本文件只有纯函数与类型；子进程入口（sandbox-entry.ts）不 import 它的运行时代码（子进程只被
@@ -29,6 +29,8 @@ export interface ScriptOptions {
 export const DEFAULT_MAX_OUTPUT_TOKENS = 10_000;
 export const DEFAULT_SCRIPT_TIMEOUT_MS = 300_000;
 export const MAX_SCRIPT_TIMEOUT_MS = 3_600_000;
+/** 父进程启动子进程时附加的参数（sandbox-entry.ts 见到它才启动）。 */
+export const SANDBOX_MAIN_FLAG = "--ama-codemode-sandbox";
 /** 同一脚本内并发工具调用上限。 */
 export const MAX_CONCURRENT_TOOL_CALLS = 8;
 
@@ -60,7 +62,7 @@ export type ParentMessage =
 export type ChildMessage =
   | { type: "tool_call"; id: number; name: string; input: unknown }
   | { type: "output"; text: string }
-  /** 值为 null 表示删除该键。 */
+  /** 脚本成功结束且写过 store 时发：结束时的完整快照（父进程整体替换）。 */
   | { type: "store"; entries: Record<string, unknown> }
   | { type: "done"; ok: boolean; error?: string; elapsedMs: number };
 
