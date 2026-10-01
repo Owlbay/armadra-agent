@@ -20,6 +20,10 @@ export const OVERFLOW_PATTERNS: readonly (readonly [RegExp, string])[] = [
   [/maximum context length is \d+ tokens/i, "OpenAI / OpenRouter / DeepSeek"],
   [/exceeds (?:the )?(?:model'?s )?maximum context length/i, "OpenAI 兼容网关（vLLM / LiteLLM）"],
   [/input token count.*exceeds the maximum/i, "Google Gemini"],
+  [
+    /exceeds the maximum number of tokens allowed/i,
+    "Google Gemini（无 input token count 前缀的变体）",
+  ],
   [/maximum prompt length is \d+/i, "xAI"],
   [/reduce the length of the messages/i, "Groq"],
   [/too large for model with \d+ maximum context length/i, "Mistral"],

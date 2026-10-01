@@ -5,6 +5,7 @@
     {
       "id": "grok-4.7",
       "name": "Grok 4.7",
+      "api": "openai-responses",
       "contextWindow": 500000,
       "maxTokens": 500000,
       "reasoning": true,
@@ -36,6 +37,7 @@
     {
       "id": "grok-4.6",
       "name": "Grok 4.6",
+      "api": "openai-responses",
       "contextWindow": 500000,
       "maxTokens": 500000,
       "reasoning": true,
@@ -67,6 +69,7 @@
     {
       "id": "grok-4.5",
       "name": "Grok 4.5",
+      "api": "openai-responses",
       "contextWindow": 500000,
       "maxTokens": 500000,
       "reasoning": true,
@@ -98,6 +101,7 @@
     {
       "id": "grok-4.3",
       "name": "Grok 4.3",
+      "api": "openai-responses",
       "contextWindow": 1000000,
       "maxTokens": 30000,
       "reasoning": true,

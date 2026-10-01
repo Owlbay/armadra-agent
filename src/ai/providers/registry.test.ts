@@ -178,12 +178,31 @@ describe("ProviderRegistry", () => {
     expect(r.hasConfiguredKey("anthropic")).toBe(false);
   });
 
-  it("getApi：第一期两条协议 + fake；google 协议待 B8", () => {
+  it("getApi：四条内置协议 + fake；未知协议 undefined", () => {
     const r = registry();
     expect(r.getApi("anthropic-messages")?.id).toBe("anthropic-messages");
     expect(r.getApi("openai-completions")?.id).toBe("openai-completions");
+    expect(r.getApi("openai-responses")?.id).toBe("openai-responses");
+    expect(r.getApi("google-generative-ai")?.id).toBe("google-generative-ai");
     expect(r.getApi("fake")?.id).toBe("fake");
-    expect(r.getApi("google-generative-ai")).toBeUndefined();
+    expect(r.getApi("bedrock-converse-stream")).toBeUndefined();
+  });
+
+  it("目录项级 api：openai / xai 推理模型走 Responses，其余随供应商", () => {
+    const r = registry();
+    const api = (ref: string): string | undefined => {
+      const found = r.findModel(ref);
+      return found.ok ? found.model.api : undefined;
+    };
+    expect(api("openai/gpt-5.5")).toBe("openai-responses");
+    expect(api("openai/o3")).toBe("openai-responses");
+    expect(api("openai/gpt-4o")).toBe("openai-completions");
+    expect(api("xai/grok-4.7")).toBe("openai-responses");
+    expect(api("google/gemini-3.1-pro-preview")).toBe("google-generative-ai");
+    expect(r.get("openai")?.api).toBe("openai-completions");
+    for (const provider of r.list()) {
+      for (const model of provider.models) expect(r.getApi(model.api), model.id).toBeDefined();
+    }
   });
 
   it("addModels 与 discoverLocalModels（ollama /api/tags、OpenAI 兼容 /models）", async () => {

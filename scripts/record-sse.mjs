@@ -5,6 +5,10 @@
 //     --key-env ANTHROPIC_API_KEY --scenario tool --case tool-single
 //   node scripts/record-sse.mjs --api openai-completions --base-url https://api.deepseek.com \
 //     --model deepseek-v4-pro --key-env DEEPSEEK_API_KEY --scenario thinking --case reasoning-deepseek
+//   node scripts/record-sse.mjs --api openai-responses --model gpt-5.5 --key-env OPENAI_API_KEY \
+//     --scenario thinking --case reasoning-summary
+//   node scripts/record-sse.mjs --api google-generative-ai --model gemini-3.1-pro-preview \
+//     --key-env GEMINI_API_KEY --scenario tool --case tool-single
 //
 // 场景：text / thinking / tool / tool-multi / length / overflow。429 无法稳定触发，需要时手工
 // 并发打满后用 --scenario text 重录。
@@ -37,7 +41,8 @@ const { values } = parseArgs({
 function usage(message) {
   if (message) console.error(`record-sse: ${message}`);
   console.error(
-    "usage: record-sse.mjs --api anthropic-messages|openai-completions --model <id> --key-env <ENV> " +
+    "usage: record-sse.mjs --api anthropic-messages|openai-completions|openai-responses|google-generative-ai " +
+      "--model <id> --key-env <ENV> " +
       "--case <name> [--scenario text|thinking|tool|tool-multi|length|overflow] [--base-url <url>] " +
       "[--max-tokens <n>] [--out <dir>] [--dry-run]",
   );
@@ -46,7 +51,13 @@ function usage(message) {
 
 if (values.help) usage();
 const api = values.api;
-if (api !== "anthropic-messages" && api !== "openai-completions") usage("--api is required");
+const APIS = [
+  "anthropic-messages",
+  "openai-completions",
+  "openai-responses",
+  "google-generative-ai",
+];
+if (!APIS.includes(api)) usage(`--api must be one of ${APIS.join(", ")}`);
 if (!values.model) usage("--model is required");
 if (!values.case || !/^[a-z0-9-]+$/.test(values.case)) usage("--case must match [a-z0-9-]+");
 const scenario = values.scenario;
@@ -56,10 +67,13 @@ const apiKey = values["key-env"] ? process.env[values["key-env"]] : undefined;
 if (!values["dry-run"] && !apiKey)
   usage(`environment variable ${values["key-env"] ?? "(--key-env)"} is empty`);
 
-const anthropic = api === "anthropic-messages";
-const baseUrl = (
-  values["base-url"] ?? (anthropic ? "https://api.anthropic.com" : "https://api.openai.com/v1")
-).replace(/\/+$/, "");
+const DEFAULT_BASE_URL = {
+  "anthropic-messages": "https://api.anthropic.com",
+  "openai-completions": "https://api.openai.com/v1",
+  "openai-responses": "https://api.openai.com/v1",
+  "google-generative-ai": "https://generativelanguage.googleapis.com/v1beta",
+};
+const baseUrl = (values["base-url"] ?? DEFAULT_BASE_URL[api]).replace(/\/+$/, "");
 
 const TOOLS = [
   {
@@ -140,16 +154,66 @@ function openaiRequest() {
   };
 }
 
-const request = anthropic ? anthropicRequest() : openaiRequest();
+function responsesRequest() {
+  const body = {
+    model: values.model,
+    stream: true,
+    store: false,
+    instructions: "You are a terse assistant.",
+    input: [{ role: "user", content: [{ type: "input_text", text: prompt }] }],
+    max_output_tokens: Math.max(16, scenario === "thinking" ? 4096 : maxTokens),
+  };
+  if (useTools) {
+    body.tools = TOOLS.map((t) => ({ type: "function", ...t, strict: false }));
+  }
+  if (scenario === "thinking" || useTools) {
+    body.reasoning = { effort: "medium", summary: "auto" };
+    body.include = ["reasoning.encrypted_content"];
+  }
+  return {
+    url: `${baseUrl}/responses`,
+    headers: { "content-type": "application/json", authorization: `Bearer ${apiKey ?? ""}` },
+    body,
+  };
+}
+
+function googleRequest() {
+  const body = {
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    systemInstruction: { parts: [{ text: "You are a terse assistant." }] },
+    generationConfig: { maxOutputTokens: scenario === "thinking" ? 4096 : maxTokens },
+  };
+  if (useTools) body.tools = [{ functionDeclarations: TOOLS }];
+  if (scenario === "thinking" || useTools) {
+    body.generationConfig.thinkingConfig = { includeThoughts: true };
+  }
+  return {
+    url: `${baseUrl}/models/${encodeURIComponent(values.model)}:streamGenerateContent?alt=sse`,
+    headers: { "content-type": "application/json", "x-goog-api-key": apiKey ?? "" },
+    body,
+  };
+}
+
+const BUILDERS = {
+  "anthropic-messages": anthropicRequest,
+  "openai-completions": openaiRequest,
+  "openai-responses": responsesRequest,
+  "google-generative-ai": googleRequest,
+};
+const request = BUILDERS[api]();
 const outDir = values.out ?? join(root, "test", "fixtures", "sse", api);
 const outFile = join(outDir, `${values.case}.txt`);
 
 if (values["dry-run"]) {
   const shown = { ...request, headers: { ...request.headers } };
   for (const key of Object.keys(shown.headers)) {
-    if (/authorization|api-key/i.test(key)) shown.headers[key] = "<redacted>";
+    if (/authorization|api-key|goog-api-key/i.test(key)) shown.headers[key] = "<redacted>";
   }
-  if (scenario === "overflow") shown.body = { ...shown.body, messages: "<large>" };
+  if (scenario === "overflow") {
+    const key =
+      { "openai-responses": "input", "google-generative-ai": "contents" }[api] ?? "messages";
+    shown.body = { ...shown.body, [key]: "<large>" };
+  }
   console.log(JSON.stringify({ outFile, ...shown }, null, 2));
   process.exit(0);
 }

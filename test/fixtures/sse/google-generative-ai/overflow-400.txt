@@ -1,0 +1,9 @@
+#status 400
+#header content-type: application/json; charset=UTF-8
+{
+  "error": {
+    "code": 400,
+    "message": "The input token count (1196265) exceeds the maximum number of tokens allowed (1048576).",
+    "status": "INVALID_ARGUMENT"
+  }
+}

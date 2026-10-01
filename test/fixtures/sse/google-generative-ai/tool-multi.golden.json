@@ -1,0 +1,118 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 0,
+    "delta": "Checking both files."
+  },
+  {
+    "type": "text_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 1,
+    "id": "call_rsp-multi1_1",
+    "name": "read"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "{\"path\":\"a.ts\"}"
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 1,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "call_rsp-multi1_1",
+      "name": "read",
+      "arguments": {
+        "path": "a.ts"
+      },
+      "thoughtSignature": "c2lnLW11bHRp"
+    }
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 2,
+    "id": "fc-b",
+    "name": "read"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 2,
+    "delta": "{\"path\":\"b.ts\"}"
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 2,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "fc-b",
+      "name": "read",
+      "arguments": {
+        "path": "b.ts"
+      }
+    }
+  },
+  {
+    "type": "done",
+    "reason": "toolUse",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Checking both files."
+        },
+        {
+          "type": "toolCall",
+          "id": "call_rsp-multi1_1",
+          "name": "read",
+          "arguments": {
+            "path": "a.ts"
+          },
+          "thoughtSignature": "c2lnLW11bHRp"
+        },
+        {
+          "type": "toolCall",
+          "id": "fc-b",
+          "name": "read",
+          "arguments": {
+            "path": "b.ts"
+          }
+        }
+      ],
+      "api": "google-generative-ai",
+      "provider": "google",
+      "model": "gemini-3.1-pro-preview",
+      "usage": {
+        "input": 220,
+        "output": 40,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 260,
+        "cost": {
+          "input": 0.00044,
+          "output": 0.00048,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0.00092
+        }
+      },
+      "stopReason": "toolUse",
+      "timestamp": 0,
+      "thinkingLevel": "low",
+      "providerThinkingLevel": "LOW",
+      "responseId": "rsp-multi1",
+      "rawStopReason": "STOP"
+    }
+  }
+]

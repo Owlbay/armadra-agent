@@ -1,0 +1,78 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "thinking_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "**Comparing numbers**\n\n9.11 vs 9.9: "
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "0.90 > 0.11, so 9.9 is larger."
+  },
+  {
+    "type": "thinking_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 1
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 1,
+    "delta": "9.9 is larger."
+  },
+  {
+    "type": "text_end",
+    "contentIndex": 1
+  },
+  {
+    "type": "done",
+    "reason": "stop",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking": "**Comparing numbers**\n\n9.11 vs 9.9: 0.90 > 0.11, so 9.9 is larger."
+        },
+        {
+          "type": "text",
+          "text": "9.9 is larger.",
+          "textSignature": "Q2lRQ0FkSE1zaWduYXR1cmUx"
+        }
+      ],
+      "api": "google-generative-ai",
+      "provider": "google",
+      "model": "gemini-3.1-pro-preview",
+      "usage": {
+        "input": 20,
+        "output": 54,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 74,
+        "reasoning": 48,
+        "cost": {
+          "input": 0.00004,
+          "output": 0.000648,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0.000688
+        }
+      },
+      "stopReason": "stop",
+      "timestamp": 0,
+      "thinkingLevel": "low",
+      "providerThinkingLevel": "LOW",
+      "responseId": "rsp-think1",
+      "rawStopReason": "STOP"
+    }
+  }
+]

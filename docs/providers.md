@@ -4,25 +4,26 @@ B1 草稿（B9 统稿）。设计依据见 [design.md](design.md) §3。
 
 ## 内置供应商
 
-| id           | 协议                       | baseUrl                                             | API Key 环境变量（顺序）                                     |
-| ------------ | -------------------------- | --------------------------------------------------- | ------------------------------------------------------------ |
-| `anthropic`  | anthropic-messages         | `https://api.anthropic.com`                         | `ANTHROPIC_API_KEY`、`AMA_API_KEY_ANTHROPIC`                 |
-| `openai`     | openai-completions         | `https://api.openai.com/v1`                         | `OPENAI_API_KEY`、`AMA_API_KEY_OPENAI`                       |
-| `google`     | google-generative-ai（B8） | `https://generativelanguage.googleapis.com/v1beta`  | `GEMINI_API_KEY`、`GOOGLE_API_KEY`、`AMA_API_KEY_GOOGLE`     |
-| `deepseek`   | openai-completions         | `https://api.deepseek.com`                          | `DEEPSEEK_API_KEY`、`AMA_API_KEY_DEEPSEEK`                   |
-| `moonshot`   | openai-completions         | `https://api.moonshot.cn/v1`                        | `MOONSHOT_API_KEY`、`KIMI_API_KEY`、`AMA_API_KEY_MOONSHOT`   |
-| `zhipu`      | openai-completions         | `https://open.bigmodel.cn/api/paas/v4`              | `ZHIPU_API_KEY`、`ZAI_API_KEY`、`AMA_API_KEY_ZHIPU`          |
-| `dashscope`  | openai-completions         | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `DASHSCOPE_API_KEY`、`QWEN_API_KEY`、`AMA_API_KEY_DASHSCOPE` |
-| `openrouter` | openai-completions         | `https://openrouter.ai/api/v1`                      | `OPENROUTER_API_KEY`、`AMA_API_KEY_OPENROUTER`               |
-| `groq`       | openai-completions         | `https://api.groq.com/openai/v1`                    | `GROQ_API_KEY`、`AMA_API_KEY_GROQ`                           |
-| `xai`        | openai-completions         | `https://api.x.ai/v1`                               | `XAI_API_KEY`、`AMA_API_KEY_XAI`                             |
-| `mistral`    | openai-completions         | `https://api.mistral.ai/v1`                         | `MISTRAL_API_KEY`、`AMA_API_KEY_MISTRAL`                     |
-| `ollama`     | openai-completions         | `http://127.0.0.1:11434/v1`                         | 可无（`OLLAMA_API_KEY`）                                     |
-| `lmstudio`   | openai-completions         | `http://127.0.0.1:1234/v1`                          | 可无                                                         |
+| id           | 协议                                            | baseUrl                                             | API Key 环境变量（顺序）                                     |
+| ------------ | ----------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------ |
+| `anthropic`  | anthropic-messages                              | `https://api.anthropic.com`                         | `ANTHROPIC_API_KEY`、`AMA_API_KEY_ANTHROPIC`                 |
+| `openai`     | openai-completions（推理模型 openai-responses） | `https://api.openai.com/v1`                         | `OPENAI_API_KEY`、`AMA_API_KEY_OPENAI`                       |
+| `google`     | google-generative-ai                            | `https://generativelanguage.googleapis.com/v1beta`  | `GEMINI_API_KEY`、`GOOGLE_API_KEY`、`AMA_API_KEY_GOOGLE`     |
+| `deepseek`   | openai-completions                              | `https://api.deepseek.com`                          | `DEEPSEEK_API_KEY`、`AMA_API_KEY_DEEPSEEK`                   |
+| `moonshot`   | openai-completions                              | `https://api.moonshot.cn/v1`                        | `MOONSHOT_API_KEY`、`KIMI_API_KEY`、`AMA_API_KEY_MOONSHOT`   |
+| `zhipu`      | openai-completions                              | `https://open.bigmodel.cn/api/paas/v4`              | `ZHIPU_API_KEY`、`ZAI_API_KEY`、`AMA_API_KEY_ZHIPU`          |
+| `dashscope`  | openai-completions                              | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `DASHSCOPE_API_KEY`、`QWEN_API_KEY`、`AMA_API_KEY_DASHSCOPE` |
+| `openrouter` | openai-completions                              | `https://openrouter.ai/api/v1`                      | `OPENROUTER_API_KEY`、`AMA_API_KEY_OPENROUTER`               |
+| `groq`       | openai-completions                              | `https://api.groq.com/openai/v1`                    | `GROQ_API_KEY`、`AMA_API_KEY_GROQ`                           |
+| `xai`        | openai-completions（目录模型 openai-responses） | `https://api.x.ai/v1`                               | `XAI_API_KEY`、`AMA_API_KEY_XAI`                             |
+| `mistral`    | openai-completions                              | `https://api.mistral.ai/v1`                         | `MISTRAL_API_KEY`、`AMA_API_KEY_MISTRAL`                     |
+| `ollama`     | openai-completions                              | `http://127.0.0.1:11434/v1`                         | 可无（`OLLAMA_API_KEY`）                                     |
+| `lmstudio`   | openai-completions                              | `http://127.0.0.1:1234/v1`                          | 可无                                                         |
 
 另有测试用供应商 `fake`（模型 `fake/echo`、`fake/reasoning`），见下文。
 
-Gemini 在 B8 交付 `google-generative-ai` 协议之前请经 `openrouter/google/...` 调用。
+协议列是供应商级缺省；目录条目可以用 `api` 覆盖（openai 的推理模型与 xai 的目录模型走
+`openai-responses`，非推理的 `gpt-4.1`、`gpt-4o*` 仍走 Completions）。
 
 ## 模型引用
 
@@ -83,6 +84,22 @@ Gemini 在 B8 交付 `google-generative-ai` 协议之前请经 `openrouter/googl
 | `supportsStore`                               | 发 `store: false`                                                                                                        |
 
 compat 只记录**已验证**的差异；新增条目请附文档链接或真实样本。
+
+## Responses 与 Gemini 的 compat
+
+| 协议                   | 开关                            | 作用                                                                                                      | 缺省                                         |
+| ---------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `openai-responses`     | `supportsReasoningSummary`      | `reasoning.summary: "auto"`（思考块有文字）                                                               | OpenAI 官方开；xAI 与其它关                  |
+| `openai-responses`     | `supportsStore`                 | 发 `store: false`；推理模型同时要 `include: ["reasoning.encrypted_content"]`，多轮回放加密 reasoning item | OpenAI 官方、xAI 开；其它关                  |
+| `google-generative-ai` | `supportsThoughtSignature`      | 同模型回放 `thoughtSignature`（思考、文本、functionCall part）                                            | 开                                           |
+| `google-generative-ai` | `supportsFunctionResponseParts` | 工具结果图片放进 `functionResponse.parts`；关时另起一个 user 回合                                         | Gemini 3 起开；Gemini 2.x 与非 Gemini 命名关 |
+
+- Responses：系统提示放 `instructions`；`prompt_cache_key = sessionId` 只发给 OpenAI 官方端点，
+  `cacheRetention: "none"`（摘要请求）不发；思考 off 只在映射表给了 off 的字串（如 `"none"`）时发
+  `reasoning.effort`，否则交给服务端缺省。
+- Gemini：映射值是字串（或 Gemini 3 族且未映射）→ 离散 `thinkingLevel`（`LOW` / `HIGH`…）；映射值是
+  数字或其它模型 → `thinkingBudget`（`-1` 动态）；off → `thinkingBudget: 0`。隐式缓存自动生效，
+  `cachedContentTokenCount` 计入 `cacheRead`。
 
 ## 测试用 fake 供应商
 
