@@ -12,7 +12,7 @@ describe("paths", () => {
     expect(resolvePath("a/b", "/w")).toBe(resolve("/w", "a/b"));
     expect(resolvePath("/abs/x", "/w")).toBe(resolve("/abs/x"));
     expect(resolvePath("", "/w")).toBe(resolve("/w"));
-    expect(resolvePath("~/x", "/w", "/h")).toBe(join("/h", "x"));
+    expect(resolvePath("~/x", "/w", "/h")).toBe(resolve("/h", "x"));
   });
 
   it("拒绝含 NUL 的路径", () => {
