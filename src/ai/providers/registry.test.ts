@@ -178,12 +178,14 @@ describe("ProviderRegistry", () => {
     expect(r.hasConfiguredKey("anthropic")).toBe(false);
   });
 
-  it("getApi：第一期两条协议 + fake；google 协议待 B8", () => {
+  it("getApi：四条内置协议 + fake；未知协议 undefined", () => {
     const r = registry();
     expect(r.getApi("anthropic-messages")?.id).toBe("anthropic-messages");
     expect(r.getApi("openai-completions")?.id).toBe("openai-completions");
+    expect(r.getApi("openai-responses")?.id).toBe("openai-responses");
+    expect(r.getApi("google-generative-ai")?.id).toBe("google-generative-ai");
     expect(r.getApi("fake")?.id).toBe("fake");
-    expect(r.getApi("google-generative-ai")).toBeUndefined();
+    expect(r.getApi("bedrock-converse-stream")).toBeUndefined();
   });
 
   it("addModels 与 discoverLocalModels（ollama /api/tags、OpenAI 兼容 /models）", async () => {

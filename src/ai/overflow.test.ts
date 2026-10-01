@@ -24,6 +24,8 @@ describe("overflow", () => {
     "400 invalid_request_error: This model's maximum context length is 131072 tokens.",
     "Requested token count exceeds the model's maximum context length of 131072 tokens",
     "The input token count (1196265) exceeds the maximum number of tokens allowed (1048575)",
+    "400 INVALID_ARGUMENT: The request exceeds the maximum number of tokens allowed (1048576).",
+    "context_length_exceeded: Your input exceeds the context window of this model.",
     "This model's maximum prompt length is 131072 but the request contains 537812 tokens",
     "Please reduce the length of the messages or completion",
     "Prompt contains 140000 tokens and is too large for model with 131072 maximum context length",
@@ -42,6 +44,7 @@ describe("overflow", () => {
     "429 rate_limit_error: Number of request tokens has exceeded your per-minute rate limit",
     "Too many requests: too many tokens, please wait",
     "500 api_error: Internal server error",
+    "429 RESOURCE_EXHAUSTED: You exceeded your current quota, please check your plan and billing details.",
     "Stream ended before completion",
   ])("非溢出：%s", (text) => {
     expect(isOverflowErrorText(text)).toBe(false);
