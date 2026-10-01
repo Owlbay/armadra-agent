@@ -534,8 +534,10 @@ ama 不知道画布；Armadra 适配器经 `HostApi.tools.register` 注册 `canv
 | 模式   | 模型看到的工具                                                                       | 适用                                     |
 | ------ | ------------------------------------------------------------------------------------ | ---------------------------------------- |
 | `off`  | 不注册 `codemode`                                                                    | 短任务、需要最大透明度                   |
-| `on`   | 全部工具 + `codemode`；其它工具描述末尾加一行「也可在 codemode 脚本里调用」           | 缺省                                     |
+| `on`   | 全部工具 + `codemode`；其它工具描述末尾加一行「也可在 codemode 脚本里调用」           | 随预设（显式 `codemode.mode` 开启）      |
 | `only` | 只有 `codemode`；其它工具只能在脚本里调用，声明列在 `codemode` 描述里 | 长流程、工具密集任务；嵌入 Armadra 的协调者可选 |
+
+缺省值随预设（§5.6）：`codemode` 预设为 `only`，`default` / `minimal` / `coordinator` 为 `off`；显式 `codemode.mode` / `--codemode` 覆盖。
 
 `codemode` 描述里的工具声明由 JSON Schema 生成 TypeScript 声明，总预算 `config.codemode.inlineBudget`（缺省 3 000 估算 token），超出部分只列名字，脚本用 `describeTool()` 取。
 
