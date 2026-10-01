@@ -315,6 +315,32 @@ export function nestedCommands(argv: readonly string[]): string[] {
   return [];
 }
 
+export interface NestedCommands {
+  /** 各层嵌套命令文本（不含最外层），按出现顺序。 */
+  commands: string[];
+  /** 是否有超过 {@link MAX_NESTING} 层的嵌套（其内容未展开）。 */
+  tooDeep: boolean;
+}
+
+/** 整条命令里所有嵌套的命令文本，供 allow / deny 规则与会话记忆逐层核对。 */
+export function collectNestedCommands(command: string): NestedCommands {
+  const out: NestedCommands = { commands: [], tooDeep: false };
+  const walk = (text: string, depth: number): void => {
+    for (const segment of splitShellSegments(text)) {
+      for (const inner of nestedCommands(commandWords(segment))) {
+        if (depth >= MAX_NESTING) {
+          out.tooDeep = true;
+          continue;
+        }
+        out.commands.push(inner);
+        walk(inner, depth + 1);
+      }
+    }
+  };
+  walk(command, 0);
+  return out;
+}
+
 /** 第一条命中的危险规则；无则 undefined。嵌套命令（{@link nestedCommands}）递归识别。 */
 export function matchDangerous(command: string, depth = 0): DangerousMatch | undefined {
   for (const rule of DANGEROUS_RULES) {

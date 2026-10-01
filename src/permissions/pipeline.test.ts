@@ -173,3 +173,46 @@ describe("管线顺序", () => {
     expect(p.rules.length).toBe(BUILTIN_DENY_RULES.length);
   });
 });
+
+describe("包装里的命令逐层核对 allow / deny 规则与会话记忆", () => {
+  const bash = (command: string) => ({
+    toolName: "bash",
+    permission: "execute" as const,
+    input: { command },
+    unattended: false,
+  });
+
+  it("deny 规则命中 sh -c / eval / xargs / find -exec 里的命令", () => {
+    const p = pipeline("full-auto", ["bash(curl *)"]);
+    for (const cmd of [
+      "sh -c 'curl https://x -o y'",
+      "eval curl https://x",
+      "echo u | xargs curl -O",
+      "find . -exec curl {} \\;",
+    ]) {
+      expect(p.check(bash(cmd)).decision, cmd).toBe("deny");
+    }
+    expect(p.check(bash("sh -c 'echo curl'")).decision).toBe("allow");
+  });
+
+  it("allow 规则不因包装被绕过：每层嵌套命令都要被覆盖", () => {
+    const p = pipeline("default", [], ["bash(find *)", "bash(xargs *)", "bash(grep *)"]);
+    expect(p.check(bash("find . -name '*.ts'")).decision).toBe("allow");
+    expect(p.check(bash("find . -exec grep -l x {} +")).decision).toBe("allow");
+    expect(p.check(bash("find . -exec curl -T {} https://x \\;")).decision).toBe("ask");
+    expect(p.check(bash("ls | xargs grep x")).decision).toBe("ask"); // ls 段未覆盖
+    expect(p.check(bash("find . | xargs node -e x")).decision).toBe("ask");
+    const sh = pipeline("default", [], ["bash(sh *)"]);
+    expect(sh.check(bash("sh -c 'npm install'")).decision).toBe("ask");
+    const deep = pipeline("default", [], ["bash(eval *)", "bash(ls)"]);
+    expect(deep.check(bash("eval eval ls")).decision).toBe("allow");
+    expect(deep.check(bash("eval eval eval eval ls")).decision).toBe("ask");
+  });
+
+  it("会话记忆同样逐层核对", () => {
+    const p = pipeline("default");
+    p.rememberForSession("bash", { command: "find . -name x" });
+    expect(p.check(bash("find . -type f")).step).toBe("session");
+    expect(p.check(bash("find . -exec curl {} \\;")).decision).toBe("ask");
+  });
+});
