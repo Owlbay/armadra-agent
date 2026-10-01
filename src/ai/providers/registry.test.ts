@@ -188,6 +188,23 @@ describe("ProviderRegistry", () => {
     expect(r.getApi("bedrock-converse-stream")).toBeUndefined();
   });
 
+  it("目录项级 api：openai / xai 推理模型走 Responses，其余随供应商", () => {
+    const r = registry();
+    const api = (ref: string): string | undefined => {
+      const found = r.findModel(ref);
+      return found.ok ? found.model.api : undefined;
+    };
+    expect(api("openai/gpt-5.5")).toBe("openai-responses");
+    expect(api("openai/o3")).toBe("openai-responses");
+    expect(api("openai/gpt-4o")).toBe("openai-completions");
+    expect(api("xai/grok-4.7")).toBe("openai-responses");
+    expect(api("google/gemini-3.1-pro-preview")).toBe("google-generative-ai");
+    expect(r.get("openai")?.api).toBe("openai-completions");
+    for (const provider of r.list()) {
+      for (const model of provider.models) expect(r.getApi(model.api), model.id).toBeDefined();
+    }
+  });
+
   it("addModels 与 discoverLocalModels（ollama /api/tags、OpenAI 兼容 /models）", async () => {
     const r = registry();
     vi.stubGlobal("fetch", async (url: string) =>

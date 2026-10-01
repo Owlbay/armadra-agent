@@ -2,9 +2,8 @@
  * 13 家内置供应商（设计 §3.3）。这里只放供应商级数据；模型来自 catalog/*.json，compat 由
  * 各协议的 detectCompat 推断（openai-compat.ts 的推断表），这里只写推断不出来的东西。
  *
- * google 的协议是 google-generative-ai（B8 实现）；B8 之前 registry 里没有该协议实现，
- * 调用会得到「协议未注册」的错误，过渡期请经 openrouter 调 Gemini（§17 待定项，B1 的决定：
- * 不把 google 临时改走 OpenAI 兼容端点，避免目录数据随 B8 再迁一次）。
+ * 这里的 `api` 是供应商级缺省；目录条目可用 `api` 覆盖（openai 推理模型与 xai 目录模型走
+ * openai-responses，见 catalog/*.json）。
  */
 
 import type { ProviderData } from "../types.js";

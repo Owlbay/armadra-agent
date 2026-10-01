@@ -5,6 +5,7 @@
     {
       "id": "gpt-6.1-sol",
       "name": "GPT-6.1 Sol",
+      "api": "openai-responses",
       "contextWindow": 272000,
       "maxTokens": 128000,
       "reasoning": true,
@@ -36,6 +37,7 @@
     {
       "id": "gpt-6-sol",
       "name": "GPT-6 Sol",
+      "api": "openai-responses",
       "contextWindow": 272000,
       "maxTokens": 128000,
       "reasoning": true,
@@ -67,6 +69,7 @@
     {
       "id": "gpt-6-luna",
       "name": "GPT-6 Luna",
+      "api": "openai-responses",
       "contextWindow": 272000,
       "maxTokens": 128000,
       "reasoning": true,
@@ -98,6 +101,7 @@
     {
       "id": "gpt-6-astra",
       "name": "GPT-6 Astra",
+      "api": "openai-responses",
       "contextWindow": 272000,
       "maxTokens": 128000,
       "reasoning": true,
@@ -129,6 +133,7 @@
     {
       "id": "gpt-5.5",
       "name": "GPT-5.5",
+      "api": "openai-responses",
       "contextWindow": 272000,
       "maxTokens": 128000,
       "reasoning": true,
@@ -160,6 +165,7 @@
     {
       "id": "gpt-5.4",
       "name": "GPT-5.4",
+      "api": "openai-responses",
       "contextWindow": 272000,
       "maxTokens": 128000,
       "reasoning": true,
@@ -191,6 +197,7 @@
     {
       "id": "gpt-5.4-mini",
       "name": "GPT-5.4 mini",
+      "api": "openai-responses",
       "contextWindow": 400000,
       "maxTokens": 128000,
       "reasoning": true,
@@ -213,6 +220,7 @@
     {
       "id": "gpt-5.4-nano",
       "name": "GPT-5.4 nano",
+      "api": "openai-responses",
       "contextWindow": 400000,
       "maxTokens": 128000,
       "reasoning": true,
@@ -235,6 +243,7 @@
     {
       "id": "gpt-5",
       "name": "GPT-5",
+      "api": "openai-responses",
       "contextWindow": 400000,
       "maxTokens": 128000,
       "reasoning": true,
@@ -257,6 +266,7 @@
     {
       "id": "gpt-5-mini",
       "name": "GPT-5 Mini",
+      "api": "openai-responses",
       "contextWindow": 400000,
       "maxTokens": 128000,
       "reasoning": true,
@@ -321,6 +331,7 @@
     {
       "id": "o4-mini",
       "name": "o4-mini",
+      "api": "openai-responses",
       "contextWindow": 200000,
       "maxTokens": 100000,
       "reasoning": true,
@@ -343,6 +354,7 @@
     {
       "id": "o3",
       "name": "o3",
+      "api": "openai-responses",
       "contextWindow": 200000,
       "maxTokens": 100000,
       "reasoning": true,
