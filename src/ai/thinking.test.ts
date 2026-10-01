@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   budgetedMaxTokens,
   clampThinkingLevel,
+  discreteThinkingLevel,
   getSupportedLevels,
   isThinkingLevel,
   thinkingBudget,
@@ -43,6 +44,22 @@ describe("thinking", () => {
     expect(budgetedMaxTokens(64000, undefined, 16384)).toEqual({ maxTokens: 64000, budget: 16384 });
     expect(budgetedMaxTokens(8000, 8000, 16384)).toEqual({ maxTokens: 8000, budget: 6976 });
     expect(budgetedMaxTokens(1500, undefined, 2048).budget).toBe(476);
+  });
+
+  it("离散级别（Google thinkingLevel）：映射字串优先、xhigh → high、数字映射返回 undefined", () => {
+    const plain = { reasoning: true };
+    expect(discreteThinkingLevel(plain, "minimal")).toBe("minimal");
+    expect(discreteThinkingLevel(plain, "xhigh")).toBe("high");
+    const mapped = {
+      reasoning: true,
+      thinkingLevelMap: { low: "LOW", medium: "high", high: 32768 },
+    };
+    expect(discreteThinkingLevel(mapped, "low")).toBe("low");
+    expect(discreteThinkingLevel(mapped, "medium")).toBe("high");
+    expect(discreteThinkingLevel(mapped, "high")).toBeUndefined();
+    expect(
+      discreteThinkingLevel({ reasoning: true, thinkingLevelMap: { low: "dynamic" } }, "low"),
+    ).toBeUndefined();
   });
 
   it("isThinkingLevel", () => {
