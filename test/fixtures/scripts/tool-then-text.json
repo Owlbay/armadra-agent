@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "responses": [
+    {
+      "steps": [
+        { "thinking": "I should read the file first." },
+        { "text": "Reading it." },
+        { "toolCall": { "name": "read", "arguments": { "path": "README.md" } } }
+      ],
+      "usage": { "input": 1200, "output": 40 }
+    },
+    { "text": "The README describes the project.", "usage": { "input": 1500, "output": 12 } }
+  ]
+}

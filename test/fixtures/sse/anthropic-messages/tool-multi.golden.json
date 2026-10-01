@@ -1,0 +1,122 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 0,
+    "id": "toolu_multi_1",
+    "name": "grep"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 0,
+    "delta": "{\"pattern\":\"TODO\\\\(\",\"glob\":\"**/*.ts\"}"
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 0,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "toolu_multi_1",
+      "name": "grep",
+      "arguments": {
+        "pattern": "TODO\\(",
+        "glob": "**/*.ts"
+      }
+    }
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 1,
+    "id": "toolu_multi_2",
+    "name": "ls"
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 1,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "toolu_multi_2",
+      "name": "ls",
+      "arguments": {}
+    }
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 2,
+    "id": "toolu_multi_3",
+    "name": "bash"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 2,
+    "delta": "{\"command\":\"echo \\\"hi\\\"\\n\"}"
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 2,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "toolu_multi_3",
+      "name": "bash",
+      "arguments": {
+        "command": "echo \"hi\"\n"
+      }
+    }
+  },
+  {
+    "type": "done",
+    "reason": "toolUse",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "toolCall",
+          "id": "toolu_multi_1",
+          "name": "grep",
+          "arguments": {
+            "pattern": "TODO\\(",
+            "glob": "**/*.ts"
+          }
+        },
+        {
+          "type": "toolCall",
+          "id": "toolu_multi_2",
+          "name": "ls",
+          "arguments": {}
+        },
+        {
+          "type": "toolCall",
+          "id": "toolu_multi_3",
+          "name": "bash",
+          "arguments": {
+            "command": "echo \"hi\"\n"
+          }
+        }
+      ],
+      "api": "anthropic-messages",
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-6",
+      "usage": {
+        "input": 900,
+        "output": 120,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 1020,
+        "cost": {
+          "input": 0.0027,
+          "output": 0.0018,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0.0045000000000000005
+        }
+      },
+      "stopReason": "toolUse",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "responseId": "msg_01ToolMulti",
+      "rawStopReason": "tool_use"
+    }
+  }
+]

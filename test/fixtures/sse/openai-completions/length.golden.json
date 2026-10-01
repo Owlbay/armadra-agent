@@ -1,0 +1,53 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 0,
+    "delta": "The list continues: 1, 2, 3"
+  },
+  {
+    "type": "text_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "done",
+    "reason": "length",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "The list continues: 1, 2, 3"
+        }
+      ],
+      "api": "openai-completions",
+      "provider": "moonshot",
+      "model": "kimi-k2.6",
+      "usage": {
+        "input": 36,
+        "output": 32,
+        "cacheRead": 64,
+        "cacheWrite": 0,
+        "totalTokens": 132,
+        "cost": {
+          "input": 0.000036,
+          "output": 0.000128,
+          "cacheRead": 0.0000064000000000000006,
+          "cacheWrite": 0,
+          "total": 0.0001704
+        }
+      },
+      "stopReason": "length",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "responseId": "chatcmpl-len",
+      "rawStopReason": "length"
+    }
+  }
+]

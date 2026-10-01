@@ -1,0 +1,86 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 0,
+    "delta": "Here is a long"
+  },
+  {
+    "type": "text_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 1,
+    "id": "call_cut",
+    "name": "write"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "{\"path\":\"x.md\",\"content\":\"par"
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 1,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "call_cut",
+      "name": "write",
+      "arguments": {
+        "path": "x.md",
+        "content": "par"
+      }
+    }
+  },
+  {
+    "type": "error",
+    "reason": "error",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Here is a long"
+        },
+        {
+          "type": "toolCall",
+          "id": "call_cut",
+          "name": "write",
+          "arguments": {
+            "path": "x.md",
+            "content": "par"
+          }
+        }
+      ],
+      "api": "openai-completions",
+      "provider": "dashscope",
+      "model": "qwen3.8-max",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 0,
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0
+        }
+      },
+      "stopReason": "error",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "responseId": "chatcmpl-cut",
+      "errorMessage": "Stream ended before completion"
+    }
+  }
+]

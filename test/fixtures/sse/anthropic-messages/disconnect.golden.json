@@ -1,0 +1,86 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 0,
+    "delta": "Partial answer before the connection"
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 1,
+    "id": "toolu_cut",
+    "name": "write"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "{\"path\":\"a.txt\",\"content\":\"hal"
+  },
+  {
+    "type": "text_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 1,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "toolu_cut",
+      "name": "write",
+      "arguments": {
+        "path": "a.txt",
+        "content": "hal"
+      }
+    }
+  },
+  {
+    "type": "error",
+    "reason": "error",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Partial answer before the connection"
+        },
+        {
+          "type": "toolCall",
+          "id": "toolu_cut",
+          "name": "write",
+          "arguments": {
+            "path": "a.txt",
+            "content": "hal"
+          }
+        }
+      ],
+      "api": "anthropic-messages",
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-6",
+      "usage": {
+        "input": 40,
+        "output": 1,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 41,
+        "cost": {
+          "input": 0.00012,
+          "output": 0.000015,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0.000135
+        }
+      },
+      "stopReason": "error",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "responseId": "msg_01Disconnect",
+      "errorMessage": "Stream ended before completion"
+    }
+  }
+]

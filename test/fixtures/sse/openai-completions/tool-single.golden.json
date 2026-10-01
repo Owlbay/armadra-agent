@@ -1,0 +1,78 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 0,
+    "id": "call_DdmNjhvTr1LwHJ8bCzKAxqPa",
+    "name": "read"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 0,
+    "delta": "{\""
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 0,
+    "delta": "path\":\"README"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 0,
+    "delta": ".md\"}"
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 0,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "call_DdmNjhvTr1LwHJ8bCzKAxqPa",
+      "name": "read",
+      "arguments": {
+        "path": "README.md"
+      }
+    }
+  },
+  {
+    "type": "done",
+    "reason": "toolUse",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "toolCall",
+          "id": "call_DdmNjhvTr1LwHJ8bCzKAxqPa",
+          "name": "read",
+          "arguments": {
+            "path": "README.md"
+          }
+        }
+      ],
+      "api": "openai-completions",
+      "provider": "openai",
+      "model": "gpt-5.4",
+      "usage": {
+        "input": 300,
+        "output": 18,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 318,
+        "reasoning": 0,
+        "cost": {
+          "input": 0.0003,
+          "output": 0.000072,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0.000372
+        }
+      },
+      "stopReason": "toolUse",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "responseId": "chatcmpl-tool1",
+      "rawStopReason": "tool_calls"
+    }
+  }
+]

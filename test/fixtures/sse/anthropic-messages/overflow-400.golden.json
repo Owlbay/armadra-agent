@@ -1,0 +1,31 @@
+[
+  {
+    "type": "error",
+    "reason": "error",
+    "message": {
+      "role": "assistant",
+      "content": [],
+      "api": "anthropic-messages",
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-6",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 0,
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0
+        }
+      },
+      "stopReason": "error",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "errorMessage": "400 invalid_request_error: prompt is too long: 213462 tokens > 200000 maximum"
+    }
+  }
+]

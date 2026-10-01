@@ -1,0 +1,53 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 0,
+    "delta": "Let me"
+  },
+  {
+    "type": "text_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "error",
+    "reason": "error",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Let me"
+        }
+      ],
+      "api": "anthropic-messages",
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-6",
+      "usage": {
+        "input": 10,
+        "output": 1,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 11,
+        "cost": {
+          "input": 0.00003,
+          "output": 0.000015,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0.000045
+        }
+      },
+      "stopReason": "error",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "responseId": "msg_01Overloaded",
+      "errorMessage": "overloaded_error: Overloaded"
+    }
+  }
+]

@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "responses": [
+    { "steps": [{ "text": "This answer is cut" }], "error": { "kind": "disconnect" } },
+    { "text": "Complete answer." }
+  ]
+}

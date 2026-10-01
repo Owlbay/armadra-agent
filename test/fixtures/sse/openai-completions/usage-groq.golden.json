@@ -1,0 +1,53 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 0,
+    "delta": "Fast answer."
+  },
+  {
+    "type": "text_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "done",
+    "reason": "stop",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Fast answer."
+        }
+      ],
+      "api": "openai-completions",
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "usage": {
+        "input": 48,
+        "output": 4,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 52,
+        "cost": {
+          "input": 0.000048,
+          "output": 0.000016,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0.000064
+        }
+      },
+      "stopReason": "stop",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "responseId": "chatcmpl-groq",
+      "rawStopReason": "stop"
+    }
+  }
+]

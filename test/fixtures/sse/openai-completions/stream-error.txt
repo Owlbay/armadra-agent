@@ -1,0 +1,8 @@
+#status 200
+#header content-type: text/event-stream
+: OPENROUTER PROCESSING
+
+data: {"id":"gen-err","object":"chat.completion.chunk","created":1767225600,"model":"anthropic/claude-sonnet-5.5","provider":"Anthropic","choices":[{"index":0,"delta":{"role":"assistant","content":"Start"},"finish_reason":null}]}
+
+data: {"id":"gen-err","object":"chat.completion.chunk","created":1767225600,"model":"anthropic/claude-sonnet-5.5","provider":"Anthropic","error":{"code":502,"message":"Provider returned error","metadata":{"raw":"overloaded_error: Overloaded","provider_name":"Anthropic"}},"choices":[{"index":0,"delta":{"content":""},"finish_reason":"error"}]}
+

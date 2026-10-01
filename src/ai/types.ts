@@ -292,6 +292,16 @@ export interface Model {
   headers?: Record<string, string>;
   samplingParams?: Record<string, unknown>;
   compat?: ProviderCompat;
+  /**
+   * [B1 追加] 鉴权头形状；registry 从 `ProviderData.authHeader` 填入。缺省按协议
+   * （anthropic-messages → x-api-key，其余 → Authorization: Bearer）。
+   */
+  authHeader?: AuthHeader;
+  /**
+   * [B1 追加] false = 无 key 也能调用（本地服务）；registry 从 `ProviderData.requiresApiKey`
+   * 填入。缺省视为 true：流函数缺 key 时同步抛 `AmaError{code:"no_api_key"}`。
+   */
+  requiresApiKey?: boolean;
 }
 
 export interface ProviderData {

@@ -1,0 +1,77 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "thinking_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "用户问 9.11 和 9.9"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "哪个大。9.9 更大。"
+  },
+  {
+    "type": "thinking_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 1
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 1,
+    "delta": "9.9 更大。"
+  },
+  {
+    "type": "text_end",
+    "contentIndex": 1
+  },
+  {
+    "type": "done",
+    "reason": "stop",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking": "用户问 9.11 和 9.9哪个大。9.9 更大。",
+          "thinkingSignature": "reasoning_content"
+        },
+        {
+          "type": "text",
+          "text": "9.9 更大。"
+        }
+      ],
+      "api": "openai-completions",
+      "provider": "deepseek",
+      "model": "deepseek-v4-pro",
+      "usage": {
+        "input": 32,
+        "output": 60,
+        "cacheRead": 768,
+        "cacheWrite": 0,
+        "totalTokens": 860,
+        "reasoning": 40,
+        "cost": {
+          "input": 0.000032,
+          "output": 0.00024,
+          "cacheRead": 0.00007680000000000001,
+          "cacheWrite": 0,
+          "total": 0.0003488
+        }
+      },
+      "stopReason": "stop",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "responseId": "ds-reason-1",
+      "rawStopReason": "stop"
+    }
+  }
+]

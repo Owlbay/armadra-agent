@@ -1,0 +1,14 @@
+#status 200
+#header content-type: text/event-stream; charset=utf-8
+data: {"id":"ds-reason-1","object":"chat.completion.chunk","created":1767225600,"model":"deepseek-v4-pro","system_fingerprint":"fp_ds","choices":[{"index":0,"delta":{"role":"assistant","content":null,"reasoning_content":""},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"ds-reason-1","object":"chat.completion.chunk","created":1767225600,"model":"deepseek-v4-pro","system_fingerprint":"fp_ds","choices":[{"index":0,"delta":{"content":null,"reasoning_content":"用户问 9.11 和 9.9"},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"ds-reason-1","object":"chat.completion.chunk","created":1767225600,"model":"deepseek-v4-pro","system_fingerprint":"fp_ds","choices":[{"index":0,"delta":{"content":null,"reasoning_content":"哪个大。9.9 更大。"},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"ds-reason-1","object":"chat.completion.chunk","created":1767225600,"model":"deepseek-v4-pro","system_fingerprint":"fp_ds","choices":[{"index":0,"delta":{"content":"9.9 更大。","reasoning_content":null},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"ds-reason-1","object":"chat.completion.chunk","created":1767225600,"model":"deepseek-v4-pro","system_fingerprint":"fp_ds","choices":[{"index":0,"delta":{"content":"","reasoning_content":null},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":800,"completion_tokens":60,"total_tokens":860,"prompt_tokens_details":{"cached_tokens":768},"completion_tokens_details":{"reasoning_tokens":40},"prompt_cache_hit_tokens":768,"prompt_cache_miss_tokens":32}}
+
+data: [DONE]
+

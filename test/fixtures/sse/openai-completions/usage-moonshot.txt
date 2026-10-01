@@ -1,0 +1,12 @@
+#status 200
+#header content-type: text/event-stream
+data: {"id":"cmpl-moon","object":"chat.completion.chunk","created":1767225600,"model":"kimi-k2.7-code","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
+
+data: {"id":"cmpl-moon","object":"chat.completion.chunk","created":1767225600,"model":"kimi-k2.7-code","choices":[{"index":0,"delta":{"reasoning_content":"Short check."},"finish_reason":null}]}
+
+data: {"id":"cmpl-moon","object":"chat.completion.chunk","created":1767225600,"model":"kimi-k2.7-code","choices":[{"index":0,"delta":{"content":"OK"},"finish_reason":null}]}
+
+data: {"id":"cmpl-moon","object":"chat.completion.chunk","created":1767225600,"model":"kimi-k2.7-code","choices":[{"index":0,"delta":{},"finish_reason":"stop","usage":{"prompt_tokens":5000,"completion_tokens":12,"total_tokens":5012,"cached_tokens":4096}}]}
+
+data: [DONE]
+

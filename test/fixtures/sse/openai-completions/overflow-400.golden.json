@@ -1,0 +1,31 @@
+[
+  {
+    "type": "error",
+    "reason": "error",
+    "message": {
+      "role": "assistant",
+      "content": [],
+      "api": "openai-completions",
+      "provider": "openai",
+      "model": "gpt-5.4",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 0,
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0
+        }
+      },
+      "stopReason": "error",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "errorMessage": "400 invalid_request_error: This model's maximum context length is 131072 tokens. However, you requested 140211 tokens (132019 in the messages, 8192 in the completion). Please reduce the length of the messages or completion."
+    }
+  }
+]

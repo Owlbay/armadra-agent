@@ -1,0 +1,59 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 0,
+    "delta": "Hello"
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 0,
+    "delta": ", 世界 👋"
+  },
+  {
+    "type": "text_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "done",
+    "reason": "stop",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Hello, 世界 👋"
+        }
+      ],
+      "api": "openai-completions",
+      "provider": "openai",
+      "model": "gpt-5.4",
+      "usage": {
+        "input": 176,
+        "output": 9,
+        "cacheRead": 1024,
+        "cacheWrite": 0,
+        "totalTokens": 1209,
+        "reasoning": 0,
+        "cost": {
+          "input": 0.000176,
+          "output": 0.000036,
+          "cacheRead": 0.00010240000000000001,
+          "cacheWrite": 0,
+          "total": 0.0003144
+        }
+      },
+      "stopReason": "stop",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "responseId": "chatcmpl-text1",
+      "rawStopReason": "stop"
+    }
+  }
+]

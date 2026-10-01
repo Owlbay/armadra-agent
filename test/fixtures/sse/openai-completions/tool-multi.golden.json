@@ -1,0 +1,125 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 0,
+    "delta": "Checking both files."
+  },
+  {
+    "type": "text_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 1,
+    "id": "call_a",
+    "name": "read"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "{\"path\":"
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 2,
+    "id": "call_b",
+    "name": "read"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 2,
+    "delta": "{\"path\":"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "\"a.ts\"}"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 2,
+    "delta": "\"b.ts\"}"
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 1,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "call_a",
+      "name": "read",
+      "arguments": {
+        "path": "a.ts"
+      }
+    }
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 2,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "call_b",
+      "name": "read",
+      "arguments": {
+        "path": "b.ts"
+      }
+    }
+  },
+  {
+    "type": "done",
+    "reason": "toolUse",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Checking both files."
+        },
+        {
+          "type": "toolCall",
+          "id": "call_a",
+          "name": "read",
+          "arguments": {
+            "path": "a.ts"
+          }
+        },
+        {
+          "type": "toolCall",
+          "id": "call_b",
+          "name": "read",
+          "arguments": {
+            "path": "b.ts"
+          }
+        }
+      ],
+      "api": "openai-completions",
+      "provider": "zhipu",
+      "model": "glm-5.3",
+      "usage": {
+        "input": 256,
+        "output": 40,
+        "cacheRead": 256,
+        "cacheWrite": 0,
+        "totalTokens": 552,
+        "cost": {
+          "input": 0.000256,
+          "output": 0.00016,
+          "cacheRead": 0.000025600000000000002,
+          "cacheWrite": 0,
+          "total": 0.00044160000000000005
+        }
+      },
+      "stopReason": "toolUse",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "responseId": "chatcmpl-multi",
+      "rawStopReason": "tool_calls"
+    }
+  }
+]

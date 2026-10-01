@@ -1,0 +1,54 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 0,
+    "delta": "cached"
+  },
+  {
+    "type": "text_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "done",
+    "reason": "stop",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "cached"
+        }
+      ],
+      "api": "anthropic-messages",
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-6",
+      "usage": {
+        "input": 12,
+        "output": 5,
+        "cacheRead": 30000,
+        "cacheWrite": 2048,
+        "totalTokens": 32065,
+        "cacheWrite1h": 1024,
+        "cost": {
+          "input": 0.000036,
+          "output": 0.000075,
+          "cacheRead": 0.009,
+          "cacheWrite": 0.009984,
+          "total": 0.019095
+        }
+      },
+      "stopReason": "stop",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "responseId": "msg_01Cache",
+      "rawStopReason": "end_turn"
+    }
+  }
+]

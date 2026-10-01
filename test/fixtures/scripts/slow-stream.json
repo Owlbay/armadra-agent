@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "responses": [
+    {
+      "delayMs": 50,
+      "steps": [
+        { "text": "streaming slowly so abort can land mid-block", "chunkSize": 4 },
+        { "delayMs": 2000 },
+        { "text": "tail" }
+      ]
+    }
+  ]
+}
