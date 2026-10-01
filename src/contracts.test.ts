@@ -44,6 +44,7 @@ import type { SessionEntry, SessionEntryInput, SessionHeader } from "./session/t
 import type { Component, Focusable, Theme } from "./tui/component.js";
 import type { ToolContext, ToolDefinition, ToolResult } from "./tools/types.js";
 import type { Runtime } from "./cli/runtime.js";
+import type { RuntimeDeps, SessionAssembly } from "./cli/deps.js";
 import type { HostApiBinding } from "./host/api-impl.js";
 import type { AmaConfig, PermissionConfig } from "./config/types.js";
 import type { ParsedArgs } from "./cli/args.js";
@@ -359,6 +360,15 @@ describe("循环、SDK、RPC、Runtime 契约", () => {
     expectTypeOf<Runtime["session"]>().toEqualTypeOf<AgentSession>();
     expectTypeOf<Runtime["host"]>().toMatchTypeOf<object | undefined>();
     expect(ExitCode.HostVersion).toBe(78);
+  });
+
+  it("SessionAssembly.onSessionReplaced 与 permissions.create 入参（契约 A5）", () => {
+    expectTypeOf<Parameters<SessionAssembly["onSessionReplaced"]>>().toEqualTypeOf<
+      [next: AgentSession]
+    >();
+    type PermissionInput = Parameters<RuntimeDeps["permissions"]["create"]>[0];
+    expectTypeOf<PermissionInput["cwd"]>().toEqualTypeOf<string>();
+    expectTypeOf<PermissionInput["builtinDeny"]>().toEqualTypeOf<boolean | string[] | undefined>();
   });
 
   it("Runtime.approvals / notifier 晚绑定（契约 A4）", () => {

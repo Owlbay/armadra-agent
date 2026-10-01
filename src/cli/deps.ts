@@ -92,6 +92,12 @@ export interface SessionAssembly {
   };
   /** `Runtime.approvals.setUiBroker` 设置的 UI broker（链尾）；每次审批现取，未设置为 undefined。 */
   uiBroker(): ApprovalBroker | undefined;
+  /**
+   * 模式层把当前会话换成另一个（`/new`、`/resume`、`/fork`、RPC `switch_session`）后调用：
+   * bootstrap 让 HostApi.session.*、宿主 sendUser、Hook 公共字段与退出时的 dispose 跟随 `next`。
+   * 旧会话由调用方自行 dispose；`Runtime.session` 仍指初始会话。
+   */
+  onSessionReplaced(next: AgentSession): void;
   /** SessionStart Hook 的 additionalContext（系统提示 hooks 节）；首次装配系统提示时读取。 */
   sessionStartContext(): string | undefined;
   /** print：ask → deny。 */
@@ -154,6 +160,10 @@ export interface RuntimeDeps {
       mode: PermissionMode;
       rules: readonly PermissionRuleSpec[];
       unattended: boolean;
+      /** 会话 cwd：规则里的相对路径以它为基准。 */
+      cwd: string;
+      /** config `permission.builtinDeny`（只来自用户级 / profile）；缺省 = 启用全部内置 deny。 */
+      builtinDeny?: boolean | string[];
     }): PermissionPipelineApi;
   };
   /** B3：skills / prompts 发现；缺省为空。 */

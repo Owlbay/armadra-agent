@@ -244,11 +244,14 @@ export async function bootstrap(
     applyToolFilters(args, tools);
     // 14. 组装 AgentSession、session_start、SessionStart Hook
     const unattended = mode === "print";
+    const builtinDeny = config.permission?.builtinDeny;
     const permission = await step(ExitCode.Config, "权限", () =>
       deps.permissions.create({
         mode: config.permission?.mode ?? "default",
         rules: merged.ruleSpecs,
         unattended,
+        cwd: sessionCwd,
+        ...(builtinDeny !== undefined ? { builtinDeny } : {}),
       }),
     );
     const hooks = new HookDispatcher({
@@ -293,6 +296,9 @@ export async function bootstrap(
       events,
       host: { handle: host, broker: binding.broker, instructions: binding.instructions },
       uiBroker: () => uiBroker,
+      onSessionReplaced: (next) => {
+        session = next;
+      },
       sessionStartContext: () => sessionStartContext,
       unattended,
       warn,
@@ -305,7 +311,8 @@ export async function bootstrap(
         await events.emit("session_shutdown", {});
         await hooks.run("SessionEnd", { reason }).catch(() => undefined);
         await disposeHost(host, (e) => warn(`宿主适配器 dispose 失败：${String(e)}`));
-        await active.dispose();
+        // 会话被替换过时 dispose 当前那个（旧会话由替换方负责）
+        await (session ?? active).dispose();
       })();
       return disposed;
     };
