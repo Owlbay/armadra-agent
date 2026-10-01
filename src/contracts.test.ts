@@ -24,7 +24,14 @@ import type {
   SessionEvent,
 } from "./agent/types.js";
 import type { MessageOrigin } from "./ai/types.js";
-import type { HookInput, HookOutput, HookOutcome } from "./hooks/types.js";
+import type {
+  HookCommonContext,
+  HookContextOverrides,
+  HookDispatcherApi,
+  HookInput,
+  HookOutput,
+  HookOutcome,
+} from "./hooks/types.js";
 import type {
   AgentEvents,
   ApprovalBroker,
@@ -143,6 +150,20 @@ describe("Hook 契约", () => {
     expectTypeOf<HookOutcome["decision"]>().toEqualTypeOf<HookOutput["decision"]>();
     const output: HookOutput = { decision: "deny", reason: "no" };
     expect(output.decision).toBe("deny");
+  });
+
+  it("codemode 字段与 run 的第 4 参数（契约 A2）", () => {
+    expectTypeOf<HookInput["viaCodemode"]>().toEqualTypeOf<boolean | undefined>();
+    expectTypeOf<HookInput["parentToolCallId"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<Parameters<HookDispatcherApi["run"]>[3]>().toEqualTypeOf<
+      HookContextOverrides | undefined
+    >();
+    // Partial<HookCommonContext> 可直接传入；显式 undefined 也接受
+    expectTypeOf<Partial<HookCommonContext>>().toMatchTypeOf<HookContextOverrides>();
+    const overrides: HookContextOverrides = { depth: 1, sessionFile: undefined };
+    expect(overrides.depth).toBe(1);
+    expectTypeOf<HookCommonContext["depth"]>().toEqualTypeOf<number>();
+    expectTypeOf<HookCommonContext>().toHaveProperty("sessionFile");
   });
 });
 
