@@ -46,6 +46,7 @@ import type { ToolContext, ToolDefinition, ToolResult } from "./tools/types.js";
 import type { Runtime } from "./cli/runtime.js";
 import type { HostApiBinding } from "./host/api-impl.js";
 import type { AmaConfig, PermissionConfig } from "./config/types.js";
+import type { ParsedArgs } from "./cli/args.js";
 import type { RpcCommand, RpcEvent } from "./rpc.js";
 import { HOST_API_VERSION } from "./host/types.js";
 import { ExitCode } from "./cli/exit-codes.js";
@@ -224,6 +225,13 @@ describe("配置契约", () => {
     }>();
     expectTypeOf<NonNullable<AmaConfig["tools"]>["preset"]>().toEqualTypeOf<
       "default" | "minimal" | "codemode" | "coordinator" | undefined
+    >();
+  });
+
+  it("--codemode / --tools-preset（契约 A7）", () => {
+    expectTypeOf<ParsedArgs["codemode"]>().toEqualTypeOf<"off" | "on" | "only" | undefined>();
+    expectTypeOf<ParsedArgs["toolsPreset"]>().toEqualTypeOf<
+      NonNullable<AmaConfig["tools"]>["preset"]
     >();
   });
 });

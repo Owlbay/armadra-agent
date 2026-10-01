@@ -10,7 +10,13 @@
  * - 同时产出带来源的权限规则清单（`ruleSpecs`），交给权限管线（B3 的 rules.ts 解析）。
  */
 
-import type { AmaConfig, PermissionConfig, ToolsConfig, ToolsPreset } from "./types.js";
+import type {
+  AmaConfig,
+  CodemodeMode,
+  PermissionConfig,
+  ToolsConfig,
+  ToolsPreset,
+} from "./types.js";
 import { CONFIG_FILE_VERSION, TOOLS_PRESETS_STRICT_FIRST } from "./types.js";
 import type { PermissionMode, RuleSource } from "../permissions/types.js";
 import { PERMISSION_MODES_STRICT_FIRST } from "../permissions/types.js";
@@ -227,6 +233,10 @@ export interface CliConfigOverrides {
   quietStartup?: "normal" | "header" | "silent" | undefined;
   tuiMode?: "regular" | undefined;
   skillDirs?: readonly string[] | undefined;
+  /** `--tools-preset`。 */
+  toolsPreset?: ToolsPreset | undefined;
+  /** `--codemode`。 */
+  codemode?: CodemodeMode | undefined;
 }
 
 export function cliOverridesToConfig(cli: CliConfigOverrides): Partial<AmaConfig> {
@@ -241,6 +251,8 @@ export function cliOverridesToConfig(cli: CliConfigOverrides): Partial<AmaConfig
   if (cli.quietStartup !== undefined) ui.quietStartup = cli.quietStartup;
   if (cli.tuiMode !== undefined) ui.tuiMode = cli.tuiMode;
   if (Object.keys(ui).length > 0) out.ui = ui;
+  if (cli.toolsPreset !== undefined) out.tools = { preset: cli.toolsPreset };
+  if (cli.codemode !== undefined) out.codemode = { mode: cli.codemode };
   return out;
 }
 

@@ -146,6 +146,27 @@ describe("启动序列：每个退出码", () => {
 });
 
 describe("启动序列：编排细节", () => {
+  it("--tools-preset / --codemode 叠加在项目级之后进入 Runtime.config", async () => {
+    home.write("home/.config/ama/config.json", { version: 1, codemode: { inlineBudget: 500 } });
+    home.write("work/.ama/config.json", {
+      version: 1,
+      tools: { preset: "minimal" },
+      codemode: { mode: "off" },
+    });
+    expect(await run(["-p", "hi"])).toBe(0);
+    expect((h.calls.runtime as Runtime).config.tools?.preset).toBe("minimal");
+    expect((h.calls.runtime as Runtime).config.codemode).toEqual({
+      mode: "off",
+      inlineBudget: 500,
+    });
+    expect(await run(["-p", "--tools-preset", "codemode", "--codemode", "only", "hi"])).toBe(0);
+    expect((h.calls.runtime as Runtime).config.tools?.preset).toBe("codemode");
+    expect((h.calls.runtime as Runtime).config.codemode).toEqual({
+      mode: "only",
+      inlineBudget: 500,
+    });
+  });
+
   it("profile 展开为参数（命令行优先）、trustProject、authEnv、缺省 header", async () => {
     const hostFile = home.write(
       "host/host.cjs",

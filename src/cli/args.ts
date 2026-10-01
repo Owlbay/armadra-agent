@@ -13,6 +13,8 @@
 import { AmaError } from "../errors.js";
 import type { ModelThinkingLevel } from "../ai/types.js";
 import type { PermissionMode } from "../permissions/types.js";
+import type { CodemodeMode, ToolsPreset } from "../config/types.js";
+import { CODEMODE_MODES } from "../config/types.js";
 
 export const SUBCOMMANDS = ["auth", "sessions", "models", "doctor"] as const;
 export type SubcommandName = (typeof SUBCOMMANDS)[number];
@@ -53,6 +55,10 @@ export interface ParsedArgs {
   trust?: boolean;
   tools?: string[];
   excludeTools?: string[];
+  /** `--tools-preset`：覆盖 config `tools.preset`。 */
+  toolsPreset?: ToolsPreset;
+  /** `--codemode`：覆盖 config `codemode.mode`。 */
+  codemode?: CodemodeMode;
   /** 位置参数拼成的提示（空格连接）。 */
   prompt?: string;
   /** 原始位置参数。 */
@@ -80,6 +86,8 @@ const THINKING_LEVELS: readonly ModelThinkingLevel[] = [
 ];
 const OUTPUT_FORMATS: readonly OutputFormat[] = ["text", "json", "stream-json"];
 const QUIET_LEVELS: readonly QuietStartup[] = ["normal", "header", "silent"];
+/** 帮助与报错按常用顺序列出（校验集合同 TOOLS_PRESETS_STRICT_FIRST）。 */
+const PRESET_CHOICES: readonly ToolsPreset[] = ["default", "minimal", "codemode", "coordinator"];
 const SESSION_ID_LIKE = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 
 export const HELP_TEXT = `用法：ama [选项] [提示]
@@ -121,6 +129,8 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
   --auth-file <文件>           auth.json 位置（缺省 ~/.config/ama/auth.json）
   --tools <a,b,…>              只启用这些工具
   --exclude-tools <a,b,…>      禁用这些工具
+  --tools-preset <名>          工具预设：default（缺省）| minimal | codemode | coordinator
+  --codemode <模式>            codemode 调用方式：off | on | only
 
 子命令
   ama auth set <provider>      从 stdin 读取 key 写入 auth.json（0600）
@@ -159,7 +169,9 @@ type ValueOption =
   | "tui-mode"
   | "quiet-startup"
   | "tools"
-  | "exclude-tools";
+  | "exclude-tools"
+  | "tools-preset"
+  | "codemode";
 
 const VALUE_OPTIONS: ReadonlySet<string> = new Set<ValueOption>([
   "profile",
@@ -183,6 +195,8 @@ const VALUE_OPTIONS: ReadonlySet<string> = new Set<ValueOption>([
   "quiet-startup",
   "tools",
   "exclude-tools",
+  "tools-preset",
+  "codemode",
 ]);
 
 const FLAG_ALIASES: Readonly<Record<string, string>> = {
@@ -288,6 +302,12 @@ function applyValue(args: ParsedArgs, option: ValueOption, value: string): void 
       break;
     case "exclude-tools":
       args.excludeTools = [...(args.excludeTools ?? []), ...list(value)];
+      break;
+    case "tools-preset":
+      args.toolsPreset = choice(option, value, PRESET_CHOICES);
+      break;
+    case "codemode":
+      args.codemode = choice(option, value, CODEMODE_MODES);
       break;
   }
 }

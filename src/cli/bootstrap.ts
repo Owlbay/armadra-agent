@@ -133,6 +133,8 @@ export async function bootstrap(
       deny: args.deny,
       quietStartup: args.quietStartup,
       tuiMode: args.tuiMode,
+      toolsPreset: args.toolsPreset,
+      codemode: args.codemode,
     });
   });
   warnings.push(...merged.warnings);
