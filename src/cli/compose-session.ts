@@ -397,6 +397,6 @@ export async function switchSession(
   });
   const outcome = await assembly.hooks.run("SessionStart", { source }).catch(() => undefined);
   hookContext = outcome?.additionalContext;
-  next.announceStart(source);
+  // 会话自身的 session_start 由模式在重新订阅之后调 `announceStart` 发（否则订阅者收不到）。
   return next;
 }

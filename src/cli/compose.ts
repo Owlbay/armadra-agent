@@ -82,6 +82,7 @@ export function lazyMode(load: () => Promise<ModeRunner>): ModeRunner {
 /** 缺省模式（懒加载：子命令与 --version 不加载模式实现）。 */
 export const DEFAULT_MODES: Readonly<Partial<Record<RuntimeMode, ModeRunner>>> = {
   print: lazyMode(async () => (await import("../modes/print/print-mode.js")).runPrintMode),
+  rpc: lazyMode(async () => (await import("../modes/rpc/rpc-mode.js")).runRpcMode),
 };
 
 /** 第 12 步：内置工具 + 工厂 + extraTools，按预设定活动集；warning 留给组装会话时报告。 */
