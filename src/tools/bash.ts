@@ -256,16 +256,16 @@ export function createBashTool(options: BashToolOptions = {}): ToolDefinition<Ba
     name: "bash",
     label: "Bash",
     description:
-      "Run a shell command in the working directory. stdout and stderr are combined; output " +
-      "longer than 2000 lines or 50 KB keeps only the tail and saves the full text to a file. " +
-      `Default timeout ${DEFAULT_BASH_TIMEOUT_MS} ms, maximum ${MAX_BASH_TIMEOUT_MS} ms.`,
+      "Run a shell command. stdout+stderr combined; over 2000 lines or 50 KB keeps the tail " +
+      "and saves the full output to a file. " +
+      `Timeout default ${DEFAULT_BASH_TIMEOUT_MS} ms, max ${MAX_BASH_TIMEOUT_MS} ms.`,
     parameters: {
       type: "object",
       properties: {
-        command: { type: "string", description: "Command to run" },
-        timeoutMs: { type: "integer", description: "Timeout in milliseconds" },
-        cwd: { type: "string", description: "Working directory (default: session cwd)" },
-        description: { type: "string", description: "Short description of what this does" },
+        command: { type: "string" },
+        timeoutMs: { type: "integer" },
+        cwd: { type: "string", description: "Default: session cwd" },
+        description: { type: "string", description: "What this does, briefly" },
       },
       required: ["command"],
       additionalProperties: false,
@@ -273,7 +273,7 @@ export function createBashTool(options: BashToolOptions = {}): ToolDefinition<Ba
     permission: "execute",
     executionMode: "sequential",
     annotations: { destructive: true, openWorld: true },
-    promptSnippet: "bash: run shell commands (AMA_* environment variables describe the session)",
+    promptSnippet: "bash: run shell commands (AMA_* env vars describe the session)",
     execute: (input, ctx) => executeBash(input, ctx, options),
   };
 }
