@@ -1,526 +1,965 @@
-# ama 设计：可独立使用、可嵌入 Armadra 的编码 / 协调 Agent
+# ama 设计 v2：可独立使用、可嵌入 Armadra 的调用型编码 / 协调 Agent
 
-> 状态：目标设计（2026-10-02），未开始实施。仓库 `github.com/yovinchen/armadra-agent`（MIT），npm 包 `@armadra/agent`，可执行名 `ama`。
-> 两种用法都是一等公民：① 任意目录下的独立 CLI（`ama`）；② 嵌入 Armadra 画布作为协调者（见 Armadra 仓库 `docs/design/coordinator-agent.md`，下称「文档 B」）。
-> 设计只借鉴 Pi 的 RPC 形状、会话树与压缩思路，运行时不依赖它。本文不出现 Armadra 以外的任何宿主专有概念；Armadra 的适配器放在 Armadra 仓库（§9）。
+> 状态：目标设计 v2（2026-10-02），未开始实施；替代 v1 全文。仓库 `github.com/yovinchen/armadra-agent`（MIT），npm 包名 `@armadra/agent`（**暂不发布到 npm**，先以 Git 仓库 + Release 附件分发），可执行名 `ama`。
+> 两种用法都是一等公民：① 任意目录下的独立 CLI；② 嵌入 Armadra 画布作为协调者（Armadra 仓库 `docs/design/coordinator-agent.md`，下称「文档 B」；其 `HostApi`、`profile.json`、事件词汇、内置 id `ama` 的契约以本文 §6.2 / §10.3 / §13 为准）。
+> 参考版本 Pi 1.0（2026-10-01）。设计只借鉴 Pi 的分层、流事件契约、会话树、压缩与 TUI 组件模型；运行时不依赖它，也不出现其它任何第三方项目名。本文面向一个多代理并行实施团队：§1 给到文件级的目录树与所有权，§16 给批次与验收。
 
 ## §0 结论
 
-| #   | 决定                                                                                                                                               | 理由                                                                                                                                                                    |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D1  | **单包** `@armadra/agent`，子路径导出 `.`（SDK）、`./host`（宿主适配器类型）、`./rpc`（RPC 类型）、`./bundle`（单文件入口）                        | 一个人维护，多包只增加发布与版本对齐成本；子路径导出已足够隔离契约面                                                                                                    |
-| D2  | 技术栈与 Armadra 对齐：Node ≥ 22、TypeScript 5.9、pnpm、vitest 4、prettier 3、esbuild 打 bundle；源码 ESM，bundle 输出 **CJS 单文件**              | Armadra 的 `cli` / `session-host` / 服务器壳三条 bundle 都是 CJS 单文件、`target: node22`、用 `ELECTRON_RUN_AS_NODE=1 <Electron> <file>` 启动；同形状可直接套用其启动器 |
-| D3  | 核心零宿主概念；一切宿主能力经 **宿主适配器**（`--host <module>`）接入：注册工具、订阅事件、追加指令、接管审批                                     | 画布工具、状态上报、审批属于宿主协议，随宿主演进；核心只保证 `HostApi` 的版本化契约                                                                                     |
-| D4  | 适配器**放宿主仓库**（Armadra：`apps/desktop/src/agent-host/ama/`），本仓库只发布类型与 `HOST_API_VERSION`                                         | 适配器讲的是 Armadra 的 Hook 面 HTTP、令牌文件、动词表，这些随 Armadra 发布节奏变；放这边会让本仓库每次跟改                                                             |
-| D5  | 事件词汇沿用 Pi 扩展事件名（`session_start` … `agent_settled`）                                                                                    | Armadra 已有 `hook/normalize/pi.ts` 吃这套词汇，适配器零翻译                                                                                                            |
-| D6  | 第一版只接 API Key；协议线 Anthropic Messages 与 OpenAI 兼容 Chat；Responses 后置；不接 MCP，只做 Skill + 六个内置工具                             | 需求已定；MCP 的进程管理与权限模型是独立一期的工作量                                                                                                                    |
-| D7  | 会话是 **JSONL 条目树**（`id` / `parentId`），`message` 条目字段名与 Pi 的 v3 格式一致（`role` / `content` / `model` / `usage` / `responseId`）     | 分叉与分支摘要需要树；字段对齐让 Armadra `core/history/pi.ts` 的解析几乎可复用                                                                                          |
-| D8  | 两档压缩：档一**裁剪**（无模型调用，`context_edit` 替换旧工具结果），档二**摘要**（`compaction` 条目）；熔断见 §6.3                                | 多数超限来自工具输出，裁剪便宜且不丢用户话；摘要只在裁剪不够时做                                                                                                        |
-| D9  | 权限管线固定顺序：拒绝规则 → 危险命令识别 → 模式 → 允许规则；无人值守下 `ask → deny`；沙箱后置                                                     | 顺序让「拒绝」永远赢，模式只决定「要不要问」，规则不能放开被识别为危险的命令                                                                                            |
-| D10 | 入口：行式 REPL（含括号粘贴）、`-p`（text / json / stream-json）、`--mode rpc`（stdio JSONL，Pi 形状）、SDK；ACP 后置                              | REPL 是 Armadra 第一版的节点形态（文档 B M1）；RPC 与 SDK 服务嵌入与测试                                                                                                |
-| D11 | 独立模式的协调能力 = 同进程 `task` 子 Agent（深度 1），**不做**多 CLI 编排、终端或 worktree 管理；多 CLI 编排只在宿主下由宿主工具提供              | 终端、连线、worktree 是宿主的领域，独立仓库重造一遍就是第二个 Armadra                                                                                                   |
-| D12 | 发布产物：npm 包（ESM + 类型）+ `dist/bundle/ama.cjs` 单文件；`bun compile` 二进制后置                                                             | Armadra 需要的是能被 Electron 当 Node 跑的单文件；独立用户 `npm i -g` 即可；80 MB 二进制与签名问题不值得第一版背                                                        |
-| D13 | npm 包名用作用域名 `@armadra/agent`，不用无作用域的 `ama`                                                                                          | 作用域表明归属、不与现有包撞名；短名在 npm 上大概率已被占用；可执行名仍是 `ama`                                                                                         |
+| #   | 决定                                                                                                                                                                                                                | 理由                                                                                                                                                                  | v1→v2 |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| D1  | **单包** `@armadra/agent`，子路径导出 `.`（SDK）、`./host`（宿主适配器类型）、`./rpc`（RPC 类型）、`./tui`（组件库，供宿主写对话框）、`./bundle`（单文件入口）                                                      | 一人维护多包只增加版本对齐成本；子路径导出已足够隔离契约面                                                                                                            | 加 `./tui` |
+| D2  | 技术栈：Node ≥ 22、TypeScript 5.9 strict、pnpm、vitest 4、prettier 3、esbuild；源码 ESM，bundle 输出 **CJS 单文件**；**运行时依赖为零**                                                                             | Armadra 三条 bundle 都是 CJS 单文件 `target: node22`，用 `ELECTRON_RUN_AS_NODE=1` 启动；零依赖让单文件无原生模块、无许可证拖累、启动快                                 | 零依赖收紧 |
+| D3  | **协议实现与供应商数据分离**：`ai/apis/*` 只实现协议（第一期 `anthropic-messages`、`openai-completions`；第二波 `google-generative-ai`、`openai-responses`），供应商 = `{id, baseUrl, api, envKeys, models[], compat}` 数据 | Pi 以 10 个协议接纳 40+ 供应商证明了这个拆法；国内常用供应商几乎全是 OpenAI 兼容线，两条协议即覆盖 §3.3 清单的 80%                                                     | 新 |
+| D4  | 内置供应商目录 13 家（§3.3），模型目录随包携带（`ai/providers/catalog/*.json`），用户用 `config.json` 增删改；**只支持 API Key**，不做 OAuth，不联网刷目录                                                              | 需求已定；OAuth 的刷新与存储是另一期                                                                                                                                  | 新 |
+| D5  | ama 的核心是**调用**：调用模型、调用工具、调用 Skill、调用子 Agent（`task`）、嵌入时调用画布上其它 CLI Agent（宿主注册的 `canvas_*` 工具）。**不做 MCP**，只做 Skill                                                | 五类调用在循环里是同一条路径（tool_call → 权限 → 执行）；MCP 的进程管理与权限模型是独立一期                                                                            | 明确 |
+| D6  | **两层 Hook**：① 用户配置的命令式 Hook（`hooks.json`，事件 SessionStart…Notification，stdin/stdout JSON，退出码语义）；② 进程内宿主适配器 `HostApi`（`--host`）。顺序：命令式 Hook → 权限管线 → 宿主 broker → 执行 | Pi 没有命令式 Hook，这是 ama 自有设计；两层职责不同：命令式 Hook 给用户与项目做策略，HostApi 给宿主做集成                                                             | 新 |
+| D7  | 核心零宿主概念；适配器**放宿主仓库**，本仓库只发布类型与 `HOST_API_VERSION = 1`；`create()` 返回 `undefined` 表示不激活                                                                                               | 适配器讲的是 Armadra 的 HTTP 面与令牌，随宿主发布节奏变                                                                                                               | 保留 |
+| D8  | 事件词汇沿用 Pi 扩展事件名（`session_start … agent_settled`，加 `tool_approval_requested/resolved`）                                                                                                                | Armadra `hook/normalize/pi.ts` 零翻译                                                                                                                                 | 保留 |
+| D9  | 会话是 **JSONL 条目树**；`message` 字段名与 Pi v3 一致；只追加                                                                                                                                                      | 分叉与分支摘要需要树；Armadra 历史解析几乎可复用                                                                                                                      | 保留 |
+| D10 | 两档压缩：档一裁剪（`context_edit`，无模型调用）、档二摘要（`compaction`）；**上下文估算含 output**；溢出 / `length` → 压缩后以新 run **重试一次**；会话层重试 3 次（2 s 起 ×2，上限 60 s），失败尝试用 `context_edit` 剔除 | 吸收 Pi 的教训：少算 output 会晚触发；失败尝试留在历史但不回放最干净                                                                                                  | 修订 |
+| D11 | 权限管线固定顺序：拒绝（规则 ∪ Hook deny）→ 危险命令 → 模式 → 允许（规则 ∪ Hook allow）；无人值守 `ask → deny`；**项目级配置只能收紧**，放宽只认用户级 / 命令行 / profile；项目级 Hook 与 Skill 需要**信任**           | 克隆来的仓库不能靠 `.ama/` 放开 `bash`；信任是 Pi 的做法，收紧是 ama 的加固                                                                                           | 修订 |
+| D12 | 交互界面是**差分渲染的终端 UI**（主屏模式、非备用屏），组件模型「给定宽度返回行」；范围是 Pi 的子集（砍掉清单 §12.9）；`--no-tui` 行式降级保留；`TERM=dumb` / 非 TTY 自动降级                                           | Armadra 终端节点在 tmux 里跑，需要终端自己的回滚、括号粘贴 + `\r` 提交；备用屏与鼠标在那里是负担                                                                      | 修订 |
+| D13 | 入口：`ama`（TUI）、`ama --no-tui`、`-p`（text / json / stream-json）、`--mode rpc`（stdio JSONL，Pi 形状）、SDK                                                                                                       | RPC 与 SDK 服务嵌入与测试；`-p` 服务脚本                                                                                                                              | 保留 |
+| D14 | 独立模式的协调能力 = 同进程 `task` 子 Agent（深度 ≤ 1，并发 ≤ 4）；多 CLI 编排只在宿主下由宿主工具提供                                                                                                               | 终端、连线、worktree 是宿主领域                                                                                                                                       | 保留 |
+| D15 | 分发：仓库 `pnpm build` 产出 npm 包形状（ESM + d.ts）与 `dist/bundle/ama.cjs`；GitHub Release 附 `ama.cjs` + `SHA256SUMS`；**不执行 `npm publish`**；Armadra 以 Git 依赖或 Release 产物拉取                            | 先不占作用域、不背发布节奏；包形状保持可发布，决定发布时只需加一条 CI 步骤                                                                                             | 修订 |
+| D16 | 测试不依赖真 key：脚本化 `fake` 供应商 + 录制的 SSE 样本黄金文件；TUI 用 `MemoryTerminal` 断言帧内容                                                                                                                 | CI 三平台可跑；供应商差异收敛在样本里                                                                                                                                 | 新 |
+| D17 | 单文件 ≤ 600 行（源码），超出即拆；每个批次有明确文件所有权，跨批次只改自己拥有的文件，契约文件由 B0 所有                                                                                                             | 并行代理不互相覆盖；评审粒度可控                                                                                                                                      | 新 |
 
-## §1 架构与目录
+## §1 架构与目录树
+
+### §1.1 依赖方向
 
 ```text
+cli → modes → { agent, tui, hooks, host } → { ai, session, compaction, tools, permissions, skills, config }
+tui 不 import agent；ai 不 import session；host 不 import modes；hooks 不 import tools（只认 ToolDefinition 类型）
+src/** 不 import 任何宿主包与任何 npm 运行时依赖（一条源码扫描测试守住：只允许 node: 内置模块与相对路径）
+```
+
+### §1.2 目录树（文件级；行数为源码预估，不含测试；`[Bn]` 为所有权批次，见 §16）
+
+```text
+package.json tsconfig.json tsconfig.build.json vitest.config.ts .prettierrc .npmrc .gitignore   [B0]
+.github/workflows/ci.yml                                                                       [B0]
+scripts/
+  build-bundle.mjs          esbuild：src/bundle.ts → dist/bundle/ama.cjs，platform node，format cjs，target node22   80  [B0]
+  check-no-deps.mjs         扫描 src/** 的 import：只允许 node:* 与相对路径；扫描 package.json dependencies 为空     60  [B0]
+  record-sse.mjs            开发者本地用真 key 录 SSE 样本到 test/fixtures/sse/（CI 不跑）                         120 [B1]
 src/
-  cli/            入口：参数解析（--mode / -p / --host / --profile …）、退出码
+  index.ts                  SDK 公开面再导出                                                                       60  [B0]
+  host.ts                   `./host` 子路径：类型 + HOST_API_VERSION                                                 20  [B0]
+  rpc.ts                    `./rpc` 子路径：RPC 命令 / 事件类型                                                      20  [B0]
+  tui.ts                    `./tui` 子路径：组件库再导出                                                             20  [B0]
+  bundle.ts                 单文件入口：require 兜底 + 调 cli/main                                                   30  [B0]
+  cli/
+    main.ts                 bin 入口：进程标记、未捕获异常 → 退出码、调 bootstrap                                    120 [B5]
+    args.ts                 手写参数解析（无依赖）：ParsedArgs、--help 文本、校验互斥                                 350 [B5]
+    exit-codes.ts           退出码常量与说明（§11.4）                                                                 50  [B0]
+    bootstrap.ts            §11 启动序列编排：返回 Runtime 或抛 StartupError{code}                                    400 [B5]
+    runtime.ts              Runtime 类型（config、providers、session、hooks、host、permission、tools）                80  [B0]
+    subcommands/
+      auth.ts               `ama auth set|list|remove <provider>`（stdin 读 key）                                     160 [B5]
+      sessions.ts           `ama sessions list|prune|show`                                                           180 [B5]
+      models.ts             `ama models list [--provider]`、`ama models check <id>`（一次最小调用）                   120 [B5]
+      doctor.ts             `ama doctor`：配置层级、信任状态、key 来源、hook 列表、终端能力                           160 [B5]
   modes/
-    repl/         行式 REPL：readline + 括号粘贴状态机 + 斜杠命令
-    print/        -p：text / json / stream-json
-    rpc/          --mode rpc：JSONL 读写、命令分派、事件序列化
-  agent/          循环：状态机、队列（steer / followUp）、中断、重试
-  ai/             供应商：anthropic-messages、openai-chat；流式解析、工具调用归一化、用量
-  session/        JSONL 条目树：SessionManager、投影（projection）、分叉、清理
-  compaction/     两档压缩、分支摘要、熔断
-  tools/          read / write / edit / bash / grep / glob、task（子 Agent）
-  skills/         SKILL.md 发现、索引、渐进披露
-  permissions/    规则、危险命令识别、模式、询问与无人值守策略
-  host/           HostApi 实现与 --host 加载器（类型从 ./host 子路径导出）
-  config/         配置文件、auth.json、profile.json、XDG 路径
-  sdk.ts          createAgentSession 等公开 API
-docs/             design.md（本文）、rpc.md、session-format.md、host-api.md
-scripts/          build-bundle.mjs（esbuild）、release 检查
-test/fixtures/    JSONL 样本、RPC 黄金记录、脚本化供应商响应
+    interactive/
+      interactive-mode.ts   装配 TUI 根布局；会话事件 → 组件更新；键位分派                                          450 [B7]
+      message-view.ts       消息区：助手 Markdown、用户、steer、工具调用折叠、压缩摘要卡                              400 [B7]
+      tool-view.ts          单个工具调用组件：标题行、折叠 / 展开、流式尾部、diff 高亮（edit）                        300 [B7]
+      status-bar.ts         模型 / 思考级别 / token / 成本 / 上下文 % / 队列 / 权限模式 / 宿主状态                    200 [B7]
+      approval-dialog.ts    审批对话框（y / n / a / 查看完整输入）                                                    180 [B7]
+      commands.ts           斜杠命令表与处理器（/new /resume /compact /model /tree /fork /skill: /hooks …）           400 [B7]
+      completion.ts         补全提供者：`/` 命令、`/skill:`、`@` 文件（glob 走 tools/glob）                           200 [B7]
+      pickers.ts            模型选择、会话选择、树选择（都用 SelectList）                                             250 [B7]
+      line/
+        line-mode.ts        `--no-tui`：readline + 括号粘贴状态机 + 同一套 commands                                   300 [B6]
+        paste-state.ts      ESC[200~ … ESC[201~ 字节状态机（与 tui/stdin-buffer 共用算法，独立实现便于单测）          120 [B6]
+    print/
+      print-mode.ts         -p：text / json / stream-json；无人值守策略                                                200 [B6]
+      json-event.ts         线上事件形状（stream-json 与 RPC 共用）：message_update 纯增量 + usage                     180 [B6]
+    rpc/
+      rpc-mode.ts           stdio 读写、hello、关 stdin 有序退出、stdout 接管                                          250 [B6]
+      commands.ts           命令分派表（§13.2）                                                                       450 [B6]
+      jsonl.ts              按 LF 切分（容忍 CR，不切 U+2028）、分块写                                                 80  [B6]
+  tui/
+    component.ts            Component / Focusable / Theme 接口                                                        60  [B0]
+    tui.ts                  TUI 主类：组件树、焦点、requestRender 合并、差分、同步输出、resize                        450 [B4]
+    terminal.ts             Terminal 接口；ProcessTerminal（raw 模式、括号粘贴开关、尺寸）；MemoryTerminal（测试）     250 [B4]
+    stdin-buffer.ts         攒完整转义序列；括号粘贴累积为一次 paste 事件；孤立 ESC 超时                                200 [B4]
+    keys.ts                 键解析：CSI / SS3 / 修饰键 / Alt 前缀 / Shift+Enter 变体；KeyId 匹配                        350 [B4]
+    ansi.ts                 visibleWidth / truncateToWidth / sliceByColumn / wrapTextWithAnsi（宽字符、emoji、组合）   300 [B4]
+    theme.ts                语义色表、dark / light、能力降级（truecolor / 256 / 16 / NO_COLOR）                        200 [B4]
+    keybindings.ts          动作 id → 键列表（固定表 + config 覆盖）                                                  120 [B4]
+    components/
+      container.ts          纵向容器                                                                                  100 [B4]
+      text.ts               Text / TruncatedText（自动换行、缓存）                                                    150 [B4]
+      markdown.ts           Markdown → 行：标题、列表、代码块、引用、行内强调 / 代码 / 链接；表格降级为等宽文本        500 [B4]
+      editor-buffer.ts      文本缓冲：行 / 光标 / 选区 / 撤销栈 / 单词导航                                            350 [B4]
+      editor.ts             多行编辑器组件：渲染、键处理、历史、补全列表、大粘贴折叠标记                               550 [B4]
+      editor-paste.ts       粘贴折叠：阈值、标记 token、提交时展开                                                     150 [B4]
+      select-list.ts        选择列表（过滤、分页、描述行）                                                             220 [B4]
+      box.ts                边框 / 内边距                                                                              100 [B4]
+      spacer.ts loader.ts   占位 / 旋转指示器                                                                          80  [B4]
+      overlay.ts            覆盖层合成：只支持 center 与 bottom 两种锚点                                               150 [B4]
+  agent/
+    types.ts                AgentMessage、ContentBlock、Usage、SessionEvent、StopReason                               250 [B0]
+    loop.ts                 runLoop 状态机：外层 followUp、内层 工具 / steer；钩子点                                   400 [B2]
+    agent.ts                有状态 Agent：队列、activeRun、abort、waitForIdle                                         300 [B2]
+    queue.ts                PendingMessageQueue：one-at-a-time / all                                                 80  [B2]
+    tool-runner.ts          准备串行（校验 → Hook → 权限）/ 执行并行；sequential 传染；结果按原序入转录               350 [B2]
+    retry.ts                可重试 / 不可重试判定、退避、abort 可打断                                                   150 [B2]
+    transform.ts            回放修复：tool id 归一化、跨模型思考块降级、跳过 error/aborted、孤儿 tool_call 补结果      250 [B2]
+    system-prompt.ts        命名节装配（preamble → tools → rules → project_context → skills → cwd → host）与 diff     220 [B2]
+    session.ts              AgentSession：提示展开（模板 / skill）、重试调度、压缩调度、hook 调度、事件广播           550 [B2]
+    session-state.ts        SessionState 快照与统计（tokens、成本、上下文 %）                                          120 [B2]
+    schema.ts               JSON Schema 子集校验（object / string / number / boolean / array / enum / required）      200 [B0]
+  ai/
+    types.ts                Api、Provider、Model、Compat、Message、AssistantEvent、StreamOptions                      350 [B0]
+    event-stream.ts         AsyncIterable + result()                                                                  100 [B1]
+    sse.ts                  SSE 解析器（event / data / 多行 data / 注释 / CRLF）                                        120 [B1]
+    http.ts                 fetch 包装：超时、头合并（null 删除）、错误体读取、代理 env 透传说明                        120 [B1]
+    json-partial.ts         容错 JSON 片段解析（流式 tool_call 参数）                                                   150 [B1]
+    overflow.ts             上下文溢出错误识别（各家文案正则）                                                          100 [B1]
+    cost.ts                 阶梯价、1h 缓存写 2×、Usage.input 不含缓存                                                 80  [B1]
+    thinking.ts             ThinkingLevel 钳位、thinkingLevelMap、预算型缺省                                            120 [B1]
+    context.ts              normalizeContext：system 折叠、工具表差异、模态过滤                                         150 [B1]
+    apis/
+      api.ts                ApiImplementation 接口 + 注册表（按 id 懒加载）                                             80  [B1]
+      anthropic-messages.ts 请求体、cache_control 断点、thinking、SSE → 事件、usage                                     550 [B1]
+      openai-completions.ts 请求体、tool_calls 增量拼接、usage 差异、reasoning 字段                                      550 [B1]
+      openai-compat.ts      detectCompat：provider id + baseUrl 推断 → model.compat 覆盖                                200 [B1]
+      google-generative-ai.ts streamGenerateContent?alt=sse、functionCall / functionResponse、thoughtSignature          450 [B8]
+      openai-responses.ts   response.* 事件、function_call item、reasoning summary                                       450 [B8]
+    providers/
+      registry.ts           ProviderRegistry：内置 + config 合并、模型查找、`provider/model` 字符串解析                 220 [B1]
+      builtin.ts            13 家内置供应商数据（§3.3）                                                                200 [B1]
+      catalog.ts            加载 catalog/*.json、校验、覆盖合并                                                        120 [B1]
+      catalog/*.json        每家一份模型目录（数据，不计行）                                                            —   [B1]
+      auth.ts               key 发现顺序、各家标准环境变量、`$ENV` 插值、`!command` 取值                                220 [B1]
+    fake/
+      fake-provider.ts      脚本化供应商：按第 n 次调用返回文本 / 工具调用 / 429 / 溢出 / 断流                           250 [B1]
+      fake-script.ts        脚本 JSON 类型与加载                                                                        80  [B1]
+  session/
+    types.ts                SessionHeader、SessionEntry 联合                                                            150 [B0]
+    manager.ts              SessionManager：open / create / inMemory、append、leaf、fork、clone、name                   500 [B2]
+    projection.ts           buildContextEntries / buildProjection / buildContext                                        250 [B2]
+    tree.ts                 树结构、公共祖先、路径                                                                       200 [B2]
+    store.ts                目录编码、文件名、原子追加、锁、trash                                                       220 [B2]
+    migrate.ts              v1 文件读取兜底（预留）                                                                     60  [B2]
+  compaction/
+    estimate.ts             contextTokens 估算（含 output；编辑在 usage 之后则按投影重估）                              120 [B2]
+    prune-tier.ts           档一：旧 toolResult 裁剪为 context_edit                                                     200 [B2]
+    cut-point.ts            档二切点：keepRecentTokens、合法切点、split turn                                            180 [B2]
+    serialize.ts            被摘要段的文本序列化（工具结果截 2000 字符）                                                120 [B2]
+    summarize-tier.ts       摘要调用、模板、文件列表累计、关闭缓存写                                                    300 [B2]
+    branch-summary.ts       /tree 离开分支时的摘要                                                                      200 [B2]
+    breaker.ts              熔断状态机                                                                                  80  [B2]
+  tools/
+    types.ts                ToolDefinition、ToolContext、ToolResult（也从 ./host 导出）                                 120 [B0]
+    registry.ts             ToolRegistry：内置 + 宿主注册、disable、活动集、按名排序                                    140 [B3]
+    truncate.ts             头 / 尾截断（行数 + 字节双阈值）、落盘全文                                                   130 [B3]
+    paths.ts                展开 ~、相对 cwd 解析、禁止 NUL、符号链接策略                                               100 [B3]
+    file-mutex.ts           按路径串行化读 - 改 - 写                                                                    60  [B3]
+    read.ts                 文本 / 二进制检测 / 图片附件 / offset-limit                                                 220 [B3]
+    write.ts                整文件写、建父目录、先读后写检查                                                            130 [B3]
+    edit.ts                 多处替换、唯一性、不重叠、BOM / CRLF 保留、diff 到 details                                  350 [B3]
+    edit-fuzzy.ts           模糊匹配回退（NFKC、行尾空白、引号归一）                                                    200 [B3]
+    bash.ts                 命令执行、超时、流式尾部、环境注入、结构化结果                                               350 [B3]
+    shell.ts                shell 选择（POSIX / Windows）、参数拼装                                                     180 [B3]
+    process-tree.ts         进程组 / 杀树（SIGTERM → SIGKILL；taskkill /T /F）、退出码 128+signo                        140 [B3]
+    output-accumulator.ts   滚动尾部 + 超限落文件                                                                       150 [B3]
+    grep.ts                 内置正则搜索：并发读文件、二进制跳过、上下文行、limit                                        350 [B3]
+    glob.ts                 内置 glob（`**`、`{a,b}`、`[...]`、否定）                                                    300 [B3]
+    ignore.ts               .gitignore / .ignore 解析与匹配（含嵌套、否定、目录规则）                                    280 [B3]
+    ls.ts                   目录列表（类型、大小、limit）                                                                120 [B3]
+    todo.ts                 会话内任务清单（`custom` 条目持久化，不进上下文；渲染给 TUI）                                160 [B3]
+    skill.ts                `skill` 工具：按名读取 SKILL.md 正文（渐进披露的模型侧入口）                                  120 [B3]
+    task.ts                 子 Agent：独立 AgentSession、工具子集、深度 / 并发限制、结果摘要、独立 JSONL                 320 [B3]
+  skills/
+    discover.ts             目录扫描、SKILL.md 定位、重名策略、信任过滤                                                  200 [B3]
+    frontmatter.ts          YAML 头**子集**解析（`key: value`、单行字串、简单数组）                                      120 [B3]
+    index-prompt.ts         `<available_skills>` 索引生成                                                               80  [B3]
+    expand.ts               `/skill:<name> args` 展开格式                                                               100 [B3]
+    templates.ts            提示模板 `prompts/*.md`：`$1 $@ ${1:-x} ${@:N}`                                             200 [B3]
+  hooks/
+    types.ts                HookEvent、HookConfig、HookInput、HookOutput、HookDecision                                  150 [B0]
+    config.ts               发现与合并（用户级 / 项目级 / profile）、信任过滤、校验                                      220 [B5]
+    matcher.ts              matcher 语法：工具名 glob、`bash(git push*)`、正则 `/…/`                                     110 [B5]
+    runner.ts               子进程执行：stdin JSON、超时、并行、退出码解释、stderr 收集                                   350 [B5]
+    protocol.ts             输入 / 输出 JSON 的构造与校验、决策合并规则                                                   180 [B5]
+    dispatcher.ts           HookDispatcher：按事件挂到 AgentSession 的钩子点；Notification 投递                          250 [B5]
+  permissions/
+    types.ts                Rule、Mode、Decision、ApprovalRequest                                                        80  [B0]
+    rules.ts                规则解析（`bash(git *)`、`write(src/**)`）、来源标记、收紧校验                                220 [B3]
+    dangerous.ts            危险命令表（正反例测试）                                                                      250 [B3]
+    pipeline.ts             四步管线 + Hook 决策合入 + 无人值守                                                           250 [B3]
+    broker.ts               ApprovalBroker 链：宿主 → UI → 无人值守；超时 deny；allow_session 记忆                       160 [B3]
+  host/
+    types.ts                HostModule、HostAdapter、HostApi、AgentEvents                                                260 [B0]
+    api-impl.ts             HostApi 实现：工具注册、事件总线、指令追加、broker、sendUser、ui.notify                       300 [B5]
+    loader.ts               `--host` 加载（CJS / ESM）、版本校验、create 超时、dispose                                   150 [B5]
+  config/
+    paths.ts                XDG / APPDATA、AMA_CONFIG_DIR、AMA_DATA_DIR、sessionDir 规则                                 120 [B5]
+    schema.ts               config.json / auth.json / profile.json / hooks.json / trust.json 类型与校验                   320 [B5]
+    load.ts                 读文件 + 校验 + 诊断（行号、字段路径）                                                       220 [B5]
+    merge.ts                层级合并：缺省 ← 用户级 ← profile ← 项目级（受限字段）← 命令行                                180 [B5]
+    trust.ts                trust.json、祖先匹配、询问策略、`--trust/--no-trust`                                         200 [B5]
+    profile.ts              profile.json 解析为等价参数                                                                   120 [B5]
+    auth-file.ts            auth.json 读写（0600）、`ama auth` 后端                                                      150 [B5]
+    context-files.ts        AGENTS.md 向上查找（`AGENTS.override.md > AGENTS.md > AGENTS.MD`，外层在前，worktree 去重） 160 [B5]
+  sdk.ts                    createAgentSession、createRuntime、公开类型                                                  280 [B6]
+docs/                       design.md（本文）、rpc.md、session-format.md、host-api.md、hooks.md、providers.md、tui.md
+test/
+  fixtures/sse/<api>/<case>.txt            录制 SSE 样本（两条第一期协议各 ≥ 8 个用例）
+  fixtures/scripts/*.json                  脚本化供应商脚本
+  fixtures/sessions/*.jsonl                会话样本
+  fixtures/rpc/*.jsonl                     RPC 黄金记录
+  fixtures/tui/*.txt                       TUI 帧黄金文件
+  helpers/                                  tmp-home、MemoryTerminal 驱动、fake 供应商启动器
 ```
 
-依赖方向：`cli → modes → agent → {ai, session, compaction, tools, permissions, skills, host, config}`；`host` 不反向 import `modes`。`src/**` 不得 import 任何宿主包，用一条源码扫描测试守住（与 Armadra `no-electron.test.ts` 同一手法）。
+合计源码约 2.1–2.4 万行（含 TUI 与两条后置协议），MVP 范围约 1.4 万行。
 
-目录与数据位置（独立模式）：
+## §2 技术栈与工程约定
 
-| 内容                           | 位置                                                                           | 覆盖                             |
-| ------------------------------ | ------------------------------------------------------------------------------ | -------------------------------- |
-| 配置 `config.json`、`auth.json` | `~/.config/ama/`（Windows：`%APPDATA%\ama\`）                                  | `AMA_CONFIG_DIR`                 |
-| 会话                           | `~/.local/share/ama/sessions/<编码 cwd>/<ISO 时间>_<uuid>.jsonl`               | `AMA_DATA_DIR`、`--session-dir`  |
-| 项目级                         | `<cwd>/.ama/{AGENTS.md,skills/,config.json}`                                   | —                                |
-| 用户技能                       | `~/.config/ama/skills/<name>/SKILL.md`                                         | `--skill-dir`（可重复）          |
+| 项         | 约定                                                                                                                                                                                                                  |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 运行时     | Node ≥ 22（`engines.node: ">=22"`），只用 `node:` 内置模块；HTTP 用全局 `fetch`，SSE 自写；YAML 只支持 frontmatter 子集自写；JSON Schema 校验自写子集                                                                  |
+| 语言       | TypeScript 5.9，`strict`、`noUncheckedIndexedAccess`、`exactOptionalPropertyTypes`、`verbatimModuleSyntax`、`module: NodeNext`；源码 ESM，import 带 `.js` 后缀                                                        |
+| 包管理     | pnpm 9；`packageManager` 字段固定；`dependencies` **必须为空**（`scripts/check-no-deps.mjs` 在 CI 守住）                                                                                                              |
+| 测试       | vitest 4，`pool: "forks"`；单测与模块同目录 `*.test.ts`；端到端在 `test/e2e/`；覆盖率不设门槛但 CI 报告                                                                                                              |
+| 格式       | prettier 3（`printWidth 100`、双引号、尾逗号 all）；`pnpm fmt:check` 在 CI                                                                                                                                              |
+| 构建       | `tsc -p tsconfig.build.json` → `dist/`（ESM + d.ts）；`node scripts/build-bundle.mjs` → `dist/bundle/ama.cjs`；bundle 内把 `import.meta.url` 替换为 `__filename` 等价                                                 |
+| 单文件     | ≤ 600 行；函数 ≤ 80 行建议；禁止默认导出（`--host` 模块除外）                                                                                                                                                         |
+| 日志       | `stderr` 唯一诊断通道；`AMA_LOG=debug|info|warn|error`；`AMA_LOG_FILE` 可落盘；协议模式下 stdout 只放协议                                                                                                             |
+| 错误       | `class AmaError extends Error { code: string; exitCode?: number; detail?: unknown }`；启动期错误是 `StartupError`                                                                                                       |
 
-## §2 模型接入
+### §2.1 仓库根文件
 
-| 项            | 决定                                                                                                                                                                                                                 |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 协议线        | `anthropic-messages`、`openai-chat`（Chat Completions，含 `tool_calls` 流式增量拼接）；`openai-responses` 第 5 期                                                                                                     |
-| 模型表        | `config.json` 的 `models[]`：`{ id, provider, api, baseUrl, contextWindow, maxTokens, reasoning, cost? }`；内置少量缺省条目，用户可覆盖；不猜不认识的模型的窗口大小——缺 `contextWindow` 的模型关闭自动压缩并警告 |
-| 流式归一化    | 供应商事件 → 内部 `AssistantEvent`：`text_delta` / `thinking_delta` / `tool_call_start` / `tool_call_delta` / `tool_call_end` / `usage` / `done{stopReason}`；上层只认这一套                                        |
-| 用量          | `usage{ input, output, cacheRead, cacheWrite }` 统一字段；`responseId` 取供应商响应 id，用于去重与成本对账                                                                                                           |
-| 重试          | 429 / 5xx / 网络错误指数退避（1s 起，×2，最多 5 次，上限 30s），`abort` 可打断等待；非瞬时错误不重试                                                                                                                 |
-| 思考          | `thinkingLevel: off | low | medium | high`，映射到各协议的推理参数；不支持的模型忽略并记一条 warning                                                                                                                 |
-| 密钥来源      | 顺序：`--auth-file` → `AMA_API_KEY_<PROVIDER>` 环境变量 → `~/.config/ama/auth.json`；值只读进局部变量，不日志、不进会话文件                                                                                            |
+`package.json`（节选）：
 
-## §3 循环
-
-### §3.1 状态
-
-```text
-idle ──prompt──▶ running ──(模型流结束, 有 tool_call)──▶ executing-tools ──┐
-  ▲                 ▲                                                      │
-  │                 └──────── 投递 steer 队列 → 下一次模型调用 ◀───────────┘
-  │                                   │(无 tool_call 且 steer 队列空)
-  │◀── agent_settled ──── 投递 followUp 队列（有则回到 running，无则结束）◀┘
+```json
+{
+  "name": "@armadra/agent", "version": "0.1.0", "type": "module", "license": "MIT",
+  "bin": { "ama": "dist/cli/main.js" },
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./host": { "types": "./dist/host.d.ts", "import": "./dist/host.js" },
+    "./rpc": { "types": "./dist/rpc.d.ts", "import": "./dist/rpc.js" },
+    "./tui": { "types": "./dist/tui.d.ts", "import": "./dist/tui.js" },
+    "./bundle": "./dist/bundle/ama.cjs"
+  },
+  "files": ["dist", "docs/rpc.md", "docs/host-api.md", "docs/hooks.md"],
+  "engines": { "node": ">=22" },
+  "private": false,
+  "publishConfig": { "access": "public" },
+  "scripts": {
+    "build": "pnpm build:lib && pnpm build:bundle",
+    "build:lib": "tsc -p tsconfig.build.json",
+    "build:bundle": "node scripts/build-bundle.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "AMA_E2E=1 vitest run test/e2e",
+    "fmt": "prettier --write .",
+    "fmt:check": "prettier --check .",
+    "check:deps": "node scripts/check-no-deps.mjs",
+    "ci": "pnpm typecheck && pnpm fmt:check && pnpm check:deps && pnpm test && pnpm build && node dist/bundle/ama.cjs --version"
+  },
+  "dependencies": {},
+  "devDependencies": { "typescript": "5.9.x", "vitest": "4.x", "prettier": "3.x", "esbuild": "0.2x", "@types/node": "22.x" }
+}
 ```
 
-- 一次 **run**：从 `prompt` 接受到 `agent_settled`。一次 **turn**：一次模型调用加上它产生的工具执行。
-- `agent_end` 只表示底层 run 结束；重试、溢出恢复、followUp 都可能接着来。宿主要知道「不会再自动继续」时等 `agent_settled`（与 Pi 相同的区分）。
+`vitest.config.ts`：`test.pool = "forks"`、`testTimeout = 20000`、`include = ["src/**/*.test.ts", "test/**/*.test.ts"]`、`exclude e2e unless AMA_E2E`、`setupFiles = ["test/helpers/setup.ts"]`（设 `AMA_CONFIG_DIR` / `AMA_DATA_DIR` 到临时目录、清空各家 `*_API_KEY`）。
 
-### §3.2 中断（abort）精确语义
+`.github/workflows/ci.yml`：矩阵 `os: [ubuntu-latest, macos-latest, windows-latest]`、`node: [22, 24]`；步骤 checkout → pnpm setup → `pnpm install --frozen-lockfile` → `pnpm ci`；Windows 行额外 `node dist/bundle/ama.cjs -p "hi" --provider fake --model fake/echo`；`v*` 标签触发 release job：构建、`sha256sum dist/bundle/ama.cjs > SHA256SUMS`、上传 Release 附件（**无 npm publish 步骤**）。
 
-1. `abort()` 触发会话级 `AbortController`；该 signal 同时传给：供应商流（断开 HTTP）、每个正在执行的工具（`ToolContext.signal`）、重试等待计时器。
-2. `bash` 工具收到 signal：向进程组发 `SIGTERM`，2 s 后仍存活发 `SIGKILL`（Windows：`taskkill /T /F`）。
-3. **补 tool_result**：模型消息里每个尚无结果的 `tool_call`，写入 `toolResult{ isError: true, content: "aborted by user" }`，再写入一条 `custom_message`（`customType: "ama.aborted"`）记录中断时刻。这样转录永远满足「每个 tool_call 有且仅有一个 result」，下一次请求不会被供应商拒绝。
-4. 已流出的部分助手消息照常落盘，`stopReason: "aborted"`。
-5. **abort 不清队列**：steer / followUp 队列保留；要清用 `clear_queue`（REPL 的 Esc 先 `clear_queue` 再 `abort`，把队列文本放回输入框）。
-6. `abort()` 在会话回到 `idle` 后 resolve。
+## §3 模型接入
 
-### §3.3 插话（steer / followUp）精确语义
-
-| 调用                                 | 不在运行时                      | 运行中                                                                                                    | 投递点                                                              |
-| ------------------------------------ | ------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `prompt(text)`                       | 开新 run，`disposition: started` | **报错**，除非带 `streamingBehavior: "steer" | "followUp"`                                                 | —                                                                   |
-| `steer(text)`                        | 等价于 `prompt`                 | 入 steer 队列，`disposition: queued`                                                                      | 当前 turn 的工具全部执行完、**下一次模型调用之前**，作为 user 消息  |
-| `followUp(text)`                     | 等价于 `prompt`                 | 入 followUp 队列                                                                                          | run 自然结束（无 tool_call 且 steer 队列空）时，开下一个 run        |
-| 队列模式                             | `steeringMode` / `followUpMode` | `one-at-a-time`（缺省）每个 turn 投一条；`all` 一次投完                                                   | —                                                                   |
-| 斜杠命令（`/compact`、`/skill:x`）   | 立即执行                        | 立即执行，不入队                                                                                          | —                                                                   |
-
-steer 消息进入转录时标 `custom: { origin: "steer" }`，渲染时与普通用户消息区分；对模型它就是 user 消息。
-
-### §3.4 工具执行
-
-同一条助手消息里的多个 `tool_call` 默认**顺序**执行（文件工具共享可变状态；并行留给只读工具：`read` / `grep` / `glob` 标 `annotations.readOnly` 的可并行，上限 4）。每个工具的输出超过 `maxToolResultChars`（缺省 30 000）即截断并写全文到 `<sessionDir>/outputs/<toolCallId>.txt`，结果里告知路径。
-
-## §4 工具与 Skill
-
-### §4.1 工具定义
+### §3.1 协议层（`ai/apis/`）
 
 ```ts
-// @armadra/agent（也从 ./host 再导出）
+export type KnownApi = "anthropic-messages" | "openai-completions" | "openai-responses" | "google-generative-ai";
+export type Api = KnownApi | (string & {});
+
+export interface ApiImplementation<C = unknown> {
+  readonly id: Api;
+  stream(model: Model, context: TranscriptContext, options: StreamOptions): AssistantEventStream;
+  detectCompat?(model: Model, provider: ProviderData): C;      // 推断缺省 compat
+}
+export interface StreamOptions {
+  signal: AbortSignal; apiKey?: string; headers?: Record<string, string | null>;
+  timeoutMs?: number; maxTokens?: number; temperature?: number;
+  thinkingLevel?: ModelThinkingLevel; cacheRetention?: "none" | "short" | "long"; sessionId?: string;
+  onPayload?(payload: unknown): unknown | void;                // 观测 / 替换请求体（宿主与测试用）
+  onResponse?(status: number, headers: Headers): void;
+}
+export type AssistantEvent =
+  | { type: "start"; partial: AssistantMessage }
+  | { type: "text_start" | "text_end"; contentIndex: number; partial: AssistantMessage }
+  | { type: "text_delta"; contentIndex: number; delta: string; partial: AssistantMessage }
+  | { type: "thinking_start" | "thinking_end"; contentIndex: number; partial: AssistantMessage }
+  | { type: "thinking_delta"; contentIndex: number; delta: string; partial: AssistantMessage }
+  | { type: "toolcall_start"; contentIndex: number; id: string; name: string; partial: AssistantMessage }
+  | { type: "toolcall_delta"; contentIndex: number; delta: string; partial: AssistantMessage }
+  | { type: "toolcall_end"; contentIndex: number; toolCall: ToolCallBlock; partial: AssistantMessage }
+  | { type: "done"; reason: "stop" | "length" | "toolUse"; message: AssistantMessage }
+  | { type: "error"; reason: "aborted" | "error"; message: AssistantMessage };
+export interface AssistantEventStream extends AsyncIterable<AssistantEvent> { result(): Promise<AssistantMessage> }
+```
+
+流契约（与 Pi 相同，测试逐条断言）：请求成功后先 `start`；块事件配对；**恰好一个**终止事件；取消 → `error{reason:"aborted"}`；`toolcall_end` 时参数已是合法对象；**流函数不抛错**，失败编码进 `error` 事件（缺 key 例外：同步抛 `AmaError{code:"no_api_key"}`，启动期就能发现）。
+
+| 协议                   | 批次 | 理由                                                                                                                                                    |
+| ---------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `anthropic-messages`   | B1   | 第一供应商；缓存断点与 thinking 签名要原生支持                                                                                                          |
+| `openai-completions`   | B1   | 一条线覆盖 DeepSeek、Moonshot、GLM、Qwen、OpenRouter、Groq、xAI、Mistral、Ollama、LM Studio、自定义——国内与本地的全部；差异靠 compat                    |
+| `google-generative-ai` | B8   | Gemini 的 OpenAI 兼容端点缺 thought signature 与多模态细节，原生协议才能完整；但第一期用户可先走 OpenRouter 调 Gemini                                    |
+| `openai-responses`     | B8   | 只有 OpenAI 自家最新推理模型必需；Completions 仍可用于绝大多数 OpenAI 模型；放第二波避免第一波三条协议并行拉长                                             |
+| 不做                   | —    | Azure、Bedrock、Vertex（云身份不是 API Key）、Mistral 专有 conversations（其 OpenAI 兼容端点够用）、图像 / 分类 / 代理网关专有线                        |
+
+### §3.2 供应商与模型数据
+
+```ts
+export interface ProviderData {
+  id: string; name: string; api: Api; baseUrl: string;
+  envKeys: string[];                      // API Key 环境变量候选，顺序即优先级；首项是「各家标准名」
+  authHeader?: "authorization-bearer" | "x-api-key" | "x-goog-api-key" | { header: string; prefix?: string };
+  headers?: Record<string, string>;
+  compat?: Partial<OpenAICompletionsCompat | AnthropicMessagesCompat | GoogleCompat | OpenAIResponsesCompat>;
+  models: Model[];
+  requiresApiKey: boolean;                // 本地服务 false：无 key 也能用
+  builtin: boolean;
+}
+export interface Model {
+  id: string; name: string; provider: string; api: Api; baseUrl?: string;
+  input: ("text" | "image")[]; reasoning: boolean;
+  thinkingLevelMap?: Partial<Record<ModelThinkingLevel, string | number | null>>;   // null = 该级别不支持
+  contextWindow?: number; maxTokens: number;                                       // 缺 contextWindow → 关自动压缩并警告
+  cost?: { input: number; output: number; cacheRead: number; cacheWrite: number; tiers?: { inputTokensAbove: number; input: number; output: number; cacheRead: number; cacheWrite: number }[] };
+  promptCache?: { short?: number; long?: number };
+  headers?: Record<string, string>; samplingParams?: Record<string, unknown>;
+  compat?: ProviderData["compat"];
+}
+export type ModelThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
+```
+
+### §3.3 内置供应商目录（`ai/providers/builtin.ts`）
+
+| id            | api                    | baseUrl                                                 | envKeys（顺序）                                  | 备注 / compat 推断                                                                        |
+| ------------- | ---------------------- | ------------------------------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `anthropic`   | anthropic-messages     | `https://api.anthropic.com`                             | `ANTHROPIC_API_KEY`, `AMA_API_KEY_ANTHROPIC`     | 三断点缓存；`x-api-key`                                                                   |
+| `openai`      | openai-completions（B8 后新推理模型可切 responses） | `https://api.openai.com/v1`     | `OPENAI_API_KEY`, `AMA_API_KEY_OPENAI`           | `maxTokensField: max_completion_tokens`、`developer` role、`reasoning_effort`             |
+| `google`      | google-generative-ai（B8 前以 openrouter 过渡）  | `https://generativelanguage.googleapis.com/v1beta`  | `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `AMA_API_KEY_GOOGLE` | `x-goog-api-key`                                                         |
+| `deepseek`    | openai-completions     | `https://api.deepseek.com`                              | `DEEPSEEK_API_KEY`, `AMA_API_KEY_DEEPSEEK`       | `maxTokensField: max_tokens`、`requiresReasoningContentOnAssistantMessages`、`thinkingFormat: deepseek`、缓存命中 `prompt_cache_hit_tokens` |
+| `moonshot`    | openai-completions     | `https://api.moonshot.cn/v1`（`moonshot-intl` 用 `.ai`） | `MOONSHOT_API_KEY`, `KIMI_API_KEY`               | `max_tokens`；顶层 `cached_tokens`                                                        |
+| `zhipu`       | openai-completions     | `https://open.bigmodel.cn/api/paas/v4`                  | `ZHIPU_API_KEY`, `ZAI_API_KEY`                   | `thinkingFormat: zai`（`thinking.type`）；`max_tokens`                                     |
+| `dashscope`   | openai-completions     | `https://dashscope.aliyuncs.com/compatible-mode/v1`     | `DASHSCOPE_API_KEY`, `QWEN_API_KEY`              | `thinkingFormat: qwen`（`enable_thinking`）；`thinkingTokenBudgetField: thinking_budget` |
+| `openrouter`  | openai-completions     | `https://openrouter.ai/api/v1`                          | `OPENROUTER_API_KEY`                             | `thinkingFormat: openrouter`（`reasoning.effort`）；`anthropic/*` 模型 `cacheControlFormat: anthropic`；`HTTP-Referer` / `X-Title` 头 |
+| `groq`        | openai-completions     | `https://api.groq.com/openai/v1`                        | `GROQ_API_KEY`                                   | `supportsUsageInStreaming: true`（`x_groq.usage` 兼容读取）                               |
+| `xai`         | openai-completions     | `https://api.x.ai/v1`                                   | `XAI_API_KEY`                                    | `reasoning_effort`                                                                        |
+| `mistral`     | openai-completions     | `https://api.mistral.ai/v1`                             | `MISTRAL_API_KEY`                                | `supportsDeveloperRole: false`、`requiresToolResultName: true`                            |
+| `ollama`      | openai-completions     | `http://127.0.0.1:11434/v1`                             | `OLLAMA_API_KEY`（可无）                         | `requiresApiKey: false`；模型表空，用 `ama models list --provider ollama` 从 `/api/tags` 拉（唯一联网枚举，本地） |
+| `lmstudio`    | openai-completions     | `http://127.0.0.1:1234/v1`                              | （无）                                           | `requiresApiKey: false`；`/v1/models` 枚举                                                 |
+
+自定义供应商（`config.json.providers.<id>`）字段同 `ProviderData` 去掉 `builtin`；`api` 缺省 `openai-completions`。自定义模型缺省 `maxTokens: 8192`、`reasoning: false`、`input: ["text"]`，**不猜 `contextWindow`**（缺省关自动压缩并在状态栏显示 `ctx: ?`）。
+
+`OpenAICompletionsCompat`（第一期全部实现）：`maxTokensField`、`supportsDeveloperRole`、`supportsUsageInStreaming`、`supportsFinishReason`、`supportsReasoningEffort`、`thinkingFormat: "openai" | "openrouter" | "deepseek" | "zai" | "qwen" | "none"`、`thinkingTokenBudgetField`、`requiresReasoningContentOnAssistantMessages`、`requiresToolResultName`、`requiresAssistantAfterToolResult`、`supportsMidConvoSystemMessages`、`cacheControlFormat`、`supportsStrictTools`、`supportsStore`。`detectCompat` 顺序：`provider.compat` ← baseUrl 子串推断表（`deepseek.com`、`moonshot.`、`bigmodel.cn`、`dashscope.`、`openrouter.ai`、`groq.com`、`x.ai`、`mistral.ai`、`:11434`、`:1234`）← `model.compat` 字段级覆盖。文档告诫：compat 只记录**已验证**差异。
+
+`AnthropicMessagesCompat`：`supportsCacheControlOnTools`、`supportsTemperatureWithThinking`、`adaptiveThinking`（新模型 `effort` 参数，老模型 `budget_tokens`）、`maxCacheBreakpoints`。
+
+### §3.4 模型目录（`ai/providers/catalog/*.json`）
+
+格式 `{ "version": 1, "provider": "<id>", "models": [Model 去掉 provider/api] }`；每家 5–15 条当前主流模型，字段必填 `id, name, contextWindow, maxTokens, reasoning, cost`。维护方式：人工校对，PR 更新；`ama models list` 显示来源（内置 / 用户覆盖）。用户 `config.json.models[]` 同 `provider/id` 覆盖，`modelOverrides[]` 只改元数据。模型引用字符串 `provider/model-id`（`--model deepseek/deepseek-chat`）；无斜杠时在已配置 key 的供应商里唯一匹配，否则报错列出候选。
+
+### §3.5 API Key 发现顺序（`ai/providers/auth.ts`）
+
+```text
+① --api-key <key>（只配合显式 --model；不进 shell 历史的替代是 ②）
+② --auth-file / profile.authFile 指向的 auth.json
+③ ~/.config/ama/auth.json（0600；不是 0600 → warning 并照用，doctor 提示）
+④ config.json 的 providers.<id>.apiKey（支持 "$ENV_NAME"、"${ENV_NAME}"、"!command"；"$$" 转义）
+⑤ 环境变量：provider.envKeys 顺序（各家标准名在前，AMA_API_KEY_<ID> 兜底）
+⑥ requiresApiKey=false 的供应商：无 key 也放行
+```
+
+`auth.json`：`{ "version": 1, "providers": { "<id>": { "apiKey": "...", "env"?: {...}, "baseUrl"?: "..." } } }`；`apiKey` 以 `!` 开头 = 执行命令取值（进程内缓存，超时 10 s，空输出 / 非零视为未配置）。密钥只在 `resolveApiKey()` 的返回值里存在，不进日志、不进会话、不进事件；RPC `get_available_models` 只回 `hasKey: boolean` 与 `keySource`。
+
+### §3.6 思考映射、重试、溢出、成本
+
+| 项   | 决定                                                                                                                                                                                                                                         |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 思考 | 用户面 `off/minimal/low/medium/high/xhigh`；`getSupportedLevels(model)` 按 `reasoning` 与 `thinkingLevelMap` 过滤；`clamp` 后映射：Anthropic 预算 1024/2048/8192/16384 或 `effort`；Completions 按 `thinkingFormat`；不支持的模型记 warning 不报错 |
+| 重试 | 会话层：`maxRetries 3`、`baseDelayMs 2000`、×2、上限 60 000、abort 可打断；先匹配**不可重试**（`insufficient_quota`、`billing`、`invalid_api_key`、401/403）快速失败；再匹配可重试（429、5xx、`overloaded`、网络错误、断流）；失败那条 assistant 落盘 + `context_edit{replacement:null}` 剔除；事件 `auto_retry_start{attempt,maxAttempts,delayMs,errorMessage}` / `auto_retry_end{success,attempt,finalError?}`；协议层自身不重试 |
+| 溢出 | `ai/overflow.ts` 正则表（各家文案）+ `stopReason: "length"` 且无工具调用 → 不重试，走 §9 的压缩后重试一次                                                                                                                                    |
+| 成本 | `calculateCost(model, usage)`：按 `input+cacheRead+cacheWrite` 选阶梯；`Usage.input` 不含缓存部分；1h 缓存写 2×；写回 `usage.cost{input,output,cacheRead,cacheWrite,total}`；无 `cost` 的模型显示 `$?`                                     |
+| 缓存 | Anthropic 断点：system 末、最后一个工具定义、**最后一条 user 消息**（不再用「倒数第二条」）；Completions / Responses：`prompt_cache_key = sessionId`；摘要请求 `cacheRetention: "none"`                                                      |
+
+## §4 循环（`agent/`）
+
+### §4.1 状态与钩子点
+
+```text
+idle ──prompt──▶ running ──(流结束, 有 tool_call)──▶ executing-tools ──┐
+  ▲                 ▲                                                  │ steer 队列 → 下一次模型调用前
+  │                 └──────────────────────────────────────────────────┘
+  │◀── agent_settled ◀── followUp 队列（有则新 run）◀── agent_end（无 tool_call 且 steer 空）
+```
+
+```ts
+export interface LoopHooks {
+  transformContext?(messages: AgentMessage[], signal: AbortSignal): Promise<AgentMessage[]>;  // 档一裁剪、Hook 的 additionalContext 注入
+  convertToLlm(messages: AgentMessage[]): Message[];                                          // 不得抛错
+  prepareRequest?(req: { context; model; thinkingLevel }): Promise<typeof req>;              // Hook before_provider_request 不开放给命令式 Hook
+  prepareNextTurn?(prev: TurnResult): Promise<void>;                                          // 阈值压缩在此
+  beforeToolCall(call: ToolCall, ctx): Promise<{ block?: boolean; reason?: string; input?: unknown }>; // 命令式 Hook PreToolUse → 权限管线 → broker
+  afterToolCall?(call: ToolCall, result: ToolResult): Promise<ToolResult>;                    // PostToolUse 可追加上下文
+  finishTurn?(turn: TurnResult): Promise<"continue" | "end">;
+  getSteeringMessages(): AgentMessage[]; getFollowUpMessages(): AgentMessage[];
+}
+```
+
+- run / turn 定义、`agent_end` vs `agent_settled`、`agent_end.willRetry` 与 v1 一致；新增 `agent_before_settle` 为最后可行动边界（宿主只观察）。
+- `stopReason: "length"` 且有 tool_call：整批判失败不执行，结果写明「参数可能被截断」。
+
+### §4.2 中断（abort）
+
+与 v1 §3.2 完全一致：会话级 `AbortController` 同时给供应商流、每个工具、重试计时器；`bash` SIGTERM → 2 s → SIGKILL（Windows `taskkill /T /F`）；**落盘补 tool_result**（`isError: true, "aborted by user"`）+ `custom_message{customType:"ama.aborted"}`；回放时 `transform.ts` 再兜底修复旧文件；abort 不清队列；`abort()` 在 idle 后 resolve。
+
+### §4.3 steer / followUp
+
+与 v1 §3.3 一致；补充：`prompt()` 运行中无 `streamingBehavior` → reject `AmaError{code:"busy"}`；斜杠命令立即执行不入队；steer 消息 `origin: "steer"`，宿主 `sendUser(text, origin)` 注入的消息 `origin: "host"`。
+
+### §4.4 工具执行（`agent/tool-runner.ts`）
+
+准备阶段**串行**（找工具 → schema 校验 → `beforeToolCall`：PreToolUse Hook → 权限管线 → broker），执行阶段**并行**（任一工具 `executionMode: "sequential"` 则整批串行；`bash`、`write`、`edit`、`task` 是 sequential，`read/grep/glob/ls/skill/todo` 是 parallel）；`tool_execution_end` 按完成顺序发，toolResult 按原序入转录；`terminate` 要整批都为真才提前结束。输出超 `maxToolResultChars`（缺省 30 000）截断并写 `<sessionDir>/outputs/<toolCallId>.txt`。
+
+## §5 调用面：工具、Skill、子 Agent、宿主工具
+
+### §5.1 工具契约（`tools/types.ts`，从 `./host` 再导出）
+
+```ts
 export interface ToolDefinition<I = unknown> {
-  readonly name: string;                 // ^[a-z][a-z0-9_]{1,63}$，宿主工具建议带前缀（canvas_*）
+  readonly name: string;                   // ^[a-z][a-z0-9_]{1,63}$；宿主工具建议前缀（canvas_*）
+  readonly label?: string;                 // TUI 标题
   readonly description: string;
-  readonly parameters: JsonSchema;       // JSON Schema draft-07 子集
+  readonly parameters: JsonSchema;         // 子集：object/string/number/integer/boolean/array/enum/required/description
+  readonly permission: "read" | "write" | "execute";
+  readonly executionMode?: "sequential" | "parallel";   // 缺省 parallel（read 类）；write/execute 缺省 sequential
   readonly annotations?: { readOnly?: boolean; destructive?: boolean; openWorld?: boolean };
-  /** 权限管线用的粗分类；缺省 "execute"。 */
-  readonly permission?: "read" | "write" | "execute";
+  readonly promptSnippet?: string;         // 系统提示 tools 节一行
+  readonly promptGuidelines?: string[];    // rules 节
   execute(input: I, ctx: ToolContext): Promise<ToolResult>;
+  renderCall?(input: I, width: number): string[];       // TUI 可选自定义渲染
+  renderResult?(result: ToolResult, width: number, expanded: boolean): string[];
 }
 export interface ToolContext {
-  readonly cwd: string;
-  readonly sessionId: string;
-  readonly signal: AbortSignal;
-  onUpdate(partial: string): void;       // 流式进度（bash 输出）
+  readonly toolCallId: string; readonly cwd: string; readonly sessionId: string; readonly sessionFile?: string;
+  readonly signal: AbortSignal; readonly depth: number;      // task 深度
+  onUpdate(partial: string): void;
+  readFiles: ReadonlySet<string>;                             // 本会话已 read 的绝对路径（write 先读后写检查）
+  tools: { executeTool(name: string, input: unknown): Promise<ToolResult> };   // task 用，受同一管线
+  log(level: "debug" | "info" | "warn", message: string): void;
 }
 export interface ToolResult {
-  content: string | ContentBlock[];      // 给模型看的
-  isError?: boolean;
-  details?: unknown;                     // 给界面 / 宿主看的，落盘但不进上下文
+  content: string | ContentBlock[]; isError?: boolean; details?: unknown;   // details 落盘，不进上下文
+  structured?: unknown; terminate?: boolean;
 }
 ```
 
-### §4.2 内置工具
+### §5.2 内置工具完整规格
 
-| 工具    | 参数                                     | 权限类    | 备注                                                                                       |
-| ------- | ---------------------------------------- | --------- | ------------------------------------------------------------------------------------------ |
-| `read`  | `path, offset?, limit?`                  | read      | 文本按行号返回；二进制与超大文件拒绝并提示                                                 |
-| `write` | `path, content`                          | write     | 整文件写；写前若文件存在且本会话未 `read` 过，返回错误要求先读                             |
-| `edit`  | `path, oldText, newText, replaceAll?`    | write     | 精确文本替换；`oldText` 不唯一时报错并给出出现次数                                         |
-| `bash`  | `command, timeoutMs?, cwd?`              | execute   | POSIX：`sh -c`；Windows：`AMA_SHELL` → Git Bash → `powershell -NoProfile -Command`；进程组 |
-| `grep`  | `pattern, path?, glob?, maxResults?`     | read      | 内置实现（不依赖系统 `rg`），尊重 `.gitignore`                                             |
-| `glob`  | `pattern, path?`                         | read      | 同上                                                                                       |
-| `task`  | `prompt, tools?, model?`                 | execute   | 同进程子 Agent，深度 ≤ 1、并发 ≤ 4、各自一份 JSONL（`parentSession` 指回）；宿主可禁用      |
+| 工具    | 参数                                                                          | 权限 / 模式          | 行为规格                                                                                                                                                                                                                                                                                                                              |
+| ------- | ----------------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `read`  | `path, offset?(1 起), limit?`                                                 | read / parallel      | 相对 cwd 解析，`~` 展开；文本返回 `行号→内容`（`cat -n` 形状）；**头截断** 2000 行或 50 KB 先到者，末尾提示 `offset` 续读；二进制（NUL 嗅探）拒绝；图片 `png/jpg/gif/webp` 作为 ImageBlock 返回（模型不支持 image 则给路径与尺寸）；成功后加入 `ctx.readFiles`                                                                           |
+| `write` | `path, content`                                                               | write / sequential   | 整文件覆盖，自动建父目录；文件存在且不在 `readFiles` → 错误「先 read」；保留原文件的 BOM 与换行风格（若存在）；`details: { bytes, created }`                                                                                                                                                                                             |
+| `edit`  | `path, edits: [{oldText, newText}], replaceAll?`                              | write / sequential   | 每处在**原文**上匹配、必须唯一且互不重叠（`replaceAll` 例外）；先精确再模糊（NFKC、行尾空白、引号 / 破折号归 ASCII）；不唯一 → 错误含出现次数与首两处行号；保留 BOM / CRLF；`details.diff` 统一 diff 给 TUI；要求先 read                                                                                                                 |
+| `bash`  | `command, timeoutMs?(缺省 120000，上限 600000), cwd?, description?`           | execute / sequential | shell：`AMA_SHELL` → POSIX `/bin/bash` → `sh`；Windows `AMA_SHELL` → Git Bash 已知路径 → `powershell -NoProfile -Command`；`spawn(shell, ["-c", command], { detached: !win, stdio: [ignore, pipe, pipe] })`；滚动尾部流式 `onUpdate`；超限（2000 行 / 50 KB）**尾截断**并给 `full_output_path`；结果 `{output, exit_code, truncated, wall_time_seconds}`；信号退出 `128+signo`；注入 `AMA_SESSION_ID / AMA_SESSION_FILE / AMA_PROVIDER / AMA_MODEL / AMA_THINKING / AMA_DEPTH`；退出时清理所有活子进程 |
+| `grep`  | `pattern, path?, glob?, ignoreCase?, literal?, context?(0–5), limit?(100)`    | read / parallel      | 内置：按 `.gitignore` / `.ignore` 过滤，跳过二进制与 > 2 MB 文件，并发 16 文件；匹配行截 500 字符；输出格式 `path:line: text`；超 limit 提示                                                                                                                                                                                             |
+| `glob`  | `pattern, path?, limit?(1000)`                                                | read / parallel      | 内置 glob：`**`、`{a,b}`、`[...]`、`!`；按 mtime 倒序；尊重 ignore                                                                                                                                                                                                                                                                      |
+| `ls`    | `path?, limit?(500)`                                                          | read / parallel      | 目录项 `name/`、大小、符号链接标注                                                                                                                                                                                                                                                                                                      |
+| `todo`  | `action: "set" \| "get", items?: [{id, text, status: pending\|in_progress\|done}]` | read / parallel  | 写 `custom{customType:"ama.todo"}` 条目（不进上下文，TUI 渲染清单）；`get` 返回当前列表                                                                                                                                                                                                                                                 |
+| `skill` | `name`                                                                        | read / parallel      | 返回 SKILL.md 全文（`<skill name location>` 包裹）；不存在 → 列出可用名；`disable-model-invocation: true` 的技能拒绝模型调用                                                                                                                                                                                                             |
+| `task`  | `prompt, description?, tools?: string[], model?, thinkingLevel?, maxTurns?(30)` | execute / sequential | 同进程新 `AgentSession`：独立 JSONL（`parentSession` 指回父文件、`custom{ama.task}` 记父 toolCallId）；深度 ≤ 1（子 Agent 无 `task`）、并发 ≤ 4；工具子集缺省为父的活动集去掉 `task`；继承父的权限模式与 broker（审批串行化到父）；父 abort 级联；结果 = 子的最后助手文本 + `details{sessionFile, usage}`；宿主可 `disable("task")` |
 
-### §4.3 Skill（渐进披露）
+通用安全：所有路径工具拒绝含 NUL 的路径；`paths.ts` 不做沙箱（与 Pi 相同声明：信任边界是容器 / VM），但 `permission.deny` 规则 `write(**/.git/**)`、`read(**/.ssh/**)` 等由内置缺省 deny 表给出，用户可移除。Windows：路径统一 `path`；`bash` 在 PowerShell 回退时把 `exit_code` 从 `$LASTEXITCODE` 取；`process-tree.ts` 用 `taskkill`；`grep/glob` 大小写不敏感文件系统提示。
 
-- 发现：`--skill-dir`、`~/.config/ama/skills/`、`<cwd>/.ama/skills/`，每个子目录一份 `SKILL.md`，YAML 头 `name` / `description` 必填。
-- 披露三级：系统提示里只有**索引**（名字 + 一句描述，每条 ≤ 200 字）；模型用 `read` 读完整 `SKILL.md`；`SKILL.md` 可再引用同目录下的文件。
-- 用户可用 `/skill:<name> [args]` 把技能正文直接作为本轮提示展开。
+### §5.3 Skill（渐进披露）
+
+- 发现顺序：`--skill-dir`（可重复）→ profile `skillDirs` → `~/.config/ama/skills/` → `<cwd>/.ama/skills/`（**需信任**）→ 祖先目录 `.agents/skills/`（需信任）；每个子目录一份 `SKILL.md`，递归；重名保留先发现者并 warning。
+- frontmatter 子集：`name`（≤ 64，`^[a-z0-9-]+$`）、`description`（≤ 1024，必填）、`disable-model-invocation`、`allowed-tools`（只做提示，不强制）。
+- 三级披露：索引（`<available_skills>` XML，每条 name / description / location）→ `skill` 工具或 `read` 读正文 → 正文引用同目录文件。
+- `/skill:<name> [args]` 展开为 `<skill name="…" location="…">\nReferences are relative to <dir>.\n\n<正文>\n</skill>\n\n<args>`。
+- 提示模板 `prompts/<cmd>.md`（用户级与项目级，项目级需信任）：`$1 $@ ${1:-默认} ${@:N}`，文件名即 `/cmd`。
 - 不做技能包管理、不联网下载。
 
-## §5 会话格式
+### §5.4 调用画布上的其它 CLI Agent（嵌入时）
 
-一个会话一个 JSONL 文件，首行是头，其后每行一个条目；条目经 `id` / `parentId` 成树，分叉不建新文件。
+ama 不知道画布；Armadra 适配器经 `HostApi.tools.register` 注册 `canvas_team / canvas_send / canvas_inbox / canvas_sticky / context_*` 等工具（文档 B §3），它们与内置工具走**同一条**调用路径与权限管线（按 `permission` 分类）。适配器 `disable("task")` 后，系统提示 `tools` 节不再列 `task`，模型只能走画布工具。独立模式下这些工具不存在，README 明确边界。
+
+## §6 两层 Hook
+
+### §6.1 第一层：命令式 Hook（`hooks/`）
+
+**配置位置与合并**：`~/.config/ama/hooks.json`（用户级）、profile `hooksFile`（宿主级，视同用户级）、`<cwd>/.ama/hooks.json`（项目级，**需信任**，未信任时跳过并在 `doctor` / 状态栏提示）。合并 = 三份的事件数组**拼接**（用户级先、宿主级次、项目级后），不覆盖。
+
+```json
+{
+  "version": 1,
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "bash", "hooks": [ { "type": "command", "command": "./scripts/guard.sh", "timeoutMs": 10000 } ] },
+      { "matcher": "write|edit", "hooks": [ { "type": "command", "command": "ama-fmt-check" } ] }
+    ],
+    "PostToolUse": [ { "matcher": "edit", "hooks": [ { "type": "command", "command": "prettier --check $AMA_FILE" } ] } ],
+    "UserPromptSubmit": [ { "hooks": [ { "type": "command", "command": "./scripts/inject-context.sh" } ] } ],
+    "Stop": [], "SessionStart": [], "SessionEnd": [], "PreCompact": [], "SubagentStop": [], "Notification": []
+  }
+}
+```
+
+| 事件               | 时机                                             | 可改变什么（stdout JSON）                                                   | 退出码 2 的含义                          |
+| ------------------ | ------------------------------------------------ | --------------------------------------------------------------------------- | ---------------------------------------- |
+| `SessionStart`     | 会话创建 / 恢复后、首次提示前（`source: startup\|resume\|new\|fork`） | `additionalContext`（追加到系统提示 `hooks` 节）                 | 启动失败，退出码 6                        |
+| `UserPromptSubmit` | 用户提示展开后、入转录前                          | `decision: "block"` + `reason`；`updatedPrompt`；`additionalContext`（作为 custom_message 进上下文） | 阻止本次提示，reason 显示给用户           |
+| `PreToolUse`       | schema 校验后、权限管线前                         | `decision: "allow" \| "deny" \| "ask"`、`reason`、`updatedInput`             | deny，stderr 作为 reason 进 tool_result   |
+| `PostToolUse`      | 工具执行后、结果入转录前                          | `additionalContext`（追加到 tool_result 末尾）；`decision: "block"` 把结果改为错误 | 结果标 isError，stderr 进 tool_result     |
+| `Stop`             | `agent_before_settle`（无 followUp 时）           | `decision: "block"` + `reason` → 以 reason 作为新 user 消息**再跑一轮**（上限 3 次防死循环） | 同左                                     |
+| `SubagentStop`     | `task` 子会话结束                                 | 同 Stop（作用于子会话）                                                     | 同左                                     |
+| `PreCompact`       | 档二摘要前                                        | `customInstructions` 追加到摘要提示；`decision: "block"` 取消本次压缩        | 取消压缩                                 |
+| `Notification`     | 需要用户注意：审批等待、run 结束、错误             | 无（纯通知）                                                                | 忽略                                     |
+| `SessionEnd`       | 进程退出前（`reason: exit\|new\|switch`）         | 无                                                                          | 忽略                                     |
+
+**stdin 输入**（所有事件共有 + 事件特有）：
 
 ```ts
-export interface SessionHeader {
-  type: "session"; version: 1; id: string; timestamp: string; cwd: string;
-  agent: { name: "ama"; version: string };
-  parentSession?: string;                 // fork / clone / task 的来源文件
+export interface HookInput {
+  hookEventName: HookEvent; sessionId: string; sessionFile?: string; cwd: string; transcriptPath?: string;
+  model: { provider: string; id: string }; permissionMode: PermissionMode; depth: number; host?: string;
+  // PreToolUse / PostToolUse
+  toolCallId?: string; toolName?: string; toolInput?: unknown; toolResult?: { content: string; isError: boolean }; permissionDecision?: "allow" | "ask" | "deny";
+  // UserPromptSubmit
+  prompt?: string;
+  // Stop / SubagentStop
+  lastAssistantText?: string; stopHookActive?: boolean;      // 已由 Stop Hook 续跑过 → 处理器应避免再 block
+  // PreCompact
+  tokensBefore?: number; trigger?: "auto" | "manual";
+  // Notification
+  notification?: { kind: "approval" | "settled" | "error" | "retry"; message: string };
 }
-interface EntryBase { id: string; parentId: string | null; timestamp: string }
-
-export type SessionEntry =
-  | (EntryBase & { type: "message"; message: AgentMessage })
-  | (EntryBase & { type: "compaction"; summary: string; firstKeptEntryId: string;
-                   tokensBefore: number; usage?: Usage; details?: { readFiles: string[]; modifiedFiles: string[] } })
-  | (EntryBase & { type: "branch_summary"; fromId: string; summary: string; usage?: Usage })
-  | (EntryBase & { type: "context_edit"; targetId: string; replacement: string | null; reason: "prune" | "abort" | "manual" })
-  | (EntryBase & { type: "model_change"; provider: string; modelId: string })
-  | (EntryBase & { type: "thinking_level_change"; thinkingLevel: ThinkingLevel })
-  | (EntryBase & { type: "custom"; customType: string; data: unknown })          // 不进上下文
-  | (EntryBase & { type: "custom_message"; customType: string; content: string; display: boolean }) // 进上下文
-  | (EntryBase & { type: "label"; targetId: string; label?: string })
-  | (EntryBase & { type: "session_info"; name?: string });
-
-export type AgentMessage =
-  | { role: "system"; sections: Record<string, string | null>; toolsAdded?: ToolDecl[]; toolsRemoved?: string[]; timestamp: number }
-  | { role: "user"; content: string | (TextBlock | ImageBlock)[]; origin?: "steer" | "followUp" | "host"; timestamp: number }
-  | { role: "assistant"; content: (TextBlock | ThinkingBlock | ToolCallBlock)[];
-      provider: string; api: "anthropic-messages" | "openai-chat"; model: string;
-      responseId?: string; usage: Usage; stopReason: "stop" | "toolUse" | "length" | "aborted" | "error";
-      errorMessage?: string; timestamp: number }
-  | { role: "toolResult"; toolCallId: string; toolName: string; content: string | ContentBlock[];
-      isError: boolean; details?: unknown; timestamp: number };
-
-export interface Usage { input: number; output: number; cacheRead: number; cacheWrite: number }
 ```
 
-规矩：
+环境变量同时给出便于 shell 脚本：`AMA_HOOK_EVENT`、`AMA_SESSION_ID`、`AMA_CWD`、`AMA_TOOL_NAME`、`AMA_FILE`（write/edit/read 的 path）。
 
-- **只追加**。清理（`ama sessions prune`）按整文件删，不改写文件；删除前把文件移到 `<dataDir>/trash/` 保留 7 天。
-- 上下文投影：从叶子回溯到根得到活动分支；遇到 `compaction` 用 `summary` 替换 `firstKeptEntryId` 之前的条目；`context_edit` 按「同一目标最新一条赢」应用；`custom` 与 `label` 不进上下文。
-- 系统提示与工具表作为首条 `system` 消息落盘，之后的变化作为新的 `system` 消息补丁（`sections` 名字级替换，`null` 删除）；重放得到当前提示。宿主（Armadra 的历史适配器）因此可以不知道工具表也能渲染。
-- `message.usage` / `message.model` / `message.responseId` 的位置与 Pi 一致，成本对账逐条读 assistant 消息。
-
-分叉与分支：`fork(entryId)` 复制活动分支到新文件（`parentSession` 指回）；`/tree` 在**同一文件**内切换叶子，离开分支时可生成 `branch_summary` 挂到新叶子。
-
-## §6 压缩与缓存
-
-### §6.1 触发条件
-
-`contextTokens` 用最近一条 assistant 的 `usage.input + cacheRead + cacheWrite` 加上之后新增条目的估算（字符数 / 4）。
-
-| 档   | 条件                                                           | 动作                                                                                                                        | 成本     |
-| ---- | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | -------- |
-| 一   | `contextTokens > 0.7 × (contextWindow − reserveTokens)`        | 对**最近两个用户回合之前**、长度 > 2 KiB 的 `toolResult` 写 `context_edit{ replacement: "[已裁剪：<tool> 输出 N 字节，全文 <path>]" }` | 无模型调用 |
-| 二   | 裁剪后仍 `> contextWindow − reserveTokens`，或供应商返回上下文溢出错误 / `stopReason: "length"` | 从叶子向上累计到 `keepRecentTokens`（缺省 20k）找切点（只切在 user / assistant / custom_message，不切 toolResult），把切点之前投影成文本请模型按固定模板写摘要，追加 `compaction` | 一次模型调用 |
-
-检查时机：每个 turn 的工具结果追加之后、下一次模型调用之前；新 prompt 之前；run 结束后的溢出恢复。
-
-### §6.2 摘要模板
-
-`## Goal / ## Constraints / ## Progress (Done · In Progress · Blocked) / ## Key Decisions / ## Next Steps / ## Critical Context`，末尾附累计的 `readFiles` / `modifiedFiles`（从被摘要的工具调用里提取，并合并上一条 `compaction.details`）。摘要请求**关闭缓存写入**，`maxTokens` 上限 4 096。
-
-### §6.3 熔断
-
-| 条件                                                      | 动作                                                                       |
-| --------------------------------------------------------- | -------------------------------------------------------------------------- |
-| 同一 turn 内已做过一次档二                                 | 不再压缩，run 以 `error: context_exhausted` 结束                           |
-| 连续两次摘要调用失败（网络 / 供应商错误）                 | 关闭本会话自动压缩，`agent_settled` 携带 `warning: compaction_failed`      |
-| 压缩后估算仍 > 0.8 × contextWindow                        | 不重试模型调用，结束 run 并提示用户 `/compact <指示>` 或开新会话           |
-| 模型无 `contextWindow`                                    | 自动压缩关闭，溢出错误直接上报                                             |
-
-### §6.4 提示词缓存友好
-
-- 系统提示装配顺序固定：`preamble → tools（按名排序）→ instructions（按传入顺序）→ skills 索引 → cwd`；不含时间、不含随机数。
-- Anthropic：三个 `cache_control: ephemeral` 断点——system 块末、tools 末、倒数第二条 user 消息；OpenAI 兼容线依赖前缀缓存，只保证前缀不变。
-- steer / followUp 只追加在末尾；工具表变化（宿主启用 / 禁用）作为 `system` 补丁落盘，但发给供应商的仍是完整重装后的提示——这会使前缀失效一次，文档如实说明。
-- 档一裁剪改变历史中段，会让该点之后前缀失效；所以档一只在 70% 阈值触发，不做「随手裁」。
-
-## §7 权限
-
-### §7.1 管线（顺序不可调）
-
-```text
-tool_call ──▶ ① 拒绝规则 ──命中──▶ deny
-              │
-              ▼
-           ② 危险命令识别（仅 bash）──命中──▶ 按模式最严处理：ask；无人值守 → deny
-              │
-              ▼
-           ③ 模式：plan（只允许 read 类）／default（write、execute 问）／auto-edit（write 自动，execute 问）／full-auto（全自动）
-              │
-              ▼
-           ④ 允许规则（只能把「问」变成「自动」，不能越过 ①②）
-```
-
-- 规则形状：`{ tool: "bash", pattern: "git push*" }`、`{ tool: "write", pathGlob: "src/**" }`；来源：`config.json`（用户级 / 项目级）与 `--allow` / `--deny`。
-- 危险命令识别：`rm -rf` 指向 `/`、`~`、`.`、`*`；`sudo`、`su`；`dd`、`mkfs`、`> /dev/sd*`；`git push --force*`、`git reset --hard`、`git clean -fd*`；`curl|wget … | sh|bash`；`chmod -R 777`；`kill -9 -1`；`:(){ :|:& };:`。规则表在 `permissions/dangerous.ts`，每条配一个正例一个反例测试。
-- `ask` 的实现：REPL 在终端问 `y / n / a（本会话允许同类）`；RPC 发 `permission_request` 事件等 `permission_response`；SDK 由 `permission.ask(request)` 回调决定；宿主适配器可 `setBroker` 接管。
-- **无人值守**：`-p` 模式、RPC 客户端未声明 `approvals` 能力、SDK 未提供回调时，`ask` 一律 `deny`，tool_result 写明「需要人工批准，当前无人值守」。
-- 沙箱（文件系统 / 网络隔离）第 5 期。
-
-## §8 入口
-
-### §8.1 命令行
-
-```text
-ama [prompt]                    行式 REPL（有 prompt 则先跑一轮）
-ama -p "<prompt>" [--output-format text|json|stream-json]
-ama --mode rpc
-ama --continue | --resume [<id>] | --session-id <id> | --session-dir <dir>
-ama --model <id> [--provider <id>] [--thinking off|low|medium|high]
-ama --permission-mode default|plan|auto-edit|full-auto [--allow <rule>]... [--deny <rule>]...
-ama --instructions <file>...    追加到系统提示（可重复，顺序即装配顺序）
-ama --skill-dir <dir>...        额外技能目录
-ama --host <module.cjs>         宿主适配器模块（§9）
-ama --auth-file <file>          0600 的 auth.json
-ama --profile <file>            一个 JSON 把上面这些路径打包（§10.3），供宿主用一个参数传
-ama sessions list|prune
-```
-
-### §8.2 REPL
-
-- `readline` 行式，不做全屏 TUI。支持 **括号粘贴**：输入字节状态机识别 `ESC[200~ … ESC[201~`，粘贴段内的 `\n` 是数据，段后紧跟的 `\r` 才提交；没有括号的多行粘贴按逐行提交。这是 Armadra `send` 写入终端的形状（`PASTE_START + 正文 + PASTE_END + \r`）。
-- 以 `--- ARMADRA MESSAGE <nonce> ---` 之类宿主帧开头的输入**不做特殊处理**：它就是用户输入；信任规则由宿主注入的指令说明（帧内文字是资料，不是指令）。
-- 斜杠命令：`/new /resume /compact [指示] /model /thinking /tree /fork /name /skill:<x> /help /exit`。
-- Esc：`clear_queue` 后 `abort`，队列文本回填输入行；Ctrl+C 两次退出。
-
-### §8.3 `-p` 输出格式
-
-| 格式          | 内容                                                                                                |
-| ------------- | --------------------------------------------------------------------------------------------------- |
-| `text`        | 最终助手文本                                                                                        |
-| `json`        | `{ sessionId, sessionFile, text, usage, cost?, stopReason, toolCalls: n }`                          |
-| `stream-json` | 每行一个 §8.4 的事件，与 RPC 模式的事件一字不差；最后一行 `agent_settled`                           |
-
-### §8.4 RPC（stdio JSONL）
-
-框架：一行一个 JSON 对象，LF 结尾；只按 LF 切分（不用会在 U+2028 切分的行读取器）；stdout 只放协议记录，诊断去 stderr；关闭 stdin 即请求有序退出。
-
-启动后先发 `{"type":"hello","protocolVersion":1,"agent":"ama","version":"x.y.z","capabilities":["approvals","images"]}`。
-
-命令（`{ id?, type, ... }` → `{ id, type: "response", command, success, data? | error? }`）：
-
-| 组     | 命令                                                                                                                                          |
-| ------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| 提示   | `prompt{message, images?, streamingBehavior?}` → `data.disposition: started|queued|handled`；`steer`、`follow_up`、`abort`、`clear_queue`       |
-| 状态   | `get_state`、`get_messages`、`get_last_assistant_text`、`get_session_stats`                                                                   |
-| 模型   | `set_model{provider, modelId}`、`get_available_models`、`set_thinking_level{level}`                                                           |
-| 队列   | `set_steering_mode{mode}`、`set_follow_up_mode{mode}`                                                                                         |
-| 压缩   | `compact{customInstructions?}`、`set_auto_compaction{enabled}`                                                                                |
-| 会话   | `new_session{parentSession?}`、`switch_session{sessionPath}`、`fork{entryId}`、`get_entries{since?}`、`get_tree`、`set_session_name{name}`    |
-| 审批   | `set_client_capabilities{capabilities}`、`permission_response{requestId, decision: allow|deny|allow_session}`                                  |
-| 工具   | `get_tools`、`set_active_tools{names}`                                                                                                        |
-
-事件（无 `id`）：`agent_start / turn_start / message_start / message_update{assistantMessageEvent} / message_end{message} / tool_execution_start|update|end / turn_end / agent_end{stopReason} / agent_settled / queue_update{steering, followUp} / compaction_start|end / retry_scheduled|retry_aborted / permission_request{requestId, toolName, input, reason} / permission_resolved / session_changed{sessionId, sessionFile} / model_changed`。
-
-错误：`success: false, error: "<message>"`；JSON 解析失败回 `command: "parse"` 且无 `id`。
-
-### §8.5 SDK
+**stdout 输出**：空 / 非 JSON → 无决策（只按退出码）；JSON 形状：
 
 ```ts
-export function createAgentSession(options?: CreateSessionOptions): Promise<AgentSession>;
-
-export interface CreateSessionOptions {
-  cwd?: string;
-  model?: { provider: string; id: string };
-  thinkingLevel?: ThinkingLevel;
-  auth?: AuthSource;                              // { kind: "file", path } | { kind: "env" } | { kind: "inline", keys }
-  sessionManager?: SessionManager;                // SessionManager.inMemory() | SessionManager.open(file) | SessionManager.create(dir, cwd)
-  tools?: "default" | "none" | ToolDefinition[];
-  instructions?: InstructionSource[];             // { kind: "file", path } | { kind: "text", text }
-  skillDirs?: string[];
-  permission?: PermissionPolicy;                  // { mode, allow[], deny[], ask?(request): Promise<Decision> }
-  host?: HostModule;                              // 等价于 --host，但直接传模块对象
-}
-
-export interface AgentSession {
-  prompt(text: string, options?: { images?: ImageBlock[]; streamingBehavior?: "steer" | "followUp" }): Promise<PromptDisposition>;
-  steer(text: string): Promise<"queued" | "handled">;
-  followUp(text: string): Promise<"queued" | "handled">;
-  abort(): Promise<void>;
-  waitForIdle(): Promise<void>;
-  clearQueue(): { steering: string[]; followUp: string[] };
-  subscribe(listener: (event: SessionEvent) => void): () => void;
-  compact(instructions?: string): Promise<CompactionResult>;
-  fork(entryId: string): Promise<AgentSession>;
-  readonly state: SessionState;                   // { isStreaming, isCompacting, model, sessionId, sessionFile, messageCount, pendingMessageCount }
-  readonly messages: readonly AgentMessage[];
-  getLastAssistantText(): string | null;
-  dispose(): void;
+export interface HookOutput {
+  decision?: "allow" | "deny" | "ask" | "block"; reason?: string;
+  updatedInput?: unknown; updatedPrompt?: string; additionalContext?: string; customInstructions?: string;
+  continue?: false;              // 任何事件：请求 ama 结束当前 run（Stop 风格的硬停），reason 显示
+  suppressOutput?: true;         // TUI 不显示该 Hook 的输出
 }
 ```
 
-`prompt()` 在 run 结束（含自动重试与 followUp）后 resolve；运行中不带 `streamingBehavior` 调用 reject。
+**退出码语义**：`0` 放行并解析 stdout；`2` 阻止（stderr 文本作为 reason 回给模型 / 用户）；其它非零 = Hook 自身错误，**非阻塞**，记 warning，按「无决策」继续；超时（缺省 60 s，`timeoutMs` 可配，上限 600 s）等同非阻塞错误，**但 PreToolUse 超时按 deny**（fail-safe）。
 
-## §9 宿主适配器扩展点
+**并行与顺序**：同一事件下所有匹配的 Hook **并行**启动，全部结束后合并：决策按最严 `deny > block > ask > allow`；`updatedInput` 只接受来自**唯一**一个返回它的 Hook（多个则全部忽略并 warning）；`additionalContext` 按配置顺序拼接。单条 Hook 命令用 `sh -c`（Windows：Git Bash → `cmd /d /s /c`）运行，cwd 为会话 cwd，stdin 关闭于写完 JSON。
 
-### §9.1 加载
+**matcher**：缺省匹配全部；`bash` 精确；`write|edit` 多选；`canvas_*` glob；`bash(git push*)` 对 bash 命令文本再做 glob；`/regex/` 正则。只在 Pre/PostToolUse 生效。
 
-`--host <path>`（或 SDK `host`）指向一个 CJS / ESM 模块，缺省导出 `HostModule`。一个进程只装一个适配器；在 `session_start` 之前加载；`hostApi` 不等于本版 `HOST_API_VERSION` 时**拒绝启动**（退出码 78，stderr 一句话）。`create()` 返回 `undefined` 表示本次不激活（例如宿主的环境变量不在），进程照常以独立模式运行。
+**信任边界**：项目级 Hook 在**信任**前不加载；信任的粒度是目录（含子目录），存 `trust.json`；非交互模式缺省不信任（可 `--trust`）；Hook 以进程权限运行，文档说明「信任 = 允许该仓库执行命令」。宿主 profile 里的 Hook 视同用户级。
 
-### §9.2 契约（`@armadra/agent/host`）
+### §6.2 第二层：宿主适配器（`host/`，`@armadra/agent/host`）
 
 ```ts
 export const HOST_API_VERSION = 1 as const;
-
-export interface HostModule {
-  readonly hostApi: typeof HOST_API_VERSION;
-  create(api: HostApi): HostAdapter | undefined | Promise<HostAdapter | undefined>;
-}
-
-export interface HostAdapter {
-  readonly id: string;                               // 例如 "armadra"
-  dispose?(): void | Promise<void>;                  // session_shutdown 后调用，幂等
-}
+export interface HostModule { readonly hostApi: typeof HOST_API_VERSION; create(api: HostApi): HostAdapter | undefined | Promise<HostAdapter | undefined> }
+export interface HostAdapter { readonly id: string; dispose?(): void | Promise<void> }
 
 export interface HostApi {
   readonly version: typeof HOST_API_VERSION;
   readonly agent: { readonly name: "ama"; readonly version: string };
   readonly env: Readonly<NodeJS.ProcessEnv>;
-  readonly session: {
-    id(): string;
-    file(): string | undefined;
-    cwd(): string;
-    model(): { provider: string; id: string } | undefined;
-  };
-  readonly tools: {
-    register(tool: ToolDefinition): void;            // 同名已存在则抛错
-    disable(name: string): void;                     // 隐藏内置工具（如 task）
-    list(): readonly string[];
-  };
-  readonly instructions: {
-    add(source: InstructionSource): void;            // 追加到系统提示末尾（在 --instructions 之后）
-  };
-  readonly events: {
-    on<E extends keyof AgentEvents>(name: E, handler: (event: AgentEvents[E]) => void | Promise<void>): () => void;
-  };
-  readonly approvals: {
-    setBroker(broker: ApprovalBroker): void;         // 接管 ask；返回 undefined 表示交回默认处理
-  };
-  readonly messages: {
-    sendUser(text: string, origin?: string): Promise<"started" | "queued">; // 以 user 消息注入（运行中按 steer 入队）
-  };
+  readonly mode: "interactive" | "line" | "print" | "rpc";
+  readonly session: { id(): string; file(): string | undefined; cwd(): string; model(): { provider: string; id: string } | undefined };
+  readonly tools: { register(tool: ToolDefinition): void; disable(name: string): void; list(): readonly string[] };
+  readonly instructions: { add(source: InstructionSource): void };                 // 追加到 `host` 节（最后）
+  readonly events: { on<E extends keyof AgentEvents>(name: E, h: (e: AgentEvents[E]) => void | Promise<void>): () => void };
+  readonly approvals: { setBroker(broker: ApprovalBroker): void };
+  readonly messages: { sendUser(text: string, origin?: string): Promise<"started" | "queued"> };
+  readonly ui: { notify(message: string, level?: "info" | "warn" | "error"): void; setStatus(key: string, text?: string): void };  // print/rpc 下 notify → stderr / 事件
   readonly log: (level: "debug" | "info" | "warn" | "error", message: string, detail?: unknown) => void;
 }
-
-export interface ApprovalBroker {
-  ask(request: ApprovalRequest, signal: AbortSignal): Promise<ApprovalDecision | undefined>;
-}
-export interface ApprovalRequest { requestId: string; toolName: string; input: unknown; reason: "mode" | "dangerous"; }
+export interface ApprovalBroker { ask(request: ApprovalRequest, signal: AbortSignal): Promise<ApprovalDecision | undefined> }
+export interface ApprovalRequest { requestId: string; toolName: string; input: unknown; reason: "mode" | "dangerous" | "hook"; hookReason?: string }
 export type ApprovalDecision = "allow" | "deny" | "allow_session";
 
-/** 事件名与 Pi 扩展事件一致；载荷只含下列字段。 */
 export interface AgentEvents {
-  session_start: { sessionId: string; sessionFile?: string; cwd: string };
+  session_start: { sessionId: string; sessionFile?: string; cwd: string; reason: "startup" | "resume" | "new" | "fork" };
   before_agent_start: { prompt: string };
-  agent_start: {};
-  turn_start: {};
+  agent_start: {}; turn_start: {}; turn_end: {};
   tool_call: { toolCallId: string; toolName: string; input: unknown };
   tool_result: { toolCallId: string; toolName: string; isError: boolean };
-  turn_end: {};
-  agent_end: { stopReason: string };
-  agent_settled: { warning?: string };
-  session_compact: { tokensBefore: number };
-  model_select: { model: { id: string; provider: string } };
+  agent_end: { stopReason: string; willRetry: boolean };
+  agent_before_settle: {}; agent_settled: { warning?: string };
+  session_compact: { tokensBefore: number }; model_select: { model: { id: string; provider: string } };
   tool_approval_requested: { requestId: string; toolName: string };
   tool_approval_resolved: { requestId: string; decision: ApprovalDecision };
+  hook_executed: { event: HookEvent; command: string; exitCode: number | null; durationMs: number };
   session_shutdown: {};
 }
 ```
 
-### §9.3 规矩
+规矩与 v1 一致：事件处理器只观察（抛错记日志）；`session_shutdown` 被 await；适配器注册的工具受同一权限管线；版本不等拒绝启动（退出码 78）。
 
-- 事件处理器**只观察**：抛错被记日志、不影响循环；`session_shutdown` 的处理器被 await，其余 fire-and-forget（与宿主上报「不得阻塞一轮」一致）。
-- 工具执行的权限判定仍走 §7 管线，适配器注册的工具按 `permission` 分类受同样约束；适配器不能绕过拒绝规则。
-- `HostApi` 的增字段是次版本，改语义 / 删字段是主版本并 bump `HOST_API_VERSION`；类型随 npm 包发布，宿主在 CI 里对着自己锁定的版本 typecheck。
+### §6.3 两层的关系与一次工具调用的完整顺序
 
-## §10 配置与密钥
+```text
+tool_call（模型产出）
+  1. schema 校验（失败 → 错误结果，不再往下）
+  2. 命令式 Hook PreToolUse（并行，合并决策 D_hook ∈ {allow, ask, deny, ∅}；updatedInput 替换 input）
+  3. 权限管线（§7）：① deny 规则 ∪ D_hook=deny → deny
+                      ② 危险命令识别（bash）→ ask（无人值守 deny）
+                      ③ 模式决定 ask/allow
+                      ④ allow 规则 ∪ D_hook=allow：把 ③ 的 ask 变 allow（不能越过 ①②）；D_hook=ask 把 allow 变 ask
+  4. 若结果 ask → 事件 tool_approval_requested → broker 链：宿主 broker → UI 对话框 → 无人值守 deny；超时（缺省 10 min）deny
+  5. 事件 tool_call（宿主观察）→ 执行 → 事件 tool_result
+  6. 命令式 Hook PostToolUse（可追加上下文 / 改为错误）→ 结果入转录
+```
 
-### §10.1 `config.json`（用户级 `~/.config/ama/`，项目级 `.ama/`，后者覆盖前者）
+命令式 Hook 在前是因为它是**用户策略**（可改输入、可一票否决）；宿主 broker 在后是因为它只是「谁来回答 ask」。两层都不能把 ①② 的结论放宽。
+
+## §7 权限与信任
+
+### §7.1 管线
+
+同 v1 §7.1，补三点：Hook 决策的合入位置见 §6.3；`allow_session` 记在内存（`toolName + 归一化输入前缀`），不落盘；`reason: "hook"` 的 ask 在对话框里显示 Hook 的 reason。
+
+### §7.2 规则与来源约束
+
+| 来源                               | 可做                                      | 不可做                                         |
+| ---------------------------------- | ----------------------------------------- | ---------------------------------------------- |
+| 用户级 `config.json`、命令行、profile | 设 mode、allow、deny                     | —                                              |
+| 项目级 `.ama/config.json`（无需信任） | **只能收紧**：追加 deny；mode 只能更严（`full-auto → auto-edit → default → plan`） | allow 规则与放宽 mode 被忽略并 warning        |
+| 项目级（已信任）                     | 同上 + 加载 hooks / skills / prompts       | 仍不能加 allow（信任解锁的是「执行项目的 Hook」，不是「放开工具」） |
+
+规则语法：`bash(git push*)`、`write(src/**)`、`read(**)`、`canvas_*`；`--allow` / `--deny` 可重复。危险命令表（`dangerous.ts`）与 v1 一致并加 `git branch -D`、`npm publish`、`docker system prune -a`、`shutdown/reboot`；每条正反例测试。
+
+### §7.3 信任（`config/trust.ts`）
+
+- 需要信任：`.ama/hooks.json`、`.ama/skills/`、`.ama/prompts/`、祖先 `.agents/skills/`。不需要：`AGENTS.md`、`.ama/config.json`（因为它只能收紧）。
+- 决策顺序：`--trust` / `--no-trust` → `trust.json` 中最近祖先的记录 → 交互模式询问（一次，可记住）→ 非交互缺省 **不信任**。
+- `trust.json`：`{ "version": 1, "entries": [{ "path": "/abs/dir", "trusted": true, "at": "ISO" }] }`，只在用户级目录。
+- 宿主 profile 可带 `trustProject: true`（Armadra 对自己管理的工作目录）。
+
+## §8 会话树（`session/`）
+
+格式同 v1 §5（头 `version: 1`；条目 `message / compaction / branch_summary / context_edit / model_change / thinking_level_change / custom / custom_message / label / session_info`），补充：
+
+- `AssistantMessage` 增 `thinkingLevel?`、`providerThinkingLevel?`、`rawStopReason?`；`Usage` 增 `reasoning?`、`totalTokens`、`cost?`。
+- `api` 字段取值扩为四个协议 id。
+- 位置 `~/.local/share/ama/sessions/<编码 cwd>/<ISO>_<uuid>.jsonl`；编码 cwd = 去首分隔符、`/ \ :` 换 `-`。
+- 投影规则、分叉（新文件）、`/tree`（同文件换叶子）、`branch_summary`、prune（移到 trash 7 天）同 v1。
+- `get_entries{since}` 以 entry id 为游标返回 `{entries, leafId}`。
+
+## §9 压缩（`compaction/`）
+
+| 项       | v2 决定                                                                                                                                                                                                                            |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 估算     | `contextTokens` = 最后一条非 error/aborted assistant 的 `totalTokens`（缺则 `input+output+cacheRead+cacheWrite`，**含 output**）+ 其后条目估算（字符 / 4，图片 1 600）；该 usage 之后若有 `context_edit` / 压缩，则按投影全量重估 |
+| 档一     | `contextTokens > 0.7 × (contextWindow − reserveTokens)`：最近两个用户回合之前、> 2 KiB 的 toolResult → `context_edit{replacement:"[已裁剪 …全文 path]"}`；无模型调用                                                               |
+| 档二     | 裁剪后仍 `> contextWindow − reserveTokens`，或溢出错误 / `length`：切点规则（keepRecentTokens 20 000；合法切点 user / assistant / custom_message / branch_summary，不切 toolResult；单段超预算 split turn 双摘要合并）；序列化后请模型按模板写摘要；追加 `compaction` |
+| 溢出恢复 | 落盘失败 assistant → `turn_end` → `agent_end{willRetry:true}` → `context_edit` 剔除该尝试 → `PreCompact` Hook → 压缩 → **以新 run 重试一次**；压缩失败 / 取消则保留剔除、不重试，`agent_settled{warning}`                           |
+| 熔断     | 同一 run 内档二 ≤ 1 次；连续两次摘要失败关闭自动压缩；压缩后仍 > 0.8 × window 不重试；无 `contextWindow` 关闭                                                                                                                       |
+| 模板     | `## Goal / ## Constraints & Preferences / ## Progress (Done · In Progress · Blocked) / ## Key Decisions / ## Next Steps / ## Critical Context` + `<read-files>` / `<modified-files>` 累计；工具结果截 2 000 字符；`cacheRetention: none`；maxTokens 4 096 |
+| 缓存     | 系统提示节顺序固定、无时间戳；工具表变化作为 `system` 补丁落盘但请求重装；档一只在阈值触发                                                                                                                                         |
+
+## §10 配置、密钥、profile
+
+### §10.1 文件与位置
+
+| 文件            | 用户级 `~/.config/ama/`（`%APPDATA%\ama\`；`AMA_CONFIG_DIR`） | 项目级 `<cwd>/.ama/`    | 宿主 profile 可指           |
+| --------------- | ------------------------------------------------------------- | ----------------------- | --------------------------- |
+| `config.json`   | 是                                                            | 是（受限字段）          | `config`                    |
+| `auth.json`     | 是（0600）                                                    | 否                      | `authFile`                  |
+| `hooks.json`    | 是                                                            | 是（需信任）            | `hooksFile`                 |
+| `trust.json`    | 是                                                            | 否                      | —                           |
+| `keybindings.json` | 是                                                         | 否                      | —                           |
+| `skills/`、`prompts/` | 是                                                      | 是（需信任）            | `skillDirs`、`promptDirs`   |
+| `AGENTS.md`     | 是（全局约定）                                                | 向上查找各祖先          | `instructions[]`            |
+| 会话            | `~/.local/share/ama/sessions/`（`AMA_DATA_DIR`、`--session-dir`） | —                   | `sessionDir`                |
+
+### §10.2 `config.json`
 
 ```json
 {
   "version": 1,
-  "defaultModel": { "provider": "anthropic", "id": "<model id>" },
+  "defaultModel": "anthropic/<model-id>",
   "thinkingLevel": "medium",
-  "models": [ { "id": "...", "provider": "anthropic", "api": "anthropic-messages", "baseUrl": "https://api.anthropic.com", "contextWindow": 200000, "maxTokens": 16384 } ],
-  "providers": { "anthropic": { "api": "anthropic-messages", "baseUrl": "..." }, "local": { "api": "openai-chat", "baseUrl": "http://127.0.0.1:8080/v1" } },
-  "permission": { "mode": "default", "allow": [], "deny": [] },
+  "providers": {
+    "my-proxy": { "api": "openai-completions", "baseUrl": "https://proxy.example/v1", "apiKey": "$MY_PROXY_KEY",
+                  "models": [{ "id": "gpt-x", "contextWindow": 128000, "maxTokens": 16384, "reasoning": true }],
+                  "compat": { "maxTokensField": "max_tokens" } },
+    "deepseek": { "modelOverrides": [{ "id": "deepseek-chat", "contextWindow": 131072 }] }
+  },
+  "permission": { "mode": "default", "allow": ["bash(git status*)"], "deny": ["write(**/.env*)"] },
   "compaction": { "enabled": true, "reserveTokens": 16384, "keepRecentTokens": 20000 },
+  "retry": { "maxRetries": 3, "baseDelayMs": 2000, "maxDelayMs": 60000 },
+  "tools": { "maxToolResultChars": 30000, "bashTimeoutMs": 120000, "disabled": [] },
+  "hooks": { "timeoutMs": 60000 },
+  "ui": { "theme": "dark", "markdown": true, "showThinking": "collapsed" },
   "skills": { "dirs": [] }
 }
 ```
 
-### §10.2 `auth.json`（0600）
+合并顺序：内置缺省 ← 用户级 ← profile.config ← 项目级（只接受 `permission.deny`、`permission.mode` 收紧、`compaction`、`tools.disabled`、`ui`）← 命令行。
+
+### §10.3 `profile.json`（宿主用；与文档 B §2.4 一致）
 
 ```json
-{ "version": 1, "providers": { "anthropic": { "apiKey": "..." }, "local": { "apiKey": "..." } } }
+{ "version": 1, "host": "<abs>/ama-armadra.cjs", "instructions": ["<abs>/instructions.md"], "skillDirs": ["<abs>/skills"],
+  "hooksFile": "<abs>/hooks.json", "authFile": "<abs>/auth.json", "sessionDir": "<abs>/sessions", "config": "<abs>/config.json",
+  "trustProject": true }
 ```
 
-独立模式：`ama auth set <provider>` 从 stdin 读键写入（不接受命令行参数，避免进 shell 历史）。嵌入模式：宿主把它存在自己的密钥库里，启动前写一份 0600 文件并以 `--auth-file` 传路径；本仓库不知道宿主的密钥库。
+`--profile` 的字段等价于对应命令行参数，命令行显式参数优先于 profile；profile 不含密钥。
 
-### §10.3 `profile.json`（宿主用）
+## §11 启动序列
 
-```json
-{ "version": 1, "host": "<abs path>/ama-armadra.cjs", "instructions": ["<abs>/instructions.md"],
-  "skillDirs": ["<abs>/skills"], "authFile": "<abs>/auth.json", "sessionDir": "<abs>/sessions",
-  "config": "<abs>/config.json" }
+### §11.1 `ama` → 第一次模型调用
+
+| 步 | 动作                                                                                                                                                                                                                                                                       | 失败处理 → 退出码                                                                                             |
+| -- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| 1  | `cli/main.ts`：设 `AMA=1`、`AI_AGENT=ama` 环境标记；装 `uncaughtException` / `unhandledRejection` → stderr 一行 + 退出 1；`SIGINT` / `SIGTERM` 交给当前模式                                                                                                             | —                                                                                                             |
+| 2  | `args.parse(argv)`：`--version` / `--help` 短路（0）；子命令 `auth / sessions / models / doctor` 分派后退出；互斥校验（`-p` 与 `--mode rpc`；`--continue` 与 `--resume`；`--api-key` 需 `--model`）                                                                     | 参数错误 → stderr 用法 → **2**                                                                                |
+| 3  | `profile.load(--profile)` 展开为参数（命令行优先）                                                                                                                                                                                                                         | 文件不存在 / 版本不符 / 路径不是绝对 → **3**                                                                  |
+| 4  | 决定模式：`--mode rpc` → rpc；`-p` → print；否则 stdin / stdout 任一非 TTY 或 `TERM=dumb` 或 `--no-tui` → line；否则 interactive。非交互模式**接管 stdout**（`console.log` 重定向到 stderr）                                                                           | —                                                                                                             |
+| 5  | `paths.resolve()`：configDir / dataDir / sessionDir（`--session-dir` > profile > `AMA_DATA_DIR` > 缺省）；建目录（0700）                                                                                                                                                  | 不可写 → **3**                                                                                                |
+| 6  | 读**用户级** `config.json` + profile.config（深合并 + 校验）                                                                                                                                                                                                              | JSON 语法 / 字段错误 → 诊断含路径与字段 → **3**                                                              |
+| 7  | 会话：`--continue`（本 cwd 最近一条）/ `--resume [id]`（无 id 交互时弹选择器，非交互报错）/ `--session-id <id>`（不存在则建）/ `--fork <id>` / 缺省新建（内存中，首次提示时才落盘）。会话 cwd 不存在：交互询问新 cwd，其它模式报错                                        | 找不到 / 损坏 → **5**                                                                                         |
+| 8  | 以**会话的 cwd** 为准：信任决策（`--trust/--no-trust` → trust.json → 交互询问 → 非交互不信任）                                                                                                                                                                             | —                                                                                                             |
+| 9  | 读项目级 `.ama/config.json`，按 §7.2 收紧规则合并；被忽略的放宽项记 warning                                                                                                                                                                                                | 语法错误 → **3**                                                                                              |
+| 10 | 资源发现：`context-files`（AGENTS.md 向上，外层在前）→ skills（§5.3 顺序，信任过滤）→ prompts 模板 → hooks.json（用户 / profile / 项目，信任过滤）→ `--instructions` 文件                                                                                                 | 文件读错 → warning 继续；hooks.json 语法错 → **3**；`--instructions` 不存在 → **3**                           |
+| 11 | 供应商与模型：`ProviderRegistry.build(builtin, config.providers)` → 解析模型（`--model` > 续会话最后 `model_change` > `config.defaultModel` > 第一个有 key 的供应商的目录首条）→ `auth.resolveApiKey(provider)`（§3.5）                                                   | 模型不存在 → **4** 并列出候选；`--provider` 不带 `--model` → **2**（不回退到别家缺省模型，同 Pi 1.0）；无 key 且 `requiresApiKey` → **4** 并提示 `ama auth set <provider>` 与环境变量名；交互模式改为弹模型选择器而非退出 |
+| 12 | 工具注册表：内置 → `config.tools.disabled` → `--tools` / `--exclude-tools`                                                                                                                                                                                                 | 未知工具名 → **2**                                                                                            |
+| 13 | 宿主适配器：`--host` / profile.host → `loader.load()`（版本校验）→ `create(api)`（超时 10 s）→ `undefined` 则不激活；激活后它注册工具、追加指令、设 broker                                                                                                                | 模块加载失败 → **6**；`hostApi` 版本不等 → **78**；`create` 抛错 / 超时 → **6**                               |
+| 14 | 组装 `AgentSession`（系统提示装配、权限管线、HookDispatcher、broker 链）；发 `session_start`；跑 `SessionStart` Hook（可追加上下文）                                                                                                                                       | Hook 退出码 2 → **6**；其它 Hook 错误 → warning                                                               |
+| 15 | 模式分派：interactive → 初始化终端（raw、括号粘贴开、能力探测）→ 渲染首帧；line → readline；print → 读 stdin 管道 + 参数拼首条提示；rpc → 发 `hello`                                                                                                                      | 终端初始化失败 → 自动降级 line + warning                                                                      |
+| 16 | 首条提示：`UserPromptSubmit` Hook → 模板 / `/skill:` 展开 → `before_agent_start` → 首次请求前把系统提示 + 工具表作为首条 `system` 消息落盘（此时才创建会话文件）→ `Agent.prompt` → `api.stream`                                                                           | 供应商错误走重试 / 溢出 → 压缩；最终失败 print 模式退出 **1**，交互模式显示错误留在 REPL                       |
+
+### §11.2 嵌入 Armadra 时的差异
+
+- 启动行 `ama --profile <path> [--permission-mode …] [--model …] [prompt]`；profile 提供 host / instructions / skillDirs / hooksFile / authFile / sessionDir / config / `trustProject`。
+- 第 4 步：在 tmux PTY 里 stdin/stdout 都是 TTY → interactive；Armadra 可在 profile.config 里设 `ui.theme`；`TERM` 由 tmux 给（`tmux-256color` / `screen-256color`）。
+- 第 11 步：key 只来自 `authFile`（core 每次启动前写 0600 文件）；不读环境变量（profile 可设 `authEnv: false`）。
+- 第 13 步：适配器在 `ARMADRA_NODE_ID` 缺失时返回 `undefined`，画布外同一 profile 退化为普通 ama。
+- 第 16 步后：`send` 进来的正文以 `ESC[200~ … ESC[201~` + `\r` 到达 → TUI 编辑器把它当一次粘贴（折叠显示）再由 `\r` 提交。
+
+### §11.3 退出码
+
+| 码  | 含义                           | 码  | 含义                                 |
+| --- | ------------------------------ | --- | ------------------------------------ |
+| 0   | 正常                           | 5   | 会话不存在 / 损坏 / cwd 不匹配        |
+| 1   | 运行期错误（模型最终失败等）   | 6   | 宿主 / Hook 加载或启动失败            |
+| 2   | 参数用法错误                   | 78  | `HOST_API_VERSION` 不匹配             |
+| 3   | 配置 / profile / 路径错误      | 130 | SIGINT 退出（两次 Ctrl+C）            |
+| 4   | 无可用模型或密钥               | 143 | SIGTERM                               |
+
+## §12 交互界面（`tui/` 组件库 + `modes/interactive/`）
+
+### §12.1 组件模型
+
+```ts
+export interface Component {
+  render(width: number): string[];          // 每行可见宽 ≤ width；末尾重置样式
+  handleInput?(data: string): void;         // 焦点组件收原始键数据
+  invalidate(): void;                       // 主题 / 状态变化清缓存
+}
+export interface Focusable { focused: boolean }        // 获焦组件在光标处输出 CURSOR_MARKER（APC "\x1b_ama:c\x07"），TUI 据此摆硬件光标
+export interface Theme { fg(name: SemanticColor, s: string): string; bg(...): string; bold/dim/italic/underline(s): string; readonly caps: { colors: 0 | 16 | 256 | 16_777_216 } }
 ```
 
-存在的理由：宿主把启动行打进 shell 时有长度上限（Armadra 实测约 1 KB），六个绝对路径放不下；一个 `--profile <path>` 就够。`profile.json` 不含密钥，可以是确定性生成的产物。
+无布局引擎；`Container` 纵向拼接。内置组件：`Container, Text, TruncatedText, Markdown, Editor, SelectList, Box, Spacer, Loader, Overlay(center|bottom)`。
 
-## §11 分发产物
+### §12.2 差分渲染（`tui/tui.ts`，主屏模式）
 
-| 产物                                  | 构建                                                                                    | 用途                                                        |
-| ------------------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| npm 包 `@armadra/agent`（ESM + `.d.ts`） | `tsc -p tsconfig.build.json` → `dist/`；`bin.ama = dist/cli.js`                         | 独立用户 `npm i -g @armadra/agent`；SDK；宿主拿类型          |
-| `dist/bundle/ama.cjs`                 | `scripts/build-bundle.mjs`（esbuild，`platform: node`，`format: cjs`，`target: node22`，全部依赖内联，无原生模块） | 宿主随包携带，用任意 Node ≥ 22 兼容运行器启动（Electron 的 `ELECTRON_RUN_AS_NODE=1`、服务器壳的 `node`） |
-| `bun compile` 二进制                  | 第 5 期                                                                                 | 无 Node 的机器                                              |
+1. `requestRender()` 合并：`process.nextTick` 调度，最小间隔 16 ms；键盘输入触发的渲染绕过节流。
+2. 渲染组件树得行数组 → 合成覆盖层 → 提取光标标记。
+3. 首帧全量；**宽度变化全量重绘**；高度变化全量。
+4. 否则找首尾变化行，只重写该区间；首变化行已滚出视口（在上次视口之上）→ 全量重绘。
+5. 所有写入包在同步输出 `\x1b[?2026h … \x1b[?2026l`；按 64 KiB 分块写。
+6. 记录内容末行与硬件光标行；最后把硬件光标移到编辑器光标处。
+7. 退出时：关括号粘贴、恢复 cooked 模式、光标移到内容末尾下一行、不清屏（回滚保留对话）。
 
-硬约束：**无原生依赖**（没有 node-pty、sqlite 绑定），这是单文件能被 Electron 当 Node 跑的前提。
+### §12.3 输入
 
-Windows：支持；`bash` 工具按 §4.2 回退；路径一律 `path` 处理；REPL 用 `readline` 不依赖 PTY。CI 的 Windows 行跑单测与 `-p` 冒烟。
+- `StdinBuffer`：攒完整转义序列；括号粘贴 `ESC[200~ … ESC[201~` 跨 data 块累积为一次 `paste` 事件；孤立 ESC 判定超时 `AMA_TUI_ESC_TIMEOUT`（SSH / tmux 100 ms，本地 10 ms）。
+- `keys.ts`：解析 CSI / SS3、修饰键参数、Alt 前缀、`\r` / `\n`、Shift+Enter 的常见变体（`\x1b[13;2u`、`\x1b[27;2;13~`）、Ctrl 组合；**不查询 Kitty 协议**（tmux 下回包会污染输入）。
+- 键位（固定表 + `keybindings.json` 覆盖）：`Enter` 提交；`Shift+Enter` / `Ctrl+J` 换行；`Esc` 中断（clear_queue → abort，队列文本回填）；`Ctrl+C` 清输入，再按退出；`Ctrl+D` 空输入退出；`Alt+Enter` 以 followUp 提交；`Alt+Up` 取回队列末条；`Shift+Tab` 循环权限模式；`Ctrl+O` 展开 / 折叠工具输出；`Ctrl+L` 模型选择；`Ctrl+T` 思考级别；`Up/Down` 历史（单行时）/ 行移动；`Tab` 接受补全；`Ctrl+U/K/W` 行编辑。
 
-发布：推 `v*` 标签 → CI 跑全部测试 → `npm publish --access public`（scoped 包必须显式公开）→ GitHub Release 附 `ama.cjs` 与 `SHA256SUMS`。版本语义：`HOST_API_VERSION` 变 → 主版本；RPC `protocolVersion` 变 → 主版本；其余按 semver。
+### §12.4 编辑器（`components/editor*.ts`）
 
-## §12 测试策略
+多行、单词导航、撤销栈（50 步）、历史（会话内 + `~/.local/share/ama/history`，500 条）；大粘贴 **> 10 行或 > 1 000 字符**折叠为 `[paste #N +M lines]` 不可分割段，提交时展开；补全：`/` 命令与模板与 `/skill:`，`@` 文件（`glob` 实现，相对 cwd，最多 50 项）；`disableSubmit` 用于审批对话框期间。括号粘贴期间不触发补全；粘贴结束后紧随的 `\r` 正常提交（Armadra 路径）。
 
-| 层                 | 方法                                                                                                                                   |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| 供应商解析         | 录制的 SSE 片段（两条协议线）→ 内部事件序列黄金文件                                                                                    |
-| 循环               | **脚本化供应商**（`test/fixtures/scripts/*.json`：第 n 次调用返回什么、何时抛 429）驱动完整 run；断言 abort 补 result、steer 投递点、followUp 时机 |
-| 会话               | JSONL 样本 ↔ 投影结果；fork / tree / prune；与 Armadra `history/pi.ts` 共用一份 fixture 的字段子集                                      |
-| 压缩               | 构造超限会话，断言档一只改旧工具结果、档二切点合法、熔断条件各触发一次                                                                 |
-| 权限               | 危险命令表每条正反例；四种模式 × 三类工具的真值表；无人值守 → deny                                                                     |
-| REPL 输入          | 直接喂字节到输入状态机：括号粘贴含 `\n`、无括号多行、Esc 清队列                                                                        |
-| RPC                | 黄金记录：每条命令的请求 / 响应 / 事件序列字节比对；JSONL 切分含 U+2028                                                                |
-| 宿主 API           | 一个测试用适配器：注册工具、订阅全部事件、接管审批；版本不匹配拒绝启动                                                                 |
-| 端到端（可选）     | `AMA_E2E_PROVIDER=…` 才跑的真模型用例，CI 不跑                                                                                         |
+### §12.5 消息区（`message-view.ts`、`tool-view.ts`）
 
-工具：vitest 4（`pool: "forks"`，有真子进程）、prettier 检查、`tsc --noEmit`、源码扫描（无宿主 import、无原生依赖）。
+- 助手文本：Markdown 渲染（标题、列表、代码块加边框与语言标签、引用、行内样式；表格降级等宽）；流式时只重渲染末块，按 (width, text) 缓存。
+- 思考块：缺省折叠一行 `thinking… (N tokens)`，`ui.showThinking: full|collapsed|hidden`。
+- 工具调用：一行标题 `● bash  git status` + 状态图标；折叠显示结果前 3 行与行数；`Ctrl+O` 展开当前 / 全部；`edit` 显示 diff（+/− 着色）；`bash` 流式显示尾部 8 行；错误红色。
+- 用户消息、steer（标 `↳ steer`）、宿主注入（标 `↳ host`）、压缩摘要卡、重试提示、Hook 阻止提示。
+- 滚动由终端回滚承担；TUI 只维护「视口内的尾部」：超出屏幕高度的历史行已经由终端滚出，不再重绘（这是主屏模式能差分的前提）。
 
-## §13 分期与 MVP
+### §12.6 状态栏、审批、选择列表
 
-| 期   | 交付物                                                                                                                                                          | 验收                                                                                                                                                   |
-| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 0    | 仓库骨架、构建（tsc + esbuild bundle）、两条协议线流式与工具调用、线性 JSONL 落盘、脚本化供应商测试框架                                                          | `ama -p "say hi"` 对两条线各跑通；bundle 能以 `node dist/bundle/ama.cjs -p` 运行                                                                        |
-| 1    | **独立 MVP**：循环（abort / steer / followUp）、六个内置工具、权限管线（含危险命令）、REPL（括号粘贴）、`-p` 三格式、`config.json` / `auth.json`、npm 0.1.0  | §12 的循环、权限、REPL 测试全绿；真模型手测：读改一个文件、一次 Esc 中断后继续对话                                                                     |
-| 2    | **宿主接入**：`HostApi` v1、`--host` / `--profile` / `--instructions` / `--auth-file` / `--skill-dir`、事件总线（§9.2 词汇）、审批代理、`task` 可禁用；冻结 `HOST_API_VERSION = 1` | 测试适配器收齐全部事件；Armadra 文档 B 第 1 期的 agent-e2e 场景 11 跑通                                                                                 |
-| 3    | 会话树：fork / `/tree` / 分支摘要 / prune；两档压缩与熔断；缓存断点；`get_entries` / `get_tree`                                                                 | 压缩测试全绿；长会话（> 窗口 2 倍）在脚本化供应商下自动压缩且不循环                                                                                    |
-| 4    | `--mode rpc` 全命令、SDK 公开 API、Skill 渐进披露、`task` 子 Agent、Windows 收尾、`ama.cjs` 随 Release 发布                                                      | RPC 黄金记录全绿；Windows CI 绿；一个外部脚本仅凭 `docs/rpc.md` 写出的客户端能跑通 prompt → agent_settled                                               |
-| 5    | 后置：Responses 协议线、ACP、沙箱、`bun compile`                                                                                                                 | 另立设计                                                                                                                                               |
+- 状态栏一行：`provider/model · think:medium · ↑12.3k ↓1.2k · cache 80% · $0.12 · ctx 34% · queue 1 · mode:default · [host 状态]`；`ctx ?` 表示无窗口；运行中显示 Loader 与已用时。
+- 审批对话框（覆盖层 bottom）：工具名、输入（bash 显示命令全文，文件工具显示路径与 diff 摘要）、reason（mode / dangerous / hook+文本）；按键 `y` 允许、`n` 拒绝、`a` 本会话允许同类、`v` 展开完整输入；10 分钟超时 deny。
+- 选择列表：模型（按供应商分组，标 key 状态）、会话（时间、名字、首条提示）、树（缩进显示分支，选中 user 消息回填编辑器）、权限模式。
 
-MVP = 第 0–2 期（独立可用 + Armadra 能嵌入）。第 3 期之前，会话仍是线性追加、无压缩——长会话会撞窗口，REPL 提示 `/new`。
+### §12.7 主题与能力
 
-## §14 风险与待定项
+`dark` / `light` 两套语义色（`text, dim, accent, success, warning, error, user, assistant, tool, border, code`）；`NO_COLOR` 或 `caps.colors = 0` 全部降为无色；256 色与 16 色近似表；不探测终端背景。
 
-| #   | 风险 / 待定                                                                                                 | 处置                                                                                                              |
-| --- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| R1  | OpenAI 兼容线各家对流式 `tool_calls` 增量、`usage` 字段的差异                                               | 第 0 期先对两家真实端点录 SSE 样本；差异收敛在 `ai/openai-chat.ts` 一处                                            |
-| R2  | 宿主要求「不阻塞一轮」与审批代理需要等待之间的矛盾                                                          | 审批是**工具执行前**的等待，不是事件处理器；有超时（宿主可配，缺省 10 分钟），超时按 deny                          |
-| R3  | 档一裁剪让缓存前缀失效                                                                                      | 只在 70% 阈值触发；文档明说这是一次性成本                                                                         |
-| R4  | `@armadra` npm 作用域是否已归用户所有                                                                       | 第 0 期先 `npm org` 核实；拿不到就退回无作用域名并在本文记录                                                      |
-| R5  | 括号粘贴在不同终端 / tmux 下的转义差异                                                                      | 状态机只认 `ESC[200~` / `ESC[201~`；tmux 透传实测在 Armadra 的 e2e 里覆盖                                          |
-| R6  | 独立模式用户期待「协调别的 CLI」                                                                            | README 明确边界（§0 D11）：独立模式只有 `task`；要编排去 Armadra                                                   |
-| 待定 | 模型表的缺省条目与成本单价由谁维护；`thinking` 在 OpenAI 兼容线的映射；`task` 子 Agent 是否继承父会话的 steer | 第 1 期前定                                                                                                       |
+### §12.8 在 Armadra 终端节点（tmux）里的可用性保证
+
+| 问题                     | 对策                                                                                                           |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| 括号粘贴透传             | 启动时发 `\x1b[?2004h`；tmux 会把外层粘贴转成内层序列；状态机只认 `ESC[200~ / ESC[201~`；e2e 里实测            |
+| `\r` 提交                | 粘贴结束后 `\r` 走普通键路径 = 提交；粘贴内部的 `\n` 是数据                                                     |
+| 回滚                     | 主屏模式，不用备用屏；对话历史滚进 tmux 回滚，Armadra 的 `context_terminal` 读得到                              |
+| 同步输出                 | tmux ≥ 3.4 透传 `?2026`；旧版忽略无害                                                                            |
+| 宽度变化                 | SIGWINCH → 全量重绘；编辑器按新宽重排                                                                            |
+| 无 Kitty / 无鼠标        | 不查询、不启用；避免回包                                                                                        |
+| 自动降级                 | `TERM=dumb`、非 TTY、`--no-tui` → line 模式（同一套命令与审批 `y/n/a` 问答）                                     |
+
+### §12.9 相对 Pi 的砍掉清单
+
+备用屏 / 全屏模式与自管滚动、鼠标事件与选区、Kitty 键盘协议与键释放事件、图片渲染、九种覆盖层锚点（只留两种）、kill ring、HStack / ScrollView / SettingsList、`system` 主题的终端颜色探测、Markdown 表格与语法高亮、可替换页眉页脚、扩展自定义组件 API（宿主只能 `notify` / `setStatus`）、会话 HTML 导出、`!` 用户 bash 行、每日提示与 logo 动画。
+
+### §12.10 显示模式与启动画面（对照 Pi 1.0）
+
+Pi 1.0 把 TUI 默认改为全屏（备用屏），并以 `tuiMode: "regular"` 保留终端原生回滚；ama 的取舍如下。
+
+| 项         | ama 决定                                                                                                                                                                                  | 理由                                                                                                                           |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| 显示模式   | 第一期**只有主屏模式**（相当于 Pi 的 `regular`）；配置键 `ui.tuiMode` 与参数 `--tui-mode` 预留，取值 `regular`，`fullscreen` 记为后置（§12.9 砍掉清单）                                  | 嵌入 Armadra 时 core 要用 tmux 读屏、对话要进回滚供 `context_terminal` 读取、Eco 休眠后 resume 要能看到历史；备用屏会让三者都变差 |
+| 启动画面   | `ui.quietStartup`：`normal`（标题行 + 模型 / 信任 / 已加载资源清单）、`header`（只留版本与按键提示的标题行）、`silent`（不输出）；参数 `--quiet-startup <档>`                                | 与 Pi 1.0 的 `quietStartup` 同义                                                                                                |
+| 嵌入缺省   | profile.config 缺省 `ui.quietStartup: "header"`                                                                                                                                           | 画布节点窄，资源清单由画布自己展示                                                                                              |
+
+## §13 SDK 与 RPC
+
+### §13.1 SDK（`@armadra/agent`）
+
+```ts
+export function createAgentSession(options?: CreateSessionOptions): Promise<AgentSession>;
+export function createRuntime(options?: RuntimeOptions): Promise<Runtime>;      // 复用 bootstrap 的 6–14 步，不进入模式
+export interface CreateSessionOptions {
+  cwd?: string; model?: string | { provider: string; id: string }; thinkingLevel?: ModelThinkingLevel;
+  auth?: { kind: "file"; path: string } | { kind: "env" } | { kind: "inline"; keys: Record<string, string> } | { kind: "none" };
+  providers?: ProviderData[];                                     // 追加 / 覆盖供应商（含 fake）
+  sessionManager?: SessionManager;                                // SessionManager.inMemory() | open(file) | create(dir, cwd)
+  tools?: "default" | "none" | ToolDefinition[]; extraTools?: ToolDefinition[]; disableTools?: string[];
+  instructions?: InstructionSource[]; skillDirs?: string[]; contextFiles?: boolean;
+  permission?: { mode?: PermissionMode; allow?: string[]; deny?: string[]; ask?(req: ApprovalRequest, signal: AbortSignal): Promise<ApprovalDecision> };
+  hooks?: HookConfig | false;                                     // 命令式 Hook（缺省不加载文件系统配置）
+  host?: HostModule; trustProject?: boolean; config?: Partial<AmaConfig>;
+}
+export interface AgentSession {
+  prompt(text: string, o?: { images?: ImageBlock[]; streamingBehavior?: "steer" | "followUp" }): Promise<PromptDisposition>;
+  steer(text: string): Promise<"queued" | "handled">; followUp(text: string): Promise<"queued" | "handled">;
+  abort(): Promise<void>; waitForIdle(): Promise<void>; clearQueue(): { steering: string[]; followUp: string[] };
+  subscribe(listener: (event: SessionEvent) => void): () => void;
+  compact(instructions?: string): Promise<CompactionResult>; fork(entryId: string): Promise<AgentSession>;
+  setModel(ref: string): Promise<void>; setThinkingLevel(level: ModelThinkingLevel): void; setPermissionMode(mode: PermissionMode): void;
+  setActiveTools(names: string[]): void; getTools(): readonly ToolDefinition[];
+  readonly state: SessionState; readonly messages: readonly AgentMessage[]; readonly entries: readonly SessionEntry[];
+  getLastAssistantText(): string | null; getStats(): SessionStats;
+  dispose(): Promise<void>;
+}
+export { SessionManager, ProviderRegistry, FakeProvider, defineTool, loadConfig, HOST_API_VERSION };
+export type { ToolDefinition, ToolContext, ToolResult, Model, ProviderData, SessionEvent, HookInput, HookOutput, ... };
+```
+
+### §13.2 RPC（stdio JSONL，`--mode rpc`）
+
+框架同 v1 §8.4（`hello{protocolVersion:1, capabilities:["approvals","images","hooks"]}`）。命令组：提示（`prompt / steer / follow_up / abort / clear_queue`）、状态（`get_state / get_messages / get_last_assistant_text / get_session_stats`）、模型（`set_model / get_available_models / set_thinking_level / get_available_thinking_levels`）、队列、压缩（`compact / set_auto_compaction`）、重试（`set_auto_retry / abort_retry`）、会话（`new_session / switch_session / fork / get_entries{since} / get_tree / set_session_name / get_fork_messages`）、审批（`set_client_capabilities / permission_response{requestId, decision}`）、工具（`get_tools / set_active_tools`）、权限（`set_permission_mode`）、发现（`get_commands`：模板、技能、斜杠命令）、技能（`get_skills`）。
+
+事件：v1 列表改名 `auto_retry_start / auto_retry_end`，加 `entry_appended{entry}`、`hook_executed`、`permission_mode_changed`、`agent_before_settle`；`message_update` 线上为纯增量 + 最新 `usage`；`agent_end{stopReason, willRetry}`。`permission_request` 带 `timeoutMs`，服务端超时自动 deny 并发 `permission_resolved`。
+
+## §14 分发
+
+| 产物                        | 构建                                                              | 用途                                                                       |
+| --------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `dist/`（ESM + d.ts）        | `tsc -p tsconfig.build.json`                                      | SDK；宿主拿类型（Armadra 以 Git 依赖 `github:yovinchen/armadra-agent#v0.x` 或 Release tarball 安装） |
+| `dist/bundle/ama.cjs`       | esbuild，全部内联，无原生模块，`target node22`                    | 宿主随包携带；`node ama.cjs` 或 `ELECTRON_RUN_AS_NODE=1 <Electron> ama.cjs` |
+| GitHub Release              | `v*` 标签 → CI 全绿 → 附 `ama.cjs` + `SHA256SUMS` + `package.tgz`（`pnpm pack`） | 独立用户 `npm i -g ./package.tgz` 或直接跑 `ama.cjs`                       |
+| npm publish                 | **不执行**（保留 `publishConfig`，日后一条 CI 步骤）              | —                                                                          |
+
+版本语义：`HOST_API_VERSION` 或 RPC `protocolVersion` 变 → 主版本；其余 semver。Windows：CI 跑单测 + `-p` 冒烟 + line 模式括号粘贴测试；TUI 在 Windows Terminal 手测。
+
+## §15 测试策略
+
+| 层         | 方法                                                                                                                                                                            | 批次 |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| 协议解析   | `test/fixtures/sse/<api>/*.txt` → 事件序列黄金 JSON；每协议 ≥ 8 用例：纯文本、思考、单 / 多工具调用、length、429、溢出、断流、usage 差异                                          | B1   |
+| compat     | `detectCompat` 真值表（13 家 + 自定义 baseUrl）；请求体快照（`onPayload`）                                                                                                       | B1   |
+| 循环       | fake 供应商脚本驱动：abort 补 result、steer 投递点、followUp 时机、重试 + context_edit、length 整批失败、并行 / 串行传染                                                          | B2   |
+| 会话 / 压缩 | JSONL ↔ 投影；fork / tree / prune；档一只改旧结果；切点合法；split turn；熔断各触发一次；溢出 → 压缩 → 重试一次                                                                   | B2   |
+| 工具       | 每工具正反例；bash 超时 / 杀树 / 退出码 / 截断落盘（三平台）；edit 唯一性与模糊；grep / glob / ignore 对照 fixture 树                                                             | B3   |
+| 权限       | 危险表正反例；4 模式 × 3 类 × Hook 决策真值表；项目级放宽被忽略；无人值守 deny                                                                                                     | B3   |
+| Hook       | 用 `node -e` 脚本做 Hook：退出码 0/2/其它、超时、并行合并、updatedInput 唯一性、信任过滤                                                                                           | B5   |
+| 配置 / 启动 | 临时 HOME 下的层级合并、profile 展开、每个退出码一个用例、AGENTS.md 向上查找、trust 决策                                                                                            | B5   |
+| TUI        | `MemoryTerminal`：帧黄金文件（宽 80 / 40）、差分只写变化区间、同步输出包裹、resize 全量、括号粘贴折叠与 `\r` 提交、键解析表                                                       | B4/B7 |
+| RPC        | 黄金记录字节比对；U+2028 不切；审批超时                                                                                                                                           | B6   |
+| 宿主 API   | 测试适配器收齐全部事件、注册工具受管线、版本不匹配 78、`create` 返回 undefined                                                                                                   | B5   |
+| 端到端     | `AMA_E2E_PROVIDER=…` 真模型（CI 不跑）；Armadra 场景 11 在宿主仓库                                                                                                                | B9   |
+
+## §16 实施批次（面向并行代理团队）
+
+### §16.1 波次
+
+```text
+B0 契约与骨架（1 人，先行 1–2 天）
+  ├─ 第一波（并行 5 人）：B1 协议与供应商 │ B2 循环·会话·压缩 │ B3 工具·权限·Skill │ B4 TUI 组件库 │ B5 配置·Hook·宿主·启动
+  ├─ 第二波（并行 3 人）：B6 模式（line/print/rpc）与 SDK │ B7 交互模式 │ B8 Google 与 Responses 协议
+  └─ 第三波（1–2 人）：B9 集成、Windows、bundle、Release、文档与 Armadra 场景 11
+```
+
+### §16.2 批次定义
+
+| 批次 | 交付物                                                                                                                                                                                                                | 文件所有权（§1.2 标注）                                                        | 依赖      | 验收                                                                                                                                                                                                                                                      |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B0   | 仓库根文件、CI、`scripts/build-bundle.mjs`、`check-no-deps.mjs`；全部 `types.ts` / `component.ts` / `exit-codes.ts` / `runtime.ts` / `schema.ts`（JSON Schema 校验）；子路径入口文件；`docs/` 骨架                 | 所有 `[B0]` 文件；之后对契约文件的改动走 B0 所有者评审                          | —         | `pnpm ci` 在空实现上绿；`node dist/bundle/ama.cjs --version` 输出版本；`check-no-deps` 通过                                                                                                                                                              |
+| B1   | 两条第一期协议、SSE、容错 JSON、compat、13 家供应商数据与目录、key 发现、思考映射、成本、溢出识别、fake 供应商、`record-sse.mjs`                                                                                       | `src/ai/**`（除 B8 两文件）、`test/fixtures/sse/**`、`fixtures/scripts/**`     | B0        | 协议黄金测试全绿；`detectCompat` 真值表全绿；对 anthropic 与一家 OpenAI 兼容端点（开发者本地真 key）各录 ≥ 8 样本入库；fake 供应商能按脚本产出工具调用 / 429 / 溢出                                                                                          |
+| B2   | 循环、队列、重试、transform、tool-runner、系统提示装配、AgentSession、SessionManager / 投影 / 树 / store、两档压缩与熔断、分支摘要                                                                                       | `src/agent/**`（除 types/schema）、`src/session/**`、`src/compaction/**`       | B0；用 B1 的 fake（接口在 B0 types，可先用本地桩） | 循环与压缩测试全绿；用 fake 脚本：长会话（> 窗口 2 倍）自动压缩且不循环；abort 后文件每个 tool_call 恰有一个 result；溢出 → 压缩 → 重试一次                                                                 |
+| B3   | 全部内置工具（含 task、skill、todo）、截断、进程树、ignore、grep / glob、权限规则 / 危险表 / 管线 / broker、Skill 发现与模板                                                                                           | `src/tools/**`（除 types）、`src/permissions/**`（除 types）、`src/skills/**`  | B0        | 工具测试三平台绿；bash 杀树在 macOS / Linux / Windows 各通过；权限真值表全绿；`skills/` fixture 索引输出与黄金一致                                                                                                                                         |
+| B4   | TUI 组件库：tui / terminal / stdin-buffer / keys / ansi / theme / keybindings / 全部 components                                                                                                                       | `src/tui/**`（除 component.ts）、`test/fixtures/tui/**`                        | B0        | 帧黄金测试全绿；差分测试断言「只重写变化区间」与同步输出包裹；括号粘贴（跨 data 块）折叠为标记并在 `\r` 时提交展开；`node demo` 脚本在真终端与 tmux 内手测编辑器 / 选择列表 / Markdown                                                                      |
+| B5   | 参数解析、bootstrap、子命令、config 层级 / 信任 / profile / auth 文件 / AGENTS.md 查找、命令式 Hook 全部、HostApi 实现与加载器                                                                                          | `src/cli/**`（除 exit-codes/runtime）、`src/config/**`、`src/hooks/**`（除 types）、`src/host/**`（除 types） | B0        | 启动序列每个退出码一个测试；Hook 退出码 / 超时 / 并行合并测试全绿；测试适配器收齐事件；`ama doctor` 在临时 HOME 下输出层级与信任状态；`ama auth set` 从 stdin 写 0600                                                                                        |
+| B6   | line 模式、print 三格式、RPC 全命令、json-event 线上形状、`sdk.ts`                                                                                                                                                     | `src/modes/{print,rpc}/**`、`src/modes/interactive/line/**`、`src/sdk.ts`      | B1–B3、B5 | RPC 黄金记录全绿；`ama -p "hi" --model fake/echo` 三格式输出正确；line 模式括号粘贴测试；外部脚本仅凭 `docs/rpc.md` 跑通 prompt → agent_settled；SDK 示例在 README 可运行                                                                                     |
+| B7   | 交互模式：装配、消息区、工具视图、状态栏、审批对话框、斜杠命令、补全、选择器                                                                                                                                           | `src/modes/interactive/**`（除 line/）                                        | B2–B5     | 用 MemoryTerminal + fake 供应商的集成帧测试：一次完整 run 的帧序列黄金；审批对话框 y/n/a；Esc 回填队列；真终端与 tmux 手测：读改一个文件、Esc 中断后继续、`/model` 切换、`/tree` 分叉                                                                            |
+| B8   | `google-generative-ai`、`openai-responses` 协议与各自 compat、目录条目切换、SSE 样本                                                                                                                                 | `src/ai/apis/{google-generative-ai,openai-responses}.ts`、对应 fixtures、catalog 中 `api` 字段 | B1        | 两协议各 ≥ 8 样本黄金；fake 之外对真实端点手测一次工具调用往返                                                                                                                                                                                            |
+| B9   | 集成：bundle 冒烟三平台、Windows 收尾（PowerShell 回退、taskkill、路径）、Release 流水线、`docs/{rpc,session-format,host-api,hooks,providers,tui}.md`、README、Armadra 文档 B 场景 11 配合                                | 跨批次修复走原所有者；B9 拥有 `docs/**`、`README.md`、CI release job          | 全部      | `pnpm ci` 三平台绿；`node ama.cjs` 在 `ELECTRON_RUN_AS_NODE=1` 下启动；Armadra 场景 11 1–4 步通过；Release 附件 SHA 校验                                                                                                                                      |
+
+### §16.3 并行约束
+
+- 第一波五个批次互不 import 对方的实现文件，只 import B0 的 `types.ts`；需要对方能力时写本地桩（例如 B2 在 B1 完成前用一个最小 `stubStream`）。
+- 契约变更流程：提 PR 改 `types.ts` + 说明影响批次，B0 所有者合并后各批次 rebase；禁止在实现文件里「顺手」改契约。
+- 每批次附带自己的测试与 `docs/` 对应章节草稿（B9 统稿）。
+
+## §17 风险与待定项
+
+| #   | 风险 / 待定                                                                                             | 处置                                                                                                                                 |
+| --- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| R1  | OpenAI 兼容各家对流式 `tool_calls` 增量、`usage`、思考字段的差异                                        | B1 先录真实样本；差异全部收敛在 `openai-compat.ts` 的真值表，每家一条样本                                                            |
+| R2  | 主屏差分渲染在终端高度小于内容时的边界（首变化行已滚出）                                                 | 该情况全量重绘；B4 的黄金测试覆盖高度 10 行的小终端                                                                                  |
+| R3  | tmux 版本差异：`?2026` 同步输出、括号粘贴透传、`TERM` 值                                                 | 不依赖 `?2026`（忽略无害）；括号粘贴在 Armadra e2e 实测；`TERM` 只用来判 dumb                                                       |
+| R4  | 命令式 Hook 以用户权限执行任意命令；项目级 Hook 是供应链入口                                             | 项目级需信任；非交互缺省不信任；`doctor` 列出将执行的 Hook 命令；文档说明边界                                                        |
+| R5  | `Stop` Hook 的 block 可能让 run 无限续跑                                                                 | 上限 3 次，`stopHookActive: true` 传给 Hook                                                                                          |
+| R6  | 内置模型目录过时（新模型、价格变动）                                                                    | 目录是数据文件，PR 更新；用户 `modelOverrides` 立即可用；`ama models check` 验证可用性                                                 |
+| R7  | 零依赖意味着 glob / ignore / Markdown / 键解析全部自写，边角多                                           | 每个模块用对照 fixture 树与黄金文件；范围刻意缩小（§12.9）                                                                           |
+| R8  | 两层 Hook 与权限管线的组合语义用户难以理解                                                              | `doctor` 与 `/permissions` 命令显示「这条工具调用会经过哪些步骤」的解释；文档 §6.3 的顺序图进 `docs/hooks.md`                       |
+| R9  | 不发布 npm 时 Armadra 的依赖方式（Git 依赖需在 install 时构建）                                          | Release 附 `pnpm pack` 的 tgz，Armadra 用 tgz URL 作 devDependency；`tools/release/compatibility.json` 锁 SHA                        |
+| R10 | `task` 子 Agent 与父共享 broker 时的审批排队体验                                                        | 子的 ask 串到父对话框并标 `[task]`；文档 B 下适配器禁用 task，不受影响                                                               |
+| 待定 | Gemini 第一期是否先经 OpenRouter 过渡；`xhigh` 级别是否在 UI 暴露；`todo` 是否进系统提示；Windows PowerShell 回退时的 Hook 命令解释器 | B1 / B7 / B3 / B5 开工前各自决定并写进对应 docs 章节                                                                                   |
