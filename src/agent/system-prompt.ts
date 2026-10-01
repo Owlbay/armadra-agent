@@ -67,9 +67,11 @@ export function assembleSections(
   input: SystemPromptInput,
 ): Record<SectionName, string | undefined> {
   const tools = [...input.tools].sort((a, b) => a.name.localeCompare(b.name));
-  const toolLines = tools.map(
-    (tool) => `- ${tool.name}: ${tool.promptSnippet ?? firstLine(tool.description)}`,
-  );
+  const toolLines = tools.map((tool) => {
+    const snippet = tool.promptSnippet ?? firstLine(tool.description);
+    // 内置工具的 promptSnippet 已以「name: 」开头（B3 约定），不再重复工具名。
+    return snippet.startsWith(`${tool.name}:`) ? `- ${snippet}` : `- ${tool.name}: ${snippet}`;
+  });
   const rules = [
     ...tools.flatMap((tool) => tool.promptGuidelines ?? []),
     ...(input.extraRules ?? []),
