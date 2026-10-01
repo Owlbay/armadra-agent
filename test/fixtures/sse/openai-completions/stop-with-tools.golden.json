@@ -1,0 +1,85 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "thinking_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "Need the date."
+  },
+  {
+    "type": "thinking_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 1,
+    "id": "call_ollama_1",
+    "name": "bash"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "{\"command\":\"date\"}"
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 1,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "call_ollama_1",
+      "name": "bash",
+      "arguments": {
+        "command": "date"
+      }
+    }
+  },
+  {
+    "type": "done",
+    "reason": "toolUse",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking": "Need the date.",
+          "thinkingSignature": "reasoning"
+        },
+        {
+          "type": "toolCall",
+          "id": "call_ollama_1",
+          "name": "bash",
+          "arguments": {
+            "command": "date"
+          }
+        }
+      ],
+      "api": "openai-completions",
+      "provider": "ollama",
+      "model": "qwen3:8b",
+      "usage": {
+        "input": 200,
+        "output": 20,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 220,
+        "cost": {
+          "input": 0.0002,
+          "output": 0.00008,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0.00028000000000000003
+        }
+      },
+      "stopReason": "toolUse",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "responseId": "chatcmpl-ollama",
+      "rawStopReason": "stop"
+    }
+  }
+]

@@ -1,0 +1,12 @@
+#status 200
+#header content-type: text/event-stream
+data: {"id":"noindex","object":"chat.completion.chunk","created":1767225600,"model":"local-model","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"id":"call_x1","type":"function","function":{"name":"glob","arguments":"{\"pattern\":"}}]},"finish_reason":null}]}
+
+data: {"id":"noindex","object":"chat.completion.chunk","created":1767225600,"model":"local-model","choices":[{"index":0,"delta":{"tool_calls":[{"id":"call_x2","type":"function","function":{"name":"ls","arguments":"{}"}}]},"finish_reason":null}]}
+
+data: {"id":"noindex","object":"chat.completion.chunk","created":1767225600,"model":"local-model","choices":[{"index":0,"delta":{"tool_calls":[{"id":"call_x1","function":{"arguments":"\"src/**/*.ts\"}"}}]},"finish_reason":null}]}
+
+data: {"id":"noindex","object":"chat.completion.chunk","created":1767225600,"model":"local-model","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}
+
+data: [DONE]
+

@@ -1,0 +1,6 @@
+#status 200
+#header content-type: text/event-stream
+data: {"id":"chatcmpl-cut","object":"chat.completion.chunk","created":1767225600,"model":"qwen3.8-max","choices":[{"index":0,"delta":{"role":"assistant","content":"Here is a long"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-cut","object":"chat.completion.chunk","created":1767225600,"model":"qwen3.8-max","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_cut","type":"function","function":{"name":"write","arguments":"{\"path\":\"x.md\",\"content\":\"par"}}]},"finish_reason":null}]}
+

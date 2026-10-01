@@ -1,0 +1,99 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 0,
+    "id": "call_x1",
+    "name": "glob"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 0,
+    "delta": "{\"pattern\":"
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 1,
+    "id": "call_x2",
+    "name": "ls"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "{}"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 0,
+    "delta": "\"src/**/*.ts\"}"
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 0,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "call_x1",
+      "name": "glob",
+      "arguments": {
+        "pattern": "src/**/*.ts"
+      }
+    }
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 1,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "call_x2",
+      "name": "ls",
+      "arguments": {}
+    }
+  },
+  {
+    "type": "done",
+    "reason": "toolUse",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "toolCall",
+          "id": "call_x1",
+          "name": "glob",
+          "arguments": {
+            "pattern": "src/**/*.ts"
+          }
+        },
+        {
+          "type": "toolCall",
+          "id": "call_x2",
+          "name": "ls",
+          "arguments": {}
+        }
+      ],
+      "api": "openai-completions",
+      "provider": "custom",
+      "model": "local-model",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 0,
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0
+        }
+      },
+      "stopReason": "toolUse",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "responseId": "noindex",
+      "rawStopReason": "tool_calls"
+    }
+  }
+]

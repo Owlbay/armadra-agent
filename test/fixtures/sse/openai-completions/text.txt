@@ -1,0 +1,14 @@
+#status 200
+#header content-type: text/event-stream
+data: {"id":"chatcmpl-text1","object":"chat.completion.chunk","created":1767225600,"model":"gpt-5.4-mini","choices":[{"index":0,"delta":{"role":"assistant","content":"","refusal":null},"finish_reason":null}],"usage":null}
+
+data: {"id":"chatcmpl-text1","object":"chat.completion.chunk","created":1767225600,"model":"gpt-5.4-mini","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}],"usage":null}
+
+data: {"id":"chatcmpl-text1","object":"chat.completion.chunk","created":1767225600,"model":"gpt-5.4-mini","choices":[{"index":0,"delta":{"content":", 世界 👋"},"finish_reason":null}],"usage":null}
+
+data: {"id":"chatcmpl-text1","object":"chat.completion.chunk","created":1767225600,"model":"gpt-5.4-mini","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":null}
+
+data: {"id":"chatcmpl-text1","object":"chat.completion.chunk","created":1767225600,"model":"gpt-5.4-mini","choices":[],"usage":{"prompt_tokens":1200,"completion_tokens":9,"total_tokens":1209,"prompt_tokens_details":{"cached_tokens":1024,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0}}}
+
+data: [DONE]
+

@@ -1,0 +1,10 @@
+#status 200
+#header content-type: text/event-stream
+data: {"id":"chatcmpl-groq","object":"chat.completion.chunk","created":1767225600,"model":"llama-3.3-70b-versatile","system_fingerprint":"fp_groq","choices":[{"index":0,"delta":{"role":"assistant","content":""},"logprobs":null,"finish_reason":null}],"x_groq":{"id":"req_01groq"}}
+
+data: {"id":"chatcmpl-groq","object":"chat.completion.chunk","created":1767225600,"model":"llama-3.3-70b-versatile","system_fingerprint":"fp_groq","choices":[{"index":0,"delta":{"content":"Fast answer."},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"chatcmpl-groq","object":"chat.completion.chunk","created":1767225600,"model":"llama-3.3-70b-versatile","system_fingerprint":"fp_groq","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}],"x_groq":{"id":"req_01groq","usage":{"queue_time":0.02,"prompt_tokens":48,"prompt_time":0.003,"completion_tokens":4,"completion_time":0.01,"total_tokens":52,"total_time":0.013}}}
+
+data: [DONE]
+

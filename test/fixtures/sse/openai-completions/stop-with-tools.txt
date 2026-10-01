@@ -1,0 +1,12 @@
+#status 200
+#header content-type: text/event-stream
+data: {"id":"chatcmpl-ollama","object":"chat.completion.chunk","created":1767225600,"model":"qwen3:8b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"","reasoning":"Need the date."},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-ollama","object":"chat.completion.chunk","created":1767225600,"model":"qwen3:8b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"","tool_calls":[{"id":"call_ollama_1","index":0,"type":"function","function":{"name":"bash","arguments":"{\"command\":\"date\"}"}}]},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-ollama","object":"chat.completion.chunk","created":1767225600,"model":"qwen3:8b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":"stop"}]}
+
+data: {"id":"chatcmpl-ollama","object":"chat.completion.chunk","created":1767225600,"model":"qwen3:8b","system_fingerprint":"fp_ollama","choices":[],"usage":{"prompt_tokens":200,"completion_tokens":20,"total_tokens":220}}
+
+data: [DONE]
+

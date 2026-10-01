@@ -1,0 +1,71 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "thinking_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "Short check."
+  },
+  {
+    "type": "thinking_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 1
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 1,
+    "delta": "OK"
+  },
+  {
+    "type": "text_end",
+    "contentIndex": 1
+  },
+  {
+    "type": "done",
+    "reason": "stop",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking": "Short check.",
+          "thinkingSignature": "reasoning_content"
+        },
+        {
+          "type": "text",
+          "text": "OK"
+        }
+      ],
+      "api": "openai-completions",
+      "provider": "moonshot",
+      "model": "kimi-k2.7-code",
+      "usage": {
+        "input": 904,
+        "output": 12,
+        "cacheRead": 4096,
+        "cacheWrite": 0,
+        "totalTokens": 5012,
+        "cost": {
+          "input": 0.000904,
+          "output": 0.000048,
+          "cacheRead": 0.00040960000000000004,
+          "cacheWrite": 0,
+          "total": 0.0013616
+        }
+      },
+      "stopReason": "stop",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "responseId": "cmpl-moon",
+      "rawStopReason": "stop"
+    }
+  }
+]

@@ -1,0 +1,8 @@
+#status 200
+#header content-type: text/event-stream
+data: {"id":"chatcmpl-len","object":"chat.completion.chunk","created":1767225600,"model":"kimi-k2.6","choices":[{"index":0,"delta":{"role":"assistant","content":"The list continues: 1, 2, 3"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-len","object":"chat.completion.chunk","created":1767225600,"model":"kimi-k2.6","choices":[{"index":0,"delta":{},"finish_reason":"length","usage":{"prompt_tokens":100,"completion_tokens":32,"total_tokens":132,"cached_tokens":64}}]}
+
+data: [DONE]
+
