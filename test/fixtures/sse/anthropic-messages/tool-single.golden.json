@@ -1,0 +1,96 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 0,
+    "delta": "I'll read the file."
+  },
+  {
+    "type": "text_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 1,
+    "id": "toolu_01A09q90qw90lq917835lq9",
+    "name": "read"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "{\"path\": \"src/ma"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "in.ts\", \"limit\": 20"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "0}"
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 1,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "toolu_01A09q90qw90lq917835lq9",
+      "name": "read",
+      "arguments": {
+        "path": "src/main.ts",
+        "limit": 200
+      }
+    }
+  },
+  {
+    "type": "done",
+    "reason": "toolUse",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "I'll read the file."
+        },
+        {
+          "type": "toolCall",
+          "id": "toolu_01A09q90qw90lq917835lq9",
+          "name": "read",
+          "arguments": {
+            "path": "src/main.ts",
+            "limit": 200
+          }
+        }
+      ],
+      "api": "anthropic-messages",
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-6",
+      "usage": {
+        "input": 472,
+        "output": 89,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 561,
+        "cost": {
+          "input": 0.001416,
+          "output": 0.001335,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0.002751
+        }
+      },
+      "stopReason": "toolUse",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "responseId": "msg_01ToolSingle",
+      "rawStopReason": "tool_use"
+    }
+  }
+]

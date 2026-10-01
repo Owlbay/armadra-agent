@@ -1,0 +1,53 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 0,
+    "delta": "Once upon a time, there was a"
+  },
+  {
+    "type": "text_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "done",
+    "reason": "length",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Once upon a time, there was a"
+        }
+      ],
+      "api": "anthropic-messages",
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-6",
+      "usage": {
+        "input": 30,
+        "output": 16,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 46,
+        "cost": {
+          "input": 0.00009,
+          "output": 0.00024,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0.00033
+        }
+      },
+      "stopReason": "length",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "responseId": "msg_01Length",
+      "rawStopReason": "max_tokens"
+    }
+  }
+]

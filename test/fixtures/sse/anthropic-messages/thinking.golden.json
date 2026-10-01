@@ -1,0 +1,76 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "thinking_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "The user wants 27 * 453."
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "\n27 * 453 = 12231."
+  },
+  {
+    "type": "thinking_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 1
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 1,
+    "delta": "27 × 453 = 12,231"
+  },
+  {
+    "type": "text_end",
+    "contentIndex": 1
+  },
+  {
+    "type": "done",
+    "reason": "stop",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking": "The user wants 27 * 453.\n27 * 453 = 12231.",
+          "thinkingSignature": "EqQBCgIYAhIM1gbcDa9GJwZA2b3hGgxBdjrkzLoky3dl1pkiMOYds-part2=="
+        },
+        {
+          "type": "text",
+          "text": "27 × 453 = 12,231"
+        }
+      ],
+      "api": "anthropic-messages",
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-6",
+      "usage": {
+        "input": 120,
+        "output": 84,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 204,
+        "cost": {
+          "input": 0.00036,
+          "output": 0.00126,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0.0016200000000000001
+        }
+      },
+      "stopReason": "stop",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "responseId": "msg_01Thinking",
+      "rawStopReason": "end_turn"
+    }
+  }
+]

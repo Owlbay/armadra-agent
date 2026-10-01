@@ -1,0 +1,63 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 0,
+    "delta": "Hello"
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 0,
+    "delta": ", 世界"
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 0,
+    "delta": " 👋!"
+  },
+  {
+    "type": "text_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "done",
+    "reason": "stop",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Hello, 世界 👋!"
+        }
+      ],
+      "api": "anthropic-messages",
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-6",
+      "usage": {
+        "input": 25,
+        "output": 12,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 37,
+        "cost": {
+          "input": 0.000075,
+          "output": 0.00018,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0.000255
+        }
+      },
+      "stopReason": "stop",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "responseId": "msg_01TextSample",
+      "rawStopReason": "end_turn"
+    }
+  }
+]

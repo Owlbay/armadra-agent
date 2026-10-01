@@ -1,0 +1,3 @@
+#status 400
+#header content-type: application/json
+{"type":"error","error":{"type":"invalid_request_error","message":"prompt is too long: 213462 tokens > 200000 maximum"},"request_id":"req_011COverflow"}
