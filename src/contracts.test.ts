@@ -15,7 +15,14 @@ import type {
   ToolCallBlock,
   TranscriptContext,
 } from "./ai/types.js";
-import type { AgentSession, LoopHooks, SessionEvent } from "./agent/types.js";
+import type {
+  AgentSession,
+  EnqueueOptions,
+  LoopHooks,
+  PromptOptions,
+  SessionEvent,
+} from "./agent/types.js";
+import type { MessageOrigin } from "./ai/types.js";
 import type { HookInput, HookOutput, HookOutcome } from "./hooks/types.js";
 import type {
   AgentEvents,
@@ -225,6 +232,14 @@ describe("循环、SDK、RPC、Runtime 契约", () => {
     >();
     expectTypeOf<ReturnType<AgentSession["prompt"]>>().toEqualTypeOf<
       Promise<"started" | "queued" | "handled">
+    >();
+    expectTypeOf<PromptOptions["origin"]>().toEqualTypeOf<MessageOrigin | undefined>();
+    expectTypeOf<EnqueueOptions["origin"]>().toEqualTypeOf<MessageOrigin | undefined>();
+    expectTypeOf<Parameters<AgentSession["steer"]>>().toEqualTypeOf<
+      [text: string, options?: EnqueueOptions]
+    >();
+    expectTypeOf<Parameters<AgentSession["followUp"]>>().toEqualTypeOf<
+      [text: string, options?: EnqueueOptions]
     >();
     expectTypeOf<Extract<SessionEvent, { type: "agent_end" }>>().toEqualTypeOf<{
       type: "agent_end";
