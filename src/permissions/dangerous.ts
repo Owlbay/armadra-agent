@@ -4,7 +4,8 @@
  *
  * 命中 → 管线第 ② 步 ask（无人值守 deny），allow 规则不能越过。识别按段进行：命令先按
  * `&&`、`||`、`;`、`|`、`&`、换行切段（引号内不切），每段剥掉前导的环境赋值与
- * `sudo / command / exec / nohup / time / env` 等前缀后看命令名。整条命令另外做跨段检查
+ * `sudo / command / exec / nohup / time / env` 等前缀后看命令名；`sh -c '…'`、`eval …` 等包装里的
+ * 命令递归识别，嵌套超过 {@link MAX_NESTING} 层按危险处理。整条命令另外做跨段检查
  * （`curl … | sh`、fork 炸弹）。每条规则都有正例与反例测试（dangerous.test.ts）。
  */
 
@@ -230,8 +231,49 @@ export const DANGEROUS_RULES: readonly DangerousRule[] = [
   },
 ];
 
-/** 第一条命中的危险规则；无则 undefined。 */
-export function matchDangerous(command: string): DangerousMatch | undefined {
+const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh"]);
+
+/** 嵌套层数上限：`sh -c` / `eval` 等每包一层计一层，超过按危险处理。 */
+export const MAX_NESTING = 3;
+
+const TOO_DEEP: DangerousMatch = {
+  id: "nested-too-deep",
+  description: `shell command nested more than ${MAX_NESTING} levels deep`,
+};
+
+/** `sh -c 'cmd'` 的 cmd：选项簇里有 `c` 时取第一个非选项参数；`-o` / `+o` 吃掉下一个词。 */
+function shellCommandString(argv: readonly string[]): string | undefined {
+  let hasC = false;
+  for (let i = 1; i < argv.length; i++) {
+    const a = argv[i] as string;
+    if (a === "--") return hasC ? argv[i + 1] : undefined;
+    if (a.startsWith("--")) continue;
+    if (/^[-+][A-Za-z]+$/.test(a)) {
+      if (a[0] === "-" && a.includes("c")) hasC = true;
+      if (a.endsWith("o")) i++;
+      continue;
+    }
+    return hasC ? a : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * 段内嵌套的命令文本（剥过前缀的 argv）：`sh / bash / zsh / dash / ksh -c '…'` 的字符串参数；
+ * `eval` 其余词以空格拼接。
+ */
+export function nestedCommands(argv: readonly string[]): string[] {
+  const name = base(argv[0]);
+  if (SHELLS.has(name)) {
+    const inner = shellCommandString(argv);
+    return inner === undefined ? [] : [inner];
+  }
+  if (name === "eval") return argv.length > 1 ? [argv.slice(1).join(" ")] : [];
+  return [];
+}
+
+/** 第一条命中的危险规则；无则 undefined。嵌套命令（{@link nestedCommands}）递归识别。 */
+export function matchDangerous(command: string, depth = 0): DangerousMatch | undefined {
   for (const rule of DANGEROUS_RULES) {
     if (rule.whole?.(command)) return { id: rule.id, description: rule.description };
   }
@@ -239,6 +281,11 @@ export function matchDangerous(command: string): DangerousMatch | undefined {
     const argv = commandWords(segment);
     for (const rule of DANGEROUS_RULES) {
       if (rule.segment?.(argv, segment)) return { id: rule.id, description: rule.description };
+    }
+    for (const inner of nestedCommands(argv)) {
+      if (depth >= MAX_NESTING) return TOO_DEEP;
+      const hit = matchDangerous(inner, depth + 1);
+      if (hit) return hit;
     }
   }
   return undefined;

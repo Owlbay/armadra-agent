@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { DANGEROUS_RULES, commandWords, matchDangerous, shellWords } from "./dangerous.js";
+import {
+  DANGEROUS_RULES,
+  commandWords,
+  matchDangerous,
+  nestedCommands,
+  shellWords,
+} from "./dangerous.js";
 
 /** 每条规则：正例（必须命中且命中的就是这条）与反例（必须不命中任何规则）。 */
 const CASES: Record<string, { yes: string[]; no: string[] }> = {
@@ -113,5 +119,58 @@ describe("危险命令表", () => {
     expect(shellWords(`a\\ b ""`)).toEqual(["a b", ""]);
     expect(commandWords("FOO=1 nohup sudo -E rm -rf /")).toEqual(["rm", "-rf", "/"]);
     expect(commandWords("sudo ls", true)).toEqual(["sudo", "ls"]);
+  });
+});
+
+describe("包装里的命令递归识别", () => {
+  const yes: [string, string][] = [
+    ["sh -c 'rm -rf /'", "rm-rf-root"],
+    ['bash -c "git push --force"', "git-push-force"],
+    ["/bin/zsh -c 'cd x && rm -rf ~'", "rm-rf-root"],
+    ["env FOO=1 dash -lc 'git reset --hard'", "git-reset-hard"],
+    ["sudo -u bob ksh -e -c 'npm publish'", "package-publish"],
+    ["bash -o pipefail -c 'mkfs.ext4 /dev/sdb1'", "mkfs"],
+    ["eval rm -rf /", "rm-rf-root"],
+    ["eval 'git clean -fd'", "git-clean-force"],
+    [`sh -c "bash -c 'rm -rf /'"`, "rm-rf-root"],
+    ["echo ok && sh -c 'shutdown -h now'", "shutdown-reboot"],
+    [`bash -c "rm -rf \\"/\\""`, "rm-rf-root"],
+  ];
+  const no = [
+    'bash -c "echo rm -rf"',
+    "sh -c 'echo rm -rf /'",
+    "bash -c 'npm test'",
+    "bash script.sh rm -rf /",
+    "sh -e build.sh",
+    "eval echo git push --force",
+    "zsh -c 'ls -la'",
+    "grep 'sh -c rm -rf /' notes.txt",
+  ];
+  for (const [cmd, id] of yes) {
+    it(`正例：${cmd}`, () => {
+      // 带 sudo 的正例由 sudo 规则先命中，只要求命中
+      const m = matchDangerous(cmd);
+      expect(m).toBeDefined();
+      if (!cmd.startsWith("sudo ")) expect(m?.id).toBe(id);
+    });
+  }
+  for (const cmd of no) {
+    it(`反例：${cmd}`, () => {
+      expect(matchDangerous(cmd)).toBeUndefined();
+    });
+  }
+
+  it(`嵌套不超过 3 层照常识别，超过按危险处理`, () => {
+    expect(matchDangerous("eval eval eval ls")).toBeUndefined();
+    expect(matchDangerous("eval eval eval eval ls")?.id).toBe("nested-too-deep");
+    expect(matchDangerous("eval eval eval rm -rf /")?.id).toBe("rm-rf-root");
+  });
+
+  it("nestedCommands 取 -c 的字符串参数与 eval 的拼接", () => {
+    expect(nestedCommands(["bash", "-lc", "a b", "argv0"])).toEqual(["a b"]);
+    expect(nestedCommands(["sh", "-c", "--", "x"])).toEqual(["x"]);
+    expect(nestedCommands(["bash", "-x", "script.sh"])).toEqual([]);
+    expect(nestedCommands(["eval", "a", "b"])).toEqual(["a b"]);
+    expect(nestedCommands(["bash"])).toEqual([]);
   });
 });
