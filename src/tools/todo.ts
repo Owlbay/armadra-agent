@@ -94,15 +94,14 @@ export function createTodoTool(): ToolDefinition<TodoInput> {
     name: "todo",
     label: "Todo",
     description:
-      "Track a task list for this session. `set` replaces the whole list; `get` returns it. " +
-      "Use it to plan multi-step work and mark progress.",
+      "Session task list for multi-step work: `set` replaces the whole list, `get` returns it.",
     parameters: {
       type: "object",
       properties: {
-        action: { type: "string", enum: ["set", "get"], description: "set or get" },
+        action: { type: "string", enum: ["set", "get"] },
         items: {
           type: "array",
-          description: "Full task list (for set)",
+          description: "Full list (set)",
           items: {
             type: "object",
             properties: {
@@ -120,7 +119,7 @@ export function createTodoTool(): ToolDefinition<TodoInput> {
     },
     permission: "read",
     executionMode: "parallel",
-    promptSnippet: "todo: keep a task list for multi-step work",
+    promptSnippet: "todo: track multi-step work",
     execute: executeTodo,
     renderResult: (result) => {
       const state = result.details as TodoState | undefined;

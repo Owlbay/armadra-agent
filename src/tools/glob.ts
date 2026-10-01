@@ -225,15 +225,14 @@ export function createGlobTool(): ToolDefinition<GlobInput> {
     name: "glob",
     label: "Glob",
     description:
-      "Find files by glob pattern (`**`, `*`, `?`, `[...]`, `{a,b}`, leading `!` excludes). " +
-      "Patterns without `/` match file names at any depth. Respects .gitignore and .ignore; " +
-      "results are sorted by modification time, newest first.",
+      "Find files by glob (`**`, `*`, `?`, `[...]`, `{a,b}`, leading `!` excludes). " +
+      "Patterns without `/` match names at any depth. Respects .gitignore/.ignore; newest first.",
     parameters: {
       type: "object",
       properties: {
-        pattern: { type: "string", description: "Glob pattern, e.g. **/*.ts" },
-        path: { type: "string", description: "Directory to search (default: cwd)" },
-        limit: { type: "integer", description: `Maximum results (default ${DEFAULT_GLOB_LIMIT})` },
+        pattern: { type: "string", description: "e.g. **/*.ts" },
+        path: { type: "string", description: "Directory (default: cwd)" },
+        limit: { type: "integer", description: `Default ${DEFAULT_GLOB_LIMIT}` },
       },
       required: ["pattern"],
       additionalProperties: false,

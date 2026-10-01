@@ -4,7 +4,8 @@
  *
  * 命中 → 管线第 ② 步 ask（无人值守 deny），allow 规则不能越过。识别按段进行：命令先按
  * `&&`、`||`、`;`、`|`、`&`、换行切段（引号内不切），每段剥掉前导的环境赋值与
- * `sudo / command / exec / nohup / time / env` 等前缀后看命令名。整条命令另外做跨段检查
+ * `sudo / command / exec / nohup / time / env` 等前缀后看命令名；`sh -c '…'`、`eval …`、`xargs …`、`find -exec … ;` 里的
+ * 命令递归识别，嵌套超过 {@link MAX_NESTING} 层按危险处理。整条命令另外做跨段检查
  * （`curl … | sh`、fork 炸弹）。每条规则都有正例与反例测试（dangerous.test.ts）。
  */
 
@@ -24,13 +25,49 @@ export interface DangerousMatch {
   description: string;
 }
 
-const WRAPPERS = new Set(["command", "exec", "nohup", "time", "env", "builtin", "nice", "xargs"]);
+const WRAPPERS = new Set(["command", "exec", "nohup", "time", "env", "builtin", "nice"]);
 
-/** 粗略分词：按空白切，去掉成对引号。 */
+/**
+ * 分词：按未加引号的空白切；单引号内原样，双引号内反斜杠只转义 `\`、`"`、`$`、反引号，引号外反斜杠转义下一个字符；
+ * 相邻的引号段与普通字符拼成一个词（`'a'"b"c` → `abc`）。不做变量与通配展开。
+ */
 export function shellWords(segment: string): string[] {
   const words: string[] = [];
-  const re = /"((?:[^"\\]|\\.)*)"|'([^']*)'|(\S+)/g;
-  for (const m of segment.matchAll(re)) words.push(m[1] ?? m[2] ?? m[3] ?? "");
+  let cur = "";
+  let inWord = false;
+  for (let i = 0; i < segment.length; i++) {
+    const ch = segment[i] as string;
+    if (/\s/.test(ch)) {
+      if (inWord) words.push(cur);
+      cur = "";
+      inWord = false;
+      continue;
+    }
+    inWord = true;
+    if (ch === "'") {
+      const end = segment.indexOf("'", i + 1);
+      const stop = end === -1 ? segment.length : end;
+      cur += segment.slice(i + 1, stop);
+      i = stop;
+    } else if (ch === '"') {
+      i++;
+      while (i < segment.length && segment[i] !== '"') {
+        const c = segment[i] as string;
+        if (c === "\\" && i + 1 < segment.length && '\\"$`'.includes(segment[i + 1] as string)) {
+          cur += segment[i + 1];
+          i += 2;
+        } else {
+          cur += c;
+          i++;
+        }
+      }
+    } else if (ch === "\\" && i + 1 < segment.length) {
+      cur += segment[++i];
+    } else {
+      cur += ch;
+    }
+  }
+  if (inWord) words.push(cur);
   return words;
 }
 
@@ -194,8 +231,118 @@ export const DANGEROUS_RULES: readonly DangerousRule[] = [
   },
 ];
 
-/** 第一条命中的危险规则；无则 undefined。 */
-export function matchDangerous(command: string): DangerousMatch | undefined {
+const SHELLS = new Set(["sh", "bash", "zsh", "dash", "ksh"]);
+
+/** 嵌套层数上限：`sh -c` / `eval` 等每包一层计一层，超过按危险处理。 */
+export const MAX_NESTING = 3;
+
+const TOO_DEEP: DangerousMatch = {
+  id: "nested-too-deep",
+  description: `shell command nested more than ${MAX_NESTING} levels deep`,
+};
+
+/** `sh -c 'cmd'` 的 cmd：选项簇里有 `c` 时取第一个非选项参数；`-o` / `+o` 吃掉下一个词。 */
+function shellCommandString(argv: readonly string[]): string | undefined {
+  let hasC = false;
+  for (let i = 1; i < argv.length; i++) {
+    const a = argv[i] as string;
+    if (a === "--") return hasC ? argv[i + 1] : undefined;
+    if (a.startsWith("--")) continue;
+    if (/^[-+][A-Za-z]+$/.test(a)) {
+      if (a[0] === "-" && a.includes("c")) hasC = true;
+      if (a.endsWith("o")) i++;
+      continue;
+    }
+    return hasC ? a : undefined;
+  }
+  return undefined;
+}
+
+/** 把词重新拼回命令文本：含特殊字符的词加单引号。 */
+function joinWords(words: readonly string[]): string {
+  return words
+    .map((w) => (/^[A-Za-z0-9_@%+=:,./{}~-]+$/.test(w) ? w : `'${w.replace(/'/g, `'\\''`)}'`))
+    .join(" ");
+}
+
+/** xargs 中带独立参数的短选项。 */
+const XARGS_ARG_OPTS = new Set(["-I", "-L", "-n", "-P", "-s", "-E", "-d", "-a"]);
+
+/** `xargs [选项] cmd …` 的 cmd 部分；没有命令（缺省 echo）返回 undefined。 */
+function xargsCommand(argv: readonly string[]): string | undefined {
+  let i = 1;
+  while (i < argv.length) {
+    const a = argv[i] as string;
+    if (a === "--") {
+      i++;
+      break;
+    }
+    if (!a.startsWith("-") || a === "-") break;
+    i += XARGS_ARG_OPTS.has(a) ? 2 : 1;
+  }
+  return i < argv.length ? joinWords(argv.slice(i)) : undefined;
+}
+
+/** `find … -exec / -execdir / -ok / -okdir cmd … ;|+` 里的每条 cmd。 */
+function findExecCommands(argv: readonly string[]): string[] {
+  const out: string[] = [];
+  for (let i = 1; i < argv.length; i++) {
+    if (!["-exec", "-execdir", "-ok", "-okdir"].includes(argv[i] as string)) continue;
+    let end = i + 1;
+    while (end < argv.length && argv[end] !== ";" && argv[end] !== "+") end++;
+    if (end > i + 1) out.push(joinWords(argv.slice(i + 1, end)));
+    i = end;
+  }
+  return out;
+}
+
+/**
+ * 段内嵌套的命令文本（剥过前缀的 argv）：`sh / bash / zsh / dash / ksh -c '…'` 的字符串参数；
+ * `eval` 其余词以空格拼接；`xargs` 要执行的命令；`find -exec … ;` 里的命令。
+ */
+export function nestedCommands(argv: readonly string[]): string[] {
+  const name = base(argv[0]);
+  if (SHELLS.has(name)) {
+    const inner = shellCommandString(argv);
+    return inner === undefined ? [] : [inner];
+  }
+  if (name === "eval") return argv.length > 1 ? [argv.slice(1).join(" ")] : [];
+  if (name === "xargs") {
+    const inner = xargsCommand(argv);
+    return inner === undefined ? [] : [inner];
+  }
+  if (name === "find") return findExecCommands(argv);
+  return [];
+}
+
+export interface NestedCommands {
+  /** 各层嵌套命令文本（不含最外层），按出现顺序。 */
+  commands: string[];
+  /** 是否有超过 {@link MAX_NESTING} 层的嵌套（其内容未展开）。 */
+  tooDeep: boolean;
+}
+
+/** 整条命令里所有嵌套的命令文本，供 allow / deny 规则与会话记忆逐层核对。 */
+export function collectNestedCommands(command: string): NestedCommands {
+  const out: NestedCommands = { commands: [], tooDeep: false };
+  const walk = (text: string, depth: number): void => {
+    for (const segment of splitShellSegments(text)) {
+      for (const inner of nestedCommands(commandWords(segment))) {
+        if (depth >= MAX_NESTING) {
+          out.tooDeep = true;
+          continue;
+        }
+        out.commands.push(inner);
+        walk(inner, depth + 1);
+      }
+    }
+  };
+  walk(command, 0);
+  return out;
+}
+
+/** 第一条命中的危险规则；无则 undefined。嵌套命令（{@link nestedCommands}）递归识别。 */
+export function matchDangerous(command: string, depth = 0): DangerousMatch | undefined {
   for (const rule of DANGEROUS_RULES) {
     if (rule.whole?.(command)) return { id: rule.id, description: rule.description };
   }
@@ -203,6 +350,11 @@ export function matchDangerous(command: string): DangerousMatch | undefined {
     const argv = commandWords(segment);
     for (const rule of DANGEROUS_RULES) {
       if (rule.segment?.(argv, segment)) return { id: rule.id, description: rule.description };
+    }
+    for (const inner of nestedCommands(argv)) {
+      if (depth >= MAX_NESTING) return TOO_DEEP;
+      const hit = matchDangerous(inner, depth + 1);
+      if (hit) return hit;
     }
   }
   return undefined;

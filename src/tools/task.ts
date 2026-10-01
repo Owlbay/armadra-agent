@@ -120,36 +120,28 @@ export function createTaskTool(options: TaskToolOptions = {}): ToolDefinition<Ta
     name: "task",
     label: "Task",
     description:
-      "Delegate a self-contained subtask to a sub-agent with its own context. It cannot see this " +
-      "conversation, so the prompt must include everything it needs. Returns the sub-agent's " +
-      "final answer. Sub-agents cannot start further tasks.",
+      "Delegate to a fresh sub-agent. It cannot see this chat: give full instructions. " +
+      "Returns its final answer.",
     parameters: {
       type: "object",
       properties: {
-        prompt: { type: "string", description: "Complete instructions for the sub-agent" },
-        description: { type: "string", description: "Short label shown to the user" },
+        prompt: { type: "string" },
+        description: { type: "string", description: "Label" },
         tools: {
           type: "array",
           items: { type: "string" },
-          description: "Tool names to allow (default: all of yours except task)",
+          description: "Default: all but task",
         },
-        model: { type: "string", description: "provider/model-id (default: same as yours)" },
-        thinkingLevel: {
-          type: "string",
-          enum: [...THINKING],
-          description: "Thinking level (default: same as yours)",
-        },
-        maxTurns: {
-          type: "integer",
-          description: `Maximum turns (default ${DEFAULT_TASK_MAX_TURNS})`,
-        },
+        model: { type: "string", description: "provider/model" },
+        thinkingLevel: { type: "string", enum: [...THINKING] },
+        maxTurns: { type: "integer", description: `Default ${DEFAULT_TASK_MAX_TURNS}` },
       },
       required: ["prompt"],
       additionalProperties: false,
     },
     permission: "execute",
     executionMode: "sequential",
-    promptSnippet: "task: delegate a self-contained subtask to a sub-agent",
+    promptSnippet: "task: run a sub-agent",
     async execute(input, ctx): Promise<ToolResult> {
       if (ctx.depth >= MAX_TASK_DEPTH || ctx.spawnSubagent === undefined) {
         return fail("Sub-agents are not available here (nested tasks are not allowed).");

@@ -14,6 +14,9 @@
  * allow_session 记忆（内存，不落盘）：bash 记命令的前两个词（`npm test`），之后以它开头的命令
  * 命中；带 path 的工具记文件所在目录，之后该目录下的路径命中；其它工具只记工具名。
  * 记忆只作用于第 ③ 步模式产生的 ask。
+ *
+ * 包装里的命令（`sh -c '…'`、`eval`、`xargs`、`find -exec`，见 dangerous.ts）逐层核对：deny 规则命中
+ * 任一层即 deny；allow 规则与会话记忆要求外层与每一层嵌套命令都被覆盖，嵌套超深时不放行。
  */
 
 import { dirname, sep } from "node:path";
@@ -35,7 +38,18 @@ import {
   normalizeCommand,
   splitShellSegments,
 } from "./rules.js";
-import { matchDangerous } from "./dangerous.js";
+import { collectNestedCommands, matchDangerous } from "./dangerous.js";
+
+/** bash 调用拆成「外层 + 每层嵌套命令」各自的输入；嵌套超深时 tooDeep 为真。非 bash 原样返回。 */
+function layeredInputs(toolName: string, input: unknown): { inputs: unknown[]; tooDeep: boolean } {
+  const command = toolName === "bash" ? inputCommand(input) : undefined;
+  if (command === undefined) return { inputs: [input], tooDeep: false };
+  const nested = collectNestedCommands(command);
+  return {
+    inputs: [input, ...nested.commands.map((c) => ({ ...(input as object), command: c }))],
+    tooDeep: nested.tooDeep,
+  };
+}
 
 /** 第 ③ 步的模式真值表。 */
 export function modeDecision(mode: PermissionMode, permission: ToolPermission): Decision {
@@ -130,7 +144,12 @@ export class PermissionPipeline implements PermissionPipelineApi {
   private evaluate(input: PermissionCheckInput): PermissionVerdict {
     const { toolName, permission } = input;
     // ① deny
-    const deny = findDenyRule(this.ruleList, toolName, input.input, this.cwd);
+    const layers = layeredInputs(toolName, input.input);
+    let deny: Rule | undefined;
+    for (const layer of layers.inputs) {
+      deny = findDenyRule(this.ruleList, toolName, layer, this.cwd);
+      if (deny) break;
+    }
     if (deny) {
       return {
         decision: "deny",
@@ -172,10 +191,18 @@ export class PermissionPipeline implements PermissionPipelineApi {
         : { decision: "ask", step: "mode", approvalReason: "mode" };
     // ④ allow 规则 / Hook allow / 会话记忆
     if (verdict.decision === "ask") {
-      const allow = findAllowRule(this.ruleList, toolName, input.input, this.cwd);
-      if (allow) verdict = { decision: "allow", step: "allow-rule", rule: allow };
+      const allow = layers.tooDeep
+        ? undefined
+        : findAllowRule(this.ruleList, toolName, input.input, this.cwd);
+      const allowAll =
+        allow !== undefined &&
+        layers.inputs.every((l) => findAllowRule(this.ruleList, toolName, l, this.cwd));
+      const granted =
+        !layers.tooDeep &&
+        layers.inputs.every((l) => this.grants.some((g) => grantCovers(g, toolName, l, this.cwd)));
+      if (allowAll) verdict = { decision: "allow", step: "allow-rule", rule: allow };
       else if (input.hookDecision === "allow") verdict = { decision: "allow", step: "hook" };
-      else if (this.grants.some((g) => grantCovers(g, toolName, input.input, this.cwd))) {
+      else if (granted) {
         verdict = { decision: "allow", step: "session" };
       }
     }
