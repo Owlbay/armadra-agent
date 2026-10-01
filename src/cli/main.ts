@@ -4,7 +4,7 @@
  *
  * - 设 `AMA=1`、`AI_AGENT=ama`；直接执行时装 `uncaughtException` / `unhandledRejection` →
  *   stderr 一行 + 退出码 1；SIGINT / SIGTERM 交给当前模式。
- * - `--version` / `--help` 短路；子命令 `auth / sessions / models / doctor` 分派后返回；
+ * - `--version` / `--help` 短路；子命令 `auth / sessions / models / doctor / config` 分派后返回；
  *   其余交给 `runCli()`（bootstrap → 模式）。
  * - 运行时实现（RuntimeDeps）：`MainOptions.deps` > `registerRuntimeDeps()` > 组装根
  *   `createRuntimeDeps()`（cli/compose.ts，动态 import）。
@@ -20,6 +20,7 @@ import { reportError, runCli } from "./bootstrap.js";
 import type { CliIo, RuntimeDeps } from "./deps.js";
 import { ExitCode } from "./exit-codes.js";
 import { runAuth } from "./subcommands/auth.js";
+import { runConfig } from "./subcommands/config.js";
 import { runDoctor } from "./subcommands/doctor.js";
 import { runModels } from "./subcommands/models.js";
 import { runSessions } from "./subcommands/sessions.js";
@@ -117,7 +118,9 @@ export async function main(argv: readonly string[], options: MainOptions = {}): 
   if (options.processHooks !== false) installProcessHooks(io);
   // 缺省装配走动态 import：--version / auth 不加载运行时实现（bundle 里同样内联）。
   const resolveDeps = async (): Promise<RuntimeDeps> =>
-    options.deps ?? registeredDeps ?? (await import("./compose.js")).createRuntimeDeps();
+    options.deps ??
+    registeredDeps ??
+    (await import("./compose.js")).createRuntimeDeps({ env: io.env as NodeJS.ProcessEnv });
   try {
     const parsed = parseArgs(argv);
     if (parsed.kind === "subcommand") {
@@ -130,6 +133,8 @@ export async function main(argv: readonly string[], options: MainOptions = {}): 
           return await runModels(parsed.argv, io, await resolveDeps());
         case "doctor":
           return await runDoctor(parsed.argv, io, await resolveDeps());
+        case "config":
+          return await runConfig(parsed.argv, io, await resolveDeps());
       }
     }
     if (parsed.args.version) {
