@@ -38,6 +38,11 @@ export interface PermissionConfig {
   mode?: PermissionMode;
   allow?: string[];
   deny?: string[];
+  /**
+   * 内置 deny 表（`.git/**` 写、`.ssh/**` 读写）：缺省 true 全部启用；false 全部移除；
+   * 数组 = 要移除的规则原文。放宽项，只认用户级 / profile，项目级忽略并 warning。
+   */
+  builtinDeny?: boolean | string[];
 }
 
 export interface CompactionConfig {
@@ -53,10 +58,37 @@ export interface RetryConfig {
   maxDelayMs?: number;
 }
 
+/** 工具预设（设计 §5.6）：模型直接看到的工具集合。 */
+export type ToolsPreset = "default" | "minimal" | "codemode" | "coordinator";
+
+/** 从严到宽：项目级只能把预设改成不比当前更宽的那个（coordinator 最严，codemode 最宽）。 */
+export const TOOLS_PRESETS_STRICT_FIRST: readonly ToolsPreset[] = [
+  "coordinator",
+  "minimal",
+  "default",
+  "codemode",
+];
+
 export interface ToolsConfig {
+  /** 缺省 `default`；命令行 `--tools-preset`。 */
+  preset?: ToolsPreset;
   maxToolResultChars?: number;
   bashTimeoutMs?: number;
   disabled?: string[];
+}
+
+/** codemode 调用方式（设计 §5.5）：off 不注册；on 全部工具 + codemode；only 只有 codemode。 */
+export type CodemodeMode = "off" | "on" | "only";
+
+export const CODEMODE_MODES: readonly CodemodeMode[] = ["off", "on", "only"];
+
+export interface CodemodeConfig {
+  /** 命令行 `--codemode`；项目级只接受 "off"。 */
+  mode?: CodemodeMode;
+  /** `codemode` 描述里内联工具声明的总预算（估算 token，缺省 3 000），超出只列名字。 */
+  inlineBudget?: number;
+  /** true：运行时 Node 的权限模型不隔离网络（Node 22 / 24）时直接禁用 codemode。 */
+  requireStrict?: boolean;
 }
 
 export interface HooksSettings {
@@ -87,6 +119,7 @@ export interface AmaConfig {
   compaction?: CompactionConfig;
   retry?: RetryConfig;
   tools?: ToolsConfig;
+  codemode?: CodemodeConfig;
   hooks?: HooksSettings;
   ui?: UiConfig;
   skills?: SkillsConfig;

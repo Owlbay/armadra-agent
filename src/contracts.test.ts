@@ -45,6 +45,7 @@ import type { Component, Focusable, Theme } from "./tui/component.js";
 import type { ToolContext, ToolDefinition, ToolResult } from "./tools/types.js";
 import type { Runtime } from "./cli/runtime.js";
 import type { HostApiBinding } from "./host/api-impl.js";
+import type { AmaConfig, PermissionConfig } from "./config/types.js";
 import type { RpcCommand, RpcEvent } from "./rpc.js";
 import { HOST_API_VERSION } from "./host/types.js";
 import { ExitCode } from "./cli/exit-codes.js";
@@ -210,6 +211,20 @@ describe("宿主契约", () => {
       context: { depth: 1 },
     };
     expect(request.context?.depth).toBe(1);
+  });
+});
+
+describe("配置契约", () => {
+  it("builtinDeny / codemode / tools.preset（契约 A6）", () => {
+    expectTypeOf<PermissionConfig["builtinDeny"]>().toEqualTypeOf<boolean | string[] | undefined>();
+    expectTypeOf<NonNullable<AmaConfig["codemode"]>>().toEqualTypeOf<{
+      mode?: "off" | "on" | "only";
+      inlineBudget?: number;
+      requireStrict?: boolean;
+    }>();
+    expectTypeOf<NonNullable<AmaConfig["tools"]>["preset"]>().toEqualTypeOf<
+      "default" | "minimal" | "codemode" | "coordinator" | undefined
+    >();
   });
 });
 

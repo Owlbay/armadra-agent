@@ -5,12 +5,13 @@
  * - 对象深合并；数组整体替换，例外是「累加型」列表：`permission.allow / deny`、
  *   `tools.disabled`、`skills.dirs` 跨层拼接去重。
  * - 项目级 `.ama/config.json` 只接受：`permission.deny`（追加）、`permission.mode`（只能更严）、
- *   `compaction`、`tools.disabled`、`ui`；其它字段与放宽项被忽略并记 warning。
+ *   `compaction`、`tools.disabled`、`tools.preset`（只能更严）、`codemode.mode: "off"`、`ui`；
+ *   其它字段与放宽项（含 `permission.builtinDeny`）被忽略并记 warning。
  * - 同时产出带来源的权限规则清单（`ruleSpecs`），交给权限管线（B3 的 rules.ts 解析）。
  */
 
-import type { AmaConfig, PermissionConfig } from "./types.js";
-import { CONFIG_FILE_VERSION } from "./types.js";
+import type { AmaConfig, PermissionConfig, ToolsConfig, ToolsPreset } from "./types.js";
+import { CONFIG_FILE_VERSION, TOOLS_PRESETS_STRICT_FIRST } from "./types.js";
 import type { PermissionMode, RuleSource } from "../permissions/types.js";
 import { PERMISSION_MODES_STRICT_FIRST } from "../permissions/types.js";
 import type { ModelThinkingLevel } from "../ai/types.js";
@@ -21,7 +22,7 @@ export const DEFAULT_CONFIG: Readonly<AmaConfig> = Object.freeze({
   permission: { mode: "default", allow: [], deny: [] },
   compaction: { enabled: true, reserveTokens: 16_384, keepRecentTokens: 20_000 },
   retry: { enabled: true, maxRetries: 3, baseDelayMs: 2_000, maxDelayMs: 60_000 },
-  tools: { maxToolResultChars: 30_000, bashTimeoutMs: 120_000, disabled: [] },
+  tools: { preset: "default", maxToolResultChars: 30_000, bashTimeoutMs: 120_000, disabled: [] },
   hooks: { timeoutMs: 60_000 },
   ui: {
     theme: "dark",
@@ -115,11 +116,20 @@ export interface RestrictResult {
   warnings: string[];
 }
 
-/** 把项目级配置裁剪为受限字段（§7.2）；`currentMode` 是合并到此为止的模式。 */
+/** 预设 a 是否比 b 更严或相同（coordinator 最严，codemode 最宽）。 */
+export function isPresetStricterOrEqual(a: ToolsPreset, b: ToolsPreset): boolean {
+  return TOOLS_PRESETS_STRICT_FIRST.indexOf(a) <= TOOLS_PRESETS_STRICT_FIRST.indexOf(b);
+}
+
+/**
+ * 把项目级配置裁剪为受限字段（§7.2）；`currentMode` / `currentPreset` 是合并到此为止的
+ * 权限模式与工具预设。
+ */
 export function restrictProjectConfig(
   project: AmaConfig,
   currentMode: PermissionMode,
   label = ".ama/config.json",
+  currentPreset: ToolsPreset = "default",
 ): RestrictResult {
   const warnings: string[] = [];
   const accepted: Partial<AmaConfig> = {};
@@ -135,11 +145,33 @@ export function restrictProjectConfig(
         break;
       case "tools": {
         const tools = project.tools ?? {};
+        const result: ToolsConfig = {};
         for (const sub of Object.keys(tools)) {
-          if (sub !== "disabled")
-            warnings.push(`${label}: 项目级只能设 tools.disabled，忽略 tools.${sub}`);
+          if (sub !== "disabled" && sub !== "preset")
+            warnings.push(
+              `${label}: 项目级只能设 tools.disabled / tools.preset，忽略 tools.${sub}`,
+            );
         }
-        if (tools.disabled !== undefined) accepted.tools = { disabled: [...tools.disabled] };
+        if (tools.disabled !== undefined) result.disabled = [...tools.disabled];
+        if (tools.preset !== undefined) {
+          if (isPresetStricterOrEqual(tools.preset, currentPreset)) result.preset = tools.preset;
+          else
+            warnings.push(
+              `${label}: 项目级不能放宽工具预设，忽略 tools.preset ${tools.preset}（当前 ${currentPreset}）`,
+            );
+        }
+        if (Object.keys(result).length > 0) accepted.tools = result;
+        break;
+      }
+      case "codemode": {
+        const codemode = project.codemode ?? {};
+        for (const [sub, v] of Object.entries(codemode)) {
+          if (sub === "mode" && v === "off") continue;
+          warnings.push(
+            `${label}: 项目级只接受 codemode.mode "off"，忽略 codemode.${sub}${sub === "mode" ? ` ${String(v)}` : ""}`,
+          );
+        }
+        if (codemode.mode === "off") accepted.codemode = { mode: "off" };
         break;
       }
       case "permission": {
@@ -171,6 +203,9 @@ function restrictPermission(
   }
   if (permission.deny !== undefined && permission.deny.length > 0)
     result.deny = [...permission.deny];
+  if (permission.builtinDeny !== undefined) {
+    warnings.push(`${label}: 项目级不能改内置 deny 表，忽略 permission.builtinDeny`);
+  }
   if (permission.mode !== undefined) {
     if (isStricterOrEqual(permission.mode, currentMode)) {
       result.mode = permission.mode;
@@ -271,7 +306,12 @@ export function mergeProjectAndCli(
   const present = [...base.layers];
   if (project !== undefined) {
     const baseline = config.permission?.mode ?? "default";
-    const restricted = restrictProjectConfig(project, baseline, projectLabel);
+    const restricted = restrictProjectConfig(
+      project,
+      baseline,
+      projectLabel,
+      config.tools?.preset ?? "default",
+    );
     warnings.push(...restricted.warnings);
     config = mergeConfig(config, restricted.accepted);
     present.push("project");
