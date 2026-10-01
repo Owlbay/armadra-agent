@@ -1,0 +1,69 @@
+{
+  "name": "@armadra/agent",
+  "version": "0.1.0",
+  "description": "可独立使用、可嵌入 Armadra 的编码 / 协调 Agent",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yovinchen/armadra-agent.git"
+  },
+  "bin": {
+    "ama": "dist/cli/main.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./host": {
+      "types": "./dist/host.d.ts",
+      "import": "./dist/host.js"
+    },
+    "./rpc": {
+      "types": "./dist/rpc.d.ts",
+      "import": "./dist/rpc.js"
+    },
+    "./tui": {
+      "types": "./dist/tui.d.ts",
+      "import": "./dist/tui.js"
+    },
+    "./bundle": "./dist/bundle/ama.cjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "docs/rpc.md",
+    "docs/host-api.md",
+    "docs/hooks.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "pnpm build:lib && pnpm build:bundle",
+    "build:lib": "tsc -p tsconfig.build.json",
+    "build:bundle": "node scripts/build-bundle.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "AMA_E2E=1 vitest run test/e2e",
+    "fmt": "prettier --write .",
+    "fmt:check": "prettier --check .",
+    "check:deps": "node scripts/check-no-deps.mjs",
+    "ci": "pnpm typecheck && pnpm fmt:check && pnpm check:deps && pnpm test && pnpm build && node dist/bundle/ama.cjs --version"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "esbuild": "^0.28.2",
+    "prettier": "^3.9.9",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.11"
+  },
+  "packageManager": "pnpm@11.18.0"
+}
