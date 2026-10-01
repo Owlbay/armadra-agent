@@ -1,0 +1,56 @@
+#status 200
+#header content-type: text/event-stream; charset=utf-8
+event: response.created
+data: {"type":"response.created","sequence_number":0,"response":{"id":"resp_multi1","object":"response","created_at":1767225600,"status":"in_progress","model":"gpt-5.5","output":[],"usage":null,"incomplete_details":null,"error":null}}
+
+event: response.in_progress
+data: {"type":"response.in_progress","sequence_number":1,"response":{"id":"resp_multi1","object":"response","created_at":1767225600,"status":"in_progress","model":"gpt-5.5","output":[],"usage":null,"incomplete_details":null,"error":null}}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","sequence_number":2,"output_index":0,"item":{"id":"msg_multi1","type":"message","status":"in_progress","content":[],"role":"assistant","phase":"commentary"}}
+
+event: response.content_part.added
+data: {"type":"response.content_part.added","sequence_number":3,"item_id":"msg_multi1","output_index":0,"content_index":0,"part":{"type":"output_text","annotations":[],"text":""}}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","sequence_number":4,"item_id":"msg_multi1","output_index":0,"content_index":0,"delta":"Checking both files."}
+
+event: response.output_text.done
+data: {"type":"response.output_text.done","sequence_number":5,"item_id":"msg_multi1","output_index":0,"content_index":0,"text":"Checking both files."}
+
+event: response.content_part.done
+data: {"type":"response.content_part.done","sequence_number":6,"item_id":"msg_multi1","output_index":0,"content_index":0,"part":{"type":"output_text","annotations":[],"text":"Checking both files."}}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","sequence_number":7,"output_index":0,"item":{"id":"msg_multi1","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"text":"Checking both files."}],"role":"assistant","phase":"commentary"}}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","sequence_number":8,"output_index":1,"item":{"id":"fc_a","type":"function_call","status":"in_progress","arguments":"","call_id":"call_a","name":"read"}}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","sequence_number":9,"output_index":2,"item":{"id":"fc_b","type":"function_call","status":"in_progress","arguments":"","call_id":"call_b","name":"read"}}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","sequence_number":10,"item_id":"fc_a","output_index":1,"delta":"{\"path\":"}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","sequence_number":11,"item_id":"fc_b","output_index":2,"delta":"{\"path\":\"b"}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","sequence_number":12,"item_id":"fc_a","output_index":1,"delta":"\"a.ts\"}"}
+
+event: response.function_call_arguments.done
+data: {"type":"response.function_call_arguments.done","sequence_number":13,"item_id":"fc_a","output_index":1,"arguments":"{\"path\":\"a.ts\"}"}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","sequence_number":14,"output_index":1,"item":{"id":"fc_a","type":"function_call","status":"completed","arguments":"{\"path\":\"a.ts\"}","call_id":"call_a","name":"read"}}
+
+event: response.function_call_arguments.done
+data: {"type":"response.function_call_arguments.done","sequence_number":15,"item_id":"fc_b","output_index":2,"arguments":"{\"path\":\"b.ts\"}"}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","sequence_number":16,"output_index":2,"item":{"id":"fc_b","type":"function_call","status":"completed","arguments":"{\"path\":\"b.ts\"}","call_id":"call_b","name":"read"}}
+
+event: response.completed
+data: {"type":"response.completed","sequence_number":17,"response":{"id":"resp_multi1","object":"response","created_at":1767225600,"status":"completed","model":"gpt-5.5","output":[{"id":"msg_multi1","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"text":"Checking both files."}],"role":"assistant","phase":"commentary"},{"id":"fc_a","type":"function_call","status":"completed","arguments":"{\"path\":\"a.ts\"}","call_id":"call_a","name":"read"},{"id":"fc_b","type":"function_call","status":"completed","arguments":"{\"path\":\"b.ts\"}","call_id":"call_b","name":"read"}],"usage":{"input_tokens":512,"input_tokens_details":{"cached_tokens":256},"output_tokens":48,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":560},"incomplete_details":null,"error":null}}
+

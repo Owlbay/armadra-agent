@@ -1,0 +1,4 @@
+#status 429
+#header content-type: application/json
+#header retry-after: 2
+{"error":{"message":"Rate limit reached for gpt-5.5 in organization org-xyz on tokens per min (TPM): Limit 30000, Used 29500, Requested 1200. Please try again in 1.4s.","type":"tokens","param":null,"code":"rate_limit_exceeded"}}

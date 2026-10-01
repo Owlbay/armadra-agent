@@ -1,0 +1,64 @@
+{
+  "model": "gpt-5.5",
+  "stream": true,
+  "instructions": "Be brief.",
+  "input": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "list src"
+        }
+      ]
+    },
+    {
+      "id": "rs_enc1",
+      "type": "reasoning",
+      "summary": [],
+      "encrypted_content": "gAAAAABpZW5jLW9ubHk="
+    },
+    {
+      "type": "function_call",
+      "id": "fc_enc1",
+      "call_id": "call_enc1",
+      "name": "ls",
+      "arguments": "{\"dir\":\"src\"}"
+    },
+    {
+      "type": "function_call_output",
+      "call_id": "call_enc1",
+      "output": "a.ts\nb.ts"
+    }
+  ],
+  "max_output_tokens": 128000,
+  "store": false,
+  "include": [
+    "reasoning.encrypted_content"
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "name": "ls",
+      "description": "List",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "dir": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "dir"
+        ],
+        "additionalProperties": false
+      },
+      "strict": true
+    }
+  ],
+  "prompt_cache_key": "sess-42",
+  "reasoning": {
+    "effort": "medium",
+    "summary": "auto"
+  }
+}
