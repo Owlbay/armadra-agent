@@ -164,7 +164,7 @@ describe("RPC 模式", () => {
     });
   });
 
-  it("解析失败、未知命令、busy 都回错误响应；关 stdin 时中断运行", async () => {
+  it("解析失败、未知命令、busy 都回错误响应；abort 中断运行后关 stdin 退出 0", async () => {
     const started = Date.now();
     const { code, lines } = await drive([{ delayMs: 10_000, text: "slow" }], async (d) => {
       d.send({ id: "x", type: "no_such" });
@@ -174,8 +174,11 @@ describe("RPC 模式", () => {
       await d.waitFor((l) => l["type"] === "agent_start");
       d.send({ id: "b", type: "prompt", message: "again" });
       await d.waitFor((l) => l["id"] === "b");
+      d.send({ id: "c", type: "abort" });
+      await d.waitFor((l) => l["id"] === "c");
     });
     expect(code).toBe(0);
+    expect(lines.find((l) => l["type"] === "agent_end")).toMatchObject({ stopReason: "aborted" });
     expect(Date.now() - started).toBeLessThan(5000);
     expect(lines.find((l) => l["id"] === "x")).toMatchObject({
       success: false,
@@ -183,6 +186,18 @@ describe("RPC 模式", () => {
     });
     expect(lines.find((l) => l["command"] === "parse")).toMatchObject({ success: false });
     expect(lines.find((l) => l["id"] === "b")).toMatchObject({ success: false, code: "busy" });
+  });
+});
+
+describe("RPC 模式：stdin 结束", () => {
+  it("已开始的运行跑完再退出（管道里一次性写完命令也能拿到回复）", async () => {
+    const { code, lines } = await drive([{ delayMs: 50, text: "late reply" }], async (d) => {
+      d.send({ id: "p", type: "prompt", message: "hi" });
+      await d.waitFor((l) => l["id"] === "p");
+    });
+    expect(code).toBe(0);
+    expect(lines.find((l) => l["type"] === "agent_end")).toMatchObject({ stopReason: "stop" });
+    expect(JSON.stringify(lines)).toContain("late reply");
   });
 });
 

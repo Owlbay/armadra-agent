@@ -12,7 +12,7 @@ import type { ModeContext } from "../../cli/deps.js";
 import { currentSession } from "../../cli/compose-session.js";
 import { ExitCode } from "../../cli/exit-codes.js";
 import type { Runtime } from "../../cli/runtime.js";
-import { errorText, lastAssistant, onTerminationSignals } from "../shared.js";
+import { errorText, lastAssistant, onStdoutClosed, onTerminationSignals } from "../shared.js";
 import { toJsonLine, toWireEvent } from "./json-event.js";
 
 export function joinPrompt(argument: string | undefined, piped: string): string {
@@ -39,6 +39,11 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
     signalled ??= code;
     void session.abort();
   });
+  let stdoutClosed = false;
+  const offEpipe = onStdoutClosed(() => {
+    stdoutClosed = true;
+    void session.abort();
+  });
   let failure: string | undefined;
   try {
     await session.prompt(prompt);
@@ -46,6 +51,7 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
     failure = errorText(error);
   } finally {
     offSignals();
+    offEpipe();
     unsubscribe();
   }
   const last = lastAssistant(session);
@@ -75,6 +81,7 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
     );
   }
   if (signalled !== undefined) return signalled;
+  if (stdoutClosed) return ExitCode.Ok; // 下游（如 `| head`）已拿够输出
   if (failure !== undefined) {
     io.stderr(`ama: ${failure}\n`);
     return ExitCode.RuntimeError;

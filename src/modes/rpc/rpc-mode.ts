@@ -7,8 +7,9 @@
  *   之前的 ask 无人作答 → deny。`permission_request` 带 `timeoutMs`，超时由会话 deny 并发
  *   `permission_resolved`。
  * - 宿主 `ui.notify` → `{type:"notification", level, message}` 一行（stderr 同时一份）。
- * - stdin 关闭：撤下审批、abort 当前运行、等在途命令应答写完 → 退出 0（会话由 runCli dispose）。
- *   SIGINT / SIGTERM 同样有序退出，退出码 130 / 143。
+ * - stdin 关闭：撤下审批（之后的 ask 无人作答 → deny）、等在途命令与已开始的运行结束、
+ *   应答写完 → 退出 0（会话由 runCli dispose）。`printf '{…prompt…}' | ama --mode rpc` 因此能拿到
+ *   完整回复；要中断先发 `abort`。SIGINT / SIGTERM：abort 后有序退出，退出码 130 / 143。
  */
 
 import type { AgentSession } from "../../agent/types.js";
@@ -142,7 +143,7 @@ export async function runRpcMode(
 
   return new Promise<number>((resolve) => {
     let finished = false;
-    const finish = async (code: number): Promise<void> => {
+    const finish = async (code: number, abort: boolean): Promise<void> => {
       if (finished) return;
       finished = true;
       reader.close();
@@ -150,14 +151,19 @@ export async function runRpcMode(
       (stdin as { pause?: () => void }).pause?.();
       runtime.approvals.setUiBroker(undefined);
       approvals.cancelAll();
-      await session.abort().catch(() => undefined);
+      if (abort) await session.abort().catch(() => undefined);
       await Promise.allSettled([...inflight]);
+      await session.waitForIdle().catch(() => undefined);
       unsubscribe();
       runtime.notifier.set(undefined);
       await writing;
       resolve(code);
     };
-    const reader = createLineReader(stdin, onLine, () => void finish(ExitCode.Ok));
-    const offSignals = onTerminationSignals((code) => void finish(code));
+    // stdin 结束：不再有新命令，也没人能回答审批；已开始的运行跑完再退出（要中断先发 abort 或发信号）。
+    const reader = createLineReader(stdin, onLine, () => void finish(ExitCode.Ok, false));
+    const offSignals = onTerminationSignals((code) => {
+      if (finished) void session.abort();
+      else void finish(code, true);
+    });
   });
 }

@@ -32,3 +32,18 @@ export function onTerminationSignals(onSignal: (exitCode: number) => void): () =
     process.off("SIGTERM", sigterm);
   };
 }
+
+/**
+ * stdout 被下游提前关闭（`| head`）时不当作未捕获异常：调用 onClosed 并吞掉 EPIPE。
+ * 监听器留到进程结束（之后的写入也可能再报 EPIPE），返回的函数只停掉回调。
+ */
+export function onStdoutClosed(onClosed: () => void): () => void {
+  let active = true;
+  process.stdout.on("error", (error: NodeJS.ErrnoException) => {
+    if (error.code !== "EPIPE") throw error;
+    if (active) onClosed();
+  });
+  return () => {
+    active = false;
+  };
+}
