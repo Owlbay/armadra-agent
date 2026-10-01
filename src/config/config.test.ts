@@ -356,3 +356,93 @@ describe("AGENTS.md 向上查找", () => {
     }
   });
 });
+
+describe("builtinDeny / codemode / tools.preset（契约 A6）", () => {
+  const errors = (value: unknown) =>
+    validateConfig(value)
+      .filter((d) => d.severity === "error")
+      .map((d) => `${d.path}: ${d.message}`);
+
+  it("校验：取值与类型错误给出字段路径，合法值无诊断", () => {
+    expect(
+      validateConfig({
+        version: 1,
+        permission: { builtinDeny: ["read(**/.ssh/**)"] },
+        tools: { preset: "minimal" },
+        codemode: { mode: "only", inlineBudget: 2000, requireStrict: true },
+      }),
+    ).toEqual([]);
+    expect(validateConfig({ version: 1, permission: { builtinDeny: false } })).toEqual([]);
+    expect(
+      errors({
+        version: 1,
+        permission: { builtinDeny: "no" },
+        tools: { preset: "tiny" },
+        codemode: { mode: "always", inlineBudget: -1, requireStrict: "yes", extra: 1 },
+      }),
+    ).toEqual([
+      "permission.builtinDeny: 应为布尔值或字符串数组",
+      "tools.preset: 取值应为 coordinator | minimal | default | codemode",
+      "codemode.mode: 取值应为 off | on | only",
+      "codemode.inlineBudget: 应在 0–9007199254740991 之间",
+      "codemode.requireStrict: 应为布尔值",
+    ]);
+    expect(errors({ version: 1, permission: { builtinDeny: [1] } })).toEqual([
+      "permission.builtinDeny: 应为布尔值或字符串数组",
+    ]);
+    expect(
+      validateConfig({ version: 1, codemode: { extra: 1 } }).map((d) => `${d.severity}:${d.path}`),
+    ).toEqual(["warning:codemode.extra"]);
+  });
+
+  it("用户级 / profile 可设 builtinDeny，后层整体替换；缺省预设为 default", () => {
+    const user: AmaConfig = { version: 1, permission: { builtinDeny: false } };
+    const profile: AmaConfig = { version: 1, permission: { builtinDeny: ["write(**/.git/**)"] } };
+    expect(mergeConfigLayers({ user }).config.permission?.builtinDeny).toBe(false);
+    expect(mergeConfigLayers({ user, profile }).config.permission?.builtinDeny).toEqual([
+      "write(**/.git/**)",
+    ]);
+    expect(mergeConfigLayers({}).config.tools?.preset).toBe("default");
+    expect(mergeConfigLayers({}).config.codemode).toBeUndefined();
+  });
+
+  it("项目级：builtinDeny 忽略；codemode 只接受 mode off；预设只能收紧", () => {
+    const user: AmaConfig = {
+      version: 1,
+      permission: { builtinDeny: ["read(**/.ssh/**)"] },
+      codemode: { mode: "on", inlineBudget: 1000 },
+    };
+    const project: AmaConfig = {
+      version: 1,
+      permission: { builtinDeny: false },
+      codemode: { mode: "off", inlineBudget: 99_999, requireStrict: false },
+      tools: { preset: "minimal" },
+    };
+    const result = mergeConfigLayers({ user, project });
+    expect(result.config.permission?.builtinDeny).toEqual(["read(**/.ssh/**)"]);
+    expect(result.config.codemode).toEqual({ mode: "off", inlineBudget: 1000 });
+    expect(result.config.tools?.preset).toBe("minimal");
+    const warnings = result.warnings.join("\n");
+    expect(warnings).toMatch(/permission\.builtinDeny/);
+    expect(warnings).toMatch(/codemode\.inlineBudget/);
+    expect(warnings).toMatch(/codemode\.requireStrict/);
+
+    const loosen = mergeConfigLayers({
+      user: { version: 1, tools: { preset: "minimal" } },
+      project: { version: 1, codemode: { mode: "only" }, tools: { preset: "codemode" } },
+    });
+    expect(loosen.config.tools?.preset).toBe("minimal");
+    expect(loosen.config.codemode).toBeUndefined();
+    expect(loosen.warnings.join("\n")).toMatch(/codemode\.mode only/);
+    expect(loosen.warnings.join("\n")).toMatch(/tools\.preset codemode（当前 minimal）/);
+
+    const coordinator = restrictProjectConfig(
+      { version: 1, tools: { preset: "coordinator", disabled: ["bash"] } },
+      "default",
+    );
+    expect(coordinator).toEqual({
+      accepted: { tools: { disabled: ["bash"], preset: "coordinator" } },
+      warnings: [],
+    });
+  });
+});

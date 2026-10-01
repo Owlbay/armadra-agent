@@ -94,6 +94,10 @@ export interface HookInput {
   trigger?: "auto" | "manual";
   // Notification
   notification?: HookNotification;
+  /** Pre/PostToolUse：本次调用来自 codemode 脚本里的 `tools.*`（设计 §5.5）。 */
+  viaCodemode?: boolean;
+  /** Pre/PostToolUse：codemode 内层调用时为外层 `codemode` 调用的 toolCallId。 */
+  parentToolCallId?: string;
 }
 
 /** stdout JSON 形状；空 / 非 JSON → 无决策。 */
@@ -145,6 +149,28 @@ export interface HookOutcome {
   warnings: string[];
 }
 
+/** 所有事件共有的公共输入字段；dispatcher 每次运行时现取，调用方可按次覆盖（子 Agent）。 */
+export type HookCommonContext = Pick<
+  HookInput,
+  | "sessionId"
+  | "sessionFile"
+  | "cwd"
+  | "transcriptPath"
+  | "model"
+  | "permissionMode"
+  | "depth"
+  | "host"
+>;
+
+/**
+ * `HookDispatcherApi.run` 第 4 参数：按次覆盖的公共字段。即 `Partial<HookCommonContext>`，
+ * 但在 `exactOptionalPropertyTypes` 下也接受显式 `undefined`（视为未给），方便子 Agent 直接传
+ * 可能为空的 `sessionFile`。
+ */
+export type HookContextOverrides = {
+  [K in keyof HookCommonContext]?: HookCommonContext[K] | undefined;
+};
+
 /** 事件对应的「事件特有」输入（公共字段由 dispatcher 填）。 */
 export type HookEventPayload = Omit<
   HookInput,
@@ -162,7 +188,16 @@ export type HookEventPayload = Omit<
 export interface HookDispatcherApi {
   /** 该事件是否有任何已加载的 Hook（无则调用方可跳过构造输入）。 */
   has(event: HookEvent, toolName?: string): boolean;
-  run(event: HookEvent, payload: HookEventPayload, signal?: AbortSignal): Promise<HookOutcome>;
+  /**
+   * `context`：按次覆盖公共字段——子 Agent 传自己的 `depth / sessionId / sessionFile`，
+   * 未给的字段仍取 dispatcher 的缺省值；值为 `undefined` 的键视为未给。
+   */
+  run(
+    event: HookEvent,
+    payload: HookEventPayload,
+    signal?: AbortSignal,
+    context?: HookContextOverrides,
+  ): Promise<HookOutcome>;
   /** doctor / `/hooks` 列表。 */
   list(): readonly { event: HookEvent; matcher?: string; command: string; source: HookSource }[];
 }

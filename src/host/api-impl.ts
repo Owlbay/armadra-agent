@@ -22,6 +22,8 @@ import type {
 import { HOST_API_VERSION } from "./types.js";
 import type { ToolDefinition, ToolRegistryApi } from "../tools/types.js";
 
+export type HostNotify = (message: string, level: "info" | "warn" | "error") => void;
+
 export type HostLogLevel = "debug" | "info" | "warn" | "error";
 export type HostLogger = (level: HostLogLevel, message: string, detail?: unknown) => void;
 
@@ -79,8 +81,8 @@ export interface HostApiDeps {
   bus: AgentEventBus;
   /** 运行中按 steer 入队；会话未组装时抛错。 */
   sendUser(text: string, origin: string): Promise<"started" | "queued">;
-  /** 交互 / line 模式的 UI 通知；未提供时写 stderr。 */
-  notify?: (message: string, level: "info" | "warn" | "error") => void;
+  /** 交互 / line 模式的 UI 通知；未提供时写 stderr。模式层也可晚绑定：`binding.setNotify()`。 */
+  notify?: HostNotify;
   /** 状态变化回调（TUI 状态栏刷新）。 */
   onStatus?: (key: string, text: string | undefined) => void;
   log?: HostLogger;
@@ -102,6 +104,11 @@ export interface HostApiBinding {
   status(): ReadonlyMap<string, string>;
   /** 绑定成 Runtime 持有的 handle。 */
   handle(adapter: HostAdapter, source: string): HostAdapterHandle;
+  /**
+   * 晚绑定 UI 通知（模式层在 TUI / RPC 就绪后调用）；覆盖构造时的 `deps.notify`，
+   * 传 undefined 恢复为构造时的值（未提供则写 stderr）。
+   */
+  setNotify(fn?: HostNotify): void;
 }
 
 const TOOL_NAME = /^[a-z][a-z0-9_]{1,63}$/;
@@ -127,6 +134,7 @@ export function createHostApi(deps: HostApiDeps): HostApiBinding {
   const disabledTools: string[] = [];
   const status = new Map<string, string>();
   let broker: ApprovalBroker | undefined;
+  let notify: HostNotify | undefined = deps.notify;
   const writeErr = deps.stderr ?? ((text: string) => void process.stderr.write(text));
   const log: HostLogger =
     deps.log ??
@@ -188,8 +196,8 @@ export function createHostApi(deps: HostApiDeps): HostApiBinding {
     ui: Object.freeze({
       notify(message: string, level: "info" | "warn" | "error" = "info"): void {
         // 交互 / line 由 UI 显示；rpc 由模式转成事件；print（或未注入）写 stderr。
-        if (deps.notify !== undefined && deps.mode !== "print") {
-          deps.notify(message, level);
+        if (notify !== undefined && deps.mode !== "print") {
+          notify(message, level);
           return;
         }
         writeErr(`ama: [host${level === "info" ? "" : ` ${level}`}] ${message}\n`);
@@ -212,6 +220,9 @@ export function createHostApi(deps: HostApiDeps): HostApiBinding {
     status: () => status,
     handle(adapter: HostAdapter, source: string): HostAdapterHandle {
       return { adapter, api, source, status: () => status };
+    },
+    setNotify(fn?: HostNotify): void {
+      notify = fn ?? deps.notify;
     },
   };
 }

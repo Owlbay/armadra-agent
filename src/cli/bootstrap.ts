@@ -21,7 +21,7 @@ import { loadHookConfigs } from "../hooks/config.js";
 import { HookDispatcher } from "../hooks/dispatcher.js";
 import { AgentEventBus, createHostApi } from "../host/api-impl.js";
 import { activateHost, disposeHost } from "../host/loader.js";
-import type { HostAdapterHandle } from "../host/types.js";
+import type { ApprovalBroker, HostAdapterHandle } from "../host/types.js";
 import { HELP_TEXT, parseArgs, UsageError, type ParsedArgs } from "./args.js";
 import type { CliIo, RuntimeDeps, SessionAssembly } from "./deps.js";
 import { ExitCode } from "./exit-codes.js";
@@ -133,6 +133,8 @@ export async function bootstrap(
       deny: args.deny,
       quietStartup: args.quietStartup,
       tuiMode: args.tuiMode,
+      toolsPreset: args.toolsPreset,
+      codemode: args.codemode,
     });
   });
   warnings.push(...merged.warnings);
@@ -229,6 +231,7 @@ export async function bootstrap(
     },
     stderr: io.stderr,
   });
+  let uiBroker: ApprovalBroker | undefined;
   const hostSpec = args.host;
   let host: HostAdapterHandle | undefined;
   if (hostSpec !== undefined) {
@@ -241,11 +244,14 @@ export async function bootstrap(
     applyToolFilters(args, tools);
     // 14. 组装 AgentSession、session_start、SessionStart Hook
     const unattended = mode === "print";
+    const builtinDeny = config.permission?.builtinDeny;
     const permission = await step(ExitCode.Config, "权限", () =>
       deps.permissions.create({
         mode: config.permission?.mode ?? "default",
         rules: merged.ruleSpecs,
         unattended,
+        cwd: sessionCwd,
+        ...(builtinDeny !== undefined ? { builtinDeny } : {}),
       }),
     );
     const hooks = new HookDispatcher({
@@ -289,6 +295,10 @@ export async function bootstrap(
       tools,
       events,
       host: { handle: host, broker: binding.broker, instructions: binding.instructions },
+      uiBroker: () => uiBroker,
+      onSessionReplaced: (next) => {
+        session = next;
+      },
       sessionStartContext: () => sessionStartContext,
       unattended,
       warn,
@@ -301,7 +311,8 @@ export async function bootstrap(
         await events.emit("session_shutdown", {});
         await hooks.run("SessionEnd", { reason }).catch(() => undefined);
         await disposeHost(host, (e) => warn(`宿主适配器 dispose 失败：${String(e)}`));
-        await active.dispose();
+        // 会话被替换过时 dispose 当前那个（旧会话由替换方负责）
+        await (session ?? active).dispose();
       })();
       return disposed;
     };
@@ -336,6 +347,12 @@ export async function bootstrap(
       host,
       permission,
       tools,
+      approvals: {
+        setUiBroker: (broker) => {
+          uiBroker = broker;
+        },
+      },
+      notifier: { set: (fn) => binding.setNotify(fn) },
       warnings,
       dispose: (reason = "exit") => finalShutdown(reason),
     };

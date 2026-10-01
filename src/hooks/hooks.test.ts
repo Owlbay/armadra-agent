@@ -4,7 +4,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { createTmpHome, withTmpHome } from "../../test/helpers/tmp-home.js";
 import { StartupError } from "../errors.js";
 import { hooksFromConfig, loadHookConfigs, type LoadedHook } from "./config.js";
-import { HookDispatcher, type HookCommonContext } from "./dispatcher.js";
+import { HookDispatcher, type HookCommonContext, type HookExecutor } from "./dispatcher.js";
 import { compileMatcher, splitAlternatives } from "./matcher.js";
 import { hookEnv, mergeResults, parseHookOutput } from "./protocol.js";
 import { runHookCommand } from "./runner.js";
@@ -264,6 +264,61 @@ describe("dispatcher", () => {
     });
     const outcome = await dispatcher.run("SessionStart", { source: "startup" });
     expect(outcome).toMatchObject({ decision: "block", reason: "no" });
+  });
+});
+
+describe("dispatcher：按次覆盖公共字段（契约 A2）", () => {
+  function capture(): { inputs: HookInput[]; executor: HookExecutor } {
+    const inputs: HookInput[] = [];
+    return {
+      inputs,
+      executor: async (hooks, hookInput) => {
+        inputs.push(hookInput);
+        return hooks.map(() => result(hookInput.hookEventName, {}));
+      },
+    };
+  }
+
+  it("第 4 参数覆盖 depth / sessionId / sessionFile，其余取缺省；undefined 不覆盖", async () => {
+    const { inputs, executor } = capture();
+    const dispatcher = new HookDispatcher({
+      hooks: [hook("PreToolUse", "x")],
+      context: () => ({ ...context(), sessionFile: "/main.jsonl" }),
+      executor,
+    });
+    await dispatcher.run("PreToolUse", { toolName: "read" });
+    await dispatcher.run(
+      "PreToolUse",
+      { toolName: "read", viaCodemode: true, parentToolCallId: "c1" },
+      undefined,
+      { depth: 1, sessionId: "s-child", sessionFile: "/child.jsonl", cwd: undefined },
+    );
+    expect(inputs[0]).toMatchObject({ depth: 0, sessionId: "s-1", sessionFile: "/main.jsonl" });
+    expect(inputs[0]).not.toHaveProperty("viaCodemode");
+    expect(inputs[1]).toMatchObject({
+      hookEventName: "PreToolUse",
+      depth: 1,
+      sessionId: "s-child",
+      sessionFile: "/child.jsonl",
+      cwd: scripts.cwd,
+      model: { provider: "fake", id: "echo" },
+      viaCodemode: true,
+      parentToolCallId: "c1",
+    });
+  });
+
+  it("覆盖的 cwd 同时作为 Hook 子进程的工作目录", async () => {
+    const cwds: string[] = [];
+    const dispatcher = new HookDispatcher({
+      hooks: [hook("Stop", "x")],
+      context,
+      executor: async (hooks, hookInput, options) => {
+        cwds.push(options.cwd);
+        return hooks.map(() => result(hookInput.hookEventName, {}));
+      },
+    });
+    await dispatcher.run("Stop", {}, undefined, { cwd: "/elsewhere" });
+    expect(cwds).toEqual(["/elsewhere"]);
   });
 });
 

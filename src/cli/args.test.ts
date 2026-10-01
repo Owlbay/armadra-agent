@@ -60,6 +60,9 @@ describe("parseArgs", () => {
       "--tools",
       "read,bash",
       "--exclude-tools=task",
+      "--tools-preset",
+      "minimal",
+      "--codemode=only",
       "fix",
       "the bug",
     ]);
@@ -85,6 +88,8 @@ describe("parseArgs", () => {
       trust: true,
       tools: ["read", "bash"],
       excludeTools: ["task"],
+      toolsPreset: "minimal",
+      codemode: "only",
       prompt: "fix the bug",
     });
   });
@@ -113,6 +118,11 @@ describe("parseArgs", () => {
     expect(usage(["--thinking", "max"])).toMatch(/xhigh/);
     expect(usage(["--tui-mode", "fullscreen"])).toMatch(/fullscreen/);
     expect(usage(["--mode", "json"])).toMatch(/rpc/);
+    expect(usage(["--tools-preset", "tiny"])).toMatch(
+      /--tools-preset 的取值应为 default \| minimal \| codemode \| coordinator/,
+    );
+    expect(usage(["--codemode", "always"])).toMatch(/--codemode 的取值应为 off \| on \| only/);
+    expect(usage(["--codemode"])).toMatch(/需要一个值/);
     expect(usage(["--model"])).toMatch(/需要一个值/);
     expect(usage(["--bogus"])).toMatch(/未知选项/);
     expect(usage(["-x"])).toMatch(/未知选项/);
@@ -165,6 +175,8 @@ describe("parseArgs", () => {
       "--no-trust",
       "--tools",
       "--exclude-tools",
+      "--tools-preset",
+      "--codemode",
       "--version",
       "--help",
       "ama auth set",

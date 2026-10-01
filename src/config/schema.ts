@@ -10,6 +10,7 @@ import type { AmaConfig, AuthFile, ProfileFile, TrustFile } from "./types.js";
 import type { HookConfig } from "../hooks/types.js";
 import { HOOK_EVENTS } from "../hooks/types.js";
 import { PERMISSION_MODES_STRICT_FIRST } from "../permissions/types.js";
+import { CODEMODE_MODES, TOOLS_PRESETS_STRICT_FIRST } from "./types.js";
 
 export type {
   AmaConfig,
@@ -22,6 +23,9 @@ export type {
   CompactionConfig,
   RetryConfig,
   ToolsConfig,
+  ToolsPreset,
+  CodemodeConfig,
+  CodemodeMode,
   HooksSettings,
   UiConfig,
   SkillsConfig,
@@ -143,6 +147,7 @@ const CONFIG_KEYS = [
   "compaction",
   "retry",
   "tools",
+  "codemode",
   "hooks",
   "ui",
   "skills",
@@ -229,10 +234,18 @@ export function validateConfig(value: unknown): Diagnostic[] {
       checkProvider(c, provider, join("providers", id));
     }
   }
-  checkSection(c, value, "permission", ["mode", "allow", "deny"], (s, p) => {
+  checkSection(c, value, "permission", ["mode", "allow", "deny", "builtinDeny"], (s, p) => {
     c.oneOf(s, "mode", p, PERMISSION_MODES_STRICT_FIRST);
     c.stringArray(s, "allow", p);
     c.stringArray(s, "deny", p);
+    const builtinDeny = s["builtinDeny"];
+    if (
+      builtinDeny !== undefined &&
+      typeof builtinDeny !== "boolean" &&
+      (!Array.isArray(builtinDeny) || builtinDeny.some((item) => typeof item !== "string"))
+    ) {
+      c.error(join(p, "builtinDeny"), "应为布尔值或字符串数组");
+    }
   });
   checkSection(c, value, "compaction", ["enabled", "reserveTokens", "keepRecentTokens"], (s, p) => {
     c.boolean(s, "enabled", p);
@@ -251,10 +264,22 @@ export function validateConfig(value: unknown): Diagnostic[] {
       c.number(s, "maxDelayMs", p);
     },
   );
-  checkSection(c, value, "tools", ["maxToolResultChars", "bashTimeoutMs", "disabled"], (s, p) => {
-    c.number(s, "maxToolResultChars", p, 1);
-    c.number(s, "bashTimeoutMs", p, 1);
-    c.stringArray(s, "disabled", p);
+  checkSection(
+    c,
+    value,
+    "tools",
+    ["preset", "maxToolResultChars", "bashTimeoutMs", "disabled"],
+    (s, p) => {
+      c.oneOf(s, "preset", p, TOOLS_PRESETS_STRICT_FIRST);
+      c.number(s, "maxToolResultChars", p, 1);
+      c.number(s, "bashTimeoutMs", p, 1);
+      c.stringArray(s, "disabled", p);
+    },
+  );
+  checkSection(c, value, "codemode", ["mode", "inlineBudget", "requireStrict"], (s, p) => {
+    c.oneOf(s, "mode", p, CODEMODE_MODES);
+    c.number(s, "inlineBudget", p, 0);
+    c.boolean(s, "requireStrict", p);
   });
   checkSection(c, value, "hooks", ["timeoutMs"], (s, p) => {
     c.number(s, "timeoutMs", p, 1, HOOK_TIMEOUT_MAX_MS);

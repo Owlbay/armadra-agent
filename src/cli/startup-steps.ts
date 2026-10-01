@@ -238,14 +238,17 @@ export function instructionSources(paths: readonly string[], cwd: string): Instr
   });
 }
 
+/** 宿主 `messages.sendUser` 的缺省实现：运行中 steer，空闲时 prompt；origin 原样落盘到 user 消息。 */
 export async function defaultSendUser(
   session: AgentSession,
   text: string,
+  origin?: string,
 ): Promise<"started" | "queued"> {
+  const tagged = origin !== undefined ? { origin } : {};
   if (session.state.isStreaming) {
-    await session.steer(text);
+    await session.steer(text, tagged);
     return "queued";
   }
-  void session.prompt(text, { streamingBehavior: "steer" }).catch(() => undefined);
+  void session.prompt(text, { streamingBehavior: "steer", ...tagged }).catch(() => undefined);
   return "started";
 }
