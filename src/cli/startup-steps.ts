@@ -12,6 +12,7 @@ import { AmaError, StartupError, isAmaError } from "../errors.js";
 import type { InstructionSource } from "../host/types.js";
 import type { SessionEntry, SessionManagerApi } from "../session/types.js";
 import { UsageError, type ParsedArgs } from "./args.js";
+import { pickDefaultModel } from "./default-model.js";
 import type { CliIo, RuntimeDeps, SessionAssembly, SessionRequest } from "./deps.js";
 import { ExitCode } from "./exit-codes.js";
 import type { Runtime, RuntimeMode } from "./runtime.js";
@@ -156,17 +157,8 @@ export async function resolveModel(
     if (choice === undefined && defaultModel !== undefined)
       choice = lookup(defaultModel, "config.defaultModel ");
     if (choice === undefined) {
-      for (const provider of registry.list()) {
-        const first = provider.models[0];
-        if (first === undefined) continue;
-        if (
-          !provider.requiresApiKey ||
-          (await registry.resolveApiKey(provider.id)).apiKey !== undefined
-        ) {
-          choice = { model: first, provider };
-          break;
-        }
-      }
+      const picked = await pickDefaultModel(registry);
+      if (picked !== undefined) choice = { model: picked.model, provider: picked.provider };
     }
   }
   const pick = async (reason: string): Promise<ModelChoice> => {
