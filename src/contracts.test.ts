@@ -256,6 +256,30 @@ describe("循环、SDK、RPC、Runtime 契约", () => {
     }>();
   });
 
+  it("SessionEvent：before_agent_start 与工具事件的 parentToolCallId（契约 A1）", () => {
+    expectTypeOf<Extract<SessionEvent, { type: "before_agent_start" }>>().toEqualTypeOf<{
+      type: "before_agent_start";
+      prompt: string;
+    }>();
+    expectTypeOf<
+      Extract<SessionEvent, { type: "tool_execution_start" }>["parentToolCallId"]
+    >().toEqualTypeOf<string | undefined>();
+    expectTypeOf<
+      Extract<SessionEvent, { type: "tool_execution_update" }>["parentToolCallId"]
+    >().toEqualTypeOf<string | undefined>();
+    expectTypeOf<
+      Extract<SessionEvent, { type: "tool_execution_end" }>["parentToolCallId"]
+    >().toEqualTypeOf<string | undefined>();
+    const inner: SessionEvent = {
+      type: "tool_execution_start",
+      toolCallId: "c2",
+      toolName: "read",
+      args: {},
+      parentToolCallId: "c1",
+    };
+    expect(inner.type).toBe("tool_execution_start");
+  });
+
   it("RPC 线上 message_update 是纯增量", () => {
     type Update = Extract<RpcEvent, { type: "message_update" }>;
     expectTypeOf<Update>().not.toHaveProperty("message");

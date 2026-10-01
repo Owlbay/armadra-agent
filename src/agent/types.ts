@@ -152,6 +152,8 @@ export type SessionEvent =
       cwd: string;
       reason: "startup" | "resume" | "new" | "fork";
     }
+  /** 用户提示经 UserPromptSubmit Hook 与模板展开之后、本次运行开始之前（设计 §11.1 第 16 步）。 */
+  | { type: "before_agent_start"; prompt: string }
   | { type: "agent_start" }
   | { type: "agent_end"; stopReason: string; willRetry: boolean }
   | { type: "agent_before_settle" }
@@ -166,14 +168,31 @@ export type SessionEvent =
       assistantMessageEvent: AssistantEvent;
     }
   | { type: "message_end"; message: AgentMessage }
-  | { type: "tool_execution_start"; toolCallId: string; toolName: string; args: unknown }
-  | { type: "tool_execution_update"; toolCallId: string; toolName: string; partial: string }
+  /**
+   * `parentToolCallId`：codemode 脚本里经 `tools.*` 发起的内层调用带上外层 `codemode` 调用的
+   * id（设计 §5.5），TUI 据此折叠显示；模型直接发起的调用不带。
+   */
+  | {
+      type: "tool_execution_start";
+      toolCallId: string;
+      toolName: string;
+      args: unknown;
+      parentToolCallId?: string;
+    }
+  | {
+      type: "tool_execution_update";
+      toolCallId: string;
+      toolName: string;
+      partial: string;
+      parentToolCallId?: string;
+    }
   | {
       type: "tool_execution_end";
       toolCallId: string;
       toolName: string;
       result: ToolResult;
       isError: boolean;
+      parentToolCallId?: string;
     }
   | { type: "queue_update"; steering: string[]; followUp: string[] }
   | { type: "compaction_start"; trigger: CompactionTrigger }
