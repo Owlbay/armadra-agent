@@ -135,6 +135,12 @@ describe("包装里的命令递归识别", () => {
     [`sh -c "bash -c 'rm -rf /'"`, "rm-rf-root"],
     ["echo ok && sh -c 'shutdown -h now'", "shutdown-reboot"],
     [`bash -c "rm -rf \\"/\\""`, "rm-rf-root"],
+    ["echo / | xargs rm -rf /", "rm-rf-root"],
+    ["ls | xargs -0 -n 1 git branch -D", "git-branch-force-delete"],
+    ["printf x | xargs -I{} sh -c 'rm -rf ~'", "rm-rf-root"],
+    ["find . -name x -exec rm -rf / \\;", "rm-rf-root"],
+    ["find / -maxdepth 0 -execdir sh -c 'mkfs.ext4 /dev/sdb1' ';'", "mkfs"],
+    ["find . -type f -exec chmod -R 777 {} +", "chmod-777-recursive"],
   ];
   const no = [
     'bash -c "echo rm -rf"',
@@ -145,6 +151,11 @@ describe("包装里的命令递归识别", () => {
     "eval echo git push --force",
     "zsh -c 'ls -la'",
     "grep 'sh -c rm -rf /' notes.txt",
+    "ls | xargs rm -f",
+    "ls | xargs",
+    "find . -name '*.o' -exec rm -f {} \\;",
+    "find . -exec echo rm -rf / \\;",
+    "find . -name exec -print",
   ];
   for (const [cmd, id] of yes) {
     it(`正例：${cmd}`, () => {
@@ -161,6 +172,7 @@ describe("包装里的命令递归识别", () => {
   }
 
   it(`嵌套不超过 3 层照常识别，超过按危险处理`, () => {
+    expect(matchDangerous("find . -exec xargs sh -c 'eval ls' \\;")?.id).toBe("nested-too-deep");
     expect(matchDangerous("eval eval eval ls")).toBeUndefined();
     expect(matchDangerous("eval eval eval eval ls")?.id).toBe("nested-too-deep");
     expect(matchDangerous("eval eval eval rm -rf /")?.id).toBe("rm-rf-root");
@@ -172,5 +184,13 @@ describe("包装里的命令递归识别", () => {
     expect(nestedCommands(["bash", "-x", "script.sh"])).toEqual([]);
     expect(nestedCommands(["eval", "a", "b"])).toEqual(["a b"]);
     expect(nestedCommands(["bash"])).toEqual([]);
+    expect(nestedCommands(["xargs", "-I", "{}", "-0", "rm", "a b"])).toEqual(["rm 'a b'"]);
+    expect(nestedCommands(["xargs", "-n", "1"])).toEqual([]);
+    const [quoted] = nestedCommands(["xargs", "sh", "-c", "echo 'x y'"]);
+    expect(shellWords(quoted ?? "")).toEqual(["sh", "-c", "echo 'x y'"]);
+    expect(nestedCommands(["find", ".", "-exec", "a", "{}", ";", "-exec", "b", "+"])).toEqual([
+      "a {}",
+      "b",
+    ]);
   });
 });

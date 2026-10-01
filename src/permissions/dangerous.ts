@@ -4,7 +4,7 @@
  *
  * 命中 → 管线第 ② 步 ask（无人值守 deny），allow 规则不能越过。识别按段进行：命令先按
  * `&&`、`||`、`;`、`|`、`&`、换行切段（引号内不切），每段剥掉前导的环境赋值与
- * `sudo / command / exec / nohup / time / env` 等前缀后看命令名；`sh -c '…'`、`eval …` 等包装里的
+ * `sudo / command / exec / nohup / time / env` 等前缀后看命令名；`sh -c '…'`、`eval …`、`xargs …`、`find -exec … ;` 里的
  * 命令递归识别，嵌套超过 {@link MAX_NESTING} 层按危险处理。整条命令另外做跨段检查
  * （`curl … | sh`、fork 炸弹）。每条规则都有正例与反例测试（dangerous.test.ts）。
  */
@@ -25,7 +25,7 @@ export interface DangerousMatch {
   description: string;
 }
 
-const WRAPPERS = new Set(["command", "exec", "nohup", "time", "env", "builtin", "nice", "xargs"]);
+const WRAPPERS = new Set(["command", "exec", "nohup", "time", "env", "builtin", "nice"]);
 
 /**
  * 分词：按未加引号的空白切；单引号内原样，双引号内反斜杠只转义 `\`、`"`、`$`、反引号，引号外反斜杠转义下一个字符；
@@ -258,9 +258,47 @@ function shellCommandString(argv: readonly string[]): string | undefined {
   return undefined;
 }
 
+/** 把词重新拼回命令文本：含特殊字符的词加单引号。 */
+function joinWords(words: readonly string[]): string {
+  return words
+    .map((w) => (/^[A-Za-z0-9_@%+=:,./{}~-]+$/.test(w) ? w : `'${w.replace(/'/g, `'\\''`)}'`))
+    .join(" ");
+}
+
+/** xargs 中带独立参数的短选项。 */
+const XARGS_ARG_OPTS = new Set(["-I", "-L", "-n", "-P", "-s", "-E", "-d", "-a"]);
+
+/** `xargs [选项] cmd …` 的 cmd 部分；没有命令（缺省 echo）返回 undefined。 */
+function xargsCommand(argv: readonly string[]): string | undefined {
+  let i = 1;
+  while (i < argv.length) {
+    const a = argv[i] as string;
+    if (a === "--") {
+      i++;
+      break;
+    }
+    if (!a.startsWith("-") || a === "-") break;
+    i += XARGS_ARG_OPTS.has(a) ? 2 : 1;
+  }
+  return i < argv.length ? joinWords(argv.slice(i)) : undefined;
+}
+
+/** `find … -exec / -execdir / -ok / -okdir cmd … ;|+` 里的每条 cmd。 */
+function findExecCommands(argv: readonly string[]): string[] {
+  const out: string[] = [];
+  for (let i = 1; i < argv.length; i++) {
+    if (!["-exec", "-execdir", "-ok", "-okdir"].includes(argv[i] as string)) continue;
+    let end = i + 1;
+    while (end < argv.length && argv[end] !== ";" && argv[end] !== "+") end++;
+    if (end > i + 1) out.push(joinWords(argv.slice(i + 1, end)));
+    i = end;
+  }
+  return out;
+}
+
 /**
  * 段内嵌套的命令文本（剥过前缀的 argv）：`sh / bash / zsh / dash / ksh -c '…'` 的字符串参数；
- * `eval` 其余词以空格拼接。
+ * `eval` 其余词以空格拼接；`xargs` 要执行的命令；`find -exec … ;` 里的命令。
  */
 export function nestedCommands(argv: readonly string[]): string[] {
   const name = base(argv[0]);
@@ -269,6 +307,11 @@ export function nestedCommands(argv: readonly string[]): string[] {
     return inner === undefined ? [] : [inner];
   }
   if (name === "eval") return argv.length > 1 ? [argv.slice(1).join(" ")] : [];
+  if (name === "xargs") {
+    const inner = xargsCommand(argv);
+    return inner === undefined ? [] : [inner];
+  }
+  if (name === "find") return findExecCommands(argv);
   return [];
 }
 
