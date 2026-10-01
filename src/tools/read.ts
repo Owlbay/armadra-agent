@@ -192,15 +192,15 @@ export function createReadTool(options: ReadToolOptions = {}): ToolDefinition<Re
     name: "read",
     label: "Read",
     description:
-      "Read a file. Text is returned with line numbers (cat -n format); output is limited to " +
-      `${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)}, use offset/limit to page. ` +
-      "Images (png, jpg, gif, webp) are returned as attachments.",
+      "Read a file. Text comes with line numbers (cat -n), limited to " +
+      `${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)}; page with offset/limit. ` +
+      "Images (png, jpg, gif, webp) come as attachments.",
     parameters: {
       type: "object",
       properties: {
-        path: { type: "string", description: "File path, absolute or relative to cwd" },
-        offset: { type: "integer", description: "First line to read (1-based)" },
-        limit: { type: "integer", description: "Maximum number of lines to read" },
+        path: { type: "string", description: "Absolute or relative to cwd" },
+        offset: { type: "integer", description: "First line (1-based)" },
+        limit: { type: "integer", description: "Max lines" },
       },
       required: ["path"],
       additionalProperties: false,
@@ -208,7 +208,7 @@ export function createReadTool(options: ReadToolOptions = {}): ToolDefinition<Re
     permission: "read",
     executionMode: "parallel",
     annotations: { readOnly: true },
-    promptSnippet: "read: read file contents (text with line numbers, images as attachments)",
+    promptSnippet: "read: read files (text or images)",
     execute: (input, ctx) => executeRead(input, ctx, options),
   };
 }
