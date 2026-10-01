@@ -6,7 +6,8 @@
  *   stderr 一行 + 退出码 1；SIGINT / SIGTERM 交给当前模式。
  * - `--version` / `--help` 短路；子命令 `auth / sessions / models / doctor` 分派后返回；
  *   其余交给 `runCli()`（bootstrap → 模式）。
- * - 运行时实现（RuntimeDeps）由集成批次经 `registerRuntimeDeps()` 注入。
+ * - 运行时实现（RuntimeDeps）：`MainOptions.deps` > `registerRuntimeDeps()` > 组装根
+ *   `createRuntimeDeps()`（cli/compose.ts，动态 import）。
  * - 签名 `main(argv): Promise<number>` 与「直接执行才自动运行」判定保持不变：
  *   src/bundle.ts 显式调用 `main()`。
  */
@@ -114,7 +115,9 @@ export async function main(argv: readonly string[], options: MainOptions = {}): 
     return ExitCode.Ok;
   }
   if (options.processHooks !== false) installProcessHooks(io);
-  const deps = options.deps ?? registeredDeps;
+  // 缺省装配走动态 import：--version / auth 不加载运行时实现（bundle 里同样内联）。
+  const resolveDeps = async (): Promise<RuntimeDeps> =>
+    options.deps ?? registeredDeps ?? (await import("./compose.js")).createRuntimeDeps();
   try {
     const parsed = parseArgs(argv);
     if (parsed.kind === "subcommand") {
@@ -122,21 +125,22 @@ export async function main(argv: readonly string[], options: MainOptions = {}): 
         case "auth":
           return await runAuth(parsed.argv, io);
         case "sessions":
-          return await runSessions(parsed.argv, io, deps);
+          return await runSessions(parsed.argv, io, await resolveDeps());
         case "models":
-          return await runModels(parsed.argv, io, deps);
+          return await runModels(parsed.argv, io, await resolveDeps());
         case "doctor":
-          return await runDoctor(parsed.argv, io, deps);
+          return await runDoctor(parsed.argv, io, await resolveDeps());
       }
     }
     if (parsed.args.version) {
       io.stdout(`${AMA_VERSION}\n`);
       return ExitCode.Ok;
     }
+    if (parsed.args.help) return runCli(argv, undefined, io);
   } catch (error) {
     return reportError(error, io);
   }
-  return runCli(argv, deps, io);
+  return runCli(argv, await resolveDeps(), io);
 }
 
 function isDirectRun(): boolean {

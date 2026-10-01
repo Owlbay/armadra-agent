@@ -5,7 +5,10 @@ import { createTmpHome, type TmpHome } from "../../../test/helpers/tmp-home.js";
 import type { ProviderData, ProviderRegistryApi } from "../../ai/types.js";
 import type { SessionListItem } from "../../session/types.js";
 import type { CliIo, RuntimeDeps } from "../deps.js";
-import { main } from "../main.js";
+import { defaultIo, main } from "../main.js";
+import { runDoctor } from "./doctor.js";
+import { runModels } from "./models.js";
+import { runSessions } from "./sessions.js";
 
 let home: TmpHome;
 let out: string[];
@@ -24,6 +27,9 @@ function io(extra: Partial<CliIo> = {}): Partial<CliIo> {
     ...extra,
   };
 }
+
+/** 不经 main（main 缺省会装上组装根）：直接以「未装配」调用子命令。 */
+const fullIo = (extra: Partial<CliIo> = {}): CliIo => ({ ...defaultIo(), ...io(extra) });
 
 const ama = (argv: string[], deps?: RuntimeDeps) =>
   main(argv, { io: io(), processHooks: false, ...(deps !== undefined ? { deps } : {}) });
@@ -184,10 +190,7 @@ describe("ama doctor（临时 HOME）", () => {
     });
     home.write("work/AGENTS.md", "x");
     expect(
-      await main(["doctor"], {
-        io: io({ env: { ...home.env, OPENAI_API_KEY: "sk-env" } }),
-        processHooks: false,
-      }),
+      await runDoctor([], fullIo({ env: { ...home.env, OPENAI_API_KEY: "sk-env" } }), undefined),
     ).toBe(0);
     const text = out.join("");
     expect(text).toContain("配置层级");
@@ -233,7 +236,7 @@ describe("ama models / sessions（依赖注入）", () => {
     expect(await ama(["models", "check", "fake/echo"], stubDeps())).toBe(0);
     expect(out.join("")).toMatch(/fake\/echo 可用/);
     expect(await ama(["models", "check", "fake/none"], stubDeps())).toBe(4);
-    expect(await ama(["models", "list"])).toBe(1);
+    expect(await runModels(["list"], fullIo(), undefined)).toBe(1);
     expect(await ama(["models", "check"], stubDeps())).toBe(2);
   });
 
@@ -246,6 +249,6 @@ describe("ama models / sessions（依赖注入）", () => {
     expect(await ama(["sessions", "prune", "--dry-run"], stubDeps())).toBe(0);
     expect(out.join("")).toContain("将移到 trash：/s/old.jsonl");
     expect(await ama(["sessions", "prune", "--older-than", "x"], stubDeps())).toBe(2);
-    expect(await ama(["sessions", "list"])).toBe(1);
+    expect(await runSessions(["list"], fullIo(), undefined)).toBe(1);
   });
 });
