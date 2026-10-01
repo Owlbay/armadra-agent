@@ -9,6 +9,7 @@ import type {
   AssistantEvent,
   AssistantEventStream,
   AssistantMessage,
+  AuthHeader,
   Model,
   ProviderData,
   StreamOptions,
@@ -84,6 +85,13 @@ describe("ai 契约", () => {
       }),
     };
     expect(impl.id).toBe("openai-completions");
+  });
+});
+
+describe("ai 契约（B1 追加）", () => {
+  it("Model.authHeader / Model.requiresApiKey：registry 从 ProviderData 物化", () => {
+    expectTypeOf<Model["authHeader"]>().toEqualTypeOf<AuthHeader | undefined>();
+    expectTypeOf<Model["requiresApiKey"]>().toEqualTypeOf<boolean | undefined>();
   });
 });
 
