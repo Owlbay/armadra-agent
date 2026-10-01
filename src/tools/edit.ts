@@ -256,26 +256,25 @@ export function createEditTool(): ToolDefinition<EditInput> {
     name: "edit",
     label: "Edit",
     description:
-      "Replace text in a file. Each oldText is matched against the original content and must be " +
-      "unique (unless replaceAll) and must not overlap other edits. Read the file first.",
+      "Replace text in a file (read it first). Each oldText must be unique in the original " +
+      "(unless replaceAll); edits must not overlap.",
     parameters: {
       type: "object",
       properties: {
-        path: { type: "string", description: "File path, absolute or relative to cwd" },
+        path: { type: "string" },
         edits: {
           type: "array",
-          description: "Replacements, all matched against the original content",
           items: {
             type: "object",
             properties: {
               oldText: { type: "string", description: "Exact text to replace" },
-              newText: { type: "string", description: "Replacement text" },
+              newText: { type: "string" },
             },
             required: ["oldText", "newText"],
             additionalProperties: false,
           },
         },
-        replaceAll: { type: "boolean", description: "Replace every occurrence of each oldText" },
+        replaceAll: { type: "boolean" },
       },
       required: ["path", "edits"],
       additionalProperties: false,
@@ -283,7 +282,7 @@ export function createEditTool(): ToolDefinition<EditInput> {
     permission: "write",
     executionMode: "sequential",
     annotations: { destructive: true },
-    promptSnippet: "edit: targeted text replacements in a file (read it first)",
+    promptSnippet: "edit: replace text in a file",
     execute: executeEdit,
   };
 }
