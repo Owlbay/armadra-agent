@@ -268,9 +268,10 @@ export function validateConfig(value: unknown): Diagnostic[] {
     c,
     value,
     "tools",
-    ["preset", "maxToolResultChars", "bashTimeoutMs", "disabled"],
+    ["preset", "default", "maxToolResultChars", "bashTimeoutMs", "disabled"],
     (s, p) => {
       c.oneOf(s, "preset", p, TOOLS_PRESETS_STRICT_FIRST);
+      c.stringArray(s, "default", p);
       c.number(s, "maxToolResultChars", p, 1);
       c.number(s, "bashTimeoutMs", p, 1);
       c.stringArray(s, "disabled", p);

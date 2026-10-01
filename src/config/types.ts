@@ -72,6 +72,11 @@ export const TOOLS_PRESETS_STRICT_FIRST: readonly ToolsPreset[] = [
 export interface ToolsConfig {
   /** 缺省 `default`；命令行 `--tools-preset`。 */
   preset?: ToolsPreset;
+  /**
+   * 在预设上微调（设计 §5.6）：`+name` 加、`-name` 去；不带前缀的名字整组替换预设的内置工具。
+   * 只认用户级 / profile（项目级忽略并 warning）。
+   */
+  default?: string[];
   maxToolResultChars?: number;
   bashTimeoutMs?: number;
   disabled?: string[];
