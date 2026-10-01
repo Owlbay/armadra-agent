@@ -1,0 +1,26 @@
+The following skills provide specialized instructions for specific tasks.
+Call the skill tool with a skill's name to load it when the task matches its description.
+When a skill file references a relative path, resolve it against the skill's directory.
+
+<available_skills>
+  <skill>
+    <name>review</name>
+    <description>Review a change for correctness bugs (CLI copy wins).</description>
+    <location><root>/cli/review/SKILL.md</location>
+  </skill>
+  <skill>
+    <name>lint</name>
+    <description>Lint &lt;files&gt; &amp; fix &quot;style&quot; issues</description>
+    <location><root>/config/skills/group/lint/SKILL.md</location>
+  </skill>
+  <skill>
+    <name>proj-helper</name>
+    <description>Project-level helper (needs trust).</description>
+    <location><root>/work/.ama/skills/proj-helper/SKILL.md</location>
+  </skill>
+  <skill>
+    <name>anc</name>
+    <description>Ancestor .agents skill (needs trust).</description>
+    <location><root>/work/.agents/skills/anc/SKILL.md</location>
+  </skill>
+</available_skills>

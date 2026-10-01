@@ -1,0 +1,209 @@
+/**
+ * 危险命令表（设计 §7.2；v1 §7.1 的表 + `git branch -D`、`npm publish`、`docker system prune -a`、
+ * `shutdown/reboot`）。[B3]
+ *
+ * 命中 → 管线第 ② 步 ask（无人值守 deny），allow 规则不能越过。识别按段进行：命令先按
+ * `&&`、`||`、`;`、`|`、`&`、换行切段（引号内不切），每段剥掉前导的环境赋值与
+ * `sudo / command / exec / nohup / time / env` 等前缀后看命令名。整条命令另外做跨段检查
+ * （`curl … | sh`、fork 炸弹）。每条规则都有正例与反例测试（dangerous.test.ts）。
+ */
+
+import { splitShellSegments } from "./rules.js";
+
+export interface DangerousRule {
+  id: string;
+  description: string;
+  /** 段级检查：`argv` 是剥掉前缀后的词，`segment` 是原段文本。 */
+  segment?(argv: readonly string[], segment: string): boolean;
+  /** 整条命令检查。 */
+  whole?(command: string): boolean;
+}
+
+export interface DangerousMatch {
+  id: string;
+  description: string;
+}
+
+const WRAPPERS = new Set(["command", "exec", "nohup", "time", "env", "builtin", "nice", "xargs"]);
+
+/** 粗略分词：按空白切，去掉成对引号。 */
+export function shellWords(segment: string): string[] {
+  const words: string[] = [];
+  const re = /"((?:[^"\\]|\\.)*)"|'([^']*)'|(\S+)/g;
+  for (const m of segment.matchAll(re)) words.push(m[1] ?? m[2] ?? m[3] ?? "");
+  return words;
+}
+
+/** 剥前缀；`keepSudo` 为假时连 sudo 一并剥掉。 */
+export function commandWords(segment: string, keepSudo = false): string[] {
+  const words = shellWords(segment.replace(/^[({\s]+/, ""));
+  let i = 0;
+  while (i < words.length) {
+    const w = words[i] as string;
+    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(w)) i++;
+    else if (WRAPPERS.has(w)) i++;
+    else if (!keepSudo && (w === "sudo" || w === "doas")) {
+      i++;
+      while (i < words.length && (words[i] as string).startsWith("-")) i++;
+    } else break;
+  }
+  return words.slice(i);
+}
+
+function base(word: string | undefined): string {
+  return (word ?? "").split("/").pop() ?? "";
+}
+
+function flags(argv: readonly string[]): string {
+  return argv
+    .filter((a) => /^-[A-Za-z]/.test(a))
+    .map((a) => a.slice(1))
+    .join("");
+}
+
+function hasFlag(argv: readonly string[], short: string, long?: string): boolean {
+  return argv.some(
+    (a) => (/^-[A-Za-z]+$/.test(a) && a.includes(short)) || (long !== undefined && a === long),
+  );
+}
+
+const RM_DANGEROUS_TARGETS =
+  /^(\/|\/\*|~|~\/|~\/\*|\$HOME|\$HOME\/|\$HOME\/\*|\.|\.\/|\.\/\*|\*|\.\.|\.\.\/|\/\.\*)$/;
+
+export const DANGEROUS_RULES: readonly DangerousRule[] = [
+  {
+    id: "rm-rf-root",
+    description: "rm -rf on /, ~, ., .. or *",
+    segment: (argv) => {
+      if (base(argv[0]) !== "rm") return false;
+      const f = flags(argv);
+      const recursive = /[rR]/.test(f) || argv.includes("--recursive");
+      const force = f.includes("f") || argv.includes("--force");
+      return recursive && force && argv.slice(1).some((a) => RM_DANGEROUS_TARGETS.test(a));
+    },
+  },
+  {
+    id: "sudo",
+    description: "privilege escalation with sudo",
+    segment: (_argv, segment) => {
+      const words = commandWords(segment, true);
+      return base(words[0]) === "sudo" || base(words[0]) === "doas";
+    },
+  },
+  { id: "su", description: "switching user with su", segment: (argv) => base(argv[0]) === "su" },
+  {
+    id: "dd",
+    description: "raw disk copy with dd",
+    segment: (argv) => base(argv[0]) === "dd",
+  },
+  {
+    id: "mkfs",
+    description: "creating a filesystem (mkfs)",
+    segment: (argv) => /^mkfs(\.[a-z0-9]+)?$/.test(base(argv[0])),
+  },
+  {
+    id: "write-block-device",
+    description: "redirecting output to a block device",
+    whole: (cmd) =>
+      />\s*\/dev\/(sd[a-z]|hd[a-z]|nvme\d|disk\d|rdisk\d|mmcblk\d|xvd[a-z]|vd[a-z])/.test(cmd),
+  },
+  {
+    id: "git-push-force",
+    description: "git push --force",
+    segment: (argv) =>
+      base(argv[0]) === "git" &&
+      argv[1] === "push" &&
+      argv.some(
+        (a) =>
+          a === "--force" ||
+          a.startsWith("--force-with-lease") ||
+          a === "--force-if-includes" ||
+          (/^-[A-Za-z]+$/.test(a) && a.includes("f")) ||
+          /^\+/.test(a),
+      ),
+  },
+  {
+    id: "git-reset-hard",
+    description: "git reset --hard",
+    segment: (argv) => base(argv[0]) === "git" && argv[1] === "reset" && argv.includes("--hard"),
+  },
+  {
+    id: "git-clean-force",
+    description: "git clean -f (deletes untracked files)",
+    segment: (argv) =>
+      base(argv[0]) === "git" &&
+      argv[1] === "clean" &&
+      (hasFlag(argv, "f") || argv.includes("--force")),
+  },
+  {
+    id: "git-branch-force-delete",
+    description: "git branch -D",
+    segment: (argv) =>
+      base(argv[0]) === "git" &&
+      argv[1] === "branch" &&
+      (argv.some((a) => /^-[A-Za-z]*D[A-Za-z]*$/.test(a)) ||
+        (argv.includes("--delete") && argv.includes("--force"))),
+  },
+  {
+    id: "pipe-to-shell",
+    description: "piping a download (curl / wget) into a shell",
+    whole: (cmd) =>
+      /\b(curl|wget)\b[^|;&]*\|\s*(sudo\s+)?(env\s+)?(ba|z|da|k|fi)?sh\b/.test(cmd) ||
+      /\b(ba|z)?sh\s+(-c\s+)?["']?\$\(\s*(curl|wget)\b/.test(cmd) ||
+      /\b(ba|z)?sh\s+<\(\s*(curl|wget)\b/.test(cmd),
+  },
+  {
+    id: "chmod-777-recursive",
+    description: "chmod -R 777",
+    segment: (argv) =>
+      base(argv[0]) === "chmod" &&
+      (hasFlag(argv, "R") || argv.includes("--recursive")) &&
+      argv.some((a) => /^0?777$/.test(a) || a === "a+rwx"),
+  },
+  {
+    id: "kill-all",
+    description: "kill -9 -1 (kills every process you own)",
+    segment: (argv) => base(argv[0]) === "kill" && argv.slice(1).includes("-1"),
+  },
+  {
+    id: "fork-bomb",
+    description: "fork bomb",
+    whole: (cmd) => /:\s*\(\s*\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:/.test(cmd),
+  },
+  {
+    id: "package-publish",
+    description: "publishing a package (npm / pnpm / yarn publish)",
+    segment: (argv) => ["npm", "pnpm", "yarn"].includes(base(argv[0])) && argv[1] === "publish",
+  },
+  {
+    id: "docker-system-prune-all",
+    description: "docker system prune -a",
+    segment: (argv) =>
+      base(argv[0]) === "docker" &&
+      argv[1] === "system" &&
+      argv[2] === "prune" &&
+      (hasFlag(argv, "a") || argv.includes("--all")),
+  },
+  {
+    id: "shutdown-reboot",
+    description: "shutting down or rebooting the machine",
+    segment: (argv) =>
+      ["shutdown", "reboot", "halt", "poweroff"].includes(base(argv[0])) ||
+      (base(argv[0]) === "systemctl" && ["poweroff", "reboot", "halt"].includes(argv[1] ?? "")) ||
+      (base(argv[0]) === "init" && (argv[1] === "0" || argv[1] === "6")),
+  },
+];
+
+/** 第一条命中的危险规则；无则 undefined。 */
+export function matchDangerous(command: string): DangerousMatch | undefined {
+  for (const rule of DANGEROUS_RULES) {
+    if (rule.whole?.(command)) return { id: rule.id, description: rule.description };
+  }
+  for (const segment of splitShellSegments(command)) {
+    const argv = commandWords(segment);
+    for (const rule of DANGEROUS_RULES) {
+      if (rule.segment?.(argv, segment)) return { id: rule.id, description: rule.description };
+    }
+  }
+  return undefined;
+}
