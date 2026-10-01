@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "responses": [
+    { "error": { "kind": "rate_limit" } },
+    { "error": { "kind": "overloaded" } },
+    { "text": "Recovered after retries." }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "responses": [
+    {
+      "steps": [
+        { "toolCall": { "name": "read", "arguments": { "path": "a.ts" } } },
+        { "toolCall": { "name": "read", "arguments": { "path": "b.ts" } } },
+        { "toolCall": { "name": "bash", "arguments": { "command": "ls" } } }
+      ]
+    },
+    { "text": "Done." }
+  ],
+  "whenExhausted": "repeat-last"
+}

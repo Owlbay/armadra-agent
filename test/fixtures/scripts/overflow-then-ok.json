@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "responses": [
+    { "error": { "kind": "overflow" } },
+    { "text": "## Summary\nCompacted conversation." },
+    { "text": "Answer after compaction." }
+  ]
+}
