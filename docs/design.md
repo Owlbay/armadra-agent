@@ -25,6 +25,7 @@
 | D15 | 分发：仓库 `pnpm build` 产出 npm 包形状（ESM + d.ts）与 `dist/bundle/ama.cjs`；GitHub Release 附 `ama.cjs` + `SHA256SUMS`；**不执行 `npm publish`**；Armadra 以 Git 依赖或 Release 产物拉取                            | 先不占作用域、不背发布节奏；包形状保持可发布，决定发布时只需加一条 CI 步骤                                                                                             | 修订 |
 | D16 | 测试不依赖真 key：脚本化 `fake` 供应商 + 录制的 SSE 样本黄金文件；TUI 用 `MemoryTerminal` 断言帧内容                                                                                                                 | CI 三平台可跑；供应商差异收敛在样本里                                                                                                                                 | 新 |
 | D17 | 单文件 ≤ 600 行（源码），超出即拆；每个批次有明确文件所有权，跨批次只改自己拥有的文件，契约文件由 B0 所有                                                                                                             | 并行代理不互相覆盖；评审粒度可控                                                                                                                                      | 新 |
+| D18 | 加入 **codemode**（§5.5）：一个 `codemode` 工具让模型写一段 JS 脚本编排多次工具调用，只有脚本输出回到模型；脚本跑在 `node --permission` 子进程的 `vm` 上下文里，零依赖；`codemode.mode: off \| on \| only`，缺省 `on` | 长流程任务的主要成本是「每次工具结果都带着整段历史回到模型」；把多步调用合进一次往返，实测可把累计 token 降到四分之一 | 新 |
 
 ## §1 架构与目录树
 
@@ -499,6 +500,46 @@ export interface ToolResult {
 
 ama 不知道画布；Armadra 适配器经 `HostApi.tools.register` 注册 `canvas_team / canvas_send / canvas_inbox / canvas_sticky / context_*` 等工具（文档 B §3），它们与内置工具走**同一条**调用路径与权限管线（按 `permission` 分类）。适配器 `disable("task")` 后，系统提示 `tools` 节不再列 `task`，模型只能走画布工具。独立模式下这些工具不存在，README 明确边界。
 
+### §5.5 codemode：用一段脚本编排多次调用
+
+**动机**：长流程任务里，模型每调用一次工具，结果返回后就要带着整段历史再请求一次模型；即使大部分命中缓存，缓存读取仍计用量与费用。把「读几个文件 → 过滤 → 再查 → 汇总」这类多步调用合进一段脚本、一次往返完成，只把脚本输出交给模型，是降低往返次数最直接的办法。公开实测里，同一长任务改用这种方式后累计 token 减少约 75%、估算费用降低约 64%；短任务因为多写一段脚本，收益不明显。因此 codemode 是**可选的调用方式**，不替代逐个工具调用。
+
+**工具**：`codemode`，参数 `{ script: string }`（原始 JavaScript，不是 JSON、不是 Markdown 代码块）。脚本作为 async 函数体执行，可用顶层 `await` 与 `return`。首行可选 `// @options: {"max_output_tokens": 2000, "timeout_ms": 60000}`。
+
+| 全局                              | 作用                                                                                                                                                   |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `tools.<name>(args)`              | 调用会话里的任一工具（含宿主注册的 `canvas_*`），**走与模型直接调用完全相同的路径**：schema 校验 → PreToolUse Hook → 权限管线 → 审批 → 执行 → PostToolUse |
+| `text(v)` / `console.log(...)`    | 追加输出；字符串原样，其它值按 JSON                                                                                                                    |
+| `return v`                        | 同 `text(v)`                                                                                                                                           |
+| `store(key, v)` / `load(key)`     | 跨次保留小块 JSON（单值 ≤ 256 KiB，合计 ≤ 1 MiB）；脚本成功才提交，写成 `custom{customType:"ama.codemode-store"}` 条目，随会话分支走                     |
+| `ALL_TOOLS` / `describeTool(name)`| 可调用工具清单与单个工具的 TypeScript 声明                                                                                                             |
+
+- 返回值：`bash` 解析为 `{ output, truncated, fullOutputPath?, exitCode, wallTimeMs }`（输出上限 1 MiB，不受给模型看的 50 KB 限制）；其它工具解析为文本或 `structured`。工具失败、被拒、参数非法 → 以 `Error` reject，脚本可用 `Promise.allSettled`。
+- 结果：`Script completed` / `Script failed` + 用时 + 输出；输出超过 `max_output_tokens`（缺省 10 000）保留首尾，全文写 `outputs/<toolCallId>.txt`。失败时保留已产生的输出，已完成的工具调用不回滚；脚本结束时仍在跑的调用被取消。
+- 脚本内不能再调用 `codemode`；同一脚本内并发工具调用上限 8。
+
+**沙箱（零依赖）**：
+
+1. 每次执行起一个子进程：`<node> --permission --allow-fs-read=<沙箱入口文件> <沙箱入口>`；嵌入 Electron 时以 `ELECTRON_RUN_AS_NODE=1` 运行同一可执行文件。子进程**不授予**文件写、子进程、worker、addon、inspector 权限。
+2. 子进程里用 `node:vm` 建一个只含 ECMAScript 内建对象的上下文，注入上表的全局函数，`codeGeneration: { strings: false, wasm: false }`；超时由父进程强杀子进程树。
+3. `tools.*` 经 stdin / stdout 的 JSON 行协议回调父进程，由父进程的 `tool-runner` 执行；子进程本身拿不到任何密钥、会话文件或环境变量（以空环境启动）。
+4. 网络：Node ≥ 25 的权限模型同时拒绝网络（本机 Node 26 实测：`--permission` 下 `fetch` 返回 `ERR_ACCESS_DENIED`）；**Node 22 / 24 的权限模型不管网络**，脚本若逃出 `vm` 就能联网。所以：运行时 Node ≥ 25 → `strict`；Node 22 / 24 → `codemode` 仍可用但状态栏与工具描述标注「网络未隔离」，`config.codemode.requireStrict: true` 时直接禁用该工具。
+5. 声明：沙箱防的是脚本**绕过权限管线**，不是对抗性的代码执行环境；脚本能造成的副作用都来自它调用的工具，而工具调用照常受 Hook、权限与审批约束。
+
+**模式**（`config.codemode.mode`，命令行 `--codemode off|on|only`）：
+
+| 模式   | 模型看到的工具                                                                       | 适用                                     |
+| ------ | ------------------------------------------------------------------------------------ | ---------------------------------------- |
+| `off`  | 不注册 `codemode`                                                                    | 短任务、需要最大透明度                   |
+| `on`   | 全部工具 + `codemode`；其它工具描述末尾加一行「也可在 codemode 脚本里调用」           | 缺省                                     |
+| `only` | 只有 `codemode`（与 `skill`）；其它工具只能在脚本里调用，声明列在 `codemode` 描述里 | 长流程、工具密集任务；嵌入 Armadra 的协调者可选 |
+
+`codemode` 描述里的工具声明由 JSON Schema 生成 TypeScript 声明，总预算 `config.codemode.inlineBudget`（缺省 3 000 估算 token），超出部分只列名字，脚本用 `describeTool()` 取。
+
+**Hook 与事件**：`codemode` 本身作为一次工具调用经过 PreToolUse / 权限（权限类 `execute`）；脚本里的每次 `tools.*` 再各自经过完整流程，Hook 输入带 `viaCodemode: true` 与父 `toolCallId`。事件：`tool_execution_update` 透传脚本输出；内层调用发 `tool_execution_start/end`，带 `parentToolCallId`，TUI 把它们折叠在 codemode 调用下面。
+
+**嵌入 Armadra**：画布工具同样可在脚本里调用，协调者可以一段脚本里并行起多个成员、读取各自摘要后汇总，减少协调轮次。profile 可设 `codemode.mode`。
+
 ## §6 两层 Hook
 
 ### §6.1 第一层：命令式 Hook（`hooks/`）
@@ -923,7 +964,7 @@ export type { ToolDefinition, ToolContext, ToolResult, Model, ProviderData, Sess
 ```text
 B0 契约与骨架（1 人，先行 1–2 天）
   ├─ 第一波（并行 5 人）：B1 协议与供应商 │ B2 循环·会话·压缩 │ B3 工具·权限·Skill │ B4 TUI 组件库 │ B5 配置·Hook·宿主·启动
-  ├─ 第二波（并行 3 人）：B6 模式（line/print/rpc）与 SDK │ B7 交互模式 │ B8 Google 与 Responses 协议
+  ├─ 第二波（并行 4 人）：B6 模式（line/print/rpc）与 SDK │ B7 交互模式 │ B8 Google 与 Responses 协议 │ B10 codemode
   └─ 第三波（1–2 人）：B9 集成、Windows、bundle、Release、文档与 Armadra 场景 11
 ```
 
@@ -940,6 +981,7 @@ B0 契约与骨架（1 人，先行 1–2 天）
 | B6   | line 模式、print 三格式、RPC 全命令、json-event 线上形状、`sdk.ts`                                                                                                                                                     | `src/modes/{print,rpc}/**`、`src/modes/interactive/line/**`、`src/sdk.ts`      | B1–B3、B5 | RPC 黄金记录全绿；`ama -p "hi" --model fake/echo` 三格式输出正确；line 模式括号粘贴测试；外部脚本仅凭 `docs/rpc.md` 跑通 prompt → agent_settled；SDK 示例在 README 可运行                                                                                     |
 | B7   | 交互模式：装配、消息区、工具视图、状态栏、审批对话框、斜杠命令、补全、选择器                                                                                                                                           | `src/modes/interactive/**`（除 line/）                                        | B2–B5     | 用 MemoryTerminal + fake 供应商的集成帧测试：一次完整 run 的帧序列黄金；审批对话框 y/n/a；Esc 回填队列；真终端与 tmux 手测：读改一个文件、Esc 中断后继续、`/model` 切换、`/tree` 分叉                                                                            |
 | B8   | `google-generative-ai`、`openai-responses` 协议与各自 compat、目录条目切换、SSE 样本                                                                                                                                 | `src/ai/apis/{google-generative-ai,openai-responses}.ts`、对应 fixtures、catalog 中 `api` 字段 | B1        | 两协议各 ≥ 8 样本黄金；fake 之外对真实端点手测一次工具调用往返                                                                                                                                                                                            |
+| B10  | codemode（§5.5）：`codemode` 工具、沙箱子进程与 JSON 行协议、`vm` 上下文与全局函数、JSON Schema → TS 声明、store 条目、三种模式、`viaCodemode` 的 Hook 输入与嵌套事件 | `src/codemode/**`（`tool.ts`、`host-side.ts`、`sandbox-entry.ts`、`protocol.ts`、`declarations.ts`、`store.ts`、`modes.ts`）；bundle 增加第二个入口 `dist/bundle/ama-sandbox.cjs` | B2、B3、B5 | 脚本并行调用三个工具、只回输出；`--permission` 子进程读文件 / 起进程被拒（Node ≥ 25 联网被拒）；内层调用被拒绝规则拦下时脚本收到 Error；超时杀子进程；store 只在成功时提交；`only` 模式下模型只见 `codemode` |
 | B9   | 集成：bundle 冒烟三平台、Windows 收尾（PowerShell 回退、taskkill、路径）、Release 流水线、`docs/{rpc,session-format,host-api,hooks,providers,tui}.md`、README、Armadra 文档 B 场景 11 配合                                | 跨批次修复走原所有者；B9 拥有 `docs/**`、`README.md`、CI release job          | 全部      | `pnpm ci` 三平台绿；`node ama.cjs` 在 `ELECTRON_RUN_AS_NODE=1` 下启动；Armadra 场景 11 1–4 步通过；Release 附件 SHA 校验                                                                                                                                      |
 
 ### §16.3 并行约束
