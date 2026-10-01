@@ -44,6 +44,16 @@ export interface ApprovalRequest {
   input: unknown;
   reason: ApprovalReason;
   hookReason?: string;
+  /**
+   * 发起方上下文：`depth > 0` 表示来自 `task` 子 Agent（对话框标 `[task]`）；codemode 内层
+   * 调用带外层调用的 `parentToolCallId`。由子会话包装的 broker 填入，缺省视为主会话。
+   */
+  context?: ApprovalRequestContext;
+}
+
+export interface ApprovalRequestContext {
+  depth: number;
+  parentToolCallId?: string;
 }
 
 export type ApprovalDecision = "allow" | "deny" | "allow_session";

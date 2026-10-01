@@ -35,6 +35,7 @@ import type {
 import type {
   AgentEvents,
   ApprovalBroker,
+  ApprovalRequest,
   HostAdapter,
   HostApi,
   HostModule,
@@ -188,6 +189,20 @@ describe("宿主契约", () => {
       Promise<"started" | "queued">
     >();
     expectTypeOf<Parameters<HostApi["tools"]["register"]>[0]>().toEqualTypeOf<ToolDefinition>();
+  });
+
+  it("ApprovalRequest.context（契约 A3）", () => {
+    expectTypeOf<ApprovalRequest["context"]>().toEqualTypeOf<
+      { depth: number; parentToolCallId?: string } | undefined
+    >();
+    const request: ApprovalRequest = {
+      requestId: "r1",
+      toolName: "bash",
+      input: { command: "ls" },
+      reason: "mode",
+      context: { depth: 1 },
+    };
+    expect(request.context?.depth).toBe(1);
   });
 });
 

@@ -18,6 +18,7 @@ export type {
   ApprovalDecision,
   ApprovalReason,
   ApprovalRequest,
+  ApprovalRequestContext,
 } from "../permissions/types.js";
 export type {
   ToolAnnotations,
