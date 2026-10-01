@@ -12,6 +12,8 @@
  *   否则与本接口在 index.ts 的再导出冲突。
  * - 补全 `SessionState`、`SessionStats`、`CompactionResult`、`CompactionSettings`、
  *   `RetrySettings`、`QueueMode`。
+ * - （B2 追加）`PromptOptions.origin` 与 `steer / followUp` 的可选 `EnqueueOptions`：宿主
+ *   `sendUser(text, origin)` 注入的消息要以 `origin` 落盘（§4.3）；`"user"` 等同不填。
  */
 
 import type {
@@ -19,6 +21,7 @@ import type {
   AssistantMessage,
   ImageBlock,
   Message,
+  MessageOrigin,
   Model,
   ModelRef,
   ModelThinkingLevel,
@@ -224,6 +227,14 @@ export type PromptDisposition = "started" | "queued" | "handled";
 export interface PromptOptions {
   images?: ImageBlock[];
   streamingBehavior?: "steer" | "followUp";
+  /** 落盘到 user 消息的 origin（宿主注入为 "host"）；缺省：空闲时不填，入队时为 streamingBehavior。 */
+  origin?: MessageOrigin;
+}
+
+/** steer / followUp 的可选项。 */
+export interface EnqueueOptions {
+  /** 缺省为 "steer" / "followUp"；`"user"` 表示普通用户输入（不写 origin）。 */
+  origin?: MessageOrigin;
 }
 
 export interface SessionState {
@@ -265,8 +276,8 @@ export interface SessionStats {
 export interface AgentSession {
   /** 运行中且无 streamingBehavior → reject AmaError{code:"busy"}；run 结束（含重试与 followUp）后 resolve。 */
   prompt(text: string, options?: PromptOptions): Promise<PromptDisposition>;
-  steer(text: string): Promise<"queued" | "handled">;
-  followUp(text: string): Promise<"queued" | "handled">;
+  steer(text: string, options?: EnqueueOptions): Promise<"queued" | "handled">;
+  followUp(text: string, options?: EnqueueOptions): Promise<"queued" | "handled">;
   /** 回到 idle 后 resolve；不清队列。 */
   abort(): Promise<void>;
   waitForIdle(): Promise<void>;
