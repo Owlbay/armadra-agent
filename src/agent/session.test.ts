@@ -219,7 +219,11 @@ describe("长会话自动压缩", () => {
     );
     const work = h.scripted.calls.filter((c) => !isSummaryRequest(c.context));
     expect(work).toHaveLength(prompts * 2);
-    expect(h.scripted.calls.length).toBe(prompts * 2 + compactions.length);
+    // 摘要请求数与压缩次数不必相等：单段超预算时会切开一个回合、写两份摘要再合并（split turn），
+    // 是否触发取决于提示长度——系统提示里有临时目录路径，Linux / Windows 上比 macOS 长。
+    const summaries = h.scripted.calls.length - work.length;
+    expect(summaries).toBeGreaterThanOrEqual(compactions.length);
+    expect(summaries).toBeLessThanOrEqual(compactions.length * 2);
     const inputs = h
       .fileEntries()
       .flatMap((e) =>
