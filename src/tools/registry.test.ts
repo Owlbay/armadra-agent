@@ -3,8 +3,6 @@ import { isAmaError } from "../errors.js";
 import type { ToolDefinition } from "./types.js";
 import { makeToolContext } from "../../test/helpers/tool-context.js";
 import { ToolRegistry, builtinTools, createToolRegistry, executionModeOf } from "./registry.js";
-import { createSkillTool } from "./skill.js";
-import type { Skill } from "../skills/discover.js";
 
 function fakeTool(name: string, extra: Partial<ToolDefinition> = {}): ToolDefinition {
   return {
@@ -28,7 +26,7 @@ function codeOf(fn: () => void): string | undefined {
 
 describe("ToolRegistry", () => {
   it("内置工具齐全、按名排序、执行模式缺省", () => {
-    const reg = createToolRegistry({ getSkills: () => [] });
+    const reg = createToolRegistry();
     expect(reg.list()).toEqual([
       "bash",
       "edit",
@@ -36,7 +34,6 @@ describe("ToolRegistry", () => {
       "grep",
       "ls",
       "read",
-      "skill",
       "task",
       "todo",
       "write",
@@ -49,12 +46,12 @@ describe("ToolRegistry", () => {
       grep: "parallel",
       ls: "parallel",
       read: "parallel",
-      skill: "parallel",
       task: "sequential",
       todo: "parallel",
       write: "sequential",
     });
     expect(builtinTools().map((t) => t.name)).not.toContain("skill");
+    expect(builtinTools().length).toBe(9);
     expect(executionModeOf({ permission: "execute" })).toBe("sequential");
   });
 
@@ -94,48 +91,5 @@ describe("ToolRegistry", () => {
     const reg = createToolRegistry({ disabled: ["bash", "task"] });
     expect(reg.list()).not.toContain("bash");
     expect(reg.list()).not.toContain("task");
-  });
-});
-
-describe("skill 工具", () => {
-  const skills: Skill[] = [
-    {
-      name: "review",
-      description: "Review code",
-      location: "/s/review/SKILL.md",
-      baseDir: "/s/review",
-      disableModelInvocation: false,
-      scope: "user",
-    },
-    {
-      name: "deploy",
-      description: "Deploy",
-      location: "/s/deploy/SKILL.md",
-      baseDir: "/s/deploy",
-      disableModelInvocation: true,
-      scope: "user",
-    },
-  ];
-  const tool = createSkillTool({
-    getSkills: () => skills,
-    readFile: async (p) => `---\nname: review\n---\nBody of ${p}\n`,
-  });
-  const ctx = makeToolContext("/w");
-
-  it("返回 <skill> 包裹的全文", async () => {
-    const r = await tool.execute({ name: "review" }, ctx);
-    expect(r.content).toBe(
-      '<skill name="review" location="/s/review/SKILL.md">\nReferences are relative to /s/review.\n\n' +
-        "---\nname: review\n---\nBody of /s/review/SKILL.md\n</skill>",
-    );
-  });
-
-  it("不存在 → 列可用名；disable-model-invocation → 拒绝", async () => {
-    const missing = await tool.execute({ name: "nope" }, ctx);
-    expect(missing).toMatchObject({ isError: true });
-    expect(missing.content).toBe('Unknown skill "nope". Available skills: review');
-    const blocked = await tool.execute({ name: "deploy" }, ctx);
-    expect(blocked.isError).toBe(true);
-    expect(blocked.content).toContain("/skill:deploy");
   });
 });
