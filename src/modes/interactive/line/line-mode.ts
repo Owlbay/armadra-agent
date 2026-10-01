@@ -119,6 +119,7 @@ export async function runLineMode(
       if (finished) return;
       finished = true;
       tty.off("data", onData);
+      ed.hide();
       io.stdout("\x1b[?2004l");
       tty.setRawMode?.(false);
       (tty as { pause?: () => void }).pause?.();

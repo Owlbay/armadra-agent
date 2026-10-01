@@ -224,6 +224,8 @@ export class LineEditor {
 
   /** 展开粘贴标记、记历史、清空。 */
   private submit(): string {
+    // 提交时把整行（含粘贴标记）留在屏幕上，再换行。
+    if (this.visible) this.options.write(`\r\x1b[2K${this.options.prompt}${this.buffer}\n`);
     let text = this.buffer;
     for (const [marker, content] of this.pastes) text = text.split(marker).join(content);
     if (this.buffer.trim() !== "" && this.history.at(-1) !== this.buffer)
@@ -232,7 +234,6 @@ export class LineEditor {
     this.buffer = "";
     this.cursor = 0;
     this.pastes.clear();
-    if (this.visible) this.options.write("\n");
     this.visible = false;
     return text;
   }
