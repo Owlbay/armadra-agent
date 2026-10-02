@@ -13,6 +13,8 @@
  *   `context_pressure`）。
  * - 无人值守：ask → deny（bootstrap 已按 print 设 unattended）。被拒的调用（`tool_execution_end`
  *   带 `denied`）在 stderr 汇总一行（工具 ×次数、首个原因、放行办法），json 结果带 `deniedTools`。
+ * - `--max-turns N`：到达上限时若最后一条助手消息停在 toolUse（还有活没做完）→ stderr 一行、
+ *   json 带 `maxTurnsReached`、退出码 1。
  * - 退出码：最终助手消息 `error / aborted` 或提示被拒 → 1；有工具调用被拒 → 7；SIGINT 130、
  *   SIGTERM 143（先 abort）。
  */
@@ -119,6 +121,10 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
   }
   const last = lastAssistant(session);
   const text = session.getLastAssistantText() ?? "";
+  // 回合上限在工具执行之后结束运行：最后一条助手消息停在 toolUse 即「没做完」
+  const maxTurns = context.args.maxTurns;
+  const turnsExhausted =
+    maxTurns !== undefined && failure === undefined && last?.stopReason === "toolUse";
   const stopReason = failure !== undefined ? "error" : (last?.stopReason ?? "stop");
   if (format === "text") {
     // 部分模型在正文前多发空行：只去前导空行，保留首行缩进；json / stream-json 原样。
@@ -143,6 +149,7 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
         cacheHitRate: stats.cacheHitRate,
         ...(stats.cache !== undefined ? { cache: stats.cache } : {}),
         ...(denied.length > 0 ? { deniedTools: denied } : {}),
+        ...(turnsExhausted ? { maxTurnsReached: true } : {}),
         entries: session.entries,
       })}\n`,
     );
@@ -157,10 +164,12 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
     io.stderr(`ama: ${last.errorMessage ?? "模型调用失败"}\n`);
     return ExitCode.RuntimeError;
   }
-  if (denied.length > 0) {
-    io.stderr(`${describeDenied(denied)}\n`);
-    return ExitCode.ToolDenied;
+  if (denied.length > 0) io.stderr(`${describeDenied(denied)}\n`);
+  if (turnsExhausted) {
+    io.stderr(`ama: 已达到 --max-turns ${maxTurns}，运行在完成前结束\n`);
+    return ExitCode.RuntimeError;
   }
+  if (denied.length > 0) return ExitCode.ToolDenied;
   return ExitCode.Ok;
 }
 

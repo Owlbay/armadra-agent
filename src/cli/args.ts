@@ -69,6 +69,8 @@ export interface ParsedArgs {
   toolsPreset?: ToolsPreset;
   /** `--codemode`：覆盖 config `codemode.mode`。 */
   codemode?: CodemodeMode;
+  /** `--max-turns N`（只用于 -p）：一次运行最多 N 轮（模型请求 + 工具执行算一轮）。 */
+  maxTurns?: number;
   /** 位置参数 `-`（只用于 -p）：显式读 stdin，有提示参数时也拼接。 */
   stdin: boolean;
   /** `--image <文件>`（可重复，只用于 -p）：随首条提示发送的图片。 */
@@ -113,6 +115,8 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
   -p, --print                  非交互：执行提示后退出。提示取自参数；没有提示参数时读 stdin，
                                有提示参数时只有加 - 才拼接 stdin（如 cat 文件 | ama -p 总结 -）
   --output-format <格式>       -p 的输出：text（缺省）| json | stream-json
+  --max-turns <N>              -p 最多跑 N 轮（一次模型请求加其工具执行算一轮）；到达上限仍有
+                               未完成的工具调用时提前结束，退出码 1
   --image <文件>               -p 随提示发送图片（可重复；png / jpg / gif / webp，单张 ≤ 5 MB）；
                                交互界面里写 @图片路径 或粘贴图片路径
   --mode rpc                   stdio JSONL 协议（供嵌入）
@@ -206,7 +210,8 @@ type ValueOption =
   | "exclude-tools"
   | "tools-preset"
   | "codemode"
-  | "image";
+  | "image"
+  | "max-turns";
 
 const VALUE_OPTIONS: ReadonlySet<string> = new Set<ValueOption>([
   "profile",
@@ -233,6 +238,7 @@ const VALUE_OPTIONS: ReadonlySet<string> = new Set<ValueOption>([
   "tools-preset",
   "codemode",
   "image",
+  "max-turns",
 ]);
 
 const FLAG_ALIASES: Readonly<Record<string, string>> = {
@@ -350,6 +356,13 @@ function applyValue(args: ParsedArgs, option: ValueOption, value: string): void 
     case "image":
       args.images.push(value);
       break;
+    case "max-turns": {
+      const turns = Number(value);
+      if (!Number.isInteger(turns) || turns < 1)
+        throw new UsageError(`--max-turns 应为正整数（收到 ${value}）`);
+      args.maxTurns = turns;
+      break;
+    }
   }
 }
 
@@ -398,6 +411,9 @@ function validate(args: ParsedArgs): void {
   }
   if (args.outputFormat !== undefined && !args.print) {
     throw new UsageError("--output-format 只用于 -p / --print");
+  }
+  if (args.maxTurns !== undefined && !args.print) {
+    throw new UsageError("--max-turns 只用于 -p / --print");
   }
   if (args.stdin && !args.print) {
     throw new UsageError("位置参数 - （从 stdin 读提示）只用于 -p / --print");

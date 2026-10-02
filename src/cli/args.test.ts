@@ -136,6 +136,9 @@ describe("parseArgs", () => {
     expect(usage(["-x"])).toMatch(/未知选项/);
     expect(usage(["--no-tui=1"])).toMatch(/不接受值/);
     expect(usage(["-"])).toMatch(/只用于 -p/);
+    expect(usage(["--max-turns", "2"])).toMatch(/--max-turns 只用于 -p/);
+    expect(usage(["-p", "--max-turns", "0"])).toMatch(/正整数/);
+    expect(usage(["-p", "--max-turns", "1.5"])).toMatch(/正整数/);
   });
 
   it("位置参数 - 表示 -p 显式读 stdin，不进提示；-- 之后的 - 仍是文本", () => {

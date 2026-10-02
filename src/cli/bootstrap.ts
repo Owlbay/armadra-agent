@@ -311,6 +311,7 @@ export async function bootstrap(
       unattended,
       warn,
     };
+    if (args.maxTurns !== undefined) assembly.overrides = { maxTurns: args.maxTurns };
     session = await step(ExitCode.RuntimeError, "会话组装", () => deps.session.create(assembly));
     const active = session;
     let disposed: Promise<void> | undefined;

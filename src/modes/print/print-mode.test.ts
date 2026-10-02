@@ -188,6 +188,32 @@ describe("print 模式", () => {
     expect(h.stderr()).not.toContain("被拒");
   });
 
+  it("--max-turns：到上限还在调工具 → 提前结束、退出 1、json 带 maxTurnsReached；上限够用则正常", async () => {
+    const readCall = { steps: [{ toolCall: { name: "read", arguments: { path: "notes.txt" } } }] };
+    h = composeHarness([readCall, readCall, { text: "finished" }]);
+    h.home.write("work/notes.txt", "x\n");
+    expect(
+      await h.run([
+        "-p",
+        "go",
+        "--model",
+        "fake/echo",
+        "--max-turns",
+        "1",
+        "--output-format",
+        "json",
+      ]),
+    ).toBe(1);
+    expect(h.fake.calls).toHaveLength(1);
+    expect(lines()[0]).toMatchObject({ stopReason: "toolUse", maxTurnsReached: true });
+    expect(h.stderr()).toContain("已达到 --max-turns 1");
+    h.cleanup();
+    h = composeHarness([readCall, readCall, { text: "finished" }]);
+    h.home.write("work/notes.txt", "x\n");
+    expect(await h.run(["-p", "go", "--model", "fake/echo", "--max-turns", "3"])).toBe(0);
+    expect(h.stdout()).toBe("finished\n");
+  });
+
   it("[W3-C2] json 结果带 cache 统计；stream-json 含 cache_miss / cache_warm / context_pressure", async () => {
     sharedCacheReporting.clear();
     const config = {

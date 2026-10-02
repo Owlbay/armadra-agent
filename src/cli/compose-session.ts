@@ -316,6 +316,8 @@ function buildSession(
     cache: cacheSettingsFrom(config, process.env, (message) => record.log("warn", message)),
     warmingDecider: () => assembly.host.warmingDecider?.(),
   };
+  const maxTurns = assembly.overrides?.maxTurns;
+  if (maxTurns !== undefined) options.maxTurns = maxTurns;
   const idle = idleTimeoutFrom(config, process.env, (message) => record.log("warn", message));
   if (idle !== undefined) options.idleTimeoutMs = idle;
   const autoModel = config.permission?.autoModel;
