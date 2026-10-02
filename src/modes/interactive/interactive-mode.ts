@@ -26,7 +26,9 @@ import type { Runtime } from "../../cli/runtime.js";
 import { buildStartupScreen } from "../../cli/startup-screen.js";
 import { KEYBINDINGS_FILE } from "../../config/paths.js";
 import { AmaError, isAmaError } from "../../errors.js";
+import { detectSandboxCapability } from "../../codemode/capability.js";
 import { PERMISSION_MODES_STRICT_FIRST } from "../../permissions/types.js";
+import { effectiveCodemodeMode } from "../../tools/presets.js";
 import {
   Container,
   Editor,
@@ -44,6 +46,7 @@ import {
   type Terminal,
   type Theme,
 } from "../../tui.js";
+import { cacheEventNotice, cacheNoticesEnabled } from "../session-report.js";
 import { onTerminationSignals } from "../shared.js";
 import { ApprovalDialogBroker, approvalOutcomeText } from "./approval-dialog.js";
 import { ALL_COMMANDS, runInteractiveCommand, type CommandUi } from "./commands.js";
@@ -152,11 +155,18 @@ export function runInteractiveMode(
     ...(options.spinnerIntervalMs !== undefined ? { intervalMs: options.spinnerIntervalMs } : {}),
   });
   const hint = new HintLine();
+  let sandboxStrict: boolean | undefined;
   const status = new StatusBar(
     {
       session: () => session,
       preset: () => runtime.config.tools?.preset ?? "default",
       hostStatus: () => runtime.host?.status(),
+      codemode: () => {
+        const mode = effectiveCodemodeMode(runtime.config);
+        const active = session.getTools().some((tool) => tool.name === "codemode");
+        return mode === "off" || !active ? undefined : mode;
+      },
+      sandboxStrict: () => (sandboxStrict ??= detectSandboxCapability().strict),
     },
     theme,
   );
@@ -315,6 +325,15 @@ export function runInteractiveMode(
         if (!event.success) view.addRetryFailed(event.finalError);
         render();
         return;
+      case "cache_miss":
+      case "context_pressure": {
+        const shown = cacheEventNotice(event, cacheNoticesEnabled(session));
+        if (shown !== undefined) view.addNotice(shown.level, shown.text);
+        status.refresh();
+        render();
+        return;
+      }
+      case "cache_warm":
       case "permission_mode_changed":
       case "model_changed":
       case "thinking_level_changed":

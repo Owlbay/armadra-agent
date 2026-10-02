@@ -5,7 +5,7 @@ import { FakeProvider } from "./ai/fake/fake-provider.js";
 import type { FakeResponse } from "./ai/fake/fake-script.js";
 import { AgentSessionImpl } from "./agent/session.js";
 import * as sdk from "./index.js";
-import { createAgentSession, createRuntime } from "./sdk.js";
+import { createAgentSession, createRuntime, type SessionCacheStats } from "./sdk.js";
 import type { ToolDefinition } from "./tools/types.js";
 
 let home: TmpHome | undefined;
@@ -57,6 +57,20 @@ describe("SDK", () => {
     expect(session.state.sessionFile).toBeUndefined();
     expect(session.getTools()).toEqual([]);
     expect(fake.calls).toHaveLength(1);
+    await session.dispose();
+  });
+
+  it("[W3-C2] 统计类型从 sdk 导出：getStats().cache 是 SessionCacheStats", async () => {
+    const { apis } = fakeApis([{ text: "ok", usage: { input: 100, output: 1, cacheRead: 300 } }]);
+    const session = await createAgentSession({
+      model: "fake/echo",
+      tools: "none",
+      apis,
+      auth: { kind: "none" },
+    });
+    await session.prompt("hi");
+    const cache: SessionCacheStats | undefined = session.getStats().cache;
+    expect(cache).toMatchObject({ reporting: "reported", lastHitRate: 0.75, reBilledTokens: 0 });
     await session.dispose();
   });
 

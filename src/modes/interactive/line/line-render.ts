@@ -10,6 +10,7 @@ import type { Runtime } from "../../../cli/runtime.js";
 import { PERMISSION_MODES_STRICT_FIRST } from "../../../permissions/types.js";
 import type { ApprovalRequest } from "../../../permissions/types.js";
 import type { CommandResult } from "../../commands-core.js";
+import { cacheEventNotice, warmSentNotice } from "../../session-report.js";
 
 const SUMMARY_KEYS = ["command", "path", "pattern", "file_path", "url", "description", "name"];
 
@@ -39,12 +40,26 @@ export function approvalQuestion(request: ApprovalRequest): string {
   return `${task}允许 ${request.toolName}${summary !== "" ? ` ${summary}` : ""}${why}？[y 允许 / a 本会话都允许 / N 拒绝] `;
 }
 
+/** [W3-C2] 缓存提示的开关（line 模式由 runLineMode 传入）。 */
+export interface EventPrinterOptions {
+  /** `cache.missNotices`（每次现取，切换会话后跟随新会话）；缺省 true。 */
+  missNotices?(): boolean;
+  /** `AMA_LOG` 为 info / debug：保温成功也写一行。 */
+  info?: boolean;
+}
+
+/** `AMA_LOG=info|debug`。 */
+export function logsInfo(env: Readonly<Record<string, string | undefined>>): boolean {
+  return env["AMA_LOG"] === "info" || env["AMA_LOG"] === "debug";
+}
+
 export class EventPrinter {
   private midLine = false;
 
   constructor(
     private readonly out: (text: string) => void,
     private readonly err: (text: string) => void,
+    private readonly options: EventPrinterOptions = {},
   ) {}
 
   private line(text: string, toErr = false): void {
@@ -105,6 +120,17 @@ export class EventPrinter {
       case "compaction_end":
         if (event.error !== undefined) this.line(`压缩失败：${event.error}`, true);
         return;
+      case "cache_miss":
+      case "context_pressure": {
+        const shown = cacheEventNotice(event, this.options.missNotices?.() ?? true);
+        if (shown !== undefined) this.line(`ama: ${shown.text}`, true);
+        return;
+      }
+      case "cache_warm": {
+        const text = this.options.info === true ? warmSentNotice(event) : undefined;
+        if (text !== undefined) this.line(`ama: ${text}`, true);
+        return;
+      }
       case "agent_settled":
         this.endLine();
         if (event.warning !== undefined) this.line(`ama: ${event.warning}`, true);

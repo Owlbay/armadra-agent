@@ -3,7 +3,9 @@
  *
  * - 提示 = 位置参数 + stdin 管道（stdin 非 TTY 时读到 EOF），两者都有时空一行拼接；都没有 → 用法错误 2。
  * - `--output-format text`（缺省）：运行结束后输出最后一条助手文本；`json`：一个结果对象（文本、
- *   停止原因、用量、缓存命中率、全部条目）；`stream-json`：每个会话事件一行（线上形状同 RPC）。
+ *   停止原因、用量、缓存命中率、[W3-C2] `cache` 统计（同 `get_session_stats.cache`）、全部条目）；
+ *   `stream-json`：每个会话事件一行（线上形状同 RPC，含 `cache_miss` / `cache_warm` /
+ *   `context_pressure`）。
  * - 无人值守：ask → deny（bootstrap 已按 print 设 unattended）。
  * - 退出码：最终助手消息 `error / aborted` 或提示被拒 → 1；SIGINT 130、SIGTERM 143（先 abort）。
  */
@@ -78,6 +80,7 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
         usage: stats.tokens,
         cost: stats.cost,
         cacheHitRate: stats.cacheHitRate,
+        ...(stats.cache !== undefined ? { cache: stats.cache } : {}),
         entries: session.entries,
       })}\n`,
     );

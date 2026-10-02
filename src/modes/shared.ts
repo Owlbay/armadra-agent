@@ -35,15 +35,23 @@ export function onTerminationSignals(onSignal: (exitCode: number) => void): () =
 
 /**
  * stdout 被下游提前关闭（`| head`）时不当作未捕获异常：调用 onClosed 并吞掉 EPIPE。
- * 监听器留到进程结束（之后的写入也可能再报 EPIPE），返回的函数只停掉回调。
+ * 进程内只装一个监听器、留到进程结束（之后的写入也可能再报 EPIPE）；返回的函数只摘掉回调——
+ * 同一进程里多次运行 print 模式（SDK、测试）不会累积监听器。
  */
+const stdoutClosedHandlers = new Set<() => void>();
+let stdoutErrorListening = false;
+
 export function onStdoutClosed(onClosed: () => void): () => void {
-  let active = true;
-  process.stdout.on("error", (error: NodeJS.ErrnoException) => {
-    if (error.code !== "EPIPE") throw error;
-    if (active) onClosed();
-  });
+  if (!stdoutErrorListening) {
+    stdoutErrorListening = true;
+    process.stdout.on("error", (error: NodeJS.ErrnoException) => {
+      if (error.code !== "EPIPE") throw error;
+      for (const handler of [...stdoutClosedHandlers]) handler();
+    });
+  }
+  const handler = (): void => onClosed();
+  stdoutClosedHandlers.add(handler);
   return () => {
-    active = false;
+    stdoutClosedHandlers.delete(handler);
   };
 }

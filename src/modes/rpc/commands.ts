@@ -181,6 +181,7 @@ export const handlers: RpcHandlers = {
   get_state: async (_p, ctx) => ctx.session().state,
   get_messages: async (_p, ctx) => ({ messages: ctx.session().messages }),
   get_last_assistant_text: async (_p, ctx) => ({ text: ctx.session().getLastAssistantText() }),
+  // [W3-C2] 含 `cache`（三态、最近 / 会话命中率、未命中、保温、余量；第三波 §1.10）。
   get_session_stats: async (_p, ctx) => ctx.session().getStats(),
   set_model: async (p, ctx) => {
     await ctx.session().setModel(`${p.provider}/${p.modelId}`);

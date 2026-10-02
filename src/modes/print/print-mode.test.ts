@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { composeHarness, type ComposeHarness } from "../../../test/helpers/compose-harness.js";
+import { sharedCacheReporting } from "../../ai/cache/reporting.js";
+import type { FakeResponse } from "../../ai/fake/fake-script.js";
 import { joinPrompt } from "./print-mode.js";
 
 let h: ComposeHarness;
@@ -90,4 +92,68 @@ describe("print 模式", () => {
     const result = h.fake.calls[1]?.context.messages.find((m) => m.role === "toolResult");
     expect(result).toMatchObject({ isError: true });
   });
+
+  it("[W3-C2] json 结果带 cache 统计；stream-json 含 cache_miss / cache_warm / context_pressure", async () => {
+    sharedCacheReporting.clear();
+    const config = {
+      version: 1,
+      // fake 供应商不读 modelOverrides（它在配置之后才补进注册表）：整条声明一个带缓存 TTL 的 echo
+      providers: {
+        fake: {
+          api: "fake",
+          baseUrl: "fake://local",
+          requiresApiKey: false,
+          models: [
+            {
+              id: "echo",
+              contextWindow: 200_000,
+              cost: { input: 1, output: 2, cacheRead: 0.1, cacheWrite: 1.25 },
+              promptCache: { short: 300 },
+            },
+          ],
+        },
+      },
+    };
+    h = composeHarness(CACHE_RUN);
+    h.home.write("home/.config/ama/config.json", config);
+    h.home.write("work/notes.txt", "x\n");
+    expect(await h.run(["-p", "hi", "--model", "fake/echo", "--output-format", "json"])).toBe(0);
+    const cache = lines()[0]?.["cache"] as Record<string, unknown>;
+    expect(cache).toMatchObject({
+      reporting: "reported",
+      lastHitRate: 0,
+      reBilledTokens: 142_000,
+      misses: { count: 1, byReason: { evicted: 1 } },
+      warming: { mode: "streaming", state: "inactive" },
+    });
+    expect(cache["reBilledUsd"]).toBeCloseTo(0.1278, 4);
+    h.cleanup();
+
+    sharedCacheReporting.clear();
+    h = composeHarness(CACHE_RUN);
+    h.home.write("home/.config/ama/config.json", config);
+    h.home.write("work/notes.txt", "x\n");
+    expect(
+      await h.run(["-p", "hi", "--model", "fake/echo", "--output-format", "stream-json"]),
+    ).toBe(0);
+    const events = lines();
+    expect(events.find((e) => e["type"] === "context_pressure")).toMatchObject({
+      percent: 71,
+      threshold: 70,
+      remainingTokens: 57_990,
+    });
+    expect(events.find((e) => e["type"] === "cache_warm")).toMatchObject({ phase: "scheduled" });
+    expect(events.find((e) => e["type"] === "cache_miss")).toMatchObject({
+      reason: "evicted",
+      missedTokens: 142_000,
+    });
+  });
 });
+
+const CACHE_RUN: FakeResponse[] = [
+  {
+    steps: [{ toolCall: { name: "read", arguments: { path: "notes.txt" } } }],
+    usage: { input: 2_000, output: 10, cacheRead: 140_000 },
+  },
+  { text: "done", usage: { input: 150_000, output: 10 } },
+];
