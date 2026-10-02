@@ -1,7 +1,9 @@
 /**
  * 配置目录初始化（docs/providers.md「配置目录」）：`ama init` 与 CLI 首次运行的自动初始化。
  *
- * - 目录 0700；`config.json` 只在不存在时写最小内容（`--force` 时先备份再重写）；
+ * - 目录 0700；`config.json` 只在不存在时写最小内容（`--force` 时先备份再重写）：只有 `$schema`、
+ *   `version` 与空 `providers`，不写死任何缺省值——缺省值以后调整（例如 codemode 跟随预设）对老用户
+ *   同样生效，`config show` 的来源也显示 default 而不是 user；
  * - `config.schema.json` 不是用户文件，每次 init 都按当前版本重写（内容相同则不动）；
  * - 不创建 auth.json（只有 `ama auth set` / `ama providers add` 才写，0600）。
  * - 自动初始化只在 CLI 里、配置目录不存在时触发，`AMA_NO_INIT=1` 关闭；SDK 与测试不走这里。
@@ -23,14 +25,11 @@ import { CONFIG_FILE_VERSION, type AmaConfig } from "./types.js";
 
 export const NO_INIT_ENV = "AMA_NO_INIT";
 
-/** 最小 config.json：常用键的缺省值（与 DEFAULT_CONFIG 相同，写出来方便直接改）。 */
+/** 最小 config.json：只有 `$schema`、`version` 与空 `providers`（缺省值见 `ama config show`）。 */
 export function minimalConfig(): AmaConfig & { $schema: string } {
   return {
     $schema: `./${CONFIG_SCHEMA_FILE}`,
     version: CONFIG_FILE_VERSION,
-    thinkingLevel: "medium",
-    permission: { mode: "default" },
-    tools: { preset: "default" },
     providers: {},
   };
 }
@@ -100,6 +99,15 @@ const STATUS_TEXT: Record<InitStatus, string> = {
   unchanged: "已是当前版本",
   overwritten: "已重写（原文件备份为 .bak）",
 };
+
+/** init 之后的下一步（配 key / 接中转站 / 自检）。 */
+export const INIT_NEXT_STEPS = [
+  "下一步：",
+  "  ama auth set anthropic          保存内置供应商的 key（或设置 ANTHROPIC_API_KEY 等环境变量）",
+  "  ama providers add <id> --base-url <url>   接入中转站或自建服务",
+  "  ama doctor                      检查配置、key 与运行环境",
+  "  ama config show                 查看生效配置与每项来源",
+];
 
 export function describeInit(result: InitResult): string {
   const lines = [`${result.dir}${result.dirCreated ? "  已创建（0700）" : "  已存在"}`];

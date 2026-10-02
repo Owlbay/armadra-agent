@@ -6,7 +6,7 @@ import { main } from "../cli/main.js";
 import { CONFIG_SCHEMA_FILE, configSchemaText } from "./json-schema.js";
 import { autoInitConfigDir, describeInit, initConfigDir, minimalConfig } from "./init.js";
 import { loadConfigFile } from "./load.js";
-import { DEFAULT_CONFIG } from "./merge.js";
+import { DEFAULT_CONFIG, mergeConfigLayers } from "./merge.js";
 
 const posix = process.platform !== "win32";
 
@@ -26,10 +26,16 @@ describe("ama init", () => {
     expect(loaded?.warnings).toEqual([]);
     expect(loaded?.value).toEqual(minimalConfig());
     expect(readFileSync(join(dir, CONFIG_SCHEMA_FILE), "utf8")).toBe(configSchemaText());
-    // 最小配置的值与内置缺省一致：写出来不改变行为
-    expect(minimalConfig().thinkingLevel).toBe(DEFAULT_CONFIG.thinkingLevel);
-    expect(minimalConfig().permission?.mode).toBe(DEFAULT_CONFIG.permission?.mode);
-    expect(minimalConfig().tools?.preset).toBe(DEFAULT_CONFIG.tools?.preset);
+    // 只写 $schema / version / 空 providers：不写死缺省值，以后调整缺省值对老用户同样生效
+    expect(Object.keys(minimalConfig()).sort()).toEqual(["$schema", "providers", "version"]);
+    expect(minimalConfig().providers).toEqual({});
+    const merged = mergeConfigLayers({ user: minimalConfig() }).config as unknown as Record<
+      string,
+      unknown
+    >;
+    const { $schema: _schema, providers: _providers, ...rest } = merged;
+    expect(rest).toEqual(mergeConfigLayers({}).config);
+    expect(merged.thinkingLevel).toBe(DEFAULT_CONFIG.thinkingLevel);
   });
 
   it("幂等、不覆盖用户文件；schema 过期时重写；--force 先备份再重写 config，永不动 auth.json", () => {
@@ -77,6 +83,8 @@ describe("ama init", () => {
     out.length = 0;
     expect(await main(["init"], { io, processHooks: false })).toBe(0);
     expect(out.join("")).toContain("config.json  已存在，未改动");
+    expect(out.join("")).toContain("下一步：");
+    expect(out.join("")).toContain("ama providers add <id> --base-url <url>");
     expect(out.join("")).toContain(`${CONFIG_SCHEMA_FILE}  已是当前版本`);
     out.length = 0;
     expect(
