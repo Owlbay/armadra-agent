@@ -150,6 +150,8 @@ export function runInteractiveMode(
     theme,
     cwd: session.state.cwd,
     getTool: (name) => session.getTools().find((tool) => tool.name === name),
+    now,
+    spinner: () => loader.frame,
   });
   const queueText = new Text("");
   const loaderSlot = new Container();
@@ -159,6 +161,7 @@ export function runInteractiveMode(
     now,
     ...(options.spinnerIntervalMs !== undefined ? { intervalMs: options.spinnerIntervalMs } : {}),
   });
+  loader.onFrame(() => tools.tick());
   const hint = new HintLine();
   let sandboxStrict: boolean | undefined;
   const status = new StatusBar(

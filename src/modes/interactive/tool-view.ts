@@ -1,35 +1,56 @@
 /**
- * 工具调用显示（设计 §12.5）。[B7]
+ * 工具调用显示（设计 §12.5；终端界面视觉设计 v1 §3.5）。[B7]
  *
- * - 一行标题 `● bash  git status`：圆点运行中为强调色，成功绿、失败红；摘要取最能代表这次调用的参数
- *   （bash 命令、文件路径、搜索模式、task 描述……），路径相对会话 cwd。
- * - 折叠（缺省）：结果前 3 行 + 剩余行数；`edit` 显示 `details.diff`（+/− 着色，前 12 行）；
- *   `bash` 运行中流式显示尾部 8 行；错误红色。`Ctrl+O` 展开全部（上限 400 行）。
- * - 嵌套：带 `parentToolCallId` 的调用（codemode 脚本里的 `tools.*`，B10）挂在外层调用下；折叠时只列
- *   内层调用的标题（最近 5 个），展开时完整显示。
+ * 三级层级，用缩进表达：
+ * ```
+ * ⏺ read src/tui/tui.ts:1+120          第 0 列：⏺（运行中 accent、成功 success、失败 error）+ 工具名 + 摘要
+ *   ⎿ 读取 120 行                       第 2 列：⎿ + 一行结果摘要（tool-summary.ts）
+ *          1  /**                        第 4 列：输出正文
+ *     … 另 117 行（Ctrl+O 展开）
+ * ```
+ * - 运行中摘要行 `⎿ ⠋ 运行中 · 4s`：spinner 与底部 Loader 同帧（ToolTracker.tick 由 Loader.onFrame 驱动），
+ *   标题行不变；bash 流式显示尾部 8 行（muted）。task 显示 `子 Agent · 运行中 1m05s`。
+ * - 折叠（缺省）：结果前 3 行；edit 显示 `details.diff`（`@@` dim、`+` success、`-` error、上下文 muted，
+ *   宽 ≥ 60 时带行号列），前 12 行；`Ctrl+O` 展开全部（上限 400 行，长行折行）。
+ * - 嵌套：带 `parentToolCallId` 的调用（codemode 脚本里的 `tools.*`）挂在外层调用下、右移 4 列；折叠时只列
+ *   最近 5 个内层调用的标题与摘要行，展开时完整显示。
  * - 工具输出先去掉 ANSI 与控制字符、Tab 换成空格，避免打乱布局。
- * - 自定义渲染（W3-B9a-2，`ToolDefinition.renderCall / renderResult`）：`getTool` 能取到定义时，标题摘要
- *   优先取 `renderCall(input, width)` 的第一行（codemode 显示脚本首行）；成功的结果优先用
- *   `renderResult(result, width, expanded)`（去控制字符、按宽截断、上限 400 行）；自定义渲染抛错或返回
- *   空时回到缺省显示；错误结果始终用缺省的红色显示。
+ * - 自定义渲染（`ToolDefinition.renderCall / renderResult`）：标题摘要优先取 `renderCall` 第一行；成功的结果
+ *   正文优先用 `renderResult`；抛错或返回空时回到缺省显示；错误结果始终用缺省显示。
  */
 
-import { isAbsolute, relative } from "node:path";
 import type { ToolDefinition, ToolResult } from "../../tools/types.js";
 import {
-  stripAnsi,
+  formatElapsed,
   truncateToWidth,
   wrapTextWithAnsi,
   type Component,
+  type SemanticColor,
   type Theme,
 } from "../../tui.js";
 import { contentText } from "./message-view.js";
+import {
+  bashOutput,
+  cleanLines,
+  diffOf,
+  flat,
+  parseDiff,
+  resultSummary,
+  toolSummary,
+  type DiffRow,
+} from "./tool-summary.js";
+
+export { cleanLines, toolSummary } from "./tool-summary.js";
 
 export const COLLAPSED_RESULT_LINES = 3;
 export const COLLAPSED_DIFF_LINES = 12;
 export const BASH_TAIL_LINES = 8;
 export const EXPANDED_MAX_LINES = 400;
 export const COLLAPSED_CHILDREN = 5;
+/** 正文缩进（第 4 列）。 */
+const BODY = "    ";
+/** diff 行号列的最小显示宽度。 */
+const DIFF_NUMBERS_MIN_WIDTH = 60;
 
 export interface ToolViewOptions {
   theme: Theme;
@@ -37,84 +58,13 @@ export interface ToolViewOptions {
   cwd?: string;
   /** 取工具定义（自定义渲染用）；缺省或取不到时用内置摘要与结果显示。 */
   getTool?(name: string): ToolDefinition | undefined;
+  /** 计时（耗时与运行中秒数）；缺省 Date.now。 */
+  now?(): number;
+  /** 运行中摘要行的 spinner 帧（与 Loader 同帧）；缺省静态字形。 */
+  spinner?(): string;
 }
 
 type ToolState = "running" | "done" | "error";
-
-/** 工具输出 → 可安全显示的行。 */
-export function cleanLines(text: string): string[] {
-  const clean = stripAnsi(text)
-    .replace(/\r\n?/g, "\n")
-    .replace(/\t/g, "    ")
-    .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, "");
-  const lines = clean.split("\n");
-  while (lines.length > 0 && lines[lines.length - 1]!.trim() === "") lines.pop();
-  return lines;
-}
-
-function flat(text: string, max = 120): string {
-  const one = text.replace(/\s*\n\s*/g, " ⏎ ").trim();
-  return one.length > max ? `${one.slice(0, max - 1)}…` : one;
-}
-
-function displayPath(path: string, cwd: string | undefined): string {
-  if (cwd === undefined || !isAbsolute(path)) return path;
-  const rel = relative(cwd, path);
-  return rel === "" ? "." : rel.startsWith("..") || isAbsolute(rel) ? path : rel;
-}
-
-/** 标题行里的参数摘要。 */
-export function toolSummary(name: string, args: unknown, cwd?: string): string {
-  if (typeof args !== "object" || args === null) return "";
-  const a = args as Record<string, unknown>;
-  const str = (key: string): string | undefined =>
-    typeof a[key] === "string" && a[key] !== "" ? (a[key] as string) : undefined;
-  const path = str("path") ?? str("file_path");
-  switch (name) {
-    case "bash":
-      return flat(str("command") ?? "");
-    case "read": {
-      if (path === undefined) return "";
-      const offset = typeof a["offset"] === "number" ? a["offset"] : undefined;
-      const limit = typeof a["limit"] === "number" ? a["limit"] : undefined;
-      const range =
-        offset !== undefined || limit !== undefined
-          ? `:${offset ?? 1}${limit !== undefined ? `+${limit}` : ""}`
-          : "";
-      return displayPath(path, cwd) + range;
-    }
-    case "grep":
-    case "glob": {
-      const pattern = str("pattern") ?? "";
-      return path !== undefined ? `${flat(pattern)}  in ${displayPath(path, cwd)}` : flat(pattern);
-    }
-    case "task":
-      return flat(str("description") ?? str("prompt") ?? "");
-    default:
-      if (path !== undefined) return displayPath(path, cwd);
-      for (const key of [
-        "command",
-        "pattern",
-        "description",
-        "query",
-        "url",
-        "name",
-        "code",
-        "script",
-      ]) {
-        const value = str(key);
-        if (value !== undefined) return flat(value);
-      }
-      return "";
-  }
-}
-
-function diffOf(result: ToolResult | undefined): string | undefined {
-  const details = result?.details;
-  if (typeof details !== "object" || details === null) return undefined;
-  const diff = (details as { diff?: unknown }).diff;
-  return typeof diff === "string" && diff !== "" ? diff : undefined;
-}
 
 export class ToolView implements Component {
   private state: ToolState = "running";
@@ -124,6 +74,8 @@ export class ToolView implements Component {
   private readonly nested: ToolView[] = [];
   private cache: { width: number; version: number; lines: string[] } | null = null;
   private version = 0;
+  private readonly startedAt: number;
+  private elapsedMs = 0;
   /** 外层调用（嵌套时）：子视图变化要让外层缓存失效。 */
   private parent: ToolView | undefined;
 
@@ -132,7 +84,13 @@ export class ToolView implements Component {
     readonly toolName: string,
     private readonly args: unknown,
     private readonly options: ToolViewOptions,
-  ) {}
+  ) {
+    this.startedAt = this.now();
+  }
+
+  private now(): number {
+    return this.options.now?.() ?? Date.now();
+  }
 
   get isRunning(): boolean {
     return this.state === "running";
@@ -162,6 +120,7 @@ export class ToolView implements Component {
   finish(result: ToolResult, isError: boolean): void {
     this.result = result;
     this.state = isError || result.isError === true ? "error" : "done";
+    this.elapsedMs = this.now() - this.startedAt;
     this.touch();
   }
 
@@ -170,6 +129,11 @@ export class ToolView implements Component {
     child.parent = this;
     this.nested.push(child);
     this.touch();
+  }
+
+  /** spinner 换帧 / 秒数变化：运行中的视图重画摘要行。 */
+  tick(): void {
+    if (this.state === "running") this.touch();
   }
 
   private touch(): void {
@@ -186,23 +150,53 @@ export class ToolView implements Component {
     if (this.cache && this.cache.width === width && this.cache.version === this.version) {
       return this.cache.lines;
     }
-    const lines = [this.header(width), ...this.body(width)];
+    const lines = [this.header(width), this.summaryLine(width), ...this.body(width)].filter(
+      (line): line is string => line !== undefined,
+    );
     this.cache = { width, version: this.version, lines };
     return lines;
   }
 
   header(width: number): string {
     const { theme } = this.options;
-    const dot =
-      this.state === "running"
-        ? theme.fg("accent", "●")
-        : this.state === "error"
-          ? theme.fg("error", "●")
-          : theme.fg("success", "●");
+    const color: SemanticColor =
+      this.state === "running" ? "accent" : this.state === "error" ? "error" : "success";
+    const dot = theme.fg(color, theme.glyphs.tool);
     const summary =
       this.customCall(width) ?? toolSummary(this.toolName, this.args, this.options.cwd);
     const title = `${dot} ${theme.bold(theme.fg("tool", this.toolName))}`;
-    return truncateToWidth(summary === "" ? title : `${title}  ${summary}`, width);
+    return truncateToWidth(summary === "" ? title : `${title} ${summary}`, width);
+  }
+
+  /** `  ⎿ 摘要`：运行中带 spinner 与秒数，完成后是结果摘要。 */
+  summaryLine(width: number): string | undefined {
+    const { theme } = this.options;
+    const g = theme.glyphs;
+    const lead = "  " + theme.fg("border", g.result) + " ";
+    if (this.state === "running") {
+      const frame = this.options.spinner?.() ?? g.spinnerStatic;
+      const elapsed = formatElapsed(this.now() - this.startedAt);
+      const what =
+        this.toolName === "task" ? `子 Agent · 运行中 ${elapsed}` : `运行中 · ${elapsed}`;
+      return truncateToWidth(
+        lead + theme.fg("accent", frame) + " " + theme.fg("muted", what),
+        width,
+      );
+    }
+    const result = this.result!;
+    const text = resultSummary(
+      {
+        name: this.toolName,
+        args: this.args,
+        result,
+        isError: this.state === "error",
+        lines: this.resultLines(),
+        elapsedMs: this.elapsedMs,
+        nestedCount: this.nested.length,
+      },
+      theme,
+    );
+    return truncateToWidth(lead + text, width);
   }
 
   private custom<T>(render: (tool: ToolDefinition) => T): T | undefined {
@@ -227,86 +221,136 @@ export class ToolView implements Component {
   private customResult(width: number): string[] | undefined {
     const result = this.result;
     if (result === undefined || this.state !== "done") return undefined;
-    const inner = Math.max(1, width - 2);
+    const inner = Math.max(1, width - BODY.length);
     const rendered = this.custom((tool) => tool.renderResult?.(result, inner, this.expanded));
     if (!Array.isArray(rendered) || rendered.length === 0) return undefined;
     return rendered
       .slice(0, EXPANDED_MAX_LINES)
-      .map((line) => "  " + truncateToWidth(cleanLines(String(line)).join(" "), inner));
+      .map((line) => BODY + truncateToWidth(cleanLines(String(line)).join(" "), inner));
   }
 
-  private indent(lines: readonly string[], width: number, color?: "dim" | "error"): string[] {
+  /** 完成后的结果正文（已清洗）：bash 取 `details.output`。 */
+  private resultLines(): string[] {
+    const result = this.result;
+    if (result === undefined) return [];
+    if (this.toolName === "bash") {
+      const output = bashOutput(result);
+      if (output !== undefined) return cleanLines(output);
+    }
+    return cleanLines(contentText(result.content));
+  }
+
+  private indent(lines: readonly string[], width: number, color?: SemanticColor): string[] {
     const { theme } = this.options;
-    const inner = Math.max(1, width - 2);
+    const inner = Math.max(1, width - BODY.length);
     const out: string[] = [];
     for (const line of lines) {
       const pieces = this.expanded ? wrapTextWithAnsi(line, inner) : [truncateToWidth(line, inner)];
-      for (const piece of pieces) out.push("  " + (color ? theme.fg(color, piece) : piece));
+      for (const piece of pieces) out.push(BODY + (color ? theme.fg(color, piece) : piece));
     }
     return out;
   }
 
   private more(hidden: number): string {
-    return "  " + this.options.theme.fg("dim", `… 另 ${hidden} 行（Ctrl+O 展开）`);
+    const { theme } = this.options;
+    return BODY + theme.fg("dim", `${theme.glyphs.ellipsis} 另 ${hidden} 行（Ctrl+O 展开）`);
+  }
+
+  private nestedLines(width: number): string[] {
+    const { theme } = this.options;
+    if (this.nested.length === 0) return [];
+    const inner = Math.max(1, width - BODY.length);
+    const out: string[] = [];
+    if (this.expanded) {
+      for (const child of this.nested) {
+        for (const line of child.render(inner)) out.push(BODY + line);
+      }
+      return out;
+    }
+    const shown = this.nested.slice(-COLLAPSED_CHILDREN);
+    if (this.nested.length > shown.length) {
+      const hidden = this.nested.length - shown.length;
+      out.push(BODY + theme.fg("dim", `${theme.glyphs.ellipsis} 前 ${hidden} 个调用`));
+    }
+    for (const child of shown) {
+      out.push(BODY + child.header(inner));
+      const summary = child.summaryLine(inner);
+      if (summary !== undefined) out.push(BODY + summary);
+    }
+    return out;
   }
 
   private body(width: number): string[] {
-    const { theme } = this.options;
-    const out: string[] = [];
-    // 嵌套调用
-    if (this.nested.length > 0) {
-      if (this.expanded) {
-        for (const child of this.nested) {
-          for (const line of child.render(Math.max(1, width - 2))) out.push("  " + line);
-        }
-      } else {
-        const shown = this.nested.slice(-COLLAPSED_CHILDREN);
-        if (this.nested.length > shown.length) {
-          out.push("  " + theme.fg("dim", `… 前 ${this.nested.length - shown.length} 个调用`));
-        }
-        for (const child of shown) out.push("  " + child.header(Math.max(1, width - 2)));
-      }
-    }
+    const out = this.nestedLines(width);
     if (this.state === "running") {
       if (this.partial !== "") {
         const all = cleanLines(this.partial);
         const tail = this.expanded ? all.slice(-EXPANDED_MAX_LINES) : all.slice(-BASH_TAIL_LINES);
-        out.push(...this.indent(tail, width, "dim"));
+        out.push(...this.indent(tail, width, "muted"));
       }
       return out;
     }
     const custom = this.customResult(width);
-    if (custom !== undefined) {
-      out.push(...custom);
-      return out;
-    }
+    if (custom !== undefined) return [...out, ...custom];
     const diff = this.state === "done" ? diffOf(this.result) : undefined;
-    if (diff !== undefined) {
-      const all = cleanLines(diff).filter((l) => !l.startsWith("---") && !l.startsWith("+++"));
-      const limit = this.expanded ? EXPANDED_MAX_LINES : COLLAPSED_DIFF_LINES;
-      const shown = all.slice(0, limit);
-      const inner = Math.max(1, width - 2);
-      for (const line of shown) {
-        const text = truncateToWidth(line, inner);
-        const colored = line.startsWith("+")
-          ? theme.fg("success", text)
-          : line.startsWith("-")
-            ? theme.fg("error", text)
-            : line.startsWith("@@")
-              ? theme.fg("accent", text)
-              : theme.fg("dim", text);
-        out.push("  " + colored);
-      }
-      if (all.length > shown.length) out.push(this.more(all.length - shown.length));
-      return out;
-    }
-    const text = this.result === undefined ? "" : contentText(this.result.content);
-    const all = cleanLines(text);
+    if (diff !== undefined) return [...out, ...this.diffLines(parseDiff(diff), width)];
+    let all = this.resultLines();
+    // 非 bash 的失败：首行已在摘要里
+    if (this.state === "error" && this.toolName !== "bash") all = all.slice(1);
     if (all.length === 0) return out;
     const limit = this.expanded ? EXPANDED_MAX_LINES : COLLAPSED_RESULT_LINES;
     const shown = all.slice(0, limit);
-    out.push(...this.indent(shown, width, this.state === "error" ? "error" : "dim"));
+    if (this.state === "error") out.push(...this.indent(shown, width, "error"));
+    else if (this.toolName === "read") out.push(...this.readLines(shown, width));
+    else if (this.toolName === "grep") out.push(...this.grepLines(shown, width));
+    else out.push(...this.indent(shown, width, "muted"));
     if (all.length > shown.length) out.push(this.more(all.length - shown.length));
+    return out;
+  }
+
+  /** read：行号右对齐（按最长行号，至少 3 位）dim，与正文隔两格。 */
+  private readLines(lines: readonly string[], width: number): string[] {
+    const { theme } = this.options;
+    const parsed = lines.map((line) => /^\s*(\d+) {4}(.*)$/.exec(line));
+    const numWidth = Math.max(3, ...parsed.map((m) => (m ? m[1]!.length : 0)));
+    const styled = lines.map((line, i) => {
+      const m = parsed[i];
+      return m ? theme.fg("dim", m[1]!.padStart(numWidth)) + "  " + m[2]! : line;
+    });
+    return this.indent(styled, width);
+  }
+
+  /** grep：路径正文色，`:行号:` dim，命中片段 muted。 */
+  private grepLines(lines: readonly string[], width: number): string[] {
+    const { theme } = this.options;
+    const styled = lines.map((line) => {
+      const m = /^(.+?)(:\d+:)(.*)$/.exec(line);
+      return m
+        ? m[1]! + theme.fg("dim", m[2]!) + theme.fg("muted", m[3]!)
+        : theme.fg("muted", line);
+    });
+    return this.indent(styled, width);
+  }
+
+  private diffLines(rows: readonly DiffRow[], width: number): string[] {
+    const { theme } = this.options;
+    const limit = this.expanded ? EXPANDED_MAX_LINES : COLLAPSED_DIFF_LINES;
+    const shown = rows.slice(0, limit);
+    const numbers = width >= DIFF_NUMBERS_MIN_WIDTH;
+    const numWidth = Math.max(3, ...shown.map((r) => String(r.num ?? "").length));
+    const color: Record<DiffRow["kind"], SemanticColor> = {
+      hunk: "dim",
+      add: "success",
+      del: "error",
+      ctx: "muted",
+    };
+    const styled = shown.map((row) => {
+      if (!numbers || row.kind === "hunk") return theme.fg(color[row.kind], row.text);
+      const no = theme.fg("dim", String(row.num ?? "").padStart(numWidth));
+      return `${no} ${theme.fg(color[row.kind], row.text)}`;
+    });
+    const out = this.indent(styled, width);
+    if (rows.length > shown.length) out.push(this.more(rows.length - shown.length));
     return out;
   }
 }
@@ -324,6 +368,11 @@ export class ToolTracker {
 
   get(toolCallId: string): ToolView | undefined {
     return this.views.get(toolCallId);
+  }
+
+  /** 运行中的调用数（Loader 动词用）。 */
+  running(): ToolView[] {
+    return [...this.views.values()].filter((view) => view.isRunning);
   }
 
   /** 新调用；返回视图与它是否是顶层（顶层由调用方加进消息区）。 */
@@ -353,6 +402,11 @@ export class ToolTracker {
 
   end(toolCallId: string, result: ToolResult, isError: boolean): void {
     this.views.get(toolCallId)?.finish(result, isError);
+  }
+
+  /** Loader 换帧：运行中的视图重画摘要行。 */
+  tick(): void {
+    for (const view of this.views.values()) view.tick();
   }
 
   /** 已完成的调用（重放历史）。 */

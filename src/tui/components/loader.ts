@@ -134,12 +134,8 @@ export class Loader implements Component {
 
   /** 推进一帧（定时器调用；测试可直接调用）。静止时只在已用时变化时重绘。 */
   tick(): void {
-    if (!this.animated) {
-      if (this.elapsedText() === this.lastElapsed) return;
-      this.requestRender();
-      return;
-    }
-    this.frameIndex = (this.frameIndex + 1) % this.frames.length;
+    if (this.animated) this.frameIndex = (this.frameIndex + 1) % this.frames.length;
+    else if (this.elapsedText() === this.lastElapsed) return;
     const frame = this.frame;
     for (const listener of this.listeners) listener(frame);
     this.requestRender();

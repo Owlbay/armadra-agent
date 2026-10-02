@@ -50,7 +50,7 @@
 |
 |
 
-# tool running · viewport 40x24 cursor=12,2
+# tool running · viewport 40x24 cursor=13,2
 |✻ ama <version> · fake/echo · Manual · /help
 |
 |› 读一下 README，说说是什么
@@ -59,7 +59,8 @@
 |
 |Reading it.
 |
-|● read  README.md
+|⏺ read README.md
+|  ⎿ ⠋ 运行中 · 0s
 |
 |⠋ 工作中 · 0s · Esc 中断
 |────────────────────────────────────────
@@ -74,9 +75,8 @@
 |
 |
 |
-|
 
-# settled · viewport 40x24 cursor=18,2
+# settled · viewport 40x24 cursor=19,2
 |✻ ama <version> · fake/echo · Manual · /help
 |
 |› 读一下 README，说说是什么
@@ -85,11 +85,12 @@
 |
 |Reading it.
 |
-|● read  README.md
-|       1    # Demo
-|       2
-|       3    A tiny project.
-|  … 另 2 行（Ctrl+O 展开）
+|⏺ read README.md
+|  ⎿ 读取 5 行
+|      1  # Demo
+|      2
+|      3  A tiny project.
+|    … 另 2 行（Ctrl+O 展开）
 |
 |The README describes Demo, a tiny
 |project.
@@ -100,9 +101,8 @@
 |fake/echo · ctx 1% · mode:Manual
 |
 |
-|
 
-# ctrl+o expanded · viewport 40x24 cursor=19,2
+# ctrl+o expanded · viewport 40x24 cursor=20,2
 |✻ ama <version> · fake/echo · Manual · /help
 |
 |› 读一下 README，说说是什么
@@ -111,12 +111,13 @@
 |
 |Reading it.
 |
-|● read  README.md
-|       1    # Demo
-|       2
-|       3    A tiny project.
-|       4    It has three lines of prose.
-|       5    And one more.
+|⏺ read README.md
+|  ⎿ 读取 5 行
+|      1  # Demo
+|      2
+|      3  A tiny project.
+|      4  It has three lines of prose.
+|      5  And one more.
 |
 |The README describes Demo, a tiny
 |project.
@@ -126,9 +127,8 @@
 |────────────────────────────────────────
 |工具输出：展开
 |fake/echo · ctx 1% · mode:Manual
-|
 
-# exit · viewport 40x24 cursor=22,0
+# exit · viewport 40x24 cursor=23,0
 |✻ ama <version> · fake/echo · Manual · /help
 |
 |› 读一下 README，说说是什么
@@ -137,12 +137,13 @@
 |
 |Reading it.
 |
-|● read  README.md
-|       1    # Demo
-|       2
-|       3    A tiny project.
-|       4    It has three lines of prose.
-|       5    And one more.
+|⏺ read README.md
+|  ⎿ 读取 5 行
+|      1  # Demo
+|      2
+|      3  A tiny project.
+|      4  It has three lines of prose.
+|      5  And one more.
 |
 |The README describes Demo, a tiny
 |project.
@@ -151,5 +152,4 @@
 |› 输入消息，/ 命令，@ 文件，Shift+Enter…
 |────────────────────────────────────────
 |fake/echo · ctx 1% · mode:Manual
-|
 |
