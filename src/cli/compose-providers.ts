@@ -4,6 +4,8 @@
  * - `ProviderBuildInput` → `ProviderRegistry`：auth.json（`--auth-file` 或用户级缺省，已由 bootstrap
  *   解析成一个路径，所以 `userAuthFile: null`）、环境变量开关、`--api-key` 只作用于 `--model` 所属的
  *   供应商（无斜杠的模型名先用一个不带 cli key 的注册表解析出供应商）。
+ * - `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`（第三波 §2.3）：与 key 同一份 `env`、同一个 `authEnv`
+ *   开关进注册表，内置 openai / anthropic 指向中转站；profile.authEnv=false 时一并不读。
  * - SDK 追加的供应商（`ProviderData[]`）折成 `config.providers` 条目，走同一条合并路径。
  * - 零配置（设计 §10.0）：没有 `defaultModel`、也没有任何需要 key 的供应商配了 key 时，探测本地
  *   ollama / lmstudio（短超时），把枚举到的模型加进注册表，供 `pickDefaultModel` 选用。
@@ -32,9 +34,10 @@ export interface ProviderComposeOptions {
   warn?: ((message: string) => void) | undefined;
 }
 
-function modelConfigOf(model: ProviderData["models"][number]): ModelConfig {
-  const { provider: _p, api: _a, ...rest } = model;
-  return rest;
+/** 模型协议与供应商不同时保留模型级 `api`（同一中转下的模型可走不同协议）。 */
+function modelConfigOf(model: ProviderData["models"][number], providerApi: string): ModelConfig {
+  const { provider: _p, api, ...rest } = model;
+  return api !== providerApi ? { ...rest, api } : rest;
 }
 
 export function providerConfigOf(provider: ProviderData): ProviderConfig {
@@ -44,7 +47,7 @@ export function providerConfigOf(provider: ProviderData): ProviderConfig {
     baseUrl: provider.baseUrl,
     envKeys: [...provider.envKeys],
     requiresApiKey: provider.requiresApiKey,
-    models: provider.models.map(modelConfigOf),
+    models: provider.models.map((model) => modelConfigOf(model, provider.api)),
   };
   if (provider.authHeader !== undefined) config.authHeader = provider.authHeader;
   if (provider.headers !== undefined) config.headers = { ...provider.headers };

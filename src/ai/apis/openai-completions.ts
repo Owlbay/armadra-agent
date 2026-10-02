@@ -7,21 +7,15 @@
  * - 工具调用增量按 `index` 拼接；缺 index 按 `id`；两者都缺则续到最近一个工具调用；
  * - usage 三个位置：`chunk.usage`（标准）、`chunk.x_groq.usage`（Groq）、`choices[0].usage`
  *   （Moonshot）；缓存命中三种字段：`prompt_tokens_details.cached_tokens`（OpenAI /
- *   OpenRouter）、`prompt_cache_hit_tokens`（DeepSeek）、顶层 `cached_tokens`（Moonshot）；
+ *   OpenRouter）、`prompt_cache_hit_tokens`（DeepSeek）、顶层 `cached_tokens`（Moonshot）；任一缓存
+ *   字段出现（含 0）即 `cacheReported: true`，都没有为 false（第三波 §1.6）；
  * - 结束证据是 finish_reason 或 `[DONE]`；两者都没有 → 断流错误。finish_reason 为 stop 但
  *   有工具调用时按 toolUse（部分本地服务如此返回）；`supportsFinishReason: false` 时完全按
  *   内容推断。
  */
 
 import { AssistantEventStreamImpl } from "../event-stream.js";
-import {
-  USER_AGENT,
-  authHeaders,
-  describeErrorJson,
-  joinUrl,
-  mergeHeaders,
-  postJson,
-} from "../http.js";
+import { USER_AGENT, authHeaders, describeErrorJson, joinUrl, mergeHeaders } from "../http.js";
 import { readSseEvents } from "../sse.js";
 import type {
   ApiImplementation,
@@ -32,6 +26,7 @@ import type {
   TranscriptContext,
   Usage,
 } from "../types.js";
+import { affinityHeaders, postWithCacheFallback, resolveCacheRetention } from "./cache-params.js";
 import { detectCompat } from "./openai-compat.js";
 import { REASONING_FIELDS, buildOpenAIRequest } from "./openai-request.js";
 import {
@@ -71,12 +66,20 @@ export function parseOpenAIUsage(raw: Json): Usage {
     0;
   const cacheWrite = num(details?.["cache_write_tokens"]) ?? 0;
   const output = num(raw["completion_tokens"]) ?? 0;
+  const cacheFields = [
+    details?.["cached_tokens"],
+    details?.["cache_write_tokens"],
+    raw["prompt_cache_hit_tokens"],
+    raw["prompt_cache_miss_tokens"],
+    raw["cached_tokens"],
+  ];
   const usage: Usage = {
     input: Math.max(0, prompt - cacheRead - cacheWrite),
     output,
     cacheRead,
     cacheWrite,
     totalTokens: 0,
+    cacheReported: cacheFields.some((value) => num(value) !== undefined),
   };
   const reasoning = num(obj(raw["completion_tokens_details"])?.["reasoning_tokens"]);
   if (reasoning !== undefined) usage.reasoning = reasoning;
@@ -204,6 +207,12 @@ function buildHeaders(model: Model, options: StreamOptions): Record<string, stri
   return mergeHeaders(
     { "content-type": "application/json", accept: "text/event-stream", "user-agent": USER_AGENT },
     authHeaders(options.apiKey, model.authHeader, "authorization-bearer"),
+    affinityHeaders(
+      model,
+      "openai-completions",
+      options.sessionId,
+      resolveCacheRetention(options.cacheRetention),
+    ),
     model.headers,
     options.headers,
   );
@@ -224,7 +233,7 @@ async function run(
     }
     const replaced = options.onPayload?.(request.body);
     const baseUrl = model.baseUrl ?? "https://api.openai.com/v1";
-    const response = await postJson(joinUrl(baseUrl, "/chat/completions"), {
+    const response = await postWithCacheFallback(model, joinUrl(baseUrl, "/chat/completions"), {
       headers: buildHeaders(model, options),
       body: replaced === undefined ? request.body : replaced,
       signal: options.signal,

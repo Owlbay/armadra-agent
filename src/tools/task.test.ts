@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { SubagentRequest, SubagentResult } from "./types.js";
 import { makeToolContext } from "../../test/helpers/tool-context.js";
-import { MAX_TASK_CONCURRENCY, Semaphore, createTaskTool } from "./task.js";
+import { DEFAULT_SUBAGENT_CONCURRENCY, SubagentPool } from "../agent/session-subagent.js";
+import { createTaskTool } from "./task.js";
 
 const usage = { input: 1, output: 2, cacheRead: 0, cacheWrite: 0, totalTokens: 3 };
 
@@ -70,15 +71,21 @@ describe("task", () => {
     );
   });
 
-  it("并发 ≤ 4，超出排队", async () => {
+  it("并发 ≤ 4 由会话的 SubagentPool 排队（task 不再自带信号量）", async () => {
+    const pool = new SubagentPool(DEFAULT_SUBAGENT_CONCURRENCY);
     let running = 0;
     let peak = 0;
-    const spawn = async () => {
-      running++;
-      peak = Math.max(peak, running);
-      await new Promise((r) => setTimeout(r, 30));
-      running--;
-      return result("ok");
+    const spawn = async (req: SubagentRequest) => {
+      await pool.acquire(req.signal);
+      try {
+        running++;
+        peak = Math.max(peak, running);
+        await new Promise((r) => setTimeout(r, 20));
+        running--;
+        return result("ok");
+      } finally {
+        pool.release();
+      }
     };
     const tool = createTaskTool();
     const runs = Array.from({ length: 7 }, (_, i) =>
@@ -86,28 +93,41 @@ describe("task", () => {
     );
     const results = await Promise.all(runs);
     expect(results.every((r) => r.content === "ok")).toBe(true);
-    expect(peak).toBe(MAX_TASK_CONCURRENCY);
+    expect(peak).toBe(DEFAULT_SUBAGENT_CONCURRENCY);
   });
 
-  it("父 abort 级联：排队中立即返回，运行中由子收到 signal", async () => {
-    const tool = createTaskTool({ maxConcurrency: 1 });
-    const first = makeToolContext("/w", {
-      spawnSubagent: (req) =>
-        new Promise((resolve) => {
+  it("父 abort：已中止不再起子会话；排队中被中止、运行中由子收到 signal，都返回 aborted", async () => {
+    const pool = new SubagentPool(1);
+    const spawn = async (req: SubagentRequest): Promise<SubagentResult> => {
+      await pool.acquire(req.signal);
+      try {
+        // 与 runSubagent 相同：拿到名额后先看是否已中止
+        if (req.signal.aborted) throw new Error("aborted");
+        return await new Promise((resolve) => {
           req.signal.addEventListener("abort", () =>
             resolve(result("partial", { stopReason: "aborted", isError: true })),
           );
-        }),
-    });
-    const second = makeToolContext("/w", { spawnSubagent: async () => result("never") });
+        });
+      } finally {
+        pool.release();
+      }
+    };
+    const tool = createTaskTool();
+    const first = makeToolContext("/w", { spawnSubagent: spawn });
+    const second = makeToolContext("/w", { spawnSubagent: spawn });
     const p1 = tool.execute({ prompt: "long" }, first);
     const p2 = tool.execute({ prompt: "queued" }, second);
     second.controller.abort();
-    expect((await p2).content).toBe("aborted by user");
     first.controller.abort();
-    const r1 = await p1;
-    expect(r1.isError).toBe(true);
-    expect(r1.content).toBe("aborted by user");
+    expect((await p1).content).toBe("aborted by user");
+    expect((await p2).content).toBe("aborted by user");
+    let spawned = false;
+    const done = makeToolContext("/w", {
+      spawnSubagent: async () => ((spawned = true), result("x")),
+    });
+    done.controller.abort();
+    expect((await tool.execute({ prompt: "x" }, done)).content).toBe("aborted by user");
+    expect(spawned).toBe(false);
   });
 
   it("子 Agent 抛错 → 错误结果", async () => {
@@ -119,13 +139,5 @@ describe("task", () => {
     });
     const r = await tool.execute({ prompt: "x" }, ctx);
     expect(r).toMatchObject({ isError: true, content: "Sub-agent failed: model down" });
-  });
-
-  it("Semaphore 释放幂等", async () => {
-    const s = new Semaphore(1);
-    const release = await s.acquire(new AbortController().signal);
-    release();
-    release();
-    expect(s.running).toBe(0);
   });
 });

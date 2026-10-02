@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import type { ToolDefinition } from "../../tools/types.js";
 import { createTheme, plainTheme } from "../../tui.js";
 import { ToolTracker, ToolView, cleanLines, toolSummary } from "./tool-view.js";
 import { lines } from "./test-support.js";
@@ -115,5 +116,75 @@ describe("工具视图", () => {
     tracker.update("r1", "ignored after finish");
     tracker.clear();
     expect(tracker.get("r1")).toBeUndefined();
+  });
+});
+
+describe("工具视图：自定义渲染", () => {
+  const define = (partial: Partial<ToolDefinition>): ToolDefinition =>
+    ({
+      name: "codemode",
+      description: "",
+      parameters: {},
+      permission: "execute",
+      execute: async () => ({ content: "" }),
+      ...partial,
+    }) as ToolDefinition;
+  const codemode = define({
+    renderCall: (input) => String((input as { script: string }).script).split("\n"),
+    renderResult: (result, _width, expanded) =>
+      expanded ? ["script ok", "line 2", "line 3"] : [`script ok (${String(result.content)})`],
+  });
+  const getTool = (name: string) => (name === "codemode" ? codemode : undefined);
+
+  it("标题取 renderCall 首行（codemode 显示脚本首行）；结果用 renderResult，展开传 expanded", () => {
+    const view = new ToolView(
+      "1",
+      "codemode",
+      { script: "const a = await tools.read({ path: 'x' });\nreturn a;" },
+      { theme, getTool },
+    );
+    view.finish({ content: "42" }, false);
+    expect(lines(view)).toEqual([
+      "● codemode  const a = await tools.read({ path: 'x' });",
+      "  script ok (42)",
+    ]);
+    view.setExpanded(true);
+    expect(lines(view)).toEqual([
+      "● codemode  const a = await tools.read({ path: 'x' });",
+      "  script ok",
+      "  line 2",
+      "  line 3",
+    ]);
+  });
+
+  it("没有 getTool 时 codemode 摘要取 script；错误结果、抛错或空渲染回到缺省显示", () => {
+    expect(toolSummary("codemode", { script: "return 1;\n// more" })).toBe("return 1; ⏎ // more");
+    const failed = new ToolView("2", "codemode", { script: "throw 1" }, { theme, getTool });
+    failed.finish({ content: "Script failed: 1", isError: true }, false);
+    expect(lines(failed)).toEqual(["● codemode  throw 1", "  Script failed: 1"]);
+    const broken = define({
+      renderCall: () => {
+        throw new Error("boom");
+      },
+      renderResult: () => [],
+    });
+    const view = new ToolView("3", "codemode", { script: "x()" }, { theme, getTool: () => broken });
+    view.finish({ content: "out" }, false);
+    expect(lines(view)).toEqual(["● codemode  x()", "  out"]);
+  });
+
+  it("ToolTracker 把 getTool 交给嵌套视图；自定义行去控制字符并按宽截断", () => {
+    const wide = define({
+      name: "codemode",
+      renderResult: () => ["\x1b[31mred\x1b[0m\tcell", "x".repeat(80)],
+    });
+    const tracker = new ToolTracker({ theme, getTool: () => wide });
+    const { view } = tracker.start({
+      toolCallId: "1",
+      toolName: "codemode",
+      args: { script: "s" },
+    });
+    tracker.end("1", { content: "" }, false);
+    expect(lines(view, 20)).toEqual(["● codemode  s", "  red    cell", `  ${"x".repeat(17)}…`]);
   });
 });

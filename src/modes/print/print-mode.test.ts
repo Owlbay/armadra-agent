@@ -20,6 +20,20 @@ describe("print 模式", () => {
     expect(h.stdout()).toBe("hello there\n");
   });
 
+  it("text：去掉前导空行、保留首行缩进；json 的 text 原样", async () => {
+    h = composeHarness([{ text: "\n\n  indented\nnext" }]);
+    expect(await h.run(["-p", "hi", "--model", "fake/echo"])).toBe(0);
+    expect(h.stdout()).toBe("  indented\nnext\n");
+    h.cleanup();
+    h = composeHarness([{ text: "\n \n" }]);
+    expect(await h.run(["-p", "hi", "--model", "fake/echo"])).toBe(0);
+    expect(h.stdout()).toBe("");
+    h.cleanup();
+    h = composeHarness([{ text: "\n\nraw" }]);
+    expect(await h.run(["-p", "hi", "--model", "fake/echo", "--output-format", "json"])).toBe(0);
+    expect(lines()[0]).toMatchObject({ text: "\n\nraw" });
+  });
+
   it("stdin 管道与参数拼接；两者都没有 → 2", async () => {
     h = composeHarness(undefined, { readStdin: async () => "piped text\n" });
     expect(await h.run(["-p", "question", "--model", "fake/echo"])).toBe(0);

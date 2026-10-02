@@ -2,13 +2,18 @@
  * `ama config show [--json] [--profile <文件>] [--auth-file <文件>]`（设计 §10.0）：打印生效配置，
  * 每一项标出来自哪一层（default / user / profile / project），并给出将使用的模型与原因
  * （`config.defaultModel` 或零配置选择）。只读；config 里的字面量 apiKey 只显示种类。[B6]
+ *
+ * [W3-B12] 「供应商」节：config 里出现的供应商与 baseUrl 来自环境变量（`OPENAI_BASE_URL` /
+ * `ANTHROPIC_BASE_URL`）的内置供应商，列出协议、生效 baseUrl 与来源、config 里每个模型的协议
+ * （模型级 `api` 生效后的值）。
  */
 
 import { loadConfigFile } from "../../config/load.js";
 import { DEFAULT_CONFIG, PROFILE_DEFAULTS, mergeProjectAndCli } from "../../config/merge.js";
 import { CONFIG_FILE, projectFile } from "../../config/paths.js";
 import type { AmaConfig } from "../../config/types.js";
-import type { ProviderRegistryApi } from "../../ai/types.js";
+import { baseUrlEnvOf } from "../../ai/providers/registry.js";
+import type { Api, ProviderRegistryApi } from "../../ai/types.js";
 import { classifyKeyValue } from "../../config/auth-file.js";
 import { effectiveCodemodeMode, resolvePreset } from "../../tools/presets.js";
 import { builtinTools } from "../../tools/registry.js";
@@ -80,6 +85,50 @@ export async function describeModel(
   const key = await registry.resolveApiKey(picked.provider.id);
   const origin = key.origin !== undefined ? ` ${key.origin}` : "";
   return { ref, reason: `零配置：${picked.provider.id} 有 key（${key.source}${origin}）` };
+}
+
+export interface ProviderDescription {
+  id: string;
+  api: Api;
+  baseUrl: string;
+  /** baseUrl 来自的环境变量。 */
+  baseUrlEnv?: string;
+  /** config 里列出的模型及其生效协议。 */
+  models: { id: string; api: Api }[];
+}
+
+/** config 里出现的供应商 + baseUrl 来自环境变量的内置供应商。 */
+export function describeProviders(
+  config: AmaConfig,
+  registry: ProviderRegistryApi | undefined,
+): ProviderDescription[] {
+  if (registry === undefined) return [];
+  const out: ProviderDescription[] = [];
+  for (const provider of registry.list()) {
+    const configured = config.providers?.[provider.id];
+    const env = baseUrlEnvOf(registry, provider.id);
+    if (configured === undefined && env === undefined) continue;
+    const ids = new Set((configured?.models ?? []).map((m) => m.id));
+    out.push({
+      id: provider.id,
+      api: provider.api,
+      baseUrl: provider.baseUrl,
+      ...(env !== undefined ? { baseUrlEnv: env } : {}),
+      models: provider.models.filter((m) => ids.has(m.id)).map((m) => ({ id: m.id, api: m.api })),
+    });
+  }
+  return out;
+}
+
+function providerLines(providers: readonly ProviderDescription[]): string[] {
+  if (providers.length === 0) return [];
+  const lines = ["", "供应商："];
+  for (const p of providers) {
+    const env = p.baseUrlEnv !== undefined ? `（baseUrl 来自环境变量 ${p.baseUrlEnv}）` : "";
+    lines.push(`  ${p.id}  ${p.api}  ${p.baseUrl}${env}`);
+    for (const m of p.models) lines.push(`    ${p.id}/${m.id}  ${m.api}`);
+  }
+  return lines;
 }
 
 function layersOf(level: UserLevel, project: AmaConfig | undefined, effective: AmaConfig): Layer[] {
@@ -156,6 +205,7 @@ export async function runConfig(
   const sources = sourcesOf(config, layers);
   const registry = deps === undefined ? undefined : await buildRegistry(level, io, deps);
   const model = await describeModel(config, registry);
+  const providers = describeProviders(config, registry);
   const builtin = new Set(builtinTools().map((tool) => tool.name));
   const preset = resolvePreset({ config, available: (name) => builtin.has(name) });
   const warnings = [...level.warnings, ...merged.warnings];
@@ -166,7 +216,7 @@ export async function runConfig(
       source: sources.get(path),
     }));
     io.stdout(
-      `${JSON.stringify({ model, tools: preset.builtin, codemode: effectiveCodemodeMode(config), entries, layers: layers.map((l) => ({ name: l.name, file: l.label })), warnings }, null, 2)}\n`,
+      `${JSON.stringify({ model, providers, tools: preset.builtin, codemode: effectiveCodemodeMode(config), entries, layers: layers.map((l) => ({ name: l.name, file: l.label })), warnings }, null, 2)}\n`,
     );
     return ExitCode.Ok;
   }
@@ -179,6 +229,7 @@ export async function runConfig(
   );
   const width = Math.min(60, Math.max(...rows.map(([text]) => text.length)));
   for (const [text, source] of rows) lines.push(`  ${text.padEnd(width)}  ${source}`);
+  lines.push(...providerLines(providers));
   lines.push("");
   lines.push(`模型：${model.ref ?? "（无）"}  ${model.reason}`);
   lines.push(

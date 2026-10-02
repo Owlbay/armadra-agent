@@ -35,6 +35,7 @@
         "cacheRead": 30000,
         "cacheWrite": 2048,
         "totalTokens": 32065,
+        "cacheReported": true,
         "cacheWrite1h": 1024,
         "cost": {
           "input": 0.000036,

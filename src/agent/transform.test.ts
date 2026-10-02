@@ -135,6 +135,17 @@ describe("repairTranscript", () => {
 });
 
 describe("system prompt", () => {
+  it("属性值转义与 skills 索引同一个 escapeXml（含引号）", () => {
+    const sections = assembleSections({
+      tools: [],
+      cwd: "/w",
+      contextFiles: [{ path: '/w/a "b".md', content: "x" }],
+      skills: [{ name: "s", description: "it's <ok>", location: "/s" }],
+    });
+    expect(sections.project_context).toContain('<file path="/w/a &quot;b&quot;.md">');
+    expect(sections.skills).toContain(">it&apos;s &lt;ok&gt;</skill>");
+  });
+
   it("节顺序固定、补丁只含变化、工具表差异", () => {
     const read = stubTool({ name: "read", permission: "read" });
     const bash = stubTool({ name: "bash", permission: "execute" });
@@ -172,6 +183,9 @@ describe("retry", () => {
     expect(classifyFailure(failed("529 overloaded_error"))).toBe("retryable");
     expect(classifyFailure(failed("fetch failed: ECONNRESET"))).toBe("retryable");
     expect(classifyFailure(failed("weird"))).toBe("other");
+    // 缺省用 ai/overflow.ts 的同一张表：Kimi 文案算溢出，限流文案不算
+    expect(classifyFailure(failed("exceeded model token limit: 262144"))).toBe("overflow");
+    expect(classifyFailure(failed("429 rate limit: token limit exceeded"))).toBe("retryable");
     expect(
       classifyFailure(assistant({ stopReason: "length", content: [{ type: "text", text: "…" }] })),
     ).toBe("overflow");

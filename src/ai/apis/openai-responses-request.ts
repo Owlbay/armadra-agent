@@ -13,7 +13,11 @@
  * - reasoning：`{effort, summary:"auto"}`（summary 需 `supportsReasoningSummary`）；off 只在映射表
  *   给了 off 的字串时发（例如 "none"），否则不发（服务端缺省）；
  * - 工具 `strict` 显式给出：Responses 缺省按严格模式校验 schema，非严格兼容的 schema 必须发 false；
- * - `prompt_cache_key = sessionId` 只发给 OpenAI 官方端点；`cacheRetention: "none"`（摘要请求）不发。
+ * - 缓存（第三波 §1.3）：`prompt_cache_key = sessionId` 只在 `sendPromptCacheKey`（官方端点缺省开）
+ *   时发，`cacheRetention: "none"` 不发；`long` 在 `supportsExplicitPromptCacheMode` 时发
+ *   `prompt_cache_options: {ttl:"30m"}`，否则在 `supportsLongCacheRetention` 时发
+ *   `prompt_cache_retention: "24h"`，两者都不支持按 short；
+ * - `toolChoice: "none"`（有工具时）→ `tool_choice: "none"`。
  */
 
 import { contentText, normalizeContext, sanitizeText } from "../context.js";
@@ -32,6 +36,7 @@ import type {
   TranscriptContext,
   UserMessage,
 } from "../types.js";
+import { resolveCacheRetention, resolvePromptCacheCompat } from "./cache-params.js";
 import { isStrictCompatible } from "./openai-request.js";
 
 type Json = Record<string, unknown>;
@@ -293,15 +298,20 @@ export function buildResponsesRequest(
     body["store"] = false;
     if (model.reasoning) body["include"] = ["reasoning.encrypted_content"];
   }
-  if (normalized.tools.length > 0) body["tools"] = convertTools(normalized.tools);
+  if (normalized.tools.length > 0) {
+    body["tools"] = convertTools(normalized.tools);
+    if (options.toolChoice === "none") body["tool_choice"] = "none";
+  }
   if (options.temperature !== undefined) body["temperature"] = options.temperature;
-  const retention = options.cacheRetention ?? "short";
-  if (
-    options.sessionId &&
-    retention !== "none" &&
-    (model.baseUrl ?? "").includes("api.openai.com")
-  ) {
+  const cacheCompat = resolvePromptCacheCompat(model, RESPONSES_API);
+  const retention = resolveCacheRetention(options.cacheRetention);
+  if (options.sessionId && retention !== "none" && cacheCompat.sendPromptCacheKey) {
     body["prompt_cache_key"] = options.sessionId.slice(0, 64);
+  }
+  if (retention === "long" && cacheCompat.supportsExplicitPromptCacheMode) {
+    body["prompt_cache_options"] = { ttl: "30m" };
+  } else if (retention === "long" && cacheCompat.supportsLongCacheRetention) {
+    body["prompt_cache_retention"] = "24h";
   }
   const providerLevel = applyReasoning(body, model, compat, level);
   if (model.samplingParams) Object.assign(body, model.samplingParams);

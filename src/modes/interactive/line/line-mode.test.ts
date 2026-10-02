@@ -1,3 +1,5 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
 import { composeHarness, type ComposeHarness } from "../../../../test/helpers/compose-harness.js";
@@ -85,6 +87,29 @@ describe("行式界面：raw 终端", () => {
       false,
       true,
     ]);
+    stdin.write("\x04");
+    expect(await done).toBe(0);
+    await runtime.dispose();
+  });
+});
+
+describe("行式界面：执行前预览", () => {
+  it("审批问句之前逐行打印预览", async () => {
+    h = composeHarness([bash("rm -rf build"), { text: "kept" }]);
+    mkdirSync(join(h.home.cwd, "build"));
+    writeFileSync(join(h.home.cwd, "build", "a.o"), "abc");
+    const runtime = await h.boot(["--model", "fake/echo"]);
+    const stdin = Object.assign(new PassThrough(), { setRawMode: () => undefined, isTTY: true });
+    const done = runLineMode(
+      runtime,
+      { args: emptyArgs(), prompt: undefined, io: h.io },
+      { stdin, raw: true },
+    );
+    stdin.write("clean\r");
+    await until(() => h.stdout().includes("允许 bash rm -rf build"), "approval");
+    expect(h.stdout()).toContain("\n  删除 build/：目录，1 个文件，3 B\n允许 bash rm -rf build");
+    stdin.write("n");
+    await until(() => h.stdout().includes("kept"), "kept");
     stdin.write("\x04");
     expect(await done).toBe(0);
     await runtime.dispose();

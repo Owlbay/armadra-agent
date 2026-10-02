@@ -107,6 +107,35 @@ function hasFlag(argv: readonly string[], short: string, long?: string): boolean
 const RM_DANGEROUS_TARGETS =
   /^(\/|\/\*|~|~\/|~\/\*|\$HOME|\$HOME\/|\$HOME\/\*|\.|\.\/|\.\/\*|\*|\.\.|\.\.\/|\/\.\*)$/;
 
+/** git 的全局选项（出现在子命令之前）：取值的与不取值的。 */
+const GIT_VALUE_OPTIONS = new Set([
+  "-C",
+  "-c",
+  "--git-dir",
+  "--work-tree",
+  "--namespace",
+  "--exec-path",
+  "--config-env",
+]);
+const GIT_FLAG_OPTIONS =
+  /^(-p|-P|--paginate|--no-pager|--bare|--no-replace-objects|--literal-pathspecs|--glob-pathspecs|--noglob-pathspecs|--icase-pathspecs|--no-optional-locks|--(git-dir|work-tree|namespace|exec-path|config-env)=.*|-[cC].+)$/;
+
+/**
+ * 去掉 git 子命令之前的全局选项：`git -C dir -c k=v reset --hard` → `git reset --hard`。
+ * 不是 git 时返回 undefined。不去掉的话 `git -C x reset --hard` 这类写法会漏判。
+ */
+function gitArgv(argv: readonly string[]): readonly string[] | undefined {
+  if (base(argv[0]) !== "git") return undefined;
+  let i = 1;
+  while (i < argv.length) {
+    const a = argv[i] ?? "";
+    if (GIT_VALUE_OPTIONS.has(a)) i += 2;
+    else if (GIT_FLAG_OPTIONS.test(a)) i += 1;
+    else break;
+  }
+  return [argv[0] ?? "git", ...argv.slice(i)];
+}
+
 export const DANGEROUS_RULES: readonly DangerousRule[] = [
   {
     id: "rm-rf-root",
@@ -147,39 +176,48 @@ export const DANGEROUS_RULES: readonly DangerousRule[] = [
   {
     id: "git-push-force",
     description: "git push --force",
-    segment: (argv) =>
-      base(argv[0]) === "git" &&
-      argv[1] === "push" &&
-      argv.some(
-        (a) =>
-          a === "--force" ||
-          a.startsWith("--force-with-lease") ||
-          a === "--force-if-includes" ||
-          (/^-[A-Za-z]+$/.test(a) && a.includes("f")) ||
-          /^\+/.test(a),
-      ),
+    segment: (raw) => {
+      const argv = gitArgv(raw) ?? [];
+      return (
+        argv[1] === "push" &&
+        argv.some(
+          (a) =>
+            a === "--force" ||
+            a.startsWith("--force-with-lease") ||
+            a === "--force-if-includes" ||
+            (/^-[A-Za-z]+$/.test(a) && a.includes("f")) ||
+            /^\+/.test(a),
+        )
+      );
+    },
   },
   {
     id: "git-reset-hard",
     description: "git reset --hard",
-    segment: (argv) => base(argv[0]) === "git" && argv[1] === "reset" && argv.includes("--hard"),
+    segment: (raw) => {
+      const argv = gitArgv(raw) ?? [];
+      return argv[1] === "reset" && argv.includes("--hard");
+    },
   },
   {
     id: "git-clean-force",
     description: "git clean -f (deletes untracked files)",
-    segment: (argv) =>
-      base(argv[0]) === "git" &&
-      argv[1] === "clean" &&
-      (hasFlag(argv, "f") || argv.includes("--force")),
+    segment: (raw) => {
+      const argv = gitArgv(raw) ?? [];
+      return argv[1] === "clean" && (hasFlag(argv, "f") || argv.includes("--force"));
+    },
   },
   {
     id: "git-branch-force-delete",
     description: "git branch -D",
-    segment: (argv) =>
-      base(argv[0]) === "git" &&
-      argv[1] === "branch" &&
-      (argv.some((a) => /^-[A-Za-z]*D[A-Za-z]*$/.test(a)) ||
-        (argv.includes("--delete") && argv.includes("--force"))),
+    segment: (raw) => {
+      const argv = gitArgv(raw) ?? [];
+      return (
+        argv[1] === "branch" &&
+        (argv.some((a) => /^-[A-Za-z]*D[A-Za-z]*$/.test(a)) ||
+          (argv.includes("--delete") && argv.includes("--force")))
+      );
+    },
   },
   {
     id: "pipe-to-shell",

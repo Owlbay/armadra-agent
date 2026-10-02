@@ -35,6 +35,7 @@
         "cacheRead": 0,
         "cacheWrite": 0,
         "totalTokens": 32,
+        "cacheReported": false,
         "cost": {
           "input": 0.00006,
           "output": 0.000024,

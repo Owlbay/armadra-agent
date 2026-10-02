@@ -11,6 +11,7 @@
 
 import type { SystemMessage, ToolDecl } from "../ai/types.js";
 import { replaySystem, type SystemState } from "../session/projection.js";
+import { escapeXml } from "../skills/index-prompt.js";
 import type { AgentMessage } from "../session/types.js";
 import type { ToolDefinition } from "../tools/types.js";
 
@@ -44,10 +45,6 @@ export interface SystemPromptInput {
   cwd: string;
   /** 宿主 instructions（已读入的文本），按添加顺序。 */
   hostInstructions?: readonly string[];
-}
-
-function escapeXml(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function firstLine(text: string): string {

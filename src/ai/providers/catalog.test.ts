@@ -79,6 +79,51 @@ describe("模型目录", () => {
     }
   });
 
+  it("promptCache 只写有公开依据的值（第三波 §1.4）", () => {
+    const catalog = loadBuiltinCatalog();
+    const anthropicMin = Object.fromEntries(
+      (catalog.get("anthropic") ?? []).map((m) => [m.id, m.promptCache]),
+    );
+    expect(anthropicMin["claude-fable-5-1"]).toEqual({ short: 300, long: 3600, minTokens: 512 });
+    expect(anthropicMin["claude-sonnet-5-5"]?.minTokens).toBe(512);
+    expect(anthropicMin["claude-opus-4-8"]?.minTokens).toBe(1024);
+    expect(anthropicMin["claude-opus-4-7"]?.minTokens).toBe(2048);
+    expect(anthropicMin["claude-haiku-4-5"]?.minTokens).toBe(4096);
+    for (const model of catalog.get("anthropic") ?? []) {
+      expect(model.promptCache, model.id).toMatchObject({ short: 300, long: 3600 });
+      expect([512, 1024, 2048, 4096], model.id).toContain(model.promptCache?.minTokens);
+    }
+    for (const model of catalog.get("openai") ?? []) {
+      expect(model.promptCache, model.id).toEqual({ short: 300, long: 86400, minTokens: 1024 });
+    }
+    for (const model of catalog.get("moonshot") ?? []) {
+      expect(model.promptCache, model.id).toEqual({ short: 300 });
+    }
+    const unpromised = ["deepseek", "zhipu", "dashscope", "groq", "xai", "mistral", "openrouter"];
+    for (const id of [...unpromised, "google"]) {
+      for (const model of catalog.get(id) ?? [])
+        expect(model.promptCache, model.id).toBeUndefined();
+    }
+  });
+
+  it("promptCache 校验：正整数、只认 short / long / minTokens、long ≥ short", () => {
+    const entry = (promptCache: unknown) => ({
+      id: "a",
+      name: "a",
+      reasoning: false,
+      maxTokens: 1,
+      promptCache,
+    });
+    expect(checkCatalogModel(entry({ short: 300, long: 3600, minTokens: 1024 }), "m")).toEqual([]);
+    expect(checkCatalogModel(entry({ short: "5m" }), "m")).toEqual(["m.promptCache.short"]);
+    expect(checkCatalogModel(entry({ ttl: 1 }), "m")).toEqual(["m.promptCache.ttl"]);
+    expect(checkCatalogModel(entry({ minTokens: 0 }), "m")).toEqual(["m.promptCache.minTokens"]);
+    expect(checkCatalogModel(entry({ short: 600, long: 300 }), "m")).toEqual([
+      "m.promptCache.long < short",
+    ]);
+    expect(checkCatalogModel(entry([]), "m")).toEqual(["m.promptCache"]);
+  });
+
   it("校验报出具体字段", () => {
     expect(() =>
       parseCatalogFile({ version: 1, provider: "x", models: [{ id: "a" }] }, "t"),

@@ -19,7 +19,7 @@ import type {
 } from "./types.js";
 import { CONFIG_FILE_VERSION, TOOLS_PRESETS_STRICT_FIRST } from "./types.js";
 import type { PermissionMode, RuleSource } from "../permissions/types.js";
-import { PERMISSION_MODES_STRICT_FIRST } from "../permissions/types.js";
+import { isAtLeastAsStrict } from "../permissions/rules.js";
 import type { ModelThinkingLevel } from "../ai/types.js";
 
 export const DEFAULT_CONFIG: Readonly<AmaConfig> = Object.freeze({
@@ -105,15 +105,6 @@ export function mergeConfig(base: AmaConfig, over: Partial<AmaConfig> | undefine
   const merged = mergeValue(base, over, "") as AmaConfig;
   merged.version = CONFIG_FILE_VERSION;
   return merged;
-}
-
-export function strictness(mode: PermissionMode): number {
-  return PERMISSION_MODES_STRICT_FIRST.indexOf(mode);
-}
-
-/** a 是否比 b 更严或相同（plan 最严）。 */
-export function isStricterOrEqual(a: PermissionMode, b: PermissionMode): boolean {
-  return strictness(a) <= strictness(b);
 }
 
 export interface RestrictResult {
@@ -213,7 +204,7 @@ function restrictPermission(
     warnings.push(`${label}: 项目级不能改内置 deny 表，忽略 permission.builtinDeny`);
   }
   if (permission.mode !== undefined) {
-    if (isStricterOrEqual(permission.mode, currentMode)) {
+    if (isAtLeastAsStrict(permission.mode, currentMode)) {
       result.mode = permission.mode;
     } else {
       warnings.push(

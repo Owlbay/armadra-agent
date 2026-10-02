@@ -58,8 +58,10 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
   const text = session.getLastAssistantText() ?? "";
   const stopReason = failure !== undefined ? "error" : (last?.stopReason ?? "stop");
   if (format === "text") {
-    if (text !== "" && last?.stopReason !== "error")
-      io.stdout(text.endsWith("\n") ? text : `${text}\n`);
+    // 部分模型在正文前多发空行：只去前导空行，保留首行缩进；json / stream-json 原样。
+    const shown = text.replace(/^\s*\n/, "");
+    if (shown !== "" && last?.stopReason !== "error")
+      io.stdout(shown.endsWith("\n") ? shown : `${shown}\n`);
   } else if (format === "json") {
     const stats = session.getStats();
     io.stdout(

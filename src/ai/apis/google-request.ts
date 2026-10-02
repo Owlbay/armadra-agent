@@ -9,7 +9,8 @@
  *   `functionResponse.parts`（`supportsFunctionResponseParts`）；更早的模型图片另起一个 user 回合；
  * - thinkingConfig：级别映射到字串（或模型属于 Gemini 3 族且映射缺省）→ 离散 `thinkingLevel`；
  *   映射到数字或其它模型 → `thinkingBudget`（不超过回答上限留白）；off → `thinkingBudget: 0`；
- * - 缓存：Gemini 的隐式缓存自动生效，请求里没有可设的字段；`cacheRetention` 不影响请求体。
+ * - 缓存：Gemini 的隐式缓存自动生效，请求里没有可设的字段；`cacheRetention` 不影响请求体；
+ * - `toolChoice: "none"`（有工具时）→ `toolConfig.functionCallingConfig.mode: "NONE"`。
  */
 
 import { contentText, normalizeContext, sanitizeText } from "../context.js";
@@ -302,7 +303,12 @@ export function buildGoogleRequest(
   if (normalized.systemPrompt.length > 0) {
     body["systemInstruction"] = { parts: [{ text: sanitizeText(normalized.systemPrompt) }] };
   }
-  if (normalized.tools.length > 0) body["tools"] = convertTools(normalized.tools);
+  if (normalized.tools.length > 0) {
+    body["tools"] = convertTools(normalized.tools);
+    if (options.toolChoice === "none") {
+      body["toolConfig"] = { functionCallingConfig: { mode: "NONE" } };
+    }
+  }
   const config: Json = { maxOutputTokens: maxTokens };
   if (options.temperature !== undefined) config["temperature"] = options.temperature;
   const providerLevel = applyThinking(config, model, level, maxTokens);

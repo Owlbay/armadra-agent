@@ -4,11 +4,15 @@
  *
  * 这里的 `api` 是供应商级缺省；目录条目可用 `api` 覆盖（openai 推理模型与 xai 目录模型走
  * openai-responses，见 catalog/*.json）。
+ *
+ * `baseUrlEnv`（第三波 §2.3）：通行约定的 baseUrl 环境变量（OpenAI SDK 的 `OPENAI_BASE_URL`、
+ * Claude Code 的 `ANTHROPIC_BASE_URL`），设了就把内置供应商指向中转站，零配置可用；优先级低于
+ * config.json 与 auth.json 的 baseUrl。
  */
 
 import type { ProviderData } from "../types.js";
 
-type BuiltinProvider = Omit<ProviderData, "models" | "builtin">;
+export type BuiltinProvider = Omit<ProviderData, "models" | "builtin"> & { baseUrlEnv?: string };
 
 export const BUILTIN_PROVIDERS: readonly BuiltinProvider[] = [
   {
@@ -16,6 +20,7 @@ export const BUILTIN_PROVIDERS: readonly BuiltinProvider[] = [
     name: "Anthropic",
     api: "anthropic-messages",
     baseUrl: "https://api.anthropic.com",
+    baseUrlEnv: "ANTHROPIC_BASE_URL",
     envKeys: ["ANTHROPIC_API_KEY", "AMA_API_KEY_ANTHROPIC"],
     authHeader: "x-api-key",
     requiresApiKey: true,
@@ -25,6 +30,7 @@ export const BUILTIN_PROVIDERS: readonly BuiltinProvider[] = [
     name: "OpenAI",
     api: "openai-completions",
     baseUrl: "https://api.openai.com/v1",
+    baseUrlEnv: "OPENAI_BASE_URL",
     envKeys: ["OPENAI_API_KEY", "AMA_API_KEY_OPENAI"],
     requiresApiKey: true,
   },
@@ -122,6 +128,25 @@ export const BUILTIN_PROVIDERS: readonly BuiltinProvider[] = [
     requiresApiKey: false,
   },
 ];
+
+/** 主机名（不含端口）；无法解析时返回 undefined。 */
+function hostOf(url: string): string | undefined {
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * 内置供应商的 baseUrl 是否被改到了非官方主机（中转站）：此时目录外的 model id 也接受，
+ * compat 走保守缺省。非内置供应商返回 false。
+ */
+export function isRelayedBaseUrl(providerId: string, baseUrl: string): boolean {
+  const builtin = BUILTIN_PROVIDERS.find((p) => p.id === providerId);
+  if (builtin === undefined || builtin.requiresApiKey === false) return false;
+  return hostOf(baseUrl) !== hostOf(builtin.baseUrl);
+}
 
 /** 自定义供应商的兜底环境变量名：`AMA_API_KEY_<ID>`（非字母数字转下划线、大写）。 */
 export function fallbackEnvKey(providerId: string): string {
