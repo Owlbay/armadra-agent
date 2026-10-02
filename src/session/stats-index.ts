@@ -12,7 +12,8 @@ import { dirname } from "node:path";
 import { summarizeSessionFile, type FileStatsSummary } from "./stats-scan.js";
 
 export const STATS_INDEX_FILE = "stats-index.json";
-const INDEX_VERSION = 1;
+// 2：桶加 subscription（[W6-I5]），旧索引里订阅请求被算成 $0 有价，整体重扫
+const INDEX_VERSION = 2;
 
 interface IndexEntry {
   mtimeMs: number;

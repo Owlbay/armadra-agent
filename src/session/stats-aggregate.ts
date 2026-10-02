@@ -30,8 +30,10 @@ export interface StatsTotals {
   cacheWrite: number;
   /** 有价请求的费用；没有任何有价请求时缺省。 */
   cost?: number;
-  /** 无价请求数。 */
+  /** 无价请求数（不含订阅计费的）。 */
   unpriced: number;
+  /** [W6-I5] 订阅计费的请求数（ChatGPT 登录；不折算美元）；没有时缺省。 */
+  subscription?: number;
   /** 0–1；报告缓存的端点没有输入时缺省。 */
   hitRate?: number;
   errors: number;
@@ -66,6 +68,7 @@ interface Acc {
   cacheWrite: number;
   cost: number;
   costed: number;
+  subscription: number;
   hitRead: number;
   hitPrompt: number;
   errors: number;
@@ -84,6 +87,7 @@ const newAcc = (): Acc => ({
   cacheWrite: 0,
   cost: 0,
   costed: 0,
+  subscription: 0,
   hitRead: 0,
   hitPrompt: 0,
   errors: 0,
@@ -106,6 +110,7 @@ function add(acc: Acc, b: StatsBucket, reported: boolean, session: string): void
   acc.cacheWrite += b.cacheWrite;
   acc.cost += b.cost;
   acc.costed += b.costed;
+  acc.subscription += b.subscription;
   if (reported) {
     acc.hitRead += b.cacheRead;
     acc.hitPrompt += b.input + b.cacheRead + b.cacheWrite;
@@ -125,11 +130,12 @@ function totals(acc: Acc): StatsTotals {
     output: acc.output,
     cacheRead: acc.cacheRead,
     cacheWrite: acc.cacheWrite,
-    unpriced: acc.requests - acc.costed,
+    unpriced: acc.requests - acc.costed - acc.subscription,
     errors: acc.errors,
     retries: acc.retries,
   };
   if (acc.costed > 0) out.cost = acc.cost;
+  if (acc.subscription > 0) out.subscription = acc.subscription;
   if (acc.hitPrompt > 0) out.hitRate = acc.hitRead / acc.hitPrompt;
   if (acc.timedTurns > 0) out.avgTurnMs = acc.turnMs / acc.timedTurns;
   return out;

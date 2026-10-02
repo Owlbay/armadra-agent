@@ -119,7 +119,7 @@ describe("配置收紧告警与 profile（en）", () => {
     const { warnings } = restrictProjectConfig(
       {
         version: 1,
-        compaction: { prune: true },
+        compaction: { prune: true } as never,
         tools: { preset: "default", allow: ["x"] } as never,
         codemode: { mode: "on" },
         sandbox: { network: "allow" } as never,
