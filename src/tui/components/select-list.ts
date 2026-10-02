@@ -7,10 +7,15 @@
  *
  * `badge` 靠右显示（如 `Default`、`Recommended`）；`numberKeys` 时右侧标 1–9，按数字直接选中并确认；
  * `stacked` 时说明换到标签下一行（缩进、暗色），适合「名字 + 一行说明」的短列表。
+ *
+ * 终端界面视觉设计 v1：选中行 `›` + `selection` 底色（< 256 色退化为 accent 粗体，stacked 时两行都上）；
+ * `currentValue` 的项标 `✓`；`footer` 是列表下的一行按键提示（dim），`showCount` 时前面带 `(i/n)`
+ * （缺省只在超出一屏时带）；过滤框提示符 `›`。字形取 `theme.glyphs`。
  */
 
 import type { Component, Focusable, Theme } from "../component.js";
 import { padToWidth, truncateToWidth, visibleWidth } from "../ansi.js";
+import { UNICODE_GLYPHS, type Glyphs } from "../glyphs.js";
 import { defaultKeybindings, type Keybindings } from "../keybindings.js";
 import { isPrintableText, matchesKey } from "../keys.js";
 
@@ -35,6 +40,12 @@ export interface SelectListOptions {
   numberKeys?: boolean;
   /** 说明放在标签下一行。 */
   stacked?: boolean;
+  /** 列表下的按键提示行（dim）。 */
+  footer?: string;
+  /** 提示行前带 `(i/n)`；缺省只在超出一屏时带。 */
+  showCount?: boolean;
+  /** 当前值：该项标签前标 `✓`（其余项留同宽空白）。 */
+  currentValue?: string;
   onSelect?(item: SelectItem): void;
   onCancel?(): void;
   onSelectionChange?(item: SelectItem | undefined): void;
@@ -149,16 +160,24 @@ export class SelectList implements Component, Focusable {
     }
   }
 
+  private get glyphs(): Glyphs {
+    return this.options.theme?.glyphs ?? UNICODE_GLYPHS;
+  }
+
   render(width: number): string[] {
     const theme = this.options.theme;
     const dim = (s: string): string => (theme ? theme.fg("dim", s) : s);
     const lines: string[] = [];
     if (this.options.filterable) {
-      const prompt = theme ? theme.fg("accent", "> ") : "> ";
+      const mark = `${this.glyphs.prompt} `;
+      const prompt = theme ? theme.fg("accent", mark) : mark;
       lines.push(truncateToWidth(prompt + this.filter + (this.focused ? "▏" : ""), width));
     }
     if (this.filtered.length === 0) {
       lines.push(truncateToWidth(dim(`  ${this.options.emptyText ?? "(no matches)"}`), width));
+      if (this.options.footer !== undefined) {
+        lines.push(truncateToWidth(dim(`  ${this.options.footer}`), width));
+      }
       return lines;
     }
     const end = Math.min(this.filtered.length, this.scrollTop + this.maxVisible);
@@ -172,8 +191,14 @@ export class SelectList implements Component, Focusable {
       lastGroup = item.group;
       lines.push(...this.renderItem(item, i, labelWidth, width));
     }
-    if (this.filtered.length > this.maxVisible) {
-      lines.push(truncateToWidth(dim(`  (${this.selected + 1}/${this.filtered.length})`), width));
+    const overflow = this.filtered.length > this.maxVisible;
+    const count = `(${this.selected + 1}/${this.filtered.length})`;
+    const footer = this.options.footer;
+    if (footer !== undefined) {
+      const withCount = this.options.showCount ?? overflow;
+      lines.push(truncateToWidth(dim(`  ${withCount ? `${count} ` : ""}${footer}`), width));
+    } else if (overflow) {
+      lines.push(truncateToWidth(dim(`  ${count}`), width));
     }
     return lines;
   }
@@ -192,11 +217,21 @@ export class SelectList implements Component, Focusable {
     let right = rightParts.join("  ");
     if (visibleWidth(right) > Math.max(0, width - 8)) right = "";
     const rightWidth = right === "" ? 0 : visibleWidth(right) + 1;
-    const prefix = selected ? "› " : "  ";
-    const labelRoom = Math.max(1, width - 2 - rightWidth);
+    const g = this.glyphs;
+    const current = this.options.currentValue;
+    const check =
+      current === undefined
+        ? ""
+        : item.value === current
+          ? (theme ? theme.fg(selected ? "accent" : "success", g.check) : g.check) + " "
+          : "  ";
+    const prefix = (selected ? `${g.prompt} ` : "  ") + check;
+    const prefixWidth = visibleWidth(prefix);
+    const labelRoom = Math.max(1, width - prefixWidth - rightWidth);
     const label = truncateToWidth(item.label, labelRoom);
-    let line = prefix + padToWidth(label, Math.min(labelWidth, labelRoom));
+    let line = padToWidth(label, Math.min(labelWidth, labelRoom));
     if (selected && theme) line = theme.fg("accent", theme.bold(line));
+    line = (selected && theme ? theme.fg("accent", theme.bold(prefix)) : prefix) + line;
     const stacked = this.options.stacked === true;
     if (!stacked) {
       const room = width - visibleWidth(line) - 2 - rightWidth;
@@ -210,14 +245,15 @@ export class SelectList implements Component, Focusable {
     }
     const out = [truncateToWidth(line, width)];
     if (stacked && item.description) {
+      const indent = " ".repeat(prefixWidth + 2);
       out.push(
         truncateToWidth(
-          `    ${dim(truncateToWidth(item.description, Math.max(1, width - 4)))}`,
+          `${indent}${dim(truncateToWidth(item.description, Math.max(1, width - indent.length)))}`,
           width,
         ),
       );
     }
-    return out;
+    return selected && theme ? out.map((l) => theme.bg("selection", l)) : out;
   }
 
   private labelColumnWidth(end: number): number {

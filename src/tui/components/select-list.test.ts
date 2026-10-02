@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { stripAnsi } from "../ansi.js";
+import { createTheme } from "../theme.js";
 import { SelectList, filterItems, type SelectItem } from "./select-list.js";
 
 const items: SelectItem[] = Array.from({ length: 15 }, (_, i) => ({
@@ -68,13 +69,13 @@ describe("SelectList", () => {
     list.handleInput("\x7f");
     list.handleInput("\x7f");
     expect(list.getFilter()).toBe("openai");
-    expect(list.render(40)[0]).toBe("> openai");
+    expect(list.render(40)[0]).toBe("› openai");
   });
 
   it("无匹配时显示空提示", () => {
     const list = new SelectList(items, { filterable: true, emptyText: "nothing" });
     list.setFilter("zzz");
-    expect(list.render(20).map(stripAnsi)).toEqual(["> zzz", "  nothing"]);
+    expect(list.render(20).map(stripAnsi)).toEqual(["› zzz", "  nothing"]);
     expect(list.getSelected()).toBeUndefined();
   });
 
@@ -115,5 +116,38 @@ describe("SelectList：徽标、数字快捷键、说明换行", () => {
     list.handleInput("9");
     expect(picked).toEqual(["c"]);
     expect(list.getSelected()?.value).toBe("c");
+  });
+
+  it("currentValue 标 ✓；footer 提示行与计数", () => {
+    const list = new SelectList(modes, {
+      stacked: true,
+      currentValue: "b",
+      footer: "↑↓ 选择 · Enter 确认",
+    });
+    expect(list.render(32).map((l) => stripAnsi(l).trimEnd())).toEqual([
+      "›   Alpha                Default",
+      "      first one",
+      "  ✓ Beta",
+      "      second one",
+      "    Gamma            Recommended",
+      "      third one",
+      "  ↑↓ 选择 · Enter 确认",
+    ]);
+    const counted = new SelectList(modes, { footer: "Tab 接受", showCount: true });
+    expect(stripAnsi(counted.render(32).at(-1) ?? "")).toBe("  (1/3) Tab 接受");
+  });
+
+  it("选中行上 selection 底色（≥ 256 色），stacked 时两行都上；< 256 色退化为 accent 粗体", () => {
+    const rich = new SelectList(modes, {
+      stacked: true,
+      theme: createTheme("dark", { caps: { colors: 256 } }),
+    });
+    const [first, second, third] = rich.render(32);
+    expect(first).toContain("\x1b[48;5;236m");
+    expect(second).toContain("\x1b[48;5;236m");
+    expect(third).not.toContain("\x1b[48;5;236m");
+    const poor = new SelectList(modes, { theme: createTheme("dark", { caps: { colors: 16 } }) });
+    expect(poor.render(32)[0]).not.toContain("\x1b[4");
+    expect(poor.render(32)[0]).toContain("\x1b[1m");
   });
 });

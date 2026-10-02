@@ -6,7 +6,7 @@
 |我先看一下 src/tui/tui.ts 的差分逻辑，然后只改必要的部分。
 |
 |1. 读文件           ╭─ Select model ───────────────────────╮
-|2. 修改 diff()：首变│ > ▏                                  │
+|2. 修改 diff()：首变│ › ▏                                  │
 |3. 跑测试           │ anthropic                            │
 |                    │ › claude-sonnet  key ✓               │
 |╭─ ts ──────────────│   claude-haiku   key ✓               │───────────────────╮
