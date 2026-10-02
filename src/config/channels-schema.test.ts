@@ -76,4 +76,31 @@ describe("config 校验：渠道", () => {
       "providers.relay.channels: 至少要有一个渠道",
     ]);
   });
+
+  it("内置供应商的内置渠道：defaultChannel / 模型 channels 可直接引用，同名渠道可只写部分字段", () => {
+    expect(
+      errors({
+        deepseek: {
+          defaultChannel: "messages",
+          models: [{ id: "m", channels: ["messages"] }],
+          modelOverrides: [{ id: "deepseek-flash", channels: ["chat"] }],
+        },
+        moonshot: {
+          channels: { messages: { headers: { "x-a": "1" } }, relay: CHANNELS.chat },
+          defaultChannel: "relay",
+        },
+      }),
+    ).toEqual([]);
+    expect(
+      errors({
+        deepseek: { defaultChannel: "responses", channels: { extra: { headers: {} } } },
+        google: { defaultChannel: "gemini" },
+      }),
+    ).toEqual([
+      "providers.deepseek.channels.extra.api: 缺少必填字符串",
+      "providers.deepseek.channels.extra.baseUrl: 缺少必填字符串",
+      'providers.deepseek.defaultChannel: 渠道 "responses" 不存在',
+      "providers.google.defaultChannel: 没有 channels 时不能设 defaultChannel",
+    ]);
+  });
 });
