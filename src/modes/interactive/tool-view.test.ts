@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createTheme, plainTheme } from "../../tui.js";
 import { ToolTracker, ToolView, cleanLines, toolSummary } from "./tool-view.js";
@@ -11,7 +12,7 @@ describe("工具视图", () => {
   it("标题摘要：bash 命令、相对路径与区间、搜索模式、task 描述、通用字段", () => {
     expect(toolSummary("bash", { command: "git status\n  && ls" })).toBe("git status ⏎ && ls");
     expect(toolSummary("read", { path: "/w/src/a.ts", offset: 10, limit: 20 }, "/w")).toBe(
-      "src/a.ts:10+20",
+      `${join("src", "a.ts")}:10+20`,
     );
     expect(toolSummary("read", { path: "/other/a.ts" }, "/w")).toBe("/other/a.ts");
     expect(toolSummary("grep", { pattern: "TODO", path: "/w/src" }, "/w")).toBe("TODO  in src");

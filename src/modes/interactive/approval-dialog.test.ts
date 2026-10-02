@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ApprovalDecision, ApprovalRequest } from "../../permissions/types.js";
 import { Editor, MemoryTerminal, TUI, Text, plainTheme } from "../../tui.js";
@@ -139,7 +140,7 @@ describe("审批对话框", () => {
         theme,
         { cwd: "/w" },
       ),
-    ).toEqual(["write  需要确认", "src/a.ts  写入 3 行"]);
+    ).toEqual(["write  需要确认", `${join("src", "a.ts")}  写入 3 行`]);
     const edit = describeRequest(
       req({
         toolName: "edit",
