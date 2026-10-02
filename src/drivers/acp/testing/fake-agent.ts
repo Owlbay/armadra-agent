@@ -188,6 +188,7 @@ export function runFakeAcpAgent(
         case ACP_METHODS.sessionNew: {
           counter += 1;
           const s = open(`fake-${counter}`, String(params["cwd"] ?? ""));
+          if (options.minimal) return { sessionId: s.id };
           return { sessionId: s.id, modes: { currentModeId: s.mode, availableModes: MODES } };
         }
         case ACP_METHODS.sessionResume:

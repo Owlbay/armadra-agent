@@ -70,6 +70,8 @@ export class JsonRpcPeer {
   readonly closed: Promise<void> = new Promise((resolve) => (this.resolveClosed = resolve));
 
   constructor(private readonly options: JsonRpcPeerOptions) {
+    // 对端先退出时写入会 EPIPE / write after end：交给 closed 处理，不变成未捕获异常
+    options.output.on("error", () => undefined);
     this.reader = createLineReader(
       options.input,
       (line) => this.onLine(line),
@@ -138,8 +140,16 @@ export class JsonRpcPeer {
   private send(message: Record<string, unknown>): Promise<void> {
     const body = this.options.jsonrpcField === false ? message : { jsonrpc: "2.0", ...message };
     const line = `${JSON.stringify(body)}\n`;
+    const output = this.options.output as NodeJS.WritableStream & {
+      writableEnded?: boolean;
+      destroyed?: boolean;
+    };
     this.writing = this.writing
-      .then(() => writeChunked(this.options.output, line))
+      .then(() =>
+        output.writableEnded === true || output.destroyed === true
+          ? undefined
+          : writeChunked(output, line),
+      )
       .catch(() => undefined);
     return this.writing;
   }
