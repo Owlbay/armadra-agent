@@ -14,6 +14,7 @@
  * - cwd 固定为启动目录（信任与项目配置都按它判定）；客户端给别的 cwd → invalid params。
  */
 
+import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import type { ImageBlock } from "../../ai/types.js";
 import type { AgentSession, SessionEvent } from "../../agent/types.js";
@@ -53,6 +54,15 @@ export const ACP_AGENT_CAPABILITIES = {
 
 type Params = Record<string, unknown>;
 
+/** 解析符号链接后的绝对路径（macOS 的 /var → /private/var 等）；不存在时退回 resolve。 */
+function canonical(path: string): string {
+  try {
+    return realpathSync.native(resolve(path));
+  } catch {
+    return resolve(path);
+  }
+}
+
 function str(params: Params, key: string): string {
   const value = params[key];
   if (typeof value !== "string" || value === "")
@@ -91,7 +101,7 @@ export class AcpServer {
     streams: { input: NodeJS.ReadableStream; output: NodeJS.WritableStream },
     private readonly log: (message: string) => void = () => undefined,
   ) {
-    this.cwd = resolve(runtime.paths.cwd);
+    this.cwd = canonical(runtime.paths.cwd);
     this.mapper = this.makeMapper();
     this.peer = new JsonRpcPeer({
       input: streams.input,
@@ -174,7 +184,7 @@ export class AcpServer {
   private checkCwd(params: Params): void {
     const cwd = params["cwd"];
     if (cwd === undefined) return;
-    if (typeof cwd !== "string" || resolve(cwd) !== this.cwd)
+    if (typeof cwd !== "string" || canonical(cwd) !== this.cwd)
       throw new RpcError(
         RPC_ERRORS.invalidParams,
         `ama --mode acp 的会话目录固定为启动目录 ${this.cwd}（收到 ${String(cwd)}）`,
@@ -226,7 +236,11 @@ export class AcpServer {
   }
 
   private list(): unknown {
-    const items = listSessions({ sessionDir: this.runtime.paths.sessionDir, cwd: this.cwd });
+    // 会话目录按 ama 启动时的 cwd 字串分组（不是 realpath）
+    const items = listSessions({
+      sessionDir: this.runtime.paths.sessionDir,
+      cwd: this.runtime.paths.cwd,
+    });
     return {
       sessions: items.map((item) => ({
         sessionId: item.id,
