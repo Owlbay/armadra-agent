@@ -79,7 +79,7 @@ describe("发给模型的请求与界面语言无关", () => {
     expect(en).toEqual(zh);
     // 确实走到了截断、读图失败与拒绝三条路径
     const last = zh.at(-1) ?? "";
-    expect(last).toContain("call_read");
+    expect(last).toContain("chars omitted");
     expect(last).toContain("missing.png");
     expect(last).toContain("call_bash");
   });

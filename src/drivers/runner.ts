@@ -95,13 +95,13 @@ function statusOf(turn: DriverTurnResult, timedOut: boolean, stopped: boolean): 
   }
 }
 
-/** 最终报告：最终文本 + 工具摘要 / 触及文件（给协调者当资料，不是指令）。 */
+/** 最终报告：最终文本 + 工具摘要 / 触及文件（给协调者当资料，不是指令；[W6-C0] 标题固定英文）。 */
 export function reportText(turn: DriverTurnResult): string {
   const parts = [turn.finalText.trim()];
   if (turn.toolSummary.length > 0)
-    parts.push(`工具调用：\n${turn.toolSummary.map((l) => `- ${l}`).join("\n")}`);
+    parts.push(`Tool calls:\n${turn.toolSummary.map((l) => `- ${l}`).join("\n")}`);
   if (turn.filesTouched.length > 0)
-    parts.push(`修改的文件：\n${turn.filesTouched.map((f) => `- ${f}`).join("\n")}`);
+    parts.push(`Files changed:\n${turn.filesTouched.map((f) => `- ${f}`).join("\n")}`);
   return parts.filter((p) => p !== "").join("\n\n");
 }
 
@@ -150,12 +150,12 @@ export class ProcessRunner implements SubagentRunner {
     for (const driver of this.drivers) {
       const probe = await driver.probe();
       if (!probe.installed) {
-        reasons.push(`${driver.kind} 未安装`);
+        reasons.push(`${driver.kind} is not installed`);
         continue;
       }
       const usable = supportedMode(mode, probe.capabilities.modes);
       if (usable === undefined) {
-        reasons.push(`${driver.kind} 不支持「${mode}」`);
+        reasons.push(`${driver.kind} does not support "${mode}"`);
         continue;
       }
       const warning = (probe as { warning?: string }).warning;
@@ -168,7 +168,7 @@ export class ProcessRunner implements SubagentRunner {
     }
     throw new AmaError(
       "agent_unavailable",
-      `外部 Agent ${this.id} 不可用（${reasons.join("；")}）`,
+      `external agent ${this.id} is unavailable (${reasons.join("; ")})`,
     );
   }
 
@@ -176,11 +176,14 @@ export class ProcessRunner implements SubagentRunner {
     if (!this.deps.trusted(request.cwd))
       throw new AmaError(
         "agent_untrusted",
-        `目录 ${request.cwd} 尚未被 ama 信任，不能在这里启动外部 Agent（它会执行项目里的 hooks 与配置）；先运行 ama trust`,
+        `${request.cwd} is not trusted by ama, so external agents cannot start here (they run the project's hooks and config); run ama trust there first`,
       );
     const budget = this.deps.config?.sessionBudgetUsd;
     if (budget !== undefined && (this.deps.store?.totalUsd() ?? 0) >= budget)
-      throw new AmaError("budget_exhausted", `本会话外部 Agent 预算 $${budget} 已用尽`);
+      throw new AmaError(
+        "budget_exhausted",
+        `external agent budget for this session ($${budget}) is used up`,
+      );
     const entry = agentEntry(this.deps.config, this.agentId);
     const mode = clampMode(request.mode, this.deps.parentMode?.(), entry?.maxMode);
     const chosen = await this.choose(mode);
@@ -208,7 +211,7 @@ interface HandleDeps extends ProcessRunnerDeps {
 class ProcessHandle implements RunnerHandle {
   private session: DriverSession | undefined;
   private sessionId = "";
-  private chain: Promise<SubagentResult> = Promise.resolve(failed("尚未运行", "", ""));
+  private chain: Promise<SubagentResult> = Promise.resolve(failed("not started", "", ""));
   private busy = false;
   private turns = 0;
   private stopped = false;
@@ -274,7 +277,7 @@ class ProcessHandle implements RunnerHandle {
   }
 
   async send(text: string): Promise<void> {
-    if (this.stopped) throw new AmaError("agent_closed", `${this.agent} 已停止`);
+    if (this.stopped) throw new AmaError("agent_closed", `${this.agent} stopped`);
     if (this.busy && this.session?.steer !== undefined && this.chosen.capabilities.steer) {
       await this.session.steer([{ type: "text", text }]);
       return;
@@ -359,13 +362,16 @@ class ProcessHandle implements RunnerHandle {
   private async ensureSession(): Promise<DriverSession> {
     if (this.session !== undefined) return this.session;
     if (this.chosen.capabilities.resume === "none" || this.sessionId === "")
-      throw new AmaError("agent_closed", `${this.agent} 会话已因空闲关闭且不支持续接`);
+      throw new AmaError(
+        "agent_closed",
+        `${this.agent} session was closed while idle and cannot be resumed`,
+      );
     await this.open(this.sessionId);
     return this.session as unknown as DriverSession;
   }
 
   private async runTurn(text: string): Promise<SubagentResult> {
-    if (this.stopped) return failed(`${this.agent} 已停止`, this.sessionId, this.runner.id);
+    if (this.stopped) return failed(`${this.agent} stopped`, this.sessionId, this.runner.id);
     this.clearIdle?.();
     let release: (() => void) | undefined;
     const setTimer = this.deps.setTimer ?? defaultSetTimer;
@@ -427,7 +433,7 @@ class ProcessHandle implements RunnerHandle {
       this.armIdle();
       return {
         text: timedOut
-          ? `${this.agent} 运行超时被中断。${turn.finalText !== "" ? `\n\n${reportText(turn)}` : ""}`
+          ? `${this.agent} timed out and was interrupted.${turn.finalText !== "" ? `\n\n${reportText(turn)}` : ""}`
           : reportText(turn),
         usage,
         stopReason: timedOut ? "timeout" : turn.stopReason,
@@ -438,11 +444,11 @@ class ProcessHandle implements RunnerHandle {
     } catch (error) {
       if (this.stopped)
         return {
-          ...failed(`${this.agent} 已停止`, this.sessionId, this.runner.id),
+          ...failed(`${this.agent} stopped`, this.sessionId, this.runner.id),
           status: "aborted",
         };
       return failed(
-        `${this.agent} 失败：${(error as Error).message}`,
+        `${this.agent} failed: ${(error as Error).message}`,
         this.sessionId,
         this.runner.id,
       );

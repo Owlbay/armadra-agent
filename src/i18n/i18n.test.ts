@@ -191,3 +191,51 @@ describe("format", () => {
     expect(formatDuration(65_000, "precise")).toBe("1m05s");
   });
 });
+
+describe("[W6-C0] 读图失败的本地化（tools/image-file.ts 只给码与英文）", () => {
+  const zh = messagesFor("zh").errors.imageFile;
+  const en = messagesFor("en").errors.imageFile;
+
+  it("zh 与迁移前的文案逐字节相同", () => {
+    expect(zh({ reason: "missing", path: "/a.png" })).toBe("图片不存在：/a.png");
+    expect(zh({ reason: "not_file", path: "/d" })).toBe("不是文件：/d");
+    expect(zh({ reason: "unsupported", path: "/a.bin" })).toBe(
+      "不是支持的图片（PNG / JPEG / GIF / WebP）：/a.bin",
+    );
+    expect(
+      zh({
+        reason: "too_large",
+        path: "/b.png",
+        limitMb: "5 MB",
+        sizeMb: "5.3 MB",
+        hint: "resize_off",
+      }),
+    ).toBe("图片超过 5 MB 上限（按 base64 后计算）：/b.png（5.3 MB）（images.resize 为 off）");
+    expect(
+      zh({
+        reason: "too_wide",
+        path: "/w.png",
+        maxEdge: 8000,
+        size: { width: 9000, height: 10 },
+        hint: "no_tool",
+      }),
+    ).toBe(
+      "图片任一边超过 8000 px：/w.png（9000×10）（没找到缩放工具：装 ImageMagick，macOS 自带 sips）",
+    );
+  });
+
+  it("en 整句", () => {
+    expect(en({ reason: "missing", path: "/a.png" })).toBe("Image not found: /a.png");
+    expect(
+      en({
+        reason: "too_large",
+        path: "/b.png",
+        limitMb: "5 MB",
+        sizeMb: "5.3 MB",
+        hint: "still_too_large",
+      }),
+    ).toBe(
+      "Image exceeds the 5 MB limit (counted after base64): /b.png (5.3 MB) (resizing did not bring it under the limit)",
+    );
+  });
+});

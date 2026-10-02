@@ -19,7 +19,13 @@ import type { ImageBlock, Model, ModelRef, ProviderRegistryApi } from "../ai/typ
 import type { ImagesConfig } from "../config/types-w5.js";
 import { AmaError } from "../errors.js";
 import { imageLimits } from "../ai/image-limits.js";
-import { imageMimeFromPath, loadImageFile, type ImageFitOptions } from "../tools/image-file.js";
+import {
+  imageMimeFromPath,
+  isImageFileErrorDetail,
+  loadImageFile,
+  type ImageFitOptions,
+} from "../tools/image-file.js";
+import { msg } from "../i18n/index.js";
 
 export interface ImageRef {
   path: string;
@@ -88,7 +94,7 @@ export async function loadPromptImages(
     ...options,
   };
   const blocks: ImageBlock[] = [];
-  for (const ref of wanted) blocks.push((await loadImageFile(ref.path, fit)).block);
+  for (const ref of wanted) blocks.push((await loadLocalized(ref.path, fit)).block);
   return blocks;
 }
 
@@ -121,4 +127,21 @@ export function imageFitOptionsFor(
   if (providers === undefined || ref === undefined) return resize;
   const found = providers.findModel(formatModelRef(ref));
   return found.ok ? { maxBase64Bytes: imageLimits(found.model).perImageBase64, ...resize } : resize;
+}
+
+/** [W6-C0] `loadImageFile` 的错误固定英文（模型侧模块）；给人看时按 `detail.reason` 换成界面语言。 */
+async function loadLocalized(
+  path: string,
+  options: ImageFitOptions,
+): Promise<Awaited<ReturnType<typeof loadImageFile>>> {
+  try {
+    return await loadImageFile(path, options);
+  } catch (error) {
+    if (error instanceof AmaError && isImageFileErrorDetail(error.detail))
+      throw new AmaError(error.code, msg().errors.imageFile(error.detail), {
+        detail: error.detail,
+        ...(error.exitCode !== undefined ? { exitCode: error.exitCode } : {}),
+      });
+    throw error;
+  }
 }

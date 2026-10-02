@@ -106,11 +106,11 @@ describe("truncateMiddle（W5-H2 头 + 尾）", () => {
     expect(out.content).toBe(`${"h".repeat(70)}\n\n[skip 900]\n\n${"t".repeat(30)}`);
   });
 
-  it("尾部的错误信息保住；缺省标记为中文省略说明", () => {
+  it("尾部的错误信息保住；缺省标记为英文省略说明（进模型，固定英文）", () => {
     const text = `${"x".repeat(5000)}\nError: boom at line 3`;
     const out = truncateMiddle(text, 200);
     expect(out.content.endsWith("Error: boom at line 3")).toBe(true);
-    expect(out.content).toMatch(/\[… \d+ 字符已省略\]/);
+    expect(out.content).toMatch(/\[… \d+ chars omitted\]/);
   });
 
   it("不切断代理对", () => {

@@ -118,7 +118,7 @@ export class ClaudeStreamDriver implements AgentDriver {
       await session.close();
       throw new AmaError(
         "agent_start_failed",
-        `${this.agentId}：启动失败（${(error as Error).message}）${stderrHint(transport) !== "" ? `：${stderrHint(transport)}` : ""}`,
+        `${this.agentId}: failed to start (${(error as Error).message})${stderrHint(transport) !== "" ? `: ${stderrHint(transport)}` : ""}`,
         { cause: error },
       );
     }
@@ -186,8 +186,9 @@ class ClaudeStreamSession implements DriverSession {
 
   async prompt(content: ContentBlock[], hooks: DriverPromptHooks): Promise<DriverTurnResult> {
     if (this.closed || this.exited)
-      throw new AmaError("agent_closed", `${this.agentId} 会话已关闭`);
-    if (this.running !== undefined) throw new AmaError("busy", `${this.agentId} 正在运行`);
+      throw new AmaError("agent_closed", `${this.agentId} session is closed`);
+    if (this.running !== undefined)
+      throw new AmaError("busy", `${this.agentId} is already running`);
     const turn = new TurnCollector((e) => hooks.onEvent(e));
     for (const text of this.notices.splice(0)) turn.push({ type: "notice", level: "warn", text });
     this.turn = turn;
@@ -213,7 +214,7 @@ class ClaudeStreamSession implements DriverSession {
 
   async steer(content: ContentBlock[]): Promise<void> {
     if (this.closed || this.exited)
-      throw new AmaError("agent_closed", `${this.agentId} 会话已关闭`);
+      throw new AmaError("agent_closed", `${this.agentId} session is closed`);
     this.write(userLine(content));
   }
 
@@ -272,7 +273,7 @@ class ClaudeStreamSession implements DriverSession {
     const stop = claudeStopReason(result, this.interrupted);
     if (stop === undefined) {
       const detail = result.errors?.join("; ") ?? result.result ?? result.subtype ?? "unknown";
-      throw new AmaError("agent_failed", `${this.agentId} 回合失败：${oneLine(detail, 300)}`);
+      throw new AmaError("agent_failed", `${this.agentId} turn failed: ${oneLine(detail, 300)}`);
     }
     return turn.result(stop);
   }
@@ -309,7 +310,7 @@ class ClaudeStreamSession implements DriverSession {
     for (const controller of this.permissions.values()) controller.abort();
     const error = new AmaError(
       "agent_exited",
-      `${this.agentId} 进程已退出${stderrHint(this.transport) !== "" ? `：${stderrHint(this.transport)}` : ""}`,
+      `${this.agentId} process exited${stderrHint(this.transport) !== "" ? `: ${stderrHint(this.transport)}` : ""}`,
     );
     for (const pending of this.controls.values()) pending.reject(error);
     this.controls.clear();

@@ -110,7 +110,7 @@ export class AcpClient {
     if (result.protocolVersion !== ACP_PROTOCOL_VERSION)
       throw new RpcError(
         RPC_ERRORS.invalidRequest,
-        `ACP 协议版本不兼容：Agent ${String(result.protocolVersion)}，客户端 ${ACP_PROTOCOL_VERSION}`,
+        `incompatible ACP protocol version: agent ${String(result.protocolVersion)}, client ${ACP_PROTOCOL_VERSION}`,
       );
     this.initResult = result;
     return result;

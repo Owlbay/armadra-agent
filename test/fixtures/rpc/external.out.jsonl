@@ -16,5 +16,5 @@
 {"type":"permission_resolved","requestId":"<uuid>","decision":"allow"}
 {"type":"subagent_update","taskId":"t1","kind":"text","textDelta":"child ran it","turn":1}
 {"type":"subagent_end","taskId":"t1","status":"completed","usage":"<usage>"}
-{"type":"tool_execution_end","toolCallId":"fake_call_0","toolName":"task","result":{"content":"[task t1] child ran it\n\n工具调用：\n- ✓ execute bash: echo from-child","isError":false,"details":{"taskId":"t1","status":"completed","usage":"<usage>","stopReason":"end_turn"}},"isError":false}
+{"type":"tool_execution_end","toolCallId":"fake_call_0","toolName":"task","result":{"content":"[task t1] child ran it\n\nTool calls:\n- ✓ execute bash: echo from-child","isError":false,"details":{"taskId":"t1","status":"completed","usage":"<usage>","stopReason":"end_turn"}},"isError":false}
 {"type":"agent_settled"}

@@ -84,7 +84,7 @@ export class CodexAppServerDriver implements AgentDriver {
       if (error instanceof AmaError) throw error;
       throw new AmaError(
         "agent_start_failed",
-        `${this.agentId}：app-server 启动失败（${(error as Error).message}）${stderrHint(transport) !== "" ? `：${stderrHint(transport)}` : ""}`,
+        `${this.agentId}: app-server failed to start (${(error as Error).message})${stderrHint(transport) !== "" ? `: ${stderrHint(transport)}` : ""}`,
         { cause: error },
       );
     }
@@ -169,14 +169,15 @@ class CodexSession implements DriverSession {
       signal,
     );
     const id = started.thread?.id;
-    if (typeof id !== "string" || id === "") throw new Error("thread/start 没有返回 thread.id");
+    if (typeof id !== "string" || id === "") throw new Error("thread/start returned no thread.id");
     this.threadId = id;
   }
 
   async prompt(content: ContentBlock[], hooks: DriverPromptHooks): Promise<DriverTurnResult> {
     if (this.closed || !this.peer.isOpen)
-      throw new AmaError("agent_closed", `${this.agentId} 会话已关闭`);
-    if (this.running !== undefined) throw new AmaError("busy", `${this.agentId} 正在运行`);
+      throw new AmaError("agent_closed", `${this.agentId} session is closed`);
+    if (this.running !== undefined)
+      throw new AmaError("busy", `${this.agentId} is already running`);
     const turn = new TurnCollector((e) => hooks.onEvent(e));
     for (const text of this.notices.splice(0)) turn.push({ type: "notice", level: "info", text });
     if (content.some((b) => b.type === "image"))
@@ -190,7 +191,7 @@ class CodexSession implements DriverSession {
     const closed = this.peer.closed.then(() => {
       throw new AmaError(
         "agent_exited",
-        `${this.agentId} 进程已退出${stderrHint(this.transport) !== "" ? `：${stderrHint(this.transport)}` : ""}`,
+        `${this.agentId} process exited${stderrHint(this.transport) !== "" ? `: ${stderrHint(this.transport)}` : ""}`,
       );
     });
     void closed.catch(() => undefined);
@@ -219,7 +220,7 @@ class CodexSession implements DriverSession {
 
   async steer(content: ContentBlock[]): Promise<void> {
     if (this.turnId === undefined)
-      throw new AmaError("not_running", `${this.agentId} 没有进行中的回合`);
+      throw new AmaError("not_running", `${this.agentId} has no turn in progress`);
     await this.peer.request("turn/steer", {
       threadId: this.threadId,
       input: textInput(content),
@@ -281,7 +282,7 @@ class CodexSession implements DriverSession {
       const error = (turnInfo["error"] ?? {}) as Json;
       throw new AmaError(
         "agent_failed",
-        `${this.agentId} 回合失败：${oneLine(String(error["message"] ?? "unknown"), 300)}`,
+        `${this.agentId} turn failed: ${oneLine(String(error["message"] ?? "unknown"), 300)}`,
       );
     }
     return turn.result("end_turn");

@@ -299,14 +299,14 @@ describe("auto 三层", () => {
 });
 
 describe("allowlist", () => {
-  it("只放行 allow 规则命中的，拒绝说明写「不在允许名单」", () => {
+  it("只放行 allow 规则命中的，拒绝说明写 Not in the allowlist（回给模型，固定英文）", () => {
     const p = pipeline("allowlist", [], ["write(src/**)", "bash(pnpm test*)"]);
     const write = (path: string) =>
       p.check({ toolName: "write", permission: "write", input: { path }, unattended: false });
     expect(write("src/a.ts").decision).toBe("allow");
     const denied = write("lib/a.ts");
     expect(denied).toMatchObject({ decision: "deny", step: "allowlist" });
-    expect(denied.message).toContain("不在允许名单");
+    expect(denied.message).toContain("Not in the allowlist");
     const bash = (command: string) =>
       p.check({ toolName: "bash", permission: "execute", input: { command }, unattended: false });
     expect(bash("pnpm test --run").decision).toBe("allow");

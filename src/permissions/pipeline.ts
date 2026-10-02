@@ -134,7 +134,7 @@ export const UNATTENDED_MESSAGE =
   "This tool call requires approval, but no one is available to approve it (unattended mode).";
 
 export const ALLOWLIST_MESSAGE =
-  'Not in the allowlist (不在允许名单): permission mode "allowlist" only runs read-only tools and calls matched by an allow rule, and never asks.';
+  'Not in the allowlist: permission mode "allowlist" only runs read-only tools and calls matched by an allow rule, and never asks.';
 
 /** 审计摘要：bash 取命令，带 path 的取路径，其它取工具名；单行、截断。 */
 function auditSummary(toolName: string, input: unknown): string {

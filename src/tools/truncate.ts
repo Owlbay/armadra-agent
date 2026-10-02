@@ -181,12 +181,12 @@ function charBoundary(text: string, index: number): number {
 
 /**
  * 头 + 尾截断（[W5-H2] §8.3 H5）：超过 `maxChars` 时保留前 70% 与后 30%，中间换成
- * `marker(省略字符数)` 的文本（缺省 `[… N 字符已省略]`）。
+ * `marker(省略字符数)` 的文本（缺省 `[… N chars omitted]`；[W6-C0] 进模型的标记固定英文）。
  */
 export function truncateMiddle(
   text: string,
   maxChars: number,
-  marker: (omitted: number) => string = (omitted) => `[… ${omitted} 字符已省略]`,
+  marker: (omitted: number) => string = (omitted) => `[… ${omitted} chars omitted]`,
 ): MiddleTruncation {
   if (text.length <= maxChars) return { content: text, omitted: 0 };
   const limit = Math.max(0, Math.floor(maxChars));

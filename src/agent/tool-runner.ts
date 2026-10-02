@@ -8,7 +8,8 @@
  * `terminate` 要整批都为真才提前结束。`stopReason: "length"` 且有工具调用 → 整批判失败不执行。
  * abort：未开始的调用直接给 `aborted by user` 错误结果；执行中的工具收到 signal，超过宽限期仍未结束
  * 则不再等待、记 `aborted by user`。结果超 `maxToolResultChars` 截断并把全文写到 `outputDir`：
- * [W5-H2] 保留头 70% + 尾 30%，中间 `[… N 字符已省略，全文 <path>]`（tools/truncate.ts）。
+ * [W5-H2] 保留头 70% + 尾 30%，中间 `[… N chars omitted (…; full output at <path>)]`（tools/truncate.ts；
+ * [W6-C0] 进模型的标记固定英文，与界面语言无关）。
  *
  * 嵌套调用（`ToolContext.tools.executeTool`，codemode 脚本里的 `tools.*`）走 `runSingleToolCall`：
  * 同一套校验与门禁，按**全部未禁用工具**查找（codemode only 模式下活动集只有 codemode），
@@ -210,13 +211,13 @@ function truncateResult(
     : (options.maxToolResultChars ?? DEFAULT_MAX_TOOL_RESULT_CHARS);
   const text = resultText(result.content);
   if (text.length <= limit) return result;
-  let where = "全文未保存";
+  let where = "full output not saved";
   if (options.outputDir !== undefined) {
     try {
       mkdirSync(options.outputDir, { recursive: true });
       const file = join(options.outputDir, `${call.id.replace(/[^A-Za-z0-9_-]/g, "_")}.txt`);
       writeFileSync(file, text, "utf8");
-      where = `全文 ${file}`;
+      where = `full output at ${file}`;
     } catch {
       // 落盘失败只影响提示文字
     }
@@ -228,7 +229,7 @@ function truncateResult(
   const { content } = truncateMiddle(
     text,
     limit,
-    (omitted) => `[… ${omitted} 字符已省略（输出过长已截断：共 ${text.length} 字符，${where}）]`,
+    (omitted) => `[… ${omitted} chars omitted (truncated from ${text.length} chars; ${where})]`,
   );
   return {
     ...result,
