@@ -45,7 +45,11 @@ import {
   type CodemodeMode,
   type ToolsPresetInput,
 } from "../../config/types.js";
-import { codemodeAvailability, detectSandboxCapability } from "../../codemode/capability.js";
+import {
+  codemodeAvailability,
+  detectSandboxCapability,
+  sandboxCapabilityFor,
+} from "../../codemode/capability.js";
 import { baseUrlEnvOf } from "../../ai/providers/registry.js";
 import type { Api, ProviderRegistryApi } from "../../ai/types.js";
 import { classifyKeyValue } from "../../config/auth-file.js";
@@ -315,13 +319,20 @@ export interface CodemodeDescription {
   unavailable?: string;
 }
 
-/** codemode 生效模式与原因（跟随预设时写明预设与运行时 Node 是否隔离网络）。 */
+/**
+ * codemode 生效模式与原因（跟随预设时写明预设与网络由谁隔离）。传 `nodeVersion` 是假设性计算（不探测
+ * 操作系统沙箱）；不传按配置的 `sandbox.enabled` 用运行时能力。
+ */
 export function describeCodemode(config: AmaConfig, nodeVersion?: string): CodemodeDescription {
-  const capability = detectSandboxCapability(nodeVersion);
+  const capability =
+    nodeVersion === undefined ? sandboxCapabilityFor(config) : detectSandboxCapability(nodeVersion);
   const resolved = resolveCodemodeMode(config, capability.strict);
-  const sandbox = capability.strict
-    ? `Node ${capability.nodeMajor} 网络已隔离`
-    : `Node ${capability.nodeMajor} < 25 网络未隔离`;
+  const sandbox =
+    capability.nodeMajor >= 25
+      ? `Node ${capability.nodeMajor} 网络已隔离`
+      : capability.strict
+        ? `Node ${capability.nodeMajor} 网络由操作系统沙箱 ${capability.os.kind} 隔离`
+        : `Node ${capability.nodeMajor} < 25 网络未隔离`;
   const reason =
     resolved.source === "config"
       ? `codemode.mode 显式设置（${sandbox}）`

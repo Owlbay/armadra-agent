@@ -34,8 +34,9 @@ import type { Rule } from "../permissions/types.js";
 import { discoverSkills, skillSources } from "../skills/discover.js";
 import { discoverPromptTemplates, promptSources } from "../skills/templates.js";
 import { applyCodemodeMode } from "../codemode/modes.js";
-import { detectSandboxCapability, type SandboxCapability } from "../codemode/capability.js";
+import { sandboxCapabilityFor, type SandboxCapability } from "../codemode/capability.js";
 import { codemodeToolFactory } from "../codemode/tool.js";
+import { configureOsSandbox } from "../sandbox/detect.js";
 import { PresetToolRegistry, resolvePreset } from "../tools/presets.js";
 import { builtinTools } from "../tools/registry.js";
 import type { ToolDefinition, ToolRegistryApi } from "../tools/types.js";
@@ -129,7 +130,9 @@ export function createTools(
   state: ComposeState,
 ): PresetToolRegistry {
   const registry = new PresetToolRegistry();
-  const capability = options.sandboxCapability ?? detectSandboxCapability();
+  // 记下 sandbox.enabled：拿不到配置的只读调用方（状态栏）与这里得到同一结论。
+  configureOsSandbox(input.config.sandbox?.enabled);
+  const capability = options.sandboxCapability ?? sandboxCapabilityFor(input.config);
   const factories =
     options.toolFactories ??
     (options.sandboxCapability !== undefined
