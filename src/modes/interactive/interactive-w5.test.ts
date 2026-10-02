@@ -93,7 +93,7 @@ describe("计划审批（交互）", () => {
 });
 
 describe("子 Agent（交互）", () => {
-  it("后台子 Agent 完成后有提示，/tasks 列出", async () => {
+  it("后台子 Agent 完成后有提示，/tasks 聚焦 Agent 栏（W6-A），Enter 进子 Agent 视图", async () => {
     const script: FakeResponse[] = [
       {
         steps: [
@@ -122,11 +122,12 @@ describe("子 Agent（交互）", () => {
     expect(s.terminal.transcript().join("\n")).toContain("↳ t1 explore · 完成");
     await s.handle.session().waitForIdle();
     s.type("/tasks\r");
-    await waitFor(s, (x) => x.includes("子 Agent 任务"), "tasks picker");
+    await waitFor(s, (x) => x.includes("Enter 打开"), "agent bar");
     const frame = shot(s, "/tasks").replace(/完成 · \d+(\.\d)?s/g, "完成 · <t>");
     golden("interactive-tasks-80x24", frame);
     s.type("\r");
-    await waitFor(s, (x) => x.includes("任务 t1"), "task output");
+    await waitFor(s, (x) => x.includes("发给 t1"), "agent view");
+    expect(screenOf(s)).toContain("找出 src/tui 的测试缺口");
     s.handle.exit(0);
     await s.done;
   });

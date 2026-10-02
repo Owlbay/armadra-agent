@@ -21,6 +21,16 @@
 - `ama memory`、`/config`、`/trace`、`/memory` 已登记，当前回「尚未提供」。
 - bundle 改用 UTF-8 输出（中文不再转成 `\uXXXX`），体积约减 40 KB。
 
+Agent 栏与子 Agent 视图（W6-A，[docs/tui.md](docs/tui.md)「子 Agent」）：
+
+- **Agent 栏**：状态行上方列出子 Agent 任务（排队 / 运行中 · 用时 · 轮数 · 最近工具 / 等待审批 / 完成 / 失败 / 已停止），最多 3 行 +「另 N 个」；
+  结束后保留到在视图里看过为止，最多 10 分钟。输入为空时 `Ctrl+B` 或 `↓` 进入（`app.agents.focus`；有字时 `Ctrl+B` 仍是光标左移，tmux 里用 `↓`），
+  ↑↓ 选、Enter 打开。嵌入宿主缺省不显示（`ui.agentBar: "off"`）。
+- **子 Agent 视图**：主屏上的全屏覆盖层（行数 − 1），实时跟随子会话的消息与工具调用（句柄被释放或 resume 后只读加载子会话文件）；外部 Agent
+  显示内存里的实时输出（≤ 2000 条 / 1 MB，不落盘）。输入框直接发给子 Agent：运行中排到本轮结束、外部 Agent 等本次运行结束、已结束则后台续聊；
+  子会话里记为 `origin: "direct"`。Esc 返回（不中断），子 Agent 的审批在视图上弹出并标来源。
+- **`/tasks` 改为聚焦 Agent 栏**，`/tasks <id>` 直接打开视图（`ui.agentBar: "off"` 时仍是原来的选择器；line 模式不变）。
+
 ## 0.5.1（2026-10-03）
 
 - **Tab 切换权限模式**：输入为空、补全未打开时按 Tab 与 Shift+Tab 一样循环权限模式；有输入时 Tab 仍是补全。可在 `keybindings.json` 的 `app.permission.cycle` 改回只用 `shift+tab`。
