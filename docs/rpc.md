@@ -109,7 +109,7 @@
 
 | 命令                      | 参数                                                                  | `data`                                                                         |
 | ------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `set_client_capabilities` | `capabilities: ("approvals" \| "images" \| "hooks")[]`                | `{ capabilities }`                                                             |
+| `set_client_capabilities` | `capabilities: ("approvals" \| "images" \| "hooks" \| "plans")[]`     | `{ capabilities }`                                                             |
 | `permission_response`     | `requestId: string`、`decision: "allow" \| "deny" \| "allow_session"` | `{ accepted: boolean }`（false = 当前没在等这个 id，已暂存，稍后被问到时生效） |
 
 ### 工具、权限、发现
@@ -122,7 +122,17 @@
 | `get_commands`        | —                                                                      | `{ commands: { name, description?, source: "builtin" \| "template" \| "skill" }[] }`；Skill 名写作 `skill:<名>`     |
 | `get_skills`          | —                                                                      | `{ skills: { name, description, location, … }[] }`（已发现的 Skill；`location` 是 SKILL.md 路径）                   |
 
-合计 37 条命令，名字即 `RpcCommandMap` 的键。
+### 计划与任务（第五波）
+
+| 命令            | 参数                                                                                                                                             | `data`                                                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `plan_response` | `planId`、`decision: approve \| approve_fresh \| revise \| reject`、`mode?`（批准后的执行模式）、`feedback?`（revise 的意见）、`editedMarkdown?` | `{ planId, decision }`；`planId` 不是待审批的计划 → `plan_not_found`。见「计划审批」                     |
+| `get_plan`      | `planId?`                                                                                                                                        | `PlanData \| null`：`{ id, version, status, markdown, steps, sourceEntryId, filePath? }`，缺省取最近一份 |
+| `get_todos`     | —                                                                                                                                                | `{ items: { id, text, status: pending \| in_progress \| done, planStep? }[] }`                           |
+| `get_tasks`     | —                                                                                                                                                | `{ tasks: TaskInfo[] }`（子 Agent 任务注册表的只读视图；未装配时为空表）                                 |
+| `get_agents`    | —                                                                                                                                                | `{ agents: AgentInfo[] }`（可用的子 Agent 类型与外部 Agent；未装配时为空表）                             |
+
+合计 42 条命令，名字即 `RpcCommandMap` 的键。
 
 ## 事件
 
@@ -266,6 +276,22 @@
 3. 客户端回 `permission_response{requestId, decision}`。`allow_session` 在本会话内记住同一工具与归一化输入前缀，不落盘。先于请求到达的回答会暂存，等请求出现时使用。
 4. 回答者顺序：宿主 broker（`HostApi.approvals.setBroker`）→ RPC 客户端 → 无人作答 deny。审批串行，同一时刻只有一个在等。
 5. 超时：`timeoutMs`（缺省 600 000，即 10 分钟；环境变量 `AMA_APPROVAL_TIMEOUT_MS` 可改）内没有回答 → 服务端按 deny 处理并发 `permission_resolved`。运行被中断时同样 deny，即使客户端已经放行。
+
+## 计划审批
+
+plan 模式与计划的格式见 [plan.md](plan.md)。
+
+1. 回合在 plan 模式下以纯文本结束、回复里有 `<proposed_plan>` 块时，服务端落盘计划并发 `plan_proposed{ planId, version, markdown, steps, filePath? }`（`steps[]`：`{ id, text, dependsOn?, agent? }`），随后照常 `agent_settled`。
+2. 客户端声明过 `set_client_capabilities{capabilities:["plans"]}` 才由它回答；没声明时按配置 `plan.unattended`：缺省 `stop`（计划留在 proposed，不切模式、不执行，客户端之后仍可用 `plan_response` 作答），`approve` 时同一次运行里自动批准并执行。
+3. `plan_response`：
+   - `approve`：计划标 approved，步骤写成 todo（首项 in_progress，发 `todo_updated`），发 `plan_resolved{ planId, decision, mode }`，权限模式切到 `mode`（缺省进入 plan 前的模式；进入前就是 plan 时用 `default`），随后自动开一个新回合：用户消息 `The plan is approved. Go ahead.`（`origin: "plan"`）+ `custom_message{ama.plan_approved}`（计划全文、文件路径、按 todo 推进）。
+   - `approve_fresh`：同上标 approved、切模式，然后新建会话（发 `session_start{reason:"new"}`），在新会话里写 todo，并以计划全文为首条用户消息开回合。
+   - `revise`：留在 plan；`feedback` 非空时作为普通用户消息开回合，模型重写计划后出新版本（旧版标 superseded）。
+   - `reject`：计划标 rejected，留在 plan。
+   - `editedMarkdown`：客户端改过的全文；与原文不同则先落一份新版本（`plan_proposed` 再发一次）再按 `decision` 处理。
+4. `todo_updated{ items }`：todo 清单每次变化（`todo` 工具的 set / update、批准时生成）都发，形状同 `get_todos`。
+
+`test/fixtures/rpc/plan.out.jsonl` 是一次完整审批往返的黄金文件（不含 `entry_appended` 与 `message_update`）：声明 `plans` → `set_permission_mode plan` → 提示 → `ama.plan_mode` 说明 → 带计划块的回复 → `plan_proposed` → `agent_settled` → `get_plan` → `plan_response approve` → `todo_updated`、`plan_resolved`、`permission_mode_changed` → 执行回合（`ama.plan_approved`）→ `get_todos`。由 `src/modes/rpc/rpc-plan.test.ts` 用 `UPDATE_GOLDEN=1` 更新。
 
 ## 退出
 

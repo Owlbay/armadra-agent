@@ -92,14 +92,14 @@ declare const tools: {
     /** send only */
     prompt?: string;
   }): Promise<string>;
-  /** Session task list for multi-step work: \`set\` replaces the whole list, \`get\` returns it. */
+  /** Session task list: \`set\` replaces all items, \`update\` changes items by id (only given fields), \`get\` reads. */
   todo(args: {
-    action: "set" | "get";
-    /** Full list (set) */
+    action: "set" | "update" | "get";
     items?: {
       id: string;
-      text: string;
-      status: "pending" | "in_progress" | "done";
+      text?: string;
+      status?: "pending" | "in_progress" | "done";
+      planStep?: string;
     }[];
   }): Promise<string>;
   /** Write a file, replacing its entire content; parent directories are created. An existing file must be read first. Prefer the edit tool for partial changes. */
