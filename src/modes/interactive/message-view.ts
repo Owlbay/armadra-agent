@@ -16,7 +16,7 @@
  */
 
 import type { AssistantMessage, ContentBlock, ToolCallBlock, UserMessage } from "../../ai/types.js";
-import type { CompactionResult, ToolResultMessage } from "../../agent/types.js";
+import type { CompactionResult, SessionStats, ToolResultMessage } from "../../agent/types.js";
 import type { AgentMessage } from "../../session/types.js";
 import {
   Card,
@@ -29,7 +29,7 @@ import {
   type Component,
   type Theme,
 } from "../../tui.js";
-import { formatTokens } from "./status-bar.js";
+import { formatCost, formatTokens } from "./status-bar.js";
 
 export type ThinkingDisplay = "full" | "collapsed" | "hidden";
 export type NoticeLevel = "info" | "warn" | "error";
@@ -41,6 +41,51 @@ export interface MessageViewOptions {
   markdown?: boolean;
   /** `ui.compact`：块间不空行。 */
   compact?: boolean;
+}
+
+/** 退出摘要的时长：不足 1 分钟按秒，否则按分钟。 */
+function sessionDuration(ms: number): string {
+  const seconds = Math.max(0, Math.round(ms / 1000));
+  return seconds < 60 ? `${seconds} 秒` : `${Math.round(seconds / 60)} 分钟`;
+}
+
+/**
+ * 退出摘要（§3.14）：`─ 会话 <id> · 时长 · N 回合 · ↑in ↓out · cache x% · $y（重计费 $z）` 与
+ * `  恢复：ama --resume <id>`。整体 dim，会话 id 与恢复命令正文色；0 回合只到「回合」；会话没落盘不给恢复行。
+ */
+export function exitSummaryLines(
+  stats: Pick<
+    SessionStats,
+    "sessionId" | "sessionFile" | "userMessages" | "tokens" | "cost" | "cache" | "cacheHitRate"
+  >,
+  elapsedMs: number,
+  theme: Theme,
+): string[] {
+  const g = theme.glyphs;
+  const dim = (s: string): string => theme.fg("dim", s);
+  const id = stats.sessionId.slice(0, 8);
+  const parts = [
+    dim(`${g.rule} 会话 `) + theme.fg("text", id),
+    dim(sessionDuration(elapsedMs)),
+    dim(`${stats.userMessages} 回合`),
+  ];
+  const t = stats.tokens;
+  const prompt = t.input + t.cacheRead + t.cacheWrite;
+  if (stats.userMessages > 0 && prompt + t.output > 0) {
+    parts.push(dim(`${g.arrowUp}${formatTokens(prompt)} ${g.arrowDown}${formatTokens(t.output)}`));
+    const rate = stats.cache?.hitRate ?? stats.cacheHitRate;
+    if (rate !== undefined) parts.push(dim(`cache ${Math.round(rate * 100)}%`));
+    if (stats.cost !== undefined && stats.cost > 0) {
+      const rebill = stats.cache?.reBilledUsd;
+      const extra = rebill !== undefined && rebill > 0 ? `（重计费 ${formatCost(rebill)}）` : "";
+      parts.push(dim(formatCost(stats.cost) + extra));
+    }
+  }
+  const lines = [parts.join(dim(" · "))];
+  if (stats.userMessages > 0 && stats.sessionFile !== undefined) {
+    lines.push(dim("  恢复：") + theme.fg("text", `ama --resume ${id}`));
+  }
+  return lines;
 }
 
 /** 思考块展开时的正文行数上限（`full` 不限）。 */
@@ -401,6 +446,11 @@ export class MessageView extends Container {
         ),
       ),
     );
+  }
+
+  /** 退出前追加的会话摘要（留在终端回滚里）。 */
+  addExitSummary(lines: readonly string[]): void {
+    this.add(new Text(lines.join("\n")));
   }
 
   addRetryFailed(error: string | undefined): void {

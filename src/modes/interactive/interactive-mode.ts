@@ -52,7 +52,7 @@ import { ApprovalDialogBroker, approvalOutcomeText } from "./approval-dialog.js"
 import { ALL_COMMANDS, runInteractiveCommand, type CommandUi } from "./commands.js";
 import { InteractiveCompletion } from "./completion.js";
 import { createKeyDispatch } from "./key-dispatch.js";
-import { MessageView, type NoticeLevel } from "./message-view.js";
+import { MessageView, exitSummaryLines, type NoticeLevel } from "./message-view.js";
 import { openPicker } from "./pickers.js";
 import { StartupHeader } from "./startup-header.js";
 import { QueueView, RunIndicator } from "./run-indicator.js";
@@ -131,6 +131,7 @@ export function runInteractiveMode(
       ascii: resolveAscii(ui.ascii, env),
     });
   const now = options.now ?? Date.now;
+  const startedAt = now();
   const startupWarnings: string[] = [];
   const keys = options.keybindings ?? loadKeys(runtime, (m) => startupWarnings.push(m));
 
@@ -463,6 +464,7 @@ export function runInteractiveMode(
       busy: () => indicator.busy,
       now,
       showHint,
+      onExpandToggle: (expanded) => view.setThinkingExpanded(expanded),
       submit: (text, via) => submit(text, via),
       runCommand: (line) => void runCommand(line),
       exit: (code) => exit(code),
@@ -499,9 +501,11 @@ export function runInteractiveMode(
     if (finished) return;
     finished = true;
     if (hintTimer !== undefined) clearTimeout(hintTimer);
-    hint.setText("");
     loader.stop();
-    loaderSlot.clear();
+    // 退出摘要留在回滚里；输入框、状态栏等底部区域撤掉，屏幕停在摘要下面
+    view.addExitSummary(exitSummaryLines(session.getStats(), now() - startedAt, theme));
+    tui.clear();
+    tui.addChild(view);
     offSignals();
     runtime.approvals.setUiBroker(undefined);
     runtime.notifier.set(undefined);

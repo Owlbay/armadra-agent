@@ -69,7 +69,13 @@ export function snapshot(terminal: MemoryTerminal, label: string): string {
   const { row, col } = terminal.screen.cursor;
   const out = [`# ${label} · viewport ${terminal.columns}x${terminal.rows} cursor=${row},${col}`];
   out.push(...terminal.viewport().map((l) => `|${l}`));
-  return out.join("\n").replaceAll(AMA_VERSION, "<version>") + "\n";
+  return (
+    out
+      .join("\n")
+      .replaceAll(AMA_VERSION, "<version>")
+      // 会话 id 每次不同（退出摘要、/session 面板）
+      .replace(/(会话 |--resume )[0-9A-Za-z_-]{8}/g, "$1<id>") + "\n"
+  );
 }
 
 /** 当前用例的 harness 与运行时（afterEach 里 `cleanupStarted()`）。 */

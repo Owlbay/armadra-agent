@@ -102,12 +102,13 @@
 |
 |
 
-# ctrl+o expanded · viewport 80x24 cursor=19,2
+# ctrl+o expanded · viewport 80x24 cursor=20,2
 |✻ ama <version> · fake/echo · Manual · /help
 |
 |› 读一下 README，说说是什么
 |
-|✻ 思考 · 8 token
+|✻ 思考 · 8 token  ▾
+|  I should read the file first.
 |
 |Reading it.
 |
@@ -126,14 +127,14 @@
 |────────────────────────────────────────────────────────────────────────────────
 |工具输出：展开
 |Manual                   echo · medium · ↑2.7k ↓52 · cache 80% · $0.002 · ctx 1%
-|
 
-# exit · viewport 80x24 cursor=22,0
+# exit · viewport 80x24 cursor=21,0
 |✻ ama <version> · fake/echo · Manual · /help
 |
 |› 读一下 README，说说是什么
 |
-|✻ 思考 · 8 token
+|✻ 思考 · 8 token  ▾
+|  I should read the file first.
 |
 |Reading it.
 |
@@ -147,9 +148,8 @@
 |
 |The README describes Demo, a tiny project.
 |
-|────────────────────────────────────────────────────────────────────────────────
-|› 输入消息，/ 命令，@ 文件，Shift+Enter 换行
-|────────────────────────────────────────────────────────────────────────────────
-|Manual                   echo · medium · ↑2.7k ↓52 · cache 80% · $0.002 · ctx 1%
+|─ 会话 <id> · 0 秒 · 1 回合 · ↑2.7k ↓52 · cache 44% · $0.002
+|  恢复：ama --resume <id>
+|
 |
 |

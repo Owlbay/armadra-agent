@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Text, createTheme, plainTheme } from "../../tui.js";
-import { MessageView, contentText, estimateTokens } from "./message-view.js";
+import { MessageView, contentText, estimateTokens, exitSummaryLines } from "./message-view.js";
 import { assistant, lines, usage } from "./test-support.js";
 
 const theme = plainTheme();
@@ -204,5 +204,31 @@ describe("消息区", () => {
     expect(view.render(20)).toEqual([]);
     expect(estimateTokens("abcde")).toBe(2);
     expect(contentText([{ type: "image", data: "", mimeType: "image/png" }])).toBe("[图片]");
+  });
+
+  it("退出摘要：时长 / 回合 / 用量 / 命中率 / 费用与重计费；0 回合只到回合；未落盘不给恢复行", () => {
+    const base = {
+      sessionId: "3f2a9c1e-aaaa",
+      sessionFile: "/d/s.jsonl",
+      userMessages: 7,
+      tokens: { input: 3_000, output: 9_400, cacheRead: 120_000, cacheWrite: 5_000, total: 0 },
+      cost: 0.42,
+      cacheHitRate: 0.81,
+    };
+    expect(exitSummaryLines(base, 12 * 60_000, theme)).toEqual([
+      "─ 会话 3f2a9c1e · 12 分钟 · 7 回合 · ↑128k ↓9.4k · cache 81% · $0.42",
+      "  恢复：ama --resume 3f2a9c1e",
+    ]);
+    const rebill = {
+      ...base,
+      cache: { hitRate: 0.5, reBilledUsd: 0.03 } as never,
+    };
+    expect(exitSummaryLines(rebill, 5_000, theme)[0]).toBe(
+      "─ 会话 3f2a9c1e · 5 秒 · 7 回合 · ↑128k ↓9.4k · cache 50% · $0.42（重计费 $0.03）",
+    );
+    expect(exitSummaryLines({ ...base, userMessages: 0 }, 0, theme)).toEqual([
+      "─ 会话 3f2a9c1e · 0 秒 · 0 回合",
+    ]);
+    expect(exitSummaryLines({ ...base, sessionFile: undefined }, 0, theme)).toHaveLength(1);
   });
 });
