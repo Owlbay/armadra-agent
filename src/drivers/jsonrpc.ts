@@ -109,8 +109,8 @@ export class JsonRpcPeer {
     });
   }
 
+  /** 输入流结束后仍可写（对端可能只关了自己的写端，还在读）；写失败静默。 */
   notify(method: string, params?: unknown): Promise<void> {
-    if (this.isClosed) return Promise.resolve();
     return this.send({ method, ...(params !== undefined ? { params } : {}) });
   }
 

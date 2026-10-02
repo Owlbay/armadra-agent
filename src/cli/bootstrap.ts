@@ -425,6 +425,9 @@ export async function runCli(
     io.stdout(HELP_TEXT);
     return ExitCode.Ok;
   }
+  // [W5-E] --mode acp：装配同 rpc（宿主看到的 mode 也是 rpc），分派到 ACP 服务端
+  const acp = args.mode === "acp";
+  if (acp) args = { ...args, mode: "rpc" };
   if (deps === undefined) {
     io.stderr("ama: 运行时尚未装配（集成批次通过 registerRuntimeDeps 注入实现）\n");
     return ExitCode.RuntimeError;
@@ -445,7 +448,9 @@ export async function runCli(
     const from = applyFromOption(args, runtime, io);
     cleanupFrom = from.cleanup;
     const context = from.context;
-    const runner = deps.modes[runtime.mode];
+    const runner = acp
+      ? (await import("../modes/acp/acp-mode.js")).runAcpMode
+      : deps.modes[runtime.mode];
     if (runner === undefined)
       throw new AmaError("not_implemented", `模式 ${runtime.mode} 尚未装配`, { exitCode: 1 });
     try {

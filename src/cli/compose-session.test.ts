@@ -224,12 +224,6 @@ describe("第五波装配（W5-C0）", () => {
     await runtime.dispose();
   });
 
-  it("--mode acp 退出码 2 并说明尚未实现", async () => {
-    h = composeHarness([{ text: "ok" }]);
-    expect(await h.run(["--mode", "acp", "--model", "fake/echo"])).toBe(2);
-    expect(h.stderr()).toContain("--mode acp 尚未实现");
-  });
-
   it("会话带组装表的扩展工厂；subagent_* / plan_* 桥接到宿主总线", async () => {
     h = composeHarness([{ text: "ok" }]);
     const host = recordingHost(h.home);
