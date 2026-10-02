@@ -14,8 +14,57 @@ import { createTaskTool } from "../../tools/task.js";
 import { createTaskCtlTool } from "../../tools/task-ctl.js";
 import type { ToolDefinition } from "../../tools/types.js";
 import type { SubagentEnvironment } from "../subagent-registry.js";
+import { readFileSync } from "node:fs";
+import { SessionManager } from "../../session/manager.js";
+import type { SessionEntry, SessionLine } from "../../session/types.js";
+import { AgentSessionImpl } from "../session.js";
+import type { SessionEvent } from "../types.js";
+import { createScriptedApi } from "./scripted-api.js";
 import { createHarness, userTexts, type Harness, type HarnessOptions } from "./harness.js";
+import { fakeModel, stubRegistry } from "./stubs.js";
 import { stubTool, waitOrAbort } from "./stubs.js";
+
+/** 与 createHarness 相同，但会话管理器是重开的文件（resume）。 */
+function reopen(file: string, options: HarnessOptions): Harness {
+  const { script, dir: _dir, cwd: _cwd, delayMs, ...rest } = options;
+  const model = rest.model ?? fakeModel();
+  const scripted = createScriptedApi(script, delayMs === undefined ? {} : { delayMs });
+  const manager = SessionManager.open(file);
+  const session = new AgentSessionImpl({
+    retry: { baseDelayMs: 1, maxDelayMs: 5 },
+    abortGraceMs: 50,
+    ...rest,
+    model,
+    sessionManager: manager,
+    providers: stubRegistry([model], [scripted.api]),
+  });
+  const events: SessionEvent[] = [];
+  session.subscribe((event) => events.push(event));
+  const fileLines = (): SessionLine[] =>
+    readFileSync(file, "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as SessionLine);
+  return {
+    session,
+    manager,
+    scripted,
+    model,
+    events,
+    types: () => events.map((event) => event.type),
+    fileLines,
+    fileEntries: () => fileLines().filter((line): line is SessionEntry => line.type !== "session"),
+  };
+}
+
+/** 轮询直到条件成立（后台任务与通知是异步的）。 */
+export async function waitUntil(condition: () => boolean, timeoutMs = 3000): Promise<void> {
+  const started = Date.now();
+  while (!condition()) {
+    if (Date.now() - started > timeoutMs) throw new Error("waitUntil timed out");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
 
 export { userTexts };
 
@@ -51,6 +100,8 @@ export function agentDef(name: string, extra: Partial<AgentDefinition> = {}): Ag
 }
 
 export interface SubagentHarnessOptions extends Omit<HarnessOptions, "script"> {
+  /** 重开已有的父会话文件（resume）；与 `dir` 二选一。 */
+  file?: string;
   script: ScriptSource | ((call: ScriptCall) => ScriptStep);
   env?: Partial<SubagentEnvironment>;
   mode?: PermissionMode;
@@ -74,7 +125,7 @@ export function sleepTool(counter: { running: number; peak: number }, ms = 30): 
 }
 
 export function subagentHarness(options: SubagentHarnessOptions): Harness {
-  const { env, mode = "full-auto", extraTools = [], asked, ...rest } = options;
+  const { env, mode = "full-auto", extraTools = [], asked, file, ...rest } = options;
   const environment: SubagentEnvironment = { catalog: new AgentCatalog(), ...env };
   const broker: ApprovalBroker = {
     ask: async (request) => {
@@ -82,7 +133,8 @@ export function subagentHarness(options: SubagentHarnessOptions): Harness {
       return "deny";
     },
   };
-  return createHarness({
+  const build = file === undefined ? createHarness : (o: HarnessOptions) => reopen(file, o);
+  return build({
     tools: [
       createTaskTool() as ToolDefinition,
       createTaskCtlTool() as ToolDefinition,

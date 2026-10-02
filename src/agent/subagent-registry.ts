@@ -244,7 +244,10 @@ export class SubagentRegistry implements TaskRegistryView {
       return Promise.resolve(
         failed(`Task ${taskId} is still running; use task_ctl wait or stop first.`),
       );
-    if (record.handle === undefined && record.info.sessionRef === undefined)
+    const ref = record.info.sessionRef;
+    const resumable =
+      record.agent.runner === "ama" ? ref?.sessionFile !== undefined : ref !== undefined;
+    if (record.handle === undefined && !resumable)
       return Promise.resolve(
         failed(`Task ${taskId} cannot be continued (its session was not saved).`),
       );
