@@ -135,8 +135,9 @@ ama -p "列出 TODO" --model deepseek/deepseek-v4-pro --output-format json
 
 ## 配置
 
-一个文件 `~/.config/ama/config.json`。第一次运行 ama 时自动建好目录（0700）、最小的 `config.json` 与给编辑器用的
-`config.schema.json`；也可以 `ama init` 手动建（已有文件不覆盖）。`ama config path` 打印各文件位置，`ama config edit`
+一个文件 `~/.config/ama/config.json`。第一次进入对话（交互、`-p`、RPC）或 `ama providers add` 时自动建好目录（0700）、
+最小的 `config.json` 与给编辑器用的 `config.schema.json`；`config show`、`doctor`、`models list` 等只读命令不写配置目录。
+也可以 `ama init` 手动建（已有文件不覆盖）。`ama config path` 打印各文件位置，`ama config edit`
 用 `$VISUAL` / `$EDITOR` 打开。常用的只有五个键：
 
 ```json

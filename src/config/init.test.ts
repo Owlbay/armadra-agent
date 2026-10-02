@@ -60,7 +60,7 @@ describe("ama init", () => {
     expect(autoInitConfigDir(dir, {})).toBe(false);
   });
 
-  it("CLI 首次运行自动创建；ama init 打印每个文件的状态；config path 列出路径", async () => {
+  it("只读的 config path 不创建；ama init 打印每个文件的状态；config path 列出路径", async () => {
     const dir = fresh();
     const out: string[] = [];
     const io = {
@@ -71,9 +71,12 @@ describe("ama init", () => {
       stdoutIsTTY: false,
     };
     expect(await main(["config", "path"], { io, processHooks: false })).toBe(0);
-    expect(existsSync(join(dir, "config.json"))).toBe(true);
-    expect(out.join("")).toContain(`config.json         ${join(dir, "config.json")}\n`);
+    expect(existsSync(dir)).toBe(false);
+    expect(out.join("")).toContain(`config.json         ${join(dir, "config.json")}`);
     expect(out.join("")).toContain("auth.json           ");
+    out.length = 0;
+    expect(await main(["init"], { io, processHooks: false })).toBe(0);
+    expect(out.join("")).toContain("config.json  已创建");
     out.length = 0;
     expect(await main(["init"], { io, processHooks: false })).toBe(0);
     expect(out.join("")).toContain("config.json  已存在，未改动");
