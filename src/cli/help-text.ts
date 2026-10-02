@@ -97,6 +97,7 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
 退出码：0 正常 · 1 运行期错误 · 2 用法错误 · 3 配置错误 · 4 无可用模型或 key ·
         5 会话错误 · 6 宿主 / Hook 启动失败 · 7 -p 有工具调用被拒（无人审批；用
         --permission-mode auto-edit|auto 或 --allow 放行）· 8 -p 到达预算上限 ·
+        9 -p 的计划已落盘待审批（plan.unattended: approve 则自动批准执行）·
         78 宿主 API 版本不匹配 ·
         130 SIGINT · 143 SIGTERM
 `;

@@ -1,3 +1,5 @@
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { composeHarness, type ComposeHarness } from "../../../test/helpers/compose-harness.js";
 import { sharedCacheReporting } from "../../ai/cache/reporting.js";
@@ -285,6 +287,51 @@ describe("print 模式", () => {
     h.home.write("work/notes.txt", "x\n");
     expect(await h.run(["-p", "go", "--model", "fake/echo", "--max-turns", "3"])).toBe(0);
     expect(h.stdout()).toBe("finished\n");
+  });
+
+  it("[W5-H2] plan 待审批（plan.unattended 缺省 stop）：stderr 给计划文件与审批办法、json 带 planPending、退出码 9", async () => {
+    const plan = [
+      "<proposed_plan>",
+      "# Greet",
+      "## Steps",
+      "- [ ] S1 Add it",
+      "</proposed_plan>",
+    ].join("\n");
+    h = composeHarness([{ text: plan }]);
+    const code = await h.run([
+      "-p",
+      "--model",
+      "fake/echo",
+      "--permission-mode",
+      "plan",
+      "--output-format",
+      "json",
+      "plan it",
+    ]);
+    expect(code).toBe(9);
+    const result = lines()[0] as { planPending?: { version: number; filePath?: string } };
+    expect(result.planPending?.version).toBe(1);
+    expect(result.planPending?.filePath).toMatch(/-v1\.md$/);
+    expect(h.stderr()).toContain("计划 v1 已落盘、待审批（未执行）");
+    expect(h.stderr()).toContain("plan.unattended: approve");
+  });
+
+  it("[W5-H2] --image 按 config images.resize：off 时超限直接用法错误并写明", async () => {
+    h = composeHarness([{ text: "never" }]);
+    const png = Buffer.alloc(33);
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(png, 0);
+    png.writeUInt32BE(13, 8);
+    png.write("IHDR", 12, "ascii");
+    png.writeUInt32BE(9000, 16);
+    png.writeUInt32BE(10, 20);
+    writeFileSync(join(h.home.cwd, "wide.png"), png);
+    h.home.write(
+      "home/.config/ama/config.json",
+      JSON.stringify({ version: 1, images: { resize: "off" } }),
+    );
+    expect(await h.run(["-p", "look", "--model", "fake/echo", "--image", "wide.png"])).toBe(2);
+    expect(h.stderr()).toContain("（images.resize 为 off）");
+    expect(h.fake.calls).toHaveLength(0);
   });
 
   it("[W5-H2] --max-cost：累计费用到限且还要调工具 → 结束、退出 8；config limits.maxTurns 同样生效", async () => {
