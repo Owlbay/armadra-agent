@@ -70,20 +70,20 @@ anthropic/claude-sonnet · think:medium · ↑12k ↓1.2k · cache 80% ♨ · $0
 
 ## 按键
 
-| 按键                 | 作用                                                               |
-| -------------------- | ------------------------------------------------------------------ |
-| Enter                | 发送；运行中 = steer（插到当前轮）                                 |
-| Alt+Enter            | 运行中排到本轮之后（followUp）；空闲时等同 Enter                   |
-| Shift+Enter / Ctrl+J | 换行                                                               |
-| Esc                  | 中断：排队的消息回填到输入框，然后停止当前运行；补全打开时先关补全 |
-| Alt+↑                | 取回最后一条排队消息                                               |
-| Shift+Tab            | 循环权限模式 plan → default → auto-edit → full-auto                |
-| Ctrl+O               | 展开 / 折叠工具输出                                                |
-| Ctrl+L / Ctrl+T      | 选择模型 / 思考级别                                                |
-| Ctrl+C               | 清空输入；输入为空时 1.5 秒内再按一次退出（退出码 130）            |
-| Ctrl+D               | 输入为空时退出                                                     |
-| Tab                  | 补全                                                               |
-| ↑ / ↓                | 单行时浏览历史（`<数据目录>/history`，500 条）                     |
+| 按键                 | 作用                                                                  |
+| -------------------- | --------------------------------------------------------------------- |
+| Enter                | 发送；运行中 = steer（插到当前轮）                                    |
+| Alt+Enter            | 运行中排到本轮之后（followUp）；空闲时等同 Enter                      |
+| Shift+Enter / Ctrl+J | 换行                                                                  |
+| Esc                  | 中断：排队的消息回填到输入框，然后停止当前运行；补全打开时先关补全    |
+| Alt+↑                | 取回最后一条排队消息                                                  |
+| Shift+Tab            | 循环权限模式 Manual → Accept edits → Plan → Auto → Bypass permissions |
+| Ctrl+O               | 展开 / 折叠工具输出                                                   |
+| Ctrl+L / Ctrl+T      | 选择模型 / 思考级别                                                   |
+| Ctrl+C               | 清空输入；输入为空时 1.5 秒内再按一次退出（退出码 130）               |
+| Ctrl+D               | 输入为空时退出                                                        |
+| Tab                  | 补全                                                                  |
+| ↑ / ↓                | 单行时浏览历史（`<数据目录>/history`，500 条）                        |
 
 按键可在 `~/.config/ama/keybindings.json` 覆盖，键是动作 id（`app.interrupt`、`app.message.followUp`、`tui.editor.newLine` ……），值是按键或按键数组，空数组表示禁用。
 
@@ -93,7 +93,8 @@ anthropic/claude-sonnet · think:medium · ↑12k ↓1.2k · cache 80% ♨ · $0
 
 - `/tree`：列出会话里的全部用户消息（分叉处缩进，`●` 是当前分支）；选中一条后回到它之前，原文回填输入框，修改后发送就形成新分支。
 - `/fork`（无参数）：同样选一条用户消息，从它之前复制出新会话。
-- `/model`、`/resume`、`/permission`、`/thinking` 不带参数时打开选择器；`/permissions` 显示权限判定顺序与已加载规则。
+- `/model`、`/resume`、`/permission`、`/thinking` 不带参数时打开选择器；`/permissions` 显示权限判定顺序、已加载规则与最近 20 条 auto 判定（层、结果、原因）。
+- `/permission` 选择器标题 `Mode`：Manual / Accept edits / Plan / Auto / Bypass permissions / Allowlist only，每项一行说明，右侧数字 1–6 直接选；当前模式打勾，配置里的缺省模式标 `Default`，Auto 标 `Recommended`。`/permission auto`、`/permission Accept edits` 直接切换。状态栏显示 `mode:<显示名>`。auto 模式下需要确认时，审批对话框多一行「Auto 规则层 / 分类器：原因」。详见 [permissions.md](permissions.md)。
 - `/model` 选择器按「供应商 · 渠道」分组（多渠道模型在每个渠道下各一项，非首选渠道带 `@渠道`），说明里有上下文与 `img`（收图片）；`/model packy/kimi-k2.5@messages` 直接切到指定渠道。
 - 输入里的 `@图片路径`（可加引号，Tab 补全路径）或粘贴 / 拖入的图片文件路径作为图片附件随消息发送；当前模型不收图片时 `@` 附件报错、不发送，未加 `@` 的路径忽略（见 [providers.md](providers.md)「图像输入」）。
 - `/session`、`/cache`：会话用量与缓存统计（见下文「缓存与上下文」）。

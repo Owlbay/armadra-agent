@@ -101,13 +101,13 @@
 
 ### 工具、权限、发现
 
-| 命令                  | 参数                                              | `data`                                                                                                              |
-| --------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `get_tools`           | —                                                 | `{ tools: { name, description, parameters, permission, active }[] }`（注册表全部工具，`active` 表示模型当前能看到） |
-| `set_active_tools`    | `names: string[]`                                 | `{ names }`（生效后的活动工具名）                                                                                   |
-| `set_permission_mode` | `mode: plan \| default \| auto-edit \| full-auto` | `{ mode }`                                                                                                          |
-| `get_commands`        | —                                                 | `{ commands: { name, description?, source: "builtin" \| "template" \| "skill" }[] }`；Skill 名写作 `skill:<名>`     |
-| `get_skills`          | —                                                 | `{ skills: { name, description, location, … }[] }`（已发现的 Skill；`location` 是 SKILL.md 路径）                   |
+| 命令                  | 参数                                                                   | `data`                                                                                                              |
+| --------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `get_tools`           | —                                                                      | `{ tools: { name, description, parameters, permission, active }[] }`（注册表全部工具，`active` 表示模型当前能看到） |
+| `set_active_tools`    | `names: string[]`                                                      | `{ names }`（生效后的活动工具名）                                                                                   |
+| `set_permission_mode` | `mode: plan \| allowlist \| default \| auto-edit \| auto \| full-auto` | `{ mode }`（未知模式 → `invalid_arguments`）                                                                        |
+| `get_commands`        | —                                                                      | `{ commands: { name, description?, source: "builtin" \| "template" \| "skill" }[] }`；Skill 名写作 `skill:<名>`     |
+| `get_skills`          | —                                                                      | `{ skills: { name, description, location, … }[] }`（已发现的 Skill；`location` 是 SKILL.md 路径）                   |
 
 合计 33 条命令，名字即 `RpcCommandMap` 的键。
 
@@ -115,35 +115,35 @@
 
 事件就是进程内 `SessionEvent`（`src/agent/types.ts`），只有 `message_update` 在线上换成纯增量。按出现场景分组：
 
-| 事件                                                 | 字段                                                                                                          |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `session_start`                                      | `sessionId`、`sessionFile?`、`cwd`、`reason: startup \| resume \| new \| fork`                                |
-| `session_changed`                                    | `sessionId`、`sessionFile?`                                                                                   |
-| `before_agent_start`                                 | `prompt`（经 UserPromptSubmit Hook 与模板展开之后）                                                           |
-| `agent_start` / `turn_start` / `agent_before_settle` | —                                                                                                             |
-| `turn_end`                                           | `message`（助手消息）、`toolResults`                                                                          |
-| `agent_end`                                          | `stopReason`、`willRetry`                                                                                     |
-| `agent_settled`                                      | `warning?`（运行彻底结束，含重试与 followUp）                                                                 |
-| `message_start` / `message_end`                      | `message`（`AgentMessage`）                                                                                   |
-| `message_update`                                     | `assistantMessageEvent`、`usage?`（见下）                                                                     |
-| `tool_execution_start`                               | `toolCallId`、`toolName`、`args`、`parentToolCallId?`                                                         |
-| `tool_execution_update`                              | `toolCallId`、`toolName`、`partial`（运行中的输出文本）、`parentToolCallId?`                                  |
-| `tool_execution_end`                                 | `toolCallId`、`toolName`、`result`、`isError`、`parentToolCallId?`                                            |
-| `queue_update`                                       | `steering: string[]`、`followUp: string[]`                                                                    |
-| `compaction_start`                                   | `trigger: threshold \| overflow \| manual`                                                                    |
-| `compaction_end`                                     | `trigger`、`result?`、`aborted`、`willRetry`、`error?`                                                        |
-| `auto_retry_start`                                   | `attempt`、`maxAttempts`、`delayMs`、`errorMessage`                                                           |
-| `auto_retry_end`                                     | `success`、`attempt`、`finalError?`                                                                           |
-| `permission_request`                                 | `requestId`、`toolName`、`input`、`reason: mode \| dangerous \| hook`、`hookReason?`、`timeoutMs`、`preview?` |
-| `permission_resolved`                                | `requestId`、`decision`                                                                                       |
-| `permission_mode_changed`                            | `mode`                                                                                                        |
-| `model_changed`                                      | `model: { provider, id, channel? }`                                                                           |
-| `thinking_level_changed`                             | `level`                                                                                                       |
-| `entry_appended`                                     | `entry`（刚落盘的会话条目）                                                                                   |
-| `hook_executed`                                      | `event`、`command`、`exitCode`（超时或被信号杀死为 null）、`durationMs`                                       |
-| `cache_miss`                                         | `missedTokens`、`missedCost?`、`reason`、`detail?`、`idleMs`                                                  |
-| `cache_warm`                                         | `phase: scheduled \| sent \| stopped`、`nextWarmAt?`、`usage?`、`cost?`、`reason?`                            |
-| `context_pressure`                                   | `percent`、`threshold: 70 \| 90`、`remainingTokens?`、`estimatedTurnsLeft?`                                   |
+| 事件                                                 | 字段                                                                                                                                                                   |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `session_start`                                      | `sessionId`、`sessionFile?`、`cwd`、`reason: startup \| resume \| new \| fork`                                                                                         |
+| `session_changed`                                    | `sessionId`、`sessionFile?`                                                                                                                                            |
+| `before_agent_start`                                 | `prompt`（经 UserPromptSubmit Hook 与模板展开之后）                                                                                                                    |
+| `agent_start` / `turn_start` / `agent_before_settle` | —                                                                                                                                                                      |
+| `turn_end`                                           | `message`（助手消息）、`toolResults`                                                                                                                                   |
+| `agent_end`                                          | `stopReason`、`willRetry`                                                                                                                                              |
+| `agent_settled`                                      | `warning?`（运行彻底结束，含重试与 followUp）                                                                                                                          |
+| `message_start` / `message_end`                      | `message`（`AgentMessage`）                                                                                                                                            |
+| `message_update`                                     | `assistantMessageEvent`、`usage?`（见下）                                                                                                                              |
+| `tool_execution_start`                               | `toolCallId`、`toolName`、`args`、`parentToolCallId?`                                                                                                                  |
+| `tool_execution_update`                              | `toolCallId`、`toolName`、`partial`（运行中的输出文本）、`parentToolCallId?`                                                                                           |
+| `tool_execution_end`                                 | `toolCallId`、`toolName`、`result`、`isError`、`parentToolCallId?`、`autoDecision?`（auto 模式：`{ layer: rule \| static \| classifier, decision, reason, cached? }`） |
+| `queue_update`                                       | `steering: string[]`、`followUp: string[]`                                                                                                                             |
+| `compaction_start`                                   | `trigger: threshold \| overflow \| manual`                                                                                                                             |
+| `compaction_end`                                     | `trigger`、`result?`、`aborted`、`willRetry`、`error?`                                                                                                                 |
+| `auto_retry_start`                                   | `attempt`、`maxAttempts`、`delayMs`、`errorMessage`                                                                                                                    |
+| `auto_retry_end`                                     | `success`、`attempt`、`finalError?`                                                                                                                                    |
+| `permission_request`                                 | `requestId`、`toolName`、`input`、`reason: mode \| dangerous \| hook`、`hookReason?`、`timeoutMs`、`preview?`、`autoDecision?`（auto 模式下为什么询问）                |
+| `permission_resolved`                                | `requestId`、`decision`                                                                                                                                                |
+| `permission_mode_changed`                            | `mode`                                                                                                                                                                 |
+| `model_changed`                                      | `model: { provider, id, channel? }`                                                                                                                                    |
+| `thinking_level_changed`                             | `level`                                                                                                                                                                |
+| `entry_appended`                                     | `entry`（刚落盘的会话条目）                                                                                                                                            |
+| `hook_executed`                                      | `event`、`command`、`exitCode`（超时或被信号杀死为 null）、`durationMs`                                                                                                |
+| `cache_miss`                                         | `missedTokens`、`missedCost?`、`reason`、`detail?`、`idleMs`                                                                                                           |
+| `cache_warm`                                         | `phase: scheduled \| sent \| stopped`、`nextWarmAt?`、`usage?`、`cost?`、`reason?`                                                                                     |
+| `context_pressure`                                   | `percent`、`threshold: 70 \| 90`、`remainingTokens?`、`estimatedTurnsLeft?`                                                                                            |
 
 另有非会话事件 `{"type":"notification","level":"info"|"warn"|"error","message":…}`：宿主 `ui.notify` 与应答之后的运行失败。
 
