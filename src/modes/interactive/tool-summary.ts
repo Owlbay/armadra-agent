@@ -9,6 +9,7 @@
  * - task `完成 · 耗时 · ↑in ↓out`；其它 `N 行输出`；失败（非 bash）取错误首行。
  */
 
+import { msg } from "../../i18n/index.js";
 import { isAbsolute, relative } from "node:path";
 import type { ToolResult } from "../../tools/types.js";
 import { stripAnsi, type Theme } from "../../tui.js";
@@ -158,6 +159,7 @@ export interface SummaryInput {
 /** 完成后的一行结果摘要（已着色，不含 `⎿`）。 */
 export function resultSummary(input: SummaryInput, theme: Theme): string {
   const { name, result, isError, lines } = input;
+  const m = msg().interactive.view.tool;
   const details = record(result.details);
   const muted = (s: string): string => theme.fg("muted", s);
   const sep = theme.fg("dim", " · ");
@@ -170,24 +172,24 @@ export function resultSummary(input: SummaryInput, theme: Theme): string {
     const total = num(details["totalLines"]) ?? count;
     const head =
       details["aborted"] === true
-        ? "已中断"
+        ? m.interrupted
         : details["timedOut"] === true
-          ? "超时"
-          : `退出 ${code}`;
-    const parts = [head, duration, ...(total > 0 ? [`${total} 行`] : [])];
+          ? m.timedOut
+          : m.exit(code);
+    const parts = [head, duration, ...(total > 0 ? [m.lines(total)] : [])];
     const text = parts.join(" · ");
     return isError || code !== 0 ? theme.fg("error", text) : parts.map(muted).join(sep);
   }
-  if (isError) return theme.fg("error", `${theme.glyphs.fail} ${lines[0] ?? "失败"}`);
+  if (isError) return theme.fg("error", `${theme.glyphs.fail} ${lines[0] ?? m.failed}`);
   switch (name) {
     case "read": {
       const mime = details["mimeType"];
-      if (typeof mime === "string") return muted(`图片 ${mime}`);
+      if (typeof mime === "string") return muted(m.image(mime));
       const first = num(details["firstLine"]);
       const last = num(details["lastLine"]);
-      if (num(details["totalLines"]) === 0) return muted("空文件");
+      if (num(details["totalLines"]) === 0) return muted(m.emptyFile);
       const n = first !== undefined && last !== undefined ? last - first + 1 : count;
-      return muted(`读取 ${n} 行`);
+      return muted(m.read(n));
     }
     case "edit": {
       const rows = parseDiff(diffOf(result) ?? "");
@@ -196,7 +198,7 @@ export function resultSummary(input: SummaryInput, theme: Theme): string {
       const edits = record(input.args)["edits"];
       const n = num(details["replacements"]) ?? (Array.isArray(edits) ? edits.length : 1);
       return (
-        muted(`${n} 处修改`) +
+        muted(m.edits(n)) +
         sep +
         theme.fg("success", `+${add}`) +
         " " +
@@ -206,21 +208,21 @@ export function resultSummary(input: SummaryInput, theme: Theme): string {
     case "write": {
       const content = record(input.args)["content"];
       const n = typeof content === "string" ? cleanLines(content).length : 0;
-      return muted(`${details["created"] === true ? "新建" : "覆盖"} · ${n} 行`);
+      return muted(m.write(details["created"] === true, n));
     }
     case "grep": {
       const matches = num(details["matches"]);
-      if (matches === 0) return muted("无匹配");
-      if (matches === undefined) return muted(`${count} 行`);
-      return muted(`${matches} 处匹配 · ${num(details["files"]) ?? "?"} 个文件`);
+      if (matches === 0) return muted(m.noMatch);
+      if (matches === undefined) return muted(m.lines(count));
+      return muted(m.matches(matches, num(details["files"])));
     }
     case "glob": {
       const n = num(details["count"]);
-      return muted(n === 0 ? "无匹配" : `${n ?? count} 个文件`);
+      return muted(n === 0 ? m.noMatch : m.files(n ?? count));
     }
     case "codemode": {
       const calls = num(details["toolCalls"]) ?? input.nestedCount ?? 0;
-      return muted(`${calls} 个内层调用 · 脚本输出 ${count} 行`);
+      return muted(m.codemode(calls, count));
     }
     case "task": {
       const usage = record(details["usage"]);
@@ -232,9 +234,9 @@ export function resultSummary(input: SummaryInput, theme: Theme): string {
               `${theme.glyphs.arrowUp}${formatTokens(input_)} ${theme.glyphs.arrowDown}${formatTokens(output)}`,
             ]
           : [];
-      return muted(["完成", duration, ...tokens].join(" · "));
+      return muted([m.done, duration, ...tokens].join(" · "));
     }
     default:
-      return muted(count === 0 ? "完成" : `${count} 行输出`);
+      return muted(count === 0 ? m.done : m.outputLines(count));
   }
 }

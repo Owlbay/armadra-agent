@@ -21,6 +21,7 @@
  *   正文优先用 `renderResult`；抛错或返回空时回到缺省显示；错误结果始终用缺省显示。
  */
 
+import { msg } from "../../i18n/index.js";
 import type { ToolDefinition, ToolResult } from "../../tools/types.js";
 import {
   formatElapsed,
@@ -205,7 +206,10 @@ export class ToolView implements Component {
     const g = theme.glyphs;
     const lead = "  " + theme.fg("border", g.result) + " ";
     if (this.state === "running" && this.awaiting) {
-      return truncateToWidth(lead + theme.fg("dim", `${g.spinnerStatic} 等待确认`), width);
+      return truncateToWidth(
+        lead + theme.fg("dim", msg().interactive.view.tool.awaiting(g.spinnerStatic)),
+        width,
+      );
     }
     const sub = this.subagentState();
     if (this.state === "running" && sub !== undefined) {
@@ -216,8 +220,8 @@ export class ToolView implements Component {
     if (this.state === "running") {
       const frame = this.options.spinner?.() ?? g.spinnerStatic;
       const elapsed = formatElapsed(this.now() - this.startedAt);
-      const what =
-        this.toolName === "task" ? `子 Agent · 运行中 ${elapsed}` : `运行中 · ${elapsed}`;
+      const m = msg().interactive.view.tool;
+      const what = this.toolName === "task" ? m.subagentRunning(elapsed) : m.running(elapsed);
       return truncateToWidth(
         lead + theme.fg("accent", frame) + " " + theme.fg("muted", what),
         width,
@@ -302,7 +306,9 @@ export class ToolView implements Component {
 
   private more(hidden: number): string {
     const { theme } = this.options;
-    return BODY + theme.fg("dim", `${theme.glyphs.ellipsis} 另 ${hidden} 行（Ctrl+O 展开）`);
+    return (
+      BODY + theme.fg("dim", msg().interactive.view.tool.moreLines(theme.glyphs.ellipsis, hidden))
+    );
   }
 
   private nestedLines(width: number): string[] {
@@ -319,7 +325,10 @@ export class ToolView implements Component {
     const shown = this.nested.slice(-COLLAPSED_CHILDREN);
     if (this.nested.length > shown.length) {
       const hidden = this.nested.length - shown.length;
-      out.push(BODY + theme.fg("dim", `${theme.glyphs.ellipsis} 前 ${hidden} 个调用`));
+      out.push(
+        BODY +
+          theme.fg("dim", msg().interactive.view.tool.earlierCalls(theme.glyphs.ellipsis, hidden)),
+      );
     }
     for (const child of shown) {
       out.push(BODY + child.header(inner));

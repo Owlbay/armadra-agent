@@ -15,6 +15,7 @@
  * 滚动交给终端回滚：消息区只追加，切换会话时整体清空重画。
  */
 
+import { msg } from "../../i18n/index.js";
 import type { AssistantMessage, ContentBlock, ToolCallBlock, UserMessage } from "../../ai/types.js";
 import type { CompactionResult, SessionStats, ToolResultMessage } from "../../agent/types.js";
 import type { AgentMessage } from "../../session/types.js";
@@ -47,8 +48,7 @@ export interface MessageViewOptions {
 
 /** 退出摘要的时长：不足 1 分钟按秒，否则按分钟。 */
 function sessionDuration(ms: number): string {
-  const seconds = Math.max(0, Math.round(ms / 1000));
-  return seconds < 60 ? `${seconds} 秒` : `${Math.round(seconds / 60)} 分钟`;
+  return msg().interactive.view.message.duration(Math.max(0, Math.round(ms / 1000)));
 }
 
 /**
@@ -63,13 +63,14 @@ export function exitSummaryLines(
   elapsedMs: number,
   theme: Theme,
 ): string[] {
+  const m = msg().interactive.view.message;
   const g = theme.glyphs;
   const dim = (s: string): string => theme.fg("dim", s);
   const id = stats.sessionId.slice(0, 8);
   const parts = [
-    dim(`${g.rule} 会话 `) + theme.fg("text", id),
+    dim(m.sessionPrefix(g.rule)) + theme.fg("text", id),
     dim(sessionDuration(elapsedMs)),
-    dim(`${stats.userMessages} 回合`),
+    dim(m.turns(stats.userMessages)),
   ];
   const t = stats.tokens;
   const prompt = t.input + t.cacheRead + t.cacheWrite;
@@ -79,13 +80,13 @@ export function exitSummaryLines(
     if (rate !== undefined) parts.push(dim(`cache ${Math.round(rate * 100)}%`));
     if (stats.cost !== undefined && stats.cost > 0) {
       const rebill = stats.cache?.reBilledUsd;
-      const extra = rebill !== undefined && rebill > 0 ? `（重计费 ${formatCost(rebill)}）` : "";
+      const extra = rebill !== undefined && rebill > 0 ? m.rebill(formatCost(rebill)) : "";
       parts.push(dim(formatCost(stats.cost) + extra));
     }
   }
   const lines = [parts.join(dim(" · "))];
   if (stats.userMessages > 0 && stats.sessionFile !== undefined) {
-    lines.push(dim("  恢复：") + theme.fg("text", `ama --resume ${id}`));
+    lines.push(dim(m.resume) + theme.fg("text", `ama --resume ${id}`));
   }
   return lines;
 }
@@ -93,17 +94,11 @@ export function exitSummaryLines(
 /** 思考块展开时的正文行数上限（`full` 不限）。 */
 export const THINKING_EXPANDED_LINES = 60;
 
-/** origin → 中文标签（未知 origin 原样显示）。 */
-export const ORIGIN_LABELS: Readonly<Record<string, string>> = {
-  steer: "插话",
-  followUp: "之后",
-  host: "宿主",
-  task: "子 Agent 通知",
-  plan: "计划",
-};
-
-/** [W5-U] origin 为 plan 的交接消息（给模型的英文开场）在消息区的说法。 */
-const PLAN_HANDOFF_TEXT = "按批准的计划开始执行";
+/** origin → 界面语言的标签（未知 origin 原样显示）。 */
+export function originLabel(origin: string): string {
+  const labels: Readonly<Record<string, string>> = msg().interactive.view.message.origin;
+  return labels[origin] ?? origin;
+}
 
 /** 首行带前缀、续行按 `indent` 缩进的文本（用户消息、排队消息）。 */
 export class PrefixedText implements Component {
@@ -175,9 +170,10 @@ class ThinkingView implements Component {
     const t = this.theme;
     const g = t.glyphs;
     const style = (s: string): string => t.fg("dim", t.italic(s));
+    const m = msg().interactive.view.message;
     const title = this.streaming
-      ? `${g.thinking} 思考中${g.ellipsis}`
-      : `${g.thinking} 思考 · ${formatTokens(this.tokens)} token`;
+      ? m.thinkingStreaming(g.thinking, g.ellipsis)
+      : m.thinking(g.thinking, formatTokens(this.tokens));
     const lines = [
       style(title) + (this.open && !this.streaming ? "  " + t.fg("dim", g.collapse) : ""),
     ];
@@ -189,7 +185,7 @@ class ThinkingView implements Component {
       const limit = this.display === "full" ? all.length : THINKING_EXPANDED_LINES;
       for (const line of all.slice(0, limit)) lines.push("  " + t.fg("muted", t.italic(line)));
       if (all.length > limit) {
-        lines.push("  " + t.fg("dim", `${g.ellipsis} 另 ${all.length - limit} 行`));
+        lines.push("  " + t.fg("dim", m.moreLines(g.ellipsis, all.length - limit)));
       }
     }
     this.cache = { width, lines };
@@ -216,7 +212,13 @@ export function estimateTokens(text: string): number {
 export function contentText(content: string | readonly ContentBlock[]): string {
   if (typeof content === "string") return content;
   return content
-    .map((block) => (block.type === "text" ? block.text : block.type === "image" ? "[图片]" : ""))
+    .map((block) =>
+      block.type === "text"
+        ? block.text
+        : block.type === "image"
+          ? msg().interactive.view.message.image
+          : "",
+    )
     .join("");
 }
 
@@ -289,14 +291,15 @@ export class AssistantView extends Container {
   finish(message: AssistantMessage): void {
     this.streaming = false;
     const { theme } = this.options;
+    const m = msg().interactive.view.message;
     if (message.stopReason === "error") {
       this.status.setText(
-        theme.fg("error", `${theme.glyphs.fail} ${message.errorMessage ?? "模型调用失败"}`),
+        theme.fg("error", `${theme.glyphs.fail} ${message.errorMessage ?? m.modelError}`),
       );
     } else if (message.stopReason === "aborted") {
-      this.status.setText(theme.fg("dim", "已中断"));
+      this.status.setText(theme.fg("dim", m.interrupted));
     } else if (message.stopReason === "length") {
-      this.status.setText(theme.fg("warning", "输出达到长度上限"));
+      this.status.setText(theme.fg("warning", m.lengthLimit));
     }
     this.update(message);
   }
@@ -406,13 +409,13 @@ export class MessageView extends Container {
       this.add(new PrefixedText(t.fg("user", t.bold(t.glyphs.prompt)) + " ", text));
       return;
     }
-    const label = ORIGIN_LABELS[origin] ?? origin;
+    const label = originLabel(origin);
     // [W5-U] 后台子 Agent 的 <task-notification> 是给模型的全文，消息区只留一行
     const summary =
       origin === "task"
         ? notificationSummary(text)
         : origin === "plan" && text === PLAN_APPROVED_PROMPT
-          ? PLAN_HANDOFF_TEXT
+          ? msg().interactive.view.message.planHandoff
           : undefined;
     if (summary !== undefined) {
       this.add(
@@ -468,7 +471,9 @@ export class MessageView extends Container {
 
   addHookBlocked(reason: string): void {
     const glyph = this.theme.glyphs.blocked;
-    this.add(new Text(this.theme.fg("warning", `${glyph} Hook 阻止：${reason}`)));
+    this.add(
+      new Text(this.theme.fg("warning", msg().interactive.view.message.hookBlocked(glyph, reason))),
+    );
   }
 
   addRetry(attempt: number, maxAttempts: number, delayMs: number, error: string): void {
@@ -478,7 +483,7 @@ export class MessageView extends Container {
       new Text(
         this.theme.fg(
           "warning",
-          `${glyph} 重试 ${attempt}/${maxAttempts}（${seconds}s 后）：${error}`,
+          msg().interactive.view.message.retry(glyph, attempt, maxAttempts, seconds, error),
         ),
       ),
     );
@@ -490,7 +495,7 @@ export class MessageView extends Container {
   }
 
   addRetryFailed(error: string | undefined): void {
-    this.addNotice("error", `重试失败${error !== undefined ? `：${error}` : ""}`);
+    this.addNotice("error", msg().interactive.view.message.retryFailed(error));
   }
 
   /** 压缩 / 分支摘要卡（左竖条）：标题 + token 变化（有则显示）+ 摘要前 3 行。 */
@@ -499,6 +504,7 @@ export class MessageView extends Container {
     options: { title?: string; tokensBefore?: number; tokensAfter?: number } = {},
   ): void {
     const t = this.theme;
+    const m = msg().interactive.view.message;
     const lines = summary
       .trim()
       .split("\n")
@@ -506,18 +512,18 @@ export class MessageView extends Container {
     const head = lines.slice(0, 3);
     const body = head.map((l) => t.fg("muted", l));
     if (lines.length > head.length) {
-      body.push(t.fg("dim", `${t.glyphs.ellipsis} 另 ${lines.length - head.length} 行`));
+      body.push(t.fg("dim", m.moreLines(t.glyphs.ellipsis, lines.length - head.length)));
     }
     let subtitle: string | undefined;
     if (options.tokensBefore !== undefined) {
       const after =
-        options.tokensAfter !== undefined ? ` → ${formatTokens(options.tokensAfter)}` : "";
-      subtitle = `${formatTokens(options.tokensBefore)}${after} token`;
+        options.tokensAfter !== undefined ? formatTokens(options.tokensAfter) : undefined;
+      subtitle = m.summaryTokens(formatTokens(options.tokensBefore), after);
     }
     this.add(
       new Card(new Text(body.join("\n")), {
         theme: t,
-        title: options.title ?? "上下文已压缩",
+        title: options.title ?? m.compacted,
         ...(subtitle !== undefined ? { subtitle } : {}),
       }),
     );
@@ -556,7 +562,9 @@ export class MessageView extends Container {
           this.addSummaryCard(message.summary, { tokensBefore: message.tokensBefore });
           break;
         case "branchSummary":
-          this.addSummaryCard(message.summary, { title: "分支摘要" });
+          this.addSummaryCard(message.summary, {
+            title: msg().interactive.view.message.branchSummary,
+          });
           break;
         case "custom":
           if (message.display)
