@@ -2,7 +2,8 @@
  * 手写参数解析（设计 §11.1 第 2 步、§12.10、§13）。[B5]
  *
  * - 支持 `--opt value` 与 `--opt=value`；`--` 之后全部作为提示文本；可重复的参数累加。
- * - 子命令只在第一个参数是 `auth / sessions / models / providers / doctor / config` 时识别，其余参数原样交给子命令。
+ * - 子命令只在第一个参数是 `auth / sessions / models / providers / doctor / config / init` 时识别，
+ *   其余参数原样交给子命令。
  * - 互斥：`-p` 与 `--mode rpc`；`--continue` / `--resume` / `--session-id` / `--fork` 两两互斥；
  *   `--trust` 与 `--no-trust`；`--api-key` 需要 `--model`；`--output-format` 需要 `-p`。
  * - `--resume [id]`：下一个参数形如会话 id（无空白、不以 `-` 开头）才被当作 id；
@@ -16,7 +17,15 @@ import type { PermissionMode } from "../permissions/types.js";
 import type { CodemodeMode, ToolsPreset } from "../config/types.js";
 import { CODEMODE_MODES } from "../config/types.js";
 
-export const SUBCOMMANDS = ["auth", "sessions", "models", "providers", "doctor", "config"] as const;
+export const SUBCOMMANDS = [
+  "auth",
+  "sessions",
+  "models",
+  "providers",
+  "doctor",
+  "config",
+  "init",
+] as const;
 export type SubcommandName = (typeof SUBCOMMANDS)[number];
 
 export type OutputFormat = "text" | "json" | "stream-json";
@@ -154,6 +163,9 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
                                判断端点是否报告缓存命中
   ama doctor                   配置层级、信任、key 来源、Hook、终端能力
   ama config show [--json]     生效配置与每项来源、将使用的模型
+  ama config path              配置目录、数据目录与各文件路径
+  ama config edit              用 $VISUAL / $EDITOR 打开 config.json
+  ama init [--force]           建配置目录（0700）与 config.json、config.schema.json；已有的不覆盖
 
 其它
   -h, --help                   输出本帮助

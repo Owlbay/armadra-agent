@@ -11,7 +11,20 @@
 import { metadataOf, modelFlags, sourcesLine } from "./model-meta.js";
 import { loadConfigFile } from "../../config/load.js";
 import { DEFAULT_CONFIG, PROFILE_DEFAULTS, mergeProjectAndCli } from "../../config/merge.js";
-import { CONFIG_FILE, projectFile } from "../../config/paths.js";
+import {
+  AUTH_FILE,
+  CONFIG_FILE,
+  HOOKS_FILE,
+  projectFile,
+  resolveConfigDir,
+  resolveDataDir,
+} from "../../config/paths.js";
+import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { modelsDevCachePath } from "../../ai/providers/models-dev-cache.js";
+import { initConfigDir } from "../../config/init.js";
+import { CONFIG_SCHEMA_FILE } from "../../config/json-schema.js";
 import type { AmaConfig } from "../../config/types.js";
 import { baseUrlEnvOf } from "../../ai/providers/registry.js";
 import type { Api, ProviderRegistryApi } from "../../ai/types.js";
@@ -25,7 +38,48 @@ import { ExitCode } from "../exit-codes.js";
 import { buildRegistry, loadUserLevel, type UserLevel } from "./context.js";
 
 export const CONFIG_USAGE = `用法：ama config show [--json] [--profile <文件>] [--auth-file <文件>]
+      ama config path    配置目录、数据目录与各文件路径
+      ama config edit    用 $VISUAL / $EDITOR 打开 config.json（没有编辑器时打印路径）
 `;
+
+/** `ama config path`：目录与文件路径，标出是否存在。 */
+function showPaths(io: CliIo): number {
+  const configDir = resolveConfigDir({ env: io.env });
+  const dataDir = resolveDataDir({ env: io.env });
+  const mark = (path: string): string => `${path}${existsSync(path) ? "" : "  （不存在）"}`;
+  const lines = [
+    `配置目录  ${mark(configDir)}`,
+    `  config.json         ${mark(join(configDir, CONFIG_FILE))}`,
+    `  config.schema.json  ${mark(join(configDir, CONFIG_SCHEMA_FILE))}`,
+    `  auth.json           ${mark(join(configDir, AUTH_FILE))}`,
+    `  hooks.json          ${mark(join(configDir, HOOKS_FILE))}`,
+    `数据目录  ${mark(dataDir)}`,
+    `  sessions/           ${mark(join(dataDir, "sessions"))}`,
+    `  models-dev.json     ${mark(modelsDevCachePath(dataDir))}`,
+    `项目级    ${mark(projectFile(io.cwd, CONFIG_FILE))}`,
+  ];
+  io.stdout(`${lines.join("\n")}\n`);
+  return ExitCode.Ok;
+}
+
+/** `ama config edit`：不存在先 init；`$VISUAL` / `$EDITOR`（可带参数）打开，没有就打印路径。 */
+function editConfig(io: CliIo): number {
+  const configDir = resolveConfigDir({ env: io.env });
+  const path = join(configDir, CONFIG_FILE);
+  if (!existsSync(path)) initConfigDir(configDir);
+  const editor = (io.env["VISUAL"] ?? io.env["EDITOR"] ?? "").trim();
+  if (editor === "") {
+    io.stdout(`${path}\n（没有设置 $VISUAL / $EDITOR，请用编辑器打开上面的文件）\n`);
+    return ExitCode.Ok;
+  }
+  const quoted = process.platform === "win32" ? `"${path}"` : `'${path.replace(/'/g, `'\\''`)}'`;
+  const result = spawnSync(`${editor} ${quoted}`, { stdio: "inherit", shell: true });
+  if (result.error !== undefined || result.status !== 0) {
+    io.stderr(`ama: 编辑器退出异常（${editor}）；文件在 ${path}\n`);
+    return ExitCode.RuntimeError;
+  }
+  return ExitCode.Ok;
+}
 
 type Layer = { name: "default" | "user" | "profile" | "project"; label: string; value: unknown };
 
@@ -226,6 +280,8 @@ export async function runConfig(
     io.stdout(CONFIG_USAGE);
     return ExitCode.Ok;
   }
+  if (action === "path") return showPaths(io);
+  if (action === "edit") return editConfig(io);
   if (action !== "show") throw new UsageError(`未知的 config 子命令：${action}`);
   const level = loadUserLevel(io, {
     profile: values.get("profile"),
