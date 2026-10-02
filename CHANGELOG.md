@@ -39,6 +39,20 @@
 - **`default` 预设加 `todo`**（第五波 D20）：会话开始时随工具表固定，不中途开启；系统提示 tools 节与工具表多约 150 token，
   升级后续接的旧会话会有一次缓存未命中。**这是待复测的决定**：W5-H2 的 `bench-presets default,default+todo` 若费用增幅
   超过 5% 或成功率下降，就撤回到「plan 交接时用 `[DONE:n]` 文本标记」。
+- **Plan 模式**（docs/plan.md，第五波 W5-F）：plan 下模式说明以 `custom_message{ama.plan_mode}` 追加在尾部（首个提示完整版、
+  每 5 个提示简版、每第 5 次与压缩后完整版），手动退出追加 `ama.plan_mode_exit`，前缀不变；`ama.plan_state` 让 resume 回到 plan。
+  模型输出 `<proposed_plan>` 块，ama 提取步骤、落 `ama.plan` 与 `<数据目录>/plans/<会话>-v<N>.md`（`plan.directory` 可指到项目内），
+  发 `plan_proposed`；审批四选项（批准执行 / 指定模式 / 新上下文执行 / 继续修改）与放弃，批准后步骤转 todo、切回进入前的模式、
+  以 `ama.plan_approved` 交接开新回合。无人值守缺省 `plan.unattended: stop`（落盘后停下，不替人批准）。交互模式暂以文本回复
+  `1` / `2` / `3` 审批（审批框随界面批次）。可选 `plan.model` / `plan.thinkingLevel`：plan 下首个提示切换、批准时切回。
+- **plan 权限细化**（docs/permissions.md）：plan 放行只读命令子集（`ls`、`cat`、`rg`、`git log / diff / show` 等，无重定向 /
+  命令替换 / 嵌套 shell，配置 `plan.bash`）与 `task`；`todo set / update` 在 plan 下拒绝；被拒说明带指引。`allowlist` 同步放行
+  同一只读子集与 `task`，严格度 `plan ⊆ allowlist ⊆ default` 不变。模式选择器里 Plan 的说明改为「只读调研，只跑只读命令，
+  出计划后审批执行」。
+- `todo` 新增 `update`（按 id 只改给出的字段）与条目字段 `planStep`；会话事件 `todo_updated`。
+- RPC 实现 `plan_response` / `get_plan` / `get_todos` / `get_tasks` / `get_agents`（后两者读注册表只读视图，未装配时回空表），
+  能力 `plans` 声明后计划审批交客户端；黄金记录 `test/fixtures/rpc/plan.out.jsonl`。SDK `createAgentSession({ plan })`
+  （`onProposed` 审批回调）与 `session.plan.current() / respond() / todos()`。
 - 新工具 `task_ctl`（列出 / 等待 / 停止 / 读取后台子 Agent 任务）与 `task` 同进退：`+task`、`--tools …,task` 一起暴露，
   `-task`、宿主 `disable("task")` 一起去掉；本版本执行时返回「尚未实现」（第五波 W5-G 实现）。
 

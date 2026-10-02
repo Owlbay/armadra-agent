@@ -15,7 +15,7 @@ export interface PermissionModeInfo {
 export const PERMISSION_MODE_INFO: Readonly<Record<PermissionMode, PermissionModeInfo>> = {
   default: { label: "Manual", description: "写文件、执行命令前询问" },
   "auto-edit": { label: "Accept edits", description: "自动接受文件编辑，执行命令仍询问" },
-  plan: { label: "Plan", description: "只读，不改文件、不跑命令" },
+  plan: { label: "Plan", description: "只读调研，只跑只读命令，出计划后审批执行" },
   auto: { label: "Auto", description: "由 ama 判断每一步：安全的自动放行，有风险的才问" },
   "full-auto": { label: "Bypass permissions", description: "全部放行（危险命令仍询问）" },
   allowlist: {

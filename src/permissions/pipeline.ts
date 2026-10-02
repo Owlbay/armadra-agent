@@ -3,7 +3,8 @@
  *
  *   ① deny 规则 ∪ Hook deny                         → deny
  *   ② 危险命令（仅 bash）                            → ask（无人值守 deny），之后各步不能放宽
- *   ③ 模式：plan  read 允许，write / execute deny
+ *   ③ 模式：plan  read 允许，write / execute deny（[W5-F] 细化见 {@link planDecision}：只读 bash、
+ *                 task 放行，`todo set / update` 拒绝）
  *           default  read 允许，write / execute 问
  *           auto-edit read / write 允许，execute 问
  *           full-auto 全部允许
@@ -16,8 +17,9 @@
  * 安全名单里的 bash）→ allow；都没决定 → ask 且 `classify: true`，由调用方问模型分类器（分类器只能
  * 把它变 allow）。每个结论带 `auto{layer, decision, reason}`。
  *
- * allowlist：①② 同上；只读工具与 allow 规则 / Hook allow 命中放行，其余 deny——从不询问（危险命令、
- * Hook ask 也 deny）。
+ * allowlist：①② 同上；只读工具、只读 bash（[W5-F] 与 plan 同一子集，保持 plan ⊆ allowlist）与
+ * allow 规则 / Hook allow 命中放行，task 同 plan 放行（子会话共用本管线），其余 deny——从不询问
+ * （危险命令、Hook ask 也 deny）。
  *
  * allow_session 记忆（内存，不落盘）：bash 记命令的前两个词（`npm test`），之后以它开头的命令
  * 命中；带 path 的工具记文件所在目录，之后该目录下的路径命中；其它工具只记工具名。
@@ -50,6 +52,8 @@ import {
 } from "./rules.js";
 import { collectNestedCommands, matchDangerous } from "./dangerous.js";
 import { analyzeBashForAuto } from "./auto-safe.js";
+import { isReadonlyBash } from "./readonly-bash.js";
+import type { PlanBashMode } from "../config/types-w5.js";
 import { secretPathReason, writeProtectionReason } from "./protected.js";
 import { AUTO_AUDIT_LIMIT } from "./types.js";
 
@@ -73,6 +77,50 @@ export function modeDecision(mode: PermissionMode, permission: ToolPermission): 
   if (mode === "plan" || mode === "allowlist") return "deny";
   if (mode === "auto-edit") return permission === "write" ? "allow" : "ask";
   return "ask";
+}
+
+/** [W5-F] plan 模式拒绝写 / 执行时的说明：带指引，提醒被压缩掉后模型也能从拒绝结果里恢复。 */
+export const PLAN_MODE_MESSAGE =
+  "Plan mode is active: write/execute tools are disabled. Finish the plan with a <proposed_plan> block.";
+
+/** [W5-F] plan 下 `todo set / update` 的拒绝说明（计划与清单分开，避免跳过审批）。 */
+export const PLAN_TODO_MESSAGE =
+  "Plan mode is active: the todo list is created from the approved plan. Write the steps in a <proposed_plan> block instead.";
+
+/**
+ * [W5-F] plan 模式第 ③ 步（输入可见，docs/wave5-plan.md §6.2）：
+ * read 放行（`todo` 只放行 get）；bash 按 `plan.bash`（readonly：只读子集放行其余拒绝；ask：其余询问；
+ * deny：全拒）；task 放行（子会话共用同一管线，同样处在 plan）；其余 write / execute 拒绝。
+ * 返回 undefined = 交给通常的模式真值表。
+ */
+export function planDecision(
+  input: Pick<PermissionCheckInput, "toolName" | "permission" | "input">,
+  planBash: PlanBashMode,
+  cwd: string,
+  projectRoot = cwd,
+): { decision: Decision; message?: string } {
+  const { toolName, permission } = input;
+  if (toolName === "todo") {
+    const action =
+      typeof input.input === "object" && input.input !== null
+        ? (input.input as Record<string, unknown>)["action"]
+        : undefined;
+    return action === "get"
+      ? { decision: "allow" }
+      : { decision: "deny", message: PLAN_TODO_MESSAGE };
+  }
+  if (permission === "read") return { decision: "allow" };
+  if (toolName === "task") return { decision: "allow" };
+  if (toolName === "bash") {
+    if (planBash === "deny") return { decision: "deny", message: PLAN_MODE_MESSAGE };
+    const command = inputCommand(input.input);
+    if (command !== undefined && isReadonlyBash(command, { cwd, projectRoot }))
+      return { decision: "allow" };
+    return planBash === "ask"
+      ? { decision: "ask" }
+      : { decision: "deny", message: PLAN_MODE_MESSAGE };
+  }
+  return { decision: "deny", message: PLAN_MODE_MESSAGE };
 }
 
 export const UNATTENDED_MESSAGE =
@@ -134,6 +182,8 @@ export interface PermissionPipelineOptions {
   projectRoot?: string;
   /** auto：安全名单追加（`permission.autoSafeCommands`）。 */
   autoSafeCommands?: readonly string[];
+  /** [W5-F] plan 模式下的 bash（config `plan.bash`），缺省 readonly。 */
+  planBash?: PlanBashMode;
 }
 
 export class PermissionPipeline implements PermissionPipelineApi {
@@ -144,9 +194,11 @@ export class PermissionPipeline implements PermissionPipelineApi {
   readonly cwd: string;
   readonly projectRoot: string;
   readonly autoSafeCommands: readonly string[];
+  private planBashMode: PlanBashMode;
 
   constructor(options: PermissionPipelineOptions) {
     this.currentMode = options.mode;
+    this.planBashMode = options.planBash ?? "readonly";
     this.ruleList = [...options.rules];
     this.cwd = options.cwd;
     this.projectRoot = options.projectRoot ?? options.cwd;
@@ -159,6 +211,15 @@ export class PermissionPipeline implements PermissionPipelineApi {
 
   setMode(mode: PermissionMode): void {
     this.currentMode = mode;
+  }
+
+  /** [W5-F] config `plan.bash`（plan 扩展在会话装配时设置）。 */
+  get planBash(): PlanBashMode {
+    return this.planBashMode;
+  }
+
+  setPlanBash(mode: PlanBashMode): void {
+    this.planBashMode = mode;
   }
 
   get rules(): readonly Rule[] {
@@ -248,13 +309,17 @@ export class PermissionPipeline implements PermissionPipelineApi {
     }
     if (this.currentMode === "auto") return this.evaluateAuto(input, layers, command);
     if (this.currentMode === "allowlist") return this.evaluateAllowlist(input, layers);
-    // ③ 模式
-    const byMode = modeDecision(this.currentMode, permission);
+    // ③ 模式（plan 细化见 planDecision）
+    const plan =
+      this.currentMode === "plan"
+        ? planDecision(input, this.planBashMode, this.cwd, this.projectRoot)
+        : undefined;
+    const byMode = plan?.decision ?? modeDecision(this.currentMode, permission);
     if (byMode === "deny") {
       return {
         decision: "deny",
         step: "mode",
-        message: `Permission mode "${this.currentMode}" allows only read-only tools`,
+        message: plan?.message ?? PLAN_MODE_MESSAGE,
       };
     }
     let verdict: PermissionVerdict =
@@ -427,7 +492,15 @@ export class PermissionPipeline implements PermissionPipelineApi {
       message: why === undefined ? ALLOWLIST_MESSAGE : `${ALLOWLIST_MESSAGE} ${why}`,
     });
     if (input.hookDecision === "ask") return deny(input.hookReason);
-    if (input.permission === "read") return { decision: "allow", step: "mode" };
+    // task 与 plan 同样放行：子会话共用本管线，同样只放行只读与名单内调用
+    if (input.permission === "read" || input.toolName === "task")
+      return { decision: "allow", step: "mode" };
+    const command = input.toolName === "bash" ? inputCommand(input.input) : undefined;
+    if (
+      command !== undefined &&
+      isReadonlyBash(command, { cwd: this.cwd, projectRoot: this.projectRoot })
+    )
+      return { decision: "allow", step: "mode" };
     return this.allowedBy(input, layers, false) ?? deny();
   }
 }
