@@ -1,0 +1,157 @@
+/**
+ * 交互模式里的选择器（设计 §12.6）：居中覆盖层 + `SelectList`。[B7]
+ *
+ * - 模型：按供应商分组并标 key 状态（`modelItems`，与启动期共用），当前模型预选；
+ * - 会话：名字或首条提示、相对时间、消息数（`sessionItems`）；
+ * - 树：会话文件里全部用户消息，按分叉缩进，`●` 标出当前分支；选中项回填编辑器（由 commands.ts 处理）；
+ * - 权限模式（从严到宽）与思考级别。
+ */
+
+import type { ModelThinkingLevel } from "../../ai/types.js";
+import { THINKING_LEVELS } from "../../ai/thinking.js";
+import { PERMISSION_MODES_STRICT_FIRST, type PermissionMode } from "../../permissions/types.js";
+import type { SessionEntry } from "../../session/types.js";
+import {
+  Box,
+  SelectList,
+  type Keybindings,
+  type OverlayHandle,
+  type OverlayOptions,
+  type SelectItem,
+  type Theme,
+  type Component,
+} from "../../tui.js";
+import { contentText } from "./message-view.js";
+import { relativeTime } from "./startup-ui.js";
+
+export { modelItems, sessionItems } from "./startup-ui.js";
+
+export interface PickerHost {
+  theme: Theme;
+  keybindings?: Keybindings;
+  showOverlay(component: Component, options: OverlayOptions): OverlayHandle;
+  /** 终端列数（决定覆盖层宽度）。 */
+  columns(): number;
+}
+
+export interface PickerSpec {
+  title: string;
+  items: readonly SelectItem[];
+  selected?: string;
+  filterable?: boolean;
+  maxVisible?: number;
+  emptyText?: string;
+}
+
+/** 打开一个居中选择器；Enter 返回选中项，Esc / Ctrl+C 返回 undefined。 */
+export function openPicker(host: PickerHost, spec: PickerSpec): Promise<SelectItem | undefined> {
+  return new Promise((resolve) => {
+    let handle: OverlayHandle | undefined;
+    const close = (item: SelectItem | undefined): void => {
+      handle?.hide();
+      resolve(item);
+    };
+    const list = new SelectList(spec.items, {
+      theme: host.theme,
+      maxVisible: spec.maxVisible ?? 12,
+      filterable: spec.filterable ?? spec.items.length > 8,
+      ...(host.keybindings !== undefined ? { keybindings: host.keybindings } : {}),
+      ...(spec.emptyText !== undefined ? { emptyText: spec.emptyText } : {}),
+      onSelect: (item) => close(item),
+      onCancel: () => close(undefined),
+    });
+    if (spec.selected !== undefined) list.selectValue(spec.selected);
+    const width = Math.max(20, Math.min(host.columns() - 2, 72));
+    handle = host.showOverlay(new Box(list, { title: spec.title, theme: host.theme }), {
+      anchor: "center",
+      width,
+    });
+  });
+}
+
+const PERMISSION_TEXT: Readonly<Record<PermissionMode, string>> = {
+  plan: "只读，不改文件不跑命令",
+  default: "写入与命令逐次确认",
+  "auto-edit": "文件编辑自动放行，命令确认",
+  "full-auto": "全部放行（危险命令仍确认）",
+};
+
+export function permissionItems(): SelectItem[] {
+  return PERMISSION_MODES_STRICT_FIRST.map((mode) => ({
+    value: mode,
+    label: mode,
+    description: PERMISSION_TEXT[mode],
+  }));
+}
+
+export function thinkingItems(reasoning: boolean): SelectItem[] {
+  return THINKING_LEVELS.map((level: ModelThinkingLevel) => {
+    const item: SelectItem = { value: level, label: level };
+    if (!reasoning && level !== "off") item.description = "当前模型不支持思考";
+    return item;
+  });
+}
+
+export interface TreeNode {
+  entry: SessionEntry;
+  text: string;
+  children: TreeNode[];
+}
+
+function userText(entry: SessionEntry): string | undefined {
+  if (entry.type !== "message" || entry.message.role !== "user") return undefined;
+  return contentText(entry.message.content).replace(/\s+/g, " ").trim();
+}
+
+/** 只保留用户消息的树：每条用户消息挂到最近的用户消息祖先下。 */
+export function userMessageTree(entries: readonly SessionEntry[]): TreeNode[] {
+  const byId = new Map(entries.map((e) => [e.id, e]));
+  const nodes = new Map<string, TreeNode>();
+  const roots: TreeNode[] = [];
+  for (const entry of entries) {
+    const text = userText(entry);
+    if (text === undefined) continue;
+    const node: TreeNode = { entry, text, children: [] };
+    nodes.set(entry.id, node);
+    let parentId = entry.parentId;
+    let parent: TreeNode | undefined;
+    const seen = new Set<string>();
+    while (parentId !== null && !seen.has(parentId)) {
+      seen.add(parentId);
+      parent = nodes.get(parentId);
+      if (parent !== undefined) break;
+      parentId = byId.get(parentId)?.parentId ?? null;
+    }
+    (parent?.children ?? roots).push(node);
+  }
+  return roots;
+}
+
+/**
+ * 树 → 列表项：分叉处子分支缩进一级，单链保持同级；`●` 在当前分支上、`○` 不在。
+ * value 是用户消息条目的 id。
+ */
+export function treeItems(
+  entries: readonly SessionEntry[],
+  activeIds: ReadonlySet<string>,
+  now: number,
+): SelectItem[] {
+  const items: SelectItem[] = [];
+  const visit = (list: readonly TreeNode[], depth: number): void => {
+    const fork = list.length > 1;
+    for (const node of list) {
+      const level = fork ? depth + 1 : depth;
+      const mark = activeIds.has(node.entry.id) ? "● " : "○ ";
+      const text = node.text.length > 60 ? `${node.text.slice(0, 59)}…` : node.text;
+      items.push({
+        value: node.entry.id,
+        label: `${"  ".repeat(level)}${mark}${text === "" ? "（空）" : text}`,
+        description: relativeTime(node.entry.timestamp, now),
+      });
+      visit(node.children, level);
+    }
+  };
+  const roots = userMessageTree(entries);
+  visit(roots, roots.length > 1 ? -1 : 0);
+  return items;
+}
