@@ -125,7 +125,7 @@ describe("ama doctor（en）", () => {
   it("--lang 覆盖时来源写 --lang", async () => {
     home = createTmpHome();
     const out: string[] = [];
-    const env = { AMA_LANG: "", LANG: "zh_CN.UTF-8" };
+    const env = { AMA_LANG: "", LC_ALL: "", LC_MESSAGES: "", LANG: "zh_CN.UTF-8" };
     expect(await main(["--lang", "en", "doctor"], { io: io(env, out), processHooks: false })).toBe(
       0,
     );
