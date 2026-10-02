@@ -13,6 +13,11 @@
  * | modes                | line / print / rpc 懒加载；interactive 在 B7 之前回落到 line         |
  * | ui                   | 传了 io 时：终端 → 迷你 TUI（懒加载），否则文本问答；stdin 非 TTY 不问 |
  *
+ * **跨步骤状态走闭包（表 B·B13，有意保留）**：`RuntimeDeps.tools.create` 的入参没有 skills / 提示模板，
+ * 第 13 步 `resources.discover` 把完整对象存进 `ComposeState`，组装会话时（compose-session.ts 的技能
+ * 索引与 `/skill:` 展开）再取。不为此扩契约：两步都在同一个 `createRuntimeDeps()` 闭包里，顺序由
+ * bootstrap 固定。
+ *
  * **工具注册点（给 B10 等）**：`ComposeOptions.toolFactories` 与 `DEFAULT_TOOL_FACTORIES`。工厂在
  * 第 12 步建注册表时调用，产物以 `builtin` 来源注册（受预设管理）；工厂拿不到会话对象本身，执行期
  * 需要会话时用 `ctx.session()`，嵌套调用其它工具用 `ToolContext.tools.executeTool`（走完整门禁）。
