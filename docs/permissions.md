@@ -30,6 +30,7 @@
 - 状态栏显示显示名：`mode:Auto`；`Bypass permissions` 标黄。
 - `/permission` 不带参数打开选择器：标题 `Mode`，每项「显示名 + 一行说明」，右侧是数字快捷键 1–6，当前模式打勾，配置里的缺省模式标 `Default`，Auto 标 `Recommended`。line 模式 `/permission` 打印同样的列表。
 - `Shift+Tab` 循环：Manual → Accept edits → Plan → Auto → Bypass permissions → Manual。`Allowlist only` 不在循环里，只能显式选。
+- **进入 Bypass**：交互界面里切到 Bypass（Tab / Shift+Tab 循环、`/permission` 选择器、`/permission full-auto`）先弹确认框，缺省选中「取消」；循环时取消则跳过 Bypass 回到 Manual，选择器与命令取消则保持原模式。本次运行确认过一次后不再问。命令行 `--permission-mode full-auto`、用户级配置与 profile 指定的不弹（那是显式选择）；line 模式问 `确认进入 Bypass？[y/N]`；管道输入、RPC `set_permission_mode`、ACP `session/set_mode` 由调用方负责，不弹。详见 [tui.md](tui.md)「进入 Bypass」。
 
 ### 审批对话框的来源标注
 
