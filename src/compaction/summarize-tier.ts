@@ -163,6 +163,7 @@ export async function completeText(
       signal: options.signal,
       maxTokens,
       cacheRetention: "none",
+      purpose: "summary",
     };
     if (options.apiKey !== undefined) streamOptions.apiKey = options.apiKey;
     const stream = options.stream(options.model, context, streamOptions);

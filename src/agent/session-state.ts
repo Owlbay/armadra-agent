@@ -10,7 +10,7 @@ import type { PermissionMode } from "../permissions/types.js";
 import type { SessionManager } from "../session/manager.js";
 import type { SessionEntry } from "../session/types.js";
 import type { Agent } from "./agent.js";
-import type { SessionState, SessionStats } from "./types.js";
+import type { SessionCacheStats, SessionState, SessionStats } from "./types.js";
 
 export interface StateInput {
   agent: Agent;
@@ -52,6 +52,8 @@ export interface StatsInput {
   branch: readonly SessionEntry[];
   contextTokens: number | undefined;
   contextWindow: number | undefined;
+  /** [W3-C1b] 会话层缓存控制器的统计（未接线时缺省）。 */
+  cache?: SessionCacheStats;
 }
 
 function addUsage(totals: SessionStats["tokens"], usage: Usage): void {
@@ -113,6 +115,7 @@ export function computeStats(input: StatsInput): SessionStats {
   };
   const rate = cacheHitRate(tokens);
   if (rate !== undefined) stats.cacheHitRate = rate;
+  if (input.cache !== undefined) stats.cache = input.cache;
   return stats;
 }
 
