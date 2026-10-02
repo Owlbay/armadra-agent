@@ -53,6 +53,13 @@
   凭据存 auth.json 的 OAuth 条目（0600），自动刷新，多进程经 `auth.json.lock` 串行刷新，失效报 `auth_expired`；token 不进日志、会话、事件与错误。
   订阅请求 `cost = 0` 并标 `billing: "subscription"`；`/session` 单列「订阅用量」与配额；新事件 `quota_update`；配额耗尽报 `quota_exceeded`、不重试。
   详见 [docs/providers.md](docs/providers.md)「ChatGPT 登录」。
+- **记忆（Memory）**（W6-M，[docs/memory.md](docs/memory.md)）：跨会话记忆，**缺省关闭**，`ama memory enable` / `--memory` / `AMA_MEMORY=1` 开启。条目是
+  `<数据目录>/memory/{user,projects/<目录名>-<sha8>}/` 下带 frontmatter 的 Markdown，`MEMORY.md` 索引自动重建；项目作用域需项目已受信任；关闭时请求体逐字节不变。
+  新工具 `memory`（`view` / `create` / `str_replace` / `delete`，路径限定 `/memories/<作用域>/`）与权限类 `memory`：default 下写入首次询问、可本会话允许；
+  内容像凭据即拒写；子 Agent 只读；规则 `memory(...)` 按命令名或逻辑路径匹配。系统提示新增 `memory` 节（`skills` 之后，只放索引）：会话开始定稿，
+  会话内写入下次会话生效，`/memory reload` 与压缩后刷新；**开启后首个请求会因新节与工具未命中一次缓存。** `/memory`（面板、show、edit、rm、on|off、reload）
+  与 `ama memory list|show|edit|rm|path|enable|disable`；压缩回注列出读写过的记忆路径。嵌入宿主与 SDK 缺省禁用，`memory: { enabled, dir }` 开启，
+  只有 `workspace` 作用域、不读用户级。
 
 ## 0.5.1（2026-10-03）
 

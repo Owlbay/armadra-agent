@@ -58,6 +58,7 @@ import { AgentUi, agentCommandHooks } from "./agent-ui.js";
 import { ApprovalDialogBroker, approvalOutcomeText } from "./approval-dialog.js";
 import { mergingBroker } from "./approval-merge.js";
 import { ALL_COMMANDS, runInteractiveCommand, type CommandUi } from "./commands.js";
+import { memoryPanelFor } from "./memory-panel.js";
 import { InteractiveCompletion } from "./completion.js";
 import { confirmBypass } from "./confirm-dialog.js";
 import { configUiFor } from "./config-ui.js";
@@ -412,6 +413,7 @@ export function runInteractiveMode(
     configPanel: (args) => configUi.open(args),
     traceView: (id) =>
       openTraceView({ ...pickerHost, session: () => session, now, notice, render }, id),
+    memoryPanel: memoryPanelFor(() => commandUi, pickerHost, tui, env), // [W6-M]
   };
 
   const runCommand = (line: string): Promise<boolean> =>

@@ -43,6 +43,8 @@ import { PresetToolRegistry } from "../tools/presets.js";
 import type { ToolDefinition } from "../tools/types.js";
 import { openSession } from "./compose-store.js";
 import { composeExtensions } from "./compose-extensions.js";
+import { attachMemory, withMemorySection } from "./compose-memory.js";
+import type { MemoryRuntime } from "../memory/runtime.js";
 import type { SessionAssembly } from "./deps.js";
 import { ExitCode } from "./exit-codes.js";
 import type { Runtime } from "./runtime.js";
@@ -61,6 +63,8 @@ export interface ComposeState {
   providers?: ProviderRegistryApi;
   /** [S2] tools.create 算出的 bash 沙箱设定，permissions.create 用同一份。 */
   bashSandbox?: BashSandbox;
+  /** [W6-M] tools.create 收到的记忆运行期（未开启为 undefined）。 */
+  memory?: MemoryRuntime | undefined;
 }
 
 export function emptyComposeState(): ComposeState {
@@ -356,7 +360,7 @@ function buildSession(
     unattended: assembly.unattended,
     approvalTimeoutMs: approvalTimeout(record.options),
     hooks: assembly.hooks,
-    system: systemInput(record, active),
+    system: withMemorySection(systemInput(record, active), record.state.memory, manager),
     compaction: { ...config.compaction },
     retry: { ...config.retry },
     expandPrompt: (text) => expandPrompt(record, session as AgentSessionImpl, text),
@@ -394,6 +398,7 @@ function buildSession(
     sessionsRoot: assembly.paths.sessionDir,
   });
   session = new AgentSessionImpl(options);
+  attachMemory(session, record.state.memory);
   session.subscribe((event) => bridgeEvent(event, assembly.events));
   records.set(session, record);
   record.state.session = session;

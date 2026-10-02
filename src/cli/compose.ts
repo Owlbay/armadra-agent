@@ -43,6 +43,8 @@ import { join } from "node:path";
 import { AUTH_FILE } from "../config/paths.js";
 import { PresetToolRegistry, resolvePreset } from "../tools/presets.js";
 import { builtinTools } from "../tools/registry.js";
+import type { MemoryRuntime } from "../memory/runtime.js";
+import { MEMORY_TOOL, createMemoryTool } from "../memory/tool.js";
 import type { ToolDefinition, ToolRegistryApi } from "../tools/types.js";
 import { takeCodemodeNotice } from "./codemode-notice.js";
 import { buildProviderRegistry } from "./compose-providers.js";
@@ -132,6 +134,7 @@ export function createTools(
     cwd: string;
     mode: RuntimeMode;
     paths?: { configDir: string; dataDir: string } | undefined;
+    memory?: MemoryRuntime | undefined;
   },
   options: ComposeOptions,
   state: ComposeState,
@@ -181,6 +184,9 @@ export function createTools(
       state.warnings.push(msg().cli.compose.toolFactoryFailed((error as Error).message));
     }
   }
+  // [W6-M] 记忆开启时注册 memory 工具并放进活动集（关闭时什么都不加，工具表字节不变）
+  if (input.memory !== undefined) produced.push(createMemoryTool(input.memory));
+  state.memory = input.memory;
   const extra = options.extraTools ?? [];
   const names = new Set([...builtins, ...produced, ...extra].map((tool) => tool.name));
   const preset = resolvePreset({
@@ -198,6 +204,7 @@ export function createTools(
     }
   }
   for (const tool of extra) registry.register(tool, "sdk");
+  if (input.memory !== undefined && preset.codemode !== "only") preset.builtin.push(MEMORY_TOOL);
   applyCodemodeMode(registry, preset);
   state.warnings.push(...preset.warnings);
   // 一次性提示只给有人看的界面（交互 / 行式）；-p 与 RPC 的 stderr 常被脚本解析，不打扰。

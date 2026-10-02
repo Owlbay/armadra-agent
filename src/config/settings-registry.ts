@@ -139,9 +139,9 @@ const ROWS: readonly Row[] = [
   row("agents.sessionBudgetUsd", "agents", "nextSession", "deny", { kind: "optionalNumber" }),
   row("subagents.maxConcurrent", "agents", "nextSession", "deny"),
   row("subagents.maxPending", "agents", "nextSession", "deny"),
-  // [W6-M] reserved: added once Memory (W6-M) is merged --
-  // row("memory.enabled", "memory", "nextSession", "tighten", { envOverride: "AMA_MEMORY" }),
-  // row("memory.subagents", "memory", "nextSession", "deny"),
+  // [W6-M]
+  row("memory.enabled", "memory", "nextSession", "tighten", { envOverride: "AMA_MEMORY" }),
+  row("memory.subagents", "memory", "nextSession", "deny"),
 ];
 
 /** Keys edited elsewhere: key prefix -> hint id (messages `settings.hints`). */

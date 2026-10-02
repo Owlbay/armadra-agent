@@ -27,3 +27,30 @@ export function memoryCommand(input: unknown): string | undefined {
 export function memoryEffectivePermission(input: unknown): Exclude<ToolPermission, "memory"> {
   return memoryCommand(input) === "view" ? "read" : "execute";
 }
+
+/**
+ * [W6-M] `memory(pattern)` 规则：pattern 是命令名（`view` / `create` / `str_replace` / `delete`）时比对命令；
+ * 否则按 glob 比对逻辑路径（`/memories/user/**`，`*` 不跨 `/`，`**` 跨）；单独的 `*` / `**` 命中全部。
+ * 记忆路径是逻辑路径，不按文件系统解析（`rules.ts` 对 memory 不走 bash 命令与真实路径的匹配）。
+ */
+export function memoryRuleMatches(pattern: string, input: unknown): boolean {
+  const p = pattern.trim();
+  if (p === "*" || p === "**") return true;
+  if ((MEMORY_COMMANDS as readonly string[]).includes(p)) return memoryCommand(input) === p;
+  const raw =
+    typeof input === "object" && input !== null
+      ? (input as Record<string, unknown>)["path"]
+      : undefined;
+  if (typeof raw !== "string") return false;
+  let body = "";
+  for (let i = 0; i < p.length; i++) {
+    const ch = p[i] as string;
+    if (ch === "*" && p[i + 1] === "*") {
+      body += ".*";
+      i++;
+    } else if (ch === "*") body += "[^/]*";
+    else if (ch === "?") body += "[^/]";
+    else body += ch.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+  }
+  return new RegExp(`^${body}$`).test(raw.replace(/\/+$/, ""));
+}

@@ -398,7 +398,14 @@ t2 explore · 运行中 1m05s · 3 轮 · ↑12k ↓3.4k · Esc 返回 · /tasks
 
 ## Memory
 
-（第六波 W6-M：`/memory` 与记忆面板。）
+需开启记忆（`ama memory enable` 或 `--memory`，见 [memory.md](memory.md)）。`/memory` 在消息区画一张卡片：每个作用域一段
+（`用户 /memories/user/ · N 条 · 索引 X / 4.0 KiB`），条目一行「名字 — 说明 更新于 日期」，超过 90 天未更新的标灰；
+索引超出上限时多一行黄字说明有几条没进系统提示；项目未受信任、本会话禁止写入时卡片底部各提示一行。
+
+`/memory show <名字>` 把正文画成卡片；`/memory edit [名字|作用域]` 挂起界面打开 `$VISUAL` / `$EDITOR`（编辑临时副本，
+保存退出后存回并重建索引，凭据与上限检查同模型写入）；`/memory rm <名字>` 弹确认框（缺省选中「取消」，`y` 删除、`n` / Esc 取消）；
+`/memory on|off` 切本会话写开关；`/memory reload` 重渲染系统提示的 `memory` 节（提示会断一次缓存）。行式界面同一套命令输出文本，
+`edit` 改用 `ama memory edit`，`rm` 需加 `--yes`。会话未开启记忆时只提示如何开启。
 
 ## 剪贴板图片
 

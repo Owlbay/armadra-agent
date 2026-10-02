@@ -76,6 +76,17 @@ Wave 6 (docs/wave6-plan.md) contracts and infrastructure (W6-C0):
   `auth_expired`; tokens never reach logs, sessions, events or errors. Subscription requests record `cost = 0` with
   `billing: "subscription"`; `/session` lists subscription usage and quota; new event `quota_update`; an exhausted quota
   reports `quota_exceeded` without retrying. See [docs/providers.md](docs/providers.md) "ChatGPT login".
+- **Memory** (W6-M, [docs/memory.md](docs/memory.md)): cross-session memory, **off by default**; enable with `ama memory enable`,
+  `--memory` or `AMA_MEMORY=1`. Entries are Markdown files with frontmatter under
+  `<data dir>/memory/{user,projects/<dir>-<sha8>}/`, with an auto-rebuilt `MEMORY.md` index; the project scope requires a trusted
+  project; when disabled the request body is byte-for-byte unchanged. New `memory` tool (`view` / `create` / `str_replace` /
+  `delete`, paths limited to `/memories/<scope>/`) with a `memory` permission class: in default mode the first write asks and
+  can be allowed for the session; content that looks like a credential is refused; subagents are read-only; `memory(...)`
+  rules match by command or logical path. New `memory` system-prompt section (after `skills`, index only): fixed at session
+  start, writes take effect next session, refreshed by `/memory reload` and after compaction; **enabling it causes one cache
+  miss on the first request.** `/memory` (panel, show, edit, rm, on|off, reload) and
+  `ama memory list|show|edit|rm|path|enable|disable`; post-compaction notes list memory paths read or written. Disabled by
+  default for embedding hosts and the SDK; enable with `memory: { enabled, dir }` (workspace scope only, no user scope).
 
 ## Earlier releases
 
