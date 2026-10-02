@@ -2,6 +2,12 @@
 
 ## 未发布
 
+- **检查点核心**（docs/rewind-plan.md，回滚的会话接线与界面在后续批次）：edit / write 第一次写文件前备份，
+  每个新回合重拍已跟踪文件；备份按内容 sha256 存 `<数据目录>/file-history/blobs/`。恢复做冲突检测与安全检查
+  （符号链接、硬链接、非普通文件、父目录移动；非 Windows 用 `O_NOFOLLOW`），可预览行级增删。
+  `ama sessions prune` 结束后清理未引用的备份，`ama doctor` 显示占用。新配置 `checkpoints.mode`
+  （`AMA_CHECKPOINTS` 覆盖）、`checkpoints.maxFileBytes`、`checkpoints.keep`。
+
 ## 0.4.0（2026-10-02）
 
 - **终端界面重做**（视觉规格见 docs/tui-design.md）：带框启动头（模型 / 目录 / 模式 / 已加载资源，窄屏去框）；

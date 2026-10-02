@@ -1,4 +1,4 @@
-# 会话统计、检索、复用与导出
+# 会话统计、检索、复用、导出与检查点
 
 这几条命令都只读会话目录（`<数据目录>/sessions`，`--session-dir` 可改；文件格式见 [session-format.md](session-format.md)）：不加锁、不修复半行、不改文件，正在运行的会话也能读。范围缺省是**当前目录**的会话，`--all` 看全部。
 
@@ -107,6 +107,21 @@ ama sessions export <id> [--format md|json|jsonl] [--output <文件>] [--branch 
 - `--branch leaf`（缺省）是根到当前叶子的分支（与 `/tree` 当前位置一致）；`all` 是文件里全部条目。
 - `--output` 写文件（权限 0600），否则写 stdout。
 - **脱敏**：导出前把 key / token 形态的字符串换成 `[REDACTED]`——`sk-…`、`sk-ant-…`、`ghp_…`、`github_pat_…`、`xox?-…`、`AIza…`、`AKIA…`、`npm_…`、JWT、`Bearer` / `Basic` 凭据、PEM 私钥块，以及 `apiKey` / `secret` / `token` / `password` / `authorization` 之后紧跟 `:` 或 `=` 的值；json / jsonl 里键名像机密的字符串值整段遮掉。图片的 base64 保留。只认形态，不保证遮全，分享前仍请自己看一遍。
+
+## 检查点与文件备份
+
+回滚代码（`/rewind`，设计见 [rewind-plan.md](rewind-plan.md)）依赖检查点：每个新回合开始时，ama 记下 edit / write 改过的文件当时的内容。
+
+- **存储位置**：备份按内容 sha256 存在 `<数据目录>/file-history/blobs/<前 2 位>/<sha256>`，原字节、不压缩；多个会话、多个检查点共用，同内容只存一份。会话文件里只有 `ama.checkpoint` / `ama.checkpoint-track` 两类 `custom` 条目（记哈希，不进上下文）。会话目录不在缺省位置时（`--session-dir`、宿主 profile 的 `sessionDir`），目录登记在 `file-history/roots.json`，清理时一并扫描。
+- **跟踪范围**：edit / write（含 codemode 内层调用与 task 子会话）第一次写某文件之前备份它；之后每个新回合按当前磁盘内容重拍已跟踪的文件，所以 bash 或手动对这些文件的改动也会进下一个检查点。bash 新建或改动的其它文件不跟踪。
+- **清理**：`ama sessions prune` 结束后扫描全部会话文件（含 `.trash/` 里还能找回的）里的检查点引用，删除未被引用且超过 1 天的备份；`--dry-run` 只报告。`ama doctor` 的「目录」一节显示备份数与占用。
+- **配置**：`checkpoints.mode`（`tools` 缺省 / `shadow-git` / `off`，环境变量 `AMA_CHECKPOINTS` 覆盖；`shadow-git` 未实现前按 `tools` 处理）、`checkpoints.maxFileBytes`（缺省 5 MiB）、`checkpoints.keep`（缺省 100，更早的检查点不再列为回滚点）。项目级 `.ama/config.json` 只能把 `mode` 设为 `off`、把 `maxFileBytes` 调小。
+- **限制**：
+  - 超过 `maxFileBytes` 的文件、符号链接与非普通文件不备份，回滚时报告无法恢复。
+  - 恢复时目标是符号链接、硬链接（链接数 > 1）、非普通文件，或父目录已被移动 / 换成链接，都跳过并列出原因；备份已被清理时报告 `backup_missing`。
+  - 冲突检测：文件当前内容既不是 ama 最后写入的、也不是最近检查点记录的，视为回合外的手动修改，缺省跳过。「ama 最后写入」只在进程内存里；恢复会话后以最近检查点为准，上一回合 ama 写过、之后未再建检查点的文件会被当作冲突（可选择覆盖）。
+  - git 状态不动：只记 HEAD，回滚时 HEAD 变了给出提示。
+  - 内存会话（不落盘）没有检查点。
 
 ## 请求明细（设计，未实现）
 
