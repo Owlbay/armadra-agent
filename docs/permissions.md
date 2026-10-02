@@ -4,14 +4,14 @@
 
 ## 模式
 
-| 值          | 显示名             | 读  | 写（项目内）                | 执行（bash 等）                | 何时用                           |
-| ----------- | ------------------ | --- | --------------------------- | ------------------------------ | -------------------------------- |
-| `default`   | Manual             | ✓   | 询问                        | 询问                           | 缺省                             |
-| `auto-edit` | Accept edits       | ✓   | ✓                           | 询问                           | 放心让它改代码，命令逐条看       |
-| `plan`      | Plan               | ✓   | 拒绝                        | 拒绝                           | 只读调研、出方案                 |
-| `auto`      | Auto               | ✓   | ✓（受保护路径与项目外询问） | 安全名单放行，其余由分类器判断 | 推荐：常规操作不打扰，有风险才问 |
-| `full-auto` | Bypass permissions | ✓   | ✓                           | ✓                              | 一次性沙箱、容器                 |
-| `allowlist` | Allowlist only     | ✓   | 只放行 allow 规则命中的     | 只放行 allow 规则命中的        | CI：从不询问，没列出的直接拒绝   |
+| 值          | 显示名             | 读  | 写（项目内）                | 执行（bash 等）                 | 何时用                                       |
+| ----------- | ------------------ | --- | --------------------------- | ------------------------------- | -------------------------------------------- |
+| `default`   | Manual             | ✓   | 询问                        | 询问                            | 缺省                                         |
+| `auto-edit` | Accept edits       | ✓   | ✓                           | 询问                            | 放心让它改代码，命令逐条看                   |
+| `plan`      | Plan               | ✓   | 拒绝                        | 只读命令放行，其余拒绝          | 只读调研、出计划并审批（[plan.md](plan.md)） |
+| `auto`      | Auto               | ✓   | ✓（受保护路径与项目外询问） | 安全名单放行，其余由分类器判断  | 推荐：常规操作不打扰，有风险才问             |
+| `full-auto` | Bypass permissions | ✓   | ✓                           | ✓                               | 一次性沙箱、容器                             |
+| `allowlist` | Allowlist only     | ✓   | 只放行 allow 规则命中的     | 只读命令与 allow 规则命中的放行 | CI：从不询问，没列出的直接拒绝               |
 
 所有模式下，deny 规则、Hook deny 都先判定并直接拒绝；危险命令表（`rm -rf /`、`git push --force`、`curl … | sh` 等，见 README「安全」）一律询问，`allowlist` 与无人值守时变为拒绝。
 
@@ -21,13 +21,39 @@
 
 严格度从严到宽：`plan < allowlist < default < auto-edit < auto < full-auto`。项目级 `.ama/config.json` 只能把模式往严的方向改；另外**不能设 `auto` 或 `full-auto`**（这两种由 ama 自己或什么都不判断就放行，必须由用户级配置、命令行或 profile 打开），设了会被忽略并给 warning。
 
-`allowlist` 排在 `plan` 与 `default` 之间：它放行的调用是 `plan` 放行的（只读工具）加上 allow 规则明确列出的；`default` 放行的集合包含它（只读 + allow 规则），其余在 `default` 下询问、在 `allowlist` 下拒绝。所以 `plan ⊆ allowlist ⊆ default`。读工具在 `allowlist` 下照常放行，与其它模式一致；要连读都限制，用 deny 规则。
+`allowlist` 排在 `plan` 与 `default` 之间：它放行的调用是 `plan` 放行的（只读工具、[只读命令](#plan-模式与只读命令)、`task`）加上 allow 规则明确列出的；`default` 放行的集合包含它（只读 + allow 规则），其余在 `default` 下询问、在 `allowlist` 下拒绝。所以 `plan ⊆ allowlist ⊆ default`。读工具在 `allowlist` 下照常放行，与其它模式一致；要连读都限制，用 deny 规则。
+
+只读命令是一张静态名单（下一节），`plan` 与 `allowlist` 用同一张，严格度的全序因此不变；CI 里用 `allowlist` 多放行 `ls`、`git log` 这类命令无害。`task` 在两种模式下都放行：子会话共用同一条权限管线，子 Agent 能做的不会比父会话多。`plan.bash: "ask"` 时 plan 会对名单外的命令询问（`allowlist` 从不询问），「不经询问就放行」的集合仍满足上面的包含关系。
 
 ### 界面
 
 - 状态栏显示显示名：`mode:Auto`；`Bypass permissions` 标黄。
 - `/permission` 不带参数打开选择器：标题 `Mode`，每项「显示名 + 一行说明」，右侧是数字快捷键 1–6，当前模式打勾，配置里的缺省模式标 `Default`，Auto 标 `Recommended`。line 模式 `/permission` 打印同样的列表。
 - `Shift+Tab` 循环：Manual → Accept edits → Plan → Auto → Bypass permissions → Manual。`Allowlist only` 不在循环里，只能显式选。
+
+## plan 模式与只读命令
+
+plan 模式的第 ③ 步看输入（实现 `src/permissions/pipeline.ts` 的 `planDecision`），流程与计划审批见 [plan.md](plan.md)：
+
+| 调用                      | plan 下                                                                                                                  |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| read / grep / glob / ls   | 放行                                                                                                                     |
+| `todo`                    | `get` 放行；`set` / `update` 拒绝，提示把步骤写进 `<proposed_plan>`（清单在批准时由计划生成）                            |
+| bash                      | 按 `plan.bash`：`readonly`（缺省）只读命令放行、其余拒绝；`ask` 其余询问（无人值守拒绝）；`deny` 全部拒绝                |
+| write / edit 等           | 拒绝，说明带指引：`Plan mode is active: write/execute tools are disabled. Finish the plan with a <proposed_plan> block.` |
+| task                      | 放行（子会话共用同一管线，同样处在 plan；子会话不提取计划块）                                                            |
+| deny 规则、危险命令、Hook | 先于模式判定（不变）                                                                                                     |
+
+只读命令（`src/permissions/readonly-bash.ts`）：先过 auto 的静态判定（分词、嵌套展开、网络 / 删除 / 写入目标 / 机密路径、命令替换、变量展开、点文件通配），再要求每段都在下面的名单里、没有输出重定向（`/dev/null` 除外）、没有嵌套 shell（`sh -c`、`eval`、`xargs`、`find -exec`）与进程替换、段首没有环境赋值或包装命令（`GIT_EXTERNAL_DIFF=… git diff`、`env …`）。
+
+| 命令                                                                                        | 限制                                                                                             |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `ls cat head tail wc stat echo printf pwd which du basename dirname realpath true false cd` | —                                                                                                |
+| `grep egrep fgrep`、`rg`、`fd`、`find`                                                      | `rg --pre`、`fd -x / -X / --exec*`、`find -exec / -ok / -delete / -fprint*` 不算                 |
+| `tree`、`file`、`jq`                                                                        | `tree -o`、`file -C`、`jq -i` 不算                                                               |
+| `git status / log / show / diff / rev-parse / blame / ls-files / branch`                    | git 全局选项只允许 `-C`、`--no-pager`；`--output`、`--ext-diff`、`--textconv` 与改分支的选项不算 |
+
+比 auto 的安全名单窄：不含测试 / 构建运行器（`npm test`、`cargo build` 会执行项目脚本），也不含 `env` / `printenv`（会把环境变量里的密钥打进上下文）。读机密路径（`cat .env`）不算只读。
 
 ## 判定顺序
 
@@ -44,8 +70,9 @@ schema 校验
       Hook ask                                             → 询问
       allow 规则、Hook allow、本会话记忆                   → 放行
    ② 模式
-      plan / default / auto-edit / full-auto：同以前的模式真值表
-      allowlist：只读工具放行，其余拒绝（不在允许名单）
+      plan：只读工具、只读命令、task 放行，其余拒绝（plan.bash: ask 时其余命令询问）
+      default / auto-edit / full-auto：同以前的模式真值表
+      allowlist：只读工具、只读命令、task 放行，其余拒绝（不在允许名单）
       auto：静态判定（不调模型）→ 放行；未决定 → ③
    ③ [auto] 模型分类器：allow → 放行；ask / 出错 / 超时 → 询问
 → 询问时走审批链（宿主 broker → 界面 → 无人值守按拒绝）
