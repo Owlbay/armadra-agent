@@ -17,6 +17,7 @@ import { UsageError } from "../args.js";
 import { confirmContinue } from "../choice-prompt.js";
 import { ExitCode } from "../exit-codes.js";
 import type { ModelsAction, ModelsActionContext } from "./models.js";
+import { msg } from "../../i18n/index.js";
 
 export const PROBE_DEFAULT_TOKENS = 2048;
 export const PROBE_DEFAULT_GAP_MS = 3000;
@@ -79,17 +80,14 @@ export function probeAdvice(
   model: Model,
   samples: readonly ProbeSample[] = [],
 ): string | undefined {
+  const t = msg().subcommands.cacheProbe;
   if (verdict === "silent") {
     // 实测：同一中转的 Kimi 间隔 3 s 两次都是 0、间隔更久才命中——字段存在时提示写入延迟的可能
-    const present = samples.some((s) => s.cacheReported === true)
-      ? "（响应里有缓存字段但恒为 0；也可能是缓存写入有延迟，可加大 --gap-ms 再测一次）"
-      : "";
-    return `可在 config 里设 providers.${model.provider}.compat.cacheReporting: "silent"，状态栏将显示未报告${present}`;
+    const present = samples.some((s) => s.cacheReported === true);
+    return t.adviceSilent(model.provider, present);
   }
-  if (verdict === "inconclusive")
-    return "第二次只读到少量缓存或只有写入：可能是缓存粒度或 TTL 问题，可加大 --tokens 或缩短 --gap-ms 重试";
-  if (model.promptCache === undefined)
-    return `可自填 promptCache.short 以启用保温（providers.${model.provider}.modelOverrides: [{ "id": "${model.id}", "promptCache": { "short": 300 } }]）`;
+  if (verdict === "inconclusive") return t.adviceInconclusive;
+  if (model.promptCache === undefined) return t.advicePromptCache(model.provider, model.id);
   return undefined;
 }
 
@@ -98,13 +96,14 @@ function intOption(ctx: ModelsActionContext, name: string, fallback: number, min
   if (raw === undefined) return fallback;
   const value = Number(raw);
   if (!Number.isInteger(value) || value < min)
-    throw new UsageError(`--${name} 应为不小于 ${min} 的整数`);
+    throw new UsageError(msg().subcommands.cacheProbe.intAtLeast(name, min));
   return value;
 }
 
 function sampleLine(index: number, s: ProbeSample): string {
-  const field = s.cacheReported === undefined ? "?" : s.cacheReported ? "有" : "无";
-  return `#${index}  input ${s.input} · cacheRead ${s.cacheRead} · cacheWrite ${s.cacheWrite} · 缓存字段 ${field}`;
+  const t = msg().subcommands.cacheProbe;
+  const field = s.cacheReported === undefined ? "?" : s.cacheReported ? t.yes : t.no;
+  return t.sample(index, s.input, s.cacheRead, s.cacheWrite, field);
 }
 
 async function run(ctx: ModelsActionContext): Promise<number> {
@@ -115,31 +114,33 @@ async function run(ctx: ModelsActionContext): Promise<number> {
   const json = ctx.flags.has("json");
   const found = registry.findModel(ref);
   if (!found.ok) {
-    io.stderr(`ama: 模型不存在：${ref}\n`);
+    io.stderr(msg().subcommands.common.modelNotFound(ref));
     return ExitCode.NoModel;
   }
   const { model, provider } = found;
   const key = await registry.resolveApiKey(provider.id, model.channel);
   if (key.apiKey === undefined && provider.requiresApiKey) {
-    io.stderr(`ama: ${provider.id} 没有 API key（ama auth set ${provider.id}）\n`);
+    io.stderr(msg().subcommands.common.noApiKey(provider.id));
     return ExitCode.NoModel;
   }
   const api = registry.getApi(model.api);
   if (api === undefined) {
-    io.stderr(`ama: 协议 ${model.api} 尚未实现\n`);
+    io.stderr(msg().subcommands.common.apiNotImplemented(model.api));
     return ExitCode.RuntimeError;
   }
   const estimate = priceTokens(model, { input: tokens * 2, output: 32 });
   const name = `${provider.id}/${model.id}`;
-  const head = `cache-probe ${name}（${model.api}）· 前缀约 ${tokens} token · 间隔 ${gapMs} ms\n预估花费：${estimate === undefined ? "$?" : `$${estimate.toFixed(4)}`}（两次 × ${tokens} token × 目录价）\n`;
+  const t = msg().subcommands.cacheProbe;
+  const cost = estimate === undefined ? "$?" : `$${estimate.toFixed(4)}`;
+  const head = t.head(name, model.api, tokens, gapMs, cost);
   (json ? io.stderr : io.stdout)(head);
   if (!ctx.flags.has("yes")) {
     if (!io.stdinIsTTY) {
-      io.stderr("ama: cache-probe 会发两次计费请求，非交互环境需加 --yes\n");
+      io.stderr(t.needsYes);
       return ExitCode.Usage;
     }
     if (!(await confirmContinue({ env: io.env }))) {
-      io.stderr("ama: 已取消\n");
+      io.stderr(msg().subcommands.common.cancelled);
       return ExitCode.Ok;
     }
   }
@@ -164,7 +165,7 @@ async function run(ctx: ModelsActionContext): Promise<number> {
       )
       .result();
     if (message.stopReason === "error" || message.stopReason === "aborted") {
-      io.stderr(`ama: 第 ${i + 1} 次请求失败：${message.errorMessage ?? message.stopReason}\n`);
+      io.stderr(t.requestFailed(i + 1, message.errorMessage ?? message.stopReason));
       return ExitCode.RuntimeError;
     }
     samples.push(sampleOf(message.usage));
@@ -190,15 +191,15 @@ async function run(ctx: ModelsActionContext): Promise<number> {
   }
   const share =
     first.promptTokens > 0
-      ? `（第二次读到前缀的 ${Math.round((second.cacheRead / first.promptTokens) * 100)}%）`
+      ? t.share(Math.round((second.cacheRead / first.promptTokens) * 100))
       : "";
   io.stdout(
     [
       sampleLine(1, first),
       sampleLine(2, second),
-      ...(fields.length > 0 ? [`usage 字段（${model.api} 读取）：${fields.join(" / ")}`] : []),
-      `判定：${verdict}${share}`,
-      ...(advice !== undefined ? [`建议：${advice}`] : []),
+      ...(fields.length > 0 ? [t.usageFields(model.api, fields)] : []),
+      t.verdict(verdict, share),
+      ...(advice !== undefined ? [t.advice(advice)] : []),
     ].join("\n") + "\n",
   );
   return ExitCode.Ok;

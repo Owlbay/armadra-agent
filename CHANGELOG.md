@@ -19,7 +19,16 @@
   项目级只能把 `memory.enabled` 设为 `false`，`ui.replyLanguage` 与 `auth` 只认用户级；嵌入宿主 Agent 栏缺省关。
   命令行 `--memory` / `--no-memory`；`auth.json` 可存 OAuth 条目（`type: "oauth"`）。
 - `ama memory`、`/config`、`/trace`、`/memory` 已登记，当前回「尚未提供」。
+- **`/config` 设置面板**（W6-S）：分组列出标量设置与生效值、来源（default / user / profile / project / cli / env）和生效档（即时 / 新会话 / 重启），
+  ↑↓ Enter / 空格修改、`/` 搜索、Tab 切写入层（项目级只许收紧）、被覆盖的项标锁定；改动立即写盘（写前重读、只改一项、留 `.bak`），
+  即时项当场作用于本会话，关闭时汇总。`/config key=value` 直接改一项（line 模式也可用）。
+- **`ama config get | set | unset | list`**：`--project` 写项目级、`--json-value` 传列表 / 对象；未知键、非法值、项目级放宽退出码 3；
+  持久化 `permission.mode full-auto` 在终端里先确认，非终端需 `--yes`。
+- **`ui.replyLanguage`**：设置后会话开始在系统提示 `rules` 节末尾追加 `Reply to the user in <语言>.`；不设时请求零字节变化。
 - bundle 改用 UTF-8 输出（中文不再转成 `\uXXXX`），体积约减 40 KB。
+- **CLI 英文界面**（W6-I1）：`ama --help`、启动画面与启动报错、退出码说明、`ama providers` / `models` / `stats` /
+  `sessions export` · `search` / `init` 的输出与报错随界面语言（`AMA_LANG=en` / `--lang en`）；中文输出逐字不变。
+  `ama models cache-probe --json` 的 `advice` 是人读文本，也随界面语言。
 
 ChatGPT 登录（W6-O）：
 

@@ -6,6 +6,7 @@
 import { sourceText, type ModelMetadata } from "../../ai/providers/enrich.js";
 import { matchLabel } from "../../ai/providers/models-dev.js";
 import type { Model, ProviderRegistryApi } from "../../ai/types.js";
+import { msg } from "../../i18n/index.js";
 
 export function compactTokens(n: number | undefined): string {
   if (n === undefined) return "?";
@@ -26,12 +27,13 @@ export function metadataOf(
 
 /** `ctx 262k · out 64k · 思考 · 图片 · 渠道 chat,messages`。 */
 export function modelFlags(model: Model): string {
+  const t = msg().subcommands.modelMeta;
   return [
     `ctx ${compactTokens(model.contextWindow)}`,
     `out ${compactTokens(model.maxTokens)}`,
-    model.reasoning ? "思考" : undefined,
-    model.input.includes("image") ? "图片" : undefined,
-    model.channels !== undefined ? `渠道 ${model.channels.join(",")}` : undefined,
+    model.reasoning ? t.reasoning : undefined,
+    model.input.includes("image") ? t.image : undefined,
+    model.channels !== undefined ? t.channels(model.channels) : undefined,
   ]
     .filter((x) => x !== undefined)
     .join(" · ");
@@ -45,17 +47,17 @@ export function sourcesLine(metadata: ModelMetadata | undefined): string | undef
   if (metadata === undefined) return undefined;
   const values = Object.values(metadata.sources);
   if (values.every((s) => s === "catalog" || s === "default") && !metadata.looked) return undefined;
+  const t = msg().subcommands.modelMeta;
   const label: Record<keyof ModelMetadata["sources"], string> = {
     contextWindow: "ctx",
     maxTokens: "out",
-    input: "图片",
-    reasoning: "思考",
-    cost: "价格",
+    input: t.image,
+    reasoning: t.reasoning,
+    cost: t.price,
   };
   const parts = (Object.keys(label) as (keyof ModelMetadata["sources"])[]).map(
     (field) => `${label[field]} ${sourceText(metadata.sources[field])}`,
   );
-  const match = metadata.looked ? `；models.dev ${matchLabel(metadata.match)}` : "";
-  const tools = metadata.toolCall === false ? "；不支持工具调用" : "";
-  return `来源 ${parts.join(" · ")}${match}${tools}`;
+  const match = metadata.looked ? matchLabel(metadata.match) : undefined;
+  return t.sources(parts, match, metadata.toolCall === false);
 }

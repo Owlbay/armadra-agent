@@ -28,6 +28,7 @@ import { previewDisplayLines } from "../../../permissions/preview.js";
 import type { Runtime } from "../../../cli/runtime.js";
 import { AMA_VERSION } from "../../../version.js";
 import { runSlashCommand, type CommandContext } from "../../commands-core.js";
+import { configCommand } from "../config-ui.js";
 import { createLineReader } from "../../rpc/jsonl.js";
 import { errorText, onTerminationSignals } from "../../shared.js";
 import { LineEditor } from "./line-editor.js";
@@ -67,6 +68,7 @@ export async function runLineMode(
   let unsubscribe = session.subscribe((event) => printer.handle(event));
   const commands: CommandContext = {
     runtime,
+    extra: { config: configCommand(runtime, context) },
     session: () => session,
     async switchSession(request) {
       const next = await switchSession(runtime, request);

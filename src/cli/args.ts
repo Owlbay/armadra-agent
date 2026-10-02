@@ -130,7 +130,7 @@ const QUIET_LEVELS: readonly QuietStartup[] = ["normal", "header", "silent"];
 const PRESET_CHOICES = ["default", "minimal", "codemode-only", "coordinator", "codemode"] as const;
 const SESSION_ID_LIKE = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 
-export { HELP_TEXT } from "./help-text.js";
+export { helpText } from "./help-text.js";
 
 type ValueOption =
   | "profile"
