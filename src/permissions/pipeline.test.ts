@@ -2,7 +2,13 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { Decision, PermissionCheckInput, PermissionMode } from "./types.js";
 import type { ToolPermission } from "../tools/types.js";
-import { PermissionPipeline, UNATTENDED_MESSAGE, modeDecision } from "./pipeline.js";
+import {
+  PLAN_MODE_MESSAGE,
+  PLAN_TODO_MESSAGE,
+  PermissionPipeline,
+  UNATTENDED_MESSAGE,
+  modeDecision,
+} from "./pipeline.js";
 import { BUILTIN_DENY_RULES, parseRule } from "./rules.js";
 
 const cwd = resolve("/work/proj");
@@ -60,7 +66,7 @@ const TABLE: Record<PermissionMode, Record<CallKind, string>> = {
     writeIn: "DDDD",
     writeOut: "DDDD",
     writeProtected: "DDDD",
-    bashSafe: "DDDD",
+    bashSafe: "AAQD",
     bashDangerous: "QQQD",
     bashNetwork: "DDDD",
     bashUnknown: "DDDD",
@@ -71,7 +77,7 @@ const TABLE: Record<PermissionMode, Record<CallKind, string>> = {
     writeIn: "DADD",
     writeOut: "DADD",
     writeProtected: "DADD",
-    bashSafe: "DADD",
+    bashSafe: "AADD",
     bashDangerous: "DDDD",
     bashNetwork: "DADD",
     bashUnknown: "DADD",
@@ -444,5 +450,130 @@ describe("包装里的命令逐层核对 allow / deny 规则与会话记忆", ()
     p.rememberForSession("bash", { command: "find . -name x" });
     expect(p.check(bash("find . -type f")).step).toBe("session");
     expect(p.check(bash("find . -exec curl {} \\;")).decision).toBe("ask");
+  });
+});
+
+describe("[W5-F] plan 模式细化与 allowlist 同步（docs/wave5-plan.md §6.2、D21）", () => {
+  const call = (toolName: string, permission: ToolPermission, input: unknown) => ({
+    toolName,
+    permission,
+    input,
+    unattended: false,
+  });
+  const bash = (command: string) => call("bash", "execute", { command });
+  const kinds = {
+    read: call("read", "read", { path: "src/a.ts" }),
+    write: call("write", "write", { path: "src/a.ts", content: "x" }),
+    edit: call("edit", "write", { path: "src/a.ts", edits: [] }),
+    roBash: bash("git log --oneline -5"),
+    rwBash: bash("node scripts/gen.js"),
+    redirect: bash("ls > out.txt"),
+    todoGet: call("todo", "read", { action: "get" }),
+    todoSet: call("todo", "read", { action: "set", items: [] }),
+    todoUpdate: call("todo", "read", { action: "update", updates: [] }),
+    task: call("task", "execute", { prompt: "look around", description: "explore" }),
+  } as const;
+
+  it("真值表：plan.bash 三值 × read / write / bash 只读 / 非只读 / 重定向 / todo / task", () => {
+    const expected: Record<"readonly" | "ask" | "deny", Record<keyof typeof kinds, Decision>> = {
+      readonly: {
+        read: "allow",
+        write: "deny",
+        edit: "deny",
+        roBash: "allow",
+        rwBash: "deny",
+        redirect: "deny",
+        todoGet: "allow",
+        todoSet: "deny",
+        todoUpdate: "deny",
+        task: "allow",
+      },
+      ask: {
+        read: "allow",
+        write: "deny",
+        edit: "deny",
+        roBash: "allow",
+        rwBash: "ask",
+        redirect: "ask",
+        todoGet: "allow",
+        todoSet: "deny",
+        todoUpdate: "deny",
+        task: "allow",
+      },
+      deny: {
+        read: "allow",
+        write: "deny",
+        edit: "deny",
+        roBash: "deny",
+        rwBash: "deny",
+        redirect: "deny",
+        todoGet: "allow",
+        todoSet: "deny",
+        todoUpdate: "deny",
+        task: "allow",
+      },
+    };
+    for (const planBash of ["readonly", "ask", "deny"] as const) {
+      const p = new PermissionPipeline({ mode: "plan", rules: [], cwd, planBash });
+      for (const [kind, input] of Object.entries(kinds)) {
+        const want = expected[planBash][kind as keyof typeof kinds];
+        expect(p.check(input).decision, `${planBash}/${kind}`).toBe(want);
+        // 无人值守：ask → deny
+        expect(p.check({ ...input, unattended: true }).decision).toBe(
+          want === "ask" ? "deny" : want,
+        );
+      }
+    }
+  });
+
+  it("拒绝说明带指引；todo 改动提示用 <proposed_plan>；setPlanBash 立即生效", () => {
+    const p = pipeline("plan");
+    expect(p.planBash).toBe("readonly");
+    expect(p.check(kinds.write)).toMatchObject({ step: "mode", message: PLAN_MODE_MESSAGE });
+    expect(p.check(kinds.rwBash).message).toBe(PLAN_MODE_MESSAGE);
+    expect(p.check(kinds.todoSet).message).toBe(PLAN_TODO_MESSAGE);
+    expect(PLAN_MODE_MESSAGE).toContain("<proposed_plan>");
+    p.setPlanBash("deny");
+    expect(p.check(kinds.roBash).decision).toBe("deny");
+  });
+
+  it("deny 规则与危险命令先于模式：只读 bash 被 deny 规则拒绝", () => {
+    const p = pipeline("plan", ["bash(git log*)"]);
+    expect(p.check(kinds.roBash)).toMatchObject({ decision: "deny", step: "deny-rule" });
+  });
+
+  it("allowlist 放行同一只读子集，非只读仍拒绝且从不询问", () => {
+    const p = pipeline("allowlist");
+    expect(p.check(kinds.roBash)).toMatchObject({ decision: "allow", step: "mode" });
+    expect(p.check(kinds.rwBash).decision).toBe("deny");
+    expect(p.check(kinds.redirect).decision).toBe("deny");
+    expect(p.check(kinds.task).decision).toBe("allow");
+  });
+
+  it("全序 plan ⊆ allowlist ⊆ default：plan 放行的 allowlist 都放行，allowlist 放行的 default 不拒绝", () => {
+    const commands = [
+      "ls",
+      "cat a.ts",
+      "git status",
+      "git diff",
+      "rg foo",
+      "npm test",
+      "node x.js",
+      "ls > x",
+      "cat .env",
+      "git push",
+      "echo $HOME",
+      "sh -c ls",
+    ];
+    const calls = [...Object.values(kinds), ...commands.map(bash)];
+    const plan = pipeline("plan");
+    const allowlist = pipeline("allowlist");
+    const manual = pipeline("default");
+    for (const c of calls) {
+      if (plan.check(c).decision === "allow")
+        expect(allowlist.check(c).decision, JSON.stringify(c.input)).toBe("allow");
+      if (allowlist.check(c).decision === "allow")
+        expect(manual.check(c).decision, JSON.stringify(c.input)).not.toBe("deny");
+    }
   });
 });
