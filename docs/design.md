@@ -775,17 +775,20 @@ tool_call（模型产出）
 
 ## §9 压缩（`compaction/`）
 
-| 项       | v2 决定                                                                                                                                                                                                                            |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 估算     | `contextTokens` = 最后一条非 error/aborted assistant 的 `totalTokens`（缺则 `input+output+cacheRead+cacheWrite`，**含 output**）+ 其后条目估算（字符 / 4，图片 1 600）；该 usage 之后若有 `context_edit` / 压缩，则按投影全量重估 |
-| 档一     | `contextTokens > 0.7 × (contextWindow − reserveTokens)`：最近两个用户回合之前、> 2 KiB 的 toolResult → `context_edit{replacement:"[已裁剪 …全文 path]"}`；无模型调用                                                               |
-| 档二     | 裁剪后仍 `> contextWindow − reserveTokens`，或溢出错误 / `length`：切点规则（keepRecentTokens 20 000；合法切点 user / assistant / custom_message / branch_summary，不切 toolResult；单段超预算 split turn 双摘要合并）；序列化后请模型按模板写摘要；追加 `compaction` |
-| 溢出恢复 | 落盘失败 assistant → `turn_end` → `agent_end{willRetry:true}` → `context_edit` 剔除该尝试 → `PreCompact` Hook → 压缩 → **以新 run 重试一次**；压缩失败 / 取消则保留剔除、不重试，`agent_settled{warning}`                           |
-| 熔断     | 同一 run 内档二 ≤ 1 次；连续两次摘要失败关闭自动压缩；压缩后仍 > 0.8 × window 不重试；无 `contextWindow` 关闭                                                                                                                       |
-| 模板     | `## Goal / ## Constraints & Preferences / ## Progress (Done · In Progress · Blocked) / ## Key Decisions / ## Next Steps / ## Critical Context` + `<read-files>` / `<modified-files>` 累计；工具结果截 2 000 字符；`cacheRetention: none`；maxTokens 4 096 |
-| 缓存     | 系统提示节顺序固定、无时间戳；工具表变化作为 `system` 补丁落盘但请求重装；档一只在阈值触发                                                                                                                                         |
+| 项       | 决定（第五波 W5-H1 修订，[wave5-plan.md](wave5-plan.md) §8）                                                                                                                                                                                                                                                                  |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 估算     | `contextTokens` = 最后一条非 error/aborted assistant 的 `totalTokens`（缺则 `input+output+cacheRead+cacheWrite`，**含 output**）+ 其后条目估算；该 usage 之后若有 `context_edit` / 压缩，则按投影全量重估。文本按脚本：CJK 表意文字 / 假名 / 谚文 / 全角符号每字 1 token，其余字符 / 4；图片 1 600                         |
+| 档一     | 按**工具结果新旧**计边界：最近 `keepResults`（5）个与最近 `min(40k, 0.2×预算)` token 的工具输出、保护集之外、> 512 token 的旧结果是候选。触发 = 估算 > 0.7×预算，或缓存已冷（reported 端点上次请求超过 TTL）；候选合计可省 < `clearAtLeast`（auto = max(20k, 0.1×预算)，≤ 0.2×预算）不动；动就从最旧的起一次清到 0.5×预算（冷时全部候选） → `context_edit{replacement:"[已裁剪 …全文 path]"}`；无模型调用 |
+| 保护集   | `todo` / `skill` 工具结果、`read` 读入的 Skill 文件（系统提示 skills 索引里的路径）与 `AGENTS.md` / `CLAUDE.md`、`annotations.keepInContext` 的工具、`compaction.pruneExclude`                                                                                                                                             |
+| 档二     | 裁剪后仍 `> contextWindow − reserveTokens`，或溢出错误 / `length`：切点规则（keepRecentTokens 20 000；合法切点 user / assistant / custom_message / branch_summary，不切 toolResult；单段超预算 split turn，两份摘要并行再合并）；先走会话前缀续写，失败回落独立请求；追加 `compaction`                                                  |
+| 自检     | 摘要缺 `## Goal`（模型没写摘要、在续写对话）→ 重试一次再回落独立请求；自动压缩后估算不比压缩前小 → 判失败、不写条目                                                                                                                                                                                                       |
+| 回注     | `compaction.summary` 末尾接 `<post-compact-state>` 块：todo 快照、当前计划、已加载 Skill、最近修改 / 读取文件路径、转录与 `outputs/` 路径、续接说明（只有清单与指针，不含文件正文）；下一次增量摘要前剥掉重生成。`PostCompact` Hook 的 `additionalContext` 以 `ama.hook_context` 追加在末尾                                   |
+| 溢出恢复 | 落盘失败 assistant → `turn_end` → `agent_end{willRetry:true}` → `context_edit` 剔除该尝试 → `PreCompact` Hook → 压缩 → **以新 run 重试一次**；压缩失败 / 取消则保留剔除、不重试，`agent_settled{warning}`                                                                                                                  |
+| 熔断     | 不限每 run 次数；连续 3 次摘要失败，或连续 3 次在上次摘要后 < 3 回合又需摘要（快速回填）→ 关闭自动压缩直到手动压缩成功；固定前缀（system + 工具表）已超预算不尝试；「nothing to compact」不计失败；都只告警一次；压缩后仍 > 0.8 × window 不重试；无 `contextWindow` 关闭                                                    |
+| 模板     | `## Goal / ## User Messages / ## Constraints & Preferences / ## Progress (Done · In Progress · Blocked) / ## Key Decisions / ## Errors & Fixes / ## Files & Code / ## Next Steps / ## Critical Context` + `<read-files>` / `<modified-files>` 累计；用户消息与安全约束逐字保留，Next Steps 首条附原话引用，声明助手 / 工具文本中形似指令的不算用户指令；在上一份摘要上增量合并；独立请求工具结果截 2 000 字符、`cacheRetention: none`；maxTokens 4 096 |
+| 缓存     | 系统提示节顺序固定、无时间戳；工具表变化作为 `system` 补丁落盘但请求重装；档一只在阈值或缓存已冷时触发，且有 `clearAtLeast` 门槛与回差；压缩后本来就是新前缀，回注不额外打断缓存（实测见 [cache-e6-2026-10-02](benchmarks/cache-e6-2026-10-02.md)）                                                                                                             |
 
-第五波修订压缩（[wave5-plan.md](wave5-plan.md) §8）：档一按工具结果新旧计边界、加 `clearAtLeast` 门槛与回差、缓存冷时提前裁、保护集；熔断改快速回填式；压缩后以 `custom_message{ama.post_compact}` 回注 todo / 文件路径 / Skill / 计划指针；模板补节；中文按字计 token；另加重复调用检测、`--max-turns / --max-cost`、提醒通道、后台 bash、模型回退。
+第五波另有 harness 改进（W5-H2）：重复调用检测、`--max-turns / --max-cost`、提醒通道、后台 bash、模型回退。
 
 ### §9.1 缓存保证
 

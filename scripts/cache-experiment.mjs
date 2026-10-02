@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 缓存验收实验 E1–E5（第三波 §1.13），本地跑真实中转（CI 不跑）。
+ * 缓存验收实验 E1–E6（第三波 §1.13、第五波 §8.4），本地跑真实中转（CI 不跑）。
  *
  *   node scripts/cache-experiment.mjs --config /tmp/ama-real/config.json --case E1,E4,E5 \
  *     --models packy/kimi-k2.5,packy/MiniMax-M2.7,packy/deepseek-v4-flash --max-requests 50 \
@@ -8,6 +8,8 @@
  *   node scripts/cache-experiment.mjs --case E2 --model packy/kimi-k2.5 --warming off --json /tmp/cache.json
  *   node scripts/cache-experiment.mjs --case E3 --model packy/kimi-k2.5 --dist /tmp/ama-old/dist \
  *     --label 改进前 --json /tmp/cache.json
+ *   node scripts/cache-experiment.mjs --case E6 --model packy/kimi-k2.5 --e6-variant c1c2c3 \
+ *     --label C1+C2+C3 --json /tmp/e6.json          # 现状：--e6-variant baseline --dist <main 构建>
  *   node scripts/cache-experiment.mjs --render /tmp/cache.json --out docs/benchmarks/cache-2026-10-02.md
  *
  * 每个用例经 SDK `createRuntime` 起一个会话（临时 AMA_CONFIG_DIR 放 `--config` 副本），ApiRegistry
@@ -24,6 +26,8 @@
  * | E3 | 读 4 个约 48 KB 的文件累积前缀后 `compact()`，比较摘要请求的 usage |
  * | E4 | AGENTS.md 垫大前缀（`--e4-pad` 字符）；3 轮后切到 `--switch-to` 模型再切回；宿主中途注册工具；再停用一个内置工具 |
  * | E5 | 4 轮问答看三态（silent）+ 内联 cache-probe（同一 2k 前缀发两次） |
+ * | E6 | 自动压缩（第五波 C1–C3）：模型窗口改小到 `--e6-window`，一条提示里逐个读 12 个约 12 KB 的文件，
+ * |    | 停 `--e6-pause` 秒（> TTL）后再读一个；`--e6-variant baseline \| c1c2 \| c1c2c3`（c1c2 关掉冷时提前裁） |
  *
  * 成本控制同 bench-presets（§3.7）：超过 `--max-requests` / `--budget-usd` 停止并输出已有数据。
  */
@@ -42,9 +46,10 @@ import {
   realSettings,
   table,
 } from "./real-budget.mjs";
+import { caseE6, renderE6 } from "./cache-experiment-e6.mjs";
 
 const FIX_BUG = join(ROOT, "test", "fixtures", "bench", "fix-bug", "repo");
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** 给配置里 `provider/id` 的模型条目打补丁（models[] 或 modelOverrides[]）。 */
 export function patchModel(config, ref, patch) {
@@ -57,7 +62,7 @@ export function patchModel(config, ref, patch) {
 }
 
 /** 约 48 KB 的确定性文本（read 工具单次上限 50 KB）。 */
-function bigText(tag) {
+export function bigText(tag) {
   const lines = [];
   for (let i = 1; lines.join("\n").length < 48_000; i++) {
     lines.push(
@@ -67,7 +72,7 @@ function bigText(tag) {
   return lines.join("\n");
 }
 
-class Session {
+export class Session {
   /** @param {{ dist, budget, settings, model, extra?, repo?, files?, argv?, label }} o */
   static async open(o) {
     const s = new Session();
@@ -116,7 +121,7 @@ class Session {
   }
 }
 
-function summarizeRequests(entries) {
+export function summarizeRequests(entries) {
   return entries.map((e) => ({
     purpose: e.purpose,
     model: e.model,
@@ -329,13 +334,13 @@ async function caseE5(ctx, model) {
   };
 }
 
-const CASES = { E1: caseE1, E2: caseE2, E3: caseE3, E4: caseE4, E5: caseE5 };
+const CASES = { E1: caseE1, E2: caseE2, E3: caseE3, E4: caseE4, E5: caseE5, E6: caseE6 };
 
-function hit(r) {
+export function hit(r) {
   return r.prompt > 0 ? r.cacheRead / r.prompt : 0;
 }
 
-function missLine(events) {
+export function missLine(events) {
   const misses = events.filter((e) => e.type === "cache_miss");
   if (misses.length === 0) return "无";
   return misses
@@ -473,6 +478,7 @@ export function renderCacheReport(data) {
       "",
     );
   }
+  if (by("E6").length) out.push(...renderE6(by("E6")));
   return out.join("\n");
 }
 
@@ -490,6 +496,11 @@ async function main() {
       ttl: { type: "string", default: "300" },
       "switch-to": { type: "string", default: "packy/MiniMax-M2.7" },
       "e4-pad": { type: "string", default: "24000" },
+      "e6-variant": { type: "string", default: "c1c2c3" },
+      "e6-window": { type: "string", default: "40000" },
+      "e6-pause": { type: "string", default: "330" },
+      "e6-files": { type: "string", default: "12" },
+      "e6-keep": { type: "string" },
       seed: { type: "string" },
       dist: { type: "string" },
       label: { type: "string", default: "改进后" },
@@ -501,6 +512,7 @@ async function main() {
       e3: { type: "string" },
       e4: { type: "string" },
       e5: { type: "string" },
+      e6: { type: "string" },
       out: { type: "string" },
     },
   });

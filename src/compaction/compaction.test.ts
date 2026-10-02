@@ -6,7 +6,6 @@ import { createScriptedApi } from "../agent/testing/scripted-api.js";
 import { fakeModel } from "../agent/testing/stubs.js";
 import { SessionManager } from "../session/manager.js";
 import { buildProjection } from "../session/projection.js";
-import { CompactionBreaker } from "./breaker.js";
 import { prepareBranchSummary, runBranchSummary } from "./branch-summary.js";
 import { findCutPoint, summarizableStart } from "./cut-point.js";
 import {
@@ -15,7 +14,6 @@ import {
   estimateMessageTokens,
   estimateProjectedTokens,
 } from "./estimate.js";
-import { planPrune, shouldPrune } from "./prune-tier.js";
 import { serializeConversation } from "./serialize.js";
 import { prepareCompaction, runCompaction } from "./summarize-tier.js";
 
@@ -92,28 +90,6 @@ describe("estimate", () => {
     m.append({ type: "context_edit", targetId: a.id, replacement: "tiny", reason: "prune" });
     branch = m.branch();
     expect(estimateProjectedTokens(buildProjection(branch).items, branch).tokens).toBeLessThan(10);
-  });
-});
-
-describe("prune tier", () => {
-  it("只裁剪最近两个用户回合之前、> 2 KiB 的 toolResult，全文落盘", () => {
-    home = createTmpHome("ama-b2-prune-");
-    const m = SessionManager.inMemory("/w");
-    m.append({ type: "message", message: user("one") });
-    m.append({ type: "message", message: call("c1", "read", { path: "a" }) });
-    const big = m.append({ type: "message", message: result("c1", "A".repeat(5000)) });
-    m.append({ type: "message", message: call("c2", "read", { path: "b" }) });
-    m.append({ type: "message", message: result("c2", "small") });
-    m.append({ type: "message", message: user("two") });
-    m.append({ type: "message", message: call("c3", "read", { path: "c" }) });
-    m.append({ type: "message", message: result("c3", "C".repeat(5000)) });
-    m.append({ type: "message", message: user("three") });
-    const plan = planPrune(buildProjection(m.branch()).items, { outputDir: home.path("outputs") });
-    expect(plan.map((p) => p.targetId)).toEqual([big.id]);
-    expect(plan[0]?.replacement).toMatch(/^\[已裁剪.*全文 .*c1\.txt\]$/);
-    expect(readFileSync(plan[0]?.fullTextPath as string, "utf8")).toHaveLength(5000);
-    expect(shouldPrune(71, 116, 16)).toBe(true);
-    expect(shouldPrune(70, 116, 16)).toBe(false);
   });
 });
 
@@ -239,25 +215,5 @@ describe("branch summary", () => {
     expect(
       prepareBranchSummary(new Map(m.entries().map((e) => [e.id, e])), u.id, leaf.id),
     ).toBeUndefined();
-  });
-});
-
-describe("breaker", () => {
-  it("每 run 一次、连续两次失败跳闸、无窗口关闭、0.8 重试门槛", () => {
-    const breaker = new CompactionBreaker(true, 1000);
-    expect(breaker.canSummarize()).toBe(true);
-    breaker.recordSummary(false);
-    expect(breaker.blockReason()).toBe("run_limit");
-    breaker.startRun();
-    breaker.recordSummary(false);
-    expect(breaker.tripped).toBe(true);
-    breaker.startRun();
-    expect(breaker.blockReason()).toBe("tripped");
-    breaker.reset();
-    expect(breaker.canSummarize()).toBe(true);
-    expect(breaker.shouldRetryAfterCompaction(800)).toBe(true);
-    expect(breaker.shouldRetryAfterCompaction(801)).toBe(false);
-    expect(new CompactionBreaker(true, undefined).blockReason()).toBe("no_window");
-    expect(new CompactionBreaker(false, 10).autoEnabled).toBe(false);
   });
 });

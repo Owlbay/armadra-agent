@@ -1,10 +1,17 @@
 /**
  * 会话侧的压缩调度（设计 §9）。[B2]
  *
- * - 阈值检查（新提示前、`prepareNextTurn` 里）：估算 > 0.7 ×（窗口 − 预留）→ 档一裁剪；仍 > 窗口 − 预留
- *   且熔断允许 → 档二摘要（trigger `threshold`）。
+ * - 阈值检查（新提示前、`prepareNextTurn` 里）：估算 > 0.7 ×（窗口 − 预留）→ 档一裁剪（[W5-H1] 按工具
+ *   结果新旧计边界，可省 ≥ clearAtLeast 才动，一次清到 0.5 ×）；仍 > 窗口 − 预留且熔断允许 → 档二摘要
+ *   （trigger `threshold`）。缓存已冷（上次请求距今超过 TTL，只认 reported 端点）时未到 0.7 也裁，
+ *   且一次换掉全部候选。
+ * - 自检（[W5-H1] C8）：摘要缺 `## Goal` 重试一次再回落；自动压缩后估算不比压缩前小判失败，不写条目。
+ * - 回注（[W5-H1] C6 / C13）：摘要末尾接 `<post-compact-state>` 块（todo、计划、已加载 Skill、最近
+ *   文件、转录与 outputs 路径，不含文件正文；理由见 compaction/post-compact.ts），再跑 PostCompact
+ *   Hook，其 additionalContext 以 `ama.hook_context` 追加在末尾。
+ * - 熔断（[W5-H1] C5）：连续 3 次失败或连续 3 次快速回填跳闸；固定前缀超预算不再尝试；都只告警一次。
  * - 溢出恢复（会话 run 结束后，失败尝试已用 context_edit 剔除）：PreCompact Hook → 档二摘要（trigger
- *   `overflow`，不受「每 run 一次」限制但受跳闸限制）→ 压缩后估算 ≤ 0.8 × 窗口才重试。
+ *   `overflow`，受跳闸限制）→ 压缩后估算 ≤ 0.8 × 窗口才重试。
  * - 手动 `/compact`：PreCompact（trigger `manual`）→ 摘要；成功清零熔断。
  * PreCompact 的 `decision: "block"` 取消本次压缩；`customInstructions` 追加到摘要提示。
  * [W3-C1b] 阈值 / 手动压缩与分支摘要优先走会话前缀续写（缓存控制器给前缀），溢出恢复不走
@@ -12,9 +19,16 @@
  */
 
 import { AmaError } from "../errors.js";
-import { CompactionBreaker } from "../compaction/breaker.js";
-import { estimateProjectedTokens, type ContextEstimate } from "../compaction/estimate.js";
-import { planPrune, shouldPrune } from "../compaction/prune-tier.js";
+import { CompactionBreaker, type BreakerBlockReason } from "../compaction/breaker.js";
+import {
+  estimateMessageTokens,
+  estimateProjectedTokens,
+  type ContextEstimate,
+} from "../compaction/estimate.js";
+import { planPrune, prunePolicy, type PrunePolicy } from "../compaction/prune-tier.js";
+import { createProtection, skillLocations } from "../compaction/protect.js";
+import { buildPostCompactBlock } from "../compaction/post-compact.js";
+import type { CompactionConfig } from "../config/types.js";
 import {
   prepareCompaction,
   prepareCompactionAt,
@@ -23,7 +37,7 @@ import {
 } from "../compaction/summarize-tier.js";
 import { prepareBranchSummary, runBranchSummary } from "../compaction/branch-summary.js";
 import { buildProjection } from "../session/projection.js";
-import type { BranchSummaryEntry } from "../session/types.js";
+import type { BranchSummaryEntry, CompactionEntry } from "../session/types.js";
 import type { SessionCore } from "./session-core.js";
 import type { CompactionResult, CompactionSettings, CompactionTrigger } from "./types.js";
 
@@ -35,6 +49,9 @@ export const DEFAULT_COMPACTION_SETTINGS: CompactionSettings = {
 
 /** 保留区不超过 (窗口 − 预留) 的 40%，否则小窗口模型上摘要后仍然溢出。 */
 export const KEEP_RECENT_MAX_RATIO = 0.4;
+
+/** Hook additionalContext 的 custom 类型（与 UserPromptSubmit 的相同）。 */
+const HOOK_CONTEXT_CUSTOM_TYPE = "ama.hook_context";
 
 interface SummarizeOutcome {
   result: CompactionResult | undefined;
@@ -48,10 +65,17 @@ export class CompactionController {
   settings: CompactionSettings;
   private readonly core: SessionCore;
   private compacting = false;
+  private warnedReason: BreakerBlockReason | undefined;
+  /** [W5-H1] config `compaction.prune / pruneExclude`（组装根把整段 config.compaction 展开传入）。 */
+  private readonly pruneConfig: Pick<CompactionConfig, "prune" | "pruneExclude">;
 
   constructor(core: SessionCore, settings: Partial<CompactionSettings> = {}) {
     this.core = core;
     this.settings = { ...DEFAULT_COMPACTION_SETTINGS, ...settings };
+    const extra = settings as CompactionConfig;
+    this.pruneConfig = {};
+    if (extra.prune !== undefined) this.pruneConfig.prune = extra.prune;
+    if (extra.pruneExclude !== undefined) this.pruneConfig.pruneExclude = extra.pruneExclude;
     this.breaker = new CompactionBreaker(this.settings.enabled, core.model().contextWindow);
   }
 
@@ -106,16 +130,32 @@ export class CompactionController {
           "warn",
           `summary by prefix continuation failed (${reason}); used a separate request`,
         ),
+      onInvalid: (reason) => core.log("warn", `${reason}; kept it after one retry`),
     };
     if (continuation) options.continuation = core.cache?.summaryContinuation();
     return options;
   }
 
-  /** 档一；返回是否裁剪了内容。 */
-  prune(): boolean {
-    const branch = this.core.manager.branch();
-    const plan = planPrune(buildProjection(branch).items, { outputDir: this.core.outputDir() });
-    for (const item of plan) {
+  /** 档一参数；无窗口时 undefined。 */
+  prunePolicy(): PrunePolicy | undefined {
+    const budget = this.budget();
+    return budget === undefined ? undefined : prunePolicy(budget, this.pruneConfig.prune);
+  }
+
+  /**
+   * 档一；`need` = 清到目标还要省多少（undefined = 全部候选）。返回省下的 token 估算（0 = 未裁）。
+   */
+  prune(policy: PrunePolicy, need: number | undefined): number {
+    const core = this.core;
+    const items = buildProjection(core.manager.branch()).items;
+    const isProtected = createProtection({
+      cwd: core.cwd,
+      skillPaths: skillLocations(items),
+      exclude: this.pruneConfig.pruneExclude ?? [],
+      keepInContext: (name) => core.tool(name)?.annotations?.keepInContext === true,
+    });
+    const plan = planPrune(items, { policy, need, outputDir: core.outputDir(), isProtected });
+    for (const item of plan.items) {
       this.core.appendEntry({
         type: "context_edit",
         targetId: item.targetId,
@@ -123,19 +163,106 @@ export class CompactionController {
         reason: "prune",
       });
     }
-    if (plan.length > 0) this.core.reloadMessages();
-    return plan.length > 0;
+    if (plan.items.length > 0) this.core.reloadMessages();
+    return plan.savedTokens;
   }
 
   /** 阈值检查（档一 → 档二）。失败只记录，不打断 run。 */
   async checkThreshold(signal: AbortSignal): Promise<void> {
     if (!this.breaker.autoEnabled || this.compacting || signal.aborted) return;
-    const window = this.core.model().contextWindow as number;
-    const reserve = this.settings.reserveTokens;
+    this.breaker.tick();
+    const policy = this.prunePolicy();
+    const budget = this.budget();
+    if (policy === undefined || budget === undefined) return;
     let tokens = this.estimate().tokens;
-    if (shouldPrune(tokens, window, reserve) && this.prune()) tokens = this.estimate().tokens;
-    if (tokens <= window - reserve || !this.breaker.canSummarize()) return;
+    // 缓存已冷（C3）：前缀反正要重写，未到阈值也把候选一次换掉（仍要可省 ≥ clearAtLeast）
+    const cold = this.core.cache?.isCold() ?? false;
+    if (tokens > policy.triggerTokens || cold) {
+      const need = cold ? undefined : tokens - policy.targetTokens;
+      if (this.prune(policy, need) > 0) tokens = this.estimate().tokens;
+    }
+    if (tokens <= budget) return;
+    this.breaker.setPrefixOverflow(this.fixedPrefixTokens() > budget);
+    if (!this.breaker.canSummarize()) return this.warnBlocked();
     await this.summarize("threshold", signal);
+  }
+
+  /** 回注块（todo、计划、已加载 Skill、最近文件、转录与 outputs 路径；不含文件正文）。 */
+  private postCompactBlock(): string {
+    const core = this.core;
+    const branch = core.manager.branch();
+    return buildPostCompactBlock({
+      branch,
+      cwd: core.cwd,
+      skillPaths: skillLocations(buildProjection(branch).items),
+      transcriptPath: core.manager.file(),
+      outputDir: core.outputDir(),
+    });
+  }
+
+  /**
+   * PostCompact Hook（C13，不可阻止）：`additionalContext` 作为 `ama.hook_context` 追加在末尾。
+   * 返回最终的压缩后估算。
+   */
+  private async runPostCompactHook(
+    trigger: CompactionTrigger,
+    tokensBefore: number,
+    signal: AbortSignal,
+  ): Promise<number> {
+    const core = this.core;
+    const tokensAfter = this.estimate().tokens;
+    const hook = await core.runHook(
+      "PostCompact",
+      { tokensBefore, tokensAfter, trigger: trigger === "manual" ? "manual" : "auto" },
+      signal,
+    );
+    const context = hook?.additionalContext;
+    if (context === undefined || context === "") return tokensAfter;
+    core.appendEntry({
+      type: "custom_message",
+      customType: HOOK_CONTEXT_CUSTOM_TYPE,
+      content: context,
+      display: false,
+    });
+    core.reloadMessages();
+    return this.estimate().tokens;
+  }
+
+  /** 假设追加了这条 compaction 之后的估算（按投影全量重估）。 */
+  private projectedTokens(input: Omit<CompactionEntry, "id" | "parentId" | "timestamp">): number {
+    const branch = this.core.manager.branch();
+    const pending: CompactionEntry = {
+      ...input,
+      id: "\u0000pending-compaction",
+      parentId: branch.at(-1)?.id ?? null,
+      timestamp: new Date().toISOString(),
+    };
+    const next = [...branch, pending];
+    return estimateProjectedTokens(buildProjection(next).items, next).tokens;
+  }
+
+  /** 固定前缀（system 节 + 工具表）的估算：摘要压不掉这部分。 */
+  private fixedPrefixTokens(): number {
+    let tokens = 0;
+    for (const { message } of buildProjection(this.core.manager.branch()).items)
+      if (message.role === "system") tokens += estimateMessageTokens(message);
+    return tokens;
+  }
+
+  /** 熔断挡住自动摘要时告警（同一原因只报一次）。 */
+  private warnBlocked(): void {
+    const reason = this.breaker.blockReason();
+    if (reason === undefined || reason === this.warnedReason) return;
+    this.warnedReason = reason;
+    const text: Partial<Record<BreakerBlockReason, string>> = {
+      tripped: "auto-compaction disabled after repeated summary failures",
+      rapid_refill:
+        "auto-compaction disabled: the context refilled within 3 turns after each of the last 3 compactions",
+      prefix_overflow:
+        "auto-compaction skipped: the system prompt and tool definitions alone exceed the context budget",
+    };
+    const message = text[reason];
+    if (message !== undefined) this.core.log("warn", message);
   }
 
   /** 溢出恢复：返回是否应以新 run 重试。 */
@@ -183,6 +310,7 @@ export class CompactionController {
       throw new AmaError("compaction_failed", outcome.error ?? "compaction failed");
     }
     this.breaker.reset();
+    this.warnedReason = undefined;
     return outcome.result;
   }
 
@@ -262,26 +390,33 @@ export class CompactionController {
         if (plan !== undefined) break;
       }
     }
-    if (plan === undefined) {
-      if (trigger !== "manual") this.breaker.recordSummary(false);
-      return fail("nothing to compact");
-    }
+    // 「nothing to compact」不计失败（C5）
+    if (plan === undefined) return fail("nothing to compact");
     try {
       const options = await this.summarizer(signal, customInstructions, trigger !== "overflow");
       const draft = await runCompaction(plan, options);
       if (signal.aborted) return fail("aborted", true);
+      // 回注（C6）：清单与指针接在摘要末尾，模型看到「摘要 → 回注 → 保留区」
       const entry: Parameters<SessionCore["appendEntry"]>[0] = {
         type: "compaction",
-        summary: draft.summary,
+        summary: `${draft.summary}\n\n${this.postCompactBlock()}`,
         firstKeptEntryId: draft.firstKeptEntryId,
         tokensBefore,
         details: draft.details,
       };
       if (draft.usage !== undefined) entry.usage = draft.usage;
+      // 自检（C8）：自动压缩后不比压缩前小 = 失败（不写条目，计入熔断）；手动 /compact 照用户意思写
+      const projected = trigger === "manual" ? 0 : this.projectedTokens(entry);
+      if (projected >= tokensBefore)
+        throw new AmaError(
+          "compaction_failed",
+          `compaction did not shrink the context (${tokensBefore} → ${projected} tokens)`,
+        );
       core.appendEntry(entry);
       core.reloadMessages();
       this.breaker.recordSummary(true);
-      const tokensAfter = this.estimate().tokens;
+      if (this.breaker.tripped) this.warnBlocked();
+      const tokensAfter = await this.runPostCompactHook(trigger, tokensBefore, signal);
       const result: CompactionResult = {
         summary: draft.summary,
         firstKeptEntryId: draft.firstKeptEntryId,
@@ -295,6 +430,7 @@ export class CompactionController {
     } catch (error) {
       const aborted = signal.aborted || (error instanceof AmaError && error.code === "aborted");
       if (!aborted) this.breaker.recordSummary(false);
+      if (this.breaker.tripped) this.warnBlocked();
       return fail(error instanceof Error ? error.message : String(error), aborted);
     }
   }

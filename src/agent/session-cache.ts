@@ -27,6 +27,7 @@ import type {
 } from "../ai/cache/types.js";
 import { CacheWarmer, replayBlocker, type WarmerTimers } from "../ai/cache/warmer.js";
 import type { AssistantMessage, CacheRetention, Model, StreamOptions } from "../ai/types.js";
+import { estimateTextTokens } from "../compaction/estimate.js";
 import { SUMMARY_MAX_TOKENS, type SummaryContinuation } from "../compaction/summarize-tier.js";
 import type { SessionManager } from "../session/manager.js";
 import type { AgentMessage } from "../session/types.js";
@@ -341,6 +342,20 @@ export class SessionCacheController {
   }
 
   /**
+   * [W5-H1] 缓存是否已冷（wave5 §8.2 C3）：上一次请求（含保温）距今超过 TTL（目录无承诺时按隐式
+   * 10 分钟）。只对 `reported` 端点判断；`silent` / `unknown` 返回 false，档一退化为只按阈值。
+   */
+  isCold(): boolean {
+    const prev = this.prev;
+    if (prev === undefined || this.disposed) return false;
+    const model = this.core.model();
+    const endpoint = endpointKey({ model, baseUrl: model.baseUrl ?? "" });
+    if (this.tracker.get(endpoint, model.compat?.cacheReporting) !== "reported") return false;
+    const ttl = cacheTtlMs(this.modelOf(prev), prev.options.cacheRetention);
+    return this.now() - prev.at > (ttl ?? IMPLICIT_CACHE_TTL_MS);
+  }
+
+  /**
    * 摘要续写的前缀（第三波 §1.8）：当前转录按回合同样的方式转换，且上一次 turn 请求的消息
    * 逐条是它的前缀（缓存必然命中）、加上摘要输出放得进窗口；否则 undefined（走独立请求）。
    */
@@ -362,7 +377,7 @@ export class SessionCacheController {
     if (prev.length > messages.length) return undefined;
     for (let i = 0; i < prev.length; i++)
       if (JSON.stringify(prev[i]) !== JSON.stringify(messages[i])) return undefined;
-    const extra = Math.ceil(JSON.stringify(messages.slice(prev.length)).length / 4);
+    const extra = estimateTextTokens(JSON.stringify(messages.slice(prev.length)));
     const window = model.contextWindow;
     if (window !== undefined && record.promptTokens + extra + SUMMARY_MAX_TOKENS + 2048 > window)
       return undefined;

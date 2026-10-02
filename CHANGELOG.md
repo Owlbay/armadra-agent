@@ -67,6 +67,13 @@
 - RPC 实现 `plan_response` / `get_plan` / `get_todos` / `get_tasks` / `get_agents`（后两者读注册表只读视图，未装配时回空表），
   能力 `plans` 声明后计划审批交客户端；黄金记录 `test/fixtures/rpc/plan.out.jsonl`。SDK `createAgentSession({ plan })`
   （`onProposed` 审批回调）与 `session.plan.current() / respond() / todos()`。
+- **自动压缩修订**（第五波 W5-H1，docs/design.md §9）：档一按工具结果新旧计边界（保留最近 `compaction.prune.keepResults`
+  个与最近 min(40k, 0.2×预算) token 的工具输出），修好「只有一条用户消息的长任务永不裁剪」；可省不足
+  `compaction.prune.clearAtLeast`（auto = max(20k, 0.1×预算)）不动，动就一次清到 0.5×预算；缓存已冷时提前裁；
+  Skill 文件、AGENTS.md、todo、`keepInContext` 工具与 `compaction.pruneExclude` 的结果不裁。token 估算中文按字计，
+  中文会话的压缩会比以前早触发。熔断改为连续 3 次失败或连续 3 次快速回填才停（不再限每 run 一次）。
+  摘要模板补用户原话、错误与修复、文件与代码三节，缺 `## Goal` 重试再回落，压缩后不变小判失败；split turn 两份摘要并行。
+  压缩后在摘要末尾回注 todo、计划、已加载 Skill、最近文件与转录路径（只有清单与指针）。新 Hook 事件 `PostCompact`。
 - 新工具 `task_ctl`（列出 / 等待 / 停止 / 读取后台子 Agent 任务）与 `task` 同进退：`+task`、`--tools …,task` 一起暴露，
   `-task`、宿主 `disable("task")` 一起去掉；本版本执行时返回「尚未实现」（第五波 W5-G 实现）。
 
