@@ -134,6 +134,7 @@ export {
   LOADER_FRAMES,
   formatElapsed,
   type LoaderOptions,
+  type LoaderVerbOptions,
 } from "./tui/components/loader.js";
 export {
   compositeOverlays,

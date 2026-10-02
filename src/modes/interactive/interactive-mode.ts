@@ -151,7 +151,7 @@ export function runInteractiveMode(
   const loaderSlot = new Container();
   const loader = new Loader(() => tui.requestRender(), {
     theme,
-    message: "工作中" + theme.fg("dim", " · Esc 中断"),
+    message: "工作中",
     now,
     ...(options.spinnerIntervalMs !== undefined ? { intervalMs: options.spinnerIntervalMs } : {}),
   });
@@ -229,9 +229,7 @@ export function runInteractiveMode(
   const syncLoader = (): void => {
     const active = running || compacting;
     if (active && loaderSlot.children.length === 0) {
-      loader.setMessage(
-        (compacting && !running ? "压缩上下文" : "工作中") + theme.fg("dim", " · Esc 中断"),
-      );
+      loader.setVerb(compacting && !running ? "压缩上下文" : "工作中", ["Esc 中断"]);
       loaderSlot.addChild(loader);
       loader.start();
     } else if (!active && loaderSlot.children.length > 0) {
