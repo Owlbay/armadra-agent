@@ -106,6 +106,12 @@ export const en = {
     quotaSiwc: "  quota: only reported when exceeded; see ChatGPT → Settings → Usage",
     quotaUnavailable: "  quota: unavailable",
   },
+  report: {
+    section: "Subscription usage",
+    row: (requests: number, input: string, output: string, cacheRead: string, hit: string) =>
+      `${requests} requests · input ${input} · output ${output} · cache read ${cacheRead} (hit rate ${hit}) · not billed in USD`,
+    quotaKey: "quota",
+  },
   doctor: {
     oauth: (flavor: string, plan: string | undefined, state: string) =>
       `oauth (${flavor}${plan !== undefined ? ` · ${plan}` : ""} · ${state})`,
@@ -209,6 +215,12 @@ export const zh = {
     windowOther: (duration) => `${duration} 窗口`,
     quotaSiwc: "  配额：只在超限时可知；在 ChatGPT → 设置 → Usage 查看",
     quotaUnavailable: "  配额：暂不可用",
+  },
+  report: {
+    section: "订阅用量",
+    row: (requests, input, output, cacheRead, hit) =>
+      `${requests} 次请求 · 输入 ${input} · 输出 ${output} · 缓存读 ${cacheRead}（命中率 ${hit}）· 不折算美元`,
+    quotaKey: "配额",
   },
   doctor: {
     oauth: (flavor, plan, state) =>

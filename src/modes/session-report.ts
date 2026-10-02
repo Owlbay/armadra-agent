@@ -20,6 +20,8 @@ import type {
 } from "../ai/cache/types.js";
 import { MISS_NOTICE_TOKENS, MISS_NOTICE_USD } from "../ai/cache/miss.js";
 import { KeyValue, type KeyValueRow } from "../tui/components/key-value.js";
+import { quotaParts } from "../auth/chatgpt/quota-text.js";
+import { msg } from "../i18n/index.js";
 
 const REPORT_WIDTH = 240;
 
@@ -297,6 +299,31 @@ export function taskStatsText(session: AgentSession): string | undefined {
   return `${parts.join(" · ")}（/tasks）`;
 }
 
+/** [W6-O] 「订阅用量」段（`getStats().subscription`）：按供应商列请求与 token、缓存只给命中率；附最近配额。 */
+export function subscriptionRows(session: AgentSession, now: number = Date.now()): KeyValueRow[] {
+  const sub = session.getStats().subscription;
+  if (sub === undefined) return [];
+  const m = msg().auth.report;
+  const rows: KeyValueRow[] = Object.entries(sub.byProvider)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([provider, u]) => {
+      const prompt = u.input + u.cacheRead;
+      return {
+        key: provider,
+        value: m.row(
+          u.requests,
+          formatTokenCount(u.input),
+          formatTokenCount(u.output),
+          formatTokenCount(u.cacheRead),
+          formatPercent(prompt > 0 ? u.cacheRead / prompt : undefined),
+        ),
+      };
+    });
+  const quota = sub.quota === undefined ? undefined : quotaParts(sub.quota, now);
+  if (quota !== undefined) rows.push({ key: m.quotaKey, value: quota });
+  return rows;
+}
+
 /** 键值行 → 纯文本（键列对齐、去行尾空白）。 */
 export function renderRows(rows: readonly KeyValueRow[], indent = ""): string[] {
   return new KeyValue(rows)
@@ -341,9 +368,13 @@ export function describeSession(session: AgentSession, now: number = Date.now())
   const tasks = taskStatsText(session);
   if (tasks !== undefined) rows.push({ key: "子 Agent", value: tasks });
   const external = externalRows(session);
+  const subscription = subscriptionRows(session, now);
   return [
     ...renderRows(rows),
     describeCache(session, now),
+    ...(subscription.length > 0
+      ? [msg().auth.report.section, ...renderRows(subscription, "  ")]
+      : []),
     ...(external.length > 0 ? ["外部 Agent", ...renderRows(external, "  ")] : []),
   ].join("\n");
 }
