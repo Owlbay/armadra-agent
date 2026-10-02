@@ -251,6 +251,52 @@ export function cacheRows(session: AgentSession, now: number = Date.now()): KeyV
   return rows;
 }
 
+/** [W5-U] 外部 Agent 用量一项：美元 / token / 请求数按各自单位，不换算。 */
+export function externalUsageText(usage: {
+  runs: number;
+  unit: "usd" | "tokens" | "requests";
+  amount: number;
+  tokens?: number;
+}): string {
+  const amount =
+    usage.unit === "usd"
+      ? formatUsd(usage.amount)
+      : usage.unit === "tokens"
+        ? `${formatTokenCount(usage.amount)} token`
+        : `${usage.amount} 次请求`;
+  const tokens =
+    usage.unit !== "tokens" && usage.tokens !== undefined && usage.tokens > 0
+      ? ` · ${formatTokenCount(usage.tokens)} token`
+      : "";
+  return `${usage.runs} 次运行 · ${amount}${tokens}`;
+}
+
+/** [W5-U] 「外部 Agent」段（`getStats().external.byAgent`）；没有外部运行时为空。 */
+export function externalRows(session: AgentSession): KeyValueRow[] {
+  const byAgent = session.getStats().external?.byAgent ?? {};
+  return Object.entries(byAgent)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([agent, usage]) => ({ key: agent, value: externalUsageText(usage) }));
+}
+
+/** [W5-U] 子 Agent 任务汇总（`getStats().tasks`）；没有任务时 undefined。 */
+export function taskStatsText(session: AgentSession): string | undefined {
+  const tasks = session.getStats().tasks;
+  if (tasks === undefined || tasks.total === 0) return undefined;
+  const parts = [`${tasks.total} 个任务`];
+  if (tasks.running > 0) parts.push(`运行中 ${tasks.running}`);
+  const labels: Record<string, string> = {
+    completed: "完成",
+    failed: "失败",
+    aborted: "已停止",
+    max_turns: "轮数耗尽",
+    interrupted: "已中断",
+  };
+  for (const [status, count] of Object.entries(tasks.byStatus))
+    if (count !== undefined && count > 0) parts.push(`${labels[status] ?? status} ${count}`);
+  return `${parts.join(" · ")}（/tasks）`;
+}
+
 /** 键值行 → 纯文本（键列对齐、去行尾空白）。 */
 export function renderRows(rows: readonly KeyValueRow[], indent = ""): string[] {
   return new KeyValue(rows)
@@ -292,7 +338,14 @@ export function describeSession(session: AgentSession, now: number = Date.now())
       value: `${stats.contextTokens ?? "?"} / ${stats.contextWindow ?? "?"}（${percent}%）`,
     },
   ];
-  return [...renderRows(rows), describeCache(session, now)].join("\n");
+  const tasks = taskStatsText(session);
+  if (tasks !== undefined) rows.push({ key: "子 Agent", value: tasks });
+  const external = externalRows(session);
+  return [
+    ...renderRows(rows),
+    describeCache(session, now),
+    ...(external.length > 0 ? ["外部 Agent", ...renderRows(external, "  ")] : []),
+  ].join("\n");
 }
 
 /** `/cache fingerprint`：最近一次真实请求的前缀指纹（system / tools 哈希与模型）。 */

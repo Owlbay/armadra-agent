@@ -6,6 +6,7 @@
  * - 会话时长从本进程打开当前会话（含 /new /resume /fork 切换）起算，用界面的时钟。
  * - git：`GitInfoWatcher` 在回合边界刷新——agent_settled、写类工具（write / edit / bash / task）结束、
  *   session_rewound、/tree 之后；结果变化时重画。
+ * - [W5-U] `model_fallback` 之后状态栏模型项显示 `主模型 → 回退模型`，切回主模型（`model_changed`）后消失。
  * - `telemetry_tick`（流式中 ≤ 2 Hz）只重取统计并重画（速率行），状态栏的内容这时不变。
  */
 
@@ -14,7 +15,10 @@ import type { AgentSession, SessionEvent } from "../../agent/types.js";
 import { sandboxCapabilityFor } from "../../codemode/capability.js";
 import type { Runtime } from "../../cli/runtime.js";
 import type { StatusLineMode } from "../../config/types.js";
+import { formatModelRef } from "../../ai/providers/channels.js";
 import { GitInfoWatcher } from "../../git/info.js";
+import { resolveBashSandbox } from "../../sandbox/bash.js";
+import { osSandboxStatus } from "../../sandbox/detect.js";
 import { effectiveCodemodeMode } from "../../tools/presets.js";
 import { truncateToWidth, type Component, type Theme } from "../../tui.js";
 import { StatusBar, type StatusBarSource } from "./status-bar.js";
@@ -64,6 +68,9 @@ export class StatusArea {
   private gitCwd: string | undefined;
   private offGit: () => void = () => undefined;
   private sandboxStrict: boolean | undefined;
+  /** [W5-U] 模型回退中（`model_fallback` 到切回主模型）。 */
+  private fallback: { from: string; to: string } | undefined;
+  private bashSandbox: boolean | undefined;
 
   constructor(private readonly deps: StatusAreaDeps) {
     const { runtime } = deps;
@@ -87,6 +94,16 @@ export class StatusArea {
       git: () => this.gitView(),
       now: () => deps.now(),
       sessionStartedAt: () => this.startedAt,
+      fallback: () => this.fallback,
+      // S2：bash 沙箱生效（配置 + 本机能力，与 compose 同一结论）且 bash 工具活动
+      bashSandbox: () =>
+        (this.bashSandbox ??= resolveBashSandbox(runtime.config.sandbox, {
+          status: osSandboxStatus(),
+        }).active) &&
+        deps
+          .session()
+          .getTools()
+          .some((tool) => tool.name === "bash"),
     };
     this.bar = new StatusBar(source, deps.theme);
     this.rate = new StatusLine(this.bar, source, deps.theme);
@@ -115,6 +132,7 @@ export class StatusArea {
   /** 换了会话（/new /resume /fork）：时长重新起算，cwd 变了就换 git 监视。 */
   rebind(): void {
     this.startedAt = this.deps.now();
+    this.fallback = undefined;
     this.watchGit();
     this.bar.refresh();
   }
@@ -136,6 +154,20 @@ export class StatusArea {
       case "tool_execution_end":
         if (WRITE_TOOLS.has(event.toolName)) this.refreshGit();
         return false;
+      case "model_fallback":
+        this.fallback = {
+          from: formatModelRef(event.from),
+          to: formatModelRef(event.to),
+        };
+        this.bar.refresh();
+        return false;
+      case "model_changed": {
+        const model = this.deps.session().state.model;
+        if (this.fallback !== undefined && model !== undefined) {
+          if (formatModelRef(model) === this.fallback.from) this.fallback = undefined;
+        }
+        return false;
+      }
       default:
         return false;
     }

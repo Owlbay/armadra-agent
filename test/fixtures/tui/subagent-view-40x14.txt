@@ -1,0 +1,15 @@
+# subagent views · viewport 40x14
+|⏺ task 检查 src/tui 的测试覆盖缺口
+|  ⎿ · explore · 运行中 1m05s · 3 轮 · r…
+|⏺ task 后台审查
+|  ⎿ 完成 · 0.0s
+|    ↳ t2 explore · 运行中 1m05s · 1 轮 …
+|    Started background task t2 (agent e…
+|⏺ task 让 claude 改
+|  ⎿ ✗ Sub-agent failed: boom
+|
+|
+|
+|
+|
+|

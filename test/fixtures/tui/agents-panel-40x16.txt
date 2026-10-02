@@ -1,0 +1,17 @@
+# viewport 40x16
+|▎ 子 Agent（3）
+|▎ general  ama · 内置  General-purpose
+|▎          sub-agent (default):
+|▎          researches and changes code
+|▎          like you do.
+|▎ explore  ama · 内置  Read-only search:
+|▎          locates files, symbols and
+|▎          code paths; returns paths
+|▎          with line numbers.
+|▎ plan     ama · 内置  Read-only
+|▎          planner: returns a
+|▎          step-by-step plan with key
+|▎          files and trade-offs.
+|
+|
+|

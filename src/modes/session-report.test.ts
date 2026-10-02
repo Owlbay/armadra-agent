@@ -192,3 +192,23 @@ describe("会话报告文本", () => {
     ).toBe("上下文已用 91%，余量 18k token");
   });
 });
+
+describe("/session 第五波段（W5-U）", () => {
+  it("子 Agent 汇总与外部 Agent 用量（按各自单位）", () => {
+    const session = fakeSession({
+      tasks: { total: 3, running: 1, byStatus: { completed: 1, failed: 1 } },
+      external: {
+        byAgent: {
+          codex: { runs: 2, unit: "tokens", amount: 51_200 },
+          claude: { runs: 1, unit: "usd", amount: 0.42, tokens: 12_000 },
+        },
+      },
+    });
+    const text = describeSession(session, NOW);
+    expect(text).toContain("子 Agent  3 个任务 · 运行中 1 · 完成 1 · 失败 1（/tasks）");
+    expect(text).toContain(
+      "外部 Agent\n  claude  1 次运行 · $0.42 · 12k token\n  codex   2 次运行 · 51.2k token",
+    );
+    expect(describeSession(fakeSession({}), NOW)).not.toContain("外部 Agent");
+  });
+});

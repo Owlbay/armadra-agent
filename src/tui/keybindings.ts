@@ -46,6 +46,8 @@ export const DEFAULT_KEYBINDINGS = {
   "app.thinking.select": ["ctrl+t"],
   /** [W5-A] 底部信息行 full ↔ compact（只影响本会话）。 */
   "app.statusLine.toggle": ["ctrl+g"],
+  /** [W5-U] 粘贴剪贴板图片（写进数据目录，输入框插入 `@路径`）。 */
+  "app.paste.image": ["ctrl+v"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type ActionId = keyof typeof DEFAULT_KEYBINDINGS;

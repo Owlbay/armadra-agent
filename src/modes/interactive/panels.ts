@@ -4,6 +4,7 @@
  *
  * - `/session`：标题 `会话 <id 前 8 位> · <文件>`；模型 / 消息 / 用量 / 上下文（余量表，阈值着色），
  *   空一行后「缓存」段（与 `/cache` 共用 `cacheRows`）；
+ * - [W5-U] `/session` 多「子 Agent」行（任务汇总）与「外部 Agent」段（按 Agent 的运行次数与用量，单位不换算）；
  * - `/permissions`：权限模式、判定顺序（折行对齐值列）、规则（allow success、deny error、来源 dim）、
  *   最近的 auto 判定。
  */
@@ -20,11 +21,17 @@ import {
   type SemanticColor,
   type Theme,
 } from "../../tui.js";
-import { cacheRows, formatTokenCount, formatUsd } from "../session-report.js";
+import {
+  cacheRows,
+  externalRows,
+  formatTokenCount,
+  formatUsd,
+  taskStatsText,
+} from "../session-report.js";
 import { tildePath } from "../../cli/startup-screen.js";
 
 /** 多段内容按顺序拼起来（段之间不加空行，由调用方放空串）。 */
-class Stack implements Component {
+export class Stack implements Component {
   constructor(private readonly parts: readonly (Component | string)[]) {}
 
   render(width: number): string[] {
@@ -37,7 +44,7 @@ class Stack implements Component {
 }
 
 /** 缩进若干列的子组件。 */
-class Indent implements Component {
+export class Indent implements Component {
   constructor(
     private readonly child: Component,
     private readonly columns: number,
@@ -55,7 +62,7 @@ class Indent implements Component {
   }
 }
 
-function keyValue(rows: readonly KeyValueRow[], theme: Theme, wrap = false): KeyValue {
+export function keyValue(rows: readonly KeyValueRow[], theme: Theme, wrap = false): KeyValue {
   return new KeyValue(rows, { theme, maxKeyRatio: 0.3, ...(wrap ? { wrap: true } : {}) });
 }
 
@@ -112,9 +119,22 @@ export function sessionPanel(
     },
     { key: "上下文", value: meter + window },
   ];
+  const tasks = taskStatsText(session);
+  if (tasks !== undefined) rows.push({ key: "子 Agent", value: tasks });
+  const external = externalRows(session);
+  const externalSection: (Component | string)[] =
+    external.length > 0
+      ? ["", theme.bold("外部 Agent"), new Indent(keyValue(external, theme), 2)]
+      : [];
   const file =
     state.sessionFile === undefined ? "未落盘" : tildePath(state.sessionFile, options.home);
-  return new Card(new Stack([keyValue(rows, theme), "", ...cacheSection(session, theme, now)]), {
+  const parts = [
+    keyValue(rows, theme),
+    "",
+    ...cacheSection(session, theme, now),
+    ...externalSection,
+  ];
+  return new Card(new Stack(parts), {
     theme,
     title: `会话 ${state.sessionId.slice(0, 8)}`,
     subtitle: file,

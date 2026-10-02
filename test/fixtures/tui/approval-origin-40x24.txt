@@ -1,0 +1,25 @@
+# approval origin · viewport 40x24 cursor=10,39
+|╭─ [claude · 会话 abc12345] 需要确认 ──╮
+|│ [claude · 会话 abc12345] Write       │
+|│ note.txt                             │
+|│ note.txt                             │
+|│ content: hi                          │
+|│ claude 请求确认                      │
+|│ › 1. 允许                          y │
+|│   2. 本会话允许同类                a │
+|│   3. 拒绝                          n │
+|│ ↑↓ Enter · v 完整输入                │
+|╰──────────────────────────────────────╯
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|

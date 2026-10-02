@@ -56,6 +56,8 @@ export const KEY_HINTS = [
   "空闲时 Esc Esc：输入框为空 = 回滚（/rewind），有字 = 清空（↑ 取回）",
   "Shift+Tab 切换权限模式  Ctrl+L 模型  Ctrl+T 思考级别  Ctrl+O 展开工具输出与思考",
   "审批：1–3 或 ↑↓ Enter 选择，y 允许  a 本会话允许同类  n / Esc 拒绝  v 完整输入",
+  "计划审批：1 批准  2 新上下文执行  3 继续修改  4 放弃并退出 Plan  e 编辑计划  Esc 留在 Plan",
+  "Ctrl+V 粘贴剪贴板图片（插入 @路径）  Ctrl+G 底部信息行两行 / 一行",
   "Ctrl+C 清空输入（再按退出）  Ctrl+D 空输入时退出  Tab 补全  @ 引用文件",
 ].join("\n");
 
@@ -85,6 +87,8 @@ export interface CommandUi {
   home?: string;
   /** 进程环境：给出时 /model 选择器按 fake-visibility 规则藏起测试供应商 fake。 */
   env?: Readonly<Record<string, string | undefined>>;
+  /** [W5-U] 界面自己处理的第五波命令（agent-ui.ts）；处理了返回 true。 */
+  extra?(name: string, args: string): Promise<boolean>;
 }
 
 function homeOf(ui: CommandUi): { home?: string } {
@@ -255,6 +259,7 @@ export async function runInteractiveCommand(line: string, ui: CommandUi): Promis
   const parsed = parseSlash(line);
   if (parsed === undefined) return false;
   try {
+    if (ui.extra !== undefined && (await ui.extra(parsed.name, parsed.args))) return true;
     if (parsed.name === "tree") {
       await treeCommand(ui);
       return true;

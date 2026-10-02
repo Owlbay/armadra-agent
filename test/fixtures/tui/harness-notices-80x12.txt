@@ -1,0 +1,13 @@
+# harness notices · viewport 80x12
+|! anthropic/claude-sonnet-4-5 不可用（overloaded），本次请求改用 openai/gpt-5，
+|回复后切回
+|
+|后台命令 j1 已启动：pnpm dev --port 5173
+|
+|后台命令 j1 已退出（码 0）：pnpm dev --port 5173
+|
+|! 已到费用上限 $1.00（本次运行已用 $1.23），本次运行停止；发新消息继续（
+|--max-cost / limits.maxCostUsd）
+|
+|
+|

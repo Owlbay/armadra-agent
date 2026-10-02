@@ -120,6 +120,7 @@ export class StatusLine implements Component {
     right(usage.rebill, PRIORITY.rebill);
     right(usage.queue, PRIORITY.queue);
     right(usage.codemode, PRIORITY.codemode);
+    right(usage.sandbox, PRIORITY.codemode);
     right(usage.preset, PRIORITY.preset);
     right(usage.host, PRIORITY.host);
     right(dim(COLLAPSE_HINT), undefined);

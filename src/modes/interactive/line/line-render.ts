@@ -11,6 +11,14 @@ import { AUTO_LAYER_TEXT, permissionModeLines } from "../../../permissions/modes
 import type { ApprovalRequest } from "../../../permissions/types.js";
 import type { CommandResult } from "../../commands-core.js";
 import { cacheEventNotice, warmSentNotice } from "../../session-report.js";
+import { isFirstRunRequest, sourceLabel, type TaskAgentLookup } from "../approval-dialog.js";
+import {
+  LIMIT_WARNING,
+  backgroundJobText,
+  limitReachedText,
+  modelFallbackText,
+} from "../event-notices.js";
+import { taskStatusText } from "../tasks-report.js";
 
 const SUMMARY_KEYS = ["command", "path", "pattern", "file_path", "url", "description", "name"];
 
@@ -28,8 +36,18 @@ export function argsSummary(args: unknown): string {
   return "";
 }
 
-export function approvalQuestion(request: ApprovalRequest): string {
-  const task = (request.context?.depth ?? 0) > 0 ? "[task] " : "";
+export function approvalQuestion(request: ApprovalRequest, taskAgent?: TaskAgentLookup): string {
+  const label = sourceLabel(request, taskAgent);
+  const task = label === undefined ? "" : `${label} `;
+  const origin = request.context?.origin;
+  if (origin !== undefined) {
+    const where = origin.toolCall.locations?.[0];
+    return `${task}允许 ${origin.toolCall.title}${where !== undefined ? ` ${where}` : ""}？[y 允许 / a 本会话都允许 / N 拒绝] `;
+  }
+  if (isFirstRunRequest(request)) {
+    const input = request.input as Record<string, unknown>;
+    return `${task}${String(input["note"])} 允许？[y 允许 / N 拒绝] `;
+  }
   const summary = argsSummary(request.input);
   const auto = request.autoDecision;
   const why =
@@ -149,11 +167,38 @@ export class EventPrinter {
           this.failures++;
           this.line(`ama: 错误：${error}`, true);
         }
-        // 失败时 warning 就是同一条错误文本，不再重复打印
-        if (event.warning !== undefined && event.warning !== error)
+        // 失败时 warning 就是同一条错误文本，不再重复打印；预算到限已由 limit_reached 说明
+        if (
+          event.warning !== undefined &&
+          event.warning !== error &&
+          event.warning !== LIMIT_WARNING
+        )
           this.line(`ama: ${event.warning}`, true);
         return;
       }
+      // [W5-U] 第五波事件
+      case "plan_proposed": {
+        const file = event.filePath !== undefined ? `（${event.filePath}）` : "";
+        this.line(
+          `◇ 计划 v${event.version} 待审批${file}：/plan approve [模式|fresh] 批准 · /plan reject 放弃 · 直接输入修改意见`,
+        );
+        return;
+      }
+      case "subagent_start":
+        this.line(`  ↳ ${event.taskId} ${event.agent}${event.background ? "（后台）" : ""} 开始`);
+        return;
+      case "subagent_end":
+        this.line(`  ↳ ${event.taskId} ${taskStatusText(event.status)}`);
+        return;
+      case "limit_reached":
+        this.line(`ama: ${limitReachedText(event)}`, true);
+        return;
+      case "model_fallback":
+        this.line(`ama: ${modelFallbackText(event)}`, true);
+        return;
+      case "background_job":
+        this.line(`ama: ${backgroundJobText(event)}`, true);
+        return;
       default:
         return;
     }
