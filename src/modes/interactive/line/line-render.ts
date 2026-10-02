@@ -58,6 +58,10 @@ export function logsInfo(env: Readonly<Record<string, string | undefined>>): boo
 
 export class EventPrinter {
   private midLine = false;
+  /** 本次运行的模型错误：等 agent_settled 再打（重试中的失败尝试只显示 ↻ 那一行）。 */
+  private pendingError: string | undefined;
+  /** 最终失败的运行次数（管道模式据此返回退出码 1）。 */
+  failures = 0;
 
   constructor(
     private readonly out: (text: string) => void,
@@ -93,8 +97,11 @@ export class EventPrinter {
         if (event.message.role === "assistant") {
           this.endLine();
           if (event.message.stopReason === "error")
-            this.line(`ama: 错误：${event.message.errorMessage ?? "模型调用失败"}`, true);
+            this.pendingError = event.message.errorMessage ?? "模型调用失败";
         }
+        return;
+      case "agent_end":
+        if (event.willRetry) this.pendingError = undefined;
         return;
       case "tool_execution_start": {
         const summary = argsSummary(event.args);
@@ -134,10 +141,19 @@ export class EventPrinter {
         if (text !== undefined) this.line(`ama: ${text}`, true);
         return;
       }
-      case "agent_settled":
+      case "agent_settled": {
         this.endLine();
-        if (event.warning !== undefined) this.line(`ama: ${event.warning}`, true);
+        const error = this.pendingError;
+        this.pendingError = undefined;
+        if (error !== undefined) {
+          this.failures++;
+          this.line(`ama: 错误：${error}`, true);
+        }
+        // 失败时 warning 就是同一条错误文本，不再重复打印
+        if (event.warning !== undefined && event.warning !== error)
+          this.line(`ama: ${event.warning}`, true);
         return;
+      }
       default:
         return;
     }

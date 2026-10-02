@@ -49,6 +49,53 @@ describe("行式界面：管道", () => {
   });
 });
 
+describe("行式界面：管道里的错误", () => {
+  it("重试中只显示 ↻；最终错误只打印一次；退出码 1", async () => {
+    h = composeHarness([
+      { error: { kind: "overloaded" } },
+      { error: { kind: "overloaded" } },
+      { error: { kind: "overloaded" } },
+    ]);
+    h.home.write("home/.config/ama/config.json", {
+      version: 1,
+      retry: { maxRetries: 2, baseDelayMs: 1, maxDelayMs: 2 },
+    });
+    const runtime = await h.boot(["--model", "fake/echo"]);
+    const stdin = new PassThrough();
+    const done = runLineMode(
+      runtime,
+      { args: emptyArgs(), prompt: undefined, io: h.io },
+      { stdin },
+    );
+    stdin.end("hi\n");
+    expect(await done).toBe(1);
+    const err = h.stderr();
+    expect(err.match(/↻ 重试/g)).toHaveLength(2);
+    expect(err.match(/ama: 错误：/g)).toHaveLength(1);
+    expect(err.split("\n").filter((l) => l.startsWith("ama:"))).toHaveLength(1);
+    await runtime.dispose();
+  });
+
+  it("成功的运行之后退出码仍是 0", async () => {
+    h = composeHarness([{ error: { kind: "overloaded" } }, { text: "ok" }]);
+    h.home.write("home/.config/ama/config.json", {
+      version: 1,
+      retry: { baseDelayMs: 1, maxDelayMs: 2 },
+    });
+    const runtime = await h.boot(["--model", "fake/echo"]);
+    const stdin = new PassThrough();
+    const done = runLineMode(
+      runtime,
+      { args: emptyArgs(), prompt: undefined, io: h.io },
+      { stdin },
+    );
+    stdin.end("hi\n");
+    expect(await done).toBe(0);
+    expect(h.stderr()).not.toContain("错误");
+    await runtime.dispose();
+  });
+});
+
 describe("行式界面：raw 终端", () => {
   it("回车提交、跨 chunk 括号粘贴、审批 y / n、Ctrl+D 退出", async () => {
     h = composeHarness([
