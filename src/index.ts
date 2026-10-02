@@ -42,6 +42,15 @@ export type {
 // SDK（B6 追加）
 export { createAgentSession, createRuntime } from "./sdk.js";
 export type { CreateSessionOptions, RuntimeOptions, SessionAuth } from "./sdk.js";
+// [W5-Z] 计划（docs/plan.md「SDK」）：`createAgentSession({ plan })` 与 `session.plan` 的类型。
+export type {
+  PlanDecision,
+  PlanResponse,
+  PlanResponseResult,
+  SdkAgentSession,
+  SessionPlanApi,
+  SessionPlanOptions,
+} from "./sdk.js";
 export { AgentSessionImpl } from "./agent/session.js";
 export { SessionManager } from "./session/manager.js";
 export { ProviderRegistry } from "./ai/providers/registry.js";
