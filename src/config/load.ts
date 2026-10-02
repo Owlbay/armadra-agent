@@ -8,6 +8,7 @@
 
 import { readFileSync } from "node:fs";
 import { StartupError } from "../errors.js";
+import { msg } from "../i18n/index.js";
 import {
   type Diagnostic,
   hasErrors,
@@ -63,15 +64,15 @@ export function parseJsonText(text: string): unknown {
     const message = error instanceof Error ? error.message : String(error);
     const lineCol = /line (\d+) column (\d+)/.exec(message);
     if (lineCol !== null)
-      throw new Error(`JSON 语法错误（第 ${lineCol[1]} 行第 ${lineCol[2]} 列）：${message}`);
+      throw new Error(msg().config.load.jsonSyntax(lineCol[1] ?? "", lineCol[2] ?? "", message));
     const position = /position (\d+)/.exec(message);
     if (position?.[1] !== undefined) {
       const { line, column } = lineColumnAt(source, Number(position[1]));
-      throw new Error(`JSON 语法错误（第 ${line} 行第 ${column} 列）：${message}`);
+      throw new Error(msg().config.load.jsonSyntax(line, column, message));
     }
-    if (source.trim() === "") throw new Error("JSON 语法错误：文件为空");
+    if (source.trim() === "") throw new Error(msg().config.load.jsonEmpty);
     const end = lineColumnAt(source, source.length);
-    throw new Error(`JSON 语法错误（第 ${end.line} 行第 ${end.column} 列附近）：${message}`);
+    throw new Error(msg().config.load.jsonSyntaxNear(end.line, end.column, message));
   }
 }
 
@@ -105,7 +106,7 @@ export function loadConfigFile<K extends ConfigFileKind>(
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code === "ENOENT" && options.required !== true) return undefined;
-    const reason = code === "ENOENT" ? "文件不存在" : (error as Error).message;
+    const reason = code === "ENOENT" ? msg().config.load.notFound : (error as Error).message;
     throw failure(kind, `${path}: ${reason}`, { path });
   }
   let value: unknown;
@@ -119,7 +120,7 @@ export function loadConfigFile<K extends ConfigFileKind>(
     const lines = diagnostics
       .filter((d) => d.severity === "error")
       .map((d) => formatDiagnostic(path, d));
-    throw failure(kind, `配置文件无效：\n  ${lines.join("\n  ")}`, { path, diagnostics });
+    throw failure(kind, msg().config.load.invalid(lines), { path, diagnostics });
   }
   return {
     path,

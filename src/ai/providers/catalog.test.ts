@@ -99,7 +99,8 @@ describe("模型目录", () => {
     const catalog = loadBuiltinCatalog();
     expect([...catalog.keys()].sort()).toEqual(BUILTIN_PROVIDERS.map((p) => p.id).sort());
     for (const [id, models] of catalog) {
-      if (id === "ollama" || id === "lmstudio") expect(models).toEqual([]);
+      // [W6-O] chatgpt 的模型按账户而定（`ama models discover chatgpt`），目录为空
+      if (id === "ollama" || id === "lmstudio" || id === "chatgpt") expect(models).toEqual([]);
       else {
         expect(models.length, id).toBeGreaterThanOrEqual(2);
         expect(models.length, id).toBeLessThanOrEqual(15);

@@ -97,6 +97,7 @@ const ALL_EVENTS: { [K in AgentEventName]: AgentEvents[K] } = {
   subagent_end: { taskId: "t1", status: "completed" },
   plan_proposed: { planId: "p1", version: 1, markdown: "# plan", steps: [] },
   plan_resolved: { planId: "p1", decision: "approve" },
+  quota_update: { provider: "chatgpt", primary: { usedPercent: 42 } },
 };
 
 describe("HostApi 实现", () => {

@@ -2,7 +2,7 @@
  * `ama init [--force]`（docs/providers.md「配置目录」）：建配置目录与缺省文件，逐个报告状态。
  */
 
-import { INIT_NEXT_STEPS, describeInit, initConfigDir } from "../../config/init.js";
+import { describeInit, initConfigDir, initNextSteps } from "../../config/init.js";
 import { resolveConfigDir } from "../../config/paths.js";
 import { parseSubArgs, UsageError } from "../args.js";
 import type { CliIo } from "../deps.js";
@@ -23,6 +23,6 @@ export function runInit(argv: readonly string[], io: CliIo): number {
     throw new UsageError(msg().subcommands.common.extraArgs(positionals.join(" ")));
   const result = initConfigDir(resolveConfigDir({ env: io.env }), { force: flags.has("force") });
   io.stdout(describeInit(result));
-  io.stdout(`\n${INIT_NEXT_STEPS.join("\n")}\n`);
+  io.stdout(`\n${initNextSteps().join("\n")}\n`);
   return ExitCode.Ok;
 }

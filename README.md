@@ -4,67 +4,69 @@
 [![npm](https://img.shields.io/npm/v/@armadra/agent)](https://www.npmjs.com/package/@armadra/agent)
 [![license](https://img.shields.io/npm/l/@armadra/agent)](LICENSE)
 
-一个在终端里写代码的 Agent，也可以嵌进 [Armadra](https://github.com/yovinchen/Armadra) 画布当协调者。用 TypeScript 写成，运行时零依赖，也提供单文件发行版。
+English · [简体中文](README.zh-CN.md)
+
+A coding agent for the terminal that can also be embedded in the [Armadra](https://github.com/yovinchen/Armadra) canvas as a coordinator. Written in TypeScript with zero runtime dependencies, and also shipped as a single-file build.
 
 ```sh
 npm i -g @armadra/agent
-export ANTHROPIC_API_KEY=sk-...       # 任一家的 key 即可
+export ANTHROPIC_API_KEY=sk-...       # a key from any supported provider works
 ama
 ```
 
-## 目录
+## Contents
 
-- [为什么做 ama](#为什么做-ama)
-- [特性一览](#特性一览)
-- [安装](#安装)
-- [快速开始](#快速开始)
-- [配置](#配置)
-- [接入中转站](#接入中转站)
-- [工具与预设](#工具与预设)
-- [缓存](#缓存)
-- [安全](#安全)
-- [沙箱](#沙箱)
+- [Why ama](#why-ama)
+- [Features](#features)
+- [Install](#install)
+- [Quick start](#quick-start)
+- [Configuration](#configuration)
+- [Relays and gateways](#relays-and-gateways)
+- [Tools and presets](#tools-and-presets)
+- [Caching](#caching)
+- [Safety](#safety)
+- [Sandbox](#sandbox)
 - [Plan](#plan)
-- [子 Agent](#子-agent)
-- [外部 Agent](#外部-agent)
-- [回滚](#回滚)
-- [界面与入口](#界面与入口)
-- [嵌入 Armadra](#嵌入-armadra)
-- [文档](#文档)
-- [已知限制](#已知限制)
-- [开发](#开发)
+- [Sub-agents](#sub-agents)
+- [External agents](#external-agents)
+- [Rewind](#rewind)
+- [Interfaces and entry points](#interfaces-and-entry-points)
+- [Embedding in Armadra](#embedding-in-armadra)
+- [Documentation](#documentation)
+- [Known limitations](#known-limitations)
+- [Development](#development)
 
-## 为什么做 ama
+## Why ama
 
-- **调用型 Agent**：ama 被别的程序调用的时候和被人使用的时候一样多——`-p` 一次性运行、`--mode rpc`、SDK、宿主适配器都是一等入口，退出码与 JSON 形状是契约。
-- **分层清楚**：参考 Pi 的分层，协议实现与供应商数据分开。四条协议线（Anthropic Messages、OpenAI Chat Completions、OpenAI Responses、Google Generative AI）只写一次，供应商只是「baseUrl + key + 模型表 + compat 开关」。
-- **配置精简**：设一个环境变量就能用；常用配置只有五个键，其余都有缺省。只用 API Key（官方或中转站），只做 Skill 与内置工具，不接 MCP。
-- **缓存优先**：长任务的大部分用量是缓存读取。ama 保证请求前缀逐字节稳定，按各家写法打缓存断点，并把缓存是否生效、为什么没命中显示出来。
-- **两种用法**：独立用就是一个终端编码 Agent；嵌入 Armadra 时作为画布上的协调者，驱动 Claude Code、Codex、OpenCode 等 CLI Agent 分工、汇报与汇总。
+- **An agent built to be called**: ama is driven by other programs as often as by people. One-shot `-p` runs, `--mode rpc`, the SDK and host adapters are all first-class entry points; exit codes and JSON shapes are contracts.
+- **Clean layering**: following Pi's layering, protocol implementations are separate from provider data. Four protocol lines (Anthropic Messages, OpenAI Chat Completions, OpenAI Responses, Google Generative AI) are written once; a provider is just "baseUrl + key + model table + compat switches".
+- **Minimal configuration**: one environment variable is enough to start; the common settings are five keys and everything else has a default. API keys only (official or relay), Skills and built-in tools only, no MCP.
+- **Cache first**: most of the usage in long tasks is cache reads. ama keeps the request prefix byte-stable, places cache breakpoints the way each provider expects, and shows whether the cache works and why it missed.
+- **Two ways to use it**: standalone it is a terminal coding agent; embedded in Armadra it is the coordinator on the canvas, dispatching work to CLI agents such as Claude Code, Codex and OpenCode, collecting their reports and summarizing.
 
-## 特性一览
+## Features
 
-| 方面            | 内容                                                                                                                                                                                                                                                   |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 多协议与供应商  | 4 条协议线、17 家内置供应商（Anthropic、OpenAI、Google、DeepSeek、Moonshot、智谱、通义、OpenRouter、Groq、xAI、Mistral、MiniMax、阶跃、火山方舟、腾讯、Ollama、LM Studio）、内置渠道（Messages / Responses 优先、Chat 回落）、自定义供应商、模型级协议 |
-| 零配置与中转站  | 有 key 就选第一个可用的供应商（中转站按价格规则挑缺省模型）；识别 `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`；`ama providers add` 只给 baseUrl 与 key 一键接入：列模型、探测渠道、写回配置                                                               |
-| 模型元数据      | 上下文、输出上限、图像输入、推理、价格来自随包的 models.dev 内置快照（启动与运行都不联网，`ama models refresh` 显式刷新）；一个供应商可挂多个渠道（Chat / Responses / Messages），`provider/model@渠道`                                                |
-| 图像输入        | `-p --image`、界面里 `@图片路径`、`Ctrl+V` / `/paste` 粘贴剪贴板图片；按端点分档的单图上限、超限自动缩放；模型不收图片时直接拒绝并提示换模型                                                                                                           |
-| 工具与预设      | read / edit / write / bash / grep / glob，另有 ls、todo、task / task_ctl（子 Agent）、codemode；四个预设 `default` / `minimal` / `codemode-only` / `coordinator`                                                                                       |
-| Plan 与子 Agent | Plan 模式只读调研、出计划后审批执行；`task` 委派子 Agent（内置 general / explore / plan，可自定义类型，前台 / 后台 / 续聊 / worktree 隔离）                                                                                                            |
-| 外部 Agent      | `task(agent="claude" \| "codex" \| "acp:<程序>")` 以各 CLI 自己的登录驱动外部编码 Agent，审批只交给人；`ama --mode acp` 把 ama 暴露为 ACP Agent                                                                                                        |
-| 回滚与沙箱      | 每回合检查点，`/rewind` / 双击 Esc 回到任一条消息之前（代码、对话或两者）；macOS / Linux 的操作系统沙箱隔离 codemode 与（可选）bash                                                                                                                    |
-| codemode        | 模型写一段 JS，在受 Node 权限模型约束的子进程里编排多次工具调用，只有输出回到模型                                                                                                                                                                      |
-| Skill           | `SKILL.md` 目录，模型按索引自行读取，用户用 `/skill:<名字>` 调用；另有提示模板                                                                                                                                                                         |
-| 两层 Hook       | 命令式 Hook（`hooks.json`，11 个事件，用户策略）与进程内宿主适配器 HostApi（嵌入方）                                                                                                                                                                   |
-| 权限            | 四种模式、allow / deny 规则、危险命令识别（穿透 `sh -c` / `eval` / `xargs` / `find -exec`）、项目信任、审批时的执行前预览                                                                                                                              |
-| 缓存            | 前缀稳定、缓存字段与兼容开关、未命中归因、「报 / 不报缓存」三态、长工具运行时保温、压缩摘要按会话前缀续写                                                                                                                                              |
-| 会话            | JSONL 条目树，分叉与 `/tree` 回溯；两档压缩（裁剪大工具结果 → 摘要）与熔断；预算上限（`--max-turns` / `--max-cost`）、重复调用检测、模型回退                                                                                                           |
-| 入口            | 差分渲染终端界面、`--no-tui` 行式、`-p`（text / json / stream-json）、`--mode rpc`、`--mode acp`、SDK                                                                                                                                                  |
+| Area                    | What you get                                                                                                                                                                                                                                                                                                    |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Protocols and providers | 4 protocol lines, 17 built-in providers (Anthropic, OpenAI, Google, DeepSeek, Moonshot, Zhipu, Qwen, OpenRouter, Groq, xAI, Mistral, MiniMax, StepFun, Volcengine Ark, Tencent, Ollama, LM Studio), built-in channels (Messages / Responses preferred, Chat as fallback), custom providers, per-model protocols |
+| Zero config and relays  | With a key present, the first available provider is picked (relays pick a default model by price rules); `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` are recognized; `ama providers add` connects a relay from just a baseUrl and key: lists models, probes channels and writes the config back                    |
+| Model metadata          | Context window, output limit, image input, reasoning and prices come from a bundled models.dev snapshot (no network at startup or runtime; `ama models refresh` updates explicitly); one provider can mount several channels (Chat / Responses / Messages), `provider/model@channel`                            |
+| Image input             | `-p --image`, `@image-path` in the interface, `Ctrl+V` / `/paste` for clipboard images; per-endpoint size tiers with automatic resizing; models without image input refuse up front and suggest switching                                                                                                       |
+| Tools and presets       | read / edit / write / bash / grep / glob, plus ls, todo, task / task_ctl (sub-agents) and codemode; four presets `default` / `minimal` / `codemode-only` / `coordinator`                                                                                                                                        |
+| Plan and sub-agents     | Plan mode researches read-only, proposes a plan and executes after approval; `task` delegates to sub-agents (built-in general / explore / plan, custom types, foreground / background / follow-up / worktree isolation)                                                                                         |
+| External agents         | `task(agent="claude" \| "codex" \| "acp:<program>")` drives external coding agents with each CLI's own login, and approvals go to a human only; `ama --mode acp` exposes ama as an ACP agent                                                                                                                    |
+| Rewind and sandbox      | A checkpoint per turn; `/rewind` / double Esc returns to before any message (code, conversation or both); an OS sandbox on macOS / Linux isolates codemode and (optionally) bash                                                                                                                                |
+| codemode                | The model writes a piece of JS that orchestrates many tool calls in a child process constrained by the Node permission model; only the output goes back to the model                                                                                                                                            |
+| Skills                  | `SKILL.md` directories; the model reads them from an index, users invoke them with `/skill:<name>`; prompt templates too                                                                                                                                                                                        |
+| Two hook layers         | Command hooks (`hooks.json`, 11 events, user policy) and the in-process host adapter HostApi (for embedders)                                                                                                                                                                                                    |
+| Permissions             | Four modes, allow / deny rules, dangerous-command detection (sees through `sh -c` / `eval` / `xargs` / `find -exec`), project trust, a pre-execution preview in approvals                                                                                                                                       |
+| Caching                 | A stable prefix, cache fields and compat switches, miss attribution, a three-state "reports / does not report cache" model, warming during long tool runs, compaction summaries that continue the session prefix                                                                                                |
+| Sessions                | A JSONL entry tree with forks and `/tree` navigation; two-tier compaction (prune large tool results → summarize) with a circuit breaker; budgets (`--max-turns` / `--max-cost`), repeated-call detection, model fallback                                                                                        |
+| Entry points            | A differential-rendering terminal UI, `--no-tui` line mode, `-p` (text / json / stream-json), `--mode rpc`, `--mode acp`, the SDK                                                                                                                                                                               |
 
-## 安装
+## Install
 
-需要 **Node ≥ 22**。
+Requires **Node ≥ 22**.
 
 ### npm
 
@@ -73,88 +75,85 @@ npm i -g @armadra/agent
 ama --version
 ```
 
-### Release 单文件
+### Single-file release
 
-[Releases](https://github.com/Owlbay/armadra-agent/releases) 附带 `ama.cjs`、`ama-sandbox.cjs`、`package.tgz` 与 `SHA256SUMS`。`ama.cjs` 是全部内联的单文件，`ama-sandbox.cjs` 是 codemode 的沙箱子进程入口，两者放在**同一目录**：
+[Releases](https://github.com/Owlbay/armadra-agent/releases) ship `ama.cjs`, `ama-sandbox.cjs`, `package.tgz` and `SHA256SUMS`. `ama.cjs` is a fully inlined single file and `ama-sandbox.cjs` is the codemode sandbox child-process entry; keep both in the **same directory**:
 
 ```sh
-sha256sum -c --ignore-missing SHA256SUMS   # macOS：shasum -a 256 -c --ignore-missing SHA256SUMS
+sha256sum -c --ignore-missing SHA256SUMS   # macOS: shasum -a 256 -c --ignore-missing SHA256SUMS
 node ama.cjs --version
 alias ama="node /path/to/ama.cjs"
 ```
 
-`package.tgz` 与 npm 上的包内容相同，可以离线安装：`npm i -g ./package.tgz`。
+`package.tgz` has the same content as the npm package and can be installed offline: `npm i -g ./package.tgz`.
 
-### 从源码构建
+### Build from source
 
 ```sh
 git clone https://github.com/Owlbay/armadra-agent.git && cd armadra-agent
 corepack enable && pnpm install
-pnpm build                 # 产出 dist/ 与 dist/bundle/ama.cjs、dist/bundle/ama-sandbox.cjs
+pnpm build                 # produces dist/ and dist/bundle/ama.cjs, dist/bundle/ama-sandbox.cjs
 node dist/bundle/ama.cjs --version
 ```
 
-### Node 版本、codemode 与沙箱
+### Node version, codemode and sandbox
 
-| Node / 平台                                 | codemode                                                                                                                                                              | bash 沙箱（`sandbox.bash: "auto"`）                           |
-| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| ≥ 25                                        | 文件系统与网络都隔离；`codemode` 按只读类工具处理，`default` 权限模式下免审批；`default` 预设**缺省开启** codemode                                                    | 取决于平台（下两行）                                          |
-| 22 / 24 + 操作系统沙箱（macOS、多数 Linux） | 子进程经 `sandbox-exec` / bubblewrap 启动，网络由内核拒绝；与 Node ≥ 25 相同：只读类、`default` 预设缺省开启                                                          | macOS `sandbox-exec`、Linux bubblewrap 可用（`unshare` 不算） |
-| 22 / 24，没有操作系统沙箱（如 Windows）     | 隔离文件系统，**不隔离网络**；`codemode` 按执行类处理，每次都要审批（状态栏显示红色 `net!`）；`default` 预设缺省**不开** codemode，启动时提示一次（每个配置目录一次） | 不可用，bash 照常审批                                         |
+| Node / platform                              | codemode                                                                                                                                                                                                                                                | bash sandbox (`sandbox.bash: "auto"`)                                              |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| ≥ 25                                         | File system and network both isolated; `codemode` counts as a read-only tool and needs no approval in `default` permission mode; the `default` preset **enables** codemode by default                                                                   | Depends on the platform (next two rows)                                            |
+| 22 / 24 + OS sandbox (macOS, most Linux)     | The child process starts through `sandbox-exec` / bubblewrap and the kernel denies network; same as Node ≥ 25: read-only class, enabled by default in the `default` preset                                                                              | Available with macOS `sandbox-exec` or Linux bubblewrap (`unshare` does not count) |
+| 22 / 24 without an OS sandbox (e.g. Windows) | File system isolated, **network not isolated**; `codemode` counts as an execute-class tool and needs approval every time (red `net!` in the status bar); the `default` preset does **not** enable codemode, with a one-time notice per config directory | Not available; bash asks for approval as usual                                     |
 
-其余功能在 Node 22 起都一样。`ama doctor` 显示本机的操作系统沙箱能力（[docs/sandbox.md](docs/sandbox.md)）；`sandbox.enabled: "off"` 或 `AMA_SANDBOX=off` 关闭它。网络未隔离时想用 codemode 就显式开：`--codemode on` 或 config 写 `"codemode": { "mode": "on" }`。`codemode.requireStrict: true` 可以在网络未隔离时直接禁用 codemode。
+Everything else works the same from Node 22 on. `ama doctor` shows the OS sandbox capabilities of the machine ([docs/sandbox.md](docs/sandbox.md), Chinese); `sandbox.enabled: "off"` or `AMA_SANDBOX=off` turns it off. To use codemode without network isolation, enable it explicitly: `--codemode on` or `"codemode": { "mode": "on" }` in the config. `codemode.requireStrict: true` disables codemode outright when the network is not isolated.
 
-## 快速开始
+## Quick start
 
-**零配置**：设好任一家的标准环境变量就能用，ama 按内置顺序选第一个有 key 的供应商和它的缺省模型（`ama config show` 说明选了谁、为什么）。没有任何 key 时启动会提示怎么配，不会落到测试用的 `fake` 供应商上。
+**Zero config**: set the standard environment variable of any provider and go. ama picks the first provider with a key in built-in order, and that provider's default model (`ama config show` explains which and why). Without any key, startup tells you how to configure one instead of silently using the test `fake` provider.
 
 ```sh
-export ANTHROPIC_API_KEY=sk-...        # 或 OPENAI_API_KEY、GEMINI_API_KEY、DEEPSEEK_API_KEY、MOONSHOT_API_KEY ……
+export ANTHROPIC_API_KEY=sk-...        # or OPENAI_API_KEY, GEMINI_API_KEY, DEEPSEEK_API_KEY, MOONSHOT_API_KEY …
 cd your-project
-ama                                    # 终端界面
+ama                                    # terminal UI
 ```
 
-**把 key 存起来**：不想放在环境变量里，就存进 `~/.config/ama/auth.json`（0600）。key 从 stdin 读取，不经命令行参数、不进 shell 历史：
+**Store a key**: if you prefer not to keep it in the environment, store it in `~/.config/ama/auth.json` (0600). The key is read from stdin, never from command-line arguments, so it stays out of shell history:
 
 ```sh
-ama auth set deepseek                  # 终端里输入（不回显）
-ama auth list                          # 只列供应商与 key 形态，不显示 key
+ama auth set deepseek                  # type it in the terminal (not echoed)
+ama auth list                          # lists providers and key shapes only, never the key
 ama auth remove deepseek
 ```
 
-**一次性运行**：`-p` 执行完就退出，适合脚本与管道。
+**One-shot runs**: `-p` exits when done, for scripts and pipes.
 
 ```sh
-ama -p "解释一下 src/index.ts"
-git diff | ama -p "审阅这段改动"         # 提示也可以来自 stdin
-ama -p "列出 TODO" --model deepseek/deepseek-v4-pro --output-format json
+ama -p "explain src/index.ts"
+git diff | ama -p "review this change"         # the prompt can come from stdin too
+ama -p "list the TODOs" --model deepseek/deepseek-v4-pro --output-format json
 ```
 
-**常用参数**：
+**Common flags**:
 
-| 参数                                                    | 作用                                                         |
-| ------------------------------------------------------- | ------------------------------------------------------------ |
-| `--model provider/id`                                   | 选模型（配置、命令行、`/model`、SDK 写法一致）               |
-| `--thinking off\|minimal\|low\|medium\|high\|xhigh`     | 思考级别（缺省 `medium`）                                    |
-| `--permission-mode plan\|default\|auto-edit\|full-auto` | 权限模式（缺省 `default`）                                   |
-| `-c` / `-r [id]`                                        | 继续本目录最近的会话 / 选择会话恢复                          |
-| `--tools-preset <名>`                                   | 工具预设（见下文）                                           |
-| `--allow <规则>` / `--deny <规则>`                      | 追加权限规则，可重复                                         |
-| `--max-turns N` / `--max-cost USD`                      | 一次运行的轮数 / 美元上限（`-p` 到限退出 8）                 |
-| `--agent-dir <目录>`                                    | 追加子 Agent 定义目录，可重复                                |
-| `--mode rpc` / `--mode acp`                             | stdio 上说 RPC（JSONL）/ ACP（JSON-RPC），供宿主与编辑器驱动 |
+| Flag                                                    | Effect                                                                      |
+| ------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `--model provider/id`                                   | Pick a model (same syntax in config, command line, `/model` and the SDK)    |
+| `--thinking off\|minimal\|low\|medium\|high\|xhigh`     | Thinking level (default `medium`)                                           |
+| `--permission-mode plan\|default\|auto-edit\|full-auto` | Permission mode (default `default`)                                         |
+| `-c` / `-r [id]`                                        | Continue the latest session in this directory / pick a session to resume    |
+| `--tools-preset <name>`                                 | Tool preset (see below)                                                     |
+| `--allow <rule>` / `--deny <rule>`                      | Add permission rules; repeatable                                            |
+| `--max-turns N` / `--max-cost USD`                      | Turn / USD limit per run (`-p` exits with 8 when reached)                   |
+| `--agent-dir <dir>`                                     | Extra sub-agent definition directory; repeatable                            |
+| `--lang zh\|en`                                         | Interface language (also `AMA_LANG` and `ui.language`)                      |
+| `--mode rpc` / `--mode acp`                             | Speak RPC (JSONL) / ACP (JSON-RPC) on stdio, for hosts and editors to drive |
 
-**内置供应商**（17 家）：Anthropic、OpenAI、Google、DeepSeek、Moonshot（Kimi）、智谱、通义（DashScope）、OpenRouter、Groq、xAI、Mistral、MiniMax、阶跃、火山方舟、腾讯 TokenHub、Ollama、LM Studio。多协议的供应商带内置渠道，缺省协议 Messages / Responses 优先、Chat 回落：OpenAI、xAI、火山方舟走 Responses，通义、MiniMax、阶跃、腾讯走 Messages，DeepSeek、智谱、Kimi 暂走 Chat（`@messages` 可选），`provider/model@渠道` 指定渠道。完整表见 [docs/providers.md](docs/providers.md)「内置供应商」。
+**Built-in providers** (17): Anthropic, OpenAI, Google, DeepSeek, Moonshot (Kimi), Zhipu, Qwen (DashScope), OpenRouter, Groq, xAI, Mistral, MiniMax, StepFun, Volcengine Ark, Tencent TokenHub, Ollama, LM Studio. Multi-protocol providers ship built-in channels with Messages / Responses preferred and Chat as fallback: OpenAI, xAI and Volcengine Ark use Responses; Qwen, MiniMax, StepFun and Tencent use Messages; DeepSeek, Zhipu and Kimi use Chat for now (`@messages` is optional). `provider/model@channel` picks a channel. The full table is in [docs/en/providers.md](docs/en/providers.md) "Built-in providers".
 
-本地 Ollama / LM Studio 不需要 key：`ama --model ollama/<模型名>`。`ama --help` 列出全部参数与子命令；测试或排查时可用不花钱的 `--model fake/echo`（回显最后一条用户消息；模型选择器、`models list`、`doctor` 缺省不列这个测试供应商，`AMA_SHOW_FAKE=1` 时列出）。
+Local Ollama / LM Studio need no key: `ama --model ollama/<model>`. `ama --help` lists every flag and subcommand; for tests and troubleshooting use the free `--model fake/echo` (echoes the last user message; the model picker, `models list` and `doctor` hide this test provider unless `AMA_SHOW_FAKE=1`).
 
-## 配置
+## Configuration
 
-一个文件 `~/.config/ama/config.json`。第一次进入对话（交互、`-p`、RPC）或 `ama providers add` 时自动建好目录（0700）、
-最小的 `config.json` 与给编辑器用的 `config.schema.json`；`config show`、`doctor`、`models list` 等只读命令不写配置目录。
-也可以 `ama init` 手动建（已有文件不覆盖）。生成的 `config.json` 只有 `$schema`、`version` 与空 `providers`，不写死缺省值——以后
-缺省值调整时老配置同样跟着变。`ama config path` 打印各文件位置，`ama config edit` 用 `$VISUAL` / `$EDITOR` 打开，
-`config.schema.json` 给每个键带了说明与缺省值，编辑器悬停可见。常用的只有五个键：
+One file: `~/.config/ama/config.json`. The first time you enter a conversation (interactive, `-p`, RPC) or run `ama providers add`, ama creates the directory (0700), a minimal `config.json` and a `config.schema.json` for editors; read-only commands such as `config show`, `doctor` and `models list` never write the config directory. You can also run `ama init` by hand (existing files are not overwritten). The generated `config.json` holds only `$schema`, `version` and empty `providers`, with no hard-coded defaults, so old configs follow when defaults change later. `ama config path` prints where each file lives, `ama config edit` opens it with `$VISUAL` / `$EDITOR`, and `config.schema.json` carries a description and default for every key, visible on hover in editors. The common settings are just five keys:
 
 ```json
 {
@@ -168,54 +167,50 @@ ama -p "列出 TODO" --model deepseek/deepseek-v4-pro --output-format json
 }
 ```
 
-其余（`compaction`、`retry`、`codemode`、`hooks`、`ui`、`skills`、`cache`、`request`）都有缺省，`ama config show` 列出每一项的生效值与来源（default / user / profile / project / cli），也接受 `--tools-preset` / `--codemode` 看覆盖后的效果。
+Everything else (`compaction`, `retry`, `codemode`, `hooks`, `ui`, `skills`, `cache`, `request`) has defaults. `ama config show` lists the effective value and source (default / user / profile / project / cli) of every key, and also accepts `--tools-preset` / `--codemode` to preview overrides.
 
-**请求超时**：模型请求有空闲超时，缺省 300 s——等响应头、以及流里两块数据之间超过这个时间就判定卡住，按可重试错误
-走 `retry` 的退避重试（收到任何字节即重新计时，长回答不受影响）。用 `request.idleTimeoutMs`（只认用户级）或环境变量
-`AMA_IDLE_TIMEOUT_MS` 调整，0 关闭。
+**Request timeout**: model requests have an idle timeout, 300 s by default. Waiting longer than that for response headers, or between two chunks of the stream, counts as stuck and is retried with `retry` backoff as a retryable error (any byte received resets the timer, so long answers are unaffected). Adjust with `request.idleTimeoutMs` (user level only) or the `AMA_IDLE_TIMEOUT_MS` environment variable; 0 disables it.
 
-**代理**：设了 `HTTPS_PROXY` / `HTTP_PROXY`（`NO_PROXY` 排除）时，ama 启动时调用 Node 内置的环境变量代理（等价于
-`NODE_USE_ENV_PROXY=1`，零依赖）。Node 24+ 直接可用；Node 22 只有 22.21+ 设 `NODE_USE_ENV_PROXY=1` 才行，更早的版本会提示一次
-并直连。`ama doctor` 的「代理」一节显示当前状态（代理地址里的账号密码打码）。
+**Interface language**: choose it with `ui.language` (`auto` / `zh` / `en`, default `auto`), `--lang zh|en` or the `AMA_LANG` environment variable. `auto` decides from `LC_ALL` / `LC_MESSAGES` / `LANG`: `zh*` is Chinese, anything else English. It affects the interface and config descriptions only (`config.schema.json` is written in the current language; run `ama init` again after switching to rewrite it); text sent to the model is always English. To have the model reply in a given language, set `ui.replyLanguage`. See [docs/i18n.md](docs/i18n.md) (Chinese).
 
-### 文件位置与层级
+**Proxy**: when `HTTPS_PROXY` / `HTTP_PROXY` is set (`NO_PROXY` excludes), ama enables Node's built-in environment proxy at startup (equivalent to `NODE_USE_ENV_PROXY=1`, zero dependencies). It works directly on Node 24+; on Node 22 only 22.21+ with `NODE_USE_ENV_PROXY=1` works, older versions print a one-time notice and connect directly. The "Proxy" section of `ama doctor` shows the current state (credentials in the proxy URL are masked).
 
-| 位置                  | 内容                                                                                                                                                 |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `~/.config/ama/`      | 用户级：`config.json`、`config.schema.json`（ama 生成）、`auth.json`（0600）、`hooks.json`、`keybindings.json`、`trust.json`、`AGENTS.md`、`skills/` |
-| `~/.local/share/ama/` | 数据：`sessions/`（会话 JSONL）、`plans/`（计划文件）、`file-history/`（检查点备份）、`models-dev.json`（`ama models refresh` 的覆盖）、输入历史     |
-| `<项目>/.ama/`        | 项目级：`config.json`（只能收紧）、`hooks.json` / `skills/` / `prompts/`（需信任）                                                                   |
-| `<项目>/AGENTS.md`    | 项目约定，从 cwd 向上查找，自动进系统提示                                                                                                            |
-| `--profile <文件>`    | 宿主 profile（嵌入方用，见「嵌入 Armadra」）                                                                                                         |
+### File locations and layers
 
-`AMA_CONFIG_DIR` / `AMA_DATA_DIR` 可改两个目录；也遵循 `XDG_CONFIG_HOME` / `XDG_DATA_HOME`，Windows 下是 `%APPDATA%\ama` 与 `%LOCALAPPDATA%\ama`。
+| Location              | Contents                                                                                                                                                              |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `~/.config/ama/`      | User level: `config.json`, `config.schema.json` (generated by ama), `auth.json` (0600), `hooks.json`, `keybindings.json`, `trust.json`, `AGENTS.md`, `skills/`        |
+| `~/.local/share/ama/` | Data: `sessions/` (session JSONL), `plans/` (plan files), `file-history/` (checkpoint backups), `models-dev.json` (override from `ama models refresh`), input history |
+| `<project>/.ama/`     | Project level: `config.json` (can only tighten), `hooks.json` / `skills/` / `prompts/` (require trust)                                                                |
+| `<project>/AGENTS.md` | Project conventions, looked up from cwd upwards and added to the system prompt automatically                                                                          |
+| `--profile <file>`    | Host profile (for embedders, see "Embedding in Armadra")                                                                                                              |
 
-合并顺序是 **内置缺省 ← 用户级 ← profile ← 项目级**，但项目级只能收紧：可以追加 deny、把权限模式改严、把工具预设改窄、关掉 codemode；`allow` 规则、放宽模式、`cache`、`tools.default` 等放宽项被忽略并给出 warning。这样克隆一个陌生仓库不会因为它的配置而放开权限。
+`AMA_CONFIG_DIR` / `AMA_DATA_DIR` change the two directories; `XDG_CONFIG_HOME` / `XDG_DATA_HOME` are honored too, and on Windows they are `%APPDATA%\ama` and `%LOCALAPPDATA%\ama`.
 
-### 检查
+Layers merge as **built-in defaults ← user ← profile ← project**, but the project level can only tighten: it can add deny rules, make the permission mode stricter, narrow the tool preset and turn codemode off. Loosening items such as `allow` rules, laxer modes, `cache` and `tools.default` are ignored with a warning. Cloning an unfamiliar repository therefore never widens permissions through its config.
+
+### Checking
 
 ```sh
-ama config show          # 每一项的生效值与来源、供应商、将使用的模型、工具
+ama config show          # effective value and source of every key, providers, the model to be used, tools
 ama config show --json
-ama doctor               # 配置层级、项目信任、key 来源、Hook、终端能力
+ama doctor               # config layers, project trust, key sources, hooks, terminal capabilities
 ```
 
-## 接入中转站
+## Relays and gateways
 
-**一键接入**：只给 baseUrl 与 key。
+**One-step setup**: give just a baseUrl and a key.
 
 ```sh
 export PACKY_API_KEY=sk-...
 ama providers add packy --base-url https://proxy.example/v1 --key-env PACKY_API_KEY --probe --limit 8 --yes
-ama -p "hi" --model packy/kimi-k2.5               # 首选渠道
-ama -p "hi" --model packy/kimi-k2.5@messages      # 指定渠道（Anthropic Messages）
-ama -p "图里有什么颜色" --image shot.png --model packy/kimi-k2.5
-ama providers list                                 # 供应商 → 渠道 → 模型数、key 来源
+ama -p "hi" --model packy/kimi-k2.5               # preferred channel
+ama -p "hi" --model packy/kimi-k2.5@messages      # a specific channel (Anthropic Messages)
+ama -p "what colors are in this picture" --image shot.png --model packy/kimi-k2.5
+ama providers list                                 # provider → channels → model count, key source
 ```
 
-`add` 列出 `GET {baseUrl}/models` 的模型，从 baseUrl 推出 chat / responses / messages 三个候选渠道，`--probe` 逐渠道发最小
-请求，把能用的渠道写进每个模型的 `channels`；上下文、输出上限、图像、推理与价格不写进配置，运行时从内置的 models.dev
-快照补（`ama models list` 标出每个字段的来源）。不给 `--key-env` 时 key 从 stdin 读（不回显）存进 `auth.json`。写入后的配置：
+`add` lists the models from `GET {baseUrl}/models`, derives three candidate channels (chat / responses / messages) from the baseUrl, and with `--probe` sends a minimal request per channel and writes the working channels into each model's `channels`. Context window, output limit, images, reasoning and prices are not written to the config; at runtime they come from the bundled models.dev snapshot (`ama models list` marks where each field comes from). Without `--key-env` the key is read from stdin (not echoed) and stored in `auth.json`. The resulting config:
 
 ```json
 {
@@ -237,14 +232,14 @@ ama providers list                                 # 供应商 → 渠道 → �
 }
 ```
 
-**零配置**：内置的 `openai` / `anthropic` 识别 `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`。baseUrl 不在官方主机时接受目录外的 model id，缓存相关字段按保守缺省。
+**Zero config**: the built-in `openai` / `anthropic` providers recognize `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`. When the baseUrl is not an official host, model ids outside the catalog are accepted and cache-related fields use conservative defaults.
 
 ```sh
 OPENAI_BASE_URL=https://proxy.example/v1 OPENAI_API_KEY=$PACKY_API_KEY \
   ama -p "hi" --model openai/qwen3.8-flash
 ```
 
-**一个供应商 + 模型级协议**：同一个中转站下，不同模型支持的协议常常不同。不必为每种协议建一个供应商，把 `api` 写在模型上即可：
+**One provider, per-model protocols**: under one relay, different models often support different protocols. Instead of a provider per protocol, put `api` on the model:
 
 ```json
 {
@@ -263,258 +258,247 @@ OPENAI_BASE_URL=https://proxy.example/v1 OPENAI_API_KEY=$PACKY_API_KEY \
 }
 ```
 
-- `api` 缺省 `openai-completions`；可选 `openai-responses`、`anthropic-messages`、`google-generative-ai`。
-- `apiKey` 支持 `$ENV` / `${ENV}`（读环境变量）与 `!command`（执行命令取值），不要把 key 明文写进配置。
-- 自定义模型的元数据缺省从随包的 models.dev 快照补（启动不联网；`ama models refresh` 显式联网刷新到数据目录，`refresh-catalog`
-  是旧名）；匹配不到时不猜 `contextWindow`，自动压缩关闭，需要时在模型条目里补上或写 `"modelsDev": "provider/model"` 指定条目。
+- `api` defaults to `openai-completions`; also `openai-responses`, `anthropic-messages`, `google-generative-ai`.
+- `apiKey` supports `$ENV` / `${ENV}` (read an environment variable) and `!command` (run a command for the value); never put a key in the config in plain text.
+- Custom model metadata defaults to the bundled models.dev snapshot (no network at startup; `ama models refresh` refreshes explicitly into the data directory, `refresh-catalog` is the old name). Without a match `contextWindow` is not guessed and automatic compaction is off; add it to the model entry when needed, or point to an entry with `"modelsDev": "provider/model"`.
 
-**不想手写模型表**：让 ama 去问中转站。
+**Don't want to write the model table by hand**: let ama ask the relay.
 
 ```sh
-ama models discover packy                              # 列出 GET {baseUrl}/models
-ama models discover packy --probe --write --limit 8    # 逐个探测可用协议并写回配置
-ama models check packy/grok-4.7                        # 一次最小请求确认连通
-ama models cache-probe packy/grok-4.7                  # 这个端点报不报缓存
+ama models discover packy                              # list GET {baseUrl}/models
+ama models discover packy --probe --write --limit 8    # probe each model's protocols and write back to the config
+ama models check packy/grok-4.7                        # one minimal request to confirm connectivity
+ama models cache-probe packy/grok-4.7                  # does this endpoint report cache usage
 ```
 
-`--probe` 对每个模型依次试几种协议，记第一个成功的；`--write` 合并进用户级 `config.json`（原文件备份为 `config.json.bak`，已有条目不覆盖）。`--probe` 与 `cache-probe` 都会发真实请求：执行前打印预估，401 / 403 / 429 即停，`cache-probe` 在非交互环境需要 `--yes`。细节见 [docs/providers.md](docs/providers.md)。
+`--probe` tries a few protocols per model and records the first that works; `--write` merges into the user-level `config.json` (the original is backed up as `config.json.bak`, existing entries are not overwritten). Both `--probe` and `cache-probe` send real requests: they print an estimate first and stop on 401 / 403 / 429; `cache-probe` needs `--yes` when not interactive. Details in [docs/en/providers.md](docs/en/providers.md).
 
-## 工具与预设
+## Tools and presets
 
-| 预设            | 模型直接看到的工具                                             | 适合                                                                                        |
-| --------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `default`       | read、edit、write、bash、grep、glob；网络隔离时另加 `codemode` | 缺省（要 todo 就 `tools.default: ["+todo"]`）                                               |
-| `minimal`       | read、edit、write、bash                                        | 小模型、小上下文；`full-auto`                                                               |
-| `codemode-only` | 只有 `codemode`                                                | 长流程、工具调用密集的任务                                                                  |
-| `coordinator`   | read 与宿主注册的画布工具                                      | 嵌入 Armadra 的协调者：不写文件、不跑 bash；codemode 缺省关，显式开了脚本里也只能调这些工具 |
+| Preset          | Tools the model sees directly                                               | Good for                                                                                                                                                      |
+| --------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `default`       | read, edit, write, bash, grep, glob; plus `codemode` with network isolation | The default (for todo, set `tools.default: ["+todo"]`)                                                                                                        |
+| `minimal`       | read, edit, write, bash                                                     | Small models, small contexts; `full-auto`                                                                                                                     |
+| `codemode-only` | only `codemode`                                                             | Long workflows heavy on tool calls                                                                                                                            |
+| `coordinator`   | read and the canvas tools registered by the host                            | The coordinator embedded in Armadra: writes no files, runs no bash; codemode is off by default, and when enabled explicitly scripts can call only these tools |
 
-- `--tools-preset <名>` 或 `tools.preset` 选预设。`codemode` 是 `codemode-only` 的旧名（0.3.0），配置、命令行、RPC、SDK 都还认，`ama config show` 显示规范名并提示。
-- `tools.default` 在预设上微调：`["+task", "+todo", "-glob"]`；不带前缀的名字整组替换。`task` 与 `task_ctl` 同进退（`+task` 一起加）。
-- 另有 `--tools a,b,c`（只启用这些）、`--exclude-tools a,b`、交互模式的 `/tools`。
+- Pick a preset with `--tools-preset <name>` or `tools.preset`. `codemode` is the old name of `codemode-only` (0.3.0); config, command line, RPC and SDK still accept it, and `ama config show` shows the canonical name with a hint.
+- `tools.default` tweaks the preset: `["+task", "+todo", "-glob"]`; bare names replace the whole set. `task` and `task_ctl` go together (`+task` adds both).
+- There are also `--tools a,b,c` (enable only these), `--exclude-tools a,b` and `/tools` in interactive mode.
 
-**codemode** 让模型写一段 JavaScript，用 `tools.<name>(args)` 编排多次工具调用（可以 `Promise.all` 并发），只有脚本输出回到模型。脚本跑在 `node --permission` 子进程的 vm 里：没有 `require` / `import` / `process` / `fetch`，每次内层调用仍逐个经过 Hook、权限与审批。
+**codemode** lets the model write a piece of JavaScript that orchestrates many tool calls with `tools.<name>(args)` (concurrently with `Promise.all`); only the script's output goes back to the model. The script runs in a vm inside a `node --permission` child process: no `require` / `import` / `process` / `fetch`, and every inner call still goes through hooks, permissions and approval one by one.
 
-**缺省开放**：`codemode.mode` 不写时跟随预设——`default` → `on`（六个工具 + codemode，只在网络隔离的沙箱里：Node ≥ 25，或 Node 22 / 24 + 操作系统沙箱；否则 `off`），`codemode-only` → `only`，`minimal` / `coordinator` → `off`。显式的 `--codemode off|on|only` 或 `codemode.mode` 优先，项目级只能写 `off`。`on` 模式下 codemode 的描述只用一行列出可在脚本里调用的直接工具（参数相同）与仅脚本可调的工具名，不重复声明，前缀只多约 400 token（[三预设基准](https://github.com/Owlbay/armadra-agent/blob/main/docs/benchmarks/presets-2026-10-02.md)测的是去重前的 codemode 预设：小任务输入多约 45%、轮数不减）。只读检索多、调用次数多的长流程可以用 `codemode-only`。
+**Default exposure**: when `codemode.mode` is unset it follows the preset: `default` → `on` (six tools + codemode, only inside a network-isolating sandbox: Node ≥ 25, or Node 22 / 24 + an OS sandbox; otherwise `off`), `codemode-only` → `only`, `minimal` / `coordinator` → `off`. An explicit `--codemode off|on|only` or `codemode.mode` wins; the project level can only write `off`. In `on` mode the codemode description lists, in one line, the direct tools callable from scripts (same parameters) and the script-only tool names, without re-declaring them, adding only about 400 tokens to the prefix (the [three-preset benchmark](https://github.com/Owlbay/armadra-agent/blob/main/docs/benchmarks/presets-2026-10-02.md) measured the codemode preset before deduplication: about 45% more input on small tasks, no fewer turns). Long workflows with many read-only lookups and many calls can use `codemode-only`.
 
-## 缓存
+## Caching
 
-长任务的主要用量是缓存读取：前缀一旦变化，此后每次请求都按全价重读。ama 分三层处理：
+Most usage in long tasks is cache reads: once the prefix changes, every later request re-reads it at full price. ama handles this in three layers:
 
-- **协议层**：系统提示节顺序固定、不含时间戳，工具按名排序，中途变化只追加在末尾；按各家写法打缓存断点（Anthropic `cache_control`、OpenAI `prompt_cache_key` 等），端点 400 拒收某个缓存字段时自动去掉重发。
-- **会话层**：每次请求记前缀指纹，检测未命中并归因（空闲超时、子任务、切换模型、系统提示 / 工具表变化、服务端淘汰），判定端点报不报缓存，长工具运行期间保温。
-- **展示层**：状态栏、`/session`、`/cache`、RPC 统计与 `ama models cache-probe`。
+- **Protocol layer**: the system prompt sections have a fixed order and no timestamps, tools are sorted by name, and mid-session changes are only appended at the end; cache breakpoints follow each provider's style (Anthropic `cache_control`, OpenAI `prompt_cache_key`, …), and when an endpoint rejects a cache field with 400 it is dropped and the request resent.
+- **Session layer**: every request records a prefix fingerprint to detect and attribute misses (idle timeout, sub-task, model switch, system prompt / tool table change, server eviction), decides whether the endpoint reports cache usage, and warms the cache during long tool runs.
+- **Display layer**: the status bar, `/session`, `/cache`, RPC stats and `ama models cache-probe`.
 
-### 读状态栏
+### Reading the status bar
 
-独立终端缺省两行（`Ctrl+G` / `/statusline` 切换成一行，嵌入宿主缺省一行）：
+A standalone terminal shows two lines by default (`Ctrl+G` / `/statusline` switches to one; embedding hosts default to one):
 
 ```
 tps: 100 tok/s • 546 tok / 5.5s (avg 100 · ttft 1.4s)    ↑412k ↓8.1k · cache 83% ♨ · rebill $0.11 · [-]
 Accept edits     claude-opus-5-5 medium | Ctx 34.0% | proj ⎇ main 5ae9e54 (+12,-3) | $0.84 | 2h24m
 ```
 
-上行是速率与用量，下行是权限模式、模型与思考级别、上下文、目录与 git 分支（含工作区增删行）、费用、会话时长。缓存相关的项：
+The top line is throughput and usage; the bottom line is permission mode, model and thinking level, context, directory and git branch (with working-tree line changes), cost and session duration. The cache-related items:
 
-| 项             | 怎么读                                                                     |
-| -------------- | -------------------------------------------------------------------------- |
-| `cache 83%`    | **最近一次**请求的命中率；会话累计在 `/session`                            |
-| `cache —`      | 端点还没报过缓存（还没有足够长的可比请求）                                 |
-| `cache 未报告` | 端点不报缓存（连续 3 次读写都是 0）；这类请求不算进命中率，而不是显示成 0% |
-| `♨`            | 保温计时中                                                                 |
-| `rebill $0.11` | 本会话因缓存未命中多付的钱（无价格的模型显示 token）；为 0 不显示          |
-| `Ctx 34.0%`    | 上下文占用；≥ 70% 黄、≥ 90% 红，跨过时消息区提示「约剩 N 回合」            |
+| Item                   | How to read it                                                                                                                                              |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cache 83%`            | Hit rate of the **latest** request; the session total is in `/session`                                                                                      |
+| `cache —`              | The endpoint has not reported cache usage yet (no long enough comparable request so far)                                                                    |
+| `cache` "not reported" | The endpoint does not report cache usage (reads and writes were 0 three times in a row); such requests are left out of the hit rate rather than shown as 0% |
+| `♨`                    | Warming timer running                                                                                                                                       |
+| `rebill $0.11`         | Extra spend in this session caused by cache misses (tokens for models without prices); hidden when 0                                                        |
+| `Ctx 34.0%`            | Context usage; yellow at ≥ 70%, red at ≥ 90%, with an "about N turns left" note in the message area when crossed                                            |
 
-一次未命中重计费 ≥ 20k token 或 ≥ $0.10 时，消息区写一行原因。`/cache` 看缓存统计，`/cache fingerprint` 查前缀指纹（两次之间哈希变了，就是系统提示或工具表被改了）。
+When one miss re-bills ≥ 20k tokens or ≥ $0.10, the message area gets one line with the reason. `/cache` shows cache stats and `/cache fingerprint` the prefix fingerprint (if the hash changed between two requests, the system prompt or tool table was modified).
 
-### 三态、保温与摘要续写
+### Three states, warming and summary continuation
 
-- **三态**：每个端点（供应商 + 主机 + 模型）在 `unknown` / `reported` / `silent` 之间判定。只有 `reported` 才显示命中率、检测未命中、保温；不报缓存的中转不会被误报成 0%。中转上已知不报的模型可以设 `compat.cacheReporting: "silent"`。
-- **保温**：工具长时间运行（长测试、`task` 子任务、codemode 脚本）时，在缓存 TTL 到期前重放一次上一个请求（`maxTokens: 1`），只付读价把缓存续上。`cache.warming` 取 `off` / `streaming`（缺省，只在运行中）/ `idle`（空闲也保温，适合贵模型），`/cache warm …` 本会话切换；期望节省低于 `cache.minSavingsUsd`（缺省 $0.05）不发。
-- **摘要续写**：上下文压缩的摘要请求接在与上一次真实请求逐字节相同的前缀后面，整段历史按读价计费；失败时回落为独立摘要请求。
+- **Three states**: each endpoint (provider + host + model) is classified as `unknown` / `reported` / `silent`. Only `reported` shows a hit rate, detects misses and warms; relays that do not report cache usage are never misreported as 0%. For models known not to report on a relay, set `compat.cacheReporting: "silent"`.
+- **Warming**: while a tool runs for a long time (long tests, `task` sub-tasks, codemode scripts), the previous request is replayed once before the cache TTL expires (`maxTokens: 1`), paying only the read price to keep the cache alive. `cache.warming` is `off` / `streaming` (default, only while running) / `idle` (also while idle, for expensive models); `/cache warm …` switches it for the session; nothing is sent when the expected saving is below `cache.minSavingsUsd` (default $0.05).
+- **Summary continuation**: the compaction summary request follows a prefix byte-identical to the last real request, so the whole history is billed at the read price; on failure it falls back to a standalone summary request.
 
-### 实测
+### Measurements
 
-[缓存验收实验](https://github.com/Owlbay/armadra-agent/blob/main/docs/benchmarks/cache-2026-10-02.md)（2026-10-02，经一家测试中转站）：
+[Cache acceptance experiment](https://github.com/Owlbay/armadra-agent/blob/main/docs/benchmarks/cache-2026-10-02.md) (2026-10-02, through one test relay):
 
-| 场景                        | 结果                                                                                           |
-| --------------------------- | ---------------------------------------------------------------------------------------------- |
-| Kimi 摘要续写               | 摘要请求读缓存 20.2k / 20.5k，**命中 98.8%**（修复前 0%：发 `tool_choice` 时前缀在工具段断开） |
-| DeepSeek 按 2048 粒度报缓存 | 假未命中 3 次 → **0 次**（自动推断端点缓存粒度）                                               |
-| 基线命中率（5 轮编码任务）  | Kimi 累计 86%、MiniMax 75%，均 0 次未命中                                                      |
+| Scenario                               | Result                                                                                                                                            |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Kimi summary continuation              | The summary request read 20.2k / 20.5k from cache, **98.8% hit** (0% before the fix: sending `tool_choice` broke the prefix at the tools section) |
+| DeepSeek reporting cache in 2048 units | False misses 3 → **0** (cache granularity inferred per endpoint)                                                                                  |
+| Baseline hit rate (5-turn coding task) | Kimi 86% cumulative, MiniMax 75%, 0 misses each                                                                                                   |
 
-缓存相关的全部配置与各协议字段见 [docs/providers.md](docs/providers.md)「缓存」。
+All cache settings and the fields for each protocol are in [docs/en/providers.md](docs/en/providers.md) "Caching".
 
-## 安全
+## Safety
 
-**权限模式**（`--permission-mode`、配置 `permission.mode`、`/permission` 选择器、交互模式 `Shift+Tab` 或输入为空时 `Tab` 循环）：
+**Permission modes** (`--permission-mode`, config `permission.mode`, the `/permission` picker, and in interactive mode `Shift+Tab`, or `Tab` on an empty input, to cycle):
 
-| 模式        | 显示名             | 读  | 写                                                     | 执行（bash 等）                |
-| ----------- | ------------------ | --- | ------------------------------------------------------ | ------------------------------ |
-| `default`   | Manual             | ✓   | 询问                                                   | 询问                           |
-| `auto-edit` | Accept edits       | ✓   | ✓                                                      | 询问                           |
-| `plan`      | Plan               | ✓   | 拒绝                                                   | 拒绝                           |
-| `auto`      | Auto               | ✓   | ✓ ¹                                                    | 安全的自动放行，有风险的才问 ² |
-| `full-auto` | Bypass permissions | ✓   | ✓                                                      | ✓                              |
-| `allowlist` | Allowlist only     | ✓   | 只放行 allow 规则命中的，其余拒绝，从不询问（适合 CI） | 同左                           |
+| Mode        | Display name       | Read | Write                                                                                   | Execute (bash etc.)                 |
+| ----------- | ------------------ | ---- | --------------------------------------------------------------------------------------- | ----------------------------------- |
+| `default`   | Manual             | ✓    | ask                                                                                     | ask                                 |
+| `auto-edit` | Accept edits       | ✓    | ✓                                                                                       | ask                                 |
+| `plan`      | Plan               | ✓    | deny                                                                                    | deny                                |
+| `auto`      | Auto               | ✓    | ✓ ¹                                                                                     | safe ones allowed, risky ones ask ² |
+| `full-auto` | Bypass permissions | ✓    | ✓                                                                                       | ✓                                   |
+| `allowlist` | Allowlist only     | ✓    | only calls matching allow rules pass, everything else is denied without asking (for CI) | same                                |
 
-¹ 机密文件（`.env`、私钥、`.ssh/` 等）、`.git/` 与 `.ama/`、项目目录外的写入仍然询问。
-² 三层判定：规则层（危险命令、网络、删除类、受保护路径 → 询问）→ 静态判定（安全名单：`ls`、`cat`、`grep`、`git status/diff/log`、`npm test`、`tsc --noEmit`、`cargo test` 等 → 放行）→ 都没决定时问一次模型分类器（独立请求，不影响主会话缓存；`permission.autoModel` 可指定便宜模型）。详见 [docs/permissions.md](docs/permissions.md)。
+¹ Secret files (`.env`, private keys, `.ssh/` …), `.git/` and `.ama/`, and writes outside the project directory still ask.
+² Three tiers: the rule tier (dangerous commands, network, deletion, protected paths → ask) → static judgement (a safe list: `ls`, `cat`, `grep`, `git status/diff/log`, `npm test`, `tsc --noEmit`, `cargo test` … → allow) → when neither decides, one question to a model classifier (a separate request that leaves the main session cache untouched; `permission.autoModel` can name a cheap model). Details in [docs/en/permissions.md](docs/en/permissions.md).
 
-**判定顺序**：deny 规则（含 Hook deny）→ 危险命令 →（auto 的规则层）→ 模式 / 静态判定 → allow 规则把「询问」变「允许」→（auto 的分类器）。前面的结论后面不能放宽。无人值守（`-p`、RPC 未接审批）时「询问」一律按拒绝。项目级配置只能收紧模式，且不能设 `auto` / `full-auto`。
+**Decision order**: deny rules (including hook deny) → dangerous commands → (auto's rule tier) → mode / static judgement → allow rules turn "ask" into "allow" → (auto's classifier). A later step can never loosen an earlier decision. When unattended (`-p`, RPC without approvals) "ask" always means deny. Project config can only make the mode stricter and cannot set `auto` / `full-auto`.
 
-- **规则**：`bash(git push*)`、`write(src/**)`、`read(**)`、`canvas_*`；`--allow` / `--deny` 可重复。内置 deny：写 `.git/**`、读写 `.ssh/**`。
-- **危险命令**：`rm -rf /`、`sudo`、`git push --force`、`git reset --hard`、`git clean -f`、`curl … | sh`、`chmod -R 777`、`npm publish`、`shutdown` 等，即使有 allow 规则也要询问。识别会穿透 `sh -c '…'`、`eval`、`xargs`、`find -exec` 与 git 全局选项。
-- **bash 沙箱**（缺省关闭）：见下文「沙箱」。
-- **项目信任**：`.ama/hooks.json`、`.ama/skills/`、`.ama/prompts/` 会执行或注入项目里的内容，需要先信任目录（交互模式问一次，可记住；`--trust` / `--no-trust`；非交互缺省不信任）。`AGENTS.md` 与 `.ama/config.json` 不需要信任，因为后者只能收紧。
-- **执行前预览**：审批对话框除了输入摘要，还列出这一步会碰到什么——bash 里 `rm` / `mv` / `git clean` / `git reset --hard` / 重定向的目标路径是否存在、大小、目录里有多少文件；write 显示路径与行数，edit 显示每处修改的 −/+ 摘要。`y` 允许、`n` 拒绝、`a` 本会话同类不再问、`v` 看完整输入。
-- **Hook**：`hooks.json` 在 `PreToolUse`、`PostToolUse`、`UserPromptSubmit`、`Stop`、`PostCompact`、`PostRewind` 等 11 个事件运行 shell 命令，可以否决工具调用、改写输入、追加上下文、让运行再跑一轮。见 [docs/hooks.md](docs/hooks.md)。
-- **审批来源**：子 Agent 与外部 Agent 发起的审批在对话框标题标出来源（`[task:explore]`、`[claude · 会话 abc12345]`、「首次运行外部 Agent」），见 [docs/permissions.md](docs/permissions.md)「审批对话框的来源标注」。
+- **Rules**: `bash(git push*)`, `write(src/**)`, `read(**)`, `canvas_*`; `--allow` / `--deny` are repeatable. Built-in deny: writes to `.git/**`, reads and writes to `.ssh/**`.
+- **Dangerous commands**: `rm -rf /`, `sudo`, `git push --force`, `git reset --hard`, `git clean -f`, `curl … | sh`, `chmod -R 777`, `npm publish`, `shutdown` and so on ask even with an allow rule. Detection sees through `sh -c '…'`, `eval`, `xargs`, `find -exec` and git global options.
+- **bash sandbox** (off by default): see "Sandbox" below.
+- **Project trust**: `.ama/hooks.json`, `.ama/skills/` and `.ama/prompts/` execute or inject content from the project, so the directory must be trusted first (asked once in interactive mode, can be remembered; `--trust` / `--no-trust`; untrusted by default when non-interactive). `AGENTS.md` and `.ama/config.json` need no trust, since the latter can only tighten.
+- **Pre-execution preview**: besides an input summary, the approval dialog lists what the step will touch: for `rm` / `mv` / `git clean` / `git reset --hard` / redirections in bash, whether the target paths exist, their size and how many files a directory holds; for write, the path and line count; for edit, a −/+ summary per change. `y` allows, `n` denies, `a` stops asking for the same kind this session, `v` shows the full input.
+- **Hooks**: `hooks.json` runs shell commands on 11 events such as `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `Stop`, `PostCompact` and `PostRewind`; hooks can veto tool calls, rewrite input, add context or make the run go another round. See [docs/hooks.md](docs/hooks.md) (Chinese).
+- **Approval origin**: approvals raised by sub-agents and external agents show their origin in the dialog title (`[task:explore]`, `[claude · session abc12345]`, "first run of an external agent"); see [docs/en/permissions.md](docs/en/permissions.md) "Origin labels in the approval dialog".
 
-## 沙箱
+## Sandbox
 
-macOS 用 `sandbox-exec`，Linux 用 bubblewrap（退而 `unshare -r -n`，只隔离网络），启动时用目标配置跑一次最小探针确认真能用（嵌套沙箱、没有用户命名空间时降级），`ama doctor` 显示结果。Windows 没有操作系统沙箱。
+macOS uses `sandbox-exec` and Linux uses bubblewrap (falling back to `unshare -r -n`, which isolates the network only). At startup a minimal probe runs with the target profile to confirm it really works (degrading for nested sandboxes or missing user namespaces), and `ama doctor` shows the result. Windows has no OS sandbox.
 
-- **codemode**：子进程经沙箱启动，内核拒绝网络与一切写入；有沙箱时 Node 22 / 24 与 Node ≥ 25 一样按只读类处理、`default` 预设缺省开启（见上文「Node 版本、codemode 与沙箱」）。
-- **bash**（缺省关闭）：`"sandbox": { "bash": "auto" }` 后 bash（含后台 bash）在沙箱里跑——只能写工作区、系统临时目录与 `sandbox.writable` 追加的目录，工作区的 `.ama/`、`.git/hooks`、`.git/config` 只读，读不到 `~/.ssh` 等凭据，缺省不能联网（`sandbox.network: "allow"` 放开）。`default` / `auto-edit` 下沙箱内的命令免审批（危险命令、deny 规则、Hook ask 照旧）；被沙箱拒绝时模型可以请求 `sandbox: false` 不经沙箱重跑，这一步照常审批、无人值守拒绝。状态栏多一个 `沙箱` 标记。
-- `sandbox.*` 只认用户级 / profile，项目级只能写收紧的 `network: "deny"`；`sandbox.enabled: "off"` 或 `AMA_SANDBOX=off` 整体关闭。
+- **codemode**: the child process starts inside the sandbox and the kernel denies network and all writes; with a sandbox, Node 22 / 24 behaves like Node ≥ 25: read-only class and enabled by default in the `default` preset (see "Node version, codemode and sandbox" above).
+- **bash** (off by default): with `"sandbox": { "bash": "auto" }`, bash (including background bash) runs in the sandbox. It can only write the workspace, the system temp directory and directories added via `sandbox.writable`; the workspace's `.ama/`, `.git/hooks` and `.git/config` are read-only; credentials such as `~/.ssh` cannot be read; and there is no network by default (`sandbox.network: "allow"` opens it). In `default` / `auto-edit`, sandboxed commands need no approval (dangerous commands, deny rules and hook asks still apply); when the sandbox blocks something the model may ask to rerun with `sandbox: false` outside it, which is approved as usual and denied when unattended. The status bar shows an extra sandbox marker.
+- `sandbox.*` is user level / profile only; the project level can only write the tightening `network: "deny"`. `sandbox.enabled: "off"` or `AMA_SANDBOX=off` turns it all off.
 
-细节、各平台策略与已知绕过见 [docs/sandbox.md](docs/sandbox.md)。
+Details, per-platform policies and known bypasses are in [docs/sandbox.md](docs/sandbox.md) (Chinese).
 
 ## Plan
 
-Plan 模式（`Shift+Tab`、`/permission plan`、`/plan <目标>`、`--permission-mode plan`）下模型只读调研——只放行读工具、只读命令（`ls`、`rg`、`git log / diff` 等）与只读子 Agent——最后输出 `<proposed_plan>` 计划块。ama 提取步骤、把计划落到 `<数据目录>/plans/`，弹出审批框：
+In Plan mode (`Shift+Tab`, `/permission plan`, `/plan <goal>`, `--permission-mode plan`) the model researches read-only: only read tools, read-only commands (`ls`, `rg`, `git log / diff` …) and read-only sub-agents are allowed. It ends with a `<proposed_plan>` block. ama extracts the steps, saves the plan under `<data dir>/plans/` and opens an approval dialog:
 
-- **批准并执行** / **批准，在新上下文执行**（新建会话，以计划全文开场），接着选执行模式（回到进入前的模式 / Accept edits / Auto）；步骤变成待办，逐步推进（有 todo 工具时用 `todo update`，没有时模型每完成一步写一行 `[DONE:S1]`）；
-- **继续修改**（意见发给模型重写计划）/ **放弃并退出 Plan**；`e` 在外部编辑器里改计划，Esc 放弃但留在 Plan。
+- **Approve and execute** / **Approve, execute in a fresh context** (a new session that opens with the full plan), then pick the execution mode (back to the previous mode / Accept edits / Auto); steps become todos and are worked through one by one (with `todo update` when the todo tool exists, otherwise the model writes a `[DONE:S1]` line per finished step);
+- **Keep revising** (feedback goes to the model to rewrite the plan) / **Discard and leave Plan**; `e` edits the plan in an external editor, Esc discards but stays in Plan.
 
-line 模式用 `/plan approve [模式|fresh]` / `/plan reject`；RPC 声明 `plans` 能力后由客户端审批；SDK 用 `createAgentSession({ plan: { onProposed } })`。**ama 不替人批准**：`-p` 缺省停在「计划待审批」并退出 9，用户级配置 `"plan": { "unattended": "approve" }` 才在无人值守时自动批准执行。`plan.model` 可让规划与执行用不同模型。见 [docs/plan.md](docs/plan.md)。
+Line mode uses `/plan approve [mode|fresh]` / `/plan reject`; RPC clients approve after declaring the `plans` capability; the SDK uses `createAgentSession({ plan: { onProposed } })`. **ama never approves on a person's behalf**: `-p` stops at "plan awaiting approval" and exits with 9 by default; only the user-level config `"plan": { "unattended": "approve" }` approves and executes automatically when unattended. `plan.model` lets planning and execution use different models. See [docs/plan.md](docs/plan.md) (Chinese).
 
-## 子 Agent
+## Sub-agents
 
-`task` 工具把子任务交给一个全新上下文的子 Agent（同进程、独立会话文件，深度 1），结果作为工具结果回到父会话。`default` 预设下 `task` 只在 codemode 脚本里可用，直接暴露用 `--tools …,task` 或 `tools.default: ["+task"]`。
+The `task` tool hands a sub-task to a sub-agent with a fresh context (same process, its own session file, depth 1); the result returns to the parent session as a tool result. Under the `default` preset `task` is only available inside codemode scripts; expose it directly with `--tools …,task` or `tools.default: ["+task"]`.
 
-- 内置类型 `general`（缺省）、`explore`、`plan`（后两者强制只读、不弹审批）；`~/.config/ama/agents/*.md`、`.ama/agents/*.md`（需信任）或 `--agent-dir` 定义自己的类型（工具白名单、模型、权限、轮数、worktree 隔离）。
-- 同一回复里的多个 task 并行（`subagents.maxConcurrent`，缺省 4）；`background: true` 立即返回 `taskId`，完成后父会话收到 `<task-notification>`；`task{taskId}` 续聊；`task_ctl` 列出 / 等待 / 停止 / 读输出；`isolation: "worktree"` 在独立 git worktree 里跑。
-- 子会话工具表与父逐字节相同，首个请求复用父的缓存前缀。界面里 task 工具行折叠显示进度，`/tasks` 看输出或停止，`/agents` 列出可用类型。
+- Built-in types `general` (default), `explore` and `plan` (the last two are forced read-only and never prompt for approval); define your own types (tool allowlist, model, permissions, turns, worktree isolation) in `~/.config/ama/agents/*.md`, `.ama/agents/*.md` (requires trust) or `--agent-dir`.
+- Several tasks in one reply run in parallel (`subagents.maxConcurrent`, default 4); `background: true` returns a `taskId` immediately and the parent session receives a `<task-notification>` when done; `task{taskId}` continues the conversation; `task_ctl` lists / waits / stops / reads output; `isolation: "worktree"` runs in a separate git worktree.
+- The sub-session's tool table is byte-identical to the parent's, so its first request reuses the parent's cache prefix. In the interface the task tool line folds and shows progress; `/tasks` shows output or stops tasks, `/agents` lists the available types.
 
-见 [docs/agents.md](docs/agents.md)「子 Agent」。
+See [docs/agents.md](docs/agents.md) (Chinese) "Sub-agents".
 
-## 外部 Agent
+## External agents
 
-`task(agent="claude")`、`"codex"` 或 `"acp:<程序>"`（Gemini CLI、OpenCode、Kimi、ama 自己等任意 ACP Agent）用你在该 CLI 里的**现有登录**驱动外部编码 Agent，前台 / 后台 / 续聊 / `task_ctl` 与 ama 子 Agent 一致；结果按资料处理。
+`task(agent="claude")`, `"codex"` or `"acp:<program>"` (any ACP agent: Gemini CLI, OpenCode, Kimi, ama itself …) drives an external coding agent with your **existing login** in that CLI. Foreground / background / follow-up / `task_ctl` work as with ama's own sub-agents, and results are treated as reference material.
 
-- **审批只交给人**：外部 Agent 要确认的操作走界面 / 宿主，auto 分类器与模型都不参与；无人值守一律拒绝。每个会话首次以某个外部 Agent 运行时确认一次（allow 规则 `task(claude)` 或 `full-auto` 放行）。
-- 外部 Agent 的模式不比 ama 当前模式宽（plan / allowlist 下只读）；子进程缺省剥离供应商 key、`*_BASE_URL`、`AMA_*`，不把订阅切成 API 计费；只在已信任目录里启动；有并发池、美元预算与看门狗。
-- 嵌入宿主时 ama 不自己启动外部 CLI，只用宿主经 `HostApi.runners` 注入的 runner。
-- **ama 作为 ACP Agent**：`ama --mode acp` 供 Zed、JetBrains、Armadra 的 ACP 节点驱动；`@armadra/agent/acp` 导出客户端、驱动与假 Agent。
+- **Approvals go to a human only**: operations the external agent wants confirmed go to the interface / host; neither the auto classifier nor the model takes part, and unattended runs always deny. The first run of a given external agent in each session is confirmed once (the allow rule `task(claude)` or `full-auto` lets it through).
+- An external agent's mode is never wider than ama's current mode (read-only under plan / allowlist). By default the child process is stripped of provider keys, `*_BASE_URL` and `AMA_*`, so subscriptions are never switched to API billing; it only starts in trusted directories; there is a concurrency pool, a USD budget and a watchdog.
+- When embedded in a host, ama does not start external CLIs itself; it only uses runners injected by the host through `HostApi.runners`.
+- **ama as an ACP agent**: `ama --mode acp` can be driven by Zed, JetBrains and Armadra's ACP nodes; `@armadra/agent/acp` exports a client, a driver and a fake agent.
 
-见 [docs/agents.md](docs/agents.md)「外部 Agent」与 [docs/acp.md](docs/acp.md)。
+See [docs/agents.md](docs/agents.md) "External agents" and [docs/acp.md](docs/acp.md) (both Chinese).
 
-## 回滚
+## Rewind
 
-每条开启新回合的用户消息都是回滚点：edit / write 第一次写文件前备份，每个新回合重拍已跟踪文件（`checkpoints.mode: "shadow-git"` 时整个工作目录进影子仓库，bash 的改动也能回滚）。
+Every user message that starts a new turn is a rewind point: edit / write back up a file before writing it the first time, and each new turn re-snapshots tracked files (with `checkpoints.mode: "shadow-git"` the whole working directory goes into a shadow repository, so bash changes can be rolled back too).
 
-- `/rewind` 或空闲时双击 Esc 打开列表，确认面板给出：恢复代码和对话 / 恢复对话 / 恢复代码 / 从这里摘要 / 摘要到这里，每项带预览；回合外被手动改过的文件按冲突列出、缺省跳过，可选择覆盖；git HEAD 变了只提示命令，不动 git。
-- 运行中 Esc 中断且本回合还没有输出时自动撤回这条消息并回填（`ui.restoreOnCancel`）。
-- line 模式 `/rewind <n> [both|conversation|code] [overwrite]`；RPC `get_rewind_points` / `rewind`；SDK `session.rewind()`；Hook `PostRewind`。
+- `/rewind`, or double Esc while idle, opens the list; the confirmation panel offers: restore code and conversation / restore conversation / restore code / summarize from here / summarize up to here, each with a preview. Files changed by hand outside the turn are listed as conflicts and skipped by default, with an option to overwrite; if git HEAD moved, ama only suggests commands and never touches git.
+- When Esc interrupts a run before this turn produced any output, the message is withdrawn and put back into the input box (`ui.restoreOnCancel`).
+- Line mode `/rewind <n> [both|conversation|code] [overwrite]`; RPC `get_rewind_points` / `rewind`; SDK `session.rewind()`; hook `PostRewind`.
 
-见 [docs/tui.md](docs/tui.md)「回滚」、[docs/rewind-plan.md](docs/rewind-plan.md) 与 [docs/sessions.md](docs/sessions.md)。
+See [docs/en/tui.md](docs/en/tui.md) "Rewind", [docs/rewind-plan.md](docs/rewind-plan.md) (Chinese) and [docs/en/sessions.md](docs/en/sessions.md).
 
-## 界面与入口
+## Interfaces and entry points
 
-### 终端界面
+### Terminal UI
 
-直接运行 `ama`（stdin / stdout 都是 TTY）进入交互模式。界面只用主屏，对话历史留在终端回滚里，tmux `capture-pane` 能读到完整对话。
+Running `ama` (with stdin / stdout both TTYs) enters interactive mode. The interface uses the main screen only; the conversation history stays in the terminal scrollback, so tmux `capture-pane` can read the whole conversation.
 
-| 按键                 | 作用                                                           |
-| -------------------- | -------------------------------------------------------------- |
-| Enter                | 发送；运行中插话（steer）                                      |
-| Alt+Enter            | 运行中排到本轮之后（followUp）                                 |
-| Shift+Enter / Ctrl+J | 换行                                                           |
-| Esc                  | 中断当前运行                                                   |
-| Esc Esc（空闲）      | 输入框为空：打开回滚列表（同 `/rewind`）；有字：清空并存进历史 |
-| Shift+Tab / Tab      | 循环权限模式（Tab 只在输入为空时；进入 Bypass 前确认）         |
-| Ctrl+O               | 展开 / 折叠工具输出                                            |
-| Ctrl+L / Ctrl+T      | 选择模型 / 思考级别                                            |
-| Ctrl+G               | 底部信息行 两行 ↔ 一行（同 `/statusline`）                     |
-| Ctrl+V               | 粘贴剪贴板里的图片，插入 `@<路径>`（同 `/paste`）              |
-| Ctrl+C               | 清空输入；输入为空时 1.5 秒内再按一次退出                      |
-| Tab                  | 补全：`/` 命令、模板与 Skill，`@` 文件路径                     |
+| Key                  | Effect                                                                                  |
+| -------------------- | --------------------------------------------------------------------------------------- |
+| Enter                | Send; while running, steer                                                              |
+| Alt+Enter            | While running, queue after this turn (followUp)                                         |
+| Shift+Enter / Ctrl+J | New line                                                                                |
+| Esc                  | Interrupt the current run                                                               |
+| Esc Esc (idle)       | Empty input: open the rewind list (same as `/rewind`); with text: clear it into history |
+| Shift+Tab / Tab      | Cycle permission modes (Tab only on an empty input; entering Bypass asks to confirm)    |
+| Ctrl+O               | Expand / collapse tool output                                                           |
+| Ctrl+L / Ctrl+T      | Pick model / thinking level                                                             |
+| Ctrl+G               | Bottom info line, two lines ↔ one (same as `/statusline`)                               |
+| Ctrl+V               | Paste an image from the clipboard and insert `@<path>` (same as `/paste`)               |
+| Ctrl+C               | Clear the input; on an empty input, press again within 1.5 s to quit                    |
+| Tab                  | Complete: `/` commands, templates and Skills, `@` file paths                            |
 
-常用命令：`/model`、`/thinking`、`/permission`、`/tools`、`/compact`、`/tree`（回到某条消息之前重新分支）、`/fork`、`/resume`、`/new`、`/session`、`/cache`、`/hooks`、`/skill:<名字>`、`/help`；第五波新增 `/plan`（计划面板与审批，`/plan <目标>` 进入 Plan）、`/tasks`（子 Agent 任务）、`/agents`（可用类型与外部 Agent）、`/paste`（剪贴板图片）、`/rewind`（回滚）、`/statusline [full|compact]`。输入里的 `@图片路径`（或粘贴 / 拖入的图片路径）作为图片附件发给模型；`/model` 按「供应商 · 渠道」分组，标出上下文与 `img`。按键可在 `~/.config/ama/keybindings.json` 覆盖。见 [docs/tui.md](docs/tui.md)。
+Common commands: `/model`, `/thinking`, `/permission`, `/tools`, `/compact`, `/tree` (branch again from before a message), `/fork`, `/resume`, `/new`, `/session`, `/cache`, `/hooks`, `/skill:<name>`, `/help`; wave 5 added `/plan` (plan panel and approval; `/plan <goal>` enters Plan), `/tasks` (sub-agent tasks), `/agents` (available types and external agents), `/paste` (clipboard image), `/rewind` and `/statusline [full|compact]`. An `@image-path` in the input (or a pasted / dropped image path) is sent to the model as an image attachment; `/model` groups models by "provider · channel" and marks context size and `img`. Key bindings can be overridden in `~/.config/ama/keybindings.json`. See [docs/en/tui.md](docs/en/tui.md).
 
-`--no-tui`（或 stdin / stdout 不是 TTY、`TERM=dumb`）进入行式界面：readline + 括号粘贴，命令相同。
+`--no-tui` (or when stdin / stdout is not a TTY, or `TERM=dumb`) enters line mode: readline with bracketed paste and the same commands.
 
-### `-p` 一次性运行
+### One-shot `-p`
 
-| `--output-format` | stdout                                                                        |
-| ----------------- | ----------------------------------------------------------------------------- |
-| `text`（缺省）    | 最后一条回答的文本                                                            |
-| `json`            | 一个 `result` 对象：会话 id、模型、`stopReason`、`text`、用量、费用、缓存统计 |
-| `stream-json`     | 每行一个事件，与 RPC 事件同形状                                               |
+| `--output-format` | stdout                                                                                 |
+| ----------------- | -------------------------------------------------------------------------------------- |
+| `text` (default)  | The text of the final answer                                                           |
+| `json`            | One `result` object: session id, model, `stopReason`, `text`, usage, cost, cache stats |
+| `stream-json`     | One event per line, same shapes as RPC events                                          |
 
-**stdin**：管道内容拼在提示后面（`git diff | ama -p "审阅"`）；没有提示参数时管道内容就是提示。有提示参数时只等管道的
-首字节 2 秒（`AMA_STDIN_WAIT_MS` 可调，0 = 不等）：一个字节都没收到就忽略 stdin、继续运行，并在 stderr 提示一行——父进程
-留着不关的管道不会让 `-p` 挂起；收到首字节后读到 EOF。上游命令要先跑很久才输出时，在末尾加 `-` 一直等到 EOF
-（`npm test 2>&1 | ama -p "找出失败原因" -`）；`--no-stdin` 完全不读。`< 文件` 重定向总会读取。
+**stdin**: piped content is appended after the prompt (`git diff | ama -p "review"`); without a prompt argument the piped content is the prompt. With a prompt argument ama waits only 2 seconds for the pipe's first byte (`AMA_STDIN_WAIT_MS` adjusts it, 0 = don't wait): if not a single byte arrives, stdin is ignored, the run continues and stderr gets one line, so a pipe a parent process leaves open never hangs `-p`; once the first byte arrives it reads to EOF. When the upstream command runs a long time before printing, add a trailing `-` to wait for EOF (`npm test 2>&1 | ama -p "find why it fails" -`); `--no-stdin` never reads. A `< file` redirect is always read.
 
-`--image <文件>` 可重复，随提示发送图片（PNG / JPEG / GIF / WebP，单张上限按端点分档、base64 后计：官方 Anthropic 10 MB、Gemini / OpenAI 20 MB、中转 5 MB，超限时尝试用 sips / ImageMagick 缩放）；提示里的 `@图片路径` 同样作为附件。当前
-模型不收图片时直接退出 2，不发请求。
+`--image <file>` is repeatable and sends images with the prompt (PNG / JPEG / GIF / WebP; the per-image limit is tiered by endpoint and measured after base64: official Anthropic 10 MB, Gemini / OpenAI 20 MB, relays 5 MB; oversized images are resized with sips / ImageMagick when possible); `@image-path` in the prompt is attached too. When the current model does not accept images, ama exits with 2 without sending a request.
 
-`--max-turns N` 限制一次运行最多 N 轮（一次模型请求加它的工具执行算一轮），`--max-cost USD` 限制一次运行的美元用量（配置
-`limits.maxTurns / maxCostUsd` 同义），到上限时提前结束（事件 `limit_reached`），**退出码 8**（0.4.x 的 `--max-turns` 是 1），
-`json` 结果带 `limitReached{kind, value, limit}`（轮数到限另有 `maxTurnsReached: true`）。Plan 模式下计划待审批时退出 9（见上文「Plan」）。
+`--max-turns N` caps a run at N turns (one model request plus its tool executions is one turn), and `--max-cost USD` caps a run's USD spend (config `limits.maxTurns / maxCostUsd` mean the same). When a limit is reached the run ends early (event `limit_reached`) with **exit code 8** (`--max-turns` exited with 1 in 0.4.x), and the `json` result carries `limitReached{kind, value, limit}` (plus `maxTurnsReached: true` for the turn limit). In Plan mode a plan awaiting approval exits with 9 (see "Plan" above).
 
-`--system-prompt <文本|@文件>` 补充系统提示（任何模式都可用）：缺省作为最后一条规则追加，preamble 与工具表这段最长的
-缓存前缀不变；`--system-prompt-mode replace` 改为替换开头的角色说明，工具表、规则与 AGENTS.md 仍然保留。
+`--system-prompt <text|@file>` adds to the system prompt (in every mode): by default it is appended as the last rule, keeping the preamble and tool table, the longest cache prefix, unchanged; `--system-prompt-mode replace` replaces the opening role description instead, while the tool table, rules and AGENTS.md stay.
 
-`--no-session` 让会话只留在内存里、不写会话文件（适合 CI 与一次性调用；之后无法 `--resume`），交互模式里 `/new` 切出的
-新会话同样不落盘。
+`--no-session` keeps the session in memory only and writes no session file (for CI and one-off calls; `--resume` is impossible afterwards); new sessions started with `/new` in interactive mode are not saved either.
 
-**无人值守**：`-p` 没有人审批，缺省权限模式下需要询问的调用（写文件、跑命令）一律拒绝。被拒时 stderr 一行汇总被拒的
-工具与原因，`json` 结果带 `deniedTools`，`stream-json` 的 `tool_execution_end` 带 `denied: true`，退出码 7。需要放行时用
-`--permission-mode auto-edit`（放行写入）/ `auto`（ama 判断每一步），或 `--allow "bash(npm test*)"` 按规则放行。
+**Unattended**: `-p` has nobody to approve, so calls that would ask under the default permission mode (writing files, running commands) are always denied. When something is denied, stderr summarizes the denied tools and reasons in one line, the `json` result carries `deniedTools`, `stream-json`'s `tool_execution_end` carries `denied: true`, and the exit code is 7. To allow them use `--permission-mode auto-edit` (allows writes) / `auto` (ama judges each step), or allow by rule with `--allow "bash(npm test*)"`.
 
-| 退出码 | 含义                                                         |
-| ------ | ------------------------------------------------------------ |
-| 0      | 正常                                                         |
-| 1      | 运行期错误（模型最终失败等）                                 |
-| 2      | 用法错误；当前模型不收图片                                   |
-| 3      | 配置 / profile / 路径错误                                    |
-| 4      | 无可用模型或 key                                             |
-| 5      | 会话不存在 / 损坏                                            |
-| 6      | 宿主 / Hook 启动失败                                         |
-| 7      | `-p` 有工具调用被拒（无人审批、deny 规则、plan 等）          |
-| 8      | `-p` 到达预算上限（`--max-turns` / `--max-cost` / `limits`） |
-| 9      | `-p` 产出的计划已落盘、待审批（`plan.unattended: stop`）     |
-| 78     | 宿主 API 版本不匹配                                          |
-| 130    | SIGINT；143 = SIGTERM                                        |
+| Exit code | Meaning                                                                           |
+| --------- | --------------------------------------------------------------------------------- |
+| 0         | Success                                                                           |
+| 1         | Runtime error (the model ultimately failed, etc.)                                 |
+| 2         | Usage error; the current model does not accept images                             |
+| 3         | Config / profile / path error                                                     |
+| 4         | No usable model or key                                                            |
+| 5         | Session missing / corrupted                                                       |
+| 6         | Host / hook startup failure                                                       |
+| 7         | `-p` had tool calls denied (no approver, deny rules, plan, …)                     |
+| 8         | `-p` reached a budget limit (`--max-turns` / `--max-cost` / `limits`)             |
+| 9         | `-p` produced a plan that was saved and awaits approval (`plan.unattended: stop`) |
+| 78        | Host API version mismatch                                                         |
+| 130       | SIGINT; 143 = SIGTERM                                                             |
 
-### 会话统计、检索与复用
+### Session stats, search and reuse
 
-会话是 `<数据目录>/sessions` 下的 JSONL，下面这些命令只读不写（缺省看当前目录的会话，`--all` 看全部）：
+Sessions are JSONL files under `<data dir>/sessions`. These commands only read (by default they look at sessions of the current directory; `--all` looks at all):
 
 ```sh
-ama stats --since 7d --by model           # 请求、token、缓存命中率、费用、工具调用 Top N（--json 可用）
-ama sessions search "parser" --role user  # 跨会话全文检索，/正则/ 也行
-ama sessions show 3f9a1c2e                # 末尾列出用户消息编号
-ama -p --from 3f9a1c2e#2 --model packy/kimi-k2.5   # 用那条消息（含图片）换个模型再问
-ama sessions export 3f9a1c2e --format md --output s.md   # md / json / jsonl，导出前脱敏
+ama stats --since 7d --by model           # requests, tokens, cache hit rate, cost, top N tool calls (--json available)
+ama sessions search "parser" --role user  # full-text search across sessions; /regex/ works too
+ama sessions show 3f9a1c2e                # lists user message numbers at the end
+ama -p --from 3f9a1c2e#2 --model packy/kimi-k2.5   # ask that message (images included) again with another model
+ama sessions export 3f9a1c2e --format md --output s.md   # md / json / jsonl, redacted before export
 ```
 
-统计口径（命中率只算报告缓存的端点、费用只加有价请求等）与导出格式见 [docs/sessions.md](docs/sessions.md)。
+How the numbers are computed (hit rate only over endpoints that report cache usage, cost only over priced requests, …) and the export formats are in [docs/en/sessions.md](docs/en/sessions.md).
 
 ### RPC
 
-`ama --mode rpc` 在 stdin / stdout 上说 JSONL：先发 `hello` 与 `session_start`，之后收 `prompt`、`steer`、`abort`、`set_model`、`get_session_stats`、`fork` 等命令，推送流事件与审批请求。
+`ama --mode rpc` speaks JSONL on stdin / stdout: it first sends `hello` and `session_start`, then accepts commands such as `prompt`, `steer`, `abort`, `set_model`, `get_session_stats` and `fork`, and pushes stream events and approval requests.
 
 ```sh
 printf '{"id":"1","type":"prompt","message":"hi"}\n' | ama --mode rpc --model fake/echo
 ```
 
-`hello.capabilities` 列出服务端能力（`approvals`、`images`、`hooks`、`plans`），客户端用 `set_client_capabilities` 声明要接管的审批与计划审批。第五波新增计划（`plan_response` / `get_plan` / `get_todos`）、任务（`get_tasks` / `get_agents`）、回滚（`get_rewind_points` / `rewind` / `summarize_*`）命令与 `subagent_*`、`plan_*`、`limit_reached`、`telemetry_tick` 等事件。协议见 [docs/rpc.md](docs/rpc.md)，类型从 `@armadra/agent/rpc` 导入。
+`hello.capabilities` lists server capabilities (`approvals`, `images`, `hooks`, `plans`); clients declare with `set_client_capabilities` which approvals and plan approvals they take over. Wave 5 added plan (`plan_response` / `get_plan` / `get_todos`), task (`get_tasks` / `get_agents`) and rewind (`get_rewind_points` / `rewind` / `summarize_*`) commands, plus events such as `subagent_*`, `plan_*`, `limit_reached` and `telemetry_tick`. The protocol is in [docs/en/rpc.md](docs/en/rpc.md); import the types from `@armadra/agent/rpc`.
 
-`ama --mode acp` 说 ACP（JSON-RPC over NDJSON），见 [docs/acp.md](docs/acp.md)。
+`ama --mode acp` speaks ACP (JSON-RPC over NDJSON); see [docs/acp.md](docs/acp.md) (Chinese).
 
 ### SDK
 
@@ -527,7 +511,7 @@ import { createAgentSession } from "@armadra/agent";
 
 const session = await createAgentSession({
   cwd: process.cwd(),
-  model: "anthropic/<model-id>", // 试跑可用 "fake/echo"
+  model: "anthropic/<model-id>", // "fake/echo" for a dry run
   auth: { kind: "env" },
   permission: {
     mode: "default",
@@ -537,58 +521,60 @@ const session = await createAgentSession({
 session.subscribe((event) => {
   if (event.type === "tool_execution_start") console.error(`→ ${event.toolName}`);
 });
-await session.prompt("列出 src 下的入口文件");
+await session.prompt("list the entry files under src");
 console.log(session.getLastAssistantText());
 console.log(session.getStats().cache?.hitRate);
 await session.dispose();
 ```
 
-- `createAgentSession` 不读文件系统配置：内存会话、指定工具、回调审批，适合嵌在别的程序里。
-- 回滚：`session.rewindPoints()` 列出活动路径上开启新回合的用户消息；`session.rewind({ entryId, mode: "both" | "conversation" | "code", dryRun?, onConflict? })` 回到该消息之前（返回原消息草稿与代码恢复结果，内存会话只能仅对话）；`session.summarizeFrom(entryId, instructions?)` / `session.summarizeUpTo(entryId, instructions?)` 对应「从这里摘要」「摘要到这里」。设计见 [docs/rewind-plan.md](docs/rewind-plan.md)。
-- 计划：`createAgentSession({ plan: { onProposed } })` 在计划提出后回调审批（返回 `{ decision: "approve" | "approve_fresh" | "revise" | "reject", mode?, feedback? }`），或之后用 `session.plan.respond()`；`session.plan.current()` / `todos()` 读当前计划与待办。类型 `SessionPlanOptions`、`PlanDecision` 等从包入口导出，见 [docs/plan.md](docs/plan.md)「接口」。
-- `createRuntime({ argv })` 走与 `ama` 命令行相同的启动序列（读配置、AGENTS.md、Skill、hooks.json、auth.json）。
-- 子路径：`@armadra/agent/host`（宿主适配器类型）、`@armadra/agent/rpc`（RPC 类型）、`@armadra/agent/tui`（终端组件库）、`@armadra/agent/acp`（ACP 类型、客户端、驱动与假 Agent）、`@armadra/agent/bundle`（单文件 `ama.cjs`，`require.resolve` 可取路径交给 `node` 或 `ELECTRON_RUN_AS_NODE=1` 启动）。
+- `createAgentSession` does not read file-system config: an in-memory session, explicit tools and callback approvals, suited for embedding in other programs.
+- Rewind: `session.rewindPoints()` lists the user messages on the active path that start new turns; `session.rewind({ entryId, mode: "both" | "conversation" | "code", dryRun?, onConflict? })` returns to before that message (returning the original message as a draft and the code restore result; in-memory sessions support conversation only); `session.summarizeFrom(entryId, instructions?)` / `session.summarizeUpTo(entryId, instructions?)` correspond to "summarize from here" / "summarize up to here". Design in [docs/rewind-plan.md](docs/rewind-plan.md) (Chinese).
+- Plans: `createAgentSession({ plan: { onProposed } })` calls back for approval once a plan is proposed (return `{ decision: "approve" | "approve_fresh" | "revise" | "reject", mode?, feedback? }`), or use `session.plan.respond()` later; `session.plan.current()` / `todos()` read the current plan and todos. Types such as `SessionPlanOptions` and `PlanDecision` are exported from the package entry; see [docs/plan.md](docs/plan.md) (Chinese) "Interfaces".
+- `createRuntime({ argv })` runs the same startup sequence as the `ama` command line (config, AGENTS.md, Skills, hooks.json, auth.json).
+- Subpaths: `@armadra/agent/host` (host adapter types), `@armadra/agent/rpc` (RPC types), `@armadra/agent/tui` (terminal component library), `@armadra/agent/acp` (ACP types, client, driver and fake agent), `@armadra/agent/bundle` (the single-file `ama.cjs`; `require.resolve` gives its path to start with `node` or `ELECTRON_RUN_AS_NODE=1`).
 
-完整示例见 [examples/sdk-demo.ts](https://github.com/Owlbay/armadra-agent/blob/main/examples/sdk-demo.ts)（自定义工具、流式输出、用量统计）。
+A complete example is [examples/sdk-demo.ts](https://github.com/Owlbay/armadra-agent/blob/main/examples/sdk-demo.ts) (custom tools, streaming output, usage stats).
 
-## 嵌入 Armadra
+## Embedding in Armadra
 
-Armadra 以 `ama --profile <path>` 启动 ama。profile 是一个 JSON 文件，指定宿主适配器（`host`）、指令（`instructions`）、Skill 与提示模板目录、Hook 文件、key 文件（`authFile`，可配 `authEnv: false` 不读环境变量）、会话目录与 `trustProject`。
+Armadra starts ama with `ama --profile <path>`. The profile is a JSON file naming the host adapter (`host`), instructions (`instructions`), Skill and prompt template directories, the hook file, the key file (`authFile`; `authEnv: false` skips environment variables), the session directory and `trustProject`.
 
-宿主适配器是一个本地 JS 模块，导出 `hostApi` 与 `create(api)`，经 `HostApi` 注册画布工具（`canvas_*` / `context_*`）、追加系统提示、接管审批、注入消息、显示状态。同一个 profile 在画布外运行时适配器不激活，ama 退化为普通独立模式。配合 `coordinator` 预设，协调者只读文件、调用画布工具，不自己改代码。
+The host adapter is a local JS module exporting `hostApi` and `create(api)`; through `HostApi` it registers canvas tools (`canvas_*` / `context_*`), appends to the system prompt, takes over approvals, injects messages and shows status. When the same profile runs outside the canvas the adapter stays inactive and ama falls back to plain standalone mode. With the `coordinator` preset the coordinator only reads files and calls canvas tools, never changing code itself.
 
-- ama 一侧的接口：[docs/host-api.md](docs/host-api.md)
-- 协调者的设计与契约：Armadra 仓库 [docs/design/coordinator-agent.md](https://github.com/yovinchen/Armadra/blob/main/docs/design/coordinator-agent.md)
+- ama's side of the interface: [docs/en/host-api.md](docs/en/host-api.md)
+- Coordinator design and contract: [docs/design/coordinator-agent.md](https://github.com/yovinchen/Armadra/blob/main/docs/design/coordinator-agent.md) in the Armadra repository
 
-## 文档
+## Documentation
 
-| 文档                                                  | 内容                                                                                    |
-| ----------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| [docs/providers.md](docs/providers.md)                | 内置供应商与渠道、API Key、自定义供应商与中转站、模型元数据快照、图像输入、compat、缓存 |
-| [docs/tui.md](docs/tui.md)                            | 终端界面：布局、状态栏、按键、命令、回滚、审批、Plan 审批、子 Agent、剪贴板图片、组件库 |
-| [docs/permissions.md](docs/permissions.md)            | 权限模式、plan 只读命令、判定顺序、沙箱内免审批、auto 三层判定、审批来源标注            |
-| [docs/plan.md](docs/plan.md)                          | Plan 模式：流程、计划格式、审批、分模型、配置与持久化                                   |
-| [docs/agents.md](docs/agents.md)                      | 子 Agent（类型、定义文件、后台、续聊、worktree）与外部 Agent（驱动、权限、环境、预算）  |
-| [docs/acp.md](docs/acp.md)                            | ACP：`ama --mode acp` 与 ama 作为 ACP 客户端                                            |
-| [docs/sandbox.md](docs/sandbox.md)                    | 操作系统沙箱：codemode 与 bash、各平台实现、配置与已知绕过                              |
-| [docs/codemode.md](docs/codemode.md)                  | codemode 脚本、沙箱与权限                                                               |
-| [docs/hooks.md](docs/hooks.md)                        | 命令式 Hook（hooks.json）                                                               |
-| [docs/host-api.md](docs/host-api.md)                  | 宿主适配器 API                                                                          |
-| [docs/rpc.md](docs/rpc.md)                            | RPC 协议（stdio JSONL）                                                                 |
-| [docs/session-format.md](docs/session-format.md)      | 会话文件格式                                                                            |
-| [docs/sessions.md](docs/sessions.md)                  | 会话统计、检索、`--from` 复用、导出、检查点与影子 git                                   |
-| [docs/rewind-plan.md](docs/rewind-plan.md)            | 检查点与回滚的设计                                                                      |
-| [docs/tui-design.md](docs/tui-design.md)              | 终端界面视觉规格与逐屏样稿                                                              |
-| [docs/design.md][design]                              | 总体设计与决策记录（第五波增补指引在 §0 之后）                                          |
-| [docs/extensions.md][extensions]                      | 本地扩展（设计草案，未实现）                                                            |
-| [docs/benchmarks/][benchmarks]                        | 预设基准、D20 todo 复测与缓存验收实验（报告与原始数据）                                 |
-| [docs/wave6-plan.md][wave6]                           | 第六波设计：Agent 栏与子 Agent 视图、轨迹、Memory、ChatGPT 登录、中英双语、`/config`    |
-| [docs/i18n.md][i18n]                                  | 中英双语开发约定：语言选择、消息目录与键名规范、模型侧隔离、检查脚本                    |
-| [docs/wave5-plan.md][wave5]                           | 第五波设计：状态行、模型元数据、渠道、图像、外部 Agent、Plan、子 Agent、压缩与 harness  |
-| [docs/implementation-plan.md][impl]、[wave3-plan][w3] | 早期实施计划（追溯用）                                                                  |
-| [docs/research/][research]                            | 第五波与第六波调研报告（追溯用）                                                        |
+English versions exist for six user docs; the rest are in Chinese.
 
-npm 包里带上表前十五份（用户文档）；其余是设计与追溯材料，链接指向 GitHub。
+| Document                                                                       | Contents                                                                                                                                        |
+| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| [docs/en/providers.md](docs/en/providers.md) ([中文](docs/providers.md))       | Built-in providers and channels, API keys, custom providers and relays, model metadata snapshot, image input, compat, caching                   |
+| [docs/en/tui.md](docs/en/tui.md) ([中文](docs/tui.md))                         | Terminal UI: layout, status bar, keys, commands, rewind, approvals, Plan approval, sub-agents, clipboard images, component library              |
+| [docs/en/permissions.md](docs/en/permissions.md) ([中文](docs/permissions.md)) | Permission modes, read-only commands in plan, decision order, approval-free sandboxed commands, auto's three tiers, approval origin labels      |
+| [docs/en/host-api.md](docs/en/host-api.md) ([中文](docs/host-api.md))          | Host adapter API                                                                                                                                |
+| [docs/en/rpc.md](docs/en/rpc.md) ([中文](docs/rpc.md))                         | RPC protocol (stdio JSONL)                                                                                                                      |
+| [docs/en/sessions.md](docs/en/sessions.md) ([中文](docs/sessions.md))          | Session stats, search, `--from` reuse, export, checkpoints and shadow git                                                                       |
+| [docs/plan.md](docs/plan.md)                                                   | Plan mode: flow, plan format, approval, separate models, config and persistence (Chinese)                                                       |
+| [docs/agents.md](docs/agents.md)                                               | Sub-agents (types, definition files, background, follow-up, worktree) and external agents (drivers, permissions, environment, budget) (Chinese) |
+| [docs/acp.md](docs/acp.md)                                                     | ACP: `ama --mode acp` and ama as an ACP client (Chinese)                                                                                        |
+| [docs/sandbox.md](docs/sandbox.md)                                             | OS sandbox: codemode and bash, per-platform implementation, config and known bypasses (Chinese)                                                 |
+| [docs/codemode.md](docs/codemode.md)                                           | codemode scripts, sandbox and permissions (Chinese)                                                                                             |
+| [docs/hooks.md](docs/hooks.md)                                                 | Command hooks (hooks.json) (Chinese)                                                                                                            |
+| [docs/session-format.md](docs/session-format.md)                               | Session file format (Chinese)                                                                                                                   |
+| [docs/rewind-plan.md](docs/rewind-plan.md)                                     | Checkpoint and rewind design (Chinese)                                                                                                          |
+| [docs/tui-design.md](docs/tui-design.md)                                       | Terminal UI visual spec and screen-by-screen mockups (Chinese)                                                                                  |
+| [docs/design.md][design]                                                       | Overall design and decision log (Chinese)                                                                                                       |
+| [docs/extensions.md][extensions]                                               | Local extensions (draft design, not implemented) (Chinese)                                                                                      |
+| [docs/benchmarks/][benchmarks]                                                 | Preset benchmarks, the D20 todo retest and the cache acceptance experiment (reports and raw data)                                               |
+| [docs/wave6-plan.md][wave6]                                                    | Wave 6 design: agent bar and sub-agent view, traces, memory, ChatGPT login, bilingual UI, `/config` (Chinese)                                   |
+| [docs/i18n.md][i18n]                                                           | Bilingual development conventions: language selection, message catalogs and key naming, model-side isolation, check script (Chinese)            |
+| [docs/wave5-plan.md][wave5]                                                    | Wave 5 design (Chinese)                                                                                                                         |
+| [docs/implementation-plan.md][impl], [wave3-plan][w3]                          | Early implementation plans (for history) (Chinese)                                                                                              |
+| [docs/research/][research]                                                     | Wave 5 and wave 6 research reports (for history) (Chinese)                                                                                      |
+
+The npm package includes the first fifteen user docs above (both languages where available); the rest are design and history material linked on GitHub.
 
 [design]: https://github.com/Owlbay/armadra-agent/blob/main/docs/design.md
 [extensions]: https://github.com/Owlbay/armadra-agent/blob/main/docs/extensions.md
@@ -600,44 +586,44 @@ npm 包里带上表前十五份（用户文档）；其余是设计与追溯材�
 [w3]: https://github.com/Owlbay/armadra-agent/blob/main/docs/wave3-plan.md
 [research]: https://github.com/Owlbay/armadra-agent/tree/main/docs/research
 
-## 已知限制
+## Known limitations
 
-- **Linux 沙箱未在真机上验证**：bubblewrap 的策略只经单元测试与 Ubuntu CI 验证，没有在 Linux 桌面 / 服务器真机上跑过；没有 bwrap 时退到 `unshare -r -n`（只隔离网络，不能用于 bash 沙箱），都没有则按无沙箱处理（codemode 回到执行类、每次审批）。
-- **外部 Agent 的真实 CLI 测试只在本地跑**：CI 只跑录制回放与 ama 驱动 ama；接 `claude` / `codex` 的端到端需要本机已登录，`AMA_E2E_AGENTS=1` 时运行（会用你的订阅额度），见 [docs/agents.md](docs/agents.md)「本地验证真实 CLI」。
-- **DeepSeek、智谱、Kimi 缺省仍走 Chat**：它们的 Messages 渠道（`@messages`）只在中转上测过，等官方直连过了实测门（`scripts/channel-probe.mjs`）再切缺省。
-- **models.dev 刷新 PR 不自动触发 CI**：仓库 secret `MODELS_DEV_PR_TOKEN` 没配时，每周的 workflow 用缺省 token 开 PR（先在 workflow 里自跑 `pnpm run ci` 并把结果写进描述）。
-- 子 Agent 深度 1，不读 `.claude/agents`，不支持继承父对话的 fork 模式；Windows 没有操作系统沙箱。
+- **The Linux sandbox is not verified on real machines**: the bubblewrap policies are only verified by unit tests and Ubuntu CI, never on a Linux desktop / server; without bwrap ama falls back to `unshare -r -n` (network isolation only, unusable for the bash sandbox), and with neither it behaves as if there were no sandbox (codemode back to the execute class, approval every time).
+- **Real-CLI tests for external agents only run locally**: CI runs only recorded replays and ama driving ama; end-to-end tests against `claude` / `codex` need a logged-in machine and run with `AMA_E2E_AGENTS=1` (using your subscription quota); see [docs/agents.md](docs/agents.md) (Chinese).
+- **DeepSeek, Zhipu and Kimi still default to Chat**: their Messages channels (`@messages`) have only been tested through relays; the default switches once direct official endpoints pass the measurement gate (`scripts/channel-probe.mjs`).
+- **models.dev refresh PRs do not trigger CI automatically**: without the repository secret `MODELS_DEV_PR_TOKEN`, the weekly workflow opens the PR with the default token (after running `pnpm run ci` itself and putting the result in the description).
+- Sub-agents have depth 1, do not read `.claude/agents` and have no fork mode that inherits the parent conversation; Windows has no OS sandbox.
 
-## 开发
+## Development
 
-需要 Node ≥ 22 与 pnpm（版本见 `package.json` 的 `packageManager`，`corepack enable` 即可）。
+Requires Node ≥ 22 and pnpm (version in `packageManager` of `package.json`; `corepack enable` is enough).
 
 ```sh
 pnpm install
-pnpm run ci              # typecheck、fmt:check、check:deps、release:check、test、build，再跑 bundle --version
-AMA_E2E=1 pnpm test:e2e  # bundle 级端到端：print / rpc / acp / plan / 子 Agent / 回滚 / codemode / cache / host（fake 供应商，不花钱）
+pnpm run ci              # typecheck, fmt:check, check:deps, check:i18n, release:check, test, build, then bundle --version
+AMA_E2E=1 pnpm test:e2e  # bundle-level end-to-end: print / rpc / acp / plan / sub-agents / rewind / codemode / cache / host (fake provider, free)
 ```
 
-pnpm 10 起 `pnpm ci` 是内置的「清理后安装」，跑检查要写 `pnpm run ci`。常用单项：`pnpm test`、`pnpm typecheck`、`pnpm fmt`、`pnpm build`。测试一律用 fake 供应商：`AMA_FAKE_SCRIPT=<脚本.json>` 让它按脚本产出文本、工具调用、429、断流等，示例在 `test/fixtures/scripts/`。
+Since pnpm 10, `pnpm ci` is the built-in "clean install", so run the checks with `pnpm run ci`. Common single steps: `pnpm test`, `pnpm typecheck`, `pnpm fmt`, `pnpm build`. Tests always use the fake provider: `AMA_FAKE_SCRIPT=<script.json>` makes it produce text, tool calls, 429s, dropped streams and so on from a script; examples are in `test/fixtures/scripts/`.
 
-**真实模型脚本**（本地跑，CI 不跑；先 `pnpm build`）：
+**Real-model scripts** (run locally, not in CI; `pnpm build` first):
 
-| 脚本                                                      | 用途                                  |
-| --------------------------------------------------------- | ------------------------------------- |
-| `node scripts/bench-presets.mjs`（`pnpm bench:presets`）  | 预设基准（`--tasks long` 多步长任务） |
-| `node scripts/cache-experiment.mjs`（`pnpm bench:cache`） | 缓存验收实验 E1–E5                    |
-| `node scripts/record-sse.mjs`                             | 录制各协议的 SSE 样本作为测试 fixture |
+| Script                                                   | Purpose                                                     |
+| -------------------------------------------------------- | ----------------------------------------------------------- |
+| `node scripts/bench-presets.mjs` (`pnpm bench:presets`)  | Preset benchmark (`--tasks long` for long multi-step tasks) |
+| `node scripts/cache-experiment.mjs` (`pnpm bench:cache`) | Cache acceptance experiments E1–E5                          |
+| `node scripts/record-sse.mjs`                            | Record SSE samples of each protocol as test fixtures        |
 
-前两个共用预算控制：`--config` / `AMA_REAL_CONFIG`（含 key 引用的 config.json）、`--models` / `AMA_REAL_MODELS`、`--max-requests` / `AMA_REAL_MAX_REQUESTS`（缺省 60）、`--budget-usd` / `AMA_REAL_BUDGET_USD`（缺省 3）。超过请求数或预算立即停止并输出已有数据；配置与数据目录指向临时目录，不碰你的用户配置。
+The first two share budget controls: `--config` / `AMA_REAL_CONFIG` (a config.json with key references), `--models` / `AMA_REAL_MODELS`, `--max-requests` / `AMA_REAL_MAX_REQUESTS` (default 60), `--budget-usd` / `AMA_REAL_BUDGET_USD` (default 3). They stop as soon as the request count or budget is exceeded and output the data collected so far; config and data directories point to temp directories, never your user config.
 
-**约束**：运行时依赖必须为零，`src/` 只允许 `node:` 内置模块与相对路径（`pnpm check:deps` 守住）。`src/` 按层分目录（`ai` 模型接入、`agent` 循环、`session` 会话树、`tools`、`codemode`、`permissions`、`hooks`、`host` 宿主契约、`tui` 组件库、`modes` 各入口、`cli` 启动），各目录的 `types.ts` 是模块之间的契约。
+**Constraints**: runtime dependencies must be zero; `src/` may only use `node:` built-ins and relative paths (guarded by `pnpm check:deps`). `src/` is organized by layer (`ai` model access, `agent` loop, `session` session tree, `tools`, `codemode`, `permissions`, `hooks`, `host` host contract, `tui` component library, `modes` entry points, `cli` startup), and each directory's `types.ts` is the contract between modules.
 
-**发布**：改 `package.json` 版本与 [CHANGELOG.md](CHANGELOG.md)，合入 main 后打 `v<版本>` tag。CI 全绿后 release job 生成 GitHub Release（`ama.cjs`、`ama-sandbox.cjs`、`package.tgz`、`SHA256SUMS`），再以 provenance 发布到 npm：优先用 OIDC 可信发布（trusted publishing，npm ≥ 11.5.1，job 内自动升级），在 npmjs.com 的 `@armadra/agent` 包设置 → Trusted Publisher 添加 GitHub Actions（组织 `Owlbay`、仓库 `armadra-agent`、工作流 `ci.yml`、环境留空）即可，不需要长期 token；仓库 secret `NPM_TOKEN` 保留为回退，两者都没有时 job 失败并提示。`pnpm release:check` 检查 tag 与版本一致，协议常量变化要求破坏性版本升级。
+**Releasing**: bump the version in `package.json`, update both changelogs (English [CHANGELOG.md](CHANGELOG.md) and Chinese [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md), turning "Unreleased" into the version), merge into main and push a `v<version>` tag. Once CI is green the release job creates a GitHub Release (`ama.cjs`, `ama-sandbox.cjs`, `package.tgz`, `SHA256SUMS`) and publishes to npm with provenance. It prefers OIDC trusted publishing (npm ≥ 11.5.1, upgraded inside the job): add a GitHub Actions trusted publisher in the `@armadra/agent` package settings on npmjs.com (organization `Owlbay`, repository `armadra-agent`, workflow `ci.yml`, environment empty) and no long-lived token is needed; the repository secret `NPM_TOKEN` stays as a fallback, and the job fails with a hint when neither exists. `pnpm release:check` checks that the tag matches the version, requires a breaking version bump when protocol constants change, and checks that both READMEs / changelogs and `docs/en/` exist and link to each other and that both changelogs have a section for the current version (English from 0.6.0 on).
 
-## 更新记录
+## Changelog
 
-见 [CHANGELOG.md](CHANGELOG.md)。
+See [CHANGELOG.md](CHANGELOG.md) (English, from 0.6.0) and [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md) (Chinese, complete history since 0.1).
 
-## 许可证
+## License
 
 [MIT](LICENSE)

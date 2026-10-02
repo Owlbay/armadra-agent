@@ -32,6 +32,8 @@ export interface SubscriptionStats {
     string,
     { requests: number; input: number; output: number; cacheRead: number }
   >;
+  /** [W6-O] 本会话最近一次 `quota_update`（没有收到过时缺省）。 */
+  quota?: QuotaUpdateEvent;
 }
 
 export interface SessionStatsW6 {

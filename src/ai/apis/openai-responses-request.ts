@@ -17,7 +17,8 @@
  *   时发，`cacheRetention: "none"` 不发；`long` 在 `supportsExplicitPromptCacheMode` 时发
  *   `prompt_cache_options: {ttl:"30m"}`，否则在 `supportsLongCacheRetention` 时发
  *   `prompt_cache_retention: "24h"`，两者都不支持按 short；
- * - `toolChoice: "none"`（有工具时）→ `tool_choice: "none"`。
+ * - `toolChoice: "none"`（有工具时）→ `tool_choice: "none"`；
+ * - [W6-O] compat `chatgptBackend`（ChatGPT 订阅后端）：最后经 chatgpt-backend.ts 按后端白名单改写。
  */
 
 import { contentText, normalizeContext, sanitizeText } from "../context.js";
@@ -37,6 +38,7 @@ import type {
   UserMessage,
 } from "../types.js";
 import { resolveCacheRetention, resolvePromptCacheCompat } from "./cache-params.js";
+import { transformChatGptBody } from "./chatgpt-backend.js";
 import { isStrictCompatible } from "./openai-request.js";
 
 type Json = Record<string, unknown>;
@@ -47,6 +49,9 @@ export const RESPONSES_API = "openai-responses";
 const RESPONSES_COMPAT_KEYS = [
   "supportsReasoningSummary",
   "supportsStore",
+  "chatgptBackend",
+  "instructionsMode",
+  "toolsInNamespace",
 ] as const satisfies readonly (keyof OpenAIResponsesCompat)[];
 
 /** 缺省（未知的 Responses 兼容服务）：不要 summary、不发 store。 */
@@ -315,5 +320,7 @@ export function buildResponsesRequest(
   }
   const providerLevel = applyReasoning(body, model, compat, level);
   if (model.samplingParams) Object.assign(body, model.samplingParams);
-  return { body, compat, thinkingLevel: level, providerThinkingLevel: providerLevel };
+  const final =
+    compat.chatgptBackend === undefined ? body : transformChatGptBody(body, model, compat, options);
+  return { body: final, compat, thinkingLevel: level, providerThinkingLevel: providerLevel };
 }

@@ -6,6 +6,7 @@
  */
 
 import { PERMISSION_MODES_STRICT_FIRST } from "../permissions/types.js";
+import { msg } from "../i18n/index.js";
 import { Checker, THINKING_LEVELS, checkSection, join, type Obj } from "./checker.js";
 import {
   AGENTS_RESERVED_KEYS,
@@ -50,7 +51,7 @@ export function checkCompactionW5(c: Checker, compaction: Obj, path: string): vo
   c.number(prune, "keepResults", p, 0);
   const clear = prune["clearAtLeast"];
   if (clear !== undefined && clear !== "auto" && (typeof clear !== "number" || clear < 0))
-    c.error(join(p, "clearAtLeast"), '应为 "auto" 或非负数字');
+    c.error(join(p, "clearAtLeast"), msg().config.schema.clearAtLeast);
 }
 
 function checkAgentEntry(c: Checker, entry: unknown, path: string): void {
@@ -76,8 +77,7 @@ function checkAgents(c: Checker, config: Obj): void {
   for (const [id, entry] of Object.entries(agents)) {
     if ((AGENTS_RESERVED_KEYS as readonly string[]).includes(id)) continue;
     const p = join("agents", id);
-    if (!AGENT_ID_PATTERN.test(id))
-      c.error(p, "Agent id 只能是小写字母、数字、- . _（可带 acp: 前缀）");
+    if (!AGENT_ID_PATTERN.test(id)) c.error(p, msg().config.schema.agentId);
     else checkAgentEntry(c, entry, p);
   }
 }

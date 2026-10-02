@@ -302,6 +302,11 @@ export function bridgeEvent(event: SessionEvent, bus: AgentEventBus): void {
       void bus.emit("context_pressure", pressure);
       return;
     }
+    case "quota_update": {
+      const { type: _type, ...quota } = event;
+      void bus.emit("quota_update", quota);
+      return;
+    }
     // [W5-C0] 子 Agent 与计划事件
     case "subagent_start": {
       const { type: _type, ...payload } = event;

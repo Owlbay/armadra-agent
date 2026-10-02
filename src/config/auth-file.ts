@@ -13,6 +13,7 @@ import { loadConfigFile } from "./load.js";
 import { AUTH_FILE } from "./paths.js";
 import type { AuthFile } from "./types.js";
 import { CONFIG_FILE_VERSION, apiKeyEntry } from "./types.js";
+import { isOAuthEntry, type ChatGptFlavor } from "./types-w6.js";
 
 export function defaultAuthFilePath(configDir: string): string {
   return join(configDir, AUTH_FILE);
@@ -102,15 +103,36 @@ export function classifyKeyValue(value: string): AuthValueKind {
 
 export interface AuthEntrySummary {
   provider: string;
-  /** [W6-C0] `oauth`：OAuth 条目（W6-O 补 flavor / plan / expiresIn / needsLogin）。 */
+  /** `oauth`：OAuth 条目（只给 flavor / plan / expiresIn / needsLogin，从不给 token、邮箱、账户 id）。 */
   kind: AuthValueKind | "oauth";
   hasBaseUrl: boolean;
   envNames: string[];
+  /** [W6-O] OAuth 条目：登录路径。 */
+  flavor?: ChatGptFlavor;
+  /** [W6-O] OAuth 条目：计划类型（plus / pro …）。 */
+  plan?: string;
+  /** [W6-O] OAuth 条目：access token 剩余毫秒（已过期为负；刷新会自动续）。 */
+  expiresIn?: number;
+  /** [W6-O] OAuth 条目：刷新永久失败，需要重新登录。 */
+  needsLogin?: boolean;
 }
 
-export function describeAuthFile(file: AuthFile): AuthEntrySummary[] {
+export function describeAuthFile(file: AuthFile, now: number = Date.now()): AuthEntrySummary[] {
   return Object.entries(file.providers)
     .map(([provider, raw]): AuthEntrySummary => {
+      if (isOAuthEntry(raw)) {
+        const summary: AuthEntrySummary = {
+          provider,
+          kind: "oauth",
+          hasBaseUrl: false,
+          envNames: [],
+          flavor: raw.flavor,
+          expiresIn: raw.expiresAt - now,
+          needsLogin: raw.needsLogin === true,
+        };
+        if (raw.planType !== undefined) summary.plan = raw.planType;
+        return summary;
+      }
       const entry = apiKeyEntry(raw);
       if (entry === undefined) return { provider, kind: "oauth", hasBaseUrl: false, envNames: [] };
       return {
