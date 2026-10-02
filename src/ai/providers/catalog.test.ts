@@ -15,6 +15,7 @@ import {
   type CatalogSourceFile,
 } from "./catalog.js";
 import { CATALOG_SOURCES } from "./catalog-data.js";
+import { snapshotList } from "./models-dev-snapshot.js";
 import { inlineJsonModule } from "../../../scripts/lib/inline-json.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -86,7 +87,10 @@ describe("模型目录", () => {
   it("快照 ⊕ 覆盖：目录条目里与快照取值相同的字段视为冗余（UPDATE_CATALOG=1 自动删）", () => {
     for (const [id, value] of jsonFiles()) {
       const file = value as CatalogSourceFile;
-      if (file.modelsDev === undefined) continue;
+      // 每份目录都写明对应的快照供应商（本地服务写 false）
+      expect(file.modelsDev, `catalog/${id}.json modelsDev`).toBeDefined();
+      if (typeof file.modelsDev === "string")
+        expect(snapshotList().providers, `catalog/${id}.json`).toContain(file.modelsDev);
       expect(Object.fromEntries(redundancy(file)), `catalog/${id}.json`).toEqual({});
     }
   });
