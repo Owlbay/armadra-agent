@@ -2,7 +2,7 @@
  * 手写参数解析（设计 §11.1 第 2 步、§12.10、§13）。[B5]
  *
  * - 支持 `--opt value` 与 `--opt=value`；`--` 之后全部作为提示文本；可重复的参数累加。
- * - 位置参数 `-`：`-p` 显式读 stdin（有提示参数时也拼接）。
+ * - 位置参数 `-`：`-p` 一直等 stdin 到 EOF（有提示参数时也不设首字节超时）。
  * - 子命令只在第一个参数是 `auth / sessions / models / providers / doctor / config / init` 时识别，
  *   其余参数原样交给子命令。
  * - 互斥：`-p` 与 `--mode rpc`；`--continue` / `--resume` / `--session-id` / `--fork` 两两互斥；
@@ -78,7 +78,7 @@ export interface ParsedArgs {
   systemPromptMode?: "append" | "replace";
   /** `--max-turns N`（只用于 -p）：一次运行最多 N 轮（模型请求 + 工具执行算一轮）。 */
   maxTurns?: number;
-  /** 位置参数 `-`（只用于 -p）：显式读 stdin，有提示参数时也拼接。 */
+  /** 位置参数 `-`（只用于 -p）：一直等 stdin 到 EOF，不设首字节超时。 */
   stdin: boolean;
   /** `--image <文件>`（可重复，只用于 -p）：随首条提示发送的图片。 */
   images: string[];
@@ -121,8 +121,9 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
 模式
   （缺省）                     终端界面；stdin / stdout 非 TTY 或 TERM=dumb 时自动降级为行式
   --no-tui                     行式界面（readline + 括号粘贴）
-  -p, --print                  非交互：执行提示后退出。提示取自参数；没有提示参数时读 stdin，
-                               有提示参数时只有加 - 才拼接 stdin（如 cat 文件 | ama -p 总结 -）
+  -p, --print                  非交互：执行提示后退出。提示 = 参数 + stdin 管道内容；有提示参数时
+                               只等管道首字节 2 s（AMA_STDIN_WAIT_MS），没收到就忽略并提示；
+                               末尾加 - 则一直等到 EOF（如 npm test | ama -p 找原因 -）
   --output-format <格式>       -p 的输出：text（缺省）| json | stream-json
   --max-turns <N>              -p 最多跑 N 轮（一次模型请求加其工具执行算一轮）；到达上限仍有
                                未完成的工具调用时提前结束，退出码 1

@@ -104,6 +104,44 @@ export function stdinKindDefault(): StdinKind {
   }
 }
 
+/** 等 stdin 首字节至多 `timeoutMs`；超时则停止读取并返回 undefined，否则读到 EOF。 */
+export function readStdinFirstByteDefault(timeoutMs: number): Promise<string | undefined> {
+  const stdin = process.stdin;
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const cleanup = (): void => {
+      clearTimeout(timer);
+      stdin.off("data", onData);
+      stdin.off("end", onEnd);
+      stdin.off("error", onError);
+    };
+    const onData = (chunk: Buffer): void => {
+      clearTimeout(timer);
+      timer = undefined;
+      chunks.push(chunk);
+    };
+    const onEnd = (): void => {
+      cleanup();
+      resolve(Buffer.concat(chunks).toString("utf8"));
+    };
+    const onError = (error: unknown): void => {
+      cleanup();
+      reject(error);
+    };
+    timer = setTimeout(() => {
+      cleanup();
+      // 不再读：释放句柄，父进程留着不关的管道不会让进程挂住
+      stdin.pause();
+      stdin.destroy();
+      resolve(undefined);
+    }, timeoutMs);
+    stdin.on("data", onData);
+    stdin.once("end", onEnd);
+    stdin.once("error", onError);
+  });
+}
+
 export function defaultIo(): CliIo {
   return {
     stdout: (text) => void process.stdout.write(text),
@@ -113,6 +151,7 @@ export function defaultIo(): CliIo {
     env: process.env,
     cwd: process.cwd(),
     readStdin: readStdinDefault,
+    readStdinFirstByte: readStdinFirstByteDefault,
     stdinKind: stdinKindDefault,
   };
 }

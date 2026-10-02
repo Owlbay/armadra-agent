@@ -1,10 +1,11 @@
 /**
  * print 模式（`ama -p`，设计 §11.1 第 15–16 步）。[B6]
  *
- * - 提示 = 位置参数 + stdin，两者都有时空一行拼接；都没有 → 用法错误 2。stdin 只在以下情况读到 EOF：
- *   没有提示参数、显式写了位置参数 `-`、或 stdin 是普通文件 / 空设备（读了不会卡）。有提示参数时不等
- *   管道（父进程留着不关的 stdin 不再让 `-p` 挂起）；shell 管道被跳过时 stderr 提示加 `-`。等 stdin
- *   超过 3 s 时 stderr 提示一次正在等待。
+ * - 提示 = 位置参数 + stdin，两者都有时空一行拼接；都没有 → 用法错误 2。stdin 的读法：
+ *   - 没有提示参数，或显式写了位置参数 `-`：读到 EOF（超过 3 s 时 stderr 提示一次正在等待）；
+ *   - 有提示参数且 stdin 是管道（shell 管道或父进程留的管道）：等首字节，`AMA_STDIN_WAIT_MS`
+ *     （缺省 2000，0 = 不等）内一个字节都没有 → 忽略 stdin 并在 stderr 提示；收到首字节后读到 EOF；
+ *   - stdin 是普通文件 / 空设备：直接读（不会卡）；TTY：不读。
  * - 图片：`--image`（可重复）与提示里的 `@图片路径` / 图片文件路径作为附件（modes/image-input.ts）；
  *   显式附件遇到当前模型不收图片、文件不存在或超限 → 用法错误 2，不发请求。
  * - `--output-format text`（缺省）：运行结束后输出最后一条助手文本；`json`：一个结果对象（文本、
@@ -38,22 +39,56 @@ export function joinPrompt(argument: string | undefined, piped: string): string 
 /** 等 stdin 多久后提示一次「正在等待」。 */
 export const STDIN_WAIT_HINT_MS = 3_000;
 
-/** 按上面的规则决定读不读 stdin；读的时候超过 3 s 提示一次。 */
+/** 有提示参数时等管道首字节的缺省上限；`AMA_STDIN_WAIT_MS` 覆盖，0 = 不等待。 */
+export const STDIN_FIRST_BYTE_MS = 2_000;
+
+export function stdinWaitMs(env: Readonly<Record<string, string | undefined>>): number {
+  const raw = env["AMA_STDIN_WAIT_MS"];
+  if (raw === undefined || raw.trim() === "") return STDIN_FIRST_BYTE_MS;
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= 0 ? value : STDIN_FIRST_BYTE_MS;
+}
+
+/** io 没有首字节读取时的退化：整段读取与超时赛跑。 */
+function readWithin(io: CliIo, ms: number): Promise<string | undefined> {
+  if (io.readStdinFirstByte !== undefined) return io.readStdinFirstByte(ms);
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => resolve(undefined), ms);
+    io.readStdin().then(
+      (text) => {
+        clearTimeout(timer);
+        resolve(text);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+/**
+ * 决定读不读 stdin（规则见文件头）。`mode`：`auto` 按提示参数与 stdin 类型决定，`explicit`
+ * （位置参数 `-`）一直等到 EOF，`off`（`--no-stdin`）不读。
+ */
 export async function readPromptStdin(
   io: CliIo,
   prompt: string | undefined,
-  explicit: boolean,
+  mode: "auto" | "explicit" | "off",
   hintMs = STDIN_WAIT_HINT_MS,
 ): Promise<string> {
-  if (io.stdinIsTTY) return "";
+  if (io.stdinIsTTY || mode === "off") return "";
   const kind = io.stdinKind?.() ?? "other";
   const safe = kind === "file" || kind === "null";
-  if (prompt !== undefined && prompt !== "" && !explicit && !safe) {
-    if (kind === "fifo")
-      io.stderr(
-        "ama: 已有提示参数，未读取 stdin 管道；要拼接管道内容请在末尾加 -（如 cat 文件 | ama -p 总结 -）\n",
-      );
-    return "";
+  if (prompt !== undefined && prompt !== "" && mode === "auto" && !safe) {
+    const waitMs = stdinWaitMs(io.env);
+    if (waitMs === 0) return "";
+    const text = await readWithin(io, waitMs);
+    if (text === undefined) {
+      io.stderr(`ama: 未在 ${formatSeconds(waitMs)}内收到管道输入，已忽略；需要等待请在末尾加 -\n`);
+      return "";
+    }
+    return text;
   }
   const timer = safe
     ? undefined
@@ -68,10 +103,15 @@ export async function readPromptStdin(
   }
 }
 
+function formatSeconds(ms: number): string {
+  return ms % 1000 === 0 ? `${ms / 1000} 秒` : `${ms} 毫秒`;
+}
+
 export async function runPrintMode(runtime: Runtime, context: ModeContext): Promise<number> {
   const { io } = context;
   const format = context.args.outputFormat ?? "text";
-  const piped = await readPromptStdin(io, context.prompt, context.args.stdin === true);
+  const stdinMode = context.args.stdin ? "explicit" : "auto";
+  const piped = await readPromptStdin(io, context.prompt, stdinMode);
   const prompt = joinPrompt(context.prompt, piped);
   if (prompt === "") {
     io.stderr("ama: -p 需要提示（位置参数或 stdin 管道）\n");
