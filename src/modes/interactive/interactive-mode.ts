@@ -11,6 +11,7 @@
  * - 晚绑定：`runtime.approvals.setUiBroker`（审批对话框）与 `runtime.notifier.set`（宿主通知进消息区），
  *   退出时撤下。
  * - 键位：Enter 发送（运行中 = steer），其余应用级键位见 `key-dispatch.ts`。
+ * - 回滚（RW-C）：`/rewind` 与空闲双击 Esc 走 rewind-flow.ts；回填的原消息图片暂存，随下一条消息发送。
  * - 启动头按 `ui.quietStartup`（startup-header.ts）：normal 框 + 模型 / 目录 / 模式 / 资源清单（窄屏或
  *   `ui.compact` 去框），header 一行，silent 不输出。
  */
@@ -18,7 +19,8 @@
 import { promptImages, sessionModel } from "../image-input.js";
 import { join } from "node:path";
 import { AgentSessionImpl } from "../../agent/session.js";
-import type { AgentSession, SessionEvent } from "../../agent/types.js";
+import type { AgentSession, RewindDraftText, SessionEvent } from "../../agent/types.js";
+import type { ImageBlock } from "../../ai/types.js";
 import { currentSession, switchSession, type SwitchRequest } from "../../cli/compose-session.js";
 import type { ModeContext } from "../../cli/deps.js";
 import type { Runtime } from "../../cli/runtime.js";
@@ -54,6 +56,7 @@ import { InteractiveCompletion } from "./completion.js";
 import { createKeyDispatch } from "./key-dispatch.js";
 import { MessageView, exitSummaryLines, type NoticeLevel } from "./message-view.js";
 import { openPicker } from "./pickers.js";
+import { createRewindFlow } from "./rewind-flow.js";
 import { StartupHeader } from "./startup-header.js";
 import { QueueView, RunIndicator } from "./run-indicator.js";
 import { StatusBar } from "./status-bar.js";
@@ -217,7 +220,7 @@ export function runInteractiveMode(
     view.addNotice(level, text);
     render();
   };
-  const showHint = (text: string): void => {
+  const showHint = (text: string, ms = HINT_MS): void => {
     hint.setText(text === "" ? "" : theme.fg("dim", text));
     if (hintTimer !== undefined) clearTimeout(hintTimer);
     hintTimer = undefined;
@@ -225,7 +228,7 @@ export function runInteractiveMode(
       hintTimer = setTimeout(() => {
         hint.setText("");
         render();
-      }, HINT_MS);
+      }, ms);
       hintTimer.unref?.();
     }
     render();
@@ -363,17 +366,23 @@ export function runInteractiveMode(
    * 空闲时发提示。agent_settled 之后会话周期还要一个微任务才结束，所以先 waitForIdle；
    * 仍然撞上运行中（极少）就排到本轮之后。
    */
+  let draftImages: ImageBlock[] = [];
   const startPrompt = (text: string): void => {
     const target = session;
+    const carried = draftImages;
+    draftImages = [];
     void target
       .waitForIdle()
       .then(async () => {
-        const images = await promptImages(
-          text,
-          [],
-          target.state.cwd,
-          sessionModel(runtime.providers, target),
-        );
+        const images = [
+          ...carried,
+          ...(await promptImages(
+            text,
+            [],
+            target.state.cwd,
+            sessionModel(runtime.providers, target),
+          )),
+        ];
         return target.prompt(text, images.length > 0 ? { images } : {});
       })
       .catch((error: unknown) => {
@@ -388,6 +397,38 @@ export function runInteractiveMode(
       });
   };
 
+  /** 对话换了路径（/tree、回滚）：重画消息区。内容可能缩到视口顶以上，差分画不对，整屏重画。 */
+  const reloadView = (): void => {
+    resetView();
+    tools.clear();
+    replay();
+    status.refresh();
+    tui.forceFullRedraw();
+  };
+  const setDraft = (draft: RewindDraftText): void => {
+    editor.setText(draft.text);
+    draftImages = [...(draft.images ?? [])];
+    render();
+  };
+  const pickerHost = {
+    theme,
+    keybindings: keys,
+    showOverlay: (c: Component, o: Parameters<TUI["showOverlay"]>[1]) => tui.showOverlay(c, o),
+    columns: () => terminal.columns,
+    rows: () => terminal.rows,
+  };
+  const rewind = createRewindFlow({
+    ...pickerHost,
+    session: () => session,
+    now,
+    render,
+    notice,
+    hint: (text) => showHint(text),
+    reload: reloadView,
+    setDraft,
+    editorEmpty: () => editor.isEmpty(),
+  });
+
   const commandUi: CommandUi = {
     runtime,
     session: () => session,
@@ -396,16 +437,9 @@ export function runInteractiveMode(
       rebind(next, request.kind === "new" ? "new" : request.kind === "fork" ? "fork" : "resume");
       return next;
     },
-    pick: (spec) =>
-      openPicker(
-        {
-          theme,
-          keybindings: keys,
-          showOverlay: (c, o) => tui.showOverlay(c, o),
-          columns: () => terminal.columns,
-        },
-        spec,
-      ),
+    pick: (spec) => openPicker(pickerHost, spec),
+    rewind: () => rewind.open(),
+    setDraft,
     notice,
     panel: (component) => {
       view.add(component);
@@ -419,13 +453,7 @@ export function runInteractiveMode(
       render();
     },
     prompt: (text) => startPrompt(text),
-    reload: () => {
-      resetView();
-      tools.clear();
-      replay();
-      status.refresh();
-      render();
-    },
+    reload: reloadView,
     exit: (code) => exit(code),
     now,
   };
@@ -470,6 +498,7 @@ export function runInteractiveMode(
       submit: (text, via) => submit(text, via),
       runCommand: (line) => void runCommand(line),
       exit: (code) => exit(code),
+      onInterrupted: (empty) => void rewind.afterInterrupt(empty),
     }),
   );
 
