@@ -47,7 +47,8 @@ B10 草稿（B9 统稿）；设计依据见 [design.md](design.md) §5.5、§5.6
 描述首段写明规则（只有 `tools.<name>(args)`；没有 require / import / process / fetch / 定时器；不要把工具当函数直接调用），随后是一段 6 行示例脚本：`Promise.all` 并发两个 `tools.read`、过滤、`return`。实测 Kimi、MiniMax 在旧描述下会在脚本里写 `require` / `import`，或在 `only` 模式下直接调用 `read`。两类错误都给出正确写法：
 
 - 脚本因 `require` / `import` / `process` / `fetch` / 定时器失败：`Script error` 后追加一行 `Only tools.<name>(args) is available in codemode scripts …`；脚本里直接调用工具名（`read is not defined`）：追加 `Call tools as tools.read({...}), not read(...).`
-- `only` 模式下模型绕过 `codemode` 直接调用工具：错误结果是 `Tool read is only callable inside a codemode script: tools.read({...})`（真不存在的工具仍是 `Tool X not found`）。
+- `only` 模式下系统提示的工具行写明 `codemode` 是唯一工具，规则节加一条「read / edit / bash 等不能直接调用，放进脚本里以 `tools.<name>(args)` 调用」。
+- `only` 模式下模型仍绕过 `codemode` 直接调用工具时：错误结果是 `Tool read is only callable inside a codemode script: tools.read({...})`（真不存在的工具仍是 `Tool X not found`）。
 
 ### 返回值
 
