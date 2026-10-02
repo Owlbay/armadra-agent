@@ -209,7 +209,7 @@ const FLAG_ALIASES: Readonly<Record<string, string>> = {
 
 function choice<T extends string>(option: string, value: string, choices: readonly T[]): T {
   if ((choices as readonly string[]).includes(value)) return value as T;
-  throw new UsageError(`--${option} 的取值应为 ${choices.join(" | ")}（收到 ${value}）`);
+  throw new UsageError(msg().cli.args.invalidChoice(option, choices, value));
 }
 
 function list(value: string): string[] {
@@ -240,7 +240,7 @@ export function emptyArgs(): ParsedArgs {
 }
 
 function applyValue(args: ParsedArgs, option: ValueOption, value: string): void {
-  if (value === "") throw new UsageError(`--${option} 的值不能为空`);
+  if (value === "") throw new UsageError(msg().cli.args.emptyValue(option));
   switch (option) {
     case "profile":
       args.profile = value;
@@ -294,8 +294,7 @@ function applyValue(args: ParsedArgs, option: ValueOption, value: string): void 
       args.mode = choice(option, value, ["rpc", "acp"] as const);
       break;
     case "tui-mode":
-      if (value === "fullscreen")
-        throw new UsageError("--tui-mode fullscreen 尚未支持（第一期只有 regular）");
+      if (value === "fullscreen") throw new UsageError(msg().cli.args.fullscreenUnsupported);
       args.tuiMode = choice(option, value, ["regular"] as const);
       break;
     case "quiet-startup":
@@ -325,14 +324,14 @@ function applyValue(args: ParsedArgs, option: ValueOption, value: string): void 
     case "max-turns": {
       const turns = Number(value);
       if (!Number.isInteger(turns) || turns < 1)
-        throw new UsageError(`--max-turns 应为正整数（收到 ${value}）`);
+        throw new UsageError(msg().cli.args.maxTurnsPositive(value));
       args.maxTurns = turns;
       break;
     }
     case "max-cost": {
       const usd = Number(value);
       if (!Number.isFinite(usd) || usd <= 0)
-        throw new UsageError(`--max-cost 应为正数（美元，收到 ${value}）`);
+        throw new UsageError(msg().cli.args.maxCostPositive(value));
       args.maxCostUsd = usd;
       break;
     }
@@ -375,7 +374,7 @@ function applyFlag(args: ParsedArgs, name: string): boolean {
     case "no-trust": {
       const value = name === "trust";
       if (args.trust !== undefined && args.trust !== value) {
-        throw new UsageError("--trust 与 --no-trust 不能同时使用");
+        throw new UsageError(msg().cli.args.flagConflict("--trust", "--no-trust"));
       }
       args.trust = value;
       return true;
@@ -394,37 +393,37 @@ function applyFlag(args: ParsedArgs, name: string): boolean {
 }
 
 function validate(args: ParsedArgs): void {
-  if (args.print && args.mode !== undefined)
-    throw new UsageError(`-p 与 --mode ${args.mode} 不能同时使用`);
+  const m = msg().cli.args;
+  if (args.print && args.mode !== undefined) throw new UsageError(m.printWithMode(args.mode));
   const sessionFlags = [
     args.continue ? "--continue" : undefined,
     args.resume ? "--resume" : undefined,
     args.sessionId !== undefined ? "--session-id" : undefined,
     args.fork !== undefined ? "--fork" : undefined,
   ].filter((f): f is string => f !== undefined);
-  if (sessionFlags.length > 1) throw new UsageError(`${sessionFlags.join(" 与 ")} 不能同时使用`);
+  if (sessionFlags.length > 1) throw new UsageError(m.flagsConflict(sessionFlags));
   if (args.noSession && sessionFlags.length > 0) {
-    throw new UsageError(`--no-session 与 ${sessionFlags[0]} 不能同时使用`);
+    throw new UsageError(m.flagConflict("--no-session", sessionFlags[0] ?? ""));
   }
   if (args.apiKey !== undefined && args.model === undefined) {
-    throw new UsageError("--api-key 需要同时给出 --model");
+    throw new UsageError(m.apiKeyNeedsModel);
   }
   if (args.outputFormat !== undefined && !args.print) {
-    throw new UsageError("--output-format 只用于 -p / --print");
+    throw new UsageError(m.printOnly("--output-format"));
   }
   if (args.systemPromptMode !== undefined && args.systemPrompt === undefined) {
-    throw new UsageError("--system-prompt-mode 需要同时给出 --system-prompt");
+    throw new UsageError(m.systemPromptModeNeedsPrompt);
   }
   if (args.maxTurns !== undefined && !args.print) {
-    throw new UsageError("--max-turns 只用于 -p / --print");
+    throw new UsageError(m.printOnly("--max-turns"));
   }
-  if (args.noStdin && !args.print) throw new UsageError("--no-stdin 只用于 -p / --print");
-  if (args.noStdin && args.stdin) throw new UsageError("--no-stdin 与位置参数 - 不能同时使用");
+  if (args.noStdin && !args.print) throw new UsageError(m.printOnly("--no-stdin"));
+  if (args.noStdin && args.stdin) throw new UsageError(m.noStdinWithDash);
   if (args.stdin && !args.print) {
-    throw new UsageError("位置参数 - （从 stdin 读提示）只用于 -p / --print");
+    throw new UsageError(m.dashPrintOnly);
   }
   if (args.images.length > 0 && !args.print) {
-    throw new UsageError("--image 只用于 -p / --print（交互界面里写 @图片路径）");
+    throw new UsageError(m.imagePrintOnly);
   }
 }
 
@@ -463,14 +462,14 @@ export function parseArgs(argv: readonly string[]): ParseResult {
       inline = eq === -1 ? undefined : token.slice(eq + 1);
     } else {
       const alias = FLAG_ALIASES[token];
-      if (alias === undefined) throw new UsageError(`未知选项：${token}`);
+      if (alias === undefined) throw new UsageError(msg().cli.args.unknownOption(token));
       name = alias;
     }
     if (name === "resume") {
       args.resume = true;
       const next = argv[i + 1];
       if (inline !== undefined) {
-        if (inline === "") throw new UsageError("--resume= 的 id 不能为空");
+        if (inline === "") throw new UsageError(msg().cli.args.emptyResumeId);
         args.resumeId = inline;
       } else if (next !== undefined && SESSION_ID_LIKE.test(next)) {
         args.resumeId = next;
@@ -482,14 +481,14 @@ export function parseArgs(argv: readonly string[]): ParseResult {
       let value = inline;
       if (value === undefined) {
         value = argv[i + 1];
-        if (value === undefined) throw new UsageError(`--${name} 需要一个值`);
+        if (value === undefined) throw new UsageError(msg().cli.args.needsValue(name));
         i++;
       }
       applyValue(args, name as ValueOption, value);
       continue;
     }
-    if (inline !== undefined) throw new UsageError(`--${name} 不接受值`);
-    if (!applyFlag(args, name)) throw new UsageError(`未知选项：${token}`);
+    if (inline !== undefined) throw new UsageError(msg().cli.args.noValue(name));
+    if (!applyFlag(args, name)) throw new UsageError(msg().cli.args.unknownOption(token));
   }
   if (args.positionals.length > 0) args.prompt = args.positionals.join(" ");
   if (!args.help && !args.version) validate(args);
@@ -541,12 +540,13 @@ export function parseSubArgs(
     }
     if (valueOptions.includes(name)) {
       const value = eq === -1 ? argv[++i] : token.slice(eq + 1);
-      if (value === undefined || value === "") throw new UsageError(`--${name} 需要一个值`);
+      if (value === undefined || value === "")
+        throw new UsageError(msg().cli.args.needsValue(name));
       values.set(name, value);
     } else if (flagOptions.includes(name) && eq === -1) {
       flags.add(name);
     } else {
-      throw new UsageError(`未知选项：${token}`);
+      throw new UsageError(msg().cli.args.unknownOption(token));
     }
   }
   return { positionals, values, flags };

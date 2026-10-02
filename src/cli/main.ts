@@ -178,7 +178,7 @@ function installProcessHooks(io: CliIo): void {
   hooksInstalled = true;
   const fatal = (error: unknown): void => {
     const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
-    io.stderr(`ama: 未捕获的异常：${message.split("\n")[0] ?? ""}\n`);
+    io.stderr(msg().cli.main.uncaught(message.split("\n")[0] ?? ""));
     process.exit(ExitCode.RuntimeError);
   };
   process.on("uncaughtException", fatal);
