@@ -171,7 +171,7 @@ compat 只记录**已验证**的差异；新增条目请附文档链接或真实
 | `openai-responses`                       | `prompt_cache_options: { ttl: "30m" }`，否则 `prompt_cache_retention: "24h"`             | `long` 且 `supportsExplicitPromptCacheMode`；否则 `long` 且 `supportsLongCacheRetention` |
 | OpenAI 两条                              | 亲和头 `x-session-affinity` + 每请求 `x-client-request-id`（OpenRouter：`x-session-id`） | `sendSessionAffinityHeaders` 且有 sessionId                                              |
 | `google-generative-ai`                   | 无（隐式缓存）                                                                           | —                                                                                        |
-| 全部                                     | `toolChoice: "none"` → 各家的「禁止调用工具」写法                                        | 请求带工具时（压缩摘要的前缀续写用）                                                     |
+| 全部                                     | `toolChoice: "none"` → 各家的「禁止调用工具」写法                                        | 请求带工具时（摘要续写**不用**，见「压缩摘要续写」）                                     |
 
 保留层级：`StreamOptions.cacheRetention` 优先；未指定时读 `AMA_CACHE_RETENTION=none|short|long`；都没有为
 `short`。Anthropic 请求体最后做 TTL 顺序校验（tools → system → messages 里 5m 之后出现 1h 则全部降为 5m）。
@@ -238,7 +238,7 @@ OpenRouter、Google 没有承诺的 TTL，留空（不保温，归因按隐式�
 
 ### 压缩摘要续写
 
-档二压缩的摘要请求不再另起一段新对话，而是在与上一次真实请求逐字节相同的前缀后面追加一条摘要指令（`toolChoice: "none"`、`cacheRetention: "short"`），所以整段历史按读价计费。响应为空、被截断、含工具调用或请求出错时，回落为独立的摘要请求（`cacheRetention: "none"`）并记 warning。
+档二压缩的摘要请求不再另起一段新对话，而是在与上一次真实请求逐字节相同的前缀后面追加一条摘要指令（`cacheRetention: "short"`），所以整段历史按读价计费。续写请求**不发 `tool_choice`**：实测中转与 Kimi 在 `tool_choice: "none"` 时渲染的提示不带工具定义，前缀在工具段断开、读不到缓存；Anthropic 也写明改动 tool_choice 会让消息缓存失效。工具表照常发，「不要调用工具、只输出摘要」写在末尾指令里。响应为空、被截断、含工具调用或请求出错时，回落为独立的摘要请求（`cacheRetention: "none"`）并记 warning。
 
 ### 配置
 
