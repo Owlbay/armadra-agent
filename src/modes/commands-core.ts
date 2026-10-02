@@ -10,13 +10,18 @@
  * 会话切换（/new /resume /fork）经 `ctx.switchSession`，调用方据返回的新会话重新订阅事件。
  */
 
+import { AgentSessionImpl } from "../agent/session.js";
 import type { AgentSession } from "../agent/types.js";
+import { WARMING_MODES, type WarmingMode } from "../ai/cache/types.js";
 import { THINKING_LEVELS } from "../ai/thinking.js";
 import type { ModelThinkingLevel } from "../ai/types.js";
 import type { SwitchRequest } from "../cli/compose-session.js";
 import type { Runtime } from "../cli/runtime.js";
 import { AmaError } from "../errors.js";
 import { PERMISSION_MODES_STRICT_FIRST, type PermissionMode } from "../permissions/types.js";
+import { describeCache, describeFingerprint, describeSession } from "./session-report.js";
+
+export { describeSession } from "./session-report.js";
 
 export type CommandResult =
   | { kind: "handled"; message?: string }
@@ -56,7 +61,12 @@ export const BUILTIN_COMMANDS: readonly CommandInfo[] = [
   },
   { name: "tools", args: "[名字…]", description: "列出 / 设置活动工具" },
   { name: "hooks", description: "列出已加载的 Hook" },
-  { name: "session", description: "会话信息与用量" },
+  { name: "session", description: "会话信息、用量与缓存" },
+  {
+    name: "cache",
+    args: "[warm off|streaming|idle | fingerprint]",
+    description: "缓存统计；切换本会话保温；打印前缀指纹",
+  },
   { name: "exit", description: "退出" },
 ];
 
@@ -67,25 +77,6 @@ export function parseSlash(line: string): { name: string; args: string } | undef
   if (m === null) return undefined;
   const raw = (m[1] as string).toLowerCase();
   return { name: ALIASES[raw] ?? raw, args: (m[2] ?? "").trim() };
-}
-
-function percent(rate: number | undefined): string {
-  return rate === undefined ? "?" : `${Math.round(rate * 100)}%`;
-}
-
-export function describeSession(session: AgentSession): string {
-  const state = session.state;
-  const stats = session.getStats();
-  const model = state.model === undefined ? "?" : `${state.model.provider}/${state.model.id}`;
-  const t = stats.tokens;
-  return [
-    `会话：${state.sessionId}${state.sessionFile !== undefined ? `（${state.sessionFile}）` : "（未落盘）"}`,
-    `模型：${model} · 思考 ${state.thinkingLevel} · 权限 ${state.permissionMode}`,
-    `消息：用户 ${stats.userMessages} · 助手 ${stats.assistantMessages} · 工具调用 ${stats.toolCalls}`,
-    `用量：输入 ${t.input} · 输出 ${t.output} · 缓存读 ${t.cacheRead} · 缓存写 ${t.cacheWrite} · 命中率 ${percent(stats.cacheHitRate)}` +
-      (stats.cost !== undefined ? ` · $${stats.cost.toFixed(4)}` : ""),
-    `上下文：${stats.contextTokens ?? "?"} / ${stats.contextWindow ?? "?"}（${stats.contextPercent ?? "?"}%）`,
-  ].join("\n");
 }
 
 function helpText(): string {
@@ -102,6 +93,23 @@ function toolNames(args: string): string[] {
     .split(/[\s,]+/)
     .map((s) => s.trim())
     .filter((s) => s !== "");
+}
+
+/** `/cache`、`/cache warm <模式>`、`/cache fingerprint`。 */
+function cacheCommand(session: AgentSession, args: string): string {
+  const [sub, value, extra] = args.split(/\s+/).filter((s) => s !== "");
+  if (sub === undefined) return describeCache(session);
+  if (sub === "fingerprint" && value === undefined) return describeFingerprint(session);
+  if (sub === "warm" && extra === undefined) {
+    if (!(session instanceof AgentSessionImpl))
+      throw new AmaError("invalid_arguments", "当前会话不支持切换保温");
+    if (value === undefined) return `保温：${session.cache.mode()}`;
+    if (!(WARMING_MODES as readonly string[]).includes(value))
+      throw new AmaError("invalid_arguments", `保温模式应为 ${WARMING_MODES.join(" | ")}`);
+    session.cache.setWarming(value as WarmingMode);
+    return `保温：${session.cache.mode()}（本会话）`;
+  }
+  throw new AmaError("invalid_arguments", "用法：/cache [warm off|streaming|idle | fingerprint]");
 }
 
 export async function runSlashCommand(
@@ -188,6 +196,8 @@ export async function runSlashCommand(
     }
     case "session":
       return { kind: "handled", message: describeSession(session) };
+    case "cache":
+      return { kind: "handled", message: cacheCommand(session, args) };
     default:
       return undefined;
   }
