@@ -11,6 +11,7 @@ import {
   toModel,
 } from "./catalog.js";
 import { CATALOG_SOURCES } from "./catalog-data.js";
+import { inlineJsonModule } from "../../../scripts/lib/inline-json.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const catalogDir = join(here, "catalog");
@@ -27,20 +28,14 @@ function jsonFiles(): Map<string, unknown> {
 
 /** catalog-data.ts 的生成器（UPDATE_CATALOG=1 时写回；之后跑 prettier）。 */
 function generate(files: Map<string, unknown>): string {
-  const lines = [
-    "/**",
-    " * 由 catalog/*.json 生成，勿手改。重新生成：",
-    " * UPDATE_CATALOG=1 pnpm vitest run src/ai/providers/catalog.test.ts",
-    " */",
-    "",
-    "export const CATALOG_SOURCES: Readonly<Record<string, string>> = {",
-  ];
-  for (const [id, value] of files) {
-    const key = /^[a-z_]+$/.test(id) ? id : JSON.stringify(id);
-    lines.push(`  ${key}:`, `    ${JSON.stringify(JSON.stringify(value))},`);
-  }
-  lines.push("};", "");
-  return lines.join("\n");
+  return inlineJsonModule({
+    header: [
+      "由 catalog/*.json 生成，勿手改。重新生成：",
+      "UPDATE_CATALOG=1 pnpm vitest run src/ai/providers/catalog.test.ts",
+    ],
+    exportName: "CATALOG_SOURCES",
+    entries: files,
+  });
 }
 
 describe("模型目录", () => {

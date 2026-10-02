@@ -1,0 +1,4 @@
+{
+  "prefixes": { "openrouter": ["anthropic", "openai"] },
+  "providers": ["anthropic", "google", "openai", "openrouter"]
+}
