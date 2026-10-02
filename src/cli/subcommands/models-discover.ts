@@ -8,12 +8,20 @@
  * responses → messages（去重），各发一次最小请求（`ama models check` 同款，maxTokens 16），
  * 记第一个成功的协议；每模型最多 3 次请求，`--limit`（缺省 30）限制探测的模型数，执行前打印
  * 预估；401 / 403 / 429 立即停止（key 无效或被限流，继续只会浪费请求）。
+ *
+ * `--write`：新条目合并进用户级 config.json 的 `providers.<id>.models`——已有同 id 不覆盖；只写
+ * `id` 与探到的 `api`（与供应商协议相同时省略）；带 `--probe` 时只写探测成功的模型。不猜
+ * `contextWindow`（自动压缩随之关闭，输出 warning）。写前备份为 `config.json.bak`。
  */
 
 import { authHeaders, mergeHeaders } from "../../ai/http.js";
 import { discoverLocalModels, materializeModel } from "../../ai/providers/registry.js";
 import { withCustomDefaults } from "../../ai/providers/catalog.js";
 import type { Api, Model, ProviderData, ProviderRegistryApi } from "../../ai/types.js";
+import { existsSync } from "node:fs";
+import { loadConfigFile } from "../../config/load.js";
+import type { AmaConfig, ModelConfig } from "../../config/types.js";
+import { writeConfigFile } from "../../config/write.js";
 import { UsageError } from "../args.js";
 import { ExitCode } from "../exit-codes.js";
 import type { ModelsAction, ModelsActionContext } from "./models.js";
@@ -144,6 +152,42 @@ function parseLimit(raw: string | undefined): number {
   return n;
 }
 
+/** 把新条目合并进用户级 config.json；返回写入条数。 */
+function writeEntries(
+  ctx: ModelsActionContext,
+  provider: ProviderData,
+  entries: ModelConfig[],
+): number {
+  const { io } = ctx;
+  const path = ctx.level.userConfigPath;
+  const config: AmaConfig = structuredClone(
+    loadConfigFile("config", path)?.value ?? { version: 1 },
+  );
+  const providers = (config.providers ??= {});
+  if (providers[provider.id] === undefined && !provider.builtin) {
+    io.stderr(`ama: ${provider.id} 不在用户级配置（${path}）里，未写入\n`);
+    return 0;
+  }
+  const target = (providers[provider.id] ??= {});
+  const models = (target.models ??= []);
+  const existing = new Set([...models.map((m) => m.id), ...provider.models.map((m) => m.id)]);
+  const added = entries.filter((entry) => !existing.has(entry.id));
+  const kept = entries.length - added.length;
+  if (added.length === 0) {
+    io.stdout(`\n没有新模型要写入${kept > 0 ? `（${kept} 个已存在，未覆盖）` : ""}\n`);
+    return 0;
+  }
+  models.push(...added);
+  const backup = existsSync(path);
+  writeConfigFile(path, config, { backup: true });
+  io.stdout(
+    `\n已写入 ${path}：${provider.id} 新增 ${added.length} 个模型` +
+      `${kept > 0 ? `，${kept} 个已存在未覆盖` : ""}${backup ? `（原文件备份为 ${path}.bak）` : ""}\n`,
+  );
+  io.stderr(`ama: 警告：新增模型未设 contextWindow，自动压缩关闭；需要时在 config.json 里补上\n`);
+  return added.length;
+}
+
 async function run(ctx: ModelsActionContext): Promise<number> {
   const { io, registry } = ctx;
   const id = ctx.args[0] ?? "";
@@ -171,7 +215,16 @@ async function run(ctx: ModelsActionContext): Promise<number> {
     const known = configured.get(model.id);
     io.stdout(`  ${model.id}${known !== undefined ? `  已配置（${known.api}）` : ""}\n`);
   }
-  if (!ctx.flags.has("probe")) return ExitCode.Ok;
+  const write = ctx.flags.has("write");
+  if (!ctx.flags.has("probe")) {
+    if (write)
+      writeEntries(
+        ctx,
+        provider,
+        found.map((m) => ({ id: m.id })),
+      );
+    return ExitCode.Ok;
+  }
   const ids = found.map((m) => m.id);
   const count = Math.min(limit, ids.length);
   const order = probeOrder(provider);
@@ -180,10 +233,18 @@ async function run(ctx: ModelsActionContext): Promise<number> {
       `${ids.length > count ? `；另有 ${ids.length - count} 个超出 --limit ${limit}，未探测` : ""}\n`,
   );
   let stopped: string | undefined;
-  await probeModelApis(registry, provider, ids, limit, {
+  const probed = await probeModelApis(registry, provider, ids, limit, {
     onResult: (modelId, api) => io.stdout(`  ${modelId}  ${api ?? "不可用（三种协议均失败）"}\n`),
     onStop: (reason) => (stopped = reason),
   });
+  if (write) {
+    const entries: ModelConfig[] = [];
+    for (const [modelId, api] of probed) {
+      if (api !== undefined)
+        entries.push(api === provider.api ? { id: modelId } : { id: modelId, api });
+    }
+    writeEntries(ctx, provider, entries);
+  }
   if (stopped !== undefined) {
     io.stderr(`ama: 探测提前停止（${stopped}）\n`);
     return ExitCode.RuntimeError;
@@ -192,9 +253,9 @@ async function run(ctx: ModelsActionContext): Promise<number> {
 }
 
 export const DISCOVER_ACTION: ModelsAction = {
-  usage: "ama models discover <provider> [--probe] [--limit <n>]",
+  usage: "ama models discover <provider> [--probe] [--write] [--limit <n>]",
   required: "<provider>",
   valueOptions: ["limit"],
-  flagOptions: ["probe"],
+  flagOptions: ["probe", "write"],
   run,
 };

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTmpHome, type TmpHome } from "../../../test/helpers/tmp-home.js";
 import { ApiRegistry } from "../../ai/apis/api.js";
@@ -225,5 +226,47 @@ describe("ama models discover", () => {
     await expect(
       runModels(["discover", "relay", "--probe", "--limit", "0"], io(), deps()),
     ).rejects.toThrow(/--limit 需要正整数/);
+  });
+
+  it("--probe --write：只写探测成功的新模型（id + 与供应商不同的 api），已有同 id 不覆盖，先备份", async () => {
+    const path = writeConfig({ relay: RELAY });
+    stubFetch(["deepseek-v4-flash", "glm-5", "grok-4.7", "unknown-a"]);
+    expect(await runModels(["discover", "relay", "--probe", "--write"], io(), deps())).toBe(0);
+    const written = JSON.parse(readFileSync(path, "utf8")) as {
+      providers: { relay: { models: unknown[]; apiKey: string } };
+    };
+    expect(written.providers.relay.models).toEqual([
+      { id: "glm-5", api: "anthropic-messages" },
+      { id: "deepseek-v4-flash" },
+      { id: "grok-4.7", api: "openai-responses" },
+    ]);
+    expect(written.providers.relay.apiKey).toBe("$RELAY_KEY");
+    expect(JSON.parse(readFileSync(`${path}.bak`, "utf8"))).toEqual({
+      version: 1,
+      providers: { relay: RELAY },
+    });
+    expect(out.join("")).toContain("relay 新增 2 个模型，1 个已存在未覆盖");
+    expect(err.join("")).toContain("未设 contextWindow，自动压缩关闭");
+    out = [];
+    expect(await runModels(["discover", "relay", "--write"], io(), deps())).toBe(0);
+    expect(JSON.parse(readFileSync(path, "utf8")).providers.relay.models).toContainEqual({
+      id: "unknown-a",
+    });
+    expect(out.join("")).toContain("relay 新增 1 个模型，3 个已存在未覆盖");
+  });
+
+  it("--write：供应商不在用户级配置且非内置 → 不写", async () => {
+    stubFetch(["a"]);
+    const profileDeps: Pick<RuntimeDeps, "providers"> = {
+      providers: {
+        create: (input) =>
+          buildProviderRegistry(
+            { ...input, config: { version: 1, providers: { relay: RELAY } } },
+            { env: { RELAY_KEY: "sk-relay" }, includeFake: false, probeLocal: false },
+          ),
+      },
+    };
+    expect(await runModels(["discover", "relay", "--write"], io(), profileDeps)).toBe(0);
+    expect(err.join("")).toContain("relay 不在用户级配置");
   });
 });
