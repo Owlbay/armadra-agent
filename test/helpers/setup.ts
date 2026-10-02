@@ -6,6 +6,7 @@
  * - 清空各家 API Key 环境变量（`*_API_KEY`、`AMA_API_KEY_*` 以及 §3.3 里不以 _API_KEY 结尾的
  *   候选名），测试不会意外用到开发者本机的真 key。
  * - `AMA_NO_INIT=1`：CLI 不自动初始化配置目录（`AMA_CONFIG_DIR` 指向的目录此时还不存在）。
+ * - `AMA_NO_AGENT_PROBE=1`：外部 Agent 不按本机 PATH 登记、不探测版本（W5-EG）。
  * - 清掉 `AMA_LOG` / `AMA_LOG_FILE` / `AMA_SHELL` 与 `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`
  *   （内置供应商据此改 baseUrl，W3-B12），避免本机设置影响断言。
  * - **泄漏护栏**：测试给 bootstrap / createRuntimeDeps 传显式 `env` 时不经过上面的 process.env，
@@ -41,6 +42,9 @@ process.env["AMA_CONFIG_DIR"] = join(root, "config");
 process.env["AMA_DATA_DIR"] = join(root, "data");
 // CLI 首次运行的自动初始化（config/init.ts）不在测试里触发；init.test.ts 显式传 env 覆盖。
 process.env["AMA_NO_INIT"] = "1";
+// [W5-EG] 不按本机 PATH 登记 claude / codex 进 task 描述、不探测版本（结果随机器变化）；
+// 外部 Agent 的用例显式注入 spawn / env。
+process.env["AMA_NO_AGENT_PROBE"] = "1";
 
 const realHome = userInfo().homedir;
 const REAL_ROOTS = [join(realHome, ".local", "share", "ama"), join(realHome, ".config", "ama")];

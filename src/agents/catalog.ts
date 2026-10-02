@@ -22,14 +22,23 @@ export interface AgentModelConfig {
 
 export class AgentCatalog {
   private readonly byName = new Map<string, AgentDefinition>();
+  private resolver: ((name: string) => AgentDefinition | undefined) | undefined;
 
   constructor(discovered: readonly AgentDefinition[] = []) {
     for (const agent of BUILTIN_AGENTS) this.byName.set(agent.name, agent);
     for (const agent of discovered) this.byName.set(agent.name, agent);
   }
 
+  /**
+   * 目录里没有的名字按需解析（`acp:<program>`、未在启动时登记的外部 / 宿主 runner，见
+   * agents/external.ts）。解析出的类型不进 {@link describe}：task 工具描述在会话内保持字节不变。
+   */
+  setResolver(resolver: ((name: string) => AgentDefinition | undefined) | undefined): void {
+    this.resolver = resolver;
+  }
+
   get(name: string): AgentDefinition | undefined {
-    return this.byName.get(name);
+    return this.byName.get(name) ?? this.resolver?.(name);
   }
 
   /** 外部 / 宿主类型；同名已存在返回 false。 */
