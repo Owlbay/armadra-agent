@@ -9,16 +9,20 @@
  *   宿主 instructions（host 节，读成文本）。SessionStart Hook 的 additionalContext 与宿主后加的
  *   指令在每次提示展开前 `updateSystem`——值不变时不产生补丁，前缀保持逐字节稳定（§9.1）。
  * - 事件：`SessionEvent` 桥接到宿主 `AgentEventBus`（§1.4 表；hook_executed、session_start /
- *   session_shutdown 由 bootstrap 发，不桥接）。
+ *   session_shutdown 由 bootstrap 发，不桥接）；第三波加 `cache_miss` / `context_pressure`。
+ * - 缓存（第三波 §1.12）：config `cache` 段（项目级已在合并时忽略）+ `AMA_CACHE_WARMING` /
+ *   `AMA_CACHE_RETENTION` 覆盖 → 会话的 `cache` 设置；宿主 `cache.onWarmingDecision` 每次现取。
  * - 会话切换：`switchSession()` 复用同一份装配材料建新会话，`assembly.onSessionReplaced(next)`
  *   让宿主访问、Hook 公共字段与退出 dispose 跟随新会话。
  */
 
 import { readFileSync } from "node:fs";
 import { AgentSessionImpl, type AgentSessionOptions } from "../agent/session.js";
-import type { AgentSession, SessionEvent } from "../agent/types.js";
+import type { AgentSession, CacheSettings, SessionEvent } from "../agent/types.js";
+import { WARMING_MODES, type WarmingMode } from "../ai/cache/types.js";
 import { isOverflowErrorText } from "../ai/overflow.js";
 import type { Model, ModelThinkingLevel } from "../ai/types.js";
+import { CACHE_RETENTIONS, type AmaConfig } from "../config/types.js";
 import { AmaError, StartupError } from "../errors.js";
 import type { AgentEventBus } from "../host/api-impl.js";
 import type { InstructionSource } from "../host/types.js";
@@ -164,6 +168,30 @@ async function expandPrompt(
   return { text: template?.text ?? text };
 }
 
+/** config `cache` 段 + 环境变量 → 会话缓存设置；非法的环境变量值忽略并 warning。 */
+export function cacheSettingsFrom(
+  config: Pick<AmaConfig, "cache">,
+  env: NodeJS.ProcessEnv = process.env,
+  warn: (message: string) => void = () => undefined,
+): Partial<CacheSettings> {
+  const settings: Partial<CacheSettings> = {};
+  for (const [key, value] of Object.entries(config.cache ?? {})) {
+    if (value !== undefined) (settings as Record<string, unknown>)[key] = value;
+  }
+  const warming = env["AMA_CACHE_WARMING"];
+  if (warming !== undefined && warming !== "") {
+    if (WARMING_MODES.includes(warming as WarmingMode)) settings.warming = warming as WarmingMode;
+    else warn(`AMA_CACHE_WARMING=${warming} 无效（off | streaming | idle），已忽略`);
+  }
+  const retention = env["AMA_CACHE_RETENTION"];
+  if (retention !== undefined && retention !== "") {
+    const value = retention as CacheSettings["retention"];
+    if (CACHE_RETENTIONS.includes(value)) settings.retention = value;
+    else warn(`AMA_CACHE_RETENTION=${retention} 无效（none | short | long），已忽略`);
+  }
+  return settings;
+}
+
 /** §1.4：SessionEvent → AgentEvents。 */
 export function bridgeEvent(event: SessionEvent, bus: AgentEventBus): void {
   switch (event.type) {
@@ -215,6 +243,16 @@ export function bridgeEvent(event: SessionEvent, bus: AgentEventBus): void {
     case "model_changed":
       void bus.emit("model_select", { model: event.model });
       return;
+    case "cache_miss": {
+      const { type: _type, ...miss } = event;
+      void bus.emit("cache_miss", miss);
+      return;
+    }
+    case "context_pressure": {
+      const { type: _type, ...pressure } = event;
+      void bus.emit("context_pressure", pressure);
+      return;
+    }
     default:
       return;
   }
@@ -254,6 +292,8 @@ function buildSession(
     isContextOverflow: isOverflowErrorText,
     subagents: registry.get("task") === undefined ? false : { maxConcurrent: 4 },
     log: record.log,
+    cache: cacheSettingsFrom(config, process.env, (message) => record.log("warn", message)),
+    warmingDecider: () => assembly.host.warmingDecider?.(),
   };
   const maxChars = config.tools?.maxToolResultChars;
   if (maxChars !== undefined) options.maxToolResultChars = maxChars;
