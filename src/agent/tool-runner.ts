@@ -7,7 +7,8 @@
  * `tool_execution_end` 按完成顺序发；toolResult 消息按原序发 `message_start/end`（入转录）。
  * `terminate` 要整批都为真才提前结束。`stopReason: "length"` 且有工具调用 → 整批判失败不执行。
  * abort：未开始的调用直接给 `aborted by user` 错误结果；执行中的工具收到 signal，超过宽限期仍未结束
- * 则不再等待、记 `aborted by user`。结果超 `maxToolResultChars` 截断并把全文写到 `outputDir`。
+ * 则不再等待、记 `aborted by user`。结果超 `maxToolResultChars` 截断并把全文写到 `outputDir`：
+ * [W5-H2] 保留头 70% + 尾 30%，中间 `[… N 字符已省略，全文 <path>]`（tools/truncate.ts）。
  *
  * 嵌套调用（`ToolContext.tools.executeTool`，codemode 脚本里的 `tools.*`）走 `runSingleToolCall`：
  * 同一套校验与门禁，按**全部未禁用工具**查找（codemode only 模式下活动集只有 codemode），
@@ -29,6 +30,7 @@ import type { NestedCallInfo, SessionEvent, ToolCallGate, ToolCallGateContext } 
 import type { AutoDecision } from "../permissions/types.js";
 import { CODEMODE_TOOL } from "../tools/presets.js";
 import { executionModeOf } from "../tools/registry.js";
+import { truncateMiddle } from "../tools/truncate.js";
 import type { ToolContext, ToolDefinition, ToolResult } from "../tools/types.js";
 
 export const ABORTED_TOOL_TEXT = "aborted by user";
@@ -211,10 +213,14 @@ function truncateResult(
     typeof result.content === "string"
       ? []
       : result.content.filter((block) => block.type === "image");
-  const head = `${text.slice(0, limit)}\n\n[输出过长已截断：共 ${text.length} 字符，${where}]`;
+  const { content } = truncateMiddle(
+    text,
+    limit,
+    (omitted) => `[… ${omitted} 字符已省略（输出过长已截断：共 ${text.length} 字符，${where}）]`,
+  );
   return {
     ...result,
-    content: images.length > 0 ? [{ type: "text", text: head }, ...images] : head,
+    content: images.length > 0 ? [{ type: "text", text: content }, ...images] : content,
   };
 }
 
