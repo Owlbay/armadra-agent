@@ -143,6 +143,18 @@ get_todos / get_tasks / get_agents`（命令表 42 条，实现前回 `not_imple
   改为「快照 ⊕ 覆盖」：数值从快照继承，目录只写覆盖项与 ama 特有字段，与快照相同的值由测试报冗余；dashscope
   补上了价格，gemini 2.5 / 3.1 pro、openrouter 部分模型补上了阶梯价；模型新增 `family` / `knowledge` /
   `releaseDate` / `inputLimit` / `status` 元数据。每周的 `.github/workflows/models-dev.yml` 刷新快照并开 PR。
+- **界面集成**（第五波 W5-U，docs/tui.md「Plan 审批」「子 Agent」「剪贴板图片」）：Plan 的计划审批改为底部对话框——
+  批准并执行 / 批准后在新上下文执行（新建会话、带上计划与待办、以计划全文开场）/ 继续修改（框内或外部编辑器写意见）/
+  放弃并退出 Plan；批准时选执行模式（回到进入前的模式 / Accept edits / Auto），`e` 在 `$VISUAL` / `$EDITOR` 里改计划，
+  Esc 放弃但留在 Plan。交互界面不再用「回复 1 / 2 / 3」的文本审批与提示行（line 模式保留，并新增 `/plan`、
+  `/plan approve [模式|fresh]`、`/plan reject`）；`/plan <目标>` 进入 Plan 模式。消息区不再显示 `<proposed_plan>` 标签。
+  子 Agent：task 工具行折叠显示 `类型 · 状态 · 轮数 · 最近 3 个工具 · ↑↓`，后台任务有跟随状态，`<task-notification>`
+  只显示一行；`/tasks`（查看输出、停止）、`/agents`（含外部 Agent 安装状态与版本）；`/session` 增「子 Agent」行与
+  「外部 Agent」段。审批框标注来源 `[task:<类型>]`、`[claude · 会话 abc12345]`（标题 / 种类 / 路径取自外部 Agent），
+  外部 Agent 首次运行单独标题；Manual 模式下 `task(agent="claude")` 的两次确认合并为一次（只在允许 task 调用后紧接着、
+  同一任务时自动通过首次运行确认）。外部 Agent 的提示显示在消息区。`Ctrl+V` / `/paste` 粘贴剪贴板图片（插入
+  `@<路径>`），交互与 line 模式的 `@图片` 按 `images.resize` 缩放。模型回退时状态栏显示 `主模型 → 回退模型`；预算到限、
+  模型回退、后台命令启动 / 退出各给一行中文提示。新键位动作 `app.paste.image`（缺省 Ctrl+V）。
 
 ## 0.4.0（2026-10-02）
 

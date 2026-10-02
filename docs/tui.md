@@ -52,6 +52,7 @@ Accept edits     claude-opus-5-5 medium | Ctx 3.0% | proj ⎇ main 5ae9e54 (+12,
   - **`compact`**：一行，右区 模型 · 思考级别 · `↑ ↓` · 缓存 · 费用 · 重计费 · 上下文占用 · 目录 ⎇ 分支 提交 +a −b · 会话时长 · 排队数 · codemode · 预设 · 宿主状态；窄时依次丢弃切换提示、宿主状态、预设、重计费、费用、缓存、token、思考级别、排队数、codemode、增删行、目录名、分支与提交、时长、上下文、模型。
   - **git**：分支与短提交直接读 `.git/HEAD`（worktree 认；detached 只显示短提交；非 git 目录整段省略，只剩目录名）；`+a −b` 是工作区（含暂存）相对 HEAD 的增删行，回合结束、写类工具结束、回滚、`/tree` 之后在后台跑 `git diff --numstat HEAD`，至多 10 秒一次，超过 2 秒或失败就本会话不再显示增删；`AMA_STATUS_GIT=0` 关闭。
   - **费用**含子任务、保温、分类器与外部 Agent 以美元计的用量（其它单位只在 `/session`）；**时长**从本进程打开当前会话起算（`Ns` / `Nm` / `NhMm`）。
+  - 模型回退中（`fallbackModel`，主模型过载或重试用尽后改用回退模型重试一次）模型项显示 `主模型 → 回退模型`（回退模型黄色），回退模型回复、切回主模型后消失；消息区同时有一行说明。
   - 模型名随宽度缩写（< 100 列去供应商、< 60 去渠道、< 48 去版本后缀）；`compact` ≥ 110 列时上下文显示为余量表 `ctx ▮▮▮▯▯▯▯▯▯▯ 34%`；会变的数字按最宽形状占位，数值变化不会让某项时有时无。ASCII 模式 `⎇` → `git`、`−` → `-`、`♨` → `~`。
 - **退出**：消息区最后追加一行会话摘要与恢复命令，留在终端回滚里：
 
@@ -121,12 +122,13 @@ Accept edits     claude-opus-5-5 medium | Ctx 3.0% | proj ⎇ main 5ae9e54 (+12,
 | Ctrl+O               | 展开 / 折叠工具输出与思考块                                           |
 | Ctrl+L / Ctrl+T      | 选择模型 / 思考级别                                                   |
 | Ctrl+G               | 底部信息行 两行（full）↔ 一行（compact），只影响本会话                |
+| Ctrl+V               | 粘贴剪贴板里的图片：存进数据目录，光标处插入 `@<路径>`（同 `/paste`） |
 | Ctrl+C               | 清空输入；输入为空时 1.5 秒内再按一次退出（退出码 130）               |
 | Ctrl+D               | 输入为空时退出                                                        |
 | Tab                  | 补全                                                                  |
 | ↑ / ↓                | 单行时浏览历史（`<数据目录>/history`，500 条）                        |
 
-按键可在 `~/.config/ama/keybindings.json` 覆盖，键是动作 id（`app.interrupt`、`app.rewind`、`app.message.followUp`、`app.statusLine.toggle`、`tui.editor.newLine` ……），值是按键或按键数组，空数组表示禁用。`app.rewind` 是空闲时双击的那个键（缺省 Esc，两次间隔 ≤ 800 ms）。
+按键可在 `~/.config/ama/keybindings.json` 覆盖，键是动作 id（`app.interrupt`、`app.rewind`、`app.message.followUp`、`app.statusLine.toggle`、`app.paste.image`、`tui.editor.newLine` ……），值是按键或按键数组，空数组表示禁用。`app.rewind` 是空闲时双击的那个键（缺省 Esc，两次间隔 ≤ 800 ms）。
 
 ## 回滚
 
@@ -181,7 +183,10 @@ Accept edits     claude-opus-5-5 medium | Ctx 3.0% | proj ⎇ main 5ae9e54 (+12,
 - 选择器底部一行按键提示（`↑↓ 选择 · Enter 确认 · Esc 取消`），选中行有底色（≥ 256 色；更少时强调色粗体）。`/model` 选择器给当前模型打 `✓`，并带 `(i/n)` 计数；按「供应商 · 渠道」分组（多渠道模型在每个渠道下各一项，非首选渠道带 `@渠道`），说明里有上下文与 `img`（收图片）；`/model packy/kimi-k2.5@messages` 直接切到指定渠道。
 - 输入里的 `@图片路径`（可加引号，Tab 补全路径）或粘贴 / 拖入的图片文件路径作为图片附件随消息发送；当前模型不收图片时 `@` 附件报错、不发送，未加 `@` 的路径忽略（见 [providers.md](providers.md)「图像输入」）。
 - `/statusline [full|compact]`：切换底部信息行（无参数时在两者间切换，同 `Ctrl+G`），只影响本会话；line 模式没有底部信息行。
-- `/session`、`/cache`：会话用量与缓存统计面板（见上文「缓存与上下文」）；`/permissions` 同样是面板，allow 绿、deny 红，判定顺序折行对齐。
+- `/session`、`/cache`：会话用量与缓存统计面板（见上文「缓存与上下文」）；`/permissions` 同样是面板，allow 绿、deny 红，判定顺序折行对齐。`/session` 有子 Agent 任务时多一行「子 Agent」（任务数与各状态），用过外部 Agent 时多一段「外部 Agent」（每个 Agent 的运行次数与用量，美元 / token / 请求数按各自单位，不换算）。
+- `/plan`：当前计划面板（见下文「Plan 审批」）；`/plan <目标>` 进入 Plan 模式并发出目标；`/plan approve [模式|fresh]`、`/plan reject` 不开对话框直接批准 / 放弃。
+- `/tasks`：子 Agent 任务列表；`/agents`：可用的子 Agent 类型（见下文「子 Agent」）。
+- `/paste`：同 `Ctrl+V`。
 
 ## 补全
 
@@ -190,7 +195,7 @@ Accept edits     claude-opus-5-5 medium | Ctx 3.0% | proj ⎇ main 5ae9e54 (+12,
 
 ## 审批
 
-工具调用需要确认时，底部弹出对话框：标题是原因（`需要确认` / `危险命令` / `Hook 要求确认`，子 Agent 发起的加 `[task]`），边框随预览严重度变红 / 黄；bash 显示完整命令，write 显示路径与行数，edit 显示每处修改的 −/+ 摘要。下面是编号选项：
+工具调用需要确认时，底部弹出对话框：标题是原因（`需要确认` / `危险命令` / `Hook 要求确认`，子 Agent 与外部 Agent 发起的带来源标注，见下文「子 Agent」），边框随预览严重度变红 / 黄；bash 显示完整命令，write 显示路径与行数，edit 显示每处修改的 −/+ 摘要。下面是编号选项：
 
 ```
 ╭─ 危险命令 ─────────────────────────────────────────────╮
@@ -217,6 +222,66 @@ Accept edits     claude-opus-5-5 medium | Ctx 3.0% | proj ⎇ main 5ae9e54 (+12,
 - edit：对原文干跑一遍，列出每处 −n/+m 行与总变化；匹配不到或不唯一时提前说明。
 
 预览按严重度着色（危险红、警告黄、其余暗色），只读、有上限：每个目录最多计 2000 项，整次预览 200 ms 预算，超出只给提示、不降低严重度；超过 2 MiB 的文件只报大小。预览失败不影响审批。line 模式在问句之前逐行打印同样的预览；RPC 客户端从 `permission_request.preview` 拿到它（[rpc.md](rpc.md)「审批」）。
+
+## Plan 审批
+
+Plan 模式（Shift+Tab、`/permission plan`、`/plan <目标>`、`--permission-mode plan`）下模型只读调研，最后给出 `<proposed_plan>` 计划块（规则见 [plan.md](plan.md)）。回合结束、会话空闲后底部弹出审批框：
+
+```
+╭─ 计划待审批 ─────────────────────────────────────────────────────────────────╮
+│ 计划 v1 · 3 步 · ~/.local/share/ama/plans/3f2a9c1e-…-v1.md                   │
+│ 状态栏显示回退模型                                                           │
+│   S1 读 status-bar.ts 与 status-area.ts                                      │
+│   S2 model_fallback 时记下主模型与回退模型                                   │
+│   S3 帧黄金与文档                                                            │
+│                                                                              │
+│ › 1. 批准并执行                                                              │
+│   2. 批准，在新上下文执行                                                    │
+│   3. 继续修改…                                                               │
+│   4. 放弃，退出 Plan 模式                                                    │
+│                                                                              │
+│ ↑↓ 选择 · Enter 确认 · e 编辑计划 · Esc 留在 Plan                            │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
+- **1 批准并执行** / **2 批准，在新上下文执行**：接着选执行模式——回到进入前的模式（缺省）/ Accept edits / Auto，Esc 返回。批准后计划步骤变成待办（首项进行中），模式切过去并开始执行。「新上下文执行」新建一个会话，带着获批的计划与待办，以计划全文作首条消息开始执行（原会话留在树里）。
+- **3 继续修改**：在框里写修改意见（Enter 发送，`Ctrl+E` 改用外部编辑器写，Esc 返回），意见作为普通消息发给模型，仍在 Plan 模式，模型重写计划后再次弹框。直接在输入框里打字发送效果相同。
+- **4 放弃**：计划标为已放弃，回到进入 Plan 前的模式。**Esc**：计划标为已放弃，但留在 Plan 模式（可以继续聊、让模型重新规划）。
+- **e 编辑计划**：用 `$VISUAL` / `$EDITOR`（缺省 `vi`，Windows `notepad`）打开计划全文，界面挂起；保存退出后框里提示「已在编辑器里修改」，批准时以修改后的版本（新版本号）执行。
+- `/plan`：面板列出版本、状态（待审批 / 已批准 / 已放弃 / 已被新版本取代）、计划文件、所处模式与批准后回到的模式、步骤与待办进度；有待审批的计划时同时重新打开审批框（resume 回来时消息区会提示一行）。
+- 窄于 56 列时紧凑显示（不留空行，按键提示缩短，摘要截断）；ASCII 模式选中符为 `>`、箭头为 `^v`。
+- **line 模式**：计划提出后打印一行 `◇ 计划 v1 待审批（文件）：/plan approve [模式|fresh] 批准 · /plan reject 放弃 · 直接输入修改意见`；回复 `1` / `2` / `3` 也能批准（Manual 等进入前的模式 / Accept edits / Auto）。`/plan approve` 开始执行后等这一轮跑完再读下一行。
+
+## 子 Agent
+
+`task` 工具（[agents.md](agents.md)）启动的子 Agent 在消息区折叠成 task 工具行，运行中一行状态：
+
+```
+⏺ task 检查 src/tui 的测试覆盖缺口
+  ⎿ ⠋ explore · 运行中 1m05s · 3 轮 · read grep bash · ↑12k ↓3.4k
+⏺ task 后台审查
+  ⎿ 完成 · 0.0s
+    ↳ t2 explore · 运行中 40s · 1 轮 · read
+```
+
+- 状态行是类型（外部 Agent 写 `claude（claude）` 这类 runner）、状态与耗时、轮数、最近 3 个工具、用量；前台任务结束后换成结果摘要。后台任务（`background: true`）的工具调用立即返回，下面多一行跟随状态（运行中每秒刷新）；完成后模型收到的 `<task-notification>` 在消息区只显示一行「↳ 子 Agent 通知 t2 explore 完成 · 7 轮 · /tasks 查看输出」，失败或被停止时另有一行黄色提示。
+- `/tasks`：任务选择器（新的在上；一行是任务 id、类型、状态、耗时、轮数、用量、费用、后台、描述），Enter 查看输出（运行中是已有输出；截断时给全文文件）；运行中的任务可以选择停止。line 模式 `/tasks` 列表、`/tasks <id>` 输出、`/tasks stop <id>` 停止。
+- `/agents`：可用类型——名字、runner、来源（内置 / 用户 / 项目 / profile / 宿主），外部 Agent 带「已安装 版本」或「未安装」，再加一行说明。
+- 外部 Agent 自己报告的提示（预算用尽、超时、模式降级等）在消息区显示为一行 `[claude · t3] …`。
+
+审批框的来源标注：
+
+| 来源                                       | 标题前缀                                  | 正文                                          |
+| ------------------------------------------ | ----------------------------------------- | --------------------------------------------- |
+| task 子 Agent 的工具调用                   | `[task:explore]`（查不到类型时 `[task]`） | 同主会话                                      |
+| 外部 Agent（claude / codex / ACP）请求权限 | `[claude · 会话 abc12345]`                | 外部 Agent 给的标题、种类、涉及路径与输入摘要 |
+| 外部 Agent 本会话首次运行                  | 标题「首次运行外部 Agent」                | 说明（以你在该 CLI 的登录运行）与模式         |
+
+三种都只有「允许 / 本会话允许同类 / 拒绝」三项（外部 Agent 的「本会话允许」由它自己记住）。Manual 模式下 `task(agent="claude")` 本来要问两次（task 调用一次、首次运行一次）：task 调用的审批框里已写明「以你在 claude CLI 的登录运行（含本会话首次运行确认）」，允许之后紧接着的首次运行确认自动通过，消息区一行「已允许 task（随上一次确认）」；中间夹了别的审批、拒绝、超过 60 秒，或不是这次调用建立的任务，首次运行确认照常弹出。
+
+## 剪贴板图片
+
+`Ctrl+V` 或 `/paste` 读系统剪贴板里的图片（macOS `osascript` / `pngpaste`，Linux `wl-paste` / `xclip`，Windows PowerShell），存为 `<数据目录>/clipboard/<时间>.png`，在输入框光标处插入 `@<路径>`，发送时按 `@图片` 附件处理（超过当前模型的单图上限时按 `images.resize` 缩放）。没有可用命令或剪贴板里没有图片时底部提示一行，输入框不变。文字仍用终端自己的粘贴（Cmd+V / Ctrl+Shift+V）。`ama sessions prune` 清理 7 天前的剪贴板文件。
 
 ## 启动画面
 
@@ -294,6 +359,7 @@ tui.start();
 
 - `src/modes/interactive/interactive-mode.test.ts`：80x24、40x24 跑一次完整的读文件 run（启动、输入、工具运行中、结束、`Ctrl+O` 展开、退出摘要）→ `run-*.txt`；审批、缓存提示等。
 - `src/modes/interactive/interactive-frames.test.ts`：启动头（`startup-normal-*`、`header-quiet-*`）、工具层级（`tools-*`）、提示（`notices-*`）、运行中动词（`loader-verbs-*`）、`/session` 面板（`panel-session-*`）、ASCII 模式整条 run（`ascii-run-*`）。
+- 第五波（W5-U）：`plan-dialog.test.ts`（`plan-dialog-*`：四选项、执行模式、修改意见、外部编辑、ASCII、40 列）、`approval-origin.test.ts`（`approval-origin-*`、`approval-task-agent-*`、`approval-first-run-*`、`approval-task-external-*` 与首次运行合并）、`subagent-view.test.ts`（`subagent-view-*`）、`tasks-panel.test.ts`（`tasks-picker-*`、`tasks-output-*`、`agents-panel-*`）、`harness-notices.test.ts`（`harness-notices-*`）、`interactive-w5.test.ts`（plan → 审批 → 执行、`/plan`、后台任务进 `/tasks`、Ctrl+V，`interactive-plan-*`、`interactive-tasks-*`）。
 - `src/tui/tui-frames.test.ts`：组件级（对话、Markdown、编辑器占位 / 多行 / 粘贴 / 补全）；`status-bar.test.ts` 的 `status-widths.txt`；`approval-dialog.test.ts`、`pickers.test.ts` 的审批与模式选择器。
 
 改界面后用 `AMA_UPDATE_GOLDEN=1 pnpm vitest run src/modes/interactive src/tui` 更新，并逐个审阅 `git diff test/fixtures/tui`。
