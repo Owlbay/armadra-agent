@@ -2,6 +2,15 @@
 
 ## 未发布
 
+- **会话回滚（接口层）**（设计见 docs/rewind-plan.md）：`AgentSession.rewindPoints()` 列出活动路径上开启新回合的用户消息；
+  `rewind({ entryId, mode: both | conversation | code, dryRun?, onConflict? })` 回到该消息之前——对话复用 `/tree` 换叶子、
+  代码经检查点后端恢复，返回原消息草稿、恢复结果与 git HEAD 变化提示；全部失败报 `rewind_failed`，运行中报 `busy`。
+  「已读」集合按新路径重算并去掉被恢复 / 不一致的文件；仅对话或仅代码时在下一次提示前追加 `ama.rewind-note`，前缀不变、缓存照常命中。
+  `summarizeFrom` / `summarizeUpTo` 对应「从这里摘要」「摘要到这里」；`canUndoAbortedTurn` / `undoAbortedTurn` 供中断即撤回，
+  新配置 `ui.restoreOnCancel`（缺省 true）。新回合用户消息落盘后建检查点，`task` 子会话的编辑记到父会话当前回合。
+- RPC 新增 `get_rewind_points`、`rewind`、`summarize_from`、`summarize_up_to` 与事件 `session_rewound`（命令表 37 条）；
+  命令式 Hook 新增 `PostRewind`（`{ entryId, mode, files }`，不可阻止）；SDK 导出回滚类型。
+
 ## 0.4.0（2026-10-02）
 
 - **终端界面重做**（视觉规格见 docs/tui-design.md）：带框启动头（模型 / 目录 / 模式 / 已加载资源，窄屏去框）；
