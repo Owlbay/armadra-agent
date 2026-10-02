@@ -257,7 +257,7 @@ describe("print 模式", () => {
     expect(h.stderr()).not.toContain("被拒");
   });
 
-  it("--max-turns：到上限还在调工具 → 提前结束、退出 1、json 带 maxTurnsReached；上限够用则正常", async () => {
+  it("[W5-H2] --max-turns：到上限还在调工具 → 提前结束、退出 8、json 带 limitReached / maxTurnsReached；上限够用则正常", async () => {
     const readCall = { steps: [{ toolCall: { name: "read", arguments: { path: "notes.txt" } } }] };
     h = composeHarness([readCall, readCall, { text: "finished" }]);
     h.home.write("work/notes.txt", "x\n");
@@ -272,15 +272,54 @@ describe("print 模式", () => {
         "--output-format",
         "json",
       ]),
-    ).toBe(1);
+    ).toBe(8);
     expect(h.fake.calls).toHaveLength(1);
-    expect(lines()[0]).toMatchObject({ stopReason: "toolUse", maxTurnsReached: true });
-    expect(h.stderr()).toContain("已达到 --max-turns 1");
+    expect(lines()[0]).toMatchObject({
+      stopReason: "toolUse",
+      maxTurnsReached: true,
+      limitReached: { kind: "turns", value: 1, limit: 1 },
+    });
+    expect(h.stderr()).toContain("已达到回合上限 1");
     h.cleanup();
     h = composeHarness([readCall, readCall, { text: "finished" }]);
     h.home.write("work/notes.txt", "x\n");
     expect(await h.run(["-p", "go", "--model", "fake/echo", "--max-turns", "3"])).toBe(0);
     expect(h.stdout()).toBe("finished\n");
+  });
+
+  it("[W5-H2] --max-cost：累计费用到限且还要调工具 → 结束、退出 8；config limits.maxTurns 同样生效", async () => {
+    const readCall = {
+      steps: [{ toolCall: { name: "read", arguments: { path: "notes.txt" } } }],
+      usage: { input: 600_000, output: 0 },
+    };
+    h = composeHarness([readCall, readCall, readCall, { text: "finished" }]);
+    h.home.write("work/notes.txt", "x\n");
+    expect(
+      await h.run([
+        "-p",
+        "go",
+        "--model",
+        "fake/echo",
+        "--max-cost",
+        "1",
+        "--output-format",
+        "json",
+      ]),
+    ).toBe(8);
+    const turns = () => h.fake.calls.filter((c) => (c.options.purpose ?? "turn") === "turn");
+    expect(turns()).toHaveLength(2); // $0.6 → $1.2 ≥ $1
+    expect(lines()[0]).toMatchObject({ limitReached: { kind: "cost", limit: 1 } });
+    expect(h.stderr()).toContain("已达到费用上限 $1.00");
+    expect(h.stderr()).not.toContain("尚未实现");
+    h.cleanup();
+    h = composeHarness([readCall, readCall, readCall, { text: "finished" }]);
+    h.home.write("work/notes.txt", "x\n");
+    h.home.write(
+      "home/.config/ama/config.json",
+      JSON.stringify({ version: 1, limits: { maxTurns: 2 } }),
+    );
+    expect(await h.run(["-p", "go", "--model", "fake/echo"])).toBe(8);
+    expect(turns()).toHaveLength(2);
   });
 
   it("[W3-C2] json 结果带 cache 统计；stream-json 含 cache_miss / cache_warm / context_pressure", async () => {

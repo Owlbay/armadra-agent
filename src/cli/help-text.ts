@@ -14,12 +14,12 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
   --no-stdin                   -p 不读 stdin（父进程留着管道、又不想等 2 s 时）
   --output-format <格式>       -p 的输出：text（缺省）| json | stream-json
   --max-turns <N>              -p 最多跑 N 轮（一次模型请求加其工具执行算一轮）；到达上限仍有
-                               未完成的工具调用时提前结束，退出码 1
+                               未完成的工具调用时提前结束，退出码 8
   --image <文件>               -p 随提示发送图片（可重复；png / jpg / gif / webp，单张 ≤ 5 MB）；
                                交互界面里写 @图片路径 或粘贴图片路径
   --mode rpc                   stdio JSONL 协议（供嵌入）
   --mode acp                   ACP 服务端（供 Zed / JetBrains / Armadra 驱动）
-  --max-cost <USD>             一次运行的美元上限（尚未生效）
+  --max-cost <USD>             一次运行的美元上限（按目录价估算）；到限结束运行，-p 退出码 8
   --tui-mode <模式>            显示模式，第一期只有 regular（主屏）
   --quiet-startup <档>         启动画面：normal | header | silent
 

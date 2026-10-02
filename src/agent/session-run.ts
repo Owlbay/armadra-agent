@@ -10,6 +10,8 @@
  * - 将要停下时发 agent_before_settle 并跑 Stop（子 Agent 为 SubagentStop）Hook：block + reason →
  *   以 reason 作为新 user 消息再跑一轮（上限 3 次，stopHookActive 传给 Hook）。
  * - 最终失败后若 followUp 队列非空，照常投递。
+ * - [W5-H2] 扩展经 `noteSettleWarning` 登记的 warning（预算到限 `limit_reached`）写进本周期的 agent_settled；
+ *   `limit_reached:` 开头的错误回复（预算拦下请求）不重试。
  * - [W5-H2] run 带 `warning`（重复调用检测 `repeated_tool_call`）：不跑 Stop Hook，agent_settled 带该 warning。
  */
 
@@ -24,6 +26,21 @@ import type { PromptDisposition, RetrySettings } from "./types.js";
 
 export const MAX_STOP_HOOK_CONTINUATIONS = 3;
 export const ABORTED_CUSTOM_TYPE = "ama.aborted";
+/** [W5-H2] 预算拦下请求时错误回复的前缀（limits.ts）：判为最终失败，不重试、不回退。 */
+export const LIMIT_ERROR_PREFIX = "limit_reached:";
+
+/** [W5-H2] 扩展（limits）登记的 agent_settled warning：本周期收尾时取走。 */
+const settleWarnings = new WeakMap<SessionCore, string>();
+
+export function noteSettleWarning(core: SessionCore, warning: string): void {
+  if (!settleWarnings.has(core)) settleWarnings.set(core, warning);
+}
+
+function takeSettleWarning(core: SessionCore): string | undefined {
+  const warning = settleWarnings.get(core);
+  settleWarnings.delete(core);
+  return warning;
+}
 
 export type RunDecision =
   | { kind: "done" }
@@ -61,6 +78,7 @@ export function decideAfterRun(
   if (!failedStop) return { kind: "done" };
   const errorMessage =
     last.errorMessage ?? (last.stopReason === "length" ? "output hit the token limit" : "error");
+  if (errorMessage.startsWith(LIMIT_ERROR_PREFIX)) return { kind: "failed", errorMessage };
   const classifyOptions =
     deps.core.options.isContextOverflow === undefined
       ? {}
@@ -242,6 +260,9 @@ export async function runCycle(
 
   if (!announced) core.emit({ type: "agent_before_settle" });
   const settled: Parameters<SessionCore["emit"]>[0] = { type: "agent_settled" };
+  const noted = takeSettleWarning(core);
+  if (noted !== undefined && (warning === undefined || warning.startsWith(LIMIT_ERROR_PREFIX)))
+    warning = noted;
   if (warning !== undefined) settled.warning = warning;
   core.emit(settled);
   void core.runHook("Notification", {
