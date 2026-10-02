@@ -18,11 +18,9 @@ import type {
   CacheReporting,
   WarmerStatus,
 } from "../ai/cache/types.js";
+import { MISS_NOTICE_TOKENS, MISS_NOTICE_USD } from "../ai/cache/miss.js";
 import { KeyValue, type KeyValueRow } from "../tui/components/key-value.js";
 
-/** 消息区提示未命中的门槛（统计计入全部）。 */
-export const MISS_NOTICE_TOKENS = 20_000;
-export const MISS_NOTICE_USD = 0.1;
 const REPORT_WIDTH = 240;
 
 /** `950`、`38.2k`、`150k`、`1.05M`（比状态栏多一位精度，面板与提示用）。 */
@@ -109,6 +107,36 @@ export function contextPressureNotice(
   if (event.remainingTokens !== undefined)
     return `${head}，余量 ${formatTokenCount(event.remainingTokens)} token`;
   return head;
+}
+
+/**
+ * 缓存事件 → 消息区 / stderr 的一行提示；不提示时 undefined。`enabled` = `cache.missNotices`。
+ * 未命中只提示超过门槛的那次；70% 为 warn、90% 为 error；保温事件不进消息区（状态栏 ♨）。
+ */
+export function cacheEventNotice(
+  event: SessionEvent,
+  enabled: boolean,
+): { level: "warn" | "error"; text: string } | undefined {
+  if (!enabled) return undefined;
+  if (event.type === "cache_miss") {
+    const { type: _type, ...miss } = event;
+    return shouldNotifyMiss(miss) ? { level: "warn", text: cacheMissNotice(miss) } : undefined;
+  }
+  if (event.type === "context_pressure") {
+    return { level: event.threshold >= 90 ? "error" : "warn", text: contextPressureNotice(event) };
+  }
+  return undefined;
+}
+
+/** 保温请求发出后的一行（line 模式只在 `AMA_LOG=info|debug` 时写 stderr）。 */
+export function warmSentNotice(
+  event: Extract<SessionEvent, { type: "cache_warm" }>,
+): string | undefined {
+  if (event.phase !== "sent") return undefined;
+  const read =
+    event.usage === undefined ? "" : `读 ${formatTokenCount(event.usage.cacheRead)} token`;
+  const cost = event.cost === undefined ? "" : `${read !== "" ? "，" : ""}${formatUsd(event.cost)}`;
+  return `缓存保温已刷新${read + cost !== "" ? `（${read}${cost}）` : ""}`;
 }
 
 /** 消息区 / stderr 是否提示未命中与上下文余量（`cache.missNotices`，缺省 true）。 */

@@ -46,6 +46,7 @@ import {
   type Terminal,
   type Theme,
 } from "../../tui.js";
+import { cacheEventNotice, cacheNoticesEnabled } from "../session-report.js";
 import { onTerminationSignals } from "../shared.js";
 import { ApprovalDialogBroker, approvalOutcomeText } from "./approval-dialog.js";
 import { ALL_COMMANDS, runInteractiveCommand, type CommandUi } from "./commands.js";
@@ -324,9 +325,15 @@ export function runInteractiveMode(
         if (!event.success) view.addRetryFailed(event.finalError);
         render();
         return;
-      case "cache_warm":
       case "cache_miss":
-      case "context_pressure":
+      case "context_pressure": {
+        const shown = cacheEventNotice(event, cacheNoticesEnabled(session));
+        if (shown !== undefined) view.addNotice(shown.level, shown.text);
+        status.refresh();
+        render();
+        return;
+      }
+      case "cache_warm":
       case "permission_mode_changed":
       case "model_changed":
       case "thinking_level_changed":
