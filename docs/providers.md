@@ -94,12 +94,97 @@ compat 只记录**已验证**的差异；新增条目请附文档链接或真实
 | `google-generative-ai` | `supportsThoughtSignature`      | 同模型回放 `thoughtSignature`（思考、文本、functionCall part）                                            | 开                                           |
 | `google-generative-ai` | `supportsFunctionResponseParts` | 工具结果图片放进 `functionResponse.parts`；关时另起一个 user 回合                                         | Gemini 3 起开；Gemini 2.x 与非 Gemini 命名关 |
 
-- Responses：系统提示放 `instructions`；`prompt_cache_key = sessionId` 只发给 OpenAI 官方端点，
-  `cacheRetention: "none"`（摘要请求）不发；思考 off 只在映射表给了 off 的字串（如 `"none"`）时发
+- Responses：系统提示放 `instructions`；缓存字段见下节「缓存」；思考 off 只在映射表给了 off 的字串（如 `"none"`）时发
   `reasoning.effort`，否则交给服务端缺省。
 - Gemini：映射值是字串（或 Gemini 3 族且未映射）→ 离散 `thinkingLevel`（`LOW` / `HIGH`…）；映射值是
   数字或其它模型 → `thinkingBudget`（`-1` 动态）；off → `thinkingBudget: 0`。隐式缓存自动生效，
   `cachedContentTokenCount` 计入 `cacheRead`。
+
+## 缓存
+
+> 草稿（第三波 W3-C1a，协议层）。会话层的未命中检测、三态与保温见第三波设计 §1.5–§1.7。
+
+### 请求字段
+
+| 协议                                     | 字段                                                                                     | 条件                                                                                     |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `anthropic-messages`                     | 三断点 `cache_control`（最后一条 user、system 末、最后一个工具）                         | `cacheRetention` 不是 `none`                                                             |
+| `anthropic-messages`                     | `ttl: "1h"`                                                                              | `long` 且 `supportsLongCacheRetention`；否则按 5m                                        |
+| `openai-completions`                     | `prompt_cache_key = sessionId`（截 64 字符）                                             | `sendPromptCacheKey` 且不是 `none`                                                       |
+| `openai-completions`                     | `prompt_cache_retention: "24h"`                                                          | `long` 且 `supportsLongCacheRetention`                                                   |
+| `openai-completions`（`anthropic/*` 等） | `cache_control`（`cacheControlFormat: "anthropic"`），`long` 时带 `ttl: "1h"`            | 同 Anthropic                                                                             |
+| `openai-responses`                       | `prompt_cache_key`                                                                       | 同 Completions                                                                           |
+| `openai-responses`                       | `prompt_cache_options: { ttl: "30m" }`，否则 `prompt_cache_retention: "24h"`             | `long` 且 `supportsExplicitPromptCacheMode`；否则 `long` 且 `supportsLongCacheRetention` |
+| OpenAI 两条                              | 亲和头 `x-session-affinity` + 每请求 `x-client-request-id`（OpenRouter：`x-session-id`） | `sendSessionAffinityHeaders` 且有 sessionId                                              |
+| `google-generative-ai`                   | 无（隐式缓存）                                                                           | —                                                                                        |
+| 全部                                     | `toolChoice: "none"` → 各家的「禁止调用工具」写法                                        | 请求带工具时（压缩摘要的前缀续写用）                                                     |
+
+保留层级：`StreamOptions.cacheRetention` 优先；未指定时读 `AMA_CACHE_RETENTION=none|short|long`；都没有为
+`short`。Anthropic 请求体最后做 TTL 顺序校验（tools → system → messages 里 5m 之后出现 1h 则全部降为 5m）。
+Anthropic 的 `baseUrl` 以 `/v1` 结尾时请求 `{baseUrl}/messages`，不会拼成 `/v1/v1/messages`。
+
+### 兼容开关（`providers.<id>.compat` 或模型级 `compat`）
+
+| 开关                              | 作用                                                    | 缺省                                      |
+| --------------------------------- | ------------------------------------------------------- | ----------------------------------------- |
+| `sendPromptCacheKey`              | 发 `prompt_cache_key`                                   | 请求主机是 `api.openai.com` 时开，其余关  |
+| `sendSessionAffinityHeaders`      | 发亲和头                                                | 关（含 OpenRouter，未实测）               |
+| `supportsLongCacheRetention`      | `long` 可用（Anthropic 1h、OpenAI 24h）；否则降为 short | `api.openai.com` / `api.anthropic.com` 开 |
+| `supportsExplicitPromptCacheMode` | Responses 的 `prompt_cache_options`（30m）              | 关                                        |
+| `cacheReporting`                  | `auto` / `silent` / `reported`：强制「是否报缓存」三态  | `auto`                                    |
+
+推断只看最终请求的主机名，不看 provider id：用 `OPENAI_BASE_URL` 或自定义 `baseUrl` 把 `openai` 指到中转时
+按中转处理。缺省只对官方端点开，是因为中转上实测「接受但未见收益」或「收下但不生效」（下表）。
+
+**400 自动剥离**：端点以 400 拒收并在错误体里点名 `prompt_cache_key` / `prompt_cache_retention` /
+`prompt_cache_options` / `cache_control` 时，ama 把 `provider/model` 记入进程内的剥离表，去掉这些字段重发一次
+（仍只有一个终止事件），提示一次建议写哪个开关；同一进程里之后的请求直接不带。
+
+### usage 与 `cacheReported`
+
+原始 usage 里出现任一缓存字段（即使为 0）→ `Usage.cacheReported = true`，都没有 → `false`：Completions 认
+`prompt_tokens_details.cached_tokens` / `cache_write_tokens`、`prompt_cache_hit_tokens` / `prompt_cache_miss_tokens`、
+顶层 `cached_tokens`；Responses 认 `input_tokens_details.cached_tokens`；Anthropic 认
+`cache_read_input_tokens` / `cache_creation_input_tokens`；Google 认 `cachedContentTokenCount`（隐式缓存未命中时
+常常不给）。字段存在但一直为 0 的端点由会话层按连续 3 次判 `silent`。
+
+### 模型目录 `promptCache`
+
+只写有公开依据的值（秒 / token）：Anthropic 全部 `short 300 / long 3600`，`minTokens` 按模型 512–4096；OpenAI
+全部 `short 300 / long 86400 / minTokens 1024`；Kimi 全部 `short 300`。DeepSeek、智谱、通义、Groq、xAI、Mistral、
+OpenRouter、Google 没有承诺的 TTL，留空（不保温，归因按隐式缓存 10 分钟估）。可在 `models[]` /
+`modelOverrides[]` 里自填。
+
+### 中转实测（2026-10-02）
+
+一家同时提供 Chat / Responses / Messages 三种接口的测试中转，固定前缀约 8.6k–10.9k token，同一前缀相隔 2–3 秒
+发两次（共 38 次请求）。
+
+| 接口 / 模型                                       | 发送的缓存参数                                    | 结果                    | 第二次 cacheRead / 前缀    | usage 里的缓存字段（原始形状）                                                |
+| ------------------------------------------------- | ------------------------------------------------- | ----------------------- | -------------------------- | ----------------------------------------------------------------------------- |
+| Chat · kimi-k2.5                                  | 无                                                | 200                     | 8576 / 8597                | `prompt_tokens_details.cached_tokens`（首个请求为 0）                         |
+| Chat · kimi-k2.5                                  | `prompt_cache_key`；再加亲和头                    | 200，接受               | 8576 / 8597（无提升）      | 同上                                                                          |
+| Chat · deepseek-v4-flash                          | `prompt_cache_key` + `x-session-affinity`         | 200，接受               | 9472 / 9767                | `prompt_tokens_details.cached_tokens`                                         |
+| Chat · qwen3.8-flash                              | 同上                                              | 200，接受               | 10240 / 10400              | 同上                                                                          |
+| Chat · glm-5                                      | 同上                                              | 200，接受               | 8704 / 9040                | 同上                                                                          |
+| Chat · MiniMax-M2.7                               | 同上                                              | 200，接受               | 9389 / 9700                | 同上                                                                          |
+| Responses · qwen3.8-flash                         | `prompt_cache_key` + `prompt_cache_retention`     | 200，接受               | 10240 / 10432              | `input_tokens_details.cached_tokens`                                          |
+| Responses · qwen3.8-flash                         | `prompt_cache_options: {ttl:"30m"}`               | 200，接受               | 同上                       | 同上                                                                          |
+| Responses · grok-4.7                              | 同上两组                                          | 200，接受               | 1152 / 10929               | 同上                                                                          |
+| Responses · deepseek-v4-flash                     | `prompt_cache_retention` / `prompt_cache_options` | **400** `unknown field` | —                          | 去掉后 200；`input_tokens_details.cached_tokens`                              |
+| Messages · kimi-k2.5、qwen3.8-flash               | `cache_control` + `ttl:"1h"`                      | 200，接受               | 9464 / 9476、10385 / 10400 | `cache_creation.ephemeral_5m_input_tokens` 有值、无 1h 字段：**1h 被当作 5m** |
+| Messages · MiniMax-M2.7、deepseek-v4-flash、glm-5 | 同上                                              | 200，接受               | 9403、8192、8704           | `cache_creation_input_tokens` 恒 0，读命中照常（端点自管的隐式缓存）          |
+
+结论与缺省值：
+
+- `prompt_cache_key`、亲和头在中转上都被接受，但未见命中提升 → `sendPromptCacheKey`、
+  `sendSessionAffinityHeaders` 对非官方端点缺省关；需要时自行打开（400 剥离兜底）。
+- 1h 保留在中转的 Messages 接口上被收下但按 5m 写入，Responses 的长保留字段在部分上游 400 →
+  `supportsLongCacheRetention` 只对官方端点缺省开，`supportsExplicitPromptCacheMode` 缺省关。
+- 实测的五家在 Chat 接口上都报缓存字段（前一版调研里 DeepSeek / GLM 报 0 的现象本次未复现），它们首个
+  请求的 `cached_tokens: 0` 正是「字段存在但为 0」，`cacheReported` 为 true。
+- `/v1` 去重与 `toolChoice: "none"` 经 ama 协议层实发验证：Messages 请求落在 `/v1/messages`，三种接口都接受
+  `tool_choice: none` 且未产生工具调用。
 
 ## 测试用 fake 供应商
 
