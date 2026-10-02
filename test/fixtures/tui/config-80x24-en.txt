@@ -19,7 +19,7 @@
 |▎ ──────────────────────────────────────────────────────────────────────────────
 |▎ Color theme: dark, light, or auto (guessed from COLORFGBG without querying the
 |▎ terminal; dark when unsure)
-|▎ ↑↓ select · Enter/Space change · / search · Tab user/project · Backspace rese…
+|▎ ↑↓ select · Enter change · Tab user/project · Backspace reset · Esc close
 |
 |
 |
