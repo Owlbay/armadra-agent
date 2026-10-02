@@ -108,6 +108,17 @@ ama sessions export <id> [--format md|json|jsonl] [--output <文件>] [--branch 
 - `--output` 写文件（权限 0600），否则写 stdout。
 - **脱敏**：导出前把 key / token 形态的字符串换成 `[REDACTED]`——`sk-…`、`sk-ant-…`、`ghp_…`、`github_pat_…`、`xox?-…`、`AIza…`、`AKIA…`、`npm_…`、JWT、`Bearer` / `Basic` 凭据、PEM 私钥块，以及 `apiKey` / `secret` / `token` / `password` / `authorization` 之后紧跟 `:` 或 `=` 的值；json / jsonl 里键名像机密的字符串值整段遮掉。图片的 base64 保留。只认形态，不保证遮全，分享前仍请自己看一遍。
 
+## 回滚（会话内）
+
+`/rewind`、RPC `rewind`、SDK `session.rewind()` 回到某条用户消息之前（设计见 [rewind-plan.md](rewind-plan.md)）：
+
+- 回滚点是活动路径上开启新回合的用户消息，从旧到新；运行中插话、排队消息与 Stop Hook 续跑的消息并入当前回合，不单列。运行中回滚报 `busy`。
+- 对话回滚复用 `/tree` 换叶子：离开的分支留在文件里，可以再从 `/tree` 回去；模型、思考级别与权限模式保持当前，不随回滚改变。之后第一次请求的 system、工具表与落点之前的消息和回滚前逐字节相同，提示缓存照常命中。
+- 「已读」集合按新路径上成功的 read / write 调用重算，再去掉被恢复、删除或与目标检查点不一致的文件——模型要改这些文件得先重新 read。
+- 仅对话或仅代码时，下一次提示前在末尾追加一条 `ama.rewind-note` 告诉模型哪些文件与对话不一致；对话 + 代码不追加。
+- 内存会话与 `checkpoints.mode: "off"` 不建检查点，只能仅对话。
+- 运行中 Esc 中断、本回合还没有任何回复或工具调用时，撤回该回合并回填原消息（`ui.restoreOnCancel`，缺省 true）。
+
 ## 请求明细（设计，未实现）
 
 计划在会话里追加 `custom{customType:"ama.request"}`（不进上下文），每次模型请求一条：
