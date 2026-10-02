@@ -18,8 +18,19 @@
 - **配置**：新键 `ui.replyLanguage`、`ui.agentBar`、`memory.*`、`auth.chatgpt.*` 已能校验并写进 `config.schema.json`（功能随后续批次生效）；
   项目级只能把 `memory.enabled` 设为 `false`，`ui.replyLanguage` 与 `auth` 只认用户级；嵌入宿主 Agent 栏缺省关。
   命令行 `--memory` / `--no-memory`；`auth.json` 可存 OAuth 条目（`type: "oauth"`）。
-- `ama memory`、`/config`、`/trace`、`/memory` 已登记，当前回「尚未提供」。
+- `/config`、`/trace` 已登记，当前回「尚未提供」（`ama memory` 与 `/memory` 见下文）。
 - bundle 改用 UTF-8 输出（中文不再转成 `\uXXXX`），体积约减 40 KB。
+
+记忆（W6-M，[docs/memory.md](docs/memory.md)）：
+
+- **跨会话记忆，缺省关闭**：`ama memory enable` / `--memory` / `AMA_MEMORY=1` 开启。条目是 `<数据目录>/memory/{user,projects/<目录名>-<sha8>}/`
+  下带 frontmatter 的 Markdown，`MEMORY.md` 索引自动重建；项目作用域需项目已受信任。关闭时请求体逐字节不变。
+- 新工具 `memory`（`view` / `create` / `str_replace` / `delete`，路径限定 `/memories/<作用域>/`）与权限类 `memory`：default 下写入首次询问、
+  可本会话允许；内容像凭据即拒写；子 Agent 只读。规则 `memory(...)` 按命令名或逻辑路径匹配。
+- 系统提示新增 `memory` 节（`skills` 之后，只放索引）：会话开始定稿，会话内写入下次会话生效；`/memory reload` 与压缩后刷新。
+  **开启后首个请求会因新节与工具未命中一次缓存。**
+- `/memory`（面板、show、edit、rm、on|off、reload）与 `ama memory list|show|edit|rm|path|enable|disable`；压缩回注列出本会话读写过的记忆路径。
+- 嵌入宿主与 SDK 缺省禁用，profile / `createAgentSession` 的 `memory: { enabled, dir }` 开启，只有 `workspace` 作用域、不读用户级。
 
 ## 0.5.1（2026-10-03）
 

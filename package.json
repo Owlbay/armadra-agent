@@ -73,6 +73,7 @@
     "docs/tui-design.md",
     "docs/session-format.md",
     "docs/sessions.md",
+    "docs/memory.md",
     "CHANGELOG.md",
     "THIRD_PARTY_NOTICES.md"
   ],
