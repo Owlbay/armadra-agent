@@ -119,6 +119,8 @@ export class ProviderRegistry implements ProviderRegistryApi {
   private readonly relayed = new Set<string>();
   /** config 里写了自己 `channels` 的供应商（内置渠道不因改 baseUrl 作废）。 */
   private readonly userChannels = new Set<string>();
+  /** config 里写了供应商级 `api` 的供应商（单渠道回落时目录模型跟它走）。 */
+  private readonly userApi = new Set<string>();
   /** `provider/model` → 物化前的模型（多渠道供应商切换渠道时重新物化）。 */
   private readonly raw = new Map<string, RawModel>();
   /** `provider/model` → 元数据来源与 models.dev 匹配。 */
@@ -139,7 +141,7 @@ export class ProviderRegistry implements ProviderRegistryApi {
     });
     const catalog = this.loadCatalog();
     const env = options.keys?.useEnv === false ? {} : (options.keys?.env ?? process.env);
-    for (const { baseUrlEnv, ...base } of BUILTIN_PROVIDERS) {
+    for (const { baseUrlEnv, catalogApi: _catalogApi, ...base } of BUILTIN_PROVIDERS) {
       const models = (catalog.get(base.id) ?? []).map((entry) => {
         const api = (entry as { api?: Api }).api ?? base.api;
         this.sources.set(`${base.id}/${entry.id}`, "builtin");
@@ -202,12 +204,17 @@ export class ProviderRegistry implements ProviderRegistryApi {
   private settleBuiltinChannels(provider: ProviderData): void {
     const channels = provider.channels;
     if (channels === undefined || channels.length === 0) {
+      // 单渠道回落：没有模型级协议的目录模型走 catalogApi（用户改了 api 时走用户的）
+      const builtin = BUILTIN_PROVIDERS.find((p) => p.id === provider.id);
+      const api =
+        builtin === undefined || this.userApi.has(provider.id)
+          ? provider.api
+          : (builtin.catalogApi ?? builtin.api);
       for (const model of provider.models) {
         delete model.channels;
-        // 单渠道回落：没有模型级协议的目录模型跟供应商级协议走
         const key = `${provider.id}/${model.id}`;
         if (this.sources.get(key) === "builtin" && this.raw.get(key)?.explicit.api === undefined)
-          model.api = provider.api;
+          model.api = api;
       }
       return;
     }
@@ -274,7 +281,10 @@ export class ProviderRegistry implements ProviderRegistryApi {
       builtin: false,
     };
     if (config.name !== undefined) provider.name = config.name;
-    if (config.api !== undefined) provider.api = config.api;
+    if (config.api !== undefined) {
+      provider.api = config.api;
+      this.userApi.add(id);
+    }
     if (config.baseUrl !== undefined) {
       provider.baseUrl = config.baseUrl;
       this.envBaseUrls.delete(id);

@@ -309,3 +309,30 @@ describe("内置目录吃 ama models refresh 的数据", () => {
     );
   });
 });
+
+describe("OpenAI / xAI：中转（*_BASE_URL）时单渠道回落", () => {
+  it("目录模型仍走 Responses（catalogApi），目录外的 id 走 Chat", () => {
+    const r = registry({ version: 1 }, { env: { OPENAI_BASE_URL: "https://relay.example/v1" } });
+    expect(r.get("openai")?.channels).toBeUndefined();
+    expect(r.isRelayed("openai")).toBe(true);
+    expect(model(r, "openai/gpt-4o")).toMatchObject({
+      api: "openai-responses",
+      baseUrl: "https://relay.example/v1",
+    });
+    expect(model(r, "openai/gpt-4o").channel).toBeUndefined();
+    expect(model(r, "openai/my-local-model").api).toBe("openai-completions");
+  });
+
+  it("用户写了 api：目录模型也跟用户的协议走", () => {
+    const r = registry({
+      version: 1,
+      providers: { xai: { baseUrl: "https://relay.example/v1", api: "openai-completions" } },
+    });
+    expect(model(r, "xai/grok-4.7").api).toBe("openai-completions");
+    const resp = registry({
+      version: 1,
+      providers: { openai: { baseUrl: "https://relay.example/v1", api: "openai-responses" } },
+    });
+    expect(model(resp, "openai/some-new-id").api).toBe("openai-responses");
+  });
+});

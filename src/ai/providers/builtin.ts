@@ -16,7 +16,14 @@
 
 import type { Api, ProviderChannel, ProviderData } from "../types.js";
 
-export type BuiltinProvider = Omit<ProviderData, "models" | "builtin"> & { baseUrlEnv?: string };
+export type BuiltinProvider = Omit<ProviderData, "models" | "builtin"> & {
+  baseUrlEnv?: string;
+  /**
+   * 单渠道回落时目录模型的协议（缺省同 `api`）：OpenAI / xAI 的目录模型在中转上仍走 Responses，
+   * 目录外的 id（本地服务、中转自有模型）走 `api`（Chat）。
+   */
+  catalogApi?: Api;
+};
 
 function ch(
   name: string,
@@ -48,7 +55,14 @@ export const BUILTIN_PROVIDERS: readonly BuiltinProvider[] = [
     id: "openai",
     name: "OpenAI",
     api: "openai-completions",
+    catalogApi: RESPONSES,
     baseUrl: "https://api.openai.com/v1",
+    // 全部模型缺省 Responses（R1 §2.3）；Chat 作渠道
+    channels: [
+      ch("responses", RESPONSES, "https://api.openai.com/v1"),
+      ch("chat", CHAT, "https://api.openai.com/v1"),
+    ],
+    defaultChannel: "responses",
     baseUrlEnv: "OPENAI_BASE_URL",
     envKeys: ["OPENAI_API_KEY", "AMA_API_KEY_OPENAI"],
     requiresApiKey: true,
@@ -150,7 +164,14 @@ export const BUILTIN_PROVIDERS: readonly BuiltinProvider[] = [
     id: "xai",
     name: "xAI",
     api: "openai-completions",
+    catalogApi: RESPONSES,
     baseUrl: "https://api.x.ai/v1",
+    // 官方已把 Anthropic 兼容标为 deprecated，不做 messages 渠道
+    channels: [
+      ch("responses", RESPONSES, "https://api.x.ai/v1"),
+      ch("chat", CHAT, "https://api.x.ai/v1"),
+    ],
+    defaultChannel: "responses",
     envKeys: ["XAI_API_KEY", "AMA_API_KEY_XAI"],
     requiresApiKey: true,
   },
