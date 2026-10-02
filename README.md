@@ -598,7 +598,7 @@ npm 包里带上表前十五份（用户文档）；其余是设计与追溯材�
 
 ## 已知限制
 
-- **Linux 沙箱未在真机上验证**：bubblewrap 路径只在 CI 容器与单元测试里跑过；没有 bwrap 时退到 `unshare -r -n`（只隔离网络，不能用于 bash 沙箱），都没有则按无沙箱处理（codemode 回到执行类、每次审批）。
+- **Linux 沙箱未在真机上验证**：bubblewrap 的策略只经单元测试与 Ubuntu CI 验证，没有在 Linux 桌面 / 服务器真机上跑过；没有 bwrap 时退到 `unshare -r -n`（只隔离网络，不能用于 bash 沙箱），都没有则按无沙箱处理（codemode 回到执行类、每次审批）。
 - **外部 Agent 的真实 CLI 测试只在本地跑**：CI 只跑录制回放与 ama 驱动 ama；接 `claude` / `codex` 的端到端需要本机已登录，`AMA_E2E_AGENTS=1` 时运行（会用你的订阅额度），见 [docs/agents.md](docs/agents.md)「本地验证真实 CLI」。
 - **DeepSeek、智谱、Kimi 缺省仍走 Chat**：它们的 Messages 渠道（`@messages`）只在中转上测过，等官方直连过了实测门（`scripts/channel-probe.mjs`）再切缺省。
 - **models.dev 刷新 PR 不自动触发 CI**：仓库 secret `MODELS_DEV_PR_TOKEN` 没配时，每周的 workflow 用缺省 token 开 PR（先在 workflow 里自跑 `pnpm run ci` 并把结果写进描述）。

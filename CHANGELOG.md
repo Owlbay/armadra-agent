@@ -168,7 +168,7 @@
 
 ### 已知限制
 
-- Linux 沙箱未在真机上验证（bubblewrap 路径只在 CI 与单元测试里跑过；没有 bwrap 时退到 `unshare`，不能用于 bash 沙箱）。
+- Linux 沙箱未在真机上验证（bubblewrap 的策略只经单元测试与 Ubuntu CI 验证；没有 bwrap 时退到 `unshare`，不能用于 bash 沙箱）。
 - 外部 Agent 的真实 CLI 端到端只在本地跑：本机已登录 `claude` / `codex` 时 `AMA_E2E_AGENTS=1`（会用订阅额度）；CI 只跑录制回放与
   ama 驱动 ama。
 - DeepSeek、智谱、Kimi 缺省仍走 Chat，等官方直连过了实测门再切 Messages。
