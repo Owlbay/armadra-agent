@@ -94,6 +94,27 @@ describe("print 模式：何时读 stdin", () => {
     expect(err).toHaveLength(1);
   });
 
+  it("--no-stdin：不读 stdin，也不等待", async () => {
+    let reads = 0;
+    h = composeHarness([{ text: "ok" }], {
+      readStdin: () => {
+        reads++;
+        return never();
+      },
+      stdinKind: () => "fifo",
+    });
+    expect(await h.run(["-p", "hi", "--no-stdin", "--model", "fake/echo"])).toBe(0);
+    expect(reads).toBe(0);
+    expect(h.stderr()).toBe("");
+    expect(
+      await readPromptStdin(
+        stdinIo("file", async () => "x", []),
+        undefined,
+        "off",
+      ),
+    ).toBe("");
+  });
+
   it("组装后：有提示参数、管道保持打开且不写 → 上限到了照常运行并提示", async () => {
     h = composeHarness([{ text: "ok" }], {
       readStdin: never,

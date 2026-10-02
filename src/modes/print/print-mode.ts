@@ -5,7 +5,7 @@
  *   - 没有提示参数，或显式写了位置参数 `-`：读到 EOF（超过 3 s 时 stderr 提示一次正在等待）；
  *   - 有提示参数且 stdin 是管道（shell 管道或父进程留的管道）：等首字节，`AMA_STDIN_WAIT_MS`
  *     （缺省 2000，0 = 不等）内一个字节都没有 → 忽略 stdin 并在 stderr 提示；收到首字节后读到 EOF；
- *   - stdin 是普通文件 / 空设备：直接读（不会卡）；TTY：不读。
+ *   - stdin 是普通文件 / 空设备：直接读（不会卡）；TTY 或 `--no-stdin`：不读。
  * - 图片：`--image`（可重复）与提示里的 `@图片路径` / 图片文件路径作为附件（modes/image-input.ts）；
  *   显式附件遇到当前模型不收图片、文件不存在或超限 → 用法错误 2，不发请求。
  * - `--output-format text`（缺省）：运行结束后输出最后一条助手文本；`json`：一个结果对象（文本、
@@ -110,7 +110,7 @@ function formatSeconds(ms: number): string {
 export async function runPrintMode(runtime: Runtime, context: ModeContext): Promise<number> {
   const { io } = context;
   const format = context.args.outputFormat ?? "text";
-  const stdinMode = context.args.stdin ? "explicit" : "auto";
+  const stdinMode = context.args.noStdin ? "off" : context.args.stdin ? "explicit" : "auto";
   const piped = await readPromptStdin(io, context.prompt, stdinMode);
   const prompt = joinPrompt(context.prompt, piped);
   if (prompt === "") {
