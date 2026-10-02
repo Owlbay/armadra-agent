@@ -18,4 +18,21 @@ export {
   type OsSandboxKind,
   type OsSandboxPolicy,
 } from "./profile.js";
-export { resolveWritable, wrapCommand, type WrappedCommand } from "./wrap.js";
+export { resolveExtras, resolveWritable, wrapCommand, type WrappedCommand } from "./wrap.js";
+export {
+  DEFAULT_BASH_SANDBOX_MODE,
+  DEFAULT_SANDBOX_NETWORK,
+  NO_BASH_SANDBOX,
+  bashSandboxPolicy,
+  looksLikeSandboxDenial,
+  resolveBashSandbox,
+  runsSandboxed,
+  sandboxDenialHint,
+  wantsUnsandboxed,
+  wrapBashCommand,
+  type BashCallPlace,
+  type BashSandbox,
+  type BashSandboxConfig,
+  type BashSandboxMode,
+  type SandboxNetwork,
+} from "./bash.js";

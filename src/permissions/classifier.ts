@@ -46,6 +46,8 @@ export interface ClassifierRequest {
   projectRoot: string;
   /** 最近一条用户消息（会被截断）。 */
   userMessage?: string;
+  /** [S2] bash 将经 OS 沙箱运行（写入只限工作区与临时目录、网络按配置）：交给分类器作为输入之一。 */
+  sandbox?: { network: "deny" | "allow" };
 }
 
 export interface ClassifierVerdict {
@@ -96,6 +98,10 @@ export function buildClassifierPrompt(request: ClassifierRequest): string {
     `project_root: ${neutralize(JSON.stringify(request.projectRoot))}`,
     `arguments_json: ${neutralize(args)}`,
   ];
+  if (request.sandbox !== undefined)
+    lines.push(
+      `os_sandbox: "writes limited to the project and temp dirs; network ${request.sandbox.network === "deny" ? "blocked" : "allowed"}"`,
+    );
   if (request.userMessage !== undefined && request.userMessage.trim() !== "") {
     const summary = truncate(
       request.userMessage.replace(/\s+/g, " ").trim(),

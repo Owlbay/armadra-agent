@@ -345,6 +345,7 @@ anthropic/<model-id> · think:medium · ↑412k ↓8.1k · cache 83% ♨ · $0.8
 
 - **规则**：`bash(git push*)`、`write(src/**)`、`read(**)`、`canvas_*`；`--allow` / `--deny` 可重复。内置 deny：写 `.git/**`、读写 `.ssh/**`。
 - **危险命令**：`rm -rf /`、`sudo`、`git push --force`、`git reset --hard`、`git clean -f`、`curl … | sh`、`chmod -R 777`、`npm publish`、`shutdown` 等，即使有 allow 规则也要询问。识别会穿透 `sh -c '…'`、`eval`、`xargs`、`find -exec` 与 git 全局选项。
+- **bash 沙箱**（缺省关闭）：配置 `"sandbox": { "bash": "auto" }` 后 bash 经 macOS `sandbox-exec` / Linux bubblewrap 运行，只能写工作区与临时目录（`sandbox.writable` 追加）、缺省不能联网、读不到 `~/.ssh` 等凭据；`default` / `auto-edit` 下沙箱内的命令免审批（危险命令、deny 规则照旧），被沙箱拒绝时模型可以请求 `sandbox: false` 不经沙箱重跑，这一步照常审批。见 [docs/sandbox.md](docs/sandbox.md)「第二阶段」。
 - **项目信任**：`.ama/hooks.json`、`.ama/skills/`、`.ama/prompts/` 会执行或注入项目里的内容，需要先信任目录（交互模式问一次，可记住；`--trust` / `--no-trust`；非交互缺省不信任）。`AGENTS.md` 与 `.ama/config.json` 不需要信任，因为后者只能收紧。
 - **执行前预览**：审批对话框除了输入摘要，还列出这一步会碰到什么——bash 里 `rm` / `mv` / `git clean` / `git reset --hard` / 重定向的目标路径是否存在、大小、目录里有多少文件；write 显示路径与行数，edit 显示每处修改的 −/+ 摘要。`y` 允许、`n` 拒绝、`a` 本会话同类不再问、`v` 看完整输入。
 - **Hook**：`hooks.json` 在 `PreToolUse`、`PostToolUse`、`UserPromptSubmit`、`Stop` 等 9 个事件运行 shell 命令，可以否决工具调用、改写输入、追加上下文、让运行再跑一轮。见 [docs/hooks.md](docs/hooks.md)。

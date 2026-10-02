@@ -12,6 +12,8 @@ import { buildAnthropicRequest } from "../ai/apis/anthropic-request.js";
 import { ProviderRegistry } from "../ai/providers/registry.js";
 import { detectSandboxCapability } from "../codemode/capability.js";
 import type { Model, SystemMessage, ToolDecl } from "../ai/types.js";
+import { resolveBashSandbox } from "../sandbox/bash.js";
+import type { ComposeOptions } from "./compose.js";
 
 let h: ComposeHarness | undefined;
 afterEach(() => h?.cleanup());
@@ -60,10 +62,14 @@ function measurePrompt(
   return { tokens, lines };
 }
 
-async function measurePreset(preset: keyof typeof PROMPT_BUDGETS): Promise<PromptBreakdown> {
+async function measurePreset(
+  preset: keyof typeof PROMPT_BUDGETS,
+  extra: ComposeOptions = {},
+): Promise<PromptBreakdown & { tools: readonly ToolDecl[] }> {
   h = composeHarness();
   const runtime = await h.boot(["--model", "fake/echo", "--tools-preset", preset], {
     sandboxCapability: STRICT,
+    ...extra,
   });
   await runtime.session.prompt("hi");
   const context = h.fake.calls[0]!.context;
@@ -84,7 +90,7 @@ async function measurePreset(preset: keyof typeof PROMPT_BUDGETS): Promise<Promp
       .join("/home/user");
   const result = measurePrompt(sections, system.toolsAdded ?? [], body, normalize);
   await runtime.dispose();
-  return result;
+  return { ...result, tools: system.toolsAdded ?? [] };
 }
 
 describe("提示长度预算（字符 / 4 估算）", () => {
@@ -101,6 +107,25 @@ describe("提示长度预算（字符 / 4 估算）", () => {
       expect(tokens, report).toBeLessThanOrEqual(PROMPT_BUDGETS[preset]);
     });
   }
+
+  it("[S2] bash 沙箱生效时（工具多一个参数与一句描述）default 预设仍在预算内", async () => {
+    const bashSandbox = resolveBashSandbox(
+      { bash: "auto" },
+      {
+        status: {
+          kind: "sandbox-exec",
+          path: "/usr/bin/sandbox-exec",
+          isolatesNetwork: true,
+          restrictsWrites: true,
+          detail: "fake",
+        },
+      },
+    );
+    const { tokens, lines, tools } = await measurePreset("default", { bashSandbox });
+    const bash = tools.find((t) => t.name === "bash");
+    expect(JSON.stringify(bash?.parameters)).toContain('"sandbox"');
+    expect(tokens, lines.join("\n")).toBeLessThanOrEqual(PROMPT_BUDGETS.default);
+  });
 
   it("超出预算会失败并给出逐项明细", () => {
     const long = "x".repeat(4 * 900);

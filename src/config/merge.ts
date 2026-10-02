@@ -227,6 +227,19 @@ export function restrictProjectConfig(
         if (permission !== undefined) accepted.permission = permission;
         break;
       }
+      case "sandbox": {
+        // [S2] 只能收紧：network "deny"。enabled / bash 两个方向都不是单纯更严（打开 bash 沙箱会让 default
+        // 模式免审批，关闭会让命令裸跑），writable 是放宽，一律忽略。
+        const sandbox = project.sandbox ?? {};
+        for (const [sub, v] of Object.entries(sandbox)) {
+          if (sub === "network" && v === "deny") continue;
+          warnings.push(
+            `${label}: 项目级只接受 sandbox.network "deny"，忽略 sandbox.${sub}${sub === "network" ? ` ${String(v)}` : ""}`,
+          );
+        }
+        if (sandbox.network === "deny") accepted.sandbox = { network: "deny" };
+        break;
+      }
       default:
         warnings.push(`${label}: 项目级不能设 ${key}，已忽略`);
     }

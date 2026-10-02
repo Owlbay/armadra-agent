@@ -15,6 +15,7 @@ import { randomUUID } from "node:crypto";
 import type { ToolCallBlock } from "../ai/types.js";
 import { DEFAULT_APPROVAL_TIMEOUT_MS } from "../permissions/broker.js";
 import { previewAction } from "../permissions/preview.js";
+import { PermissionPipeline } from "../permissions/pipeline.js";
 import type {
   ActionPreview,
   ApprovalDecision,
@@ -199,7 +200,18 @@ export async function gateToolCall(
       // auto 第 3 层：规则层与静态判定都没决定，问一次独立的模型分类器（只能变 allow）
       const judged = await core
         .autoClassifier()
-        .classify(classifierRequest(core, call.name, input, permission.projectRoot), ctx.signal);
+        .classify(
+          classifierRequest(
+            core,
+            call.name,
+            input,
+            permission.projectRoot,
+            verdict.sandboxed === true && permission instanceof PermissionPipeline
+              ? { network: permission.bashSandbox?.network ?? "deny" }
+              : undefined,
+          ),
+          ctx.signal,
+        );
       autoDecision = { layer: "classifier", decision: judged.decision, reason: judged.reason };
       if (judged.cached) autoDecision.cached = true;
       if (judged.decision === "allow") decision = "allow";

@@ -38,6 +38,9 @@ import { applyCodemodeMode } from "../codemode/modes.js";
 import { sandboxCapabilityFor, type SandboxCapability } from "../codemode/capability.js";
 import { codemodeToolFactory } from "../codemode/tool.js";
 import { configureOsSandbox } from "../sandbox/detect.js";
+import { resolveBashSandbox, type BashSandbox } from "../sandbox/bash.js";
+import { join } from "node:path";
+import { AUTH_FILE } from "../config/paths.js";
 import { PresetToolRegistry, resolvePreset } from "../tools/presets.js";
 import { builtinTools } from "../tools/registry.js";
 import type { ToolDefinition, ToolRegistryApi } from "../tools/types.js";
@@ -87,6 +90,8 @@ export interface ComposeOptions {
    * `toolFactories` 时 codemode 工厂也用它（测试据此不随 Node 版本变化）。
    */
   sandboxCapability?: SandboxCapability;
+  /** [S2] bash 的 OS 沙箱设定（缺省按 `sandbox.*` 配置与本机探测；测试注入）。 */
+  bashSandbox?: BashSandbox;
   /** 覆盖启动期问答；缺省见 `defaultStartupUi`。 */
   ui?: InteractiveUi;
   modes?: Partial<Record<RuntimeMode, ModeRunner>>;
@@ -132,17 +137,27 @@ export function createTools(
 ): PresetToolRegistry {
   const registry = new PresetToolRegistry();
   // 记下 sandbox.enabled：拿不到配置的只读调用方（状态栏）与这里得到同一结论。
-  configureOsSandbox(input.config.sandbox?.enabled);
+  const osStatus = configureOsSandbox(input.config.sandbox?.enabled);
+  // [S2] bash 沙箱：工具与权限管线用同一份设定（tools.create 先于 permissions.create）
+  const bashSandbox =
+    options.bashSandbox ??
+    resolveBashSandbox(input.config.sandbox, {
+      status: osStatus,
+      ...(input.paths === undefined ? {} : { hidden: [join(input.paths.configDir, AUTH_FILE)] }),
+    });
+  state.bashSandbox = bashSandbox;
   const capability = options.sandboxCapability ?? sandboxCapabilityFor(input.config);
   const factories =
     options.toolFactories ??
     (options.sandboxCapability !== undefined
       ? [codemodeToolFactory({ capability })]
       : DEFAULT_TOOL_FACTORIES);
-  const bash =
-    input.config.tools?.bashTimeoutMs !== undefined
+  const bash = {
+    ...(input.config.tools?.bashTimeoutMs !== undefined
       ? { defaultTimeoutMs: input.config.tools.bashTimeoutMs }
-      : {};
+      : {}),
+    ...(bashSandbox.active ? { sandbox: bashSandbox } : {}),
+  };
   const builtins = builtinTools({
     bash,
     read: {
@@ -286,6 +301,7 @@ export function createRuntimeDeps(
           ...(input.autoSafeCommands !== undefined
             ? { autoSafeCommands: input.autoSafeCommands }
             : {}),
+          ...(state.bashSandbox?.active === true ? { bashSandbox: state.bashSandbox } : {}),
         }),
     },
     resources: {
