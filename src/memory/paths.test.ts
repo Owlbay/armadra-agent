@@ -22,7 +22,8 @@ afterEach(() => {
 });
 
 function tmp(): string {
-  const d = realpathSync(mkdtempSync(join(tmpdir(), "ama-mem-paths-")));
+  // native：与 projectRootOf 一致（Windows 上展开 8.3 短名）
+  const d = realpathSync.native(mkdtempSync(join(tmpdir(), "ama-mem-paths-")));
   dirs.push(d);
   return d;
 }
