@@ -42,6 +42,16 @@ import { discoverSkills } from "./skills/discover.js";
 import { PresetToolRegistry } from "./tools/presets.js";
 import type { ToolDefinition } from "./tools/types.js";
 
+/** [W3-C2] 统计类型：`session.getStats()`、RPC `get_session_stats`、`-p --output-format json` 的 `cache`。 */
+export type { SessionCacheStats, SessionStats } from "./agent/types.js";
+export type {
+  CacheMiss,
+  CacheMissReason,
+  CacheReporting,
+  WarmerStatus,
+  WarmingMode,
+} from "./ai/cache/types.js";
+
 export interface RuntimeOptions {
   cwd?: string;
   /** 与 `ama` 命令行同语法的参数（字段优先于这里的同名参数）。 */
