@@ -15,6 +15,7 @@
 
 import type { SandboxConfig } from "../config/types.js";
 import { NO_OS_SANDBOX, osSandboxStatus, type OsSandboxStatus } from "../sandbox/detect.js";
+import { msg } from "../i18n/index.js";
 
 export interface SandboxCapability {
   /** 权限模型同时隔离文件、子进程与网络。 */
@@ -110,12 +111,12 @@ export function codemodeAvailability(
     return {
       available: false,
       capability,
-      warning: `codemode 已禁用：Node ${capability.nodeMajor} 的权限模型不隔离网络，也没有可用的操作系统沙箱（${capability.os.detail}；codemode.requireStrict 为 true；Node ≥ 25 或 macOS sandbox-exec / Linux bwrap 可隔离）`,
+      warning: msg().session.codemode.disabled(capability.nodeMajor, capability.os.detail),
     };
   }
   return {
     available: true,
     capability,
-    warning: `codemode：Node ${capability.nodeMajor} 下网络未隔离（没有可用的操作系统沙箱：${capability.os.detail}；要求隔离可设 codemode.requireStrict）`,
+    warning: msg().session.codemode.unisolated(capability.nodeMajor, capability.os.detail),
   };
 }

@@ -34,6 +34,7 @@ import {
 import { readGitHead } from "./git-head.js";
 import { latestCheckpoint, type LoadedCheckpoints } from "./replay.js";
 import type { CheckpointData, CodeRestoreResult, FileRecord, RewindSkipReason } from "./types.js";
+import { msg } from "../i18n/index.js";
 
 export interface RestoreOptions {
   cwd: string;
@@ -250,7 +251,8 @@ async function removeRegular(abs: string, before: Stats): Promise<void> {
   if (now.isSymbolicLink()) throw new Skip("symlink");
   if (!now.isFile()) throw new Skip("not_regular");
   if (now.nlink > 1) throw new Skip("hardlink");
-  if (now.dev !== before.dev || now.ino !== before.ino) throw new Error("文件在恢复期间被替换");
+  if (now.dev !== before.dev || now.ino !== before.ino)
+    throw new Error(msg().session.checkpoints.replacedDuringRestore);
   await unlink(abs);
 }
 
@@ -295,7 +297,7 @@ async function writeBack(
       now.dev !== opened.dev ||
       now.ino !== opened.ino
     ) {
-      throw new Error("文件在恢复期间被替换");
+      throw new Error(msg().session.checkpoints.replacedDuringRestore);
     }
     if (opened.nlink > 1) throw new Skip("hardlink");
     await handle.truncate(0);

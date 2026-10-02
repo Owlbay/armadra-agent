@@ -11,6 +11,7 @@ import type { ContentBlock, ImageBlock } from "../ai/types.js";
 import { AmaError } from "../errors.js";
 import { findSessionFileReadOnly, readSessionReadOnly } from "./scan.js";
 import type { SessionEntry } from "./types.js";
+import { msg } from "../i18n/index.js";
 
 export interface NumberedUserMessage {
   n: number;
@@ -71,20 +72,16 @@ export function parseFromSpec(spec: string): { id: string; n?: number } {
   const at = spec.lastIndexOf("#");
   if (at < 0) {
     if (spec.trim() === "")
-      throw new AmaError("invalid_arguments", "--from 需要会话 id", { exitCode: 2 });
+      throw new AmaError("invalid_arguments", msg().session.lookup.fromNeedsId, { exitCode: 2 });
     return { id: spec };
   }
   const id = spec.slice(0, at);
   const raw = spec.slice(at + 1);
   const n = Number(raw);
   if (id === "" || !/^\d+$/.test(raw) || n < 1) {
-    throw new AmaError(
-      "invalid_arguments",
-      `--from 应为 <会话 id> 或 <会话 id>#<编号>（收到 ${spec}）`,
-      {
-        exitCode: 2,
-      },
-    );
+    throw new AmaError("invalid_arguments", msg().session.lookup.fromInvalid(spec), {
+      exitCode: 2,
+    });
   }
   return { id, n };
 }
@@ -101,15 +98,19 @@ export function resolveFromMessage(root: string, spec: string, cwd?: string): Fr
   const session = readSessionReadOnly(file);
   const messages = numberUserMessages(session.entries);
   if (messages.length === 0) {
-    throw new AmaError("invalid_arguments", `会话 ${session.header.id} 没有用户消息`, {
-      exitCode: 2,
-    });
+    throw new AmaError(
+      "invalid_arguments",
+      msg().session.lookup.noUserMessages(session.header.id),
+      {
+        exitCode: 2,
+      },
+    );
   }
   const picked = n === undefined ? messages.at(-1) : messages[n - 1];
   if (picked === undefined) {
     throw new AmaError(
       "invalid_arguments",
-      `会话 ${session.header.id} 只有 ${messages.length} 条用户消息（收到 #${n}）`,
+      msg().session.lookup.tooFewMessages(session.header.id, messages.length, n as number),
       { exitCode: 2 },
     );
   }

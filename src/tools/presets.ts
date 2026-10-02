@@ -121,13 +121,22 @@ export function applyToolAdjustments(
   return [...names];
 }
 
+/**
+ * [W6-I3] 预设解析的警告（给人看）：本模块在模型侧目录里、不 import i18n，返回结构，
+ * 由调用方经 `msg().session.codemode.presetWarning()` 渲染。
+ */
+export type PresetWarning =
+  | { kind: "codemode_only_fallback" }
+  | { kind: "codemode_unavailable"; mode: CodemodeMode }
+  | { kind: "unknown_tool"; name: string };
+
 export interface PresetResolution {
   /** 生效的预设（codemode 工具缺失时回退为 default）。 */
   preset: ToolsPreset;
   codemode: CodemodeMode;
   /** 活动的内置工具名（按名排序）。 */
   builtin: string[];
-  warnings: string[];
+  warnings: PresetWarning[];
 }
 
 export function resolvePreset(input: {
@@ -137,7 +146,7 @@ export function resolvePreset(input: {
   /** 沙箱是否 strict；缺省按运行时探测。 */
   strict?: boolean;
 }): PresetResolution {
-  const warnings: string[] = [];
+  const warnings: PresetWarning[] = [];
   const resolved = resolveCodemodeMode(input.config, input.strict);
   let preset: ToolsPreset = resolved.preset;
   let codemode = resolved.mode;
@@ -148,8 +157,8 @@ export function resolvePreset(input: {
   if (codemode !== "off" && !input.available(CODEMODE_TOOL)) {
     warnings.push(
       preset === "codemode-only"
-        ? "工具预设 codemode-only 需要 codemode 工具（不可用），已回退到 default"
-        : `codemode.mode ${codemode} 需要 codemode 工具（不可用），已忽略`,
+        ? { kind: "codemode_only_fallback" }
+        : { kind: "codemode_unavailable", mode: codemode },
     );
     if (preset === "codemode-only") preset = "default";
     codemode = "off";
@@ -164,7 +173,7 @@ export function resolvePreset(input: {
   const adjusted = applyToolAdjustments(base, input.config.tools?.default);
   for (const name of pairCompanions(adjusted, input.available)) {
     if (input.available(name)) names.push(name);
-    else warnings.push(`tools.default：未知工具 ${name}，已忽略`);
+    else warnings.push({ kind: "unknown_tool", name });
   }
   return { preset, codemode, builtin: names.sort(), warnings };
 }

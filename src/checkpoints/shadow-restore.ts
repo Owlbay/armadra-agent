@@ -33,6 +33,7 @@ import {
   type ShadowRepo,
 } from "./shadow-git.js";
 import type { CodeRestoreResult, FileRecord } from "./types.js";
+import { msg } from "../i18n/index.js";
 
 export interface ShadowRestoreOptions extends RestoreOptions {
   repo: ShadowRepo;
@@ -55,8 +56,9 @@ export function latestShadowCommit(state: LoadedCheckpoints): string | undefined
 export async function restoreFromShadow(options: ShadowRestoreOptions): Promise<RestoreOutcome> {
   const { repo } = options;
   const target = options.target.shadowCommit;
-  if (target === undefined) throw new Error("检查点没有影子提交");
-  if (!(await repo.hasCommit(target))) throw new Error(`影子提交 ${target.slice(0, 12)} 不存在`);
+  if (target === undefined) throw new Error(msg().session.checkpoints.noShadowCommit);
+  if (!(await repo.hasCommit(target)))
+    throw new Error(msg().session.checkpoints.shadowCommitMissing(target.slice(0, 12)));
   const maxBytes = options.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES;
   const current = await repo.currentTree();
   const changes = (await repo.diff(target, current)).filter(

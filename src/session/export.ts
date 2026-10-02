@@ -13,6 +13,7 @@ import { contentImages, contentText, numberUserMessages } from "./reuse.js";
 import { redactSecrets, redactValue } from "./redact.js";
 import { indexEntries, pathToRoot } from "./tree.js";
 import type { SessionEntry, SessionHeader } from "./types.js";
+import { msg } from "../i18n/index.js";
 
 export type ExportFormat = "md" | "json" | "jsonl";
 export type ExportBranch = "leaf" | "all";
@@ -71,7 +72,9 @@ function sessionName(entries: readonly SessionEntry[]): string | undefined {
 }
 
 function truncate(text: string, max: number): string {
-  return text.length > max ? `${text.slice(0, max)}\n…（截断，原长 ${text.length} 字符）` : text;
+  return text.length > max
+    ? `${text.slice(0, max)}\n${msg().session.export.truncated(text.length)}`
+    : text;
 }
 
 function fence(text: string, lang = ""): string {
@@ -86,7 +89,7 @@ function time(iso: string): string {
 
 function imagesNote(content: unknown): string {
   return contentImages(content)
-    .map((image) => `[图片 ${image.mimeType}]`)
+    .map((image) => msg().session.export.image(image.mimeType))
     .join(" ");
 }
 
@@ -94,69 +97,61 @@ export function renderMarkdown(input: ExportInput, branch: ExportBranch): string
   const entries = selectEntries(input, branch);
   const numbers = new Map(numberUserMessages(input.entries).map((u) => [u.entryId, u.n]));
   const name = sessionName(input.entries);
+  const m = msg().session.export;
   const out: string[] = [
-    `# ${name ?? `会话 ${input.header.id.slice(0, 8)}`}`,
+    `# ${name ?? m.title(input.header.id.slice(0, 8))}`,
     "",
-    `- id：${input.header.id}`,
-    `- 目录：${input.header.cwd}`,
-    `- 创建：${time(input.header.timestamp)}`,
-    `- 范围：${branch === "all" ? "全部条目" : "当前分支"}（${entries.length} 条条目）`,
-    ...(input.header.parentSession !== undefined
-      ? [`- 来源会话：${input.header.parentSession}`]
-      : []),
+    m.id(input.header.id),
+    m.cwd(input.header.cwd),
+    m.created(time(input.header.timestamp)),
+    m.scope(branch === "all", entries.length),
+    ...(input.header.parentSession !== undefined ? [m.parent(input.header.parentSession)] : []),
     "",
   ];
   for (const entry of entries) {
     switch (entry.type) {
       case "message": {
-        const m = entry.message;
-        if (m.role === "user") {
+        const message = entry.message;
+        if (message.role === "user") {
           const n = numbers.get(entry.id);
-          const origin = (m as { origin?: string }).origin;
-          out.push(
-            `## 用户${n !== undefined ? ` #${n}` : ""}${origin !== undefined ? `（${origin}）` : ""} · ${time(entry.timestamp)}`,
-            "",
-          );
-          const text = contentText(m.content);
+          const origin = (message as { origin?: string }).origin;
+          out.push(m.user(n, origin, time(entry.timestamp)), "");
+          const text = contentText(message.content);
           if (text !== "") out.push(text, "");
-          const images = imagesNote(m.content);
+          const images = imagesNote(message.content);
           if (images !== "") out.push(images, "");
-        } else if (m.role === "assistant") {
-          out.push(`## 助手 · ${m.provider}/${m.model} · ${time(entry.timestamp)}`, "");
-          for (const block of m.content) {
+        } else if (message.role === "assistant") {
+          out.push(m.assistant(`${message.provider}/${message.model}`, time(entry.timestamp)), "");
+          for (const block of message.content) {
             if (block.type === "text" && block.text.trim() !== "") out.push(block.text, "");
             if (block.type === "toolCall") {
               out.push(
-                `**工具调用** \`${block.name}\``,
+                m.toolCall(block.name),
                 "",
                 fence(truncate(JSON.stringify(block.arguments, null, 2), 500), "json"),
                 "",
               );
             }
           }
-          if (m.stopReason === "error" || m.stopReason === "aborted") {
-            out.push(
-              `> 停止：${m.stopReason}${m.errorMessage !== undefined ? ` · ${m.errorMessage}` : ""}`,
-              "",
-            );
-          }
-        } else if (m.role === "toolResult") {
+          if (message.stopReason === "error" || message.stopReason === "aborted")
+            out.push(m.stopped(message.stopReason, message.errorMessage), "");
+        } else if (message.role === "toolResult") {
           out.push(
-            `**结果** \`${m.toolName}\`${m.isError ? "（出错）" : ""}`,
+            m.toolResult(message.toolName, message.isError),
             "",
-            fence(truncate(contentText(m.content), 2000)),
+            fence(truncate(contentText(message.content), 2000)),
             "",
           );
-          const images = imagesNote(m.content);
+          const images = imagesNote(message.content);
           if (images !== "") out.push(images, "");
         }
         break;
       }
       case "compaction":
-        out.push(`## 压缩摘要 · ${time(entry.timestamp)}`, "", entry.summary, "");
+        out.push(m.compaction(time(entry.timestamp)), "", entry.summary, "");
         break;
       case "branch_summary":
-        out.push(`## 分支摘要 · ${time(entry.timestamp)}`, "", entry.summary, "");
+        out.push(m.branchSummary(time(entry.timestamp)), "", entry.summary, "");
         break;
       case "custom_message":
         if (entry.display) {
@@ -166,7 +161,9 @@ export function renderMarkdown(input: ExportInput, branch: ExportBranch): string
         break;
       case "model_change":
         out.push(
-          `_切换模型：${entry.provider}/${entry.modelId}${entry.channel !== undefined ? `@${entry.channel}` : ""}_`,
+          m.modelChange(
+            `${entry.provider}/${entry.modelId}${entry.channel !== undefined ? `@${entry.channel}` : ""}`,
+          ),
           "",
         );
         break;
@@ -176,9 +173,9 @@ export function renderMarkdown(input: ExportInput, branch: ExportBranch): string
   }
   const usage = usageTotals(entries);
   out.push(
-    "## 用量",
+    m.usage,
     "",
-    "| 请求 | 输入 | 输出 | 缓存读 | 缓存写 | 费用 |",
+    m.usageHeader,
     "| ---: | ---: | ---: | ---: | ---: | ---: |",
     `| ${usage.requests} | ${usage.input} | ${usage.output} | ${usage.cacheRead} | ${usage.cacheWrite} | ${usage.cost !== undefined ? `$${usage.cost.toFixed(4)}` : "—"} |`,
     "",

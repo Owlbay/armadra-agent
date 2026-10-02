@@ -21,6 +21,7 @@ import {
   sessionIdFromFileName,
 } from "./store.js";
 import type { SessionLine } from "./types.js";
+import { msg } from "../i18n/index.js";
 
 /** 根目录下全部 cwd 子目录（不含 trash）。 */
 export function sessionSubdirs(root: string): string[] {
@@ -63,13 +64,17 @@ export function findSessionFileReadOnly(root: string, id: string, cwd?: string):
   }
   if (prefix.length > 1) {
     const ids = prefix.map((f) => sessionIdFromFileName(f) ?? f).slice(0, 10);
-    throw new AmaError("invalid_arguments", `会话 id 前缀 ${id} 不唯一，候选：${ids.join(", ")}`, {
-      exitCode: 5,
-    });
+    throw new AmaError(
+      "invalid_arguments",
+      msg().session.lookup.ambiguousPrefix(id, ids.join(", ")),
+      {
+        exitCode: 5,
+      },
+    );
   }
   const [file] = prefix;
   if (file === undefined)
-    throw new AmaError("session_not_found", `会话不存在：${id}`, { exitCode: 5 });
+    throw new AmaError("session_not_found", msg().session.lookup.notFound(id), { exitCode: 5 });
   return file;
 }
 
