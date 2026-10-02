@@ -1,13 +1,17 @@
 /**
  * 主题与颜色能力（设计 §12.7）。[B4]
  *
- * - `dark` / `light` 两套语义色（§12.7 的 11 个名字），以 24 位 RGB 定义。
- * - 能力降级：truecolor → 256 色（6×6×6 立方 + 灰阶取近）→ 16 色（xterm 缺省调色板取近）→ 无色。
+ * - `dark` / `light` 两套语义色（14 个名字，终端界面视觉设计 v1 §2.1），以 24 位 RGB 定义；取值都落在
+ *   xterm 256 色立方 / 灰阶上，所以 256 色回退无损。
+ * - 能力降级：truecolor → 256 色（6×6×6 立方 + 灰阶取近）→ 16 色（内置色板按 `THEME_ANSI16` 查表，
+ *   覆盖色按 xterm 缺省调色板取近）→ 无色。
+ * - `bg("selection")` 在 < 256 色时退化为 `accent` 粗体前景（16 色下底色太跳，且常留「尾巴」）。
  * - `NO_COLOR`（非空）或 `TERM=dumb` → 无色；不探测终端背景（不发查询序列）。
  * - 样式用各自的关闭码（39 / 49 / 22 / 23 / 24）而不是全重置，可以嵌套。
  */
 
 import type { ColorDepth, SemanticColor, Theme, ThemeCapabilities } from "./component.js";
+import { detectAscii, glyphsFor, type Glyphs } from "./glyphs.js";
 
 export type ThemeName = "dark" | "light";
 
@@ -16,7 +20,8 @@ type Rgb = readonly [number, number, number];
 export const THEME_PALETTES: Record<ThemeName, Record<SemanticColor, string>> = {
   dark: {
     text: "#e4e4e4",
-    dim: "#808080",
+    muted: "#a8a8a8",
+    dim: "#6c6c6c",
     accent: "#5fafff",
     success: "#5fd787",
     warning: "#ffd75f",
@@ -24,12 +29,15 @@ export const THEME_PALETTES: Record<ThemeName, Record<SemanticColor, string>> = 
     user: "#87afff",
     assistant: "#e4e4e4",
     tool: "#af87ff",
-    border: "#5f5f5f",
+    border: "#585858",
     code: "#ffaf5f",
+    link: "#87d7ff",
+    selection: "#303030",
   },
   light: {
     text: "#1c1c1c",
-    dim: "#6c6c6c",
+    muted: "#585858",
+    dim: "#8a8a8a",
     accent: "#005fd7",
     success: "#008700",
     warning: "#af5f00",
@@ -37,10 +45,78 @@ export const THEME_PALETTES: Record<ThemeName, Record<SemanticColor, string>> = 
     user: "#005faf",
     assistant: "#1c1c1c",
     tool: "#8700af",
-    border: "#a8a8a8",
+    border: "#bcbcbc",
     code: "#875f00",
+    link: "#0087af",
+    selection: "#e4e4e4",
   },
 };
+
+/**
+ * 16 色下的索引（xterm 0–15）。距离取近对饱和色不可靠（`#ff5f5f` 会落到灰 8），所以内置色板查表；
+ * `selection` 在 16 色下不作 bg，表里给前景兜底值。
+ */
+export const THEME_ANSI16: Record<ThemeName, Record<SemanticColor, number>> = {
+  dark: {
+    text: 7,
+    muted: 7,
+    dim: 8,
+    accent: 12,
+    success: 10,
+    warning: 11,
+    error: 9,
+    user: 12,
+    assistant: 7,
+    tool: 13,
+    border: 8,
+    code: 11,
+    link: 14,
+    selection: 8,
+  },
+  light: {
+    text: 0,
+    muted: 8,
+    dim: 8,
+    accent: 4,
+    success: 2,
+    warning: 3,
+    error: 1,
+    user: 4,
+    assistant: 0,
+    tool: 5,
+    border: 7,
+    code: 3,
+    link: 6,
+    selection: 7,
+  },
+};
+
+/** 阈值档位：≥ dangerAt error，≥ warnAt warning，否则 success（状态栏 ctx、Meter、/session 共用）。 */
+export function levelColor(
+  ratio: number,
+  thresholds: { warnAt?: number; dangerAt?: number } = {},
+): SemanticColor {
+  if (ratio >= (thresholds.dangerAt ?? 0.9)) return "error";
+  if (ratio >= (thresholds.warnAt ?? 0.7)) return "warning";
+  return "success";
+}
+
+/**
+ * `auto` → dark / light：不发查询序列，只看环境。`COLORFGBG` 的最后一段是背景色号（0–6、8 暗，
+ * 7、9–15 亮）；没有时 Apple Terminal 按 dark；其余缺省 dark。只是猜，文档建议显式配置。
+ */
+export function resolveThemeName(
+  name: ThemeName | "auto" | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): ThemeName {
+  if (name === "dark" || name === "light") return name;
+  const colorfgbg = env["COLORFGBG"];
+  if (colorfgbg !== undefined && colorfgbg !== "") {
+    const bg = Number(colorfgbg.split(";").at(-1));
+    if (Number.isInteger(bg) && bg >= 0 && bg <= 15) return bg === 7 || bg >= 9 ? "light" : "dark";
+  }
+  return "dark";
+}
 
 /** 由环境推断颜色深度。 */
 export function detectColorDepth(
@@ -131,13 +207,20 @@ export function rgbTo16(rgb: Rgb): number {
   return best;
 }
 
-/** 生成前景 / 背景开启序列；depth 0 返回空串。 */
-export function colorCode(hex: string, depth: ColorDepth, background: boolean): string {
+/**
+ * 生成前景 / 背景开启序列；depth 0 返回空串。`ansi16` 给定时 16 色下直接用它（内置色板查表）。
+ */
+export function colorCode(
+  hex: string,
+  depth: ColorDepth,
+  background: boolean,
+  ansi16?: number,
+): string {
   if (depth === 0) return "";
   const rgb = parseHex(hex);
   if (depth === 16_777_216) return `\x1b[${background ? 48 : 38};2;${rgb[0]};${rgb[1]};${rgb[2]}m`;
   if (depth === 256) return `\x1b[${background ? 48 : 38};5;${rgbTo256(rgb)}m`;
-  const idx = rgbTo16(rgb);
+  const idx = ansi16 ?? rgbTo16(rgb);
   const base = idx < 8 ? (background ? 40 : 30) + idx : (background ? 100 : 90) + idx - 8;
   return `\x1b[${base}m`;
 }
@@ -150,12 +233,14 @@ class PaletteTheme implements Theme {
     readonly name: string,
     palette: Record<SemanticColor, string>,
     readonly caps: ThemeCapabilities,
+    readonly glyphs: Glyphs,
+    ansi16: Partial<Record<SemanticColor, number>> = {},
   ) {
     const fg = {} as Record<SemanticColor, string>;
     const bg = {} as Record<SemanticColor, string>;
     for (const key of Object.keys(palette) as SemanticColor[]) {
-      fg[key] = colorCode(palette[key], caps.colors, false);
-      bg[key] = colorCode(palette[key], caps.colors, true);
+      fg[key] = colorCode(palette[key], caps.colors, false, ansi16[key]);
+      bg[key] = colorCode(palette[key], caps.colors, true, ansi16[key]);
     }
     this.fgCodes = fg;
     this.bgCodes = bg;
@@ -167,6 +252,7 @@ class PaletteTheme implements Theme {
   }
 
   bg(color: SemanticColor, text: string): string {
+    if (color === "selection" && this.caps.colors < 256) return this.bold(this.fg("accent", text));
     const code = this.bgCodes[color];
     return code === "" ? text : `${code}${text}\x1b[49m`;
   }
@@ -192,21 +278,28 @@ export interface CreateThemeOptions {
   caps?: ThemeCapabilities;
   /** 覆盖部分语义色（`#rrggbb`）。 */
   overrides?: Partial<Record<SemanticColor, string>>;
+  /** ASCII 字形；缺省按环境检测（`detectAscii`）。 */
+  ascii?: boolean;
 }
 
 export function createTheme(name: ThemeName = "dark", options: CreateThemeOptions = {}): Theme {
-  const palette = { ...THEME_PALETTES[name], ...options.overrides };
-  return new PaletteTheme(name, palette, options.caps ?? detectCapabilities());
+  const overrides = options.overrides ?? {};
+  const palette = { ...THEME_PALETTES[name], ...overrides };
+  const ansi16: Partial<Record<SemanticColor, number>> = { ...THEME_ANSI16[name] };
+  for (const key of Object.keys(overrides) as SemanticColor[]) delete ansi16[key];
+  const glyphs = glyphsFor(options.ascii ?? detectAscii());
+  return new PaletteTheme(name, palette, options.caps ?? detectCapabilities(), glyphs, ansi16);
 }
 
-/** 无色主题（测试、line 模式、NO_COLOR）：所有方法原样返回文本。 */
-export function plainTheme(): Theme {
-  return new PlainTheme();
+/** 无色主题（测试、line 模式、NO_COLOR）：所有方法原样返回文本；字形缺省 Unicode。 */
+export function plainTheme(options: { ascii?: boolean } = {}): Theme {
+  return new PlainTheme(glyphsFor(options.ascii === true));
 }
 
 class PlainTheme implements Theme {
   readonly name = "plain";
   readonly caps: ThemeCapabilities = { colors: 0 };
+  constructor(readonly glyphs: Glyphs) {}
   fg(_color: SemanticColor, text: string): string {
     return text;
   }

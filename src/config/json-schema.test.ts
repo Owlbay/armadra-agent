@@ -66,6 +66,7 @@ const SCHEMA = buildConfigJsonSchema();
 const GOOD: unknown[] = [
   { version: 1 },
   { $schema: "./config.schema.json", version: 1, thinkingLevel: "medium", providers: {} },
+  { version: 1, ui: { theme: "auto", ascii: true, compact: true, animation: false } },
   {
     version: 1,
     defaultModel: "packy/kimi-k2.5@messages",
@@ -121,6 +122,8 @@ const BAD: unknown[] = [
   { version: 1, hooks: { timeoutMs: 0 } },
   { version: 1, cache: { warming: "always" } },
   { version: 1, ui: { theme: "blue" } },
+  { version: 1, ui: { ascii: "yes" } },
+  { version: 1, ui: { compact: 1, animation: "off" } },
   { version: 1, providers: { p: { baseUrl: 3 } } },
   { version: 1, providers: { p: { baseUrl: "https://x", bogus: 1 } } },
   { version: 1, providers: { p: { models: [{ name: "no id" }] } } },

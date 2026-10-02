@@ -112,7 +112,7 @@ describe("帧黄金", () => {
     const frame = terminal.takeWrites();
     expect(frame.startsWith(SYNC_BEGIN) && frame.endsWith(SYNC_END)).toBe(true);
     const text = frame.replace(/\x1b\[[0-9;?]*[A-Za-z]|\x1b_[^\x07]*\x07|\r\n|\r/g, "\n");
-    expect(text.split("\n").filter(Boolean)).toEqual(["继续：再加一个 resize 的测试!", " "]);
+    expect(text.split("\n").filter(Boolean)).toEqual(["› 继续：再加一个 resize 的测试!", " "]);
     expect(tui.stats.fullRedraws).toBe(1);
     tui.stop();
   });
@@ -176,4 +176,99 @@ describe("帧黄金", () => {
     golden("select-80x24", snapshot(terminal));
     tui.stop();
   });
+});
+
+const MARKDOWN_SAMPLE = [
+  "## 差分渲染的规则",
+  "",
+  "我先看一下 `src/tui/tui.ts` 的 `diff()` 逻辑，然后**只改**必要的部分。",
+  "见 [差分渲染说明](docs/tui.md#差分渲染)。",
+  "",
+  "1. 首帧全量输出",
+  "2. 修改 `diff()`：首变化行在视口之上时全量重画",
+  "   - 已滚出终端顶部的历史行留在回滚里",
+  "3. 跑测试",
+  "",
+  "```ts",
+  "if (first < viewportTop) fullViewport();",
+  "for (let i = first; i <= last; i++) out.push(moveTo(i) + clear + lines[i]);",
+  "```",
+  "",
+  "> 注意：已滚出终端顶部的历史行不再重绘。",
+  "",
+  "| 情况 | 写入 |",
+  "| --- | --- |",
+  "| 改一行 | 1 行 |",
+  "| resize | 一屏 |",
+].join("\n");
+
+describe("Markdown 帧黄金", () => {
+  for (const columns of [80, 40]) {
+    it(`标题 / 列表 / 代码块 / 链接 / 引用 / 表格 ${columns}x24`, () => {
+      const terminal = new MemoryTerminal({ columns, rows: 24 });
+      const tui = new TUI(terminal);
+      tui.addChild(new Markdown(MARKDOWN_SAMPLE, { theme: plainTheme() }));
+      tui.start();
+      tui.renderNow();
+      golden(`markdown-${columns}x24`, snapshot(terminal, true));
+      tui.stop();
+    });
+  }
+});
+
+const PLACEHOLDER = "输入消息，/ 命令，@ 文件，Shift+Enter 换行";
+
+function editorFrame(columns: number, setup: (editor: Editor) => void, rows = 8): string {
+  const terminal = new MemoryTerminal({ columns, rows });
+  const tui = new TUI(terminal);
+  const editor = new Editor({
+    theme: plainTheme(),
+    placeholder: PLACEHOLDER,
+    maxVisibleLines: 3,
+    autocomplete: {
+      getSuggestions: ({ textBeforeCursor }) =>
+        textBeforeCursor.startsWith("/mo")
+          ? {
+              from: 0,
+              items: [
+                { value: "/model", label: "/model", description: "[provider/model]  切换模型" },
+                { value: "/mode", label: "/mode", description: "切换权限模式" },
+              ],
+            }
+          : null,
+    },
+  });
+  tui.addChild(editor);
+  tui.start();
+  tui.setFocus(editor);
+  setup(editor);
+  tui.renderNow();
+  const out = snapshot(terminal);
+  tui.stop();
+  return out;
+}
+
+describe("编辑器帧黄金", () => {
+  for (const columns of [80, 40]) {
+    it(`占位 / 多行溢出 / 粘贴折叠 / 补全弹层 ${columns} 列`, () => {
+      const frames = [
+        "## 占位\n",
+        editorFrame(columns, () => undefined),
+        "## 多行溢出与粘贴折叠\n",
+        editorFrame(columns, (editor) => {
+          editor.insertText("第一行\n第二行\n把这段日志贴给你看：\n");
+          editor.handleInput(`\x1b[200~${"log line\n".repeat(142)}\x1b[201~`);
+          editor.insertText("\n第三行是我自己打的，请对比\n");
+          editor.handleInput("\x1b[A");
+        }),
+        "## 补全弹层\n",
+        editorFrame(columns, (editor) => {
+          editor.handleInput("/");
+          editor.handleInput("m");
+          editor.handleInput("o");
+        }),
+      ];
+      golden(`editor-${columns}`, frames.join(""));
+    });
+  }
 });

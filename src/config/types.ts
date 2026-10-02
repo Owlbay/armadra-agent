@@ -166,12 +166,19 @@ export interface HooksSettings {
 }
 
 export interface UiConfig {
-  theme?: "dark" | "light";
+  /** auto 按 `COLORFGBG` / `TERM_PROGRAM` 猜（不发查询序列），猜不出用 dark。 */
+  theme?: "dark" | "light" | "auto";
   markdown?: boolean;
   showThinking?: "full" | "collapsed" | "hidden";
   /** 第一期只有 regular（§12.10）。 */
   tuiMode?: "regular";
   quietStartup?: "normal" | "header" | "silent";
+  /** ASCII 字形（`AMA_ASCII=1` 等价）；缺省按区域设置 / TERM 自动检测。 */
+  ascii?: boolean;
+  /** 消息区块间不空行、启动头无框，缺省 false。 */
+  compact?: boolean;
+  /** false：运行中 spinner 固定为 `·`，缺省 true。 */
+  animation?: boolean;
 }
 
 export interface SkillsConfig {

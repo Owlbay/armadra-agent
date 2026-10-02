@@ -1,0 +1,52 @@
+# viewport 40x50 cursor=40,26
+|› 检查差分渲染
+|
+|⏺ read src/tui/tui.ts:1+120
+|  ⎿ 读取 120 行
+|      1  line 1
+|      2  line 2
+|      3  line 3
+|    … 另 117 行（Ctrl+O 展开）
+|⏺ edit src/tui/tui.ts
+|  ⎿ 2 处修改 · +2 −1
+|    @@ -212,4 +212,7 @@
+|       if (first === -1) return;
+|    -  if (first < this.viewportTop(hei…
+|    +  if (first < this.viewportTop(hei…
+|    +    // 内容变短也走全量，避免残影
+|         fullViewport();
+|       }
+|⏺ bash pnpm vitest run src/tui
+|  ⎿ ⠋ 运行中 · 0s
+|     ✓ src/tui/ansi.test.ts (31)
+|     ✓ src/tui/theme.test.ts (12)
+|     ⠋ src/tui/tui.test.ts
+|⏺ bash git push --force origin main
+|  ⎿ 退出 128 · 0.3s · 1 行
+|    fatal: refusing to update checked o…
+|⏺ grep requestRender in src
+|  ⎿ 14 处匹配 · 6 个文件
+|    src/tui/tui.ts:180: requestRender(i…
+|    src/tui/components/loader.ts:52: th…
+|    src/tui/components/editor.ts:311: t…
+|    … 另 1 行（Ctrl+O 展开）
+|⏺ codemode const files = await tools.gl…
+|  ⎿ 2 个内层调用 · 脚本输出 2 行
+|    ⏺ glob src/**/*.ts
+|      ⎿ 42 个文件
+|    ⏺ read src/tui/tui.ts
+|      ⎿ 读取 399 行
+|    42 files, 14 matches
+|    done
+|⏺ task 检查 src/tui 的测试覆盖缺口
+|  ⎿ ⠋ 子 Agent · 运行中 0s
+|
+|
+|
+|
+|
+|
+|
+|
+|
+# scrollback 0 lines

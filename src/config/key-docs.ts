@@ -23,6 +23,7 @@ const IMPLICIT_DEFAULTS: Partial<AmaConfig> = {
   codemode: { inlineBudget: DEFAULT_INLINE_BUDGET, requireStrict: false },
   cache: { ...DEFAULT_CACHE_CONFIG },
   request: { idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS },
+  ui: { compact: false, animation: true },
 };
 
 /** 全部有固定缺省值的键（展示用；运行时仍以 DEFAULT_CONFIG 合并）。 */
@@ -36,6 +37,7 @@ export const DYNAMIC_DEFAULTS: Readonly<Record<string, string>> = Object.freeze(
   defaultModel: "零配置自动选择",
   "permission.autoModel": "当前会话模型",
   "codemode.mode": "跟随预设",
+  "ui.ascii": "自动检测",
 });
 
 /** 键路径 → 说明（段落本身也有一条）。 */
@@ -79,11 +81,15 @@ export const CONFIG_KEY_DOCS: Readonly<Record<string, string>> = Object.freeze({
   hooks: "Hook 设置（Hook 本身写在 hooks.json）",
   "hooks.timeoutMs": "单个 Hook 命令的缺省超时（毫秒）",
   ui: "终端界面",
-  "ui.theme": "配色主题",
+  "ui.theme": "配色主题：dark、light，或 auto（按 COLORFGBG 猜，不发终端查询，猜不出用 dark）",
   "ui.markdown": "按 Markdown 渲染回复",
   "ui.showThinking": "思考内容的显示方式",
   "ui.tuiMode": "终端界面形态（目前只有 regular）",
   "ui.quietStartup": "启动画面详略",
+  "ui.ascii":
+    "ASCII 字形（> * L、+ - |）；不写时自动检测：区域设置不含 UTF-8、TERM=linux、旧 conhost 时开启；AMA_ASCII=1/0 覆盖",
+  "ui.compact": "消息区块间不空行、启动头不画框",
+  "ui.animation": "false：运行中 spinner 静止，只在秒数变化时重绘",
   skills: "Skill",
   "skills.dirs": "追加的 Skill 目录；各层累加",
   cache: "提示缓存；整段只认用户级",

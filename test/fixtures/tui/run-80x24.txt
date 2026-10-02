@@ -1,10 +1,10 @@
-# startup · viewport 80x24 cursor=3,0
-|ama <version> · Enter 发送 · Esc 中断 · Ctrl+C 两次退出 · /help 命令
+# startup · viewport 80x24 cursor=3,2
+|✻ ama <version> · fake/echo · Manual · /help
 |
 |────────────────────────────────────────────────────────────────────────────────
-|
+|› 输入消息，/ 命令，@ 文件，Shift+Enter 换行
 |────────────────────────────────────────────────────────────────────────────────
-|fake/echo · think:medium · ctx 0% · mode:Manual · preset:default
+|Manual · shift+tab 切换                                   echo · medium · ctx 0%
 |
 |
 |
@@ -24,13 +24,13 @@
 |
 |
 
-# typed · viewport 80x24 cursor=3,25
-|ama <version> · Enter 发送 · Esc 中断 · Ctrl+C 两次退出 · /help 命令
+# typed · viewport 80x24 cursor=3,27
+|✻ ama <version> · fake/echo · Manual · /help
 |
 |────────────────────────────────────────────────────────────────────────────────
-|读一下 README，说说是什么
+|› 读一下 README，说说是什么
 |────────────────────────────────────────────────────────────────────────────────
-|fake/echo · think:medium · ctx 0% · mode:Manual · preset:default
+|Manual · shift+tab 切换                                   echo · medium · ctx 0%
 |
 |
 |
@@ -50,23 +50,23 @@
 |
 |
 
-# tool running · viewport 80x24 cursor=12,0
-|ama <version> · Enter 发送 · Esc 中断 · Ctrl+C 两次退出 · /help 命令
+# tool running · viewport 80x24 cursor=13,2
+|✻ ama <version> · fake/echo · Manual · /help
 |
 |› 读一下 README，说说是什么
 |
-|思考 · 8 token
+|✻ 思考 · 8 token
 |
 |Reading it.
 |
-|● read  README.md
+|⏺ read README.md
+|  ⎿ ⠋ 运行中 · 0s
 |
-|⠋ 工作中 · Esc 中断 (0s)
+|⠋ 运行 read · 0s · Esc 中断
 |────────────────────────────────────────────────────────────────────────────────
-|
+|› 输入消息，/ 命令，@ 文件，Shift+Enter 换行
 |────────────────────────────────────────────────────────────────────────────────
-|fake/echo · think:medium · ↑1.2k ↓40 · cache — · $0.001 · ctx 1% · mode:Manual
-|
+|Manual · shift+tab 切换    echo · medium · ↑1.2k ↓40 · cache — · $0.001 · ctx 1%
 |
 |
 |
@@ -76,80 +76,80 @@
 |
 |
 
-# settled · viewport 80x24 cursor=17,0
-|ama <version> · Enter 发送 · Esc 中断 · Ctrl+C 两次退出 · /help 命令
+# settled · viewport 80x24 cursor=18,2
+|✻ ama <version> · fake/echo · Manual · /help
 |
 |› 读一下 README，说说是什么
 |
-|思考 · 8 token
+|✻ 思考 · 8 token
 |
 |Reading it.
 |
-|● read  README.md
-|       1    # Demo
-|       2
-|       3    A tiny project.
-|  … 另 2 行（Ctrl+O 展开）
+|⏺ read README.md
+|  ⎿ 读取 5 行
+|      1  # Demo
+|      2
+|      3  A tiny project.
+|    … 另 2 行（Ctrl+O 展开）
 |
 |The README describes Demo, a tiny project.
 |
 |────────────────────────────────────────────────────────────────────────────────
-|
+|› 输入消息，/ 命令，@ 文件，Shift+Enter 换行
 |────────────────────────────────────────────────────────────────────────────────
-|fake/echo · think:medium · ↑2.7k ↓52 · cache 80% · $0.002 · ctx 1% · mode:Manual
-|
+|Manual                   echo · medium · ↑2.7k ↓52 · cache 80% · $0.002 · ctx 1%
 |
 |
 |
 
-# ctrl+o expanded · viewport 80x24 cursor=18,0
-|ama <version> · Enter 发送 · Esc 中断 · Ctrl+C 两次退出 · /help 命令
+# ctrl+o expanded · viewport 80x24 cursor=20,2
+|✻ ama <version> · fake/echo · Manual · /help
 |
 |› 读一下 README，说说是什么
 |
-|思考 · 8 token
+|✻ 思考 · 8 token  ▾
+|  I should read the file first.
 |
 |Reading it.
 |
-|● read  README.md
-|       1    # Demo
-|       2
-|       3    A tiny project.
-|       4    It has three lines of prose.
-|       5    And one more.
+|⏺ read README.md
+|  ⎿ 读取 5 行
+|      1  # Demo
+|      2
+|      3  A tiny project.
+|      4  It has three lines of prose.
+|      5  And one more.
 |
 |The README describes Demo, a tiny project.
 |
 |────────────────────────────────────────────────────────────────────────────────
-|
+|› 输入消息，/ 命令，@ 文件，Shift+Enter 换行
 |────────────────────────────────────────────────────────────────────────────────
 |工具输出：展开
-|fake/echo · think:medium · ↑2.7k ↓52 · cache 80% · $0.002 · ctx 1% · mode:Manual
-|
-|
+|Manual                   echo · medium · ↑2.7k ↓52 · cache 80% · $0.002 · ctx 1%
 
 # exit · viewport 80x24 cursor=21,0
-|ama <version> · Enter 发送 · Esc 中断 · Ctrl+C 两次退出 · /help 命令
+|✻ ama <version> · fake/echo · Manual · /help
 |
 |› 读一下 README，说说是什么
 |
-|思考 · 8 token
+|✻ 思考 · 8 token  ▾
+|  I should read the file first.
 |
 |Reading it.
 |
-|● read  README.md
-|       1    # Demo
-|       2
-|       3    A tiny project.
-|       4    It has three lines of prose.
-|       5    And one more.
+|⏺ read README.md
+|  ⎿ 读取 5 行
+|      1  # Demo
+|      2
+|      3  A tiny project.
+|      4  It has three lines of prose.
+|      5  And one more.
 |
 |The README describes Demo, a tiny project.
 |
-|────────────────────────────────────────────────────────────────────────────────
-|
-|────────────────────────────────────────────────────────────────────────────────
-|fake/echo · think:medium · ↑2.7k ↓52 · cache 80% · $0.002 · ctx 1% · mode:Manual
+|─ 会话 <id> · 0 秒 · 1 回合 · ↑2.7k ↓52 · cache 44% · $0.002
+|  恢复：ama --resume <id>
 |
 |
 |

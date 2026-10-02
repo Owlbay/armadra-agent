@@ -71,6 +71,17 @@ describe("交互命令", () => {
     );
   });
 
+  it("/model 选择器不列测试供应商 fake（AMA_SHOW_FAKE=1 或 AMA_FAKE_SCRIPT 时照列）", async () => {
+    const rt = await boot();
+    const hidden = recordingUi(rt);
+    await runInteractiveCommand("/model", { ...hidden.ui, env: {} });
+    expect(hidden.picks[0]?.items.some((i) => i.value.startsWith("fake/"))).toBe(false);
+    const shown = recordingUi(rt);
+    await runInteractiveCommand("/model", { ...shown.ui, env: { AMA_SHOW_FAKE: "1" } });
+    expect(shown.picks[0]?.items.some((i) => i.value === "fake/echo")).toBe(true);
+    expect(shown.picks[0]?.currentValue).toBe("fake/echo");
+  });
+
   it("/model 无参数：选择器按供应商分组、预选当前模型，选中后切换", async () => {
     const rt = await boot();
     const { ui, picks, notices } = recordingUi(rt, [byValue("fake/reasoning")]);
@@ -94,13 +105,18 @@ describe("交互命令", () => {
     expect(currentSession(rt).state.thinkingLevel).toBe("high");
   });
 
-  it("/permission 选择器：标题 Mode、当前打勾、配置缺省标 Default；选中后提示显示名；参数可写显示名", async () => {
+  it("/permission 选择器：标题权限模式、当前打勾、配置缺省标 Default；选中后提示显示名；参数可写显示名", async () => {
     const rt = await boot();
     const { ui, picks, notices } = recordingUi(rt, [byValue("auto")]);
     await runInteractiveCommand("/permission", ui);
-    expect(picks[0]).toMatchObject({ title: "Mode", selected: "default", numberKeys: true });
+    expect(picks[0]).toMatchObject({
+      title: "权限模式",
+      selected: "default",
+      currentValue: "default",
+      numberKeys: true,
+    });
     expect(picks[0]?.items.find((i) => i.value === "default")).toMatchObject({
-      label: "✔ Manual",
+      label: "Manual",
       badge: "Default",
     });
     expect(picks[0]?.items.find((i) => i.value === "auto")?.badge).toBe("Recommended");

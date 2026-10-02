@@ -1,26 +1,30 @@
 /**
  * 多行编辑器组件（设计 §12.3、§12.4）。[B4]
  *
- * - 渲染：上下边框之间按列宽折行（不切开字素与折叠标记）；超过 `maxVisibleLines` 时视窗跟随光标，
- *   边框上提示上 / 下方隐藏的行数；获焦时在光标处输出 CURSOR_MARKER 并反显光标格。
+ * - 渲染：上下规则线之间按列宽折行（不切开字素与折叠标记）；首行前是提示符 `› `（`user` 粗体，
+ *   `disableSubmit` 时 dim），续行缩进 2 列对齐；超过 `maxVisibleLines` 时视窗跟随光标，规则线上提示
+ *   上 / 下方隐藏的行数（dim）；获焦时在光标处输出 CURSOR_MARKER 并反显光标格。空文本显示占位
+ *   （获焦时也显示，光标反显占位首字）。
  * - 键位：`tui.editor.*`（见 keybindings.ts）。Enter 提交（`disableSubmit` 时忽略）；Shift+Enter / Ctrl+J 换行；
  *   Up/Down 在首 / 末视觉行时浏览历史（单行文本或空文本或已在浏览中），否则按视觉行移动。
  * - 括号粘贴（`ESC[200~…ESC[201~`，由 StdinBuffer 合成一次输入）：> 10 行或 > 1 000 字符折叠为
- *   `[paste #N +M lines]`，提交时展开；粘贴期间不触发补全；粘贴后紧随的 `\r` 是普通 Enter（提交）。
- * - 补全：提供者由外部注入（`/` 命令、`@` 文件等由 B7 实现）；同步或异步返回候选与替换起点。
+ *   `[粘贴 #N · M 行]`，提交时展开；粘贴期间不触发补全；粘贴后紧随的 `\r` 是普通 Enter（提交）。
+ * - 补全：提供者由外部注入（`/` 命令、`@` 文件等由 B7 实现）；同步或异步返回候选与替换起点；
+ *   弹层缩进 2 列，尾行 `(i/n) Tab 接受 · Esc 关闭`。
  * - 历史：会话内 + 可选历史文件（JSONL，每行一个 JSON 字符串，保留最近 500 条）。
  */
 
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
 import { CURSOR_MARKER, type Component, type Focusable, type Theme } from "../component.js";
 import { truncateToWidth, visibleWidth } from "../ansi.js";
 import { defaultKeybindings, type Keybindings } from "../keybindings.js";
 import { isPasteData, isPrintableText, unwrapPaste } from "../keys.js";
 import { plainTheme } from "../theme.js";
 import { EditorBuffer } from "./editor-buffer.js";
+import { appendHistoryFile, loadHistoryFile } from "./editor-history.js";
 import { PasteStore } from "./editor-paste.js";
 import { SelectList, type SelectItem } from "./select-list.js";
+
+export { loadHistoryFile } from "./editor-history.js";
 
 export interface AutocompleteItem {
   /** 接受后替换进编辑器的文本。 */
@@ -79,44 +83,9 @@ interface VisualRow {
 
 const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
-export function loadHistoryFile(path: string, limit = 500): string[] {
-  let text: string;
-  try {
-    text = readFileSync(path, "utf8");
-  } catch {
-    return [];
-  }
-  const entries: string[] = [];
-  for (const line of text.split("\n")) {
-    if (line.trim() === "") continue;
-    try {
-      const value: unknown = JSON.parse(line);
-      if (typeof value === "string" && value !== "") entries.push(value);
-    } catch {
-      // 损坏的行跳过
-    }
-  }
-  return entries.slice(-limit);
-}
-
-function appendHistoryFile(path: string, entry: string, limit: number): void {
-  try {
-    mkdirSync(dirname(path), { recursive: true });
-    appendFileSync(path, JSON.stringify(entry) + "\n", { mode: 0o600 });
-    const all = loadHistoryFile(path, Number.MAX_SAFE_INTEGER);
-    if (all.length > limit * 2) {
-      writeFileSync(
-        path,
-        all
-          .slice(-limit)
-          .map((e) => JSON.stringify(e) + "\n")
-          .join(""),
-      );
-    }
-  } catch {
-    // 历史写失败不影响编辑
-  }
-}
+/** 提示符 `› ` / 续行缩进的宽度。 */
+const PROMPT_WIDTH = 2;
+const COMPLETION_FOOTER = "Tab 接受 · Esc 关闭";
 
 export class Editor implements Component, Focusable {
   focused = false;
@@ -422,7 +391,13 @@ export class Editor implements Component, Focusable {
         : { value: item.value, label: item.label, description: item.description },
     );
     this.completion = {
-      list: new SelectList(items, { maxVisible: 8, theme: this.theme, keybindings: this.keys }),
+      list: new SelectList(items, {
+        maxVisible: 8,
+        theme: this.theme,
+        keybindings: this.keys,
+        footer: COMPLETION_FOOTER,
+        showCount: true,
+      }),
       from: result.from,
     };
   }
@@ -445,8 +420,23 @@ export class Editor implements Component, Focusable {
 
   // ---- 渲染 -----------------------------------------------------------------
 
+  /** 文本列宽：去掉提示符与行尾光标格。 */
   private contentWidth(width: number): number {
-    return Math.max(1, width - 1);
+    return Math.max(1, width - PROMPT_WIDTH - 1);
+  }
+
+  private prompt(): string {
+    const glyph = this.theme.glyphs.prompt;
+    return this.theme.fg(this.disableSubmit ? "dim" : "user", this.theme.bold(glyph)) + " ";
+  }
+
+  private placeholderLine(width: number): string {
+    const text = this.options.placeholder ?? "";
+    if (!this.focused) return truncateToWidth(this.prompt() + this.theme.fg("dim", text), width);
+    const first = nextGrapheme(text, 0);
+    const rest = text.slice(first.length);
+    const cursor = CURSOR_MARKER + `\x1b[7m${this.theme.fg("dim", first)}\x1b[27m`;
+    return truncateToWidth(this.prompt() + cursor + this.theme.fg("dim", rest), width);
   }
 
   /** 逻辑行 → 视觉行（按列宽折行，不切开字素与折叠标记）。 */
@@ -535,26 +525,34 @@ export class Editor implements Component, Focusable {
     if (cursorRow >= this.scrollTop + maxVisible) this.scrollTop = cursorRow - maxVisible + 1;
     this.scrollTop = Math.max(0, Math.min(this.scrollTop, rows.length - maxVisible));
     const end = Math.min(rows.length, this.scrollTop + maxVisible);
-    const lines = [this.border(width, this.scrollTop > 0 ? `↑ ${this.scrollTop}` : "")];
-    if (this.buffer.isEmpty() && this.options.placeholder && !this.focused) {
-      lines.push(truncateToWidth(theme.fg("dim", this.options.placeholder), width));
+    const g = theme.glyphs;
+    const lines = [this.border(width, this.scrollTop > 0 ? `${g.arrowUp} ${this.scrollTop}` : "")];
+    if (this.buffer.isEmpty() && this.options.placeholder) {
+      lines.push(this.placeholderLine(width));
     } else {
+      const indent = " ".repeat(PROMPT_WIDTH);
       for (let i = this.scrollTop; i < end; i++) {
-        lines.push(this.renderRow(rows[i]!, this.focused && i === cursorRow));
+        const prefix = i === 0 ? this.prompt() : indent;
+        lines.push(prefix + this.renderRow(rows[i]!, this.focused && i === cursorRow));
       }
     }
-    lines.push(this.border(width, end < rows.length ? `↓ ${rows.length - end}` : ""));
+    const below = rows.length - end;
+    lines.push(this.border(width, below > 0 ? `${g.arrowDown} ${below}` : ""));
     if (this.completion) {
-      for (const line of this.completion.list.render(width)) lines.push(line);
+      for (const line of this.completion.list.render(Math.max(1, width - 2))) {
+        lines.push("  " + line);
+      }
     }
     return lines;
   }
 
   private border(width: number, label: string): string {
-    if (label === "" || width < label.length + 6) return this.theme.fg("border", "─".repeat(width));
-    const tail = "─".repeat(width - label.length - 5);
+    const rule = this.theme.glyphs.rule;
+    const labelWidth = visibleWidth(label);
+    if (label === "" || width < labelWidth + 6) return this.theme.fg("border", rule.repeat(width));
+    const tail = rule.repeat(width - labelWidth - 5);
     return (
-      this.theme.fg("border", "─── ") +
+      this.theme.fg("border", rule.repeat(3) + " ") +
       this.theme.fg("dim", label) +
       this.theme.fg("border", " " + tail)
     );

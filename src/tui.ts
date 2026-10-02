@@ -65,9 +65,19 @@ export {
   rgbTo256,
   rgbTo16,
   THEME_PALETTES,
+  THEME_ANSI16,
+  resolveThemeName,
+  levelColor,
   type ThemeName,
   type CreateThemeOptions,
 } from "./tui/theme.js";
+export {
+  UNICODE_GLYPHS,
+  ASCII_GLYPHS,
+  detectAscii,
+  resolveAscii,
+  glyphsFor,
+} from "./tui/glyphs.js";
 export {
   Keybindings,
   defaultKeybindings,
@@ -118,12 +128,14 @@ export {
   type SelectListOptions,
 } from "./tui/components/select-list.js";
 export { Box, type BoxOptions } from "./tui/components/box.js";
+export { Card, type CardOptions } from "./tui/components/card.js";
 export { Spacer } from "./tui/components/spacer.js";
 export {
   Loader,
   LOADER_FRAMES,
   formatElapsed,
   type LoaderOptions,
+  type LoaderVerbOptions,
 } from "./tui/components/loader.js";
 export {
   compositeOverlays,

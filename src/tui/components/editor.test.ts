@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { CURSOR_MARKER } from "../component.js";
 import { stripAnsi, visibleWidth } from "../ansi.js";
 import { MemoryTerminal } from "../terminal.js";
+import { createTheme, plainTheme } from "../theme.js";
 import { TUI } from "../tui.js";
 import { Editor, type AutocompleteProvider } from "./editor.js";
 
@@ -86,7 +87,7 @@ describe("Editor 大粘贴折叠", () => {
     const editor = new Editor({ onSubmit: (t) => submitted.push(t) });
     typeInto(editor, "see: ");
     editor.handleInput(PASTE(big));
-    expect(editor.getText()).toBe("see: [paste #1 +30 lines]");
+    expect(editor.getText()).toBe("see: [粘贴 #1 · 30 行]");
     editor.handleInput("\r");
     expect(submitted).toEqual([`see: ${big}`]);
   });
@@ -94,7 +95,7 @@ describe("Editor 大粘贴折叠", () => {
   it("> 1000 字符折叠；小粘贴原样插入（\\r 规范化为 \\n）", () => {
     const editor = new Editor();
     editor.handleInput(PASTE("x".repeat(1001)));
-    expect(editor.getText()).toBe("[paste #1 +1 lines]");
+    expect(editor.getText()).toBe("[粘贴 #1 · 1 行]");
     editor.clear();
     editor.handleInput(PASTE("a\r\nb\rc"));
     expect(editor.getText()).toBe("a\nb\nc");
@@ -107,9 +108,9 @@ describe("Editor 大粘贴折叠", () => {
     const editor = new Editor();
     editor.handleInput(PASTE(big));
     editor.handleInput(PASTE(big));
-    expect(editor.getText()).toBe("[paste #1 +30 lines][paste #2 +30 lines]");
+    expect(editor.getText()).toBe("[粘贴 #1 · 30 行][粘贴 #2 · 30 行]");
     editor.handleInput("\x7f");
-    expect(editor.getText()).toBe("[paste #1 +30 lines]");
+    expect(editor.getText()).toBe("[粘贴 #1 · 30 行]");
     editor.handleInput("\x1b[D");
     editor.handleInput("\x1b[3~");
     expect(editor.getText()).toBe("");
@@ -283,9 +284,9 @@ describe("Editor 渲染", () => {
     for (const line of lines) expect(visibleWidth(line)).toBeLessThanOrEqual(20);
     expect(lines.join("").split(CURSOR_MARKER)).toHaveLength(2);
     expect(plain(lines).slice(1, 4)).toEqual([
-      "中文中文中文中文中",
-      "文中文中文中文中文",
-      "中文中文中文 ",
+      "› 中文中文中文中文",
+      "  中文中文中文中文",
+      "  中文中文中文中文 ",
     ]);
   });
 
@@ -295,13 +296,51 @@ describe("Editor 渲染", () => {
     const lines = plain(editor.render(30));
     expect(lines).toHaveLength(5);
     expect(lines[0]).toContain("↑ 2");
-    expect(lines.slice(1, 4)).toEqual(["3", "4", "5"]);
+    expect(lines.slice(1, 4)).toEqual(["  3", "  4", "  5"]);
+    editor.setText("1\n2");
+    expect(plain(editor.render(30)).slice(1, 3)).toEqual(["› 1", "  2"]);
   });
 
-  it("占位文本只在未获焦且为空时显示", () => {
+  it("占位文本空时显示（获焦时也显示，光标在首字）；有输入即消失", () => {
     const editor = new Editor({ placeholder: "Ask anything" });
-    expect(plain(editor.render(30))[1]).toBe("Ask anything");
+    expect(plain(editor.render(30))[1]).toBe("› Ask anything");
     editor.focused = true;
-    expect(plain(editor.render(30))[1]).toBe(" ");
+    const focused = editor.render(30);
+    expect(plain(focused)[1]).toBe("› Ask anything");
+    expect(focused[1]!.indexOf(CURSOR_MARKER)).toBe(2);
+    editor.insertText("x");
+    expect(plain(editor.render(30))[1]).toBe("› x ");
+  });
+
+  it("disableSubmit 时提示符变 dim；ASCII 主题用 > 与 -", () => {
+    const theme = createTheme("dark", { caps: { colors: 256 }, ascii: false });
+    const editor = new Editor({ theme });
+    const user = theme.fg("user", theme.bold("›"));
+    expect(editor.render(20)[1]!.startsWith(user)).toBe(true);
+    editor.disableSubmit = true;
+    expect(editor.render(20)[1]!.startsWith(theme.fg("dim", theme.bold("›")))).toBe(true);
+    const ascii = new Editor({ theme: plainTheme({ ascii: true }), maxVisibleLines: 1 });
+    ascii.insertText("a\nb");
+    expect(plain(ascii.render(12))).toEqual(["--- ^ 1 ----", "  b", "------------"]);
+  });
+
+  it("补全弹层缩进 2 列，尾行带计数与按键提示", () => {
+    const editor = new Editor({
+      autocomplete: {
+        getSuggestions: () => ({
+          from: 0,
+          items: [
+            { value: "/model", label: "/model", description: "切换模型" },
+            { value: "/mode", label: "/mode", description: "切换权限模式" },
+          ],
+        }),
+      },
+    });
+    editor.handleInput("/");
+    expect(plain(editor.render(40)).slice(3)).toEqual([
+      "  › /model  切换模型",
+      "    /mode   切换权限模式",
+      "  (1/2) Tab 接受 · Esc 关闭",
+    ]);
   });
 });

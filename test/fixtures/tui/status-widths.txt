@@ -1,0 +1,8 @@
+# 40
+|Accept edits     claude-sonnet · ctx 34%|
+# 60
+|Accept edits            claude-sonnet-4-5 · medium · ctx 34%|
+# 80
+|Accept edits     claude-sonnet-4-5 · medium · ↑10k ↓1.2k · cache 80% ♨ · ctx 34%|
+# 110
+|Accept edits      anthropic/claude-sonnet-4-5 · medium · ↑10k ↓1.2k · cache 80% ♨ · $0.12 · ctx ▮▮▮▯▯▯▯▯▯▯ 34%|

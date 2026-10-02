@@ -96,13 +96,14 @@ describe("选择器", () => {
     const { terminal, editor, h, screen, tui } = host();
     const picked = openPicker(h, permissionPickerSpec("auto-edit"));
     const shown = screen();
-    expect(shown).toContain("╭─ Mode");
-    expect(shown).toContain("› ✔ Accept edits");
+    expect(shown).toContain("╭─ 权限模式");
+    expect(shown).toContain("› ✓ Accept edits");
+    expect(shown).toContain("↑↓ 选择 · 1-6 直接选 · Enter 确认 · Esc 取消");
     expect(shown).toContain("自动接受文件编辑，执行命令仍询问");
     terminal.sendInput("\x1b[B\r");
     expect((await picked)?.value).toBe("plan");
     expect(tui.getFocus()).toBe(editor);
-    expect(screen()).not.toContain("Mode");
+    expect(screen()).not.toContain("权限模式");
   });
 
   it("模式选择器：界面顺序、打勾、Default 与 Recommended 徽标、数字键直接选", async () => {
@@ -116,13 +117,16 @@ describe("选择器", () => {
       "allowlist",
     ]);
     expect(items.map((i) => i.label)).toEqual([
-      "  Manual",
-      "  Accept edits",
-      "  Plan",
-      "✔ Auto",
-      "  Bypass permissions",
-      "  Allowlist only",
+      "Manual",
+      "Accept edits",
+      "Plan",
+      "Auto",
+      "Bypass permissions",
+      "Allowlist only",
     ]);
+    expect(permissionPickerSpec("auto", "plan").currentValue).toBe("auto");
+    expect(items.find((i) => i.badge === "Default")?.badgeColor).toBe("dim");
+    expect(items.find((i) => i.badge === "Recommended")?.badgeColor).toBeUndefined();
     expect(items.map((i) => i.badge)).toEqual([
       undefined,
       undefined,

@@ -3,7 +3,7 @@
  *
  * 编辑器之前的输入监听：Ctrl+C 清空输入 / 再按退出、Esc 中断（clearQueue 回填编辑器后 abort）、
  * Ctrl+D 空输入退出、Alt+Enter followUp、Alt+↑ 取回最后一条排队消息、Shift+Tab 循环权限模式、
- * Ctrl+O 展开工具输出、Ctrl+L 模型、Ctrl+T 思考级别。键位由 `keybindings.json` 覆盖。
+ * Ctrl+O 展开工具输出与思考块、Ctrl+L 模型、Ctrl+T 思考级别。键位由 `keybindings.json` 覆盖。
  */
 
 import type { AgentSession } from "../../agent/types.js";
@@ -27,6 +27,8 @@ export interface KeyDispatchDeps {
   busy(): boolean;
   now(): number;
   showHint(text: string): void;
+  /** Ctrl+O 之后（消息区思考块跟着展开 / 折叠）。 */
+  onExpandToggle?(expanded: boolean): void;
   submit(text: string, via: "followUp"): void;
   runCommand(line: string): void;
   exit(code: number): void;
@@ -111,6 +113,7 @@ export function createKeyDispatch(deps: KeyDispatchDeps): (data: string) => bool
     }
     if (is("app.tools.expand")) {
       const expanded = tools.toggleExpanded();
+      deps.onExpandToggle?.(expanded);
       deps.showHint(expanded ? "工具输出：展开" : "工具输出：折叠");
       return true;
     }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { stripAnsi } from "../ansi.js";
 import type { Component } from "../component.js";
-import { createTheme } from "../theme.js";
+import { createTheme, plainTheme } from "../theme.js";
 import { Box } from "./box.js";
 import { Container } from "./container.js";
 import { Loader, formatElapsed } from "./loader.js";
@@ -65,7 +65,7 @@ describe("Box", () => {
     expect(new Box(new Text("x"), { border: false, paddingX: 2 }).render(6)).toEqual(["  x   "]);
   });
   it("带主题时边框着色，可见文本不变", () => {
-    const theme = createTheme("dark", { caps: { colors: 16 } });
+    const theme = createTheme("dark", { caps: { colors: 16 }, ascii: false });
     const lines = new Box(new Text("x"), { theme }).render(5);
     expect(lines.map(stripAnsi)).toEqual(["╭───╮", "│ x │", "╰───╯"]);
     expect(lines[0]).toContain("\x1b[");
@@ -73,19 +73,66 @@ describe("Box", () => {
 });
 
 describe("Loader", () => {
-  it("帧推进、消息、已用时", () => {
+  it("帧推进、动词、已用时", () => {
     let now = 0;
     let renders = 0;
     const loader = new Loader(() => renders++, { message: "Working", now: () => now });
-    expect(loader.render(40)).toEqual(["⠋ Working (0s)"]);
+    expect(loader.render(40)).toEqual(["⠋ Working · 0s"]);
     loader.tick();
     now = 65_000;
-    expect(loader.render(40)).toEqual(["⠙ Working (1m05s)"]);
+    expect(loader.render(40)).toEqual(["⠙ Working · 1m05s"]);
     expect(renders).toBe(1);
     loader.start();
     expect(loader.running).toBe(true);
     loader.stop();
     expect(loader.running).toBe(false);
+  });
+
+  it("setVerb：附加项排在已用时之后；可按动词隐藏已用时；相同不重绘", () => {
+    let renders = 0;
+    let now = 0;
+    const loader = new Loader(() => renders++, { now: () => now });
+    now = 4000;
+    loader.setVerb("思考中", ["Esc 中断"]);
+    expect(loader.render(60)).toEqual(["⠋ 思考中 · 4s · Esc 中断"]);
+    loader.setVerb("思考中", ["Esc 中断"]);
+    expect(renders).toBe(1);
+    loader.setVerb("重试 2/3", ["2s 后"], { elapsed: false });
+    expect(loader.render(60)).toEqual(["⠋ 重试 2/3 · 2s 后"]);
+  });
+
+  it("onFrame 与 Loader 同帧；ASCII 帧表", () => {
+    const loader = new Loader(() => undefined, {
+      theme: plainTheme({ ascii: true }),
+      now: () => 0,
+    });
+    const seen: string[] = [];
+    const off = loader.onFrame((f) => seen.push(f));
+    expect(loader.frame).toBe("-");
+    loader.tick();
+    loader.tick();
+    off();
+    loader.tick();
+    expect(seen).toEqual(["\\", "|"]);
+    expect(loader.frame).toBe("/");
+  });
+
+  it("animation false：spinner 静止，已用时变了才重绘", () => {
+    let now = 0;
+    let renders = 0;
+    const loader = new Loader(() => renders++, {
+      animation: false,
+      message: "运行 bash",
+      now: () => now,
+    });
+    expect(loader.render(40)).toEqual(["· 运行 bash · 0s"]);
+    loader.tick();
+    expect(renders).toBe(0);
+    now = 1000;
+    loader.tick();
+    expect(renders).toBe(1);
+    expect(loader.render(40)).toEqual(["· 运行 bash · 1s"]);
+    expect(loader.frame).toBe("·");
   });
   it("formatElapsed", () => {
     expect(formatElapsed(999)).toBe("0s");

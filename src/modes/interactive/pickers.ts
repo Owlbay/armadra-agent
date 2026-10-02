@@ -4,7 +4,9 @@
  * - 模型：按供应商分组并标 key 状态（`modelItems`，与启动期共用），当前模型预选；
  * - 会话：名字或首条提示、相对时间、消息数（`sessionItems`）；
  * - 树：会话文件里全部用户消息，按分叉缩进，`●` 标出当前分支；选中项回填编辑器（由 commands.ts 处理）；
- * - 权限模式（标题 Mode，界面顺序 1–6，打勾 / Default / Recommended，见 permissionItems）与思考级别。
+ * - 权限模式（标题「权限模式」，界面顺序 1–6，当前模式 ✓ / Default dim / Recommended accent，底部按键提示，
+ *   上下留白，见 permissionItems）与思考级别；
+ * - 所有选择器底部一行按键提示（dim），模型选择器带 (i/n) 并给当前模型打 ✓。
  */
 
 import type { ModelThinkingLevel } from "../../ai/types.js";
@@ -50,7 +52,17 @@ export interface PickerSpec {
   numberKeys?: boolean;
   /** 说明放在标签下一行。 */
   stacked?: boolean;
+  /** 当前值（标 ✓）。 */
+  currentValue?: string;
+  /** 列表下的按键提示，缺省「↑↓ 选择 · Enter 确认 · Esc 取消」。 */
+  footer?: string;
+  /** 提示行前带 (i/n)。 */
+  showCount?: boolean;
+  /** 框内上下留白行数。 */
+  paddingY?: number;
 }
+
+export const PICKER_FOOTER = "↑↓ 选择 · Enter 确认 · Esc 取消";
 
 /** 打开一个居中选择器；Enter 返回选中项，Esc / Ctrl+C 返回 undefined。 */
 export function openPicker(host: PickerHost, spec: PickerSpec): Promise<SelectItem | undefined> {
@@ -68,12 +80,20 @@ export function openPicker(host: PickerHost, spec: PickerSpec): Promise<SelectIt
       ...(spec.emptyText !== undefined ? { emptyText: spec.emptyText } : {}),
       ...(spec.numberKeys === true ? { numberKeys: true } : {}),
       ...(spec.stacked === true ? { stacked: true } : {}),
+      ...(spec.currentValue !== undefined ? { currentValue: spec.currentValue } : {}),
+      ...(spec.showCount === true ? { showCount: true } : {}),
+      footer: spec.footer ?? PICKER_FOOTER,
       onSelect: (item) => close(item),
       onCancel: () => close(undefined),
     });
     if (spec.selected !== undefined) list.selectValue(spec.selected);
     const width = Math.max(20, Math.min(host.columns() - 2, 72));
-    handle = host.showOverlay(new Box(list, { title: spec.title, theme: host.theme }), {
+    const box = new Box(list, {
+      title: spec.title,
+      theme: host.theme,
+      ...(spec.paddingY !== undefined ? { paddingY: spec.paddingY } : {}),
+    });
+    handle = host.showOverlay(box, {
       anchor: "center",
       width,
     });
@@ -81,25 +101,24 @@ export function openPicker(host: PickerHost, spec: PickerSpec): Promise<SelectIt
 }
 
 /**
- * 模式选择器（标题 Mode）：界面顺序、当前模式打勾、配置里的缺省模式标 `Default`、Auto 标
- * `Recommended`，右侧数字快捷键 1–6，说明在下一行。
+ * 模式选择器（标题「权限模式」）：界面顺序、当前模式打勾（`currentValue`）、配置里的缺省模式标
+ * `Default`、Auto 标 `Recommended`，右侧数字快捷键 1–6，说明在下一行。
  */
 export function permissionItems(
-  current: PermissionMode,
+  _current: PermissionMode,
   configDefault: PermissionMode = "default",
 ): SelectItem[] {
   return PERMISSION_MODE_ORDER.map((mode) => {
     const info = PERMISSION_MODE_INFO[mode];
-    const item: SelectItem = {
-      value: mode,
-      label: `${mode === current ? "✔" : " "} ${info.label}`,
-      description: info.description,
-    };
+    const item: SelectItem = { value: mode, label: info.label, description: info.description };
     const badges = [
       ...(mode === configDefault ? ["Default"] : []),
       ...(mode === RECOMMENDED_PERMISSION_MODE ? ["Recommended"] : []),
     ];
-    if (badges.length > 0) item.badge = badges.join(" · ");
+    if (badges.length > 0) {
+      item.badge = badges.join(" · ");
+      if (mode !== RECOMMENDED_PERMISSION_MODE) item.badgeColor = "dim";
+    }
     return item;
   });
 }
@@ -109,12 +128,15 @@ export function permissionPickerSpec(
   configDefault: PermissionMode = "default",
 ): PickerSpec {
   return {
-    title: "Mode",
+    title: "权限模式",
     items: permissionItems(current, configDefault),
     selected: current,
+    currentValue: current,
     filterable: false,
     numberKeys: true,
     stacked: true,
+    footer: "↑↓ 选择 · 1-6 直接选 · Enter 确认 · Esc 取消",
+    paddingY: 1,
   };
 }
 
