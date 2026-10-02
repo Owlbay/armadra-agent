@@ -5,9 +5,10 @@
  * 带供应商的鉴权头，打印 id 列表并标出已配置的条目。
  *
  * `--probe`：同一中转下不同模型支持的协议不同，对每个 id 依次试供应商协议 → completions →
- * responses → messages（去重），各发一次最小请求（`ama models check` 同款，maxTokens 16），
- * 记第一个成功的协议；每模型最多 3 次请求，`--limit`（缺省 30）限制探测的模型数，执行前打印
- * 预估；401 / 403 / 429 立即停止（key 无效或被限流，继续只会浪费请求）。
+ * responses → messages（去重），各发一次最小请求（maxTokens 16，见到首个流事件即判可用并断开），
+ * 记第一个成功的协议；模型之间并发（`--concurrency`，缺省 6），单次超时 `--probe-timeout`（缺省
+ * 15 s）。每模型最多 3 次请求，`--limit`（缺省 30）限制探测的模型数，执行前打印预估；401 / 403 立即
+ * 停止，429 降并发并重试一次、仍 429 停止（见 probe-runner.ts）。
  *
  * `--write`：新条目合并进用户级 config.json 的 `providers.<id>.models`——已有同 id 不覆盖；只写
  * `id` 与探到的 `api`（与供应商协议相同时省略）；带 `--probe` 时只写探测成功的模型。不猜
@@ -30,10 +31,15 @@ import { writeConfigFile } from "../../config/write.js";
 import { UsageError } from "../args.js";
 import { ExitCode } from "../exit-codes.js";
 import { compactTokens } from "./model-meta.js";
+import {
+  describeProbePlan,
+  parseProbeTuning,
+  ProbeProgress,
+  ProbeScheduler,
+} from "./probe-runner.js";
 import type { ModelsAction, ModelsActionContext } from "./models.js";
 
 export const DISCOVER_TIMEOUT_MS = 15_000;
-export const PROBE_TIMEOUT_MS = 30_000;
 export const DEFAULT_PROBE_LIMIT = 30;
 const ANTHROPIC_VERSION = "2023-06-01";
 /** 中转常见的三种协议，按此顺序探测（供应商协议排最前）。 */
@@ -75,17 +81,24 @@ export function probeOrder(provider: ProviderData): Api[] {
 
 export interface ProbeOptions {
   timeoutMs?: number;
+  /** 同时在途的模型数（每个模型内按协议顺序依次试）；缺省 6。 */
+  concurrency?: number;
+  /** 测试用：429 重试前的退避。 */
+  retryDelayMs?: number;
   /** 每次请求后回调。 */
   onAttempt?: (id: string, api: Api, error: string | undefined) => void;
-  /** 每个模型探完回调（进度输出）。 */
+  /** 每个模型探完立即回调（按完成顺序，进度用）。 */
+  onSettled?: () => void;
+  /** 每个模型探完回调，按模型顺序（不按完成顺序）。 */
   onResult?: (id: string, api: Api | undefined) => void;
   /** 因鉴权失败或限流提前停止时回调。 */
   onStop?: (reason: string) => void;
 }
 
-export const FATAL_STATUS = /^(?:HTTP )?(?:401|403|429)\b/;
-
-/** 返回已探测模型 → 第一个成功的协议（都失败为 undefined）；超出 `limit` 或提前停止的不在表里。 */
+/**
+ * 返回已探测模型 → 第一个成功的协议（都失败为 undefined）；超出 `limit` 或因提前停止没探完的不在表里。
+ * 模型之间并发（有界），同一模型内按协议顺序依次试，第一个成功即停。
+ */
 export async function probeModelApis(
   registry: ProviderRegistryApi,
   provider: ProviderData,
@@ -96,59 +109,50 @@ export async function probeModelApis(
   const result = new Map<string, Api | undefined>();
   const key = await registry.resolveApiKey(provider.id);
   const order = probeOrder(provider).filter((api) => registry.getApi(api) !== undefined);
-  for (const id of ids.slice(0, Math.max(0, limit))) {
-    const known = provider.models.find((m) => m.id === id);
-    let found: Api | undefined;
-    for (const api of order) {
-      const model: Model =
-        known !== undefined
-          ? { ...known, api }
-          : materializeModel(withCustomDefaults({ id }, provider.id, api), provider);
-      const error = await attempt(registry, model, key.apiKey, options.timeoutMs);
-      options.onAttempt?.(id, api, error);
-      if (error === undefined) {
-        found = api;
-        break;
+  const selected = ids.slice(0, Math.max(0, limit));
+  const scheduler = new ProbeScheduler(registry, key.apiKey, {
+    concurrency: options.concurrency,
+    timeoutMs: options.timeoutMs,
+    retryDelayMs: options.retryDelayMs,
+  });
+  type Found = { complete: boolean; api: Api | undefined };
+  const done: (Found | undefined)[] = [];
+  let printed = 0;
+  await scheduler.run(
+    selected.length,
+    async (index): Promise<Found> => {
+      const id = selected[index] as string;
+      const known = provider.models.find((m) => m.id === id);
+      for (const api of order) {
+        const model: Model =
+          known !== undefined
+            ? { ...known, api }
+            : materializeModel(withCustomDefaults({ id }, provider.id, api), provider);
+        const outcome = await scheduler.probe(model);
+        if (outcome.aborted) return { complete: false, api: undefined };
+        options.onAttempt?.(id, api, outcome.error);
+        if (outcome.error === undefined) return { complete: true, api };
+        if (scheduler.stopped !== undefined) return { complete: false, api: undefined };
       }
-      if (FATAL_STATUS.test(error)) {
-        options.onStop?.(error);
-        return result;
+      return { complete: true, api: undefined };
+    },
+    (index, found) => {
+      done[index] = found;
+      options.onSettled?.();
+      // 按模型顺序交出结果：前面的都完成了才输出
+      while (printed < selected.length && done[printed] !== undefined) {
+        const entry = done[printed] as Found;
+        const id = selected[printed] as string;
+        if (entry.complete) {
+          result.set(id, entry.api);
+          options.onResult?.(id, entry.api);
+        }
+        printed++;
       }
-    }
-    result.set(id, found);
-    options.onResult?.(id, found);
-  }
+    },
+  );
+  if (scheduler.stopped !== undefined) options.onStop?.(scheduler.stopped);
   return result;
-}
-
-/** 一次最小请求；成功返回 undefined，失败返回错误文本（`ama providers add --probe` 也用）。 */
-export async function attempt(
-  registry: ProviderRegistryApi,
-  model: Model,
-  apiKey: string | undefined,
-  timeoutMs = PROBE_TIMEOUT_MS,
-): Promise<string | undefined> {
-  const impl = registry.getApi(model.api);
-  if (impl === undefined) return `协议 ${model.api} 尚未实现`;
-  try {
-    const message = await impl
-      .stream(
-        model,
-        { messages: [{ role: "user", content: "Reply with: ok", timestamp: Date.now() }] },
-        {
-          signal: AbortSignal.timeout(timeoutMs),
-          ...(apiKey !== undefined ? { apiKey } : {}),
-          maxTokens: 16,
-          cacheRetention: "none",
-        },
-      )
-      .result();
-    if (message.stopReason === "error" || message.stopReason === "aborted")
-      return message.errorMessage ?? message.stopReason;
-    return undefined;
-  } catch (error) {
-    return error instanceof Error ? error.message : String(error);
-  }
 }
 
 function parseLimit(raw: string | undefined): number {
@@ -258,15 +262,22 @@ async function run(ctx: ModelsActionContext): Promise<number> {
   const ids = found.map((m) => m.id);
   const count = Math.min(limit, ids.length);
   const order = probeOrder(provider);
+  const tuning = parseProbeTuning(ctx.values);
   io.stdout(
     `\n探测协议：${count} 个模型（${order.join(" → ")}），最多 ${count * order.length} 次请求` +
-      `${ids.length > count ? `；另有 ${ids.length - count} 个超出 --limit ${limit}，未探测` : ""}\n`,
+      `${ids.length > count ? `；另有 ${ids.length - count} 个超出 --limit ${limit}，未探测` : ""}\n` +
+      `${describeProbePlan(count * order.length, tuning.concurrency, tuning.timeoutMs)}\n`,
   );
   let stopped: string | undefined;
+  const progress = new ProbeProgress(io.stdout, io.stdoutIsTTY, count);
   const probed = await probeModelApis(registry, provider, ids, limit, {
-    onResult: (modelId, api) => io.stdout(`  ${modelId}  ${api ?? "不可用（三种协议均失败）"}\n`),
+    ...tuning,
+    onSettled: () => progress.tick(),
+    onResult: (modelId, api) =>
+      progress.line(`  ${modelId}  ${api ?? "不可用（三种协议均失败）"}\n`),
     onStop: (reason) => (stopped = reason),
   });
+  progress.finish();
   if (write) {
     const entries: ModelConfig[] = [];
     for (const [modelId, api] of probed) {
@@ -283,9 +294,10 @@ async function run(ctx: ModelsActionContext): Promise<number> {
 }
 
 export const DISCOVER_ACTION: ModelsAction = {
-  usage: "ama models discover <provider> [--probe] [--write] [--limit <n>]",
+  usage:
+    "ama models discover <provider> [--probe] [--write] [--limit <n>] [--concurrency <n>] [--probe-timeout <ms>]",
   required: "<provider>",
-  valueOptions: ["limit"],
+  valueOptions: ["limit", "concurrency", "probe-timeout"],
   flagOptions: ["probe", "write"],
   run,
 };
