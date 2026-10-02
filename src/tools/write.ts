@@ -10,6 +10,7 @@ import { dirname } from "node:path";
 import type { ToolContext, ToolDefinition, ToolResult } from "./types.js";
 import { displayPath, resolvePath } from "./paths.js";
 import { withFileMutex } from "./file-mutex.js";
+import { beforeWrite } from "./edit.js";
 import {
   BOM,
   detectLineEnding,
@@ -68,8 +69,10 @@ export async function executeWrite(input: WriteInput, ctx: ToolContext): Promise
       }
       output = conformToOriginal(await readFile(abs, "utf8"), input.content);
     }
+    await beforeWrite(ctx, abs);
     await mkdir(dirname(abs), { recursive: true });
     await writeFile(abs, output, "utf8");
+    ctx.checkpoint?.afterWrite(abs, output);
     ctx.markRead(abs);
     const details: WriteDetails = {
       path: abs,

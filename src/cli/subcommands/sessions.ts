@@ -5,10 +5,12 @@
  * - list [--all]：缺省只列当前目录的会话；`--all` 列全部。
  * - show <id>：头信息 + 条目类型统计 + 首条提示 + 用户消息编号（`--from <id>#<编号>` 复用）。
  * - search / export：见 sessions-search.ts、sessions-export.ts（只读扫描，不经会话存储）。
- * - prune [--older-than <天>] [--dry-run]：缺省 30 天，移到 trash（不删除）。
+ * - prune [--older-than <天>] [--dry-run]：缺省 30 天，移到 trash（不删除）；之后清理检查点备份
+ *   （未被任何会话引用且超过 1 天的 blob，docs/rewind-plan.md §1.4），`--dry-run` 时只报告。
  */
 
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
+import { formatBytes, gcBlobs } from "../../checkpoints/gc.js";
 import { expandHome, resolveDataDir } from "../../config/paths.js";
 import { parseSubArgs, UsageError } from "../args.js";
 import type { CliIo, RuntimeDeps } from "../deps.js";
@@ -121,10 +123,31 @@ export async function runSessions(
       const { moved } = await sessions.prune({ sessionDir, olderThanDays, dryRun, ...scope });
       for (const file of moved) io.stdout(`${dryRun ? "将移到 trash" : "已移到 trash"}：${file}\n`);
       io.stdout(`${moved.length} 个会话${dryRun ? "（演练，未改动）" : ""}\n`);
+      await pruneFileHistory(io, sessionDir, dryRun);
       return ExitCode.Ok;
     }
     default:
       throw new UsageError(`未知的 sessions 子命令：${action}`);
+  }
+}
+
+/** 检查点备份 GC：扫描本次的会话目录、缺省会话目录与登记过的目录。失败只提示，不影响 prune。 */
+async function pruneFileHistory(io: CliIo, sessionDir: string, dryRun: boolean): Promise<void> {
+  const dataDir = resolveDataDir({ env: io.env });
+  try {
+    const result = await gcBlobs({
+      dataDir,
+      sessionRoots: [sessionDir, join(dataDir, "sessions")],
+      dryRun,
+    });
+    if (result.removed.length === 0) return;
+    io.stdout(
+      `file-history：${dryRun ? "将清除" : "已清除"} ${result.removed.length} 个未引用的备份（${formatBytes(result.removedBytes)}）\n`,
+    );
+  } catch (error) {
+    io.stderr(
+      `ama: file-history 清理跳过（${error instanceof Error ? error.message : String(error)}）\n`,
+    );
   }
 }
 

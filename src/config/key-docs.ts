@@ -13,7 +13,7 @@
 import { DEFAULT_IDLE_TIMEOUT_MS } from "../ai/http.js";
 import { DEFAULT_INLINE_BUDGET } from "../codemode/declarations.js";
 import { DEFAULT_CONFIG, mergeConfig } from "./merge.js";
-import { DEFAULT_CACHE_CONFIG, type AmaConfig } from "./types.js";
+import { DEFAULT_CACHE_CONFIG, DEFAULT_CHECKPOINTS_CONFIG, type AmaConfig } from "./types.js";
 
 /** 代码里生效、但 DEFAULT_CONFIG 不写的缺省（写进去会改变合并结果或 `config.codemode` 的有无）。 */
 const IMPLICIT_DEFAULTS: Partial<AmaConfig> = {
@@ -24,6 +24,7 @@ const IMPLICIT_DEFAULTS: Partial<AmaConfig> = {
   cache: { ...DEFAULT_CACHE_CONFIG },
   request: { idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS },
   ui: { compact: false, animation: true },
+  checkpoints: { ...DEFAULT_CHECKPOINTS_CONFIG },
 };
 
 /** 全部有固定缺省值的键（展示用；运行时仍以 DEFAULT_CONFIG 合并）。 */
@@ -101,6 +102,12 @@ export const CONFIG_KEY_DOCS: Readonly<Record<string, string>> = Object.freeze({
   "cache.minSavingsUsd": "保温的最低期望节省（美元）",
   "cache.missNotices": "在消息区提示缓存未命中与上下文余量",
   "cache.warmSubagents": "子会话（task）也保温",
+  checkpoints: "检查点：回滚代码用的文件备份（docs/sessions.md「检查点与文件备份」）",
+  "checkpoints.mode":
+    "tools：跟踪 edit / write 改过的文件；shadow-git：影子 git（未实现前同 tools）；off：关闭；AMA_CHECKPOINTS 覆盖；项目级只接受 off",
+  "checkpoints.maxFileBytes":
+    "单个文件的备份上限（字节），超出不备份、回滚时报告无法恢复；项目级只能调小",
+  "checkpoints.keep": "可回滚的最近检查点数，更早的不再列为回滚点；只认用户级 / profile",
 });
 
 /** 叶子路径（段落不算）。 */
