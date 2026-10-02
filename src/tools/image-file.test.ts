@@ -58,7 +58,9 @@ describe("image-file", () => {
     await expect(loadImageFile(join(d, "notes.bin"))).rejects.toThrow(/不是支持的图片/);
     // 原始 4 MB → base64 后约 5.3 MB：按 base64 计超过缺省 5 MB
     writeFileSync(join(d, "big.png"), Buffer.concat([PNG, Buffer.alloc(4 * MB)]));
-    await expect(loadImageFile(join(d, "big.png"))).rejects.toThrow(/超过 5 MB 上限（按 base64/);
+    await expect(loadImageFile(join(d, "big.png"), { resize: "off" })).rejects.toThrow(
+      /超过 5 MB 上限（按 base64.*images\.resize 为 off/,
+    );
     // 官方 Anthropic 的 10 MB 档放行
     await expect(
       loadImageFile(join(d, "big.png"), { maxBase64Bytes: 10 * MB }),
@@ -82,13 +84,14 @@ describe("image-file", () => {
     const d = dir();
     writeFileSync(join(d, "big.png"), Buffer.concat([PNG, Buffer.alloc(5 * MB)]));
     const ctx = { cwd: d, markRead: () => undefined } as unknown as ToolContext;
-    const result = await createReadTool().execute({ path: "big.png" }, ctx);
+    const off = createReadTool({ imageOptions: () => ({ resize: "off" }) });
+    const result = await off.execute({ path: "big.png" }, ctx);
     expect(typeof result.content).toBe("string");
     expect(result.content).toContain("attachment limit");
     const wide = Buffer.from(PNG);
     wide.writeUInt32BE(9000, 20);
     writeFileSync(join(d, "tall.png"), wide);
-    const tall = await createReadTool().execute({ path: "tall.png" }, ctx);
+    const tall = await off.execute({ path: "tall.png" }, ctx);
     expect(tall.content).toContain("larger than 8000px");
     // 按模型分档：给 10 MB 时 4 MB 原图（≈5.3 MB base64）可附
     writeFileSync(join(d, "mid.png"), Buffer.concat([PNG, Buffer.alloc(4 * MB)]));

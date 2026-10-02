@@ -109,14 +109,16 @@ export async function promptImages(
 }
 
 /**
- * read 工具的单图选项（compose.ts 接线）：按会话当前模型的端点分档；查不到模型时用缺省 5 MB。
+ * read 工具的单图选项（compose.ts 接线）：按会话当前模型的端点分档（查不到模型时用缺省 5 MB），
+ * 缩放按 `images.resize`。
  */
 export function imageFitOptionsFor(
   providers: ProviderRegistryApi | undefined,
   ref: ModelRef | undefined,
-  _images?: ImagesConfig,
+  images?: ImagesConfig,
 ): ImageFitOptions {
-  if (providers === undefined || ref === undefined) return {};
+  const resize = images?.resize !== undefined ? { resize: images.resize } : {};
+  if (providers === undefined || ref === undefined) return resize;
   const found = providers.findModel(formatModelRef(ref));
-  return found.ok ? { maxBase64Bytes: imageLimits(found.model).perImageBase64 } : {};
+  return found.ok ? { maxBase64Bytes: imageLimits(found.model).perImageBase64, ...resize } : resize;
 }

@@ -73,10 +73,14 @@ async function readImage(
   if (buf.length > MAX_IMAGE_FILE_BYTES) {
     return { content: `${caption}\n[Image file is too large to attach.]`, details };
   }
-  const fit = await fitImage(buf, mimeType, options.imageOptions?.(ctx) ?? {});
+  const fit = await fitImage(buf, mimeType, options.imageOptions?.(ctx) ?? {}, abs);
   if (!fit.ok) return { content: `${caption}\n[${fit.note}]`, details };
+  const note =
+    fit.resized !== undefined && fit.size !== undefined
+      ? `\n[Resized to ${fit.size.width}x${fit.size.height} to fit the attachment limit.]`
+      : "";
   const blocks: ContentBlock[] = [
-    { type: "text", text: caption },
+    { type: "text", text: caption + note },
     { type: "image", data: fit.buf.toString("base64"), mimeType: fit.mimeType },
   ];
   return { content: blocks, details };
