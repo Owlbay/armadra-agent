@@ -470,22 +470,24 @@ Armadra 以 `ama --profile <path>` 启动 ama。profile 是一个 JSON 文件，
 
 ## 文档
 
-| 文档                                                                                                 | 内容                                                    |
-| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| [docs/providers.md](docs/providers.md)                                                               | 内置供应商、API Key、自定义供应商与中转站、compat、缓存 |
-| [docs/tui.md](docs/tui.md)                                                                           | 终端界面：布局、按键、命令、审批预览、缓存显示、组件库  |
-| [docs/codemode.md](docs/codemode.md)                                                                 | codemode 脚本、沙箱与权限                               |
-| [docs/permissions.md](docs/permissions.md)                                                           | 权限模式、auto 三层判定、安全名单、allowlist            |
-| [docs/hooks.md](docs/hooks.md)                                                                       | 命令式 Hook（hooks.json）                               |
-| [docs/host-api.md](docs/host-api.md)                                                                 | 宿主适配器 API                                          |
-| [docs/rpc.md](docs/rpc.md)                                                                           | RPC 协议（stdio JSONL）                                 |
-| [docs/session-format.md](docs/session-format.md)                                                     | 会话文件格式                                            |
-| [docs/sessions.md](docs/sessions.md)                                                                 | 会话统计、检索、`--from` 复用、导出与检查点备份         |
-| [docs/extensions.md](docs/extensions.md)                                                             | 本地扩展（设计草案，未实现）                            |
-| [docs/design.md](docs/design.md)                                                                     | 总体设计与决策记录                                      |
-| [docs/benchmarks/](docs/benchmarks/)                                                                 | 三预设基准与缓存验收实验（报告与原始数据）              |
-| [docs/implementation-plan.md](docs/implementation-plan.md)、[docs/wave3-plan.md](docs/wave3-plan.md) | 实施计划（追溯用）                                      |
-| [docs/rewind-plan.md](docs/rewind-plan.md)                                                           | 检查点与回滚（设计，实施中）                            |
+| 文档                                                                                                 | 内容                                                                                           |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| [docs/providers.md](docs/providers.md)                                                               | 内置供应商、API Key、自定义供应商与中转站、compat、缓存                                        |
+| [docs/tui.md](docs/tui.md)                                                                           | 终端界面：布局、按键、命令、审批预览、缓存显示、组件库                                         |
+| [docs/codemode.md](docs/codemode.md)                                                                 | codemode 脚本、沙箱与权限                                                                      |
+| [docs/permissions.md](docs/permissions.md)                                                           | 权限模式、auto 三层判定、安全名单、allowlist                                                   |
+| [docs/hooks.md](docs/hooks.md)                                                                       | 命令式 Hook（hooks.json）                                                                      |
+| [docs/host-api.md](docs/host-api.md)                                                                 | 宿主适配器 API                                                                                 |
+| [docs/rpc.md](docs/rpc.md)                                                                           | RPC 协议（stdio JSONL）                                                                        |
+| [docs/session-format.md](docs/session-format.md)                                                     | 会话文件格式                                                                                   |
+| [docs/sessions.md](docs/sessions.md)                                                                 | 会话统计、检索、`--from` 复用、导出与检查点备份                                                |
+| [docs/extensions.md](docs/extensions.md)                                                             | 本地扩展（设计草案，未实现）                                                                   |
+| [docs/design.md](docs/design.md)                                                                     | 总体设计与决策记录                                                                             |
+| [docs/benchmarks/](docs/benchmarks/)                                                                 | 三预设基准与缓存验收实验（报告与原始数据）                                                     |
+| [docs/implementation-plan.md](docs/implementation-plan.md)、[docs/wave3-plan.md](docs/wave3-plan.md) | 实施计划（追溯用）                                                                             |
+| [docs/rewind-plan.md](docs/rewind-plan.md)                                                           | 检查点与回滚（设计，实施中）                                                                   |
+| [docs/wave5-plan.md](docs/wave5-plan.md)                                                             | 第五波：状态行、模型元数据入库、渠道、图像、外部 Agent、Plan、子 Agent、压缩与 harness（设计） |
+| [docs/research/](docs/research/)                                                                     | 第五波调研报告（追溯用）                                                                       |
 
 ## 开发
 

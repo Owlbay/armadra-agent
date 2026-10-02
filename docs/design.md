@@ -21,7 +21,7 @@
 | D11 | 权限管线固定顺序：拒绝（规则 ∪ Hook deny）→ 危险命令 → 模式 → 允许（规则 ∪ Hook allow）；无人值守 `ask → deny`；**项目级配置只能收紧**，放宽只认用户级 / 命令行 / profile；项目级 Hook 与 Skill 需要**信任**           | 克隆来的仓库不能靠 `.ama/` 放开 `bash`；信任是 Pi 的做法，收紧是 ama 的加固                                                                                           | 修订 |
 | D12 | 交互界面是**差分渲染的终端 UI**（主屏模式、非备用屏），组件模型「给定宽度返回行」；范围是 Pi 的子集（砍掉清单 §12.9）；`--no-tui` 行式降级保留；`TERM=dumb` / 非 TTY 自动降级                                           | Armadra 终端节点在 tmux 里跑，需要终端自己的回滚、括号粘贴 + `\r` 提交；备用屏与鼠标在那里是负担                                                                      | 修订 |
 | D13 | 入口：`ama`（TUI）、`ama --no-tui`、`-p`（text / json / stream-json）、`--mode rpc`（stdio JSONL，Pi 形状）、SDK                                                                                                       | RPC 与 SDK 服务嵌入与测试；`-p` 服务脚本                                                                                                                              | 保留 |
-| D14 | 独立模式的协调能力 = 同进程 `task` 子 Agent（深度 ≤ 1，并发 ≤ 4）；多 CLI 编排只在宿主下由宿主工具提供                                                                                                               | 终端、连线、worktree 是宿主领域                                                                                                                                       | 保留 |
+| D14 | 独立模式的协调能力 = 同进程 `task` 子 Agent（深度 ≤ 1，并发 ≤ 4）；多 CLI 编排只在宿主下由宿主工具提供（第五波修订：独立模式也可经 `task(agent=…)` 驱动外部 CLI Agent，嵌入时由宿主注入 runner，见 [wave5-plan.md](wave5-plan.md) D13、D17）                                                                                                               | 终端、连线、worktree 是宿主领域                                                                                                                                       | 保留 |
 | D15 | 分发：仓库 `pnpm build` 产出 npm 包形状（ESM + d.ts）与 `dist/bundle/ama.cjs`；GitHub Release 附 `ama.cjs` + `ama-sandbox.cjs` + `package.tgz` + `SHA256SUMS`；0.2.1 起 `v*` tag 由 CI `npm publish --provenance` 发布 `@armadra/agent`（0.3.0 之后优先 OIDC 可信发布，`NPM_TOKEN` 作回退）；Armadra 从 npm、Git 依赖或 Release 产物拉取 | 0.2.0 先只发 Release；包形状一直保持可发布，0.2.1 起在 release job 末尾加一步 npm 发布，provenance 把包与仓库 / 提交绑定 | 修订（0.2.1） |
 | D16 | 测试不依赖真 key：脚本化 `fake` 供应商 + 录制的 SSE 样本黄金文件；TUI 用 `MemoryTerminal` 断言帧内容                                                                                                                 | CI 三平台可跑；供应商差异收敛在样本里                                                                                                                                 | 新 |
 | D17 | 单文件 ≤ 600 行（源码），超出即拆；每个批次有明确文件所有权，跨批次只改自己拥有的文件，契约文件由 B0 所有                                                                                                             | 并行代理不互相覆盖；评审粒度可控                                                                                                                                      | 新 |
@@ -377,11 +377,15 @@ export type ModelThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" |
 
 `OpenAICompletionsCompat`（第一期全部实现）：`maxTokensField`、`supportsDeveloperRole`、`supportsUsageInStreaming`、`supportsFinishReason`、`supportsReasoningEffort`、`thinkingFormat: "openai" | "openrouter" | "deepseek" | "zai" | "qwen" | "none"`、`thinkingTokenBudgetField`、`requiresReasoningContentOnAssistantMessages`、`requiresToolResultName`、`requiresAssistantAfterToolResult`、`supportsMidConvoSystemMessages`、`cacheControlFormat`、`supportsStrictTools`、`supportsStore`。`detectCompat` 顺序：`provider.compat` ← baseUrl 子串推断表（`deepseek.com`、`moonshot.`、`bigmodel.cn`、`dashscope.`、`openrouter.ai`、`groq.com`、`x.ai`、`mistral.ai`、`:11434`、`:1234`）← `model.compat` 字段级覆盖。文档告诫：compat 只记录**已验证**差异。
 
+第五波（[wave5-plan.md](wave5-plan.md) §3）：内置供应商支持内置渠道与缺省渠道表（Messages / Responses 优先、Chat 回落），新增 minimax / stepfun / volcengine / tencent；Anthropic 协议按主机推断 compat。
+
 `AnthropicMessagesCompat`：`supportsCacheControlOnTools`、`supportsTemperatureWithThinking`、`adaptiveThinking`（新模型 `effort` 参数，老模型 `budget_tokens`）、`maxCacheBreakpoints`。
 
 ### §3.4 模型目录（`ai/providers/catalog/*.json`）
 
 格式 `{ "version": 1, "provider": "<id>", "models": [Model 去掉 provider/api] }`；每家 5–15 条当前主流模型，字段必填 `id, name, contextWindow, maxTokens, reasoning, cost`。维护方式：人工校对，PR 更新；`ama models list` 显示来源（内置 / 用户覆盖）。用户 `config.json.models[]` 同 `provider/id` 覆盖，`modelOverrides[]` 只改元数据。模型引用字符串 `provider/model-id`（`--model deepseek/deepseek-chat`）；无斜杠时在已配置 key 的供应商里唯一匹配，否则报错列出候选。
+
+第五波起目录只写覆盖项与 ama 特有字段，数值事实从入库的 models.dev 快照继承，运行时不联网，`ama models refresh` 显式刷新（[wave5-plan.md](wave5-plan.md) §2）。
 
 ### §3.5 API Key 发现顺序（`ai/providers/auth.ts`）
 
@@ -493,6 +497,8 @@ export interface ToolResult {
 | `skill` | —（已删除，§5.6） | — | Skill 正文改用 `read` 读取；`/skill:` 命令仍可把正文展开为本轮提示 |
 | `task`  | `prompt, description?, tools?: string[], model?, thinkingLevel?, maxTurns?(30)` | execute / sequential | 同进程新 `AgentSession`：独立 JSONL（`parentSession` 指回父文件、`custom{ama.task}` 记父 toolCallId）；深度 ≤ 1（子 Agent 无 `task`）、并发 ≤ 4；工具子集缺省为父的活动集去掉 `task`；继承父的权限模式与 broker（审批串行化到父）；父 abort 级联；结果 = 子的最后助手文本 + `details{sessionFile, usage}`；宿主可 `disable("task")` |
 
+`task` 在第五波扩展为统一入口：`agent` 参数选择子 Agent 类型或外部 CLI Agent（定义文件 `.ama/agents/*.md`、内置 general / explore / plan），同轮并行、后台运行、`taskId` 续聊、worktree 隔离，配套 `task_ctl`；见 [wave5-plan.md](wave5-plan.md) §5、§7。
+
 通用安全：所有路径工具拒绝含 NUL 的路径；`paths.ts` 不做沙箱（与 Pi 相同声明：信任边界是容器 / VM），但 `permission.deny` 规则 `write(**/.git/**)`、`read(**/.ssh/**)` 等由内置缺省 deny 表给出，用户可移除。Windows：路径统一 `path`；`bash` 在 PowerShell 回退时把 `exit_code` 从 `$LASTEXITCODE` 取；`process-tree.ts` 用 `taskkill`；`grep/glob` 大小写不敏感文件系统提示。
 
 ### §5.3 Skill（渐进披露）
@@ -565,7 +571,7 @@ ama 不知道画布；Armadra 适配器经 `HostApi.tools.register` 注册 `canv
 
 - 预设名：`codemode-only` 是 2026-10 起的规范名，0.3.0 的 `codemode` 作别名保留（配置、命令行、RPC 的 argv、SDK、schema 都接受；配置合并与命令行解析后只见规范名，`ama config show` 显示规范名并提示）。项目级「只能更严」按规范名比较。
 
-- 逐个工具：`ls` 默认关（glob 已覆盖，且诱导逐层翻目录）；`todo` 默认关（每次更新多一次往返；长任务在脚本里用）；`task` 默认关（`+task` 打开；嵌入 Armadra 时禁用）；**删除 `skill` 工具**（Skill 正文用 `read` 读，`/skill:` 命令保留）；Windows 上若没有 bash，`default` 预设自动退化为 PowerShell 版 bash，grep / glob 照常可用。
+- 逐个工具：`ls` 默认关（glob 已覆盖，且诱导逐层翻目录）；`todo` 默认关（每次更新多一次往返；长任务在脚本里用；第五波改为进 `default` 预设，以预设基准复测为门，见 [wave5-plan.md](wave5-plan.md) D20）；`task` 默认关（`+task` 打开；嵌入 Armadra 时禁用）；**删除 `skill` 工具**（Skill 正文用 `read` 读，`/skill:` 命令保留）；Windows 上若没有 bash，`default` 预设自动退化为 PowerShell 版 bash，grep / glob 照常可用。
 - 配置：`tools.preset`（缺省 `default`）+ `tools.default` 的 `+name` / `-name` 微调；命令行 `--tools-preset <名>`、`--tools a,b,c`（整组替换）。
 - 预设在会话开始时确定并写进首条 system 消息；会话中途改预设按工具表补丁处理（§9.1）。
 - 描述精简：每个工具的描述 + 参数控制在 150 token 内（已落实：内置工具合计 1548 → 1186 token，`src/tools/descriptions.test.ts` 守住）。
@@ -750,6 +756,8 @@ tool_call（模型产出）
 
 细节、安全名单全表与已知限制见 [permissions.md](permissions.md)。
 
+第五波的 Plan 能力（模式说明尾部注入、`<proposed_plan>` 块由 ama 落盘、四选项审批、批准后转 todo、plan 下放行只读 bash 子集且 `allowlist` 同步放行）见 [wave5-plan.md](wave5-plan.md) §6。
+
 ## §8 会话树（`session/`）
 
 格式同 v1 §5（头 `version: 1`；条目 `message / compaction / branch_summary / context_edit / model_change / thinking_level_change / custom / custom_message / label / session_info`），补充：
@@ -775,6 +783,8 @@ tool_call（模型产出）
 | 熔断     | 同一 run 内档二 ≤ 1 次；连续两次摘要失败关闭自动压缩；压缩后仍 > 0.8 × window 不重试；无 `contextWindow` 关闭                                                                                                                       |
 | 模板     | `## Goal / ## Constraints & Preferences / ## Progress (Done · In Progress · Blocked) / ## Key Decisions / ## Next Steps / ## Critical Context` + `<read-files>` / `<modified-files>` 累计；工具结果截 2 000 字符；`cacheRetention: none`；maxTokens 4 096 |
 | 缓存     | 系统提示节顺序固定、无时间戳；工具表变化作为 `system` 补丁落盘但请求重装；档一只在阈值触发                                                                                                                                         |
+
+第五波修订压缩（[wave5-plan.md](wave5-plan.md) §8）：档一按工具结果新旧计边界、加 `clearAtLeast` 门槛与回差、缓存冷时提前裁、保护集；熔断改快速回填式；压缩后以 `custom_message{ama.post_compact}` 回注 todo / 文件路径 / Skill / 计划指针；模板补节；中文按字计 token；另加重复调用检测、`--max-turns / --max-cost`、提醒通道、后台 bash、模型回退。
 
 ### §9.1 缓存保证
 
@@ -946,6 +956,7 @@ export interface Theme { fg(name: SemanticColor, s: string): string; bg(...): st
 ### §12.6 状态栏、审批、选择列表
 
 - 状态栏一行、永远是最后一行，两区：左区权限模式 + `shift+tab 切换`，右区 `模型 · 思考 · ↑12.3k ↓1.2k · cache 80% · $0.12 · ctx 34% · queue 1 · codemode on · preset x · [host 状态]`（顺序与 ` · ` 分隔固定）；`ctx ?` 表示无窗口；窄屏按优先级丢项，模式永不丢。运行中 Loader 显示动词（等待确认 / 运行 bash / 重试 / 压缩上下文 / 回复中 · ↓≈N / 思考中）与已用时。
+  第五波改为两行（速率行 + 状态行，`ui.statusLine`，嵌入缺省 `compact` 保持单行）并补 git 分支 / 提交 / 增删行与会话时长，见 [wave5-plan.md](wave5-plan.md) §1。
 - 审批对话框（覆盖层 bottom）：标题为原因（需要确认 / 危险命令 / Hook 要求确认），边框随预览严重度着色；工具名、输入（bash 显示命令全文，文件工具显示路径与 diff 摘要）、执行前预览；编号选项 `1. 允许 y / 2. 本会话允许同类 a / 3. 拒绝 n Esc`，数字、↑↓ Enter 与字母键都可用，危险命令缺省选中拒绝；`v` 展开完整输入；10 分钟超时 deny。
 - 选择列表：模型（按供应商分组，标 key 状态，当前模型 ✓）、会话（时间、名字、首条提示）、树（缩进显示分支，选中 user 消息回填编辑器）、权限模式（标题「权限模式」）；底部一行按键提示。`/session`、`/cache`、`/permissions` 是消息区的左竖条面板。
 
@@ -1020,6 +1031,8 @@ export type { ToolDefinition, ToolContext, ToolResult, Model, ProviderData, Sess
 框架同 v1 §8.4（`hello{protocolVersion:1, capabilities:["approvals","images","hooks"]}`）。命令组：提示（`prompt / steer / follow_up / abort / clear_queue`）、状态（`get_state / get_messages / get_last_assistant_text / get_session_stats`）、模型（`set_model / get_available_models / set_thinking_level / get_available_thinking_levels`）、队列、压缩（`compact / set_auto_compaction`）、重试（`set_auto_retry / abort_retry`）、会话（`new_session / switch_session / fork / get_entries{since} / get_tree / set_session_name / get_fork_messages`）、审批（`set_client_capabilities / permission_response{requestId, decision}`）、工具（`get_tools / set_active_tools`）、权限（`set_permission_mode`）、发现（`get_commands`：模板、技能、斜杠命令）、技能（`get_skills`）。
 
 事件：v1 列表改名 `auto_retry_start / auto_retry_end`，加 `entry_appended{entry}`、`hook_executed`、`permission_mode_changed`、`agent_before_settle`；`message_update` 线上为纯增量 + 最新 `usage`；`agent_end{stopReason, willRetry}`。`permission_request` 带 `timeoutMs`，服务端超时自动 deny 并发 `permission_resolved`。
+
+第五波增量：命令 `plan_response / get_plan / get_todos / get_tasks / get_agents`、能力 `plans`、事件 `plan_* / subagent_* / todo_updated / limit_reached / model_fallback / telemetry_tick`；另有 `--mode acp`（ACP 服务端）与 `@armadra/agent/acp`，见 [wave5-plan.md](wave5-plan.md) §5.6、§6.5、§9。
 
 ## §14 分发
 
