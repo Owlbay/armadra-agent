@@ -177,7 +177,7 @@ export const en = {
     listHeader: "Settings (key = value  source  applies)",
     applyNone: "-",
     confirmBypass:
-      "Save permission.mode full-auto to the user config? Every future start runs in Bypass permissions. [y/N] ",
+      "Save permission.mode full-auto to the user config? Every future start runs in Bypass permissions. ",
     needYes:
       "permission.mode full-auto runs every future start without approvals; pass --yes to confirm",
     cancelled: "Cancelled; nothing written",
@@ -344,7 +344,7 @@ export const zh = {
     listHeader: "设置（键 = 值  来源  生效）",
     applyNone: "-",
     confirmBypass:
-      "把 permission.mode full-auto 写入用户级配置？以后每次启动都在 Bypass permissions 下运行。[y/N] ",
+      "把 permission.mode full-auto 写入用户级配置？以后每次启动都在 Bypass permissions 下运行。",
     needYes: "permission.mode full-auto 会让以后每次启动都不再审批；确认请加 --yes",
     cancelled: "已取消，没有写入",
     missingKey: "缺少 <key>",

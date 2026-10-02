@@ -274,6 +274,11 @@ function specFor(key: string): SettingSpec | { key: string; schema: Obj } {
   return { key, schema: schemaAt(key) ?? {} };
 }
 
+/** Throws `config_unknown_key` unless `ama config set` accepts the key. */
+export function assertSettable(key: string): void {
+  specFor(key);
+}
+
 /**
  * Parse a command line / panel value. `undefined` means unset (`none`, `unset`; `default` too unless it
  * is a valid enum value). `jsonValue` takes JSON (lists and objects need it).
