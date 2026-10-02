@@ -21,6 +21,7 @@ import type {
   ApprovalRequest,
   AutoDecision,
   Decision,
+  PermissionRequestContext,
 } from "../permissions/types.js";
 import type { ToolContext, ToolResult } from "../tools/types.js";
 import { classifierRequest } from "./session-classifier.js";
@@ -34,6 +35,34 @@ const CODEMODE_TOOL_NAME = "codemode";
 function textOf(content: ToolResult["content"]): string {
   if (typeof content === "string") return content;
   return content.map((block) => (block.type === "text" ? block.text : "")).join("");
+}
+
+/**
+ * [W5-EG] `permission_request.context`：子 Agent（depth、taskId）与外部 Agent（origin）的来源，供
+ * RPC 客户端与对话框标注。ama 子会话的请求没带 taskId 时取子会话首条 `custom{ama.task}`；
+ * 主会话自己的调用返回 undefined（事件形状不变）。
+ */
+function requestContext(
+  core: SessionCore,
+  request: ApprovalRequest,
+): PermissionRequestContext | undefined {
+  const source = request.context;
+  const depth = Math.max(source?.depth ?? 0, core.depth);
+  let taskId = source?.taskId;
+  if (taskId === undefined && core.depth > 0) {
+    const head = core.manager
+      .branch()
+      .find((e) => e.type === "custom" && e.customType === "ama.task");
+    const data = head?.type === "custom" ? (head.data as { taskId?: unknown }) : undefined;
+    if (typeof data?.taskId === "string") taskId = data.taskId;
+  }
+  const origin = source?.origin;
+  if (depth === 0 && taskId === undefined && origin === undefined) return undefined;
+  const context: PermissionRequestContext = {};
+  if (depth > 0) context.depth = depth;
+  if (taskId !== undefined) context.taskId = taskId;
+  if (origin !== undefined) context.origin = origin;
+  return context;
 }
 
 /** 审批链：依次问每个 broker，第一个给出决定的为准；全部弃权 → deny。 */
@@ -54,6 +83,8 @@ export async function requestApproval(
   if (request.hookReason !== undefined) event.hookReason = request.hookReason;
   if (request.preview !== undefined) event.preview = request.preview;
   if (request.autoDecision !== undefined) event.autoDecision = request.autoDecision;
+  const context = requestContext(core, request);
+  if (context !== undefined) event.context = context;
   core.emit(event);
   void core.runHook("Notification", {
     notification: { kind: "approval", message: `approval requested for ${request.toolName}` },

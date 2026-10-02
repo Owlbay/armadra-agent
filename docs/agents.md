@@ -63,7 +63,7 @@ runner: ama # ama（缺省）| claude | codex | acp:<程序>
 | 参数                                             | 说明                                                                       |
 | ------------------------------------------------ | -------------------------------------------------------------------------- |
 | `prompt`                                         | 必填，完整的任务说明                                                       |
-| `agent`                                          | 类型名，缺省 `general`                                                     |
+| `agent`                                          | 类型名，缺省 `general`；也可以是外部 Agent（见「外部 Agent」节）           |
 | `description`                                    | 显示用的短标签                                                             |
 | `background`                                     | `true`：立即返回 `taskId`，完成后父会话收到通知；缺省取类型的 `background` |
 | `taskId`                                         | 续聊：向已有任务的子会话追加一条消息（忽略 `agent` / `tools` / `model`）   |
@@ -163,10 +163,26 @@ ama 能以各 CLI 自己的账户、模型与权限策略驱动外部编码 Agen
 
 版本越过已验证区间时仍会启动，但会提示协议可能有变化（Claude 的 stream-json 控制协议不是公开接口，Codex app-server 标为实验）。`/agents` 与 RPC `get_agents` 列出探测结果（只查 PATH 与 `--version`，不联网、不计费；结果缓存在 `<数据目录>/drivers.json`）。
 
+### 在 `task` 里使用
+
+- **名字**：`task(agent="claude")`、`"codex"`、`"acp:<程序>"`（如 `acp:ama`、`acp:gemini`），以及上表的其它 id（`gemini`、`qwen` …；
+  裸 `ama` 不是外部 Agent，ama 自己经 ACP 写 `acp:ama`）；定义文件里 `runner: claude | codex | acp:<程序>` 的类型同样走这里。
+  启动时 PATH 上找得到的 `claude` / `codex` 写进 task 工具描述的类型清单（只查 PATH，不起进程）；其余名字按需解析、不进描述
+  （描述在会话内字节不变，缓存前缀不受影响）。
+- **首次确认**：每个会话第一次以某个外部 Agent 运行时问一次「将以你在该 CLI 的现有登录运行，模式 Y」（`execute` 类）：
+  allow 规则 `task` 或 `task(<id>)`（如 `task(claude)`、`task(acp:*)`）与 `full-auto` 直接放行；deny 规则 `task(<id>)` 拒绝；
+  `allowlist` 与无人值守（`-p`）没有 allow 规则时拒绝；其余交给人（不经 auto 分类器）。同一 Agent 本会话只问一次。
+  宿主注入的 runner 不问（审批由宿主管）。
+- **前台 / 后台 / 续聊**：与 ama 子会话相同——结果是外部 Agent 的最终文本加工具摘要与修改的文件（≤ 50 KB）；
+  `background: true` 完成后收到 `<task-notification>`；`task{taskId}` / `task_ctl send` 在同一外部会话里续聊（进程还在就直接
+  追加一轮；空闲关闭或被停止过的，以外部会话 id `resume` 重开）；`task_ctl stop` 发协议级中断，挂起的审批回「已取消」。
+- **模型**：`agents.<id>.model` 或 `task` 的 `model` 参数原样交给外部 CLI；`subagents.defaultModel`（ama 的模型）不传。
+- `/agents` 与 RPC `get_agents` 列出类型目录与外部 Agent（`installed` / `version`，会话建立时异步探测并缓存）。
+
 ### 权限：只交给人
 
 - 外部 Agent 先按它自己的策略判断；它决定要问人的请求才到 ama，到了以后**只走审批通道**（宿主 → 界面 → 无人值守拒绝）。ama 的 auto 分类器与模型都不参与，模型没有回答审批的工具。
-- 对话框标出来源（`[claude · 会话 abc1]`）；RPC 的 `permission_request` 带 `context.origin`（Agent、会话、工具标题与种类、路径、选项）。
+- 对话框标出来源（`[claude · 会话 abc1]`）；RPC 的 `permission_request` 带 `context.origin`（Agent、会话、工具标题与种类、路径、选项）与 `context.taskId`（来源任务）。
 - 选项：「允许」→ 允许一次；「本会话允许」→ 交给外部 Agent 自己记住（Codex `acceptForSession`；Claude 只回传它给出的会话范围建议，会写配置文件的建议不替你接受）；「拒绝」→ 拒绝一次。会改外部 CLI 持久配置的选项（Codex execpolicy 修订、永久拒绝）不提供。
 - 无人值守（`-p`、RPC 未声明 approvals）：一律拒绝；Claude 以 `--permission-prompts none` 启动，Codex 用 `approval_policy = never`。
 - 中断、`task_ctl stop`、超时：挂起的请求回「已取消」。
@@ -214,14 +230,14 @@ ama 能以各 CLI 自己的账户、模型与权限策略驱动外部编码 Agen
 
 ### 嵌入宿主
 
-有宿主（`--profile` 带 `host`，如嵌入 Armadra）时 ama **不自己启动外部 CLI**：内置外部 Agent 一律不可用，`task(agent="claude")` 返回「由宿主提供」；只有宿主经 `HostApi.runners.provide(runner)` 注入的 runner 可用，它以同一个 `task(agent=…)` 入口出现，同名时替换内置的。
+有宿主（`--host` 或 profile 的 `host`，如嵌入 Armadra）时 ama **不自己启动外部 CLI**：内置外部 Agent 一律不可用，不写进 task 描述，`task(agent="claude")` 以「由宿主提供」失败；只有宿主经 `HostApi.runners.provide(runner)` 注入的 runner 可用，它以同一个 `task(agent=<id>)` 入口出现，同名时替换内置的。`create()` 时已注入的 runner 写进 task 描述（`- <id>: <description>`），之后注入的也能用但不进描述。runner 的 `start` 收到 `prompt`、`cwd`、`mode`（父会话当前模式）、`taskId`、`signal`、`onEvent`；不经首次确认。
 
 ### 本地验证真实 CLI
 
 CI 不跑真实 CLI。本机已登录 `claude` / `codex` 时：
 
 ```sh
-AMA_E2E_AGENTS=1 pnpm vitest run src/drivers/agents.e2e.test.ts
+AMA_E2E_AGENTS=1 pnpm vitest run src/drivers/agents.e2e.test.ts src/agents/external-task.e2e.test.ts
 ```
 
-每家两轮「只回 OK」加一次触发审批的写文件（临时目录），会使用你的订阅额度；Claude 跑前后比对 `~/.claude` 下 settings 文件的指纹。驱动的单元测试用 `test/fixtures/drivers/` 下的手写录制回放，不发起计费请求。
+驱动层每家两轮「只回 OK」加一次触发审批的写文件（临时目录），会使用你的订阅额度；Claude 跑前后比对 `~/.claude` 下 settings 文件的指纹。`task` 层每家一次写文件（首次确认与写文件审批由测试代替人允许）加一轮 `taskId` 续聊；父会话用 fake 供应商。驱动的单元测试用 `test/fixtures/drivers/` 下的手写录制回放，`task` 层的零费用端到端是 ama 驱动 ama（`src/agents/external-task.test.ts`），都不发起计费请求。

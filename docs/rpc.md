@@ -158,7 +158,7 @@
 | `compaction_end`                                     | `trigger`、`result?`、`aborted`、`willRetry`、`error?`                                                                                                                                                                                           |
 | `auto_retry_start`                                   | `attempt`、`maxAttempts`、`delayMs`、`errorMessage`                                                                                                                                                                                              |
 | `auto_retry_end`                                     | `success`、`attempt`、`finalError?`                                                                                                                                                                                                              |
-| `permission_request`                                 | `requestId`、`toolName`、`input`、`reason: mode \| dangerous \| hook`、`hookReason?`、`timeoutMs`、`preview?`、`autoDecision?`（auto 模式下为什么询问）                                                                                          |
+| `permission_request`                                 | `requestId`、`toolName`、`input`、`reason: mode \| dangerous \| hook`、`hookReason?`、`timeoutMs`、`preview?`、`autoDecision?`（auto 模式下为什么询问）、`context?`（来源，见「子 Agent 事件」）                                                 |
 | `permission_resolved`                                | `requestId`、`decision`                                                                                                                                                                                                                          |
 | `permission_mode_changed`                            | `mode`                                                                                                                                                                                                                                           |
 | `model_changed`                                      | `model: { provider, id, channel? }`                                                                                                                                                                                                              |
@@ -183,10 +183,18 @@
 | `subagent_update` | `taskId`、`kind: tool \| text \| turn`、`toolName?`、`textDelta?`（≥ 250 ms 合并）、`turn`、`usage?`                                                                                     |
 | `subagent_end`    | `taskId`、`status: completed \| failed \| aborted \| max_turns \| interrupted`、`usage?`、`cache?`、`outputFile?`、`worktree?: { branch, changed }`                                      |
 
-子会话的审批照常以 `permission_request` 发给本连接，`context.taskId` 标出来源任务。后台任务完成后父会话收到一条
+子会话与外部 Agent 的审批照常以 `permission_request` 发给本连接，`context`（可选，只在不是主会话自己的调用时出现）标出来源：
+`depth`（1 = 来自 task 子 Agent）、`taskId`（来源任务）、`origin`（外部 Agent 发来的权限请求：`agent`、`sessionId`（外部 CLI
+自己的会话 id）、`toolCall: { title, kind, locations?, inputSummary? }`、`options`）。对话框据此标 `[task:<agent>]` 或
+`[claude · 会话 abc1]`。外部 Agent 的请求 `toolName` 是 `agent:<id>`，回答只影响这一次（「本会话允许」交给外部 Agent 自己记）；
+首次在会话里以某个外部 Agent 运行时还有一次 `toolName: "task"`、`input: { agent, mode, note }` 的确认（`context.taskId`）。
+`test/fixtures/rpc/external.out.jsonl` 是 `task(agent="acp:ama")` 的三次审批（task 工具、首次运行、子 ama 的 bash）的黄金记录，
+由 `src/agents/external-rpc.test.ts` 用 `UPDATE_GOLDEN=1` 更新。后台任务完成后父会话收到一条
 `origin: "task"` 的 user 消息（`<task-notification …>…</task-notification>`），随后照常开新回合。任务列表与类型列表由
 `get_tasks` / `get_agents` 返回（形状 `TaskInfo` / `AgentInfo`；没有 task 工具时为空表），数据来自当前会话的
-`taskRegistryView(sessionId)` / `sessionAgents(sessionId)`（`src/agent/subagent-registry.ts`）。
+`taskRegistryView(sessionId)` / `sessionAgents(sessionId)`（`src/agent/subagent-registry.ts`）。`get_agents` 另含外部 Agent
+（`installed` / `version` 来自 PATH 与 `--version` 探测，会话建立时异步缓存、外部任务结束与宿主注入变化时刷新；缓存就绪前
+只有类型目录，见 `cachedAgentInfos`，`src/agents/external.ts`）。
 `test/fixtures/rpc/subagent.out.jsonl` 是一次前台 `task(agent="explore")` 加 `get_tasks` / `get_agents` 的黄金记录（只保留
 响应、`tool_execution_*`、`subagent_*` 与 `agent_settled`），由
 `src/agent/subagent-rpc.test.ts` 用 `UPDATE_GOLDEN=1` 更新。

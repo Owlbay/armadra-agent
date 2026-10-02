@@ -50,6 +50,7 @@ import type {
   ApprovalReason,
   AutoDecision,
   PermissionMode,
+  PermissionRequestContext,
 } from "../permissions/types.js";
 import type { AgentMessage, BranchSummaryEntry, SessionEntry } from "../session/types.js";
 import type {
@@ -283,6 +284,11 @@ export type SessionEvent =
       preview?: ActionPreview;
       /** auto 权限模式下为什么询问（同 `ApprovalRequest.autoDecision`）。 */
       autoDecision?: AutoDecision;
+      /**
+       * [W5-EG] 发起方：`depth > 0` 来自 task 子 Agent、`taskId` 来源任务、`origin` 外部 Agent 的
+       * 权限请求（对话框标 `[claude · 会话 abc1]`）。主会话自己的调用不带。
+       */
+      context?: PermissionRequestContext;
     }
   | { type: "permission_resolved"; requestId: string; decision: ApprovalDecision }
   | { type: "permission_mode_changed"; mode: PermissionMode }

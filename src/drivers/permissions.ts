@@ -27,6 +27,8 @@ export interface AskHumanContext {
   unattended: boolean;
   approve: ApproveFn;
   signal: AbortSignal;
+  /** 发起的 task 任务 id（对话框与 RPC `context.taskId`）。 */
+  taskId?: string;
 }
 
 /** 审批对话框里显示的工具名：`agent:<id>`（RPC permission_request 的 toolName）。 */
@@ -73,6 +75,7 @@ export async function askHuman(
     reason: "mode",
     context: {
       depth: 1,
+      ...(ctx.taskId !== undefined ? { taskId: ctx.taskId } : {}),
       origin: {
         agent: ctx.agent,
         sessionId: ctx.sessionId,
