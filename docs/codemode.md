@@ -71,7 +71,7 @@ B10 草稿（B9 统稿）；设计依据见 [design.md](design.md) §5.5、§5.6
 <node> --permission --allow-fs-read=<ama-sandbox.cjs> --disallow-code-generation-from-strings <ama-sandbox.cjs> --ama-codemode-sandbox
 ```
 
-- 空环境启动，拿不到密钥、会话文件与环境变量；不授予文件写、子进程、worker、addon、inspector 权限；Node 22.0–22.12 用 `--experimental-permission`；嵌入 Electron 时设 `ELECTRON_RUN_AS_NODE=1`。
+- 空环境启动，拿不到密钥、会话文件与环境变量（Windows 上 libuv 会从父进程补入 PATH、SYSTEMROOT、USERPROFILE 等系统变量，不含密钥）；不授予文件写、子进程、worker、addon、inspector 权限；Node 22.0–22.12 用 `--experimental-permission`；嵌入 Electron 时设 `ELECTRON_RUN_AS_NODE=1`。
 - 子进程里用 `node:vm` 建只含 ECMAScript 内建对象的上下文（`codeGeneration: { strings: false, wasm: false }`，沙箱对象空原型）；全局函数都在上下文内定义，只经一个宿主函数交换 JSON 字符串；子进程主 realm 也禁止字符串生成代码，经构造器链逃逸拿不到 `Function("return process")`。
 - `tools.*` 经 stdin / stdout 的 JSON 行协议回调父进程执行。
 - 网络：Node ≥ 25 的权限模型同时拒绝网络（strict）；Node 22 / 24 不管网络，脚本若逃出 `vm` 就能联网——此时工具描述标注 `network not isolated`，`codemode.requireStrict: true` 时直接不注册 `codemode` 并给出 warning（codemode 预设随之回退到 default）。

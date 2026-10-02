@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 import { sandboxEntryForTests } from "../../test/helpers/codemode-sandbox.js";
 import { isGroupAlive } from "../tools/process-tree.js";
@@ -19,6 +20,24 @@ const tmp = realpathSync(mkdtempSync(join(tmpdir(), "ama-host-side-")));
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 
 const nodeMajor = Number(process.versions.node.split(".")[0]);
+
+/**
+ * Windows 上 libuv 起子进程时，环境里缺这些系统变量会从父进程补进来（不含密钥）；macOS 自带
+ * __CF_USER_TEXT_ENCODING。其余变量一概不应出现。
+ */
+const WINDOWS_SYSTEM_VARS = [
+  "HOMEDRIVE",
+  "HOMEPATH",
+  "LOGONSERVER",
+  "PATH",
+  "SYSTEMDRIVE",
+  "SYSTEMROOT",
+  "TEMP",
+  "USERDOMAIN",
+  "USERNAME",
+  "USERPROFILE",
+  "WINDIR",
+];
 
 function request(script: string, overrides: Partial<SandboxRunRequest> = {}): SandboxRunRequest {
   return {
@@ -48,7 +67,7 @@ attempt("write", () => fs.writeFileSync(${JSON.stringify(join(tmp, "w.txt"))}, "
 attempt("spawn", () => require("node:child_process").spawnSync("echo", ["hi"]));
 attempt("worker", () => new (require("node:worker_threads").Worker)("1", { eval: true }));
 attempt("codegen", () => new Function("return 1")());
-out.env = Object.keys(process.env).filter((k) => k !== "__CF_USER_TEXT_ENCODING" && k.toLowerCase() !== "systemroot").join(",");
+out.env = Object.keys(process.env).filter((k) => k !== "__CF_USER_TEXT_ENCODING" && !${JSON.stringify(process.platform === "win32" ? WINDOWS_SYSTEM_VARS : [])}.includes(k.toUpperCase())).join(",");
 const net = require("node:net");
 const socket = net.connect({ host: "127.0.0.1", port: 9 });
 socket.on("connect", () => { out.net = "allowed"; socket.destroy(); print(); });
@@ -213,7 +232,9 @@ describe("runSandbox", () => {
 describe("入口与参数", () => {
   it("源码树里解析到 sandbox-entry.ts（realpath）", () => {
     expect(resolveSandboxEntry()).toMatch(/src[\\/]codemode[\\/]sandbox-entry\.ts$/);
-    expect(resolveSandboxEntry("file:///nonexistent/dir/host-side.js")).toBeUndefined();
+    expect(
+      resolveSandboxEntry(pathToFileURL(join(tmp, "nonexistent", "host-side.js")).href),
+    ).toBeUndefined();
   });
 
   it("参数：权限开关、只读入口、禁字符串生成代码；不授予写 / 子进程 / worker / addon", () => {
