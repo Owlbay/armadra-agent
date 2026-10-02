@@ -2,7 +2,7 @@
  * 内置 Skill（替代把 ama 自身文档塞进系统提示）。
  *
  * 系统提示里只常驻索引的一条（名字 + 一句描述，约 60 token），正文按需读取。单文件 bundle 没有
- * docs 目录，所以正文是内联的配置速查（≤ 3 KB），会话发现时写到 `<dataDir>/builtin-skills/<名>/SKILL.md`
+ * docs 目录，所以正文是内联的配置速查（≤ 3 KB），会话发现时写到 `<dataDir>/builtin/<名>.md`（路径短，进前缀）
  * （内容不变不重写），模型用 read 读、用户用 `/skill:ama-docs` 调用都走现成路径。
  *
  * - 排在全部用户 / 项目 Skill 之后：同名时用户的优先，内置的静默让位（不报重名 warning）。
@@ -12,9 +12,9 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { SKILL_FILE, type Skill } from "./discover.js";
+import type { Skill } from "./discover.js";
 
-export const BUILTIN_SKILLS_DIR = "builtin-skills";
+export const BUILTIN_SKILLS_DIR = "builtin";
 
 export interface BuiltinSkill {
   name: string;
@@ -64,11 +64,22 @@ Skills: \`<dir>/<name>/SKILL.md\` with \`name\` and \`description\` frontmatter 
 export const BUILTIN_SKILLS: readonly BuiltinSkill[] = Object.freeze([
   {
     name: "ama-docs",
-    description:
-      "Configuring and using ama: config, providers, keys, models, permissions, sessions, rewind, skills, hooks.",
+    description: "How to configure and use ama itself.",
     body: AMA_DOCS_BODY,
   },
 ]);
+
+export function builtinSkillPath(dataDir: string, name: string): string {
+  return join(dataDir, BUILTIN_SKILLS_DIR, `${name}.md`);
+}
+
+/** 是否内置 Skill（启动头的「已加载」只数用户 / 项目的）。 */
+export function isBuiltinSkill(skill: { name: string; location: string }): boolean {
+  return (
+    BUILTIN_SKILLS.some((b) => b.name === skill.name) &&
+    skill.location.endsWith(join(BUILTIN_SKILLS_DIR, `${skill.name}.md`))
+  );
+}
 
 export function builtinSkillText(skill: BuiltinSkill): string {
   return `---\nname: ${skill.name}\ndescription: ${skill.description}\n---\n\n${skill.body}`;
@@ -95,8 +106,8 @@ export async function withBuiltinSkills(
   const taken = new Set(skills.map((skill) => skill.name));
   for (const builtin of builtins) {
     if (taken.has(builtin.name)) continue;
-    const baseDir = join(dataDir, BUILTIN_SKILLS_DIR, builtin.name);
-    const location = join(baseDir, SKILL_FILE);
+    const baseDir = join(dataDir, BUILTIN_SKILLS_DIR);
+    const location = builtinSkillPath(dataDir, builtin.name);
     try {
       await ensureFile(location, builtinSkillText(builtin));
     } catch (error) {

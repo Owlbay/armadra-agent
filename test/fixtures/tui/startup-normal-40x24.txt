@@ -3,7 +3,7 @@
 |fake/echo · medium
 |~/work · 已信任
 |Manual · default
-|AGENTS.md · 1 Skill
+|AGENTS.md
 |/help · Shift+Tab 切模式
 |
 |────────────────────────────────────────

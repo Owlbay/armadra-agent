@@ -505,8 +505,8 @@ export interface ToolResult {
 
 - 发现顺序：`--skill-dir`（可重复）→ profile `skillDirs` → `~/.config/ama/skills/` → `<cwd>/.ama/skills/`（**需信任**）→ 祖先目录 `.agents/skills/`（需信任）；每个子目录一份 `SKILL.md`，递归；重名保留先发现者并 warning。
 - frontmatter 子集：`name`（≤ 64，`^[a-z0-9-]+$`）、`description`（≤ 1024，必填）、`disable-model-invocation`、`allowed-tools`（只做提示，不强制）。
-- 三级披露：索引（`<available_skills>` XML，每条一行 `<skill name location>description</skill>`，前面两行说明）→ `skill` 工具或 `read` 读正文 → 正文引用同目录文件。
-- 内置 Skill `ama-docs`（`src/skills/builtin.ts`）：ama 自身的配置速查（文件位置、供应商与 key、模型、权限、预设、会话与回滚、Skill 与 Hook），代替把自身文档放进系统提示；正文内联在代码里（单文件 bundle 没有 docs 目录），发现时写到 `<数据目录>/builtin-skills/ama-docs/SKILL.md`（内容不变不重写），排在所有来源之后，同名时用户 / 项目的优先。只在命令行组装根加载，SDK 不加。
+- 三级披露：索引（`<available_skills>` XML，每条一行 `<skill name location>description</skill>`，前面一行说明）→ `skill` 工具或 `read` 读正文 → 正文引用同目录文件。
+- 内置 Skill `ama-docs`（`src/skills/builtin.ts`）：ama 自身的配置速查（文件位置、供应商与 key、模型、权限、预设、会话与回滚、Skill 与 Hook），代替把自身文档放进系统提示；正文内联在代码里（单文件 bundle 没有 docs 目录），发现时写到 `<数据目录>/builtin/ama-docs.md`（内容不变不重写），排在所有来源之后，同名时用户 / 项目的优先；索引里只占一行短描述，启动头的「已加载」不计入。只在命令行组装根加载，SDK 不加。
 - `/skill:<name> [args]` 展开为 `<skill name="…" location="…">\nReferences are relative to <dir>.\n\n<正文>\n</skill>\n\n<args>`。
 - 提示模板 `prompts/<cmd>.md`（用户级与项目级，项目级需信任）：`$1 $@ ${1:-默认} ${@:N}`，文件名即 `/cmd`。
 - 不做技能包管理、不联网下载。

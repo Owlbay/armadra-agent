@@ -7,6 +7,7 @@ import {
   BUILTIN_SKILLS,
   BUILTIN_SKILLS_DIR,
   builtinSkillText,
+  isBuiltinSkill,
   withBuiltinSkills,
 } from "./builtin.js";
 import { parseSkill, type Skill } from "./discover.js";
@@ -30,12 +31,14 @@ describe("内置 Skill", () => {
     expect(parsed.skill).toMatchObject({ name: "ama-docs", description: docs.description });
   });
 
-  it("写到 <dataDir>/builtin-skills/，内容不变不重写；/skill:ama-docs 可展开", async () => {
+  it("写到 <dataDir>/builtin/ama-docs.md，内容不变不重写；/skill:ama-docs 可展开", async () => {
     home = createTmpHome();
     const first = await withBuiltinSkills([], home.dataDir);
     const skill = first.skills.find((s) => s.name === "ama-docs")!;
     expect(skill.scope).toBe("builtin");
-    expect(skill.location).toBe(join(home.dataDir, BUILTIN_SKILLS_DIR, "ama-docs", "SKILL.md"));
+    expect(skill.location).toBe(join(home.dataDir, BUILTIN_SKILLS_DIR, "ama-docs.md"));
+    expect(isBuiltinSkill(skill)).toBe(true);
+    expect(isBuiltinSkill({ name: "ama-docs", location: "/u/ama-docs/SKILL.md" })).toBe(false);
     const mtime = statSync(skill.location).mtimeMs;
     const again = await withBuiltinSkills([], home.dataDir);
     expect(again.skills[0]!.location).toBe(skill.location);
@@ -83,7 +86,7 @@ describe("内置 Skill", () => {
     )[0]!;
     const skills = String(system.sections["skills"]);
     expect(skills.indexOf('name="review"')).toBeLessThan(skills.indexOf('name="ama-docs"'));
-    expect(skills).toContain(join(h.home.dataDir, BUILTIN_SKILLS_DIR, "ama-docs", "SKILL.md"));
+    expect(skills).toContain(join(h.home.dataDir, BUILTIN_SKILLS_DIR, "ama-docs.md"));
     await runtime.dispose();
   });
 });

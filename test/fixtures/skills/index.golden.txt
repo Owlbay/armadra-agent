@@ -1,5 +1,4 @@
-Skills hold instructions for specific tasks: when a task matches a description, call the skill tool with its name first.
-Resolve relative paths in a skill against its directory.
+Skills: when a task matches one, call the skill tool with its name first; resolve its relative paths against its directory.
 <available_skills>
 <skill name="review" location="<root>/cli/review/SKILL.md">Review a change for correctness bugs (CLI copy wins).</skill>
 <skill name="lint" location="<root>/config/skills/group/lint/SKILL.md">Lint &lt;files&gt; &amp; fix &quot;style&quot; issues</skill>

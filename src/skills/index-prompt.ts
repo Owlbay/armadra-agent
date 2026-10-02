@@ -35,10 +35,9 @@ export function formatSkillIndex(
   } else {
     return "";
   }
-  // 每个字都进缓存前缀（预算见 src/cli/prompt-budget.test.ts），说明保持两行。
+  // 每个字都进缓存前缀（预算见 src/cli/prompt-budget.test.ts），说明保持一行。
   const lines = [
-    `Skills hold instructions for specific tasks: when a task matches a description, ${how} first.`,
-    "Resolve relative paths in a skill against its directory.",
+    `Skills: when a task matches one, ${how} first; resolve its relative paths against its directory.`,
     "<available_skills>",
   ];
   for (const s of visible) {
