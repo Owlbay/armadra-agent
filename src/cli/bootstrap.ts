@@ -372,7 +372,11 @@ export async function bootstrap(
     return {
       mode,
       paths: runtimePaths,
-      config,
+      // [W6-S] /config 换配置：getter 跟随 assembly.config（/new 组装会话读它）
+      get config() {
+        return assembly.config;
+      },
+      replaceConfig: (next) => void (assembly.config = next),
       trust,
       resources,
       providers,

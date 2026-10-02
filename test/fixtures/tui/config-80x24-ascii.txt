@@ -1,0 +1,25 @@
+# config · ascii · viewport 80x24 cursor=19,79
+|| 设置  写入：用户级 ~/.config/ama/config.json  [Tab 切换]
+|| / 搜索
+|| 界面
+|| > 主题                      dark              重启
+||   Markdown 渲染             true              即时
+||   思考内容                  collapsed         即时
+||   紧凑布局                  false             即时
+||   spinner 动画              true              即时
+||   底部信息行                （未设）          即时
+||   中断后放回原消息          true              新会话
+||   启动画面                  header            重启             [锁定] cli
+||   ASCII 字形                自动（true）      重启
+||   界面语言                  zh                重启             [锁定] AMA_LANG
+||   回复语言                  （未设）          新会话 · 动缓存
+||   Agent 栏                  （未设）          重启
+|| 模型
+||   缺省模型                  （未设）          即时 · 动缓存
+|| ------------------------------------------------------------------------------
+|| 配色主题：dark、light，或 auto（按 COLORFGBG 猜，不发终端查询，猜不出用 dark）
+|| ↑↓ 选择 · Enter/空格 修改 · / 搜索 · Tab 用户级/项目级 · Backspace 恢复缺省 ·…
+|
+|
+|
+|
