@@ -59,6 +59,8 @@ export interface ParsedArgs {
   toolsPreset?: ToolsPreset;
   /** `--codemode`：覆盖 config `codemode.mode`。 */
   codemode?: CodemodeMode;
+  /** `--image <文件>`（可重复，只用于 -p）：随首条提示发送的图片。 */
+  images: string[];
   /** 位置参数拼成的提示（空格连接）。 */
   prompt?: string;
   /** 原始位置参数。 */
@@ -98,12 +100,14 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
   --no-tui                     行式界面（readline + 括号粘贴）
   -p, --print                  非交互：执行提示后退出（提示可来自参数与 stdin 管道）
   --output-format <格式>       -p 的输出：text（缺省）| json | stream-json
+  --image <文件>               -p 随提示发送图片（可重复；png / jpg / gif / webp，单张 ≤ 5 MB）；
+                               交互界面里写 @图片路径 或粘贴图片路径
   --mode rpc                   stdio JSONL 协议（供嵌入）
   --tui-mode <模式>            显示模式，第一期只有 regular（主屏）
   --quiet-startup <档>         启动画面：normal | header | silent
 
 模型
-  --model <provider/id>        模型（可配合 --provider 只写 id）
+  --model <provider/id>        模型（可配合 --provider 只写 id；@渠道 指定渠道，如 packy/kimi-k2.5@messages）
   --provider <id>              供应商（必须同时给 --model）
   --api-key <key>              只用于本次启动的 key（需要 --model；优先用 ama auth set）
   --thinking <级别>            off | minimal | low | medium | high | xhigh
@@ -182,7 +186,8 @@ type ValueOption =
   | "tools"
   | "exclude-tools"
   | "tools-preset"
-  | "codemode";
+  | "codemode"
+  | "image";
 
 const VALUE_OPTIONS: ReadonlySet<string> = new Set<ValueOption>([
   "profile",
@@ -208,6 +213,7 @@ const VALUE_OPTIONS: ReadonlySet<string> = new Set<ValueOption>([
   "exclude-tools",
   "tools-preset",
   "codemode",
+  "image",
 ]);
 
 const FLAG_ALIASES: Readonly<Record<string, string>> = {
@@ -238,6 +244,7 @@ export function emptyArgs(): ParsedArgs {
     skillDirs: [],
     allow: [],
     deny: [],
+    images: [],
     continue: false,
     resume: false,
     print: false,
@@ -320,6 +327,9 @@ function applyValue(args: ParsedArgs, option: ValueOption, value: string): void 
     case "codemode":
       args.codemode = choice(option, value, CODEMODE_MODES);
       break;
+    case "image":
+      args.images.push(value);
+      break;
   }
 }
 
@@ -368,6 +378,9 @@ function validate(args: ParsedArgs): void {
   }
   if (args.outputFormat !== undefined && !args.print) {
     throw new UsageError("--output-format 只用于 -p / --print");
+  }
+  if (args.images.length > 0 && !args.print) {
+    throw new UsageError("--image 只用于 -p / --print（交互界面里写 @图片路径）");
   }
 }
 

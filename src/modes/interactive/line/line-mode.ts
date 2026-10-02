@@ -8,6 +8,7 @@
  * - 斜杠命令走 commands-core（与 B7 同一语义），`pick` 退化为列出候选。
  */
 
+import { promptImages, sessionModel } from "../../image-input.js";
 import type { AgentSession } from "../../../agent/types.js";
 import { currentSession, switchSession } from "../../../cli/compose-session.js";
 import type { ModeContext } from "../../../cli/deps.js";
@@ -82,7 +83,13 @@ export async function runLineMode(
     return undefined;
   };
   const prompt = async (target: AgentSession, text: string): Promise<void> => {
-    await target.prompt(text);
+    const images = await promptImages(
+      text,
+      [],
+      target.state.cwd,
+      sessionModel(runtime.providers, target),
+    );
+    await target.prompt(text, images.length > 0 ? { images } : {});
     printer.endLine();
   };
 
