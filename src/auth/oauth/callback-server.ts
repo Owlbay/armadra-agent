@@ -26,10 +26,10 @@ export interface CallbackPages {
 export interface CallbackServerOptions {
   ports: readonly number[];
   state: string;
-  path?: string;
-  timeoutMs?: number;
-  signal?: AbortSignal;
-  pages?: CallbackPages;
+  path?: string | undefined;
+  timeoutMs?: number | undefined;
+  signal?: AbortSignal | undefined;
+  pages?: CallbackPages | undefined;
 }
 
 /** 回调里的有用参数（不含 state）。 */
