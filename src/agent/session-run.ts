@@ -202,7 +202,34 @@ export function recordAbort(core: SessionCore): void {
   core.reloadMessages();
 }
 
+/**
+ * 会话周期：跑完一轮（到 agent_settled 与 onAgentSettled）后，若期间（Stop Hook、agent_settled 监听器、
+ * onAgentSettled 扩展）又有 steer / followUp 入队——宿主 `sendUser`、子 Agent 后台通知等在周期收尾
+ * 阶段调用时会话仍算忙，只能入队——就在同一周期里再开一轮投递它们（[W5-H2]，W5-G 发现的竞态）。
+ * abort 或已请求停止（Hook continue:false、预算到限）时不续投，消息留在队列。
+ */
 export async function runCycle(
+  deps: RunCycleDeps,
+  prompts: AgentMessage[],
+  signal: AbortSignal,
+): Promise<void> {
+  let next: AgentMessage[] = prompts;
+  for (;;) {
+    await runSettledCycle(deps, next, signal);
+    if (signal.aborted || deps.stopRequested()) return;
+    const queued = drainQueued(deps.core);
+    if (queued.length === 0) return;
+    next = queued;
+  }
+}
+
+/** 先取 steer（按其投递模式），没有再取 followUp。 */
+function drainQueued(core: SessionCore): AgentMessage[] {
+  const steering = core.agent.steeringQueue.drain();
+  return steering.length > 0 ? steering : core.agent.followUpQueue.drain();
+}
+
+async function runSettledCycle(
   deps: RunCycleDeps,
   prompts: AgentMessage[],
   signal: AbortSignal,
@@ -321,6 +348,16 @@ export async function runCycle(
       next = core.agent.followUpQueue.drain();
       continue;
     }
+    // [W5-H2] run 收尾时（循环已不再取队列）入队的 steer / followUp：本周期接着投递，不滞留到下次提示
+    const queuedNow = (): AgentMessage[] =>
+      harnessStop === undefined && !deps.stopRequested() && !signal.aborted
+        ? drainQueued(core)
+        : [];
+    let queued = queuedNow();
+    if (queued.length > 0) {
+      next = queued;
+      continue;
+    }
 
     core.emit({ type: "agent_before_settle" });
     announced = true;
@@ -343,6 +380,8 @@ export async function runCycle(
         continue;
       }
     }
+    queued = queuedNow(); // Stop Hook 期间入队的
+    if (queued.length > 0) next = queued;
   }
 
   await restoreModel?.();
