@@ -23,6 +23,9 @@
         "high": "high",
         "xhigh": null
       },
+      "promptCache": {
+        "short": 300
+      },
       "compat": {
         "supportsReasoningEffort": true
       }
@@ -42,6 +45,9 @@
       },
       "thinkingLevelMap": {
         "off": null
+      },
+      "promptCache": {
+        "short": 300
       },
       "compat": {
         "supportsReasoningEffort": false
@@ -63,6 +69,9 @@
       "thinkingLevelMap": {
         "off": null
       },
+      "promptCache": {
+        "short": 300
+      },
       "compat": {
         "supportsReasoningEffort": false
       }
@@ -79,6 +88,9 @@
         "output": 4,
         "cacheRead": 0.16,
         "cacheWrite": 0
+      },
+      "promptCache": {
+        "short": 300
       },
       "compat": {
         "supportsReasoningEffort": false

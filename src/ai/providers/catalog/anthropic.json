@@ -21,7 +21,8 @@
       },
       "promptCache": {
         "short": 300,
-        "long": 3600
+        "long": 3600,
+        "minTokens": 512
       },
       "compat": {
         "adaptiveThinking": true
@@ -46,7 +47,8 @@
       },
       "promptCache": {
         "short": 300,
-        "long": 3600
+        "long": 3600,
+        "minTokens": 512
       },
       "compat": {
         "adaptiveThinking": true
@@ -75,7 +77,8 @@
       },
       "promptCache": {
         "short": 300,
-        "long": 3600
+        "long": 3600,
+        "minTokens": 512
       },
       "compat": {
         "adaptiveThinking": true
@@ -100,7 +103,8 @@
       },
       "promptCache": {
         "short": 300,
-        "long": 3600
+        "long": 3600,
+        "minTokens": 512
       },
       "compat": {
         "adaptiveThinking": true
@@ -124,7 +128,8 @@
       },
       "promptCache": {
         "short": 300,
-        "long": 3600
+        "long": 3600,
+        "minTokens": 1024
       },
       "compat": {
         "adaptiveThinking": true
@@ -148,7 +153,8 @@
       },
       "promptCache": {
         "short": 300,
-        "long": 3600
+        "long": 3600,
+        "minTokens": 2048
       },
       "compat": {
         "adaptiveThinking": true
@@ -169,7 +175,8 @@
       },
       "promptCache": {
         "short": 300,
-        "long": 3600
+        "long": 3600,
+        "minTokens": 4096
       },
       "compat": {
         "adaptiveThinking": true
@@ -198,7 +205,8 @@
       },
       "promptCache": {
         "short": 300,
-        "long": 3600
+        "long": 3600,
+        "minTokens": 512
       },
       "compat": {
         "adaptiveThinking": true
@@ -222,7 +230,8 @@
       },
       "promptCache": {
         "short": 300,
-        "long": 3600
+        "long": 3600,
+        "minTokens": 1024
       },
       "compat": {
         "adaptiveThinking": true
@@ -243,7 +252,8 @@
       },
       "promptCache": {
         "short": 300,
-        "long": 3600
+        "long": 3600,
+        "minTokens": 1024
       },
       "compat": {
         "adaptiveThinking": true
@@ -264,7 +274,8 @@
       },
       "promptCache": {
         "short": 300,
-        "long": 3600
+        "long": 3600,
+        "minTokens": 1024
       }
     },
     {
@@ -282,7 +293,8 @@
       },
       "promptCache": {
         "short": 300,
-        "long": 3600
+        "long": 3600,
+        "minTokens": 4096
       }
     },
     {
@@ -300,7 +312,8 @@
       },
       "promptCache": {
         "short": 300,
-        "long": 3600
+        "long": 3600,
+        "minTokens": 4096
       }
     }
   ]
