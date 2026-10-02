@@ -7,13 +7,19 @@
  *   `overflow`，不受「每 run 一次」限制但受跳闸限制）→ 压缩后估算 ≤ 0.8 × 窗口才重试。
  * - 手动 `/compact`：PreCompact（trigger `manual`）→ 摘要；成功清零熔断。
  * PreCompact 的 `decision: "block"` 取消本次压缩；`customInstructions` 追加到摘要提示。
+ * [W3-C1b] 阈值 / 手动压缩与分支摘要优先走会话前缀续写（缓存控制器给前缀），溢出恢复不走
+ * （前缀本身已超窗口）；续写失败回落独立请求并记 warning。
  */
 
 import { AmaError } from "../errors.js";
 import { CompactionBreaker } from "../compaction/breaker.js";
 import { estimateProjectedTokens, type ContextEstimate } from "../compaction/estimate.js";
 import { planPrune, shouldPrune } from "../compaction/prune-tier.js";
-import { prepareCompaction, runCompaction } from "../compaction/summarize-tier.js";
+import {
+  prepareCompaction,
+  runCompaction,
+  type SummarizerOptions,
+} from "../compaction/summarize-tier.js";
 import { prepareBranchSummary, runBranchSummary } from "../compaction/branch-summary.js";
 import { buildProjection } from "../session/projection.js";
 import type { BranchSummaryEntry } from "../session/types.js";
@@ -79,6 +85,29 @@ export class CompactionController {
       1,
       Math.min(this.settings.keepRecentTokens, Math.floor(budget * KEEP_RECENT_MAX_RATIO)),
     );
+  }
+
+  /** 摘要请求的公共选项；`continuation` 时附上会话前缀续写的材料。 */
+  private async summarizer(
+    signal: AbortSignal,
+    instructions: string | undefined,
+    continuation: boolean,
+  ): Promise<SummarizerOptions> {
+    const core = this.core;
+    const options: SummarizerOptions = {
+      stream: core.stream,
+      model: core.model(),
+      apiKey: await core.resolveApiKey(),
+      signal,
+      customInstructions: instructions,
+      onFallback: (reason) =>
+        core.log(
+          "warn",
+          `summary by prefix continuation failed (${reason}); used a separate request`,
+        ),
+    };
+    if (continuation) options.continuation = core.cache?.summaryContinuation();
+    return options;
   }
 
   /** 档一；返回是否裁剪了内容。 */
@@ -165,13 +194,7 @@ export class CompactionController {
     const plan = prepareBranchSummary(index, core.manager.leafId(), targetId);
     core.manager.setLeaf(targetId);
     if (plan === undefined) return undefined;
-    const draft = await runBranchSummary(plan, {
-      stream: core.stream,
-      model: core.model(),
-      apiKey: await core.resolveApiKey(),
-      signal,
-      customInstructions: instructions,
-    });
+    const draft = await runBranchSummary(plan, await this.summarizer(signal, instructions, true));
     return core.appendEntry({
       type: "branch_summary",
       fromId: draft.fromId,
@@ -237,14 +260,8 @@ export class CompactionController {
       return fail("nothing to compact");
     }
     try {
-      const apiKey = await core.resolveApiKey();
-      const draft = await runCompaction(plan, {
-        stream: core.stream,
-        model: core.model(),
-        apiKey,
-        signal,
-        customInstructions,
-      });
+      const options = await this.summarizer(signal, customInstructions, trigger !== "overflow");
+      const draft = await runCompaction(plan, options);
       if (signal.aborted) return fail("aborted", true);
       const entry: Parameters<SessionCore["appendEntry"]>[0] = {
         type: "compaction",

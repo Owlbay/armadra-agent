@@ -26,9 +26,11 @@ import type {
 } from "../ai/cache/types.js";
 import { CacheWarmer, replayBlocker, type WarmerTimers } from "../ai/cache/warmer.js";
 import type { AssistantMessage, CacheRetention, Model, StreamOptions } from "../ai/types.js";
+import { SUMMARY_MAX_TOKENS, type SummaryContinuation } from "../compaction/summarize-tier.js";
 import type { SessionManager } from "../session/manager.js";
 import type { AgentMessage } from "../session/types.js";
 import type { StreamFn } from "./loop.js";
+import { convertToLlm } from "./transform.js";
 import type { SessionCore } from "./session-core.js";
 import type { CacheSettings, SessionCacheStats } from "./types.js";
 
@@ -335,6 +337,48 @@ export class SessionCacheController {
       stats.subagents = sub;
     }
     return stats;
+  }
+
+  /**
+   * 摘要续写的前缀（第三波 §1.8）：当前转录按回合同样的方式转换，且上一次 turn 请求的消息
+   * 逐条是它的前缀（缓存必然命中）、加上摘要输出放得进窗口；否则 undefined（走独立请求）。
+   */
+  summaryContinuation(): SummaryContinuation | undefined {
+    const record = this.lastTurnRecord;
+    const model = this.core.model();
+    if (record === undefined || this.disposed) return undefined;
+    if (model.provider !== record.model.provider || model.id !== record.model.id) return undefined;
+    const messages = convertToLlm(this.core.agent.messages, {
+      provider: model.provider,
+      model: model.id,
+    });
+    const prev = record.contextRef.messages;
+    if (prev.length > messages.length) return undefined;
+    for (let i = 0; i < prev.length; i++)
+      if (JSON.stringify(prev[i]) !== JSON.stringify(messages[i])) return undefined;
+    const extra = Math.ceil(JSON.stringify(messages.slice(prev.length)).length / 4);
+    const window = model.contextWindow;
+    if (window !== undefined && record.promptTokens + extra + SUMMARY_MAX_TOKENS + 2048 > window)
+      return undefined;
+    const {
+      onPayload: _p,
+      onResponse: _r,
+      purpose: _u,
+      toolChoice: _t,
+      cacheRetention: _c,
+      maxTokens,
+      ...rest
+    } = record.options;
+    const streamOptions: SummaryContinuation["streamOptions"] = { ...rest };
+    // 预算型思考的预算从 max_tokens 推导，改它会让消息缓存失效：沿用回合的值。
+    const budget = replayBlocker({
+      model,
+      options: rest,
+      payloadReplaced: false,
+      reporting: "reported",
+    });
+    if (budget === "thinking_budget") streamOptions.maxTokens = maxTokens ?? model.maxTokens;
+    return { prefix: { messages }, streamOptions };
   }
 
   dispose(): void {
