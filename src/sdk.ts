@@ -6,7 +6,8 @@
  *   也可以直接给 `argv`（与 `ama` 命令行同语法）。
  * - `createAgentSession(options)`：不读文件系统配置的轻量装配——内存会话（或传入的
  *   SessionManager）、选定的工具、规则与回调审批，直接返回 `AgentSessionImpl`
- *   （含 `addTool / updateSystem / navigate` 等扩展方法）。
+ *   （含 `addTool / updateSystem / navigate` 等扩展方法；回滚 `rewindPoints / rewind /
+ *   summarizeFrom / summarizeUpTo / undoAbortedTurn`，内存会话只能仅对话）。
  *
  * 两者共用组装根（cli/compose*.ts），审批链、系统提示装配、工具预设与缓存行为与 CLI 一致。
  */
@@ -44,6 +45,14 @@ import type { ToolDefinition } from "./tools/types.js";
 
 /** [W3-C2] 统计类型：`session.getStats()`、RPC `get_session_stats`、`-p --output-format json` 的 `cache`。 */
 export type { SessionCacheStats, SessionStats } from "./agent/types.js";
+/** [RW-B] 回滚：`session.rewindPoints()`、`session.rewind()`、`summarizeFrom / summarizeUpTo`。 */
+export type {
+  CodeRestoreResult,
+  RewindMode,
+  RewindPoint,
+  RewindRequest,
+  RewindResult,
+} from "./checkpoints/types.js";
 export type {
   CacheMiss,
   CacheMissReason,

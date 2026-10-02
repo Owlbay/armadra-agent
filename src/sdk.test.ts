@@ -6,7 +6,13 @@ import type { FakeResponse } from "./ai/fake/fake-script.js";
 import { AgentSessionImpl } from "./agent/session.js";
 import { detectSandboxCapability } from "./codemode/capability.js";
 import * as sdk from "./index.js";
-import { createAgentSession, createRuntime, type SessionCacheStats } from "./sdk.js";
+import {
+  createAgentSession,
+  createRuntime,
+  type RewindPoint,
+  type RewindResult,
+  type SessionCacheStats,
+} from "./sdk.js";
 import type { ToolDefinition } from "./tools/types.js";
 
 let home: TmpHome | undefined;
@@ -58,6 +64,32 @@ describe("SDK", () => {
     expect(session.state.sessionFile).toBeUndefined();
     expect(session.getTools()).toEqual([]);
     expect(fake.calls).toHaveLength(1);
+    await session.dispose();
+  });
+
+  it("[RW-B] rewindPoints / rewind：内存会话仅对话回滚，回填原消息后可继续", async () => {
+    const { fake, apis } = fakeApis();
+    const session = await createAgentSession({
+      model: "fake/echo",
+      tools: "none",
+      apis,
+      auth: { kind: "none" },
+    });
+    await session.prompt("one");
+    await session.prompt("two");
+    const points: RewindPoint[] = session.rewindPoints();
+    expect(points.map((p) => [p.text, p.hasCheckpoint])).toEqual([
+      ["one", false],
+      ["two", false],
+    ]);
+    const result: RewindResult = await session.rewind({
+      entryId: points[1]!.entryId,
+      mode: "conversation",
+    });
+    expect(result.conversation?.draft).toEqual({ text: "two" });
+    await session.prompt("three");
+    expect(session.rewindPoints().map((p) => p.text)).toEqual(["one", "three"]);
+    expect(fake.calls).toHaveLength(3);
     await session.dispose();
   });
 
