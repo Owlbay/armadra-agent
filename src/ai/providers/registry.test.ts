@@ -21,7 +21,7 @@ function registry(config?: AmaConfig, env: Record<string, string> = {}): Provide
 }
 
 describe("ProviderRegistry", () => {
-  it("13 家内置 + fake；模型已物化（baseUrl / authHeader / requiresApiKey / headers）", () => {
+  it("17 家内置 + fake；模型已物化（baseUrl / authHeader / requiresApiKey / headers）", () => {
     const r = registry();
     expect(r.list().map((p) => p.id)).toEqual([
       "anthropic",
@@ -35,6 +35,10 @@ describe("ProviderRegistry", () => {
       "groq",
       "xai",
       "mistral",
+      "minimax",
+      "stepfun",
+      "volcengine",
+      "tencent",
       "ollama",
       "lmstudio",
       "fake",
@@ -271,7 +275,7 @@ describe("ProviderRegistry", () => {
     expect(r.getApi("bedrock-converse-stream")).toBeUndefined();
   });
 
-  it("目录项级 api：openai / xai 推理模型走 Responses，其余随供应商", () => {
+  it("缺省渠道：openai / xai 全部走 Responses（@chat 换 Chat），其余随供应商", () => {
     const r = registry();
     const api = (ref: string): string | undefined => {
       const found = r.findModel(ref);
@@ -279,10 +283,13 @@ describe("ProviderRegistry", () => {
     };
     expect(api("openai/gpt-5.5")).toBe("openai-responses");
     expect(api("openai/o3")).toBe("openai-responses");
-    expect(api("openai/gpt-4o")).toBe("openai-completions");
+    expect(api("openai/gpt-4o")).toBe("openai-responses");
+    expect(api("openai/gpt-4o@chat")).toBe("openai-completions");
+    expect(api("openai/gpt-5.5@chat")).toBe("openai-completions");
     expect(api("xai/grok-4.7")).toBe("openai-responses");
+    expect(api("xai/grok-4.7@chat")).toBe("openai-completions");
     expect(api("google/gemini-3.1-pro-preview")).toBe("google-generative-ai");
-    expect(r.get("openai")?.api).toBe("openai-completions");
+    expect(r.get("openai")?.api).toBe("openai-responses");
     for (const provider of r.list()) {
       for (const model of provider.models) expect(r.getApi(model.api), model.id).toBeDefined();
     }

@@ -195,7 +195,8 @@ describe("渠道：解析与模型引用", () => {
     expect(b.ok && b.model.api).toBe("openai-responses");
     expect(a.ok && "channel" in a.model).toBe(false);
     expect(r.get("old")?.channels).toBeUndefined();
-    const builtin = r.findModel("deepseek/deepseek-v4-pro");
+    // 单协议的内置供应商同样没有渠道（多协议的内置渠道见 registry-builtin-channels.test.ts）
+    const builtin = r.findModel("google/gemini-2.5-pro");
     expect(builtin.ok && builtin.model.channel).toBeUndefined();
   });
 
@@ -314,7 +315,7 @@ describe("models.dev 补全", () => {
     expect(r.modelMetadata("moonshot", "kimi-k3")?.looked).toBe(false);
   });
 
-  it("没有缓存时不补，也不报错；惰性加载只在需要时调用", () => {
+  it("没有缓存时不补，也不报错；内置目录启动时读一次索引（快照 ⊕ 刷新）", () => {
     let calls = 0;
     const r = new ProviderRegistry({
       config: { version: 1 },
@@ -325,6 +326,7 @@ describe("models.dev 补全", () => {
       },
     });
     expect(r.findModel("deepseek/deepseek-v4-pro").ok).toBe(true);
-    expect(calls).toBe(0);
+    expect(r.findModel("deepseek/deepseek-flash").ok).toBe(true);
+    expect(calls).toBe(1);
   });
 });

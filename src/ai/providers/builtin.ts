@@ -1,18 +1,44 @@
 /**
- * 13 家内置供应商（设计 §3.3）。这里只放供应商级数据；模型来自 catalog/*.json，compat 由
- * 各协议的 detectCompat 推断（openai-compat.ts 的推断表），这里只写推断不出来的东西。
+ * 内置供应商（设计 §3.3、docs/wave5-plan.md §3.2）。这里只放供应商级数据；模型来自 catalog/*.json，
+ * compat 由各协议的 detectCompat 推断（openai-compat.ts、anthropic-compat.ts 的主机表），这里只写推断
+ * 不出来的东西。
  *
- * 这里的 `api` 是供应商级缺省；目录条目可用 `api` 覆盖（openai 推理模型与 xai 目录模型走
- * openai-responses，见 catalog/*.json）。
+ * 内置渠道（[W5-M2]）：一家同时开放多种协议时写 `channels`（首个不一定是缺省，看 `defaultChannel`）。
+ * registry 物化时与用户 config 的 `channels` 合并（同名字段级覆盖、新名追加），用户的 `defaultChannel`
+ * 优先。供应商级 `api` + `baseUrl` 是**单渠道回落**：用户（config / auth.json / `*_BASE_URL`）把
+ * baseUrl 改到别处时内置渠道整体作废，按这一对单渠道处理（与引入内置渠道之前的行为一致）。
+ * 只做按量计费端点；Coding Plan 类订阅端点不做内置渠道（D9），见 docs/providers.md。
  *
  * `baseUrlEnv`（第三波 §2.3）：通行约定的 baseUrl 环境变量（OpenAI SDK 的 `OPENAI_BASE_URL`、
  * Claude Code 的 `ANTHROPIC_BASE_URL`），设了就把内置供应商指向中转站，零配置可用；优先级低于
  * config.json 与 auth.json 的 baseUrl。
  */
 
-import type { ProviderData } from "../types.js";
+import type { Api, ProviderChannel, ProviderData } from "../types.js";
 
-export type BuiltinProvider = Omit<ProviderData, "models" | "builtin"> & { baseUrlEnv?: string };
+export type BuiltinProvider = Omit<ProviderData, "models" | "builtin"> & {
+  baseUrlEnv?: string;
+  /**
+   * 单渠道回落时目录模型的协议（缺省同 `api`）：OpenAI / xAI 的目录模型在中转上仍走 Responses，
+   * 目录外的 id（本地服务、中转自有模型）走 `api`（Chat）。
+   */
+  catalogApi?: Api;
+};
+
+function ch(
+  name: string,
+  api: Api,
+  baseUrl: string,
+  extra: Omit<ProviderChannel, "name" | "api" | "baseUrl"> = {},
+): ProviderChannel {
+  return { name, api, baseUrl, ...extra };
+}
+
+const CHAT = "openai-completions";
+const MESSAGES = "anthropic-messages";
+const RESPONSES = "openai-responses";
+/** 文档写 `Authorization: Bearer` 的 Anthropic 兼容端点（Kimi、MiniMax、阶跃）。 */
+const BEARER = { authHeader: "authorization-bearer" } as const;
 
 export const BUILTIN_PROVIDERS: readonly BuiltinProvider[] = [
   {
@@ -29,7 +55,14 @@ export const BUILTIN_PROVIDERS: readonly BuiltinProvider[] = [
     id: "openai",
     name: "OpenAI",
     api: "openai-completions",
+    catalogApi: RESPONSES,
     baseUrl: "https://api.openai.com/v1",
+    // 全部模型缺省 Responses（R1 §2.3）；Chat 作渠道
+    channels: [
+      ch("responses", RESPONSES, "https://api.openai.com/v1"),
+      ch("chat", CHAT, "https://api.openai.com/v1"),
+    ],
+    defaultChannel: "responses",
     baseUrlEnv: "OPENAI_BASE_URL",
     envKeys: ["OPENAI_API_KEY", "AMA_API_KEY_OPENAI"],
     requiresApiKey: true,
@@ -48,6 +81,12 @@ export const BUILTIN_PROVIDERS: readonly BuiltinProvider[] = [
     name: "DeepSeek",
     api: "openai-completions",
     baseUrl: "https://api.deepseek.com",
+    // 实测门（wave5-plan §3.2）未过前缺省 chat；messages 上 cache_control 被忽略
+    channels: [
+      ch("chat", CHAT, "https://api.deepseek.com"),
+      ch("messages", MESSAGES, "https://api.deepseek.com/anthropic"),
+    ],
+    defaultChannel: "chat",
     envKeys: ["DEEPSEEK_API_KEY", "AMA_API_KEY_DEEPSEEK"],
     requiresApiKey: true,
   },
@@ -56,6 +95,15 @@ export const BUILTIN_PROVIDERS: readonly BuiltinProvider[] = [
     name: "Moonshot (Kimi)",
     api: "openai-completions",
     baseUrl: "https://api.moonshot.cn/v1",
+    // 实测门未过前缺省 chat（K3 在 Messages 端点有 tool_use.id 复用的第三方报告）
+    channels: [
+      ch("chat", CHAT, "https://api.moonshot.cn/v1"),
+      ch("messages", MESSAGES, "https://api.moonshot.cn/anthropic", BEARER),
+      ch("responses", RESPONSES, "https://api.moonshot.cn/v1"),
+      ch("chat-intl", CHAT, "https://api.moonshot.ai/v1"),
+      ch("messages-intl", MESSAGES, "https://api.moonshot.ai/anthropic", BEARER),
+    ],
+    defaultChannel: "chat",
     envKeys: ["MOONSHOT_API_KEY", "KIMI_API_KEY", "AMA_API_KEY_MOONSHOT"],
     requiresApiKey: true,
   },
@@ -64,6 +112,14 @@ export const BUILTIN_PROVIDERS: readonly BuiltinProvider[] = [
     name: "Zhipu GLM",
     api: "openai-completions",
     baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+    // 实测门未过前缺省 chat；只有隐式缓存
+    channels: [
+      ch("chat", CHAT, "https://open.bigmodel.cn/api/paas/v4"),
+      ch("messages", MESSAGES, "https://open.bigmodel.cn/api/anthropic"),
+      ch("chat-intl", CHAT, "https://api.z.ai/api/paas/v4"),
+      ch("messages-intl", MESSAGES, "https://api.z.ai/api/anthropic"),
+    ],
+    defaultChannel: "chat",
     envKeys: ["ZHIPU_API_KEY", "ZAI_API_KEY", "AMA_API_KEY_ZHIPU"],
     requiresApiKey: true,
   },
@@ -72,6 +128,15 @@ export const BUILTIN_PROVIDERS: readonly BuiltinProvider[] = [
     name: "Alibaba DashScope (Qwen)",
     api: "openai-completions",
     baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    // Messages 端点执行 cache_control（5m），直接切
+    channels: [
+      ch("messages", MESSAGES, "https://dashscope.aliyuncs.com/apps/anthropic"),
+      ch("responses", RESPONSES, "https://dashscope.aliyuncs.com/compatible-mode/v1"),
+      ch("chat", CHAT, "https://dashscope.aliyuncs.com/compatible-mode/v1"),
+      ch("messages-intl", MESSAGES, "https://dashscope-intl.aliyuncs.com/apps/anthropic"),
+      ch("chat-intl", CHAT, "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"),
+    ],
+    defaultChannel: "messages",
     envKeys: ["DASHSCOPE_API_KEY", "QWEN_API_KEY", "AMA_API_KEY_DASHSCOPE"],
     requiresApiKey: true,
   },
@@ -99,7 +164,14 @@ export const BUILTIN_PROVIDERS: readonly BuiltinProvider[] = [
     id: "xai",
     name: "xAI",
     api: "openai-completions",
+    catalogApi: RESPONSES,
     baseUrl: "https://api.x.ai/v1",
+    // 官方已把 Anthropic 兼容标为 deprecated，不做 messages 渠道
+    channels: [
+      ch("responses", RESPONSES, "https://api.x.ai/v1"),
+      ch("chat", CHAT, "https://api.x.ai/v1"),
+    ],
+    defaultChannel: "responses",
     envKeys: ["XAI_API_KEY", "AMA_API_KEY_XAI"],
     requiresApiKey: true,
   },
@@ -109,6 +181,69 @@ export const BUILTIN_PROVIDERS: readonly BuiltinProvider[] = [
     api: "openai-completions",
     baseUrl: "https://api.mistral.ai/v1",
     envKeys: ["MISTRAL_API_KEY", "AMA_API_KEY_MISTRAL"],
+    requiresApiKey: true,
+  },
+  {
+    id: "minimax",
+    name: "MiniMax",
+    api: "openai-completions",
+    baseUrl: "https://api.minimax.cn/v1",
+    // 官方推荐 Anthropic 兼容端点；M2.x 执行 cache_control（5m），M3 的缓存行为列入实测；Responses 只有 M3
+    channels: [
+      ch("messages", MESSAGES, "https://api.minimax.cn/anthropic", BEARER),
+      ch("responses", RESPONSES, "https://api.minimax.cn/v1"),
+      ch("chat", CHAT, "https://api.minimax.cn/v1"),
+      ch("messages-intl", MESSAGES, "https://api.minimax.io/anthropic", BEARER),
+      ch("chat-intl", CHAT, "https://api.minimax.io/v1"),
+    ],
+    defaultChannel: "messages",
+    envKeys: ["MINIMAX_API_KEY", "AMA_API_KEY_MINIMAX"],
+    requiresApiKey: true,
+  },
+  {
+    id: "stepfun",
+    name: "StepFun",
+    api: "openai-completions",
+    baseUrl: "https://api.stepfun.com/v1",
+    // 自动前缀缓存；Responses 按模型开放（目录标注）
+    channels: [
+      ch("messages", MESSAGES, "https://api.stepfun.com", BEARER),
+      ch("chat", CHAT, "https://api.stepfun.com/v1"),
+      ch("responses", RESPONSES, "https://api.stepfun.com/v1"),
+      ch("messages-intl", MESSAGES, "https://api.stepfun.ai", BEARER),
+      ch("chat-intl", CHAT, "https://api.stepfun.ai/v1"),
+    ],
+    defaultChannel: "messages",
+    envKeys: ["STEPFUN_API_KEY", "STEP_API_KEY", "AMA_API_KEY_STEPFUN"],
+    requiresApiKey: true,
+  },
+  {
+    id: "volcengine",
+    name: "Volcengine Ark (Doubao)",
+    api: "openai-completions",
+    catalogApi: RESPONSES,
+    baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+    // 官方推荐 Responses（显式缓存只在 Responses 上）；Anthropic 兼容只在 Coding Plan，不做渠道（D9）
+    channels: [
+      ch("responses", RESPONSES, "https://ark.cn-beijing.volces.com/api/v3"),
+      ch("chat", CHAT, "https://ark.cn-beijing.volces.com/api/v3"),
+    ],
+    defaultChannel: "responses",
+    envKeys: ["ARK_API_KEY", "VOLCENGINE_API_KEY", "AMA_API_KEY_VOLCENGINE"],
+    requiresApiKey: true,
+  },
+  {
+    id: "tencent",
+    name: "Tencent TokenHub (Hunyuan)",
+    api: "openai-completions",
+    baseUrl: "https://tokenhub.tencentmaas.com/v1",
+    // Anthropic 线执行 cache_control（含 1h），直接切
+    channels: [
+      ch("messages", MESSAGES, "https://tokenhub.tencentmaas.com"),
+      ch("chat", CHAT, "https://tokenhub.tencentmaas.com/v1"),
+    ],
+    defaultChannel: "messages",
+    envKeys: ["TOKENHUB_API_KEY", "HUNYUAN_API_KEY", "AMA_API_KEY_TENCENT"],
     requiresApiKey: true,
   },
   {
@@ -138,14 +273,23 @@ function hostOf(url: string): string | undefined {
   }
 }
 
+/** 内置供应商的官方主机（单渠道回落 + 全部内置渠道）。 */
+export function builtinHosts(providerId: string): Set<string> {
+  const builtin = BUILTIN_PROVIDERS.find((p) => p.id === providerId);
+  const urls = [builtin?.baseUrl, ...(builtin?.channels ?? []).map((c) => c.baseUrl)];
+  return new Set(urls.map((url) => (url ? hostOf(url) : undefined)).filter((h) => h !== undefined));
+}
+
 /**
  * 内置供应商的 baseUrl 是否被改到了非官方主机（中转站）：此时目录外的 model id 也接受，
- * compat 走保守缺省。非内置供应商返回 false。
+ * compat 走保守缺省。按渠道比较主机：落在任一内置渠道的主机上（如国际站）不算中转。
+ * 非内置供应商与本地服务返回 false。
  */
 export function isRelayedBaseUrl(providerId: string, baseUrl: string): boolean {
   const builtin = BUILTIN_PROVIDERS.find((p) => p.id === providerId);
   if (builtin === undefined || builtin.requiresApiKey === false) return false;
-  return hostOf(baseUrl) !== hostOf(builtin.baseUrl);
+  const host = hostOf(baseUrl);
+  return host === undefined || !builtinHosts(providerId).has(host);
 }
 
 /** 自定义供应商的兜底环境变量名：`AMA_API_KEY_<ID>`（非字母数字转下划线、大写）。 */

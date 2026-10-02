@@ -75,26 +75,89 @@
 
 ## 内置供应商
 
-| id           | 协议                                            | baseUrl                                             | API Key 环境变量（顺序）                                     |
-| ------------ | ----------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------ |
-| `anthropic`  | anthropic-messages                              | `https://api.anthropic.com`                         | `ANTHROPIC_API_KEY`、`AMA_API_KEY_ANTHROPIC`                 |
-| `openai`     | openai-completions（推理模型 openai-responses） | `https://api.openai.com/v1`                         | `OPENAI_API_KEY`、`AMA_API_KEY_OPENAI`                       |
-| `google`     | google-generative-ai                            | `https://generativelanguage.googleapis.com/v1beta`  | `GEMINI_API_KEY`、`GOOGLE_API_KEY`、`AMA_API_KEY_GOOGLE`     |
-| `deepseek`   | openai-completions                              | `https://api.deepseek.com`                          | `DEEPSEEK_API_KEY`、`AMA_API_KEY_DEEPSEEK`                   |
-| `moonshot`   | openai-completions                              | `https://api.moonshot.cn/v1`                        | `MOONSHOT_API_KEY`、`KIMI_API_KEY`、`AMA_API_KEY_MOONSHOT`   |
-| `zhipu`      | openai-completions                              | `https://open.bigmodel.cn/api/paas/v4`              | `ZHIPU_API_KEY`、`ZAI_API_KEY`、`AMA_API_KEY_ZHIPU`          |
-| `dashscope`  | openai-completions                              | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `DASHSCOPE_API_KEY`、`QWEN_API_KEY`、`AMA_API_KEY_DASHSCOPE` |
-| `openrouter` | openai-completions                              | `https://openrouter.ai/api/v1`                      | `OPENROUTER_API_KEY`、`AMA_API_KEY_OPENROUTER`               |
-| `groq`       | openai-completions                              | `https://api.groq.com/openai/v1`                    | `GROQ_API_KEY`、`AMA_API_KEY_GROQ`                           |
-| `xai`        | openai-completions（目录模型 openai-responses） | `https://api.x.ai/v1`                               | `XAI_API_KEY`、`AMA_API_KEY_XAI`                             |
-| `mistral`    | openai-completions                              | `https://api.mistral.ai/v1`                         | `MISTRAL_API_KEY`、`AMA_API_KEY_MISTRAL`                     |
-| `ollama`     | openai-completions                              | `http://127.0.0.1:11434/v1`                         | 可无（`OLLAMA_API_KEY`）                                     |
-| `lmstudio`   | openai-completions                              | `http://127.0.0.1:1234/v1`                          | 可无                                                         |
+| id           | 渠道（**粗体**为缺省）                                                                | 缺省地址                                           | API Key 环境变量（顺序）                                      |
+| ------------ | ------------------------------------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------- |
+| `anthropic`  | 单渠道 messages                                                                       | `https://api.anthropic.com`                        | `ANTHROPIC_API_KEY`、`AMA_API_KEY_ANTHROPIC`                  |
+| `openai`     | **responses**、chat                                                                   | `https://api.openai.com/v1`                        | `OPENAI_API_KEY`、`AMA_API_KEY_OPENAI`                        |
+| `google`     | 单渠道 gemini                                                                         | `https://generativelanguage.googleapis.com/v1beta` | `GEMINI_API_KEY`、`GOOGLE_API_KEY`、`AMA_API_KEY_GOOGLE`      |
+| `deepseek`   | **chat**、messages（`/anthropic`）                                                    | `https://api.deepseek.com`                         | `DEEPSEEK_API_KEY`、`AMA_API_KEY_DEEPSEEK`                    |
+| `moonshot`   | **chat**、messages、responses、chat-intl、messages-intl（`.ai`）                      | `https://api.moonshot.cn/v1`                       | `MOONSHOT_API_KEY`、`KIMI_API_KEY`、`AMA_API_KEY_MOONSHOT`    |
+| `zhipu`      | **chat**、messages（`/api/anthropic`）、chat-intl、messages-intl（`api.z.ai`）        | `https://open.bigmodel.cn/api/paas/v4`             | `ZHIPU_API_KEY`、`ZAI_API_KEY`、`AMA_API_KEY_ZHIPU`           |
+| `dashscope`  | **messages**（`/apps/anthropic`）、responses、chat、messages-intl、chat-intl          | `https://dashscope.aliyuncs.com/apps/anthropic`    | `DASHSCOPE_API_KEY`、`QWEN_API_KEY`、`AMA_API_KEY_DASHSCOPE`  |
+| `openrouter` | 单渠道 chat                                                                           | `https://openrouter.ai/api/v1`                     | `OPENROUTER_API_KEY`、`AMA_API_KEY_OPENROUTER`                |
+| `groq`       | 单渠道 chat                                                                           | `https://api.groq.com/openai/v1`                   | `GROQ_API_KEY`、`AMA_API_KEY_GROQ`                            |
+| `xai`        | **responses**、chat                                                                   | `https://api.x.ai/v1`                              | `XAI_API_KEY`、`AMA_API_KEY_XAI`                              |
+| `mistral`    | 单渠道 chat                                                                           | `https://api.mistral.ai/v1`                        | `MISTRAL_API_KEY`、`AMA_API_KEY_MISTRAL`                      |
+| `minimax`    | **messages**、responses（只 M3）、chat、messages-intl、chat-intl（`api.minimax.io`）  | `https://api.minimax.cn/anthropic`                 | `MINIMAX_API_KEY`、`AMA_API_KEY_MINIMAX`                      |
+| `stepfun`    | **messages**、chat、responses（只 step-5-preview）、messages-intl、chat-intl（`.ai`） | `https://api.stepfun.com`                          | `STEPFUN_API_KEY`、`STEP_API_KEY`、`AMA_API_KEY_STEPFUN`      |
+| `volcengine` | **responses**、chat                                                                   | `https://ark.cn-beijing.volces.com/api/v3`         | `ARK_API_KEY`、`VOLCENGINE_API_KEY`、`AMA_API_KEY_VOLCENGINE` |
+| `tencent`    | **messages**、chat（`/v1`）                                                           | `https://tokenhub.tencentmaas.com`                 | `TOKENHUB_API_KEY`、`HUNYUAN_API_KEY`、`AMA_API_KEY_TENCENT`  |
+| `ollama`     | 单渠道 chat                                                                           | `http://127.0.0.1:11434/v1`                        | 可无（`OLLAMA_API_KEY`）                                      |
+| `lmstudio`   | 单渠道 chat                                                                           | `http://127.0.0.1:1234/v1`                         | 可无                                                          |
 
 另有测试用供应商 `fake`（模型 `fake/echo`、`fake/reasoning`），见下文。
 
-协议列是供应商级缺省；目录条目可以用 `api` 覆盖（openai 的推理模型与 xai 的目录模型走
-`openai-responses`，非推理的 `gpt-4.1`、`gpt-4o*` 仍走 Completions）。
+**缺省协议**：Messages / Responses 优先、Chat 回落。能执行显式缓存的 Messages 端点（通义、MiniMax M2.x、腾讯）与
+官方推荐 Messages 的阶跃缺省 messages；OpenAI、xAI、火山方舟缺省 responses；DeepSeek、智谱、Kimi 只有隐式缓存，
+**缺省保持 chat，直到官方直连过了实测门**（见「渠道实测」）再改，切换只是 `builtin.ts` 里一行 `defaultChannel`。
+
+**内置渠道**（与用户的[渠道](#渠道channels一个供应商多种接口)同一机制）：
+
+- `provider/model@channel` 选渠道，例如 `deepseek/deepseek-v4-pro@messages`、`dashscope/qwen3.8-max@chat-intl`；
+  目录模型缺省挂全部渠道，目录可按模型限定（MiniMax M2.x、阶跃 step-3.x 没有 responses）。
+- 改缺省：`"providers": { "deepseek": { "defaultChannel": "messages" } }`；或只写协议
+  `"api": "anthropic-messages"`，选同协议的内置渠道。
+- 改某个渠道：`channels.<内置渠道名>` 只写要改的字段（`headers` / `compat` 合并一层，其余覆盖）；新名字的渠道追加
+  在后，目录模型同样可用。
+- **改了供应商级 `baseUrl`**（config、auth.json 或 `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`）而没写自己的
+  `channels` 时，内置渠道作废，按「供应商级 `api` + 新 `baseUrl`」单渠道处理，与引入内置渠道之前一致：回落协议是
+  Chat（`api` 可改）；OpenAI / xAI / 火山方舟的**目录模型**在中转上仍走 Responses，目录外的 id（本地服务、中转
+  自有模型）走 Chat。落在任一内置渠道主机上（如国际站）不算中转。
+- 鉴权头按渠道：Anthropic 兼容端点缺省 `x-api-key`，Kimi、MiniMax、阶跃的 Messages 渠道按其文档用
+  `Authorization: Bearer`。
+
+### Coding Plan 类订阅端点
+
+火山方舟、阿里百炼、智谱、Kimi、MiniMax、阶跃等的 Coding Plan / Token Plan 额度只限编程工具使用，`ama -p` 与 RPC
+嵌入属于自动化调用，有被判违规的风险，因此**不做内置渠道**。确认条款允许后可自行加渠道（key 写在渠道上）：
+
+```json
+{
+  "providers": {
+    "volcengine": {
+      "channels": {
+        "coding": {
+          "api": "anthropic-messages",
+          "baseUrl": "https://ark.cn-beijing.volces.com/api/coding",
+          "apiKey": "$ARK_CODING_PLAN_KEY"
+        }
+      }
+    },
+    "zhipu": {
+      "channels": {
+        "coding": {
+          "api": "openai-completions",
+          "baseUrl": "https://open.bigmodel.cn/api/coding/paas/v4",
+          "apiKey": "$ZHIPU_CODING_PLAN_KEY"
+        }
+      }
+    },
+    "stepfun": {
+      "channels": {
+        "plan": {
+          "api": "anthropic-messages",
+          "baseUrl": "https://api.stepfun.com/step_plan",
+          "apiKey": "$STEP_PLAN_KEY",
+          "authHeader": "authorization-bearer"
+        }
+      }
+    }
+  }
+}
+```
+
+然后 `--model volcengine/<模型>@coding`（订阅端点的模型 id 以各家文档为准，目录外的 id 用 `models[]` 补上并写
+`"channels": ["coding"]`）。
 
 ## 模型引用
 
@@ -235,7 +298,7 @@ Anthropic Messages（`/v1/messages`），且每个模型只在其中一部分接
 - **模型引用**：`provider/model` 走首选渠道；`provider/model@channel` 显式指定（`--model`、`defaultModel`、
   `/model`、SDK、RPC `set_model` 一致）。指定的渠道不在该模型的 `channels` 里 → 报错并列出可用的
   `provider/model@channel`。`@` 之后不是该供应商的渠道名时整串仍按模型 id 处理（兼容 id 里本来带 `@` 的模型）。
-- **向后兼容**：没有 `channels` 的供应商（含全部内置供应商）按单渠道处理——供应商级 `api` + `baseUrl`
+- **向后兼容**：没有 `channels` 的供应商（自定义供应商与单协议的内置供应商；多协议内置供应商的内置渠道见「内置供应商」）按单渠道处理——供应商级 `api` + `baseUrl`
   就是隐式的 `default` 渠道；模型级 `api` / `baseUrl` 仍然有效，覆盖在所选渠道之上（等价于一个匿名渠道）。
   已有配置不用改。写了 `channels` 时供应商级 `api` / `baseUrl` 不再单独成渠道。
 - **运行时**：选中的模型带上该渠道的协议、地址、key、headers 与 compat；会话记录（`model_change`）与
@@ -414,6 +477,20 @@ src/ai/providers/catalog.test.ts` 自动删除并重新生成 `catalog-data.ts`�
 
 compat 只记录**已验证**的差异；新增条目请附文档链接或真实样本。
 
+## Anthropic Messages 的 compat
+
+按请求主机推断缺省（`src/ai/apis/anthropic-compat.ts`），`providers.<id>.compat`、渠道或模型级 `compat` 逐字段覆盖：
+
+| 开关                          | 作用                                                 | 缺省                                                                                                           |
+| ----------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `sendInterleavedThinkingBeta` | 预算型思考 + 工具时带 `interleaved-thinking` beta 头 | `api.anthropic.com` 开；DeepSeek、智谱、Kimi、通义、MiniMax、阶跃、腾讯、火山关；其它主机只对 `claude*` 模型开 |
+| `sendCacheControl`            | 打 `cache_control` 断点                              | 开；DeepSeek 关（文档写明忽略）                                                                                |
+| `adaptiveThinking`            | `{type:"adaptive"}` + `output_config.effort`         | 关；官方新模型在目录里逐条开                                                                                   |
+| `supportsCacheControlOnTools` | 最后一个工具定义上打断点                             | 开                                                                                                             |
+| `maxCacheBreakpoints`         | 断点个数上限                                         | 4                                                                                                              |
+
+OpenRouter 的 Messages 接口只在 `message_delta` 里给缓存 usage，解析本就按非空字段合并，不需要开关。
+
 ## Responses 与 Gemini 的 compat
 
 | 协议                   | 开关                            | 作用                                                                                                      | 缺省                                         |
@@ -456,15 +533,15 @@ Anthropic 的 `baseUrl` 以 `/v1` 结尾时请求 `{baseUrl}/messages`，不会�
 
 ### 兼容开关（`providers.<id>.compat` 或模型级 `compat`）
 
-| 开关                              | 作用                                                    | 缺省                                      |
-| --------------------------------- | ------------------------------------------------------- | ----------------------------------------- |
-| `sendPromptCacheKey`              | 发 `prompt_cache_key`                                   | 请求主机是 `api.openai.com` 时开，其余关  |
-| `sendSessionAffinityHeaders`      | 发亲和头                                                | 关（含 OpenRouter，未实测）               |
-| `supportsLongCacheRetention`      | `long` 可用（Anthropic 1h、OpenAI 24h）；否则降为 short | `api.openai.com` / `api.anthropic.com` 开 |
-| `supportsExplicitPromptCacheMode` | Responses 的 `prompt_cache_options`（30m）              | 关                                        |
-| `cacheReporting`                  | `auto` / `silent` / `reported`：强制「是否报缓存」三态  | `auto`                                    |
+| 开关                              | 作用                                                    | 缺省                                                                            |
+| --------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `sendPromptCacheKey`              | 发 `prompt_cache_key`                                   | OpenAI、xAI、Mistral、Kimi（`.cn` / `.ai`）、腾讯 TokenHub 的官方主机开，其余关 |
+| `sendSessionAffinityHeaders`      | 发亲和头                                                | 关（含 OpenRouter，未实测）                                                     |
+| `supportsLongCacheRetention`      | `long` 可用（Anthropic 1h、OpenAI 24h）；否则降为 short | `api.openai.com` / `api.anthropic.com` / `tokenhub.tencentmaas.com` 开          |
+| `supportsExplicitPromptCacheMode` | Responses 的 `prompt_cache_options`（30m）              | 关                                                                              |
+| `cacheReporting`                  | `auto` / `silent` / `reported`：强制「是否报缓存」三态  | `auto`                                                                          |
 
-推断只看最终请求的主机名，不看 provider id：用 `OPENAI_BASE_URL` 或自定义 `baseUrl` 把 `openai` 指到中转时
+推断只看最终请求的主机名（`cache-params.ts` 的 `HOST_CACHE_CAPABILITIES`，只收官方文档写明支持的主机），不看 provider id：用 `OPENAI_BASE_URL` 或自定义 `baseUrl` 把 `openai` 指到中转时
 按中转处理。缺省只对官方端点开，是因为中转上实测「接受但未见收益」或「收下但不生效」（下表）。
 
 **400 自动剥离**：端点以 400 拒收并在错误体里点名 `prompt_cache_key` / `prompt_cache_retention` /
@@ -585,6 +662,62 @@ ama models cache-probe <provider/id> [--tokens 2048] [--gap-ms 3000] [--json] [-
   请求的 `cached_tokens: 0` 正是「字段存在但为 0」，`cacheReported` 为 true。
 - `/v1` 去重与 `toolChoice: "none"` 经 ama 协议层实发验证：Messages 请求落在 `/v1/messages`，三种接口都接受
   `tool_choice: none` 且未产生工具调用。
+
+## 渠道实测
+
+`scripts/channel-probe.mjs`（先 `pnpm build:lib`）对 `provider/model@channel` 跑实测门，每个模型 ≤ 8 个请求：
+
+| 项                | 做法                                                           | 通过                                                                     |
+| ----------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| ① check           | 一次最小调用                                                   | 无错误且有文本                                                           |
+| ② 工具往返        | 一次并行 `read` 两个临时文件、回答口令                         | 有工具调用且回答含口令                                                   |
+| ③ thinking 两回合 | 接着同一对话、thinking=medium 再读一个文件（思考块随历史回放） | 第二次无错误；没有思考块或 Messages 上思考块无签名记 ⚠（签名回放未验证） |
+| ④ 缓存            | 约 3k token 的固定前缀相隔 `--gap-ms` 发两次                   | 第二次 cacheRead > 0                                                     |
+| tool_use.id       | ②③ 同一对话里的全部工具调用 id                                 | 互不相同                                                                 |
+
+四项全过且 id 不重复 = 过门；DeepSeek、智谱、Kimi 的官方 Messages 渠道过门后缺省改 messages。
+
+### 中转对比（2026-10-02，messages vs chat）
+
+同一测试中转（Chat / Messages 两种接口），`--gap-ms 8000`，84 次请求（含一轮调试），保守估价约 $0.11：
+
+| 模型@渠道                          | 协议 · 主机                           | ① check | ② 工具往返 | ③ thinking 两回合    | ④ 缓存（读 / 前缀） | id 唯一 | 请求 | 结论     |
+| ---------------------------------- | ------------------------------------- | ------- | ---------- | -------------------- | ------------------- | ------- | ---- | -------- |
+| `packy/kimi-k2.5@messages`         | anthropic-messages · www.packyapi.com | ✓       | ✓          | ⚠ 2/2 个思考块无签名 | ✓ 2734 / 2738       | ✓       | 7    | 未过     |
+| `packy/kimi-k2.5@chat`             | openai-completions · www.packyapi.com | ✓       | ✓          | ✓                    | ✓ 2688 / 2740       | ✓       | 7    | **过门** |
+| `packy/deepseek-v4-flash@messages` | anthropic-messages · www.packyapi.com | ✓       | ✓          | ⚠ 没有思考块         | ✓ 2048 / 2732       | ✓       | 7    | 未过     |
+| `packy/deepseek-v4-flash@chat`     | openai-completions · www.packyapi.com | ✓       | ✓          | ✓                    | ✓ 2048 / 2732       | ✓       | 7    | **过门** |
+| `packy/glm-5@messages`             | anthropic-messages · www.packyapi.com | ✓       | ✓          | ⚠ 2/2 个思考块无签名 | ✓ 2560 / 2733       | ✓       | 7    | 未过     |
+| `packy/glm-5@chat`                 | openai-completions · www.packyapi.com | ✓       | ✓          | ✓                    | ✓ 2560 / 2733       | ✓       | 7    | **过门** |
+| `packy/qwen3.8-flash@messages`     | anthropic-messages · www.packyapi.com | ✓       | ✓          | ⚠ 2/2 个思考块无签名 | ✓ 3053 / 3061       | ✓       | 7    | 未过     |
+| `packy/qwen3.8-flash@chat`         | openai-completions · www.packyapi.com | ✓       | ✓          | ✓                    | ✓ 2048 / 3063       | ✓       | 7    | **过门** |
+| `packy/MiniMax-M2.7@messages`      | anthropic-messages · www.packyapi.com | ✓       | ✓          | ⚠ 2/2 个思考块无签名 | ✓ 2638 / 2743       | ✓       | 7    | 未过     |
+| `packy/MiniMax-M2.7@chat`          | openai-completions · www.packyapi.com | ✓       | ✓          | ✓                    | ✓ 2638 / 2744       | ✓       | 7    | **过门** |
+
+- 五家在中转的两种接口上 ①②④ 全过，tool_use.id 在同一对话里都不重复（Kimi 的 id 形如 `functions.read:<n>`，
+  按对话递增；不同对话会从 0 重来，所以只能在同一对话里比较）。
+- Messages 接口上的思考块**都没有签名**（DeepSeek 没返回思考块）：中转把上游 Chat 转成 Messages 时不带签名，
+  ama 按规则降级为文本回放，往返照常成功，但签名回放没被验证——**中转结果不能替代官方直连的实测门**。
+- 缓存：通义在 Messages 上首个请求就写入 3053 token（执行 `cache_control`），第二次读满前缀；其余四家读命中照常、
+  `cache_creation_input_tokens` 为 0（端点自管的隐式缓存），与「缓存 · 中转实测」一致。
+
+### 官方直连（待用户用自己的 key 跑）
+
+每家 ≤ 8 个请求，Kimi 的缓存写入有延迟、用 `--gap-ms 8000`：
+
+```sh
+pnpm build:lib
+node scripts/channel-probe.mjs --model deepseek/deepseek-v4-pro@messages,deepseek/deepseek-v4-pro@chat --json /tmp/probe-deepseek.json
+node scripts/channel-probe.mjs --model zhipu/glm-5.3@messages,zhipu/glm-5.3@chat --json /tmp/probe-zhipu.json
+node scripts/channel-probe.mjs --model moonshot/kimi-k3@messages,moonshot/kimi-k3@chat --gap-ms 8000 --json /tmp/probe-kimi.json
+node scripts/channel-probe.mjs --model dashscope/qwen3.8-max@messages --json /tmp/probe-qwen.json
+node scripts/channel-probe.mjs --model minimax/MiniMax-M3@messages,minimax/MiniMax-M2.7@messages --json /tmp/probe-minimax.json
+node scripts/channel-probe.mjs --model stepfun/step-5-preview@messages --json /tmp/probe-stepfun.json
+node scripts/channel-probe.mjs --model tencent/hy3@messages --json /tmp/probe-tencent.json
+node scripts/channel-probe.mjs --model volcengine/doubao-seed-2-1-pro-260628@responses --json /tmp/probe-volcengine.json
+```
+
+key 用各家标准环境变量（上表）；没有 key 的那家记「没有 key」、不发请求。结果用 `--render` 重画后补进本节。
 
 ## 测试用 fake 供应商
 
