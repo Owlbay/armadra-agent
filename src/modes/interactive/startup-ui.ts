@@ -10,7 +10,7 @@
 
 import { existsSync, statSync } from "node:fs";
 import { resolve } from "node:path";
-import type { ProviderRegistryApi } from "../../ai/types.js";
+import type { Model, ProviderRegistryApi } from "../../ai/types.js";
 import type { InteractiveUi } from "../../cli/deps.js";
 import type { TrustPromptAnswer } from "../../config/trust.js";
 import type { SessionListItem } from "../../session/types.js";
@@ -163,7 +163,25 @@ function askText(
 // 列表项（选择器共用）
 // ---------------------------------------------------------------------------
 
-/** 模型按供应商分组；有 key（或本地）的供应商排前，组标题标 key 状态。 */
+/** 选择器里模型的说明：名称（与 id 不同时）、上下文、`img`（收图片）。 */
+export function modelDescription(model: Model): string | undefined {
+  const ctx = model.contextWindow;
+  const parts = [
+    model.name !== "" && model.name !== model.id ? model.name : undefined,
+    ctx === undefined
+      ? undefined
+      : ctx >= 1_000_000
+        ? `${Math.round(ctx / 100_000) / 10}M`
+        : `${Math.round(ctx / 1000)}k`,
+    model.input.includes("image") ? "img" : undefined,
+  ].filter((x) => x !== undefined);
+  return parts.length > 0 ? parts.join(" · ") : undefined;
+}
+
+/**
+ * 模型按「供应商 · 渠道」分组；有 key（或本地）的供应商排前，组标题标 key 状态。多渠道供应商的模型在
+ * 每个挂载的渠道下各出现一次，非首选渠道的值带 `@渠道`。
+ */
 export async function modelItems(providers: ProviderRegistryApi): Promise<SelectItem[]> {
   const groups: { ready: boolean; items: SelectItem[] }[] = [];
   for (const provider of providers.list()) {
@@ -176,15 +194,28 @@ export async function modelItems(providers: ProviderRegistryApi): Promise<Select
       ready = key.apiKey !== undefined;
       status = ready ? "key ✓" : "无 key";
     }
-    const group = `${provider.id} · ${status}`;
-    groups.push({
-      ready,
-      items: provider.models.map((model) => {
-        const item: SelectItem = { value: `${provider.id}/${model.id}`, label: model.id, group };
-        if (model.name !== "" && model.name !== model.id) item.description = model.name;
-        return item;
-      }),
-    });
+    const item = (model: Model, group: string, channel?: string): SelectItem => {
+      const suffix = channel !== undefined && channel !== model.channel ? `@${channel}` : "";
+      const out: SelectItem = {
+        value: `${provider.id}/${model.id}${suffix}`,
+        label: `${model.id}${suffix}`,
+        group,
+      };
+      const description = modelDescription(model);
+      if (description !== undefined) out.description = description;
+      return out;
+    };
+    if (provider.channels === undefined) {
+      const group = `${provider.id} · ${status}`;
+      groups.push({ ready, items: provider.models.map((model) => item(model, group)) });
+      continue;
+    }
+    for (const channel of provider.channels) {
+      const group = `${provider.id} · ${channel.name} · ${status}`;
+      const models = provider.models.filter((m) => m.channels?.includes(channel.name));
+      if (models.length > 0)
+        groups.push({ ready, items: models.map((model) => item(model, group, channel.name)) });
+    }
   }
   return [...groups.filter((g) => g.ready), ...groups.filter((g) => !g.ready)].flatMap(
     (g) => g.items,
