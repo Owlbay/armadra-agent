@@ -380,7 +380,7 @@ describe("审批对话框（en）", () => {
         req({
           toolName: "edit",
           input: {
-            path: "/w/src/util.ts",
+            path: "/w/util.ts",
             edits: [
               { oldText: "export function helper() {", newText: "export function format() {" },
             ],

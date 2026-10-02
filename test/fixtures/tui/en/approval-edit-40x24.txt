@@ -1,7 +1,7 @@
 # viewport 40x24 cursor=11,39
 |╭─ Needs confirmation ─────────────────╮
 |│ edit                                 │
-|│ src/util.ts  1 edit                  │
+|│ util.ts  1 edit                      │
 |│ - export function helper() {         │
 |│ + export function format() {         │
 |│ Confirmation required in permission  │

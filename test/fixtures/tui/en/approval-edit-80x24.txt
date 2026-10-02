@@ -1,7 +1,7 @@
 # viewport 80x24 cursor=13,79
 |╭─ Needs confirmation ─────────────────────────────────────────────────────────╮
 |│ edit  Needs confirmation                                                     │
-|│ src/util.ts  1 edit                                                          │
+|│ util.ts  1 edit                                                              │
 |│ - export function helper() {                                                 │
 |│ + export function format() {                                                 │
 |│                                                                              │
