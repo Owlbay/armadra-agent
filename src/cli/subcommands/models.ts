@@ -7,6 +7,8 @@
  * [W3-C0] 子命令分派改为动作表 `MODELS_ACTIONS`（第三波 §1.11 / §2.3）：新动作（C2 的
  * `cache-probe`、B12 的 `discover`）各写在自己的文件里，这里只加一行表项；用法文本、
  * 选项表与必填位置参数都从表里来。
+ *
+ * [W5-M1] `refresh`：models.dev 显式刷新（`refresh-catalog` 保留为别名）。
  */
 
 import { formatModelRef, modelRefOf } from "../../ai/providers/channels.js";
@@ -15,6 +17,7 @@ import {
   modelsDevCachePath,
   refreshModelsDev,
 } from "../../ai/providers/models-dev-cache.js";
+import { snapshotMeta } from "../../ai/providers/models-dev-snapshot.js";
 import type { ProviderRegistryApi } from "../../ai/types.js";
 import { parseSubArgs, UsageError } from "../args.js";
 import type { CliIo, RuntimeDeps } from "../deps.js";
@@ -125,6 +128,33 @@ async function check(io: CliIo, registry: ProviderRegistryApi, ref: string): Pro
   return ExitCode.Ok;
 }
 
+/**
+ * `ama models refresh [--provider <id>[,<id>…]]`：显式联网拉 models.dev，按内置快照的清单裁剪，
+ * 写用户级覆盖 `<dataDir>/models-dev.json`（docs/providers.md「模型元数据」）。启动与其它命令不联网。
+ */
+const REFRESH_ACTION: ModelsAction = {
+  usage: "ama models refresh [--provider <id>[,<id>…]]",
+  valueOptions: ["provider"],
+  run: async (ctx) => {
+    const only = ctx.values.get("provider");
+    const providers = only
+      ?.split(",")
+      .map((p) => p.trim())
+      .filter(Boolean);
+    ctx.io.stdout(`内置快照：${snapshotMeta().fetchedAt}；正在拉取 models.dev…\n`);
+    const result = await refreshModelsDev({
+      dataDir: ctx.level.dataDir,
+      env: ctx.io.env,
+      ...(providers !== undefined && providers.length > 0 ? { providers } : {}),
+    });
+    if (result.warning !== undefined) ctx.io.stderr(`ama: ${result.warning}\n`);
+    ctx.io.stdout(`${describeRefresh(result)}\n`);
+    if (result.status === "failed") return ExitCode.RuntimeError;
+    ctx.io.stdout(`已写入 ${modelsDevCachePath(ctx.level.dataDir)}\n`);
+    return ExitCode.Ok;
+  },
+};
+
 /** 动作表：键是子命令名，顺序即用法文本顺序。 */
 export const MODELS_ACTIONS: Readonly<Record<string, ModelsAction>> = Object.freeze({
   list: {
@@ -139,18 +169,8 @@ export const MODELS_ACTIONS: Readonly<Record<string, ModelsAction>> = Object.fre
   },
   discover: DISCOVER_ACTION,
   "cache-probe": CACHE_PROBE_ACTION,
-  "refresh-catalog": {
-    usage: "ama models refresh-catalog",
-    run: async (ctx) => {
-      const result = await refreshModelsDev({
-        dataDir: ctx.level.dataDir,
-        env: ctx.io.env,
-      });
-      ctx.io.stdout(`${describeRefresh(result)}\n${modelsDevCachePath(ctx.level.dataDir)}\n`);
-      if (result.warning !== undefined) ctx.io.stderr(`ama: 警告：${result.warning}\n`);
-      return result.status === "failed" ? ExitCode.RuntimeError : ExitCode.Ok;
-    },
-  },
+  refresh: REFRESH_ACTION,
+  "refresh-catalog": { ...REFRESH_ACTION, usage: "ama models refresh-catalog（refresh 的旧名）" },
 });
 
 export const MODELS_USAGE = `用法：${Object.values(MODELS_ACTIONS)

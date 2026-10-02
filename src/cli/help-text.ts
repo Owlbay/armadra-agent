@@ -74,7 +74,8 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
   ama models check <provider/id>     发一次最小请求检查可用性
   ama models discover <provider> [--probe] [--write] [--limit N]
                                从中转 /v1/models 列出模型，探测协议并写入配置
-  ama models refresh-catalog   强制刷新 models.dev 模型元数据缓存
+  ama models refresh [--provider <id>]  联网刷新 models.dev 元数据到数据目录（启动不联网；
+                               旧名 refresh-catalog）
   ama providers add <id> --base-url <url> [--key-env VAR] [--probe] [--channel n=api@url] [--yes]
                                一键接入：列模型、补 models.dev 元数据、探测渠道、写入配置
   ama providers list|channels <id>|remove <id>|refresh <id>
