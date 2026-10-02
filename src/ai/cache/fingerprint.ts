@@ -18,8 +18,8 @@ export function hash16(text: string): string {
   return createHash("sha256").update(text).digest("hex").slice(0, 16);
 }
 
-export function modelKey(model: Pick<Model, "provider" | "id"> | ModelRef): string {
-  return `${model.provider}/${model.id}`;
+export function modelKey(model: Pick<Model, "provider" | "id" | "channel"> | ModelRef): string {
+  return `${model.provider}/${model.id}${model.channel !== undefined ? `@${model.channel}` : ""}`;
 }
 
 function sortedTools(tools: readonly ToolDecl[]): ToolDecl[] {

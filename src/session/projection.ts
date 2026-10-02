@@ -212,7 +212,12 @@ export function buildContext(branch: readonly SessionEntry[]): ProjectedContext 
   let model: ModelRef | undefined;
   let thinkingLevel: ModelThinkingLevel | undefined;
   for (const entry of branch) {
-    if (entry.type === "model_change") model = { provider: entry.provider, id: entry.modelId };
+    if (entry.type === "model_change")
+      model = {
+        provider: entry.provider,
+        id: entry.modelId,
+        ...(entry.channel !== undefined ? { channel: entry.channel } : {}),
+      };
     else if (entry.type === "thinking_level_change") thinkingLevel = entry.thinkingLevel;
   }
   return { messages: buildProjection(branch).messages, model, thinkingLevel };

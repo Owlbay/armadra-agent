@@ -49,7 +49,8 @@ export interface RpcCommandMap {
   get_last_assistant_text: NoParams;
   get_session_stats: NoParams;
   // 模型
-  set_model: { provider: string; modelId: string };
+  /** `channel`：多渠道供应商的渠道名（缺省走模型的首选渠道）。 */
+  set_model: { provider: string; modelId: string; channel?: string };
   get_available_models: NoParams;
   set_thinking_level: { level: ModelThinkingLevel };
   get_available_thinking_levels: NoParams;

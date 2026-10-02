@@ -80,6 +80,8 @@ export interface ModelChangeEntry extends EntryBase {
   type: "model_change";
   provider: string;
   modelId: string;
+  /** 所选渠道（多渠道供应商）；没有时走模型的首选渠道。 */
+  channel?: string;
 }
 
 export interface ThinkingLevelChangeEntry extends EntryBase {

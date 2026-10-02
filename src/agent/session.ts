@@ -11,6 +11,7 @@
  * - `abort()`：中断供应商流、工具、重试等待与压缩；回到 idle 后 resolve；不清队列。
  */
 
+import { modelRefOf } from "../ai/providers/channels.js";
 import { join } from "node:path";
 import type { Model, ModelThinkingLevel, UserMessage } from "../ai/types.js";
 import { AmaError } from "../errors.js";
@@ -183,7 +184,8 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
 
   async resolveApiKey(): Promise<string | undefined> {
     try {
-      return (await this.options.providers.resolveApiKey(this.currentModel.provider)).apiKey;
+      const { provider, channel } = this.currentModel;
+      return (await this.options.providers.resolveApiKey(provider, channel)).apiKey;
     } catch {
       return undefined;
     }
@@ -441,15 +443,14 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
     }
     this.currentModel = lookup.model;
     this.compaction.refresh();
+    const next = modelRefOf(lookup.model);
     this.appendEntry({
       type: "model_change",
-      provider: lookup.model.provider,
-      modelId: lookup.model.id,
+      provider: next.provider,
+      modelId: next.id,
+      ...(next.channel !== undefined ? { channel: next.channel } : {}),
     });
-    this.emit({
-      type: "model_changed",
-      model: { provider: lookup.model.provider, id: lookup.model.id },
-    });
+    this.emit({ type: "model_changed", model: next });
   }
 
   setThinkingLevel(level: ModelThinkingLevel): void {

@@ -82,6 +82,19 @@ export function formatModelRef(ref: { provider: string; id: string; channel?: st
   return `${ref.provider}/${ref.id}${ref.channel !== undefined ? `@${ref.channel}` : ""}`;
 }
 
+/** Model / ModelRef → ModelRef（带上渠道，没有渠道时不出现该键）。 */
+export function modelRefOf(model: { provider: string; id: string; channel?: string | undefined }): {
+  provider: string;
+  id: string;
+  channel?: string;
+} {
+  return {
+    provider: model.provider,
+    id: model.id,
+    ...(model.channel !== undefined ? { channel: model.channel } : {}),
+  };
+}
+
 /** 协议的短名（表格用）。 */
 export function apiShortName(api: Api): string {
   switch (api) {

@@ -6,6 +6,7 @@
  * 计入 token 与费用但不算消息。上下文 % 用投影感知估算（§9）。
  */
 
+import { modelRefOf } from "../ai/providers/channels.js";
 import type { Model, ModelThinkingLevel, Usage } from "../ai/types.js";
 import type { PermissionMode } from "../permissions/types.js";
 import type { SessionManager } from "../session/manager.js";
@@ -31,7 +32,7 @@ export function buildSessionState(input: StateInput): SessionState {
     isStreaming: agent.isRunning,
     isCompacting: input.isCompacting,
     isRetrying: input.isRetrying,
-    model: { provider: model.provider, id: model.id },
+    model: modelRefOf(model),
     thinkingLevel: input.thinkingLevel,
     permissionMode: input.permissionMode,
     sessionId: manager.id,
