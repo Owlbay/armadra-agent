@@ -34,6 +34,8 @@ const CASES: Record<string, { yes: string[]; no: string[] }> = {
   "git-push-force": {
     yes: [
       "git push --force",
+      "git -c core.x=y push --force",
+      "git -C repo push -f origin main",
       "git push -f origin main",
       "git push --force-with-lease",
       "git push origin +main",
@@ -41,12 +43,30 @@ const CASES: Record<string, { yes: string[]; no: string[] }> = {
     no: ["git push origin main", "git push --follow-tags", "git push -u origin feat"],
   },
   "git-reset-hard": {
-    yes: ["git reset --hard HEAD~1", "git reset --hard"],
+    yes: [
+      "git reset --hard HEAD~1",
+      "git reset --hard",
+      "git -C sub reset --hard",
+      "git --no-pager -c a=b reset --hard",
+    ],
     no: ["git reset --soft HEAD~1", "git reset HEAD file", "git checkout --hard-to-find"],
   },
   "git-clean-force": {
-    yes: ["git clean -fd", "git clean -fdx", "git clean -df", "git clean --force"],
-    no: ["git clean -n", "git clean --dry-run", "git status"],
+    yes: [
+      "git clean -fd",
+      "git clean -fdx",
+      "git clean -df",
+      "git clean --force",
+      "git -C sub clean -fd",
+      "git --git-dir=.git clean -f",
+    ],
+    no: [
+      "git clean -n",
+      "git clean --dry-run",
+      "git status",
+      "git -C sub status",
+      "git -c a=b log --hard",
+    ],
   },
   "git-branch-force-delete": {
     yes: ["git branch -D feature", "git branch --delete --force x"],

@@ -107,7 +107,9 @@ describe("bash 预览", () => {
     // 危险表认不出 `git -C`，预览自己标红；-C 改变路径基准
     const viaC = bash("git -C sub reset --hard && git -C sub checkout -- x.txt");
     expect(viaC.severity).toBe("danger");
+    // 危险命令表现在能穿过 git 的全局选项（-C / -c …），所以和不带选项时一样带上规则行。
     expect(viaC.lines).toEqual([
+      "危险：git reset --hard",
       "git reset --hard：丢弃工作区与暂存区的全部未提交改动",
       "丢弃改动 sub/x.txt：文件，5 B",
     ]);
