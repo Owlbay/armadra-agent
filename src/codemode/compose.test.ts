@@ -186,7 +186,7 @@ describe("组装根里的 codemode", () => {
     await explicit.dispose();
   });
 
-  it("--codemode on：其它工具描述带提示，codemode 与预设工具并列", async () => {
+  it("--codemode on：codemode 与预设工具并列，其它工具描述不变，codemode 描述只列名字", async () => {
     h = composeHarness([{ text: "ok" }]);
     const runtime = await h.boot(["--model", "fake/echo", "--codemode", "on"]);
     const tools = runtime.session.getTools();
@@ -199,12 +199,40 @@ describe("组装根里的 codemode", () => {
       "read",
       "write",
     ]);
-    expect(tools.find((t) => t.name === "read")?.description).toMatch(
-      /Also callable inside codemode scripts as tools\.read\(args\)\.$/,
-    );
+    expect(tools.find((t) => t.name === "read")?.description).not.toContain("codemode");
     const codemode = tools.find((t) => t.name === "codemode")?.description ?? "";
-    expect(codemode).not.toContain("Also callable inside codemode");
-    expect(codemode).toContain("  ls(args:");
+    expect(codemode).toContain(
+      "same arguments: bash, edit, glob, grep, read, write (tools.bash resolves to BashResult",
+    );
+    expect(codemode).toContain("Callable only from scripts: ls, task, todo.");
+    expect(codemode).not.toContain("ls(args:");
     await runtime.dispose();
+  });
+
+  it("on 模式的前缀增量（系统提示 + 工具表，字符 / 4 估算）≤ 500 token；脚本里仍可调仅脚本工具", async () => {
+    const strict = detectSandboxCapability("26.0.0");
+    const measure = async (mode: string, script: FakeResponse[]) => {
+      const harness = composeHarness(script);
+      allowCodemode(harness);
+      harness.home.write("work/README.md", "# demo\n");
+      const runtime = await harness.boot(["--model", "fake/echo", "-p", "x", "--codemode", mode], {
+        sandboxCapability: strict,
+      });
+      await runtime.session.prompt("hi");
+      const tokens = Math.ceil(prefix(harness.fake.calls[0]!.context).length / 4);
+      const results = runtime.session.messages.filter((m) => m.role === "toolResult");
+      await runtime.dispose();
+      harness.cleanup();
+      return { tokens, results };
+    };
+    const off = await measure("off", [{ text: "ok" }]);
+    const on = await measure("on", [
+      codemodeCall(`return (await tools.ls({})).includes("README.md");`),
+      { text: "ok" },
+    ]);
+    // 去重前约 1356（审计 2026-10），去重后约 390
+    expect(on.tokens - off.tokens).toBeLessThanOrEqual(500);
+    expect(on.tokens - off.tokens).toBeGreaterThan(200);
+    expect(String(on.results[0]?.content)).toMatch(/\n\ntrue$/);
   });
 });

@@ -33,7 +33,7 @@ import { BUILTIN_DENY_RULES, parseRule } from "../permissions/rules.js";
 import type { Rule } from "../permissions/types.js";
 import { discoverSkills, skillSources } from "../skills/discover.js";
 import { discoverPromptTemplates, promptSources } from "../skills/templates.js";
-import { applyCodemodeMode, decorateForMode } from "../codemode/modes.js";
+import { applyCodemodeMode } from "../codemode/modes.js";
 import { detectSandboxCapability, type SandboxCapability } from "../codemode/capability.js";
 import { codemodeToolFactory } from "../codemode/tool.js";
 import { PresetToolRegistry, resolvePreset } from "../tools/presets.js";
@@ -113,9 +113,9 @@ export const DEFAULT_MODES: Readonly<Partial<Record<RuntimeMode, ModeRunner>>> =
 /**
  * 第 12 步：内置工具 + 工厂 + extraTools，按预设定活动集；warning 留给组装会话时报告。
  *
- * 先跑工厂（产物暂不注册）再解析预设：codemode 是否可用决定预设与模式；`on` 模式下注册时给
- * 其它工具的描述追加 codemode 提示，`only` 模式活动集独占（codemode/modes.ts）。工厂拿到的
- * `registry` 在执行期才读，此时已登记完全部工具。
+ * 先跑工厂（产物暂不注册）再解析预设：codemode 是否可用决定预设与模式；`only` 模式活动集独占
+ * （codemode/modes.ts）。工厂拿到的 `registry` 在执行期才读，此时已登记完全部工具。default 预设
+ * 跟随预设而 codemode 缺省关闭时（非 strict 运行时）提示一次（cli/codemode-notice.ts）。
  */
 export function createTools(
   input: {
@@ -164,15 +164,14 @@ export function createTools(
     available: (name) => names.has(name),
     strict: capability.strict,
   });
-  const decorate = decorateForMode(preset.codemode);
   for (const tool of [...builtins, ...produced]) {
     try {
-      registry.register(decorate(tool), "builtin");
+      registry.register(tool, "builtin");
     } catch (error) {
       state.warnings.push(`工具 ${tool.name} 注册失败：${(error as Error).message}`);
     }
   }
-  for (const tool of extra) registry.register(decorate(tool), "sdk");
+  for (const tool of extra) registry.register(tool, "sdk");
   applyCodemodeMode(registry, preset);
   state.warnings.push(...preset.warnings);
   if (input.paths !== undefined) {

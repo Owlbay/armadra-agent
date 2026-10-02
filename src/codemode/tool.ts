@@ -12,6 +12,9 @@
  * - store 只在脚本成功时提交（store.ts）；
  * - 描述（含工具声明）在第一次读取时确定并冻结：同一会话内字节稳定（设计 §9.1），之后注册的宿主
  *   工具仍可在脚本里调用（`ALL_TOOLS` / `describeTool` 是执行时的清单）。
+ * - 描述分两种（`buildCodemodeDescription` 的 `layout`）：`only` 模式按预算内联全部工具声明；`on`
+ *   模式不重复已直接暴露给模型的工具（它们的 schema 已在工具表里），只用一行列出名字，「仅脚本可
+ *   调用」的工具也只列名字（`describeTool(name)` 取签名），把 on 模式的前缀增量压在约 400 token。
  */
 
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -27,13 +30,13 @@ import {
   type SandboxCapability,
 } from "./capability.js";
 import {
+  BASH_RESULT_DECLARATION,
   DEFAULT_INLINE_BUDGET,
   buildDeclarationBlock,
   toolDeclaration,
   type DeclarableTool,
 } from "./declarations.js";
 import { runSandbox, type SandboxRunResult } from "./host-side.js";
-import { codemodeHint } from "./modes.js";
 import { parseOptionsLine, type ToolDecl } from "./protocol.js";
 import { commitStore, readStore } from "./store.js";
 
@@ -49,6 +52,8 @@ export interface CallableTool {
   tool: DeclarableTool;
   /** 内置工具（非 bash）解析为文本；宿主 / SDK 工具可能返回结构化值。 */
   textResult: boolean;
+  /** 模型也能直接调用（在活动集里）；`on` 模式的描述只列名字。 */
+  direct?: boolean;
 }
 
 export interface CodemodeToolOptions {
@@ -62,6 +67,8 @@ export interface CodemodeToolOptions {
   maxResultChars?: number;
   /** `only` 模式：其它工具不直接暴露，系统提示的工具行与规则写明只能在脚本里调用。 */
   exclusive?: boolean;
+  /** 描述的写法：缺省 `only`（按预算内联声明）；`on` 只列名字（见 `buildCodemodeDescription`）。 */
+  layout?: DescriptionLayout;
   /** 子进程入口（测试 / 嵌入方覆盖）。 */
   entry?: string;
   nodePath?: string;
@@ -118,13 +125,6 @@ export function toScriptValue(name: string, result: ToolResult): unknown {
   return result.structured !== undefined ? result.structured : textOf(result.content);
 }
 
-/** on 模式下其它工具描述末尾的提示不进声明。 */
-function declarable(tool: DeclarableTool): DeclarableTool {
-  const suffix = `\n${codemodeHint(tool.name)}`;
-  if (!tool.description.endsWith(suffix)) return tool;
-  return { ...tool, description: tool.description.slice(0, -suffix.length) };
-}
-
 /** 描述里的示例脚本（6 行）：并发两个 read、过滤、return。 */
 export const CODEMODE_EXAMPLE: readonly string[] = [
   "const [a, b] = await Promise.all([",
@@ -156,11 +156,46 @@ export function scriptErrorHint(error: string, toolNames: readonly string[]): st
   return error;
 }
 
+export type DescriptionLayout = "only" | "on";
+
+/**
+ * `on` 模式的描述：规则压成三行 + 示例；已直接暴露的工具只列名字（参数同直接调用），仅脚本可调用的
+ * 工具也只列名字。不内联任何声明，字节只依赖工具名与沙箱能力。
+ */
+function buildOnDescription(tools: readonly CallableTool[], capability: SandboxCapability): string {
+  const names = (list: readonly CallableTool[]): string =>
+    list
+      .map(({ tool }) => tool.name)
+      .sort()
+      .join(", ");
+  const direct = tools.filter((t) => t.direct === true);
+  const scriptOnly = tools.filter((t) => t.direct !== true);
+  const lines = [
+    "Run a JavaScript script that calls tools; only its output comes back to you. Use it to batch many tool calls (Promise.all), filter or summarize large results, or loop, in one step.",
+    "Input: raw JavaScript (not JSON, no code fence), the body of an async function (top-level await and return work). Only tools.<name>(args) exists: no require, import, process, fetch or timers.",
+    "Example:",
+    ...CODEMODE_EXAMPLE,
+    "tools.<name>(args) returns a Promise that rejects when the call fails or is denied (Promise.allSettled keeps the rest); text(v) / console.log(...) append output; return v is text(v); store(key, v) / load(key) keep small JSON values across scripts; describeTool(name) returns a signature. At most 8 calls run at once, each through the normal permissions.",
+  ];
+  if (!capability.strict) lines.push(`Sandbox: ${capability.reason}.`);
+  if (direct.length > 0) {
+    const bash = direct.some(({ tool }) => tool.name === "bash");
+    lines.push(
+      `Your direct tools are callable here too, same arguments: ${names(direct)}${bash ? " (tools.bash resolves to BashResult; the others to text)" : ""}.`,
+    );
+    if (bash) lines.push(BASH_RESULT_DECLARATION);
+  }
+  if (scriptOnly.length > 0) lines.push(`Callable only from scripts: ${names(scriptOnly)}.`);
+  return lines.join("\n");
+}
+
 export function buildCodemodeDescription(
   tools: readonly CallableTool[],
   inlineBudget: number,
   capability: SandboxCapability,
+  layout: DescriptionLayout = "only",
 ): string {
+  if (layout === "on") return buildOnDescription(tools, capability);
   const lines = [
     "Run a JavaScript script that calls tools; only the script's output comes back to you. Use it to batch many tool calls (Promise.all), filter or summarize large results, or loop, in one step.",
     "Only tools.<name>(args) is available. There is no require, import, process, fetch or timers; do not call tools directly as functions.",
@@ -173,7 +208,7 @@ export function buildCodemodeDescription(
     lines.push(`Sandbox: ${capability.reason}.`);
   }
   const block = buildDeclarationBlock(
-    tools.map(({ tool, textResult }) => ({ tool: declarable(tool), textResult })),
+    tools.map(({ tool, textResult }) => ({ tool, textResult })),
     inlineBudget,
   );
   if (block.text !== "") lines.push(block.text);
@@ -235,7 +270,12 @@ export function createCodemodeTool(options: CodemodeToolOptions): ToolDefinition
     name: CODEMODE_TOOL_NAME,
     label: "Codemode",
     get description(): string {
-      frozenDescription ??= buildCodemodeDescription(options.listTools(), inlineBudget, capability);
+      frozenDescription ??= buildCodemodeDescription(
+        options.listTools(),
+        inlineBudget,
+        capability,
+        options.layout,
+      );
       return frozenDescription;
     },
     parameters: {
@@ -263,7 +303,7 @@ export function createCodemodeTool(options: CodemodeToolOptions): ToolDefinition
       }
       const tools: ToolDecl[] = options.listTools().map(({ tool: t, textResult }) => ({
         name: t.name,
-        declaration: toolDeclaration(declarable(t), textResult ? {} : { textResult: false }),
+        declaration: toolDeclaration(t, textResult ? {} : { textResult: false }),
       }));
       // 只有清单里的工具可调（coordinator 预设的清单只含活动集）；脚本拼出别的名字也不放行。
       const callable = new Set(tools.map((t) => t.name));
@@ -366,11 +406,15 @@ export function codemodeToolFactory(
     const onlyActive = codemodeCallableFilter(ctx.config) === "active";
     const allowed = (name: string): boolean =>
       !onlyActive || (registry.active?.() ?? []).some((tool) => tool.name === name);
+    const direct = (): Set<string> =>
+      new Set(mode === "on" ? (registry.active?.() ?? []).map((tool) => tool.name) : []);
     const options: CodemodeToolOptions = {
       capability: availability.capability,
       exclusive: mode === "only",
-      listTools: () =>
-        registry
+      layout: mode === "on" ? "on" : "only",
+      listTools: () => {
+        const active = direct();
+        return registry
           .list()
           .filter((name) => name !== CODEMODE_TOOL_NAME && allowed(name))
           .map((name) => registry.get(name))
@@ -378,7 +422,9 @@ export function codemodeToolFactory(
           .map((t) => ({
             tool: t,
             textResult: (registry.sourceOf?.(t.name) ?? "builtin") === "builtin",
-          })),
+            ...(active.has(t.name) ? { direct: true } : {}),
+          }));
+      },
     };
     const budget = ctx.config.codemode?.inlineBudget;
     if (budget !== undefined) options.inlineBudget = budget;
