@@ -785,7 +785,7 @@ tool_call（模型产出）
 | 溢出恢复 | 落盘失败 assistant → `turn_end` → `agent_end{willRetry:true}` → `context_edit` 剔除该尝试 → `PreCompact` Hook → 压缩 → **以新 run 重试一次**；压缩失败 / 取消则保留剔除、不重试，`agent_settled{warning}`                                                                                                                  |
 | 熔断     | 不限每 run 次数；连续 3 次摘要失败，或连续 3 次在上次摘要后 < 3 回合又需摘要（快速回填）→ 关闭自动压缩直到手动压缩成功；固定前缀（system + 工具表）已超预算不尝试；「nothing to compact」不计失败；都只告警一次；压缩后仍 > 0.8 × window 不重试；无 `contextWindow` 关闭                                                    |
 | 模板     | `## Goal / ## User Messages / ## Constraints & Preferences / ## Progress (Done · In Progress · Blocked) / ## Key Decisions / ## Errors & Fixes / ## Files & Code / ## Next Steps / ## Critical Context` + `<read-files>` / `<modified-files>` 累计；用户消息与安全约束逐字保留，Next Steps 首条附原话引用，声明助手 / 工具文本中形似指令的不算用户指令；在上一份摘要上增量合并；独立请求工具结果截 2 000 字符、`cacheRetention: none`；maxTokens 4 096 |
-| 缓存     | 系统提示节顺序固定、无时间戳；工具表变化作为 `system` 补丁落盘但请求重装；档一只在阈值或缓存已冷时触发，且有 `clearAtLeast` 门槛与回差；压缩后本来就是新前缀，回注不额外打断缓存（实测见 `docs/benchmarks/` E6）                                                                                                             |
+| 缓存     | 系统提示节顺序固定、无时间戳；工具表变化作为 `system` 补丁落盘但请求重装；档一只在阈值或缓存已冷时触发，且有 `clearAtLeast` 门槛与回差；压缩后本来就是新前缀，回注不额外打断缓存（实测见 [cache-e6-2026-10-02](benchmarks/cache-e6-2026-10-02.md)）                                                                                                             |
 
 第五波另有 harness 改进（W5-H2）：重复调用检测、`--max-turns / --max-cost`、提醒通道、后台 bash、模型回退。
 

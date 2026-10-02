@@ -1,0 +1,1253 @@
+{
+  "date": "2026-10-02",
+  "runs": [
+    {
+      "case": "E6",
+      "model": "packy/kimi-k2.5",
+      "variant": "baseline",
+      "label": "现状",
+      "window": 40000,
+      "ttl": 300,
+      "pause": 330,
+      "pauseAt": 14,
+      "compactions": [
+        {
+          "at": 7,
+          "trigger": "threshold",
+          "ok": true
+        },
+        {
+          "at": 16,
+          "trigger": "threshold",
+          "ok": true
+        }
+      ],
+      "pruneBatches": [],
+      "requests": [
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 2,
+          "input": 153,
+          "cacheRead": 1152,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 1305,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 4,
+          "input": 5401,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 5401,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 6,
+          "input": 4121,
+          "cacheRead": 5376,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 9497,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 8,
+          "input": 4121,
+          "cacheRead": 9472,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 13593,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 10,
+          "input": 4121,
+          "cacheRead": 13568,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 17689,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 12,
+          "input": 4121,
+          "cacheRead": 17664,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 21785,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "summary",
+          "model": "packy/kimi-k2.5",
+          "messages": 15,
+          "input": 4304,
+          "cacheRead": 21760,
+          "cacheWrite": 0,
+          "output": 169,
+          "prompt": 26064,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 6,
+          "input": 9669,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 9669,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 8,
+          "input": 4165,
+          "cacheRead": 9600,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 13765,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 10,
+          "input": 4165,
+          "cacheRead": 13696,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 17861,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 12,
+          "input": 4165,
+          "cacheRead": 17792,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 21957,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 14,
+          "input": 4109,
+          "cacheRead": 21888,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 25997,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 16,
+          "input": 4053,
+          "cacheRead": 25984,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 30037,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 18,
+          "input": 34077,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 23,
+          "prompt": 34077,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 20,
+          "input": 77,
+          "cacheRead": 34048,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 34125,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "summary",
+          "model": "packy/kimi-k2.5",
+          "messages": 2,
+          "input": 5028,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 323,
+          "prompt": 5028,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 8,
+          "input": 8628,
+          "cacheRead": 1152,
+          "cacheWrite": 0,
+          "output": 23,
+          "prompt": 9780,
+          "stopReason": "stop"
+        }
+      ],
+      "usd": 0.30071799999999993,
+      "events": [
+        {
+          "at": 2,
+          "type": "cache_miss",
+          "missedTokens": 1305,
+          "reason": "evicted",
+          "idleMs": 2045
+        },
+        {
+          "at": 13,
+          "type": "context_pressure",
+          "percent": 75.1,
+          "threshold": 70,
+          "remainingTokens": 9945,
+          "estimatedTurnsLeft": 2
+        },
+        {
+          "at": 14,
+          "type": "cache_miss",
+          "missedTokens": 30037,
+          "reason": "evicted",
+          "idleMs": 2233
+        }
+      ],
+      "stats": {
+        "reporting": "reported",
+        "reBilledTokens": 31342,
+        "misses": {
+          "count": 2,
+          "byReason": {
+            "evicted": 2
+          }
+        },
+        "warming": {
+          "mode": "off",
+          "state": "inactive"
+        },
+        "granularity": 128,
+        "lastHitRate": 0.11779141104294479,
+        "hitRate": 0.6489668380203608,
+        "contextRemainingTokens": 30197,
+        "estimatedTurnsLeft": 9
+      },
+      "wallMs": 368102
+    },
+    {
+      "case": "E6",
+      "model": "packy/kimi-k2.5",
+      "variant": "c1c2",
+      "label": "C1+C2",
+      "window": 40000,
+      "ttl": 300,
+      "pause": 330,
+      "pauseAt": 15,
+      "compactions": [
+        {
+          "at": 7,
+          "trigger": "threshold",
+          "ok": true
+        },
+        {
+          "at": 12,
+          "trigger": "threshold",
+          "ok": true
+        }
+      ],
+      "pruneBatches": [],
+      "requests": [
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 2,
+          "input": 154,
+          "cacheRead": 1152,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 1306,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 4,
+          "input": 4122,
+          "cacheRead": 1280,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 5402,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 6,
+          "input": 4122,
+          "cacheRead": 5376,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 9498,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 8,
+          "input": 4122,
+          "cacheRead": 9472,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 13594,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 10,
+          "input": 4122,
+          "cacheRead": 13568,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 17690,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 12,
+          "input": 4122,
+          "cacheRead": 17664,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 21786,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "summary",
+          "model": "packy/kimi-k2.5",
+          "messages": 15,
+          "input": 4305,
+          "cacheRead": 21760,
+          "cacheWrite": 0,
+          "output": 143,
+          "prompt": 26065,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 6,
+          "input": 8809,
+          "cacheRead": 1152,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 9961,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 8,
+          "input": 4201,
+          "cacheRead": 9856,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 14057,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 10,
+          "input": 4201,
+          "cacheRead": 13952,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 18153,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 12,
+          "input": 4201,
+          "cacheRead": 18048,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 22249,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "summary",
+          "model": "packy/kimi-k2.5",
+          "messages": 15,
+          "input": 4624,
+          "cacheRead": 22144,
+          "cacheWrite": 0,
+          "output": 480,
+          "prompt": 26768,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 6,
+          "input": 9115,
+          "cacheRead": 1152,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 10267,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 8,
+          "input": 4067,
+          "cacheRead": 10240,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 14307,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 10,
+          "input": 4139,
+          "cacheRead": 14208,
+          "cacheWrite": 0,
+          "output": 34,
+          "prompt": 18347,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 12,
+          "input": 102,
+          "cacheRead": 18304,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 18406,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 14,
+          "input": 4142,
+          "cacheRead": 18304,
+          "cacheWrite": 0,
+          "output": 23,
+          "prompt": 22446,
+          "stopReason": "stop"
+        }
+      ],
+      "usd": 0.273958,
+      "events": [],
+      "stats": {
+        "reporting": "reported",
+        "reBilledTokens": 0,
+        "misses": {
+          "count": 0,
+          "byReason": {}
+        },
+        "warming": {
+          "mode": "off",
+          "state": "inactive"
+        },
+        "granularity": 128,
+        "lastHitRate": 0.8154682348748107,
+        "hitRate": 0.7311525626891403,
+        "reBilledUsd": 0,
+        "contextRemainingTokens": 17531,
+        "estimatedTurnsLeft": 5
+      },
+      "wallMs": 368603
+    },
+    {
+      "case": "E6",
+      "model": "packy/kimi-k2.5",
+      "variant": "c1c2c3",
+      "label": "C1+C2+C3",
+      "window": 40000,
+      "ttl": 300,
+      "pause": 330,
+      "pauseAt": 19,
+      "compactions": [
+        {
+          "at": 7,
+          "trigger": "threshold",
+          "ok": true
+        },
+        {
+          "at": 12,
+          "trigger": "threshold",
+          "ok": true
+        }
+      ],
+      "pruneBatches": [
+        {
+          "at": 17,
+          "count": 2
+        }
+      ],
+      "requests": [
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 2,
+          "input": 1307,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 1307,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 4,
+          "input": 4123,
+          "cacheRead": 1280,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 5403,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 6,
+          "input": 4123,
+          "cacheRead": 5376,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 9499,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 8,
+          "input": 4123,
+          "cacheRead": 9472,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 13595,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 10,
+          "input": 4123,
+          "cacheRead": 13568,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 17691,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 12,
+          "input": 4123,
+          "cacheRead": 17664,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 21787,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "summary",
+          "model": "packy/kimi-k2.5",
+          "messages": 15,
+          "input": 4306,
+          "cacheRead": 21760,
+          "cacheWrite": 0,
+          "output": 169,
+          "prompt": 26066,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 6,
+          "input": 8841,
+          "cacheRead": 1152,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 9993,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 8,
+          "input": 4105,
+          "cacheRead": 9984,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 14089,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 10,
+          "input": 4105,
+          "cacheRead": 14080,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 18185,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 12,
+          "input": 4105,
+          "cacheRead": 18176,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 22281,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "summary",
+          "model": "packy/kimi-k2.5",
+          "messages": 15,
+          "input": 4528,
+          "cacheRead": 22272,
+          "cacheWrite": 0,
+          "output": 583,
+          "prompt": 26800,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 6,
+          "input": 10375,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 10375,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 8,
+          "input": 4047,
+          "cacheRead": 10368,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 14415,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 10,
+          "input": 4119,
+          "cacheRead": 14336,
+          "cacheWrite": 0,
+          "output": 63,
+          "prompt": 18455,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 12,
+          "input": 107,
+          "cacheRead": 18432,
+          "cacheWrite": 0,
+          "output": 44,
+          "prompt": 18539,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 14,
+          "input": 267,
+          "cacheRead": 18432,
+          "cacheWrite": 0,
+          "output": 59,
+          "prompt": 18699,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 16,
+          "input": 8748,
+          "cacheRead": 2176,
+          "cacheWrite": 0,
+          "output": 41,
+          "prompt": 10924,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 18,
+          "input": 161,
+          "cacheRead": 10880,
+          "cacheWrite": 0,
+          "output": 50,
+          "prompt": 11041,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 20,
+          "input": 108,
+          "cacheRead": 11008,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 11116,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 22,
+          "input": 4148,
+          "cacheRead": 11008,
+          "cacheWrite": 0,
+          "output": 53,
+          "prompt": 15156,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 24,
+          "input": 145,
+          "cacheRead": 15104,
+          "cacheWrite": 0,
+          "output": 23,
+          "prompt": 15249,
+          "stopReason": "stop"
+        }
+      ],
+      "usd": 0.33594099999999993,
+      "events": [],
+      "stats": {
+        "reporting": "reported",
+        "reBilledTokens": 0,
+        "misses": {
+          "count": 0,
+          "byReason": {}
+        },
+        "warming": {
+          "mode": "off",
+          "state": "inactive"
+        },
+        "granularity": 128,
+        "lastHitRate": 0.9904911797494917,
+        "hitRate": 0.7455521449200853,
+        "reBilledUsd": 0,
+        "contextRemainingTokens": 24728,
+        "estimatedTurnsLeft": 27
+      },
+      "wallMs": 382447
+    },
+    {
+      "case": "E6",
+      "model": "packy/kimi-k2.5",
+      "variant": "c1c2",
+      "label": "C1+C2 停 330s",
+      "files": 3,
+      "keepResults": 1,
+      "window": 40000,
+      "ttl": 300,
+      "pause": 330,
+      "pauseAt": 6,
+      "compactions": [],
+      "pruneBatches": [
+        {
+          "at": 7,
+          "count": 2
+        }
+      ],
+      "requests": [
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 2,
+          "input": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 0,
+          "prompt": 0,
+          "stopReason": "error"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 2,
+          "input": 153,
+          "cacheRead": 1152,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 1305,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 4,
+          "input": 4249,
+          "cacheRead": 1152,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 5401,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 6,
+          "input": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 0,
+          "prompt": 0,
+          "stopReason": "error"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 6,
+          "input": 4121,
+          "cacheRead": 5376,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 9497,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 8,
+          "input": 4121,
+          "cacheRead": 9472,
+          "cacheWrite": 0,
+          "output": 10,
+          "prompt": 13593,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 10,
+          "input": 60,
+          "cacheRead": 13568,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 13628,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 12,
+          "input": 8506,
+          "cacheRead": 1280,
+          "cacheWrite": 0,
+          "output": 10,
+          "prompt": 9786,
+          "stopReason": "stop"
+        }
+      ],
+      "usd": 0.053578,
+      "events": [],
+      "stats": {
+        "reporting": "reported",
+        "reBilledTokens": 0,
+        "misses": {
+          "count": 0,
+          "byReason": {}
+        },
+        "warming": {
+          "mode": "off",
+          "state": "inactive"
+        },
+        "granularity": 128,
+        "lastHitRate": 0.1307991007561823,
+        "hitRate": 0.6013907160308213,
+        "reBilledUsd": 0,
+        "contextRemainingTokens": 30204,
+        "estimatedTurnsLeft": 9
+      },
+      "wallMs": 346227
+    },
+    {
+      "case": "E6",
+      "model": "packy/kimi-k2.5",
+      "variant": "c1c2c3",
+      "label": "C1+C2+C3 停 330s",
+      "files": 3,
+      "keepResults": 1,
+      "window": 40000,
+      "ttl": 300,
+      "pause": 330,
+      "pauseAt": 5,
+      "compactions": [],
+      "pruneBatches": [
+        {
+          "at": 5,
+          "count": 2
+        }
+      ],
+      "requests": [
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 2,
+          "input": 155,
+          "cacheRead": 1152,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 1307,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 4,
+          "input": 4251,
+          "cacheRead": 1152,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 5403,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 6,
+          "input": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 0,
+          "prompt": 0,
+          "stopReason": "error"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 6,
+          "input": 4123,
+          "cacheRead": 5376,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 9499,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 8,
+          "input": 4123,
+          "cacheRead": 9472,
+          "cacheWrite": 0,
+          "output": 10,
+          "prompt": 13595,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 10,
+          "input": 4420,
+          "cacheRead": 1280,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 5700,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 12,
+          "input": 4164,
+          "cacheRead": 5632,
+          "cacheWrite": 0,
+          "output": 10,
+          "prompt": 9796,
+          "stopReason": "stop"
+        }
+      ],
+      "usd": 0.04566799999999999,
+      "events": [],
+      "stats": {
+        "reporting": "reported",
+        "reBilledTokens": 0,
+        "misses": {
+          "count": 0,
+          "byReason": {}
+        },
+        "warming": {
+          "mode": "off",
+          "state": "inactive"
+        },
+        "granularity": 128,
+        "lastHitRate": 0.5749285422621478,
+        "hitRate": 0.5312141280353201,
+        "reBilledUsd": 0,
+        "contextRemainingTokens": 30194,
+        "estimatedTurnsLeft": 7
+      },
+      "wallMs": 342298
+    },
+    {
+      "case": "E6",
+      "model": "packy/kimi-k2.5",
+      "variant": "c1c2",
+      "label": "C1+C2 停 720s",
+      "files": 3,
+      "keepResults": 1,
+      "window": 40000,
+      "ttl": 300,
+      "pause": 720,
+      "pauseAt": 4,
+      "compactions": [],
+      "pruneBatches": [
+        {
+          "at": 5,
+          "count": 2
+        }
+      ],
+      "requests": [
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 2,
+          "input": 154,
+          "cacheRead": 1152,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 1306,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 4,
+          "input": 4250,
+          "cacheRead": 1152,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 5402,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 6,
+          "input": 4122,
+          "cacheRead": 5376,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 9498,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 8,
+          "input": 4122,
+          "cacheRead": 9472,
+          "cacheWrite": 0,
+          "output": 10,
+          "prompt": 13594,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 10,
+          "input": 61,
+          "cacheRead": 13568,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 13629,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 12,
+          "input": 8511,
+          "cacheRead": 1280,
+          "cacheWrite": 0,
+          "output": 10,
+          "prompt": 9791,
+          "stopReason": "stop"
+        }
+      ],
+      "usd": 0.053588,
+      "events": [],
+      "stats": {
+        "reporting": "reported",
+        "reBilledTokens": 0,
+        "misses": {
+          "count": 0,
+          "byReason": {}
+        },
+        "warming": {
+          "mode": "off",
+          "state": "inactive"
+        },
+        "granularity": 128,
+        "lastHitRate": 0.1307323051782249,
+        "hitRate": 0.6012777151446824,
+        "reBilledUsd": 0,
+        "contextRemainingTokens": 30199,
+        "estimatedTurnsLeft": 9
+      },
+      "wallMs": 729604
+    },
+    {
+      "case": "E6",
+      "model": "packy/kimi-k2.5",
+      "variant": "c1c2c3",
+      "label": "C1+C2+C3 停 720s",
+      "files": 3,
+      "keepResults": 1,
+      "window": 40000,
+      "ttl": 300,
+      "pause": 720,
+      "pauseAt": 4,
+      "compactions": [],
+      "pruneBatches": [
+        {
+          "at": 4,
+          "count": 2
+        }
+      ],
+      "requests": [
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 2,
+          "input": 154,
+          "cacheRead": 1152,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 1306,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 4,
+          "input": 4250,
+          "cacheRead": 1152,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 5402,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 6,
+          "input": 4122,
+          "cacheRead": 5376,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 9498,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 8,
+          "input": 4122,
+          "cacheRead": 9472,
+          "cacheWrite": 0,
+          "output": 10,
+          "prompt": 13594,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 10,
+          "input": 4415,
+          "cacheRead": 1280,
+          "cacheWrite": 0,
+          "output": 18,
+          "prompt": 5695,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "messages": 12,
+          "input": 4159,
+          "cacheRead": 5632,
+          "cacheWrite": 0,
+          "output": 10,
+          "prompt": 9791,
+          "stopReason": "stop"
+        }
+      ],
+      "usd": 0.045654,
+      "events": [],
+      "stats": {
+        "reporting": "reported",
+        "reBilledTokens": 0,
+        "misses": {
+          "count": 0,
+          "byReason": {}
+        },
+        "warming": {
+          "mode": "off",
+          "state": "inactive"
+        },
+        "granularity": 128,
+        "lastHitRate": 0.5752221427841896,
+        "hitRate": 0.5313783509252308,
+        "reBilledUsd": 0,
+        "contextRemainingTokens": 30199,
+        "estimatedTurnsLeft": 7
+      },
+      "wallMs": 729967
+    }
+  ]
+}
