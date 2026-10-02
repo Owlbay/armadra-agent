@@ -70,7 +70,6 @@ export const en = {
     needsYes: "Not a terminal: add --yes to delete.",
     enabled: (file: string) => `Memory enabled in ${file}; it applies from the next session.`,
     disabled: (file: string) => `Memory disabled in ${file}.`,
-    configInvalid: (file: string) => `${file} is not valid JSON; fix it first.`,
     disabledNote: "(memory.enabled is false; entries are kept but not used)",
     untrusted: (cwd: string) =>
       `Project scope skipped: ${cwd} is not trusted (run ama --trust there once).`,
@@ -133,7 +132,6 @@ export const zh = {
     needsYes: "不是终端：删除需加 --yes。",
     enabled: (file) => `已在 ${file} 开启记忆，下次会话起生效。`,
     disabled: (file) => `已在 ${file} 关闭记忆。`,
-    configInvalid: (file) => `${file} 不是合法 JSON，请先修正。`,
     disabledNote: "（memory.enabled 为 false：条目保留但不使用）",
     untrusted: (cwd) => `跳过项目作用域：${cwd} 未受信任（在该目录运行一次 ama --trust）。`,
   },

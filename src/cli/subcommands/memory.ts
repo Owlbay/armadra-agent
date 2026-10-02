@@ -5,15 +5,13 @@
  *   （trust.json 记录），否则跳过并提示。`memory.enabled` 为 false 时照样能看、能改（条目保留但不使用）。
  * - `list` / `show` / `path` 只读；`edit` 在 `$EDITOR` 里改副本，存回时同样查凭据与上限；`rm` 在终端里确认，
  *   非终端需 `--yes`。
- * - `enable` / `disable` 改用户级 `config.json` 的 `memory.enabled`（原子写 + `.bak`）。
+ * - `enable` / `disable` 经 `config/edit.ts`（W6-S）改用户级 `config.json` 的 `memory.enabled`（校验、原子写 + `.bak`）。
  */
 
-import { existsSync, readFileSync } from "node:fs";
 import { loadConfigFile } from "../../config/load.js";
 import { CONFIG_FILE, resolveConfigDir, resolveDataDir, userFile } from "../../config/paths.js";
 import { findTrustEntry, readTrustFile } from "../../config/trust.js";
-import type { AmaConfig } from "../../config/types.js";
-import { writeConfigFile } from "../../config/write.js";
+import { ConfigEditError, setConfigValue } from "../../config/edit.js";
 import { msg } from "../../i18n/index.js";
 import { editMemory, type EditText } from "../../memory/edit.js";
 import {
@@ -39,7 +37,6 @@ export interface MemoryCliDeps {
 
 interface Context {
   store: MemoryStore;
-  configPath: string;
   notes: string[];
 }
 
@@ -64,7 +61,7 @@ function load(io: CliIo): Context {
     maxFiles: memory.maxFiles ?? DEFAULT_MEMORY_LIMITS.maxFiles,
   };
   const store = new MemoryStore(roots, limits, projectRoot === undefined ? {} : { projectRoot });
-  return { store, configPath, notes };
+  return { store, notes };
 }
 
 function scopeFilter(store: MemoryStore, raw: string | undefined): MemoryScope[] {
@@ -73,24 +70,25 @@ function scopeFilter(store: MemoryStore, raw: string | undefined): MemoryScope[]
   return store.scopes().filter((s) => s === raw);
 }
 
-function setEnabled(io: CliIo, ctx: Context, enabled: boolean): number {
+/** 改用户级 `memory.enabled`（W6-S 的编辑核心：写前重读、只改这一项、校验、原子写 + `.bak`）。 */
+function setEnabled(io: CliIo, enabled: boolean): number {
   const m = msg().memory.cli;
-  let raw: Record<string, unknown> = {};
-  if (existsSync(ctx.configPath)) {
-    try {
-      raw = JSON.parse(readFileSync(ctx.configPath, "utf8")) as Record<string, unknown>;
-    } catch {
-      io.stderr(`${m.configInvalid(ctx.configPath)}\n`);
-      return ExitCode.Config;
-    }
+  try {
+    const result = setConfigValue({
+      configDir: resolveConfigDir({ env: io.env }),
+      cwd: io.cwd,
+      env: io.env,
+      scope: "user",
+      key: "memory.enabled",
+      value: enabled,
+    });
+    io.stdout(`${enabled ? m.enabled(result.path) : m.disabled(result.path)}\n`);
+    return ExitCode.Ok;
+  } catch (error) {
+    if (!(error instanceof ConfigEditError)) throw error;
+    io.stderr(`${error.message}\n`);
+    return ExitCode.Config;
   }
-  const memory =
-    typeof raw["memory"] === "object" && raw["memory"] !== null
-      ? (raw["memory"] as Record<string, unknown>)
-      : {};
-  writeConfigFile(ctx.configPath, { ...raw, memory: { ...memory, enabled } } as AmaConfig);
-  io.stdout(`${enabled ? m.enabled(ctx.configPath) : m.disabled(ctx.configPath)}\n`);
-  return ExitCode.Ok;
 }
 
 export async function runMemory(
@@ -198,7 +196,7 @@ export async function runMemory(
       }
       case "enable":
       case "disable":
-        return setEnabled(io, ctx, sub === "enable");
+        return setEnabled(io, sub === "enable");
       default:
         throw new UsageError(m.cli.usage.trimEnd());
     }

@@ -133,4 +133,15 @@ describe("ama memory", () => {
     expect(JSON.parse(readFileSync(path, "utf8")).memory).toEqual({ enabled: false });
     expect(existsSync(`${path}.bak`)).toBe(true);
   });
+
+  it("没有 config.json 时 enable 写出合法的最小配置，之后各命令照常读", async () => {
+    expect(await ama(["enable"])).toBe(0);
+    const config = JSON.parse(readFileSync(join(configDir(), "config.json"), "utf8"));
+    expect(config.version).toBe(1);
+    expect(config.memory).toEqual({ enabled: true });
+    out = [];
+    err = [];
+    expect(await ama(["list"])).toBe(0);
+    expect(err.join("")).not.toContain("memory.enabled 为 false");
+  });
 });
