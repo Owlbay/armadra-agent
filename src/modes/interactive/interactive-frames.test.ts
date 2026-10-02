@@ -34,7 +34,7 @@ describe("启动头", () => {
         columns,
         keepHarness: true,
         quietStartup: "normal",
-        argv: ["--trust"],
+        argv: ["--trust", "--codemode", "off"],
       });
       golden(`startup-normal-${columns}x24`, snapshot(s.terminal, "startup normal"));
       s.handle.exit(0);

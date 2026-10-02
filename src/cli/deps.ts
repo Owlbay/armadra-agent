@@ -37,7 +37,9 @@ export type SessionRequest =
   | { kind: "continue" }
   | { kind: "resume"; id: string }
   | { kind: "session-id"; id: string }
-  | { kind: "fork"; id: string };
+  | { kind: "fork"; id: string }
+  /** `--no-session`：内存会话，从不落盘。 */
+  | { kind: "memory" };
 
 export interface ProviderBuildInput {
   config: AmaConfig;
@@ -107,7 +109,23 @@ export interface SessionAssembly {
   sessionStartContext(): string | undefined;
   /** print：ask → deny。 */
   unattended: boolean;
+  /** 命令行对会话的覆盖（W4-C）：`-p --max-turns`、`--system-prompt`、`--no-session`。 */
+  overrides?: SessionOverrides;
   warn(message: string): void;
+}
+
+export interface SessionOverrides {
+  /** 一次运行（prompt）的回合上限。 */
+  maxTurns?: number;
+  /** `--system-prompt`：追加进 rules 节，或替换 preamble。 */
+  systemPrompt?: SystemPromptOverride;
+  /** `--no-session`：`/new` 等切换出的新会话也只在内存里。 */
+  noSession?: boolean;
+}
+
+export interface SystemPromptOverride {
+  text: string;
+  mode: "append" | "replace";
 }
 
 export interface ModeContext {
@@ -158,7 +176,15 @@ export interface RuntimeDeps {
     }): Promise<{ moved: string[] }>;
   };
   /** B3：ToolRegistry（内置工具已注册）。 */
-  tools: { create(input: { config: AmaConfig; cwd: string; mode: RuntimeMode }): ToolRegistryApi };
+  tools: {
+    create(input: {
+      config: AmaConfig;
+      cwd: string;
+      mode: RuntimeMode;
+      /** CLI 启动时给出（一次性提示记在数据目录）；SDK 不给。 */
+      paths?: { configDir: string; dataDir: string };
+    }): ToolRegistryApi;
+  };
   /** B3：权限管线。 */
   permissions: {
     create(input: {
@@ -198,4 +224,16 @@ export interface CliIo {
   cwd: string;
   /** 读取 stdin 全部内容（auth set）。 */
   readStdin(): Promise<string>;
+  /**
+   * 等首字节至多 `timeoutMs`：期间没有任何字节 → undefined（停止读取，不再占着 stdin）；收到首字节
+   * 后读到 EOF（不再超时）；期间就 EOF → 已读到的内容。缺省实现见 cli/main.ts。
+   */
+  readStdinFirstByte?(timeoutMs: number): Promise<string | undefined>;
+  /**
+   * stdin 的类型（`-p` 据此决定读不读）：`file` / `null`（/dev/null 等字符设备）读了不会卡；
+   * `fifo` 是 shell 管道；`socket` 多为父进程 spawn 时留的管道。未提供时按 `other` 处理（不读、不提示）。
+   */
+  stdinKind?(): StdinKind;
 }
+
+export type StdinKind = "tty" | "file" | "null" | "fifo" | "socket" | "other";

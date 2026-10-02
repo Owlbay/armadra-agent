@@ -5,6 +5,7 @@
  *   = steer；Ctrl+C 运行中中断、空闲时连按两次退出（130）；空行 Ctrl+D 退出；审批 y / a / N 单键问答。
  *   问句之前逐行打印执行前预览（`request.preview`，W3-B9a-2）。
  * - 否则（管道）：逐行读 stdin，每行依次执行（等上一条运行结束）；没有审批 UI，ask → deny。
+ *   模型错误在运行结束时只打印一次（重试中只显示 ↻）；有运行最终失败时退出码 1。
  * - 斜杠命令走 commands-core（与 B7 同一语义），`pick` 退化为列出候选。
  */
 
@@ -78,6 +79,7 @@ export async function runLineMode(
       else if (result.message !== undefined) out(`${result.message}\n`);
     } catch (error) {
       printer.endLine();
+      printer.failures++;
       err(`ama: ${errorText(error)}\n`);
     }
     return undefined;
@@ -100,6 +102,7 @@ export async function runLineMode(
       handle,
       () => session,
       () => unsubscribe(),
+      () => printer.failures > 0,
     );
 
   // ---- raw 终端 ----
@@ -198,13 +201,14 @@ export async function runLineMode(
   });
 }
 
-/** 管道：逐行依次执行；stdin 结束后等最后一条跑完退出 0。 */
+/** 管道：逐行依次执行；stdin 结束后等最后一条跑完退出——有失败的运行时 1，否则 0。 */
 function runPiped(
   stdin: NodeJS.ReadableStream,
   context: ModeContext,
   handle: (line: string) => Promise<"exit" | undefined>,
   session: () => AgentSession,
   unsubscribe: () => void,
+  failed: () => boolean,
 ): Promise<number> {
   return new Promise<number>((resolve) => {
     let chain: Promise<"exit" | undefined> = Promise.resolve(undefined);
@@ -225,7 +229,7 @@ function runPiped(
       });
     };
     const reader = createLineReader(stdin, enqueue, () => {
-      void chain.then(() => finish(ExitCode.Ok));
+      void chain.then(() => finish(failed() ? ExitCode.RuntimeError : ExitCode.Ok));
     });
     const offSignals = onTerminationSignals((code) => {
       void session()

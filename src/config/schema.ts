@@ -15,7 +15,7 @@ import {
   CACHE_RETENTIONS,
   CHANNEL_NAME_PATTERN,
   CODEMODE_MODES,
-  TOOLS_PRESETS_STRICT_FIRST,
+  TOOLS_PRESET_INPUTS,
 } from "./types.js";
 
 export type {
@@ -30,6 +30,7 @@ export type {
   RetryConfig,
   ToolsConfig,
   ToolsPreset,
+  ToolsPresetInput,
   CodemodeConfig,
   CodemodeMode,
   HooksSettings,
@@ -160,6 +161,7 @@ const CONFIG_KEYS = [
   "ui",
   "skills",
   "cache",
+  "request",
   "$schema",
 ] as const;
 
@@ -369,7 +371,7 @@ export function validateConfig(value: unknown): Diagnostic[] {
     "tools",
     ["preset", "default", "maxToolResultChars", "bashTimeoutMs", "disabled"],
     (s, p) => {
-      c.oneOf(s, "preset", p, TOOLS_PRESETS_STRICT_FIRST);
+      c.oneOf(s, "preset", p, TOOLS_PRESET_INPUTS);
       c.stringArray(s, "default", p);
       c.number(s, "maxToolResultChars", p, 1);
       c.number(s, "bashTimeoutMs", p, 1);
@@ -410,6 +412,9 @@ export function validateConfig(value: unknown): Diagnostic[] {
     },
   );
   checkSection(c, value, "skills", ["dirs"], (s, p) => c.stringArray(s, "dirs", p));
+  checkSection(c, value, "request", ["idleTimeoutMs"], (s, p) => {
+    c.number(s, "idleTimeoutMs", p, 0);
+  });
   checkSection(
     c,
     value,

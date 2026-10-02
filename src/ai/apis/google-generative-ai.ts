@@ -17,7 +17,15 @@
  */
 
 import { AssistantEventStreamImpl } from "../event-stream.js";
-import { HttpError, USER_AGENT, authHeaders, joinUrl, mergeHeaders, postJson } from "../http.js";
+import {
+  authHeaders,
+  HttpError,
+  idleTimeoutOf,
+  joinUrl,
+  mergeHeaders,
+  postJson,
+  USER_AGENT,
+} from "../http.js";
 import { readSseEvents } from "../sse.js";
 import type {
   ApiImplementation,
@@ -237,6 +245,7 @@ async function run(
         body: replaced === undefined ? request.body : replaced,
         signal: options.signal,
         timeoutMs: options.timeoutMs,
+        idleTimeoutMs: idleTimeoutOf(options),
         onResponse: options.onResponse,
       });
     } catch (error) {
@@ -249,7 +258,7 @@ async function run(
       idSeed: Date.now().toString(36),
     };
     const body = response.body as ReadableStream<Uint8Array>;
-    for await (const sse of readSseEvents(body, options.signal)) {
+    for await (const sse of readSseEvents(body, options.signal, idleTimeoutOf(options))) {
       const data = sse.data.trim();
       if (data === "" || data === "[DONE]") continue;
       let chunk: Json;

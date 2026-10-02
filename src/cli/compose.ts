@@ -33,11 +33,13 @@ import { BUILTIN_DENY_RULES, parseRule } from "../permissions/rules.js";
 import type { Rule } from "../permissions/types.js";
 import { discoverSkills, skillSources } from "../skills/discover.js";
 import { discoverPromptTemplates, promptSources } from "../skills/templates.js";
-import { applyCodemodeMode, decorateForMode } from "../codemode/modes.js";
+import { applyCodemodeMode } from "../codemode/modes.js";
+import { detectSandboxCapability, type SandboxCapability } from "../codemode/capability.js";
 import { codemodeToolFactory } from "../codemode/tool.js";
 import { PresetToolRegistry, resolvePreset } from "../tools/presets.js";
 import { builtinTools } from "../tools/registry.js";
 import type { ToolDefinition, ToolRegistryApi } from "../tools/types.js";
+import { takeCodemodeNotice } from "./codemode-notice.js";
 import { buildProviderRegistry } from "./compose-providers.js";
 import {
   composeSession,
@@ -66,7 +68,7 @@ export interface ToolFactoryContext {
 /** 返回 undefined = 本次不注册（例如配置关闭）。 */
 export type ToolFactory = (ctx: ToolFactoryContext) => ToolDefinition | undefined;
 
-/** 缺省工具工厂：codemode（`codemode.mode` 生效值为 off 时不注册）。 */
+/** 缺省工具工厂：codemode（生效模式为 off 时不注册；缺省跟随预设，见 tools/presets.ts）。 */
 export const DEFAULT_TOOL_FACTORIES: readonly ToolFactory[] = [codemodeToolFactory()];
 
 export interface ComposeOptions {
@@ -77,6 +79,11 @@ export interface ComposeOptions {
   extraTools?: ToolDefinition[];
   /** 缺省 DEFAULT_TOOL_FACTORIES。 */
   toolFactories?: readonly ToolFactory[];
+  /**
+   * 沙箱能力（缺省按运行时 Node 探测）。决定 default 预设是否开 codemode；给了且没给
+   * `toolFactories` 时 codemode 工厂也用它（测试据此不随 Node 版本变化）。
+   */
+  sandboxCapability?: SandboxCapability;
   /** 覆盖启动期问答；缺省见 `defaultStartupUi`。 */
   ui?: InteractiveUi;
   modes?: Partial<Record<RuntimeMode, ModeRunner>>;
@@ -106,16 +113,27 @@ export const DEFAULT_MODES: Readonly<Partial<Record<RuntimeMode, ModeRunner>>> =
 /**
  * 第 12 步：内置工具 + 工厂 + extraTools，按预设定活动集；warning 留给组装会话时报告。
  *
- * 先跑工厂（产物暂不注册）再解析预设：codemode 是否可用决定预设与模式；`on` 模式下注册时给
- * 其它工具的描述追加 codemode 提示，`only` 模式活动集独占（codemode/modes.ts）。工厂拿到的
- * `registry` 在执行期才读，此时已登记完全部工具。
+ * 先跑工厂（产物暂不注册）再解析预设：codemode 是否可用决定预设与模式；`only` 模式活动集独占
+ * （codemode/modes.ts）。工厂拿到的 `registry` 在执行期才读，此时已登记完全部工具。default 预设
+ * 跟随预设而 codemode 缺省关闭时（非 strict 运行时）提示一次（cli/codemode-notice.ts）。
  */
 export function createTools(
-  input: { config: AmaConfig; cwd: string; mode: RuntimeMode },
+  input: {
+    config: AmaConfig;
+    cwd: string;
+    mode: RuntimeMode;
+    paths?: { configDir: string; dataDir: string } | undefined;
+  },
   options: ComposeOptions,
   state: ComposeState,
 ): PresetToolRegistry {
   const registry = new PresetToolRegistry();
+  const capability = options.sandboxCapability ?? detectSandboxCapability();
+  const factories =
+    options.toolFactories ??
+    (options.sandboxCapability !== undefined
+      ? [codemodeToolFactory({ capability })]
+      : DEFAULT_TOOL_FACTORIES);
   const bash =
     input.config.tools?.bashTimeoutMs !== undefined
       ? { defaultTimeoutMs: input.config.tools.bashTimeoutMs }
@@ -131,7 +149,7 @@ export function createTools(
     warn: (message) => state.warnings.push(message),
   };
   const produced: ToolDefinition[] = [];
-  for (const factory of options.toolFactories ?? DEFAULT_TOOL_FACTORIES) {
+  for (const factory of factories) {
     try {
       const tool = factory(ctx);
       if (tool !== undefined) produced.push(tool);
@@ -141,18 +159,26 @@ export function createTools(
   }
   const extra = options.extraTools ?? [];
   const names = new Set([...builtins, ...produced, ...extra].map((tool) => tool.name));
-  const preset = resolvePreset({ config: input.config, available: (name) => names.has(name) });
-  const decorate = decorateForMode(preset.codemode);
+  const preset = resolvePreset({
+    config: input.config,
+    available: (name) => names.has(name),
+    strict: capability.strict,
+  });
   for (const tool of [...builtins, ...produced]) {
     try {
-      registry.register(decorate(tool), "builtin");
+      registry.register(tool, "builtin");
     } catch (error) {
       state.warnings.push(`工具 ${tool.name} 注册失败：${(error as Error).message}`);
     }
   }
-  for (const tool of extra) registry.register(decorate(tool), "sdk");
+  for (const tool of extra) registry.register(tool, "sdk");
   applyCodemodeMode(registry, preset);
   state.warnings.push(...preset.warnings);
+  // 一次性提示只给有人看的界面（交互 / 行式）；-p 与 RPC 的 stderr 常被脚本解析，不打扰。
+  if (input.paths !== undefined && (input.mode === "interactive" || input.mode === "line")) {
+    const notice = takeCodemodeNotice({ config: input.config, capability, ...input.paths });
+    if (notice !== undefined) state.warnings.push(notice);
+  }
   return registry;
 }
 

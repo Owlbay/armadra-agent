@@ -127,14 +127,32 @@ describe("parseArgs", () => {
     expect(usage(["--tui-mode", "fullscreen"])).toMatch(/fullscreen/);
     expect(usage(["--mode", "json"])).toMatch(/rpc/);
     expect(usage(["--tools-preset", "tiny"])).toMatch(
-      /--tools-preset 的取值应为 default \| minimal \| codemode \| coordinator/,
+      /--tools-preset 的取值应为 default \| minimal \| codemode-only \| coordinator \| codemode/,
     );
+    // 别名折成规范名
+    const alias = parseArgs(["--tools-preset", "codemode"]);
+    expect(alias.kind === "run" && alias.args.toolsPreset).toBe("codemode-only");
     expect(usage(["--codemode", "always"])).toMatch(/--codemode 的取值应为 off \| on \| only/);
     expect(usage(["--codemode"])).toMatch(/需要一个值/);
     expect(usage(["--model"])).toMatch(/需要一个值/);
     expect(usage(["--bogus"])).toMatch(/未知选项/);
     expect(usage(["-x"])).toMatch(/未知选项/);
     expect(usage(["--no-tui=1"])).toMatch(/不接受值/);
+    expect(usage(["-"])).toMatch(/只用于 -p/);
+    expect(usage(["--no-stdin"])).toMatch(/--no-stdin 只用于 -p/);
+    expect(usage(["-p", "x", "-", "--no-stdin"])).toMatch(/不能同时使用/);
+    expect(usage(["--max-turns", "2"])).toMatch(/--max-turns 只用于 -p/);
+    expect(usage(["-p", "--max-turns", "0"])).toMatch(/正整数/);
+    expect(usage(["-p", "--max-turns", "1.5"])).toMatch(/正整数/);
+  });
+
+  it("位置参数 - 表示 -p 显式读 stdin，不进提示；-- 之后的 - 仍是文本", () => {
+    const parsed = parseArgs(["-p", "总结", "-"]);
+    expect(parsed.kind === "run" && parsed.args.stdin).toBe(true);
+    expect(parsed.kind === "run" && parsed.args.prompt).toBe("总结");
+    const literal = parseArgs(["-p", "--", "-"]);
+    expect(literal.kind === "run" && literal.args.stdin).toBe(false);
+    expect(literal.kind === "run" && literal.args.prompt).toBe("-");
   });
 
   it("--provider 不带 --model 不在解析阶段报错（bootstrap 第 11 步报 2）", () => {

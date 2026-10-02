@@ -15,6 +15,26 @@
   状态栏不再有 `mode:` / `think:` / `preset:` 前缀（模式移到最左，`preset` 只在非 default 时出现），按 `mode:` 解析
   状态栏的脚本需改为取最左一项；排队消息标签 `↳ steer` / `↳ followUp` / `↳ host` 改为 `↳ 插话` / `↳ 之后` / `↳ 宿主`
   （会话文件里的 `origin` 不变）；`/permission` 选择器标题 `Mode` 改为「权限模式」。
+- **codemode 缺省开放**：`codemode.mode` 不写时跟随预设——`default` 预设在沙箱网络隔离（Node ≥ 25）时带上
+  `codemode`（六个工具 + codemode），Node 22 / 24 缺省不开并在启动时提示一次（每个配置目录一次，记在数据目录
+  `notices.json`），`--codemode on` 或 config 显式开启；`minimal` / `coordinator` 不开。缺省配置不写这个键。
+- **修复：coordinator 经 codemode 绕过**：`coordinator` 预设显式开了 codemode 时，脚本里只能调活动集里的工具
+  （read 与宿主工具），`tools.bash` / `tools.write` 不再可达。
+- **on 模式去重**：`codemode` 描述不再内联已直接暴露的工具声明，其它工具描述也不再追加提示，只列「参数同直接
+  工具」与「仅脚本可调用」的名字；系统提示 + 工具表比 off 只多约 390 token（原约 1356）。`--codemode on` 的旧会话
+  续接时描述字节变化，会有一次缓存未命中。
+- **预设改名**：`codemode` 预设更名 `codemode-only`；旧名作别名继续可用（配置、`--tools-preset`、RPC、SDK、schema），
+  `ama config show` 显示规范名并提示。
+- **`ama init` 不写死缺省值**：新生成的 `config.json` 只有 `$schema`、`version` 与空 `providers`，以后缺省值调整对老
+  用户同样生效；init 结束打印下一步。已存在的文件不动（之前生成的文件里的 `thinkingLevel` / `permission.mode` /
+  `tools.preset` 仍会按 user 层生效，想跟随缺省可以删掉）。
+- **`ama config show`**：补全 `cache`、`codemode` 等段与每项来源，codemode 写明生效模式与原因；接受
+  `--tools-preset` / `--codemode`；`ama doctor` 同样显示 codemode。`config.schema.json` 的每个键都带说明与缺省值。
+- **不再展示 fake**：零配置的模型选择器、`doctor`、`models list`、`providers list`、`config show` 缺省不列测试供应商
+  `fake`（`AMA_SHOW_FAKE=1` 或 `AMA_FAKE_SCRIPT` 时照列，`--model fake/…` 照常可用）；没有可用模型时提示 key 环境变量、
+  `ama auth set` 与 `ama providers add`。
+- **缺省模型**：自定义供应商（中转站）不再取列表首条，而是在 models.dev 有价格、支持工具调用、上下文 ≥ 64k 的模型里
+  取输入价最低的；`ama providers add` 在还没有 `defaultModel` 时按同一规则写入并说明原因。内置供应商仍取目录首条。
 
 - **auto 权限模式**：`--permission-mode auto`（界面显示名 Auto）由 ama 判断每一步——规则层不调模型，危险命令、
   网络命令、删除类命令、机密文件与项目外写入一律询问；静态判定放行只读工具、项目内写入与安全名单里的命令
@@ -30,6 +50,37 @@
 - **探测提速**：`ama providers add|refresh --probe` 与 `ama models discover --probe` 并发探测（`--concurrency`，缺省 6），
   流里出现首个内容事件即判可用并断开，单次超时缩到 15 s（`--probe-timeout`）；429 时降并发并重试一次，
   连续 429 才停止。实测 22 个模型、60 次探测从预计 20–30 分钟降到约 85 s。
+  降并发之后连续 4 次没被限流就并发 +1，回到初始并发为止。
+
+- **流空闲超时**：模型请求等响应头、以及流里两块数据之间缺省 300 s 没有任何字节即判卡住，按可重试错误重试；
+  `request.idleTimeoutMs`（用户级）或 `AMA_IDLE_TIMEOUT_MS` 调整，0 关闭。服务端发一块就停住不再让 `-p` 永久挂起。
+- **`-p` 与 stdin**：`git diff | ama -p "审阅"` 照旧把管道内容拼在提示后面；有提示参数时只等管道首字节 2 秒
+  （`AMA_STDIN_WAIT_MS` 可调，0 = 不等），一个字节都没有就忽略 stdin 并在 stderr 提示，父进程留着不关的管道不再让
+  `-p` 挂起；收到首字节后读到 EOF。末尾加 `-` 一直等到 EOF（上游要先跑很久才输出时用），`< 文件` 照常读取；没有提示
+  参数时等 stdin 超过 3 s 提示一次；`--no-stdin` 完全不读。
+- **`-p` 无人值守的拒绝可见**：被拒的工具调用在 stderr 汇总（工具、原因、放行办法），`json` 结果带 `deniedTools`，
+  `tool_execution_end` 带 `denied: true`，退出码 7（新增）。重试期间 stderr 每次一行 `↻`。
+- **新参数**：`-p --max-turns N`（到上限仍在调工具时退出 1，`json` 带 `maxTurnsReached`）、
+  `--system-prompt <文本|@文件>` 与 `--system-prompt-mode append|replace`（缺省作为最后一条规则追加，缓存前缀不变）、
+  `--no-session`（会话不落盘）。
+- **报错准确**：`provider/model@渠道` 渠道不存在时报「渠道不存在」并列出该模型的可用渠道（中转供应商不再把 `@后缀`
+  当成模型 id 发出去）；供应商写错报「供应商不存在」并给编辑距离最近的候选；模型写错列出最接近的几个。
+- **代理**：设了 `HTTPS_PROXY` / `HTTP_PROXY` 时启动即启用 Node 内置的环境变量代理（`NO_PROXY` 生效），Node 22.21 以前
+  提示一次并直连；`ama doctor` 新增「代理」一节。
+- **行式管道模式**：模型错误只在运行结束时打印一次，有运行失败时退出码 1（以前 0）。
+- **只读命令不写盘**：`config show` / `path`、`doctor`、`models list` 等不再创建配置目录，首次自动初始化只在进入对话的
+  命令与 `providers add` 里触发。
+
+- **会话统计**：`ama stats` 只读扫描会话，汇总请求（对话、保温、权限分类、压缩分开计）、回合与平均耗时、
+  token、缓存命中率（只算报告缓存的端点）、费用（只加有价请求）、错误与重试、工具调用 Top N；
+  `--since` / `--until` / `--by day|week|month|provider|channel|model|project` / `--json`；
+  增量索引 `<数据目录>/stats-index.json`，1000 个会话冷扫描约 160 ms。
+- **会话检索与导出**：`ama sessions search <关键词|/正则/>`（`--role`、`--since`、`--limit`，TTY 高亮）；
+  `ama sessions export <id> --format md|json|jsonl [--branch leaf|all] [--output]`，导出前脱敏 key / token。
+- **复用**：`ama sessions show` 列出用户消息编号；`--from <id>[#编号]` 用那条消息作新提示（`-p` 时连图片），
+  可配合 `--model` 换模型重问。见 docs/sessions.md。
+- **发布**：release job 优先用 npm 可信发布（OIDC，npm ≥ 11.5.1），`NPM_TOKEN` 只作回退；需要在 npmjs.com
+  为 `@armadra/agent` 添加 Trusted Publisher（Owlbay / armadra-agent / ci.yml）。
 
 ## 0.3.0（2026-10-02）
 

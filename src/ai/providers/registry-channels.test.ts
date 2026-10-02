@@ -104,12 +104,40 @@ describe("渠道：解析与模型引用", () => {
     expect(bare.ok && bare.model.channel).toBe("messages");
   });
 
-  it("指定的渠道不在模型的 channels 里 → not_found 并列出可用渠道", () => {
+  it("指定的渠道不在模型的 channels 里 → channel_not_found 并列出可用渠道", () => {
     const r = registry(PACKY);
     expect(r.findModel("packy/grok-4.7@chat")).toEqual({
       ok: false,
-      reason: "not_found",
+      reason: "channel_not_found",
       candidates: ["packy/grok-4.7@responses"],
+    });
+  });
+
+  it("[W4-C] 渠道写错：中转供应商也不把 @后缀 合成进模型 id；供应商写错给最近的候选", () => {
+    const r = registry(PACKY);
+    const missing = r.findModel("packy/grok-4.7@nope");
+    expect(missing).toMatchObject({ ok: false, reason: "channel_not_found" });
+    expect(r.findModel("packy/brand-new@nope")).toMatchObject({ ok: false, reason: "not_found" });
+    const open = registry({
+      version: 1,
+      providers: {
+        relay: {
+          apiKey: "k",
+          channels: { chat: { api: "openai-completions", baseUrl: "https://relay.example/v1" } },
+          defaultChannel: "chat",
+        },
+      },
+    });
+    expect(open.findModel("relay/any-model@nope")).toEqual({
+      ok: false,
+      reason: "channel_not_found",
+      candidates: ["relay/any-model@chat"],
+    });
+    expect(open.findModel("relay/any-model@chat")).toMatchObject({ ok: true });
+    expect(r.findModel("pakcy/grok-4.7")).toEqual({
+      ok: false,
+      reason: "provider_not_found",
+      candidates: ["packy"],
     });
   });
 

@@ -6,6 +6,8 @@ import {
   PresetToolRegistry,
   applyToolAdjustments,
   effectiveCodemodeMode,
+  presetCodemodeMode,
+  resolveCodemodeMode,
   resolvePreset,
 } from "./presets.js";
 import { builtinTools } from "./registry.js";
@@ -49,12 +51,21 @@ describe("工具预设", () => {
     ).toEqual(["read"]);
   });
 
-  it("codemode 预设：有 codemode 工具 → only；没有 → 回退 default 并 warning", () => {
+  it("codemode-only 预设（旧名 codemode）：有 codemode 工具 → only；没有 → 回退 default 并 warning", () => {
     const withTool = resolvePreset({
+      config: cfg({ preset: "codemode-only" }),
+      available: available(["codemode"]),
+    });
+    expect(withTool).toMatchObject({
+      preset: "codemode-only",
+      codemode: "only",
+      builtin: ["codemode"],
+    });
+    const alias = resolvePreset({
       config: cfg({ preset: "codemode" }),
       available: available(["codemode"]),
     });
-    expect(withTool).toMatchObject({ preset: "codemode", codemode: "only", builtin: ["codemode"] });
+    expect(alias).toMatchObject({ preset: "codemode-only", codemode: "only" });
     const without = resolvePreset({ config: cfg({ preset: "codemode" }), available: available() });
     expect(without.preset).toBe("default");
     expect(without.codemode).toBe("off");
@@ -62,11 +73,58 @@ describe("工具预设", () => {
     expect(without.warnings[0]).toContain("回退到 default");
   });
 
-  it("codemode 开关跟随预设，显式 codemode.mode 覆盖", () => {
-    expect(effectiveCodemodeMode(cfg({}))).toBe("off");
-    expect(effectiveCodemodeMode(cfg({ preset: "minimal" }))).toBe("off");
-    expect(effectiveCodemodeMode(cfg({ preset: "codemode" }))).toBe("only");
-    expect(effectiveCodemodeMode(cfg({ preset: "codemode" }, { mode: "on" }))).toBe("on");
+  it("codemode 开关跟随预设：default→on（只在 strict）、codemode-only→only、minimal / coordinator→off；显式 codemode.mode 覆盖", () => {
+    expect(presetCodemodeMode("default", true)).toBe("on");
+    expect(presetCodemodeMode("default", false)).toBe("off");
+    for (const strict of [true, false]) {
+      expect(presetCodemodeMode("codemode-only", strict)).toBe("only");
+      expect(presetCodemodeMode("minimal", strict)).toBe("off");
+      expect(presetCodemodeMode("coordinator", strict)).toBe("off");
+    }
+    expect(effectiveCodemodeMode(cfg({}), true)).toBe("on");
+    expect(effectiveCodemodeMode(cfg({}), false)).toBe("off");
+    expect(effectiveCodemodeMode(cfg({ preset: "minimal" }), true)).toBe("off");
+    expect(effectiveCodemodeMode(cfg({ preset: "coordinator" }), true)).toBe("off");
+    expect(effectiveCodemodeMode(cfg({ preset: "codemode" }), false)).toBe("only");
+    expect(effectiveCodemodeMode(cfg({ preset: "codemode" }, { mode: "on" }), true)).toBe("on");
+    expect(effectiveCodemodeMode(cfg({}, { mode: "off" }), true)).toBe("off");
+    expect(effectiveCodemodeMode(cfg({}, { mode: "on" }), false)).toBe("on");
+    expect(resolveCodemodeMode(cfg({}), true)).toEqual({
+      mode: "on",
+      source: "preset",
+      preset: "default",
+      strict: true,
+    });
+    expect(resolveCodemodeMode(cfg({ preset: "minimal" }, { mode: "on" }), false).source).toBe(
+      "config",
+    );
+    // 缺省配置不写 codemode.mode：映射调整能惠及老用户
+    expect(mergeConfigLayers({}).config.codemode).toBeUndefined();
+    // default 预设：strict 且 codemode 可用 → 六个工具 + codemode；不可用 → 静默回退，无 warning
+    const strictDefault = resolvePreset({
+      config: cfg({}),
+      available: available(["codemode"]),
+      strict: true,
+    });
+    expect(strictDefault.codemode).toBe("on");
+    expect(strictDefault.builtin).toEqual([
+      "bash",
+      "codemode",
+      "edit",
+      "glob",
+      "grep",
+      "read",
+      "write",
+    ]);
+    const missing = resolvePreset({ config: cfg({}), available: available(), strict: true });
+    expect(missing.codemode).toBe("off");
+    expect(missing.warnings).toEqual([]);
+    const nonStrict = resolvePreset({
+      config: cfg({}),
+      available: available(["codemode"]),
+      strict: false,
+    });
+    expect(nonStrict.builtin).not.toContain("codemode");
     const on = resolvePreset({
       config: cfg({ preset: "minimal" }, { mode: "on" }),
       available: available(["codemode"]),

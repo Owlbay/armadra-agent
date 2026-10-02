@@ -16,9 +16,9 @@ import type {
   CodemodeMode,
   PermissionConfig,
   ToolsConfig,
-  ToolsPreset,
+  ToolsPresetInput,
 } from "./types.js";
-import { CONFIG_FILE_VERSION, TOOLS_PRESETS_STRICT_FIRST } from "./types.js";
+import { CONFIG_FILE_VERSION, TOOLS_PRESETS_STRICT_FIRST, canonicalPreset } from "./types.js";
 import type { PermissionMode, RuleSource } from "../permissions/types.js";
 import { isAtLeastAsStrict } from "../permissions/rules.js";
 import type { ModelThinkingLevel } from "../ai/types.js";
@@ -106,6 +106,9 @@ export function mergeConfig(base: AmaConfig, over: Partial<AmaConfig> | undefine
   if (over === undefined) return structuredCloneSafe(base);
   const merged = mergeValue(base, over, "") as AmaConfig;
   merged.version = CONFIG_FILE_VERSION;
+  // 别名（`codemode`）在合并后折成规范名：下游只见规范名。
+  if (merged.tools?.preset !== undefined)
+    merged.tools.preset = canonicalPreset(merged.tools.preset);
   return merged;
 }
 
@@ -115,9 +118,12 @@ export interface RestrictResult {
   warnings: string[];
 }
 
-/** 预设 a 是否比 b 更严或相同（coordinator 最严，codemode 最宽）。 */
-export function isPresetStricterOrEqual(a: ToolsPreset, b: ToolsPreset): boolean {
-  return TOOLS_PRESETS_STRICT_FIRST.indexOf(a) <= TOOLS_PRESETS_STRICT_FIRST.indexOf(b);
+/** 预设 a 是否比 b 更严或相同（coordinator 最严，codemode-only 最宽；别名按规范名比）。 */
+export function isPresetStricterOrEqual(a: ToolsPresetInput, b: ToolsPresetInput): boolean {
+  return (
+    TOOLS_PRESETS_STRICT_FIRST.indexOf(canonicalPreset(a)) <=
+    TOOLS_PRESETS_STRICT_FIRST.indexOf(canonicalPreset(b))
+  );
 }
 
 /**
@@ -128,7 +134,7 @@ export function restrictProjectConfig(
   project: AmaConfig,
   currentMode: PermissionMode,
   label = ".ama/config.json",
-  currentPreset: ToolsPreset = "default",
+  currentPreset: ToolsPresetInput = "default",
 ): RestrictResult {
   const warnings: string[] = [];
   const accepted: Partial<AmaConfig> = {};
@@ -237,7 +243,7 @@ export interface CliConfigOverrides {
   tuiMode?: "regular" | undefined;
   skillDirs?: readonly string[] | undefined;
   /** `--tools-preset`。 */
-  toolsPreset?: ToolsPreset | undefined;
+  toolsPreset?: ToolsPresetInput | undefined;
   /** `--codemode`。 */
   codemode?: CodemodeMode | undefined;
 }

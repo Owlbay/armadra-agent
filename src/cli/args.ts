@@ -2,6 +2,7 @@
  * 手写参数解析（设计 §11.1 第 2 步、§12.10、§13）。[B5]
  *
  * - 支持 `--opt value` 与 `--opt=value`；`--` 之后全部作为提示文本；可重复的参数累加。
+ * - 位置参数 `-`：`-p` 一直等 stdin 到 EOF（有提示参数时也不设首字节超时）。
  * - 子命令只在第一个参数是 `auth / sessions / models / providers / doctor / config / init` 时识别，
  *   其余参数原样交给子命令。
  * - 互斥：`-p` 与 `--mode rpc`；`--continue` / `--resume` / `--session-id` / `--fork` 两两互斥；
@@ -14,7 +15,7 @@
 import { AmaError } from "../errors.js";
 import type { ModelThinkingLevel } from "../ai/types.js";
 import { PERMISSION_MODES_STRICT_FIRST, type PermissionMode } from "../permissions/types.js";
-import type { CodemodeMode, ToolsPreset } from "../config/types.js";
+import { canonicalPreset, type CodemodeMode, type ToolsPreset } from "../config/types.js";
 import { CODEMODE_MODES } from "../config/types.js";
 
 export const SUBCOMMANDS = [
@@ -25,6 +26,7 @@ export const SUBCOMMANDS = [
   "doctor",
   "config",
   "init",
+  "stats",
 ] as const;
 export type SubcommandName = (typeof SUBCOMMANDS)[number];
 
@@ -68,8 +70,22 @@ export interface ParsedArgs {
   toolsPreset?: ToolsPreset;
   /** `--codemode`：覆盖 config `codemode.mode`。 */
   codemode?: CodemodeMode;
+  /** `--no-session`：会话只在内存里，不写会话文件。 */
+  noSession: boolean;
+  /** `--system-prompt <文本|@文件>`：缺省追加进系统提示的 rules 节。 */
+  systemPrompt?: string;
+  /** `--system-prompt-mode`：append（缺省）| replace（替换开头的 preamble）。 */
+  systemPromptMode?: "append" | "replace";
+  /** `--max-turns N`（只用于 -p）：一次运行最多 N 轮（模型请求 + 工具执行算一轮）。 */
+  maxTurns?: number;
+  /** 位置参数 `-`（只用于 -p）：一直等 stdin 到 EOF，不设首字节超时。 */
+  stdin: boolean;
+  /** `--no-stdin`（只用于 -p）：不读 stdin。 */
+  noStdin: boolean;
   /** `--image <文件>`（可重复，只用于 -p）：随首条提示发送的图片。 */
   images: string[];
+  /** `--from <会话 id>[#编号]`：用旧会话的一条用户消息作为提示（cli/from-prompt.ts）。 */
+  from?: string;
   /** 位置参数拼成的提示（空格连接）。 */
   prompt?: string;
   /** 原始位置参数。 */
@@ -97,8 +113,8 @@ const THINKING_LEVELS: readonly ModelThinkingLevel[] = [
 ];
 const OUTPUT_FORMATS: readonly OutputFormat[] = ["text", "json", "stream-json"];
 const QUIET_LEVELS: readonly QuietStartup[] = ["normal", "header", "silent"];
-/** 帮助与报错按常用顺序列出（校验集合同 TOOLS_PRESETS_STRICT_FIRST）。 */
-const PRESET_CHOICES: readonly ToolsPreset[] = ["default", "minimal", "codemode", "coordinator"];
+/** 帮助与报错按常用顺序列出（校验集合同 TOOLS_PRESET_INPUTS；`codemode` 是 `codemode-only` 的别名）。 */
+const PRESET_CHOICES = ["default", "minimal", "codemode-only", "coordinator", "codemode"] as const;
 const SESSION_ID_LIKE = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 
 export const HELP_TEXT = `用法：ama [选项] [提示]
@@ -107,8 +123,13 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
 模式
   （缺省）                     终端界面；stdin / stdout 非 TTY 或 TERM=dumb 时自动降级为行式
   --no-tui                     行式界面（readline + 括号粘贴）
-  -p, --print                  非交互：执行提示后退出（提示可来自参数与 stdin 管道）
+  -p, --print                  非交互：执行提示后退出。提示 = 参数 + stdin 管道内容；有提示参数时
+                               只等管道首字节 2 s（AMA_STDIN_WAIT_MS），没收到就忽略并提示；
+                               末尾加 - 则一直等到 EOF（如 npm test | ama -p 找原因 -）
+  --no-stdin                   -p 不读 stdin（父进程留着管道、又不想等 2 s 时）
   --output-format <格式>       -p 的输出：text（缺省）| json | stream-json
+  --max-turns <N>              -p 最多跑 N 轮（一次模型请求加其工具执行算一轮）；到达上限仍有
+                               未完成的工具调用时提前结束，退出码 1
   --image <文件>               -p 随提示发送图片（可重复；png / jpg / gif / webp，单张 ≤ 5 MB）；
                                交互界面里写 @图片路径 或粘贴图片路径
   --mode rpc                   stdio JSONL 协议（供嵌入）
@@ -127,6 +148,9 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
   --session-id <id>            使用指定 id 的会话（不存在则新建）
   --fork <id>                  从指定会话分叉出新会话
   --session-dir <目录>         会话目录（缺省 ~/.local/share/ama/sessions）
+  --no-session                 会话只在内存里，不写会话文件（之后无法 --resume）
+  --from <id>[#编号]           用旧会话的一条用户消息作提示（缺省最后一条；-p 时连图片一起；
+                               编号见 ama sessions show）
 
 权限与信任
   --permission-mode <模式>     default | auto-edit | plan | auto | full-auto | allowlist
@@ -136,6 +160,8 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
   --trust / --no-trust         信任 / 不信任当前项目（项目级 Hook、Skill、提示模板）
 
 资源
+  --system-prompt <文本|@文件> 追加系统提示：缺省作为最后一条规则追加（工具表等前缀不变，利于缓存）
+  --system-prompt-mode <方式>  append（缺省）| replace（替换开头的角色说明，工具与项目上下文保留）
   --profile <文件>             宿主 profile.json（字段等价于对应参数，命令行优先）
   --host <模块>                宿主适配器模块（CJS / ESM）
   --instructions <文件>        追加指令文件，可重复
@@ -143,14 +169,19 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
   --auth-file <文件>           auth.json 位置（缺省 ~/.config/ama/auth.json）
   --tools <a,b,…>              只启用这些工具
   --exclude-tools <a,b,…>      禁用这些工具
-  --tools-preset <名>          工具预设：default（缺省）| minimal | codemode | coordinator
-  --codemode <模式>            codemode 调用方式：off | on | only
+  --tools-preset <名>          工具预设：default（缺省）| minimal | codemode-only | coordinator
+                               （codemode 是 codemode-only 的旧名，仍可用）
+  --codemode <模式>            codemode 调用方式：off | on | only（缺省随预设）
 
 子命令
   ama auth set <provider>      从 stdin 读取 key 写入 auth.json（0600）
   ama auth list                列出已保存 key 的供应商（不显示 key）
   ama auth remove <provider>   删除已保存的 key
   ama sessions list|show|prune 会话管理
+  ama sessions search <关键词|/正则/> [--all] [--role user|assistant|tool] [--since 7d] [--limit N]
+                               跨会话全文检索
+  ama sessions export <id> [--format md|json|jsonl] [--output <文件>] [--branch leaf|all]
+                               导出会话（已脱敏）
   ama models list [--provider <id>]  列出模型（含来源与 key 状态）
   ama models check <provider/id>     发一次最小请求检查可用性
   ama models discover <provider> [--probe] [--write] [--limit N]
@@ -167,13 +198,17 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
   ama config path              配置目录、数据目录与各文件路径
   ama config edit              用 $VISUAL / $EDITOR 打开 config.json
   ama init [--force]           建配置目录（0700）与 config.json、config.schema.json；已有的不覆盖
+  ama stats [--since 7d] [--by day|week|month|provider|channel|model|project] [--all] [--json]
+                               跨会话统计：请求、token、缓存命中率、费用、工具调用
 
 其它
   -h, --help                   输出本帮助
   -v, --version                输出版本
 
 退出码：0 正常 · 1 运行期错误 · 2 用法错误 · 3 配置错误 · 4 无可用模型或 key ·
-        5 会话错误 · 6 宿主 / Hook 启动失败 · 78 宿主 API 版本不匹配 · 130 SIGINT · 143 SIGTERM
+        5 会话错误 · 6 宿主 / Hook 启动失败 · 7 -p 有工具调用被拒（无人审批；用
+        --permission-mode auto-edit|auto 或 --allow 放行）· 78 宿主 API 版本不匹配 ·
+        130 SIGINT · 143 SIGTERM
 `;
 
 type ValueOption =
@@ -200,7 +235,11 @@ type ValueOption =
   | "exclude-tools"
   | "tools-preset"
   | "codemode"
-  | "image";
+  | "image"
+  | "max-turns"
+  | "system-prompt"
+  | "system-prompt-mode"
+  | "from";
 
 const VALUE_OPTIONS: ReadonlySet<string> = new Set<ValueOption>([
   "profile",
@@ -227,6 +266,10 @@ const VALUE_OPTIONS: ReadonlySet<string> = new Set<ValueOption>([
   "tools-preset",
   "codemode",
   "image",
+  "max-turns",
+  "system-prompt",
+  "system-prompt-mode",
+  "from",
 ]);
 
 const FLAG_ALIASES: Readonly<Record<string, string>> = {
@@ -262,6 +305,9 @@ export function emptyArgs(): ParsedArgs {
     resume: false,
     print: false,
     noTui: false,
+    noSession: false,
+    stdin: false,
+    noStdin: false,
     positionals: [],
   };
 }
@@ -335,13 +381,29 @@ function applyValue(args: ParsedArgs, option: ValueOption, value: string): void 
       args.excludeTools = [...(args.excludeTools ?? []), ...list(value)];
       break;
     case "tools-preset":
-      args.toolsPreset = choice(option, value, PRESET_CHOICES);
+      args.toolsPreset = canonicalPreset(choice(option, value, PRESET_CHOICES));
       break;
     case "codemode":
       args.codemode = choice(option, value, CODEMODE_MODES);
       break;
     case "image":
       args.images.push(value);
+      break;
+    case "system-prompt":
+      args.systemPrompt = value;
+      break;
+    case "system-prompt-mode":
+      args.systemPromptMode = choice(option, value, ["append", "replace"] as const);
+      break;
+    case "max-turns": {
+      const turns = Number(value);
+      if (!Number.isInteger(turns) || turns < 1)
+        throw new UsageError(`--max-turns 应为正整数（收到 ${value}）`);
+      args.maxTurns = turns;
+      break;
+    }
+    case "from":
+      args.from = value;
       break;
   }
 }
@@ -362,6 +424,12 @@ function applyFlag(args: ParsedArgs, name: string): boolean {
       return true;
     case "no-tui":
       args.noTui = true;
+      return true;
+    case "no-session":
+      args.noSession = true;
+      return true;
+    case "no-stdin":
+      args.noStdin = true;
       return true;
     case "trust":
     case "no-trust": {
@@ -386,11 +454,25 @@ function validate(args: ParsedArgs): void {
     args.fork !== undefined ? "--fork" : undefined,
   ].filter((f): f is string => f !== undefined);
   if (sessionFlags.length > 1) throw new UsageError(`${sessionFlags.join(" 与 ")} 不能同时使用`);
+  if (args.noSession && sessionFlags.length > 0) {
+    throw new UsageError(`--no-session 与 ${sessionFlags[0]} 不能同时使用`);
+  }
   if (args.apiKey !== undefined && args.model === undefined) {
     throw new UsageError("--api-key 需要同时给出 --model");
   }
   if (args.outputFormat !== undefined && !args.print) {
     throw new UsageError("--output-format 只用于 -p / --print");
+  }
+  if (args.systemPromptMode !== undefined && args.systemPrompt === undefined) {
+    throw new UsageError("--system-prompt-mode 需要同时给出 --system-prompt");
+  }
+  if (args.maxTurns !== undefined && !args.print) {
+    throw new UsageError("--max-turns 只用于 -p / --print");
+  }
+  if (args.noStdin && !args.print) throw new UsageError("--no-stdin 只用于 -p / --print");
+  if (args.noStdin && args.stdin) throw new UsageError("--no-stdin 与位置参数 - 不能同时使用");
+  if (args.stdin && !args.print) {
+    throw new UsageError("位置参数 - （从 stdin 读提示）只用于 -p / --print");
   }
   if (args.images.length > 0 && !args.print) {
     throw new UsageError("--image 只用于 -p / --print（交互界面里写 @图片路径）");
@@ -410,7 +492,11 @@ export function parseArgs(argv: readonly string[]): ParseResult {
       args.positionals.push(...argv.slice(i + 1));
       break;
     }
-    if (!token.startsWith("-") || token === "-") {
+    if (token === "-") {
+      args.stdin = true;
+      continue;
+    }
+    if (!token.startsWith("-")) {
       args.positionals.push(token);
       continue;
     }

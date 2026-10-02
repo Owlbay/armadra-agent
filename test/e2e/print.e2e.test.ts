@@ -1,7 +1,8 @@
+import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { createTmpHome, type TmpHome } from "../helpers/tmp-home.js";
-import { hasBundle, runAma } from "./spawn.js";
+import { BUNDLE, hasBundle, runAma } from "./spawn.js";
 
 let home: TmpHome | undefined;
 afterEach(() => {
@@ -64,4 +65,85 @@ describe.skipIf(!hasBundle)("e2e：ama -p（bundle 子进程）", () => {
     expect(doctor.stdout).toMatch(/将使用的模型：anthropic\//);
     expect(doctor.stdout + show.stdout).not.toContain("sk-ant-e2e-fake");
   });
+
+  it("有提示参数、管道保持打开且一直不写：2 s 后继续运行并提示", async () => {
+    home = createTmpHome();
+    const r = await runWithPipe(home, ["-p", "hi", "--model", "fake/echo"], []);
+    expect(r.code).toBe(0);
+    expect(r.stdout).toBe("hi\n");
+    expect(r.stderr).toContain("未在 2 秒内收到管道输入，已忽略；需要等待请在末尾加 -");
+    expect(r.elapsedMs).toBeGreaterThanOrEqual(1_900);
+    expect(r.elapsedMs).toBeLessThan(9_000);
+  });
+
+  it("先慢 1 s 再写：正常拼接；收到首字节后不再超时（第二块 3.5 s 才到也读进来）", async () => {
+    home = createTmpHome();
+    const r = await runWithPipe(
+      home,
+      ["-p", "hi", "--model", "fake/echo"],
+      [
+        { at: 1_000, text: "slow" },
+        { at: 3_500, text: " tail", end: true },
+      ],
+    );
+    expect(r.code).toBe(0);
+    expect(r.stdout).toBe("hi\n\nslow tail\n");
+    expect(r.stderr).not.toContain("未在");
+  });
+
+  it("首字节在 3 s 之后：被忽略并提示", async () => {
+    home = createTmpHome();
+    const r = await runWithPipe(
+      home,
+      ["-p", "hi", "--model", "fake/echo"],
+      [{ at: 3_000, text: "too late", end: true }],
+    );
+    expect(r.code).toBe(0);
+    expect(r.stdout).toBe("hi\n");
+    expect(r.stderr).toContain("未在 2 秒内收到管道输入，已忽略");
+  });
 });
+
+interface PipeWrite {
+  at: number;
+  text: string;
+  end?: boolean;
+}
+
+/** stdin 为管道（父进程持有，不主动关），按时间表写入；返回输出与耗时。 */
+function runWithPipe(
+  h: TmpHome,
+  argv: string[],
+  writes: PipeWrite[],
+): Promise<{ code: number | null; stdout: string; stderr: string; elapsedMs: number }> {
+  const started = Date.now();
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [BUNDLE, ...argv], {
+      cwd: h.cwd,
+      env: { ...h.env, AMA_NO_LOCAL_PROBE: "1" },
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (d: Buffer) => (stdout += d.toString("utf8")));
+    child.stderr.on("data", (d: Buffer) => (stderr += d.toString("utf8")));
+    child.stdin.on("error", () => undefined); // 子进程已退出时写入会 EPIPE
+    const timers = writes.map((w) =>
+      setTimeout(() => {
+        if (child.stdin.destroyed) return;
+        child.stdin.write(w.text);
+        if (w.end === true) child.stdin.end();
+      }, w.at),
+    );
+    const kill = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(new Error(`ama -p 挂起：${stderr}`));
+    }, 15_000);
+    child.on("close", (code) => {
+      for (const t of timers) clearTimeout(t);
+      clearTimeout(kill);
+      child.stdin.destroy();
+      resolve({ code, stdout, stderr, elapsedMs: Date.now() - started });
+    });
+  });
+}

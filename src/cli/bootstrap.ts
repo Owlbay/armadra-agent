@@ -23,6 +23,7 @@ import { AgentEventBus, createHostApi } from "../host/api-impl.js";
 import { activateHost, disposeHost } from "../host/loader.js";
 import type { ApprovalBroker, HostAdapterHandle } from "../host/types.js";
 import { HELP_TEXT, parseArgs, UsageError, type ParsedArgs } from "./args.js";
+import { applyFromOption } from "./from-prompt.js";
 import type { CliIo, RuntimeDeps, SessionAssembly } from "./deps.js";
 import { ExitCode } from "./exit-codes.js";
 import {
@@ -39,6 +40,7 @@ import {
   toStartupError,
 } from "./startup-steps.js";
 import type { LoadedResources, Runtime } from "./runtime.js";
+import { resolveSystemPromptArg } from "./system-prompt-arg.js";
 
 /** §11.1 第 3–14 步。 */
 export async function bootstrap(
@@ -198,12 +200,17 @@ export async function bootstrap(
     }),
   );
   const { model, provider } = await step(ExitCode.NoModel, "模型", () =>
-    resolveModel(args, providers, sessionManager, config.defaultModel, deps, interactive),
+    resolveModel(args, providers, sessionManager, config.defaultModel, deps, interactive, io.env),
   );
   const thinkingLevel = thinkingOf(args, sessionManager, config.thinkingLevel);
   // 12. 工具注册表
   const tools = await step(ExitCode.RuntimeError, "工具", () =>
-    deps.tools.create({ config, cwd: sessionCwd, mode }),
+    deps.tools.create({
+      config,
+      cwd: sessionCwd,
+      mode,
+      paths: { configDir: paths.configDir, dataDir: paths.dataDir },
+    }),
   );
   for (const name of config.tools?.disabled ?? []) {
     if (tools.get(name) === undefined) warn(`config tools.disabled：未知工具 ${name}，已忽略`);
@@ -311,6 +318,14 @@ export async function bootstrap(
       unattended,
       warn,
     };
+    const overrides: NonNullable<SessionAssembly["overrides"]> = {};
+    if (args.maxTurns !== undefined) overrides.maxTurns = args.maxTurns;
+    if (args.noSession) overrides.noSession = true;
+    const systemPrompt = await step(ExitCode.Config, "--system-prompt", () =>
+      resolveSystemPromptArg(args.systemPrompt, args.systemPromptMode, io.cwd),
+    );
+    if (systemPrompt !== undefined) overrides.systemPrompt = systemPrompt;
+    if (Object.keys(overrides).length > 0) assembly.overrides = overrides;
     session = await step(ExitCode.RuntimeError, "会话组装", () => deps.session.create(assembly));
     const active = session;
     let disposed: Promise<void> | undefined;
@@ -416,10 +431,14 @@ export async function runCli(
   }
   const restore =
     runtime.mode === "print" || runtime.mode === "rpc" ? takeOverStdout() : () => undefined;
+  let cleanupFrom = (): void => undefined;
   try {
     if (runtime.mode !== "interactive")
       for (const w of runtime.warnings) io.stderr(`ama: 警告：${w}\n`);
-    const context = { args, prompt: args.prompt, io };
+    // [W4-D] --from：旧会话的一条用户消息作提示（-p 时连图片，临时文件在 finally 删除）。
+    const from = applyFromOption(args, runtime, io);
+    cleanupFrom = from.cleanup;
+    const context = from.context;
     const runner = deps.modes[runtime.mode];
     if (runner === undefined)
       throw new AmaError("not_implemented", `模式 ${runtime.mode} 尚未装配`, { exitCode: 1 });
@@ -436,6 +455,7 @@ export async function runCli(
     return reportError(error, io, ExitCode.RuntimeError);
   } finally {
     await runtime.dispose("exit").catch(() => undefined);
+    cleanupFrom();
     restore();
   }
 }

@@ -3,6 +3,7 @@
  * 模型与思考级别解析、工具过滤、指令文件。[B5] 由 cli/bootstrap.ts 编排。
  */
 
+import { describeLookupFailure } from "../ai/providers/suggest.js";
 import { formatModelRef } from "../ai/providers/channels.js";
 import { statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
@@ -13,7 +14,8 @@ import { AmaError, StartupError, isAmaError } from "../errors.js";
 import type { InstructionSource } from "../host/types.js";
 import type { SessionEntry, SessionManagerApi } from "../session/types.js";
 import { UsageError, type ParsedArgs } from "./args.js";
-import { pickDefaultModel } from "./default-model.js";
+import { noModelGuidance, pickDefaultModel } from "./default-model.js";
+import { hideFakeProvider } from "./fake-visibility.js";
 import type { CliIo, RuntimeDeps, SessionAssembly, SessionRequest } from "./deps.js";
 import { ExitCode } from "./exit-codes.js";
 import type { Runtime, RuntimeMode } from "./runtime.js";
@@ -81,6 +83,7 @@ export function applyProfile(args: ParsedArgs, profile: ProfileOptions): ParsedA
 }
 
 export function sessionRequestOf(args: ParsedArgs): SessionRequest | "pick" {
+  if (args.noSession) return { kind: "memory" };
   if (args.continue) return { kind: "continue" };
   if (args.resume)
     return args.resumeId === undefined ? "pick" : { kind: "resume", id: args.resumeId };
@@ -94,7 +97,7 @@ export function sourceOf(
   manager: SessionManagerApi,
 ): SessionAssembly["source"] {
   if (request.kind === "fork") return "fork";
-  if (request.kind === "new") return "startup";
+  if (request.kind === "new" || request.kind === "memory") return "startup";
   return manager.entries().length > 0 ? "resume" : "startup";
 }
 
@@ -123,6 +126,7 @@ export async function resolveModel(
   defaultModel: string | undefined,
   deps: RuntimeDeps,
   interactive: boolean,
+  env: Readonly<Record<string, string | undefined>> = {},
 ): Promise<ModelChoice> {
   if (args.provider !== undefined && args.model === undefined) {
     throw new UsageError(
@@ -132,15 +136,8 @@ export async function resolveModel(
   const lookup = (ref: string, label: string): ModelChoice => {
     const found = registry.findModel(ref);
     if (found.ok) return { model: found.model, provider: found.provider };
-    const hint =
-      found.candidates.length > 0 ? `；候选：${found.candidates.slice(0, 20).join(", ")}` : "";
-    const what =
-      found.reason === "provider_not_found"
-        ? "供应商不存在"
-        : found.reason === "ambiguous"
-          ? "模型名有歧义"
-          : "模型不存在";
-    throw new StartupError("model_not_found", `${label}${what}：${ref}${hint}`, ExitCode.NoModel);
+    const code = found.reason === "provider_not_found" ? "provider_not_found" : "model_not_found";
+    throw new StartupError(code, `${label}${describeLookupFailure(ref, found)}`, ExitCode.NoModel);
   };
   let choice: ModelChoice | undefined;
   if (args.model !== undefined) {
@@ -169,14 +166,15 @@ export async function resolveModel(
     }
   }
   const pick = async (reason: string): Promise<ModelChoice> => {
-    const picked = interactive ? await deps.ui?.pickModel?.(registry, reason) : undefined;
+    // 选择器不列测试供应商 fake（AMA_SHOW_FAKE=1 或 AMA_FAKE_SCRIPT 时照列）
+    const picked = interactive
+      ? await deps.ui?.pickModel?.(hideFakeProvider(registry, env), reason)
+      : undefined;
     if (picked === undefined) throw new StartupError("no_api_key", reason, ExitCode.NoModel);
     return lookup(picked, "");
   };
   if (choice === undefined) {
-    return pick(
-      "没有可用模型：用 `ama auth set <provider>` 保存 key，或设置对应环境变量，或 --model 指定",
-    );
+    return pick(noModelGuidance(registry));
   }
   if (choice.provider.requiresApiKey) {
     const key = await registry.resolveApiKey(choice.provider.id);

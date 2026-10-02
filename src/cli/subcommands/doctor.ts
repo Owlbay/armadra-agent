@@ -20,7 +20,8 @@ import { AMA_VERSION } from "../../version.js";
 import { parseSubArgs } from "../args.js";
 import type { CliIo, RuntimeDeps } from "../deps.js";
 import { ExitCode } from "../exit-codes.js";
-import { describeModel } from "./config.js";
+import { describeProxy, inspectProxy } from "../proxy.js";
+import { describeCodemode, describeModel } from "./config.js";
 import { buildRegistry, loadUserLevel, type UserLevel } from "./context.js";
 
 export const DOCTOR_USAGE = `用法：ama doctor [--profile <文件>] [--auth-file <文件>] [--trust | --no-trust]
@@ -202,6 +203,11 @@ function terminalSection(report: Report, io: CliIo): void {
   report.item(`缺省界面：${tui ? "终端界面" : "行式（--no-tui 等价）"}`);
 }
 
+function proxySection(report: Report, io: CliIo): void {
+  report.section("代理");
+  for (const line of describeProxy(inspectProxy(io.env))) report.item(line);
+}
+
 export async function runDoctor(
   argv: readonly string[],
   io: CliIo,
@@ -245,6 +251,9 @@ export async function runDoctor(
     const merged = mergeProjectAndCli(level.merged, project?.value, undefined);
     for (const warning of merged.warnings) report.item(`  收紧：${warning}`);
     report.item(`有效权限模式：${merged.config.permission?.mode ?? "default"}`);
+    const codemode = describeCodemode(merged.config);
+    report.item(`codemode：${codemode.mode}（${codemode.reason}）`);
+    if (codemode.unavailable !== undefined) report.item(`  ${codemode.unavailable}`);
   } catch {
     // probeLine 已报告
   }
@@ -259,6 +268,7 @@ export async function runDoctor(
   await keySection(report, io, level, deps);
   hookSection(report, io, level, trusted);
   report.item(`用户级 hooks.json：${userFile(level, HOOKS_FILE)}`);
+  proxySection(report, io);
   terminalSection(report, io);
   io.stdout(report.text());
   return report.problems > 0 ? ExitCode.Config : ExitCode.Ok;

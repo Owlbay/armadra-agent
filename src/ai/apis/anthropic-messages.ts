@@ -13,7 +13,13 @@
  */
 
 import { AssistantEventStreamImpl } from "../event-stream.js";
-import { USER_AGENT, authHeaders, describeErrorJson, mergeHeaders } from "../http.js";
+import {
+  authHeaders,
+  describeErrorJson,
+  idleTimeoutOf,
+  mergeHeaders,
+  USER_AGENT,
+} from "../http.js";
 import { readSseEvents } from "../sse.js";
 import type {
   AnthropicMessagesCompat,
@@ -202,6 +208,7 @@ async function run(
       body,
       signal: options.signal,
       timeoutMs: options.timeoutMs,
+      idleTimeoutMs: idleTimeoutOf(options),
       onResponse: options.onResponse,
     });
     stream.push({ type: "start", partial: tracker.output });
@@ -209,6 +216,7 @@ async function run(
     for await (const sse of readSseEvents(
       response.body as ReadableStream<Uint8Array>,
       options.signal,
+      idleTimeoutOf(options),
     )) {
       if (sse.event === "ping" || sse.data === "") continue;
       let data: Json;

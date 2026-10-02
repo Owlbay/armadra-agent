@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTmpHome, type TmpHome } from "../../../test/helpers/tmp-home.js";
 import { ProviderRegistry } from "../../ai/providers/registry.js";
+import { detectSandboxCapability } from "../../codemode/capability.js";
+import { describeCodemode } from "./config.js";
 import { main } from "../main.js";
 
 let home: TmpHome;
@@ -56,6 +58,63 @@ describe("ama config show", () => {
     expect(text).toContain("工具：bash, edit, read, write（预设 minimal，codemode off）");
   });
 
+  it("补全 cache / codemode 段与来源；codemode 跟随预设写明原因；--codemode / --tools-preset 作为 cli 层；旧名提示", async () => {
+    home.write("home/.config/ama/config.json", {
+      version: 1,
+      tools: { preset: "codemode" },
+      cache: { warming: "idle" },
+    });
+    expect(await ama(["config", "show"])).toBe(0);
+    let text = out.join("");
+    expect(text).toMatch(/cache\.warming = "idle"\s+user/);
+    expect(text).toMatch(/cache\.retention = "short"\s+default/);
+    expect(text).toMatch(/cache\.missNotices = true\s+default/);
+    expect(text).toMatch(/codemode\.inlineBudget = 3000\s+default/);
+    expect(text).toMatch(/codemode\.requireStrict = false\s+default/);
+    expect(text).toMatch(/permission\.builtinDeny = true\s+default/);
+    expect(text).toMatch(/tools\.preset = "codemode-only"\s+user/);
+    expect(text).toMatch(/codemode\.mode = "only"\s+default（跟随预设 codemode-only（Node \d+/);
+    expect(text).toContain("工具：codemode（预设 codemode-only，codemode only）");
+    expect(text).toContain("tools.preset 写的是旧名 codemode，规范名 codemode-only");
+    out = [];
+    expect(await ama(["config", "show", "--tools-preset", "minimal", "--codemode", "on"])).toBe(0);
+    text = out.join("");
+    expect(text).toMatch(/tools\.preset = "minimal"\s+cli/);
+    expect(text).toMatch(/codemode\.mode = "on"\s+cli/);
+    expect(text).toContain("codemode：on  codemode.mode 显式设置");
+    expect(text).toContain("  cli：命令行");
+    out = [];
+    expect(await ama(["config", "show", "--json", "--tools-preset", "default"])).toBe(0);
+    const json = JSON.parse(out.join("")) as {
+      codemode: { mode: string; source: string };
+      entries: { path: string; source: string }[];
+      tools: string[];
+    };
+    const strict = detectSandboxCapability().strict;
+    expect(json.codemode).toMatchObject({ mode: strict ? "on" : "off", source: "preset" });
+    expect(json.tools.includes("codemode")).toBe(strict);
+    expect(json.entries.find((e) => e.path === "cache.warming")?.source).toBe("user");
+    expect(await ama(["config", "show", "--codemode", "always"])).toBe(2);
+  });
+
+  it("describeCodemode：default 预设随 Node 版本；requireStrict 时说明不可用", () => {
+    expect(describeCodemode({ version: 1 }, "26.1.0")).toMatchObject({
+      mode: "on",
+      source: "preset",
+      reason: "跟随预设 default（Node 26 网络已隔离）",
+    });
+    expect(describeCodemode({ version: 1 }, "24.3.0")).toMatchObject({
+      mode: "off",
+      reason: "跟随预设 default（Node 24 < 25 网络未隔离）",
+    });
+    const strictOnly = describeCodemode(
+      { version: 1, codemode: { mode: "on", requireStrict: true } },
+      "22.19.0",
+    );
+    expect(strictOnly.source).toBe("config");
+    expect(strictOnly.unavailable).toMatch(/codemode 已禁用/);
+  });
+
   it("--json；defaultModel 优先；没有 key 时说明原因", async () => {
     expect(await ama(["config", "show", "--json"])).toBe(0);
     const json = JSON.parse(out.join("")) as { model: { ref?: string; reason: string } };
@@ -71,6 +130,7 @@ describe("ama config show", () => {
   it("doctor 也给出将使用的模型", async () => {
     expect(await ama(["doctor"], { DEEPSEEK_API_KEY: "k" })).toBe(0);
     expect(out.join("")).toMatch(/将使用的模型：deepseek\/\S+（零配置：deepseek 有 key/);
+    expect(out.join("")).toMatch(/codemode：(on|off)（跟随预设 default（Node \d+/);
   });
 
   it("供应商节：模型级协议与 baseUrl 来自环境变量（文本与 --json）；doctor 标出变量", async () => {

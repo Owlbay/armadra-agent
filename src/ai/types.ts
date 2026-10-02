@@ -409,6 +409,11 @@ export interface StreamOptions {
   /** 值为 null 表示删除该头。 */
   headers?: Record<string, string | null>;
   timeoutMs?: number;
+  /**
+   * 空闲超时：等响应头、以及流中两块数据之间的最长间隔（每收到字节即重新计时）。缺省 300 000，
+   * 0 关闭。超时报 `idle timeout` 错误，会话层按可重试处理。
+   */
+  idleTimeoutMs?: number;
   maxTokens?: number;
   temperature?: number;
   thinkingLevel?: ModelThinkingLevel;
@@ -484,7 +489,12 @@ export interface ApiKeyResolution {
 
 export type ModelLookup =
   | { ok: true; model: Model; provider: ProviderData }
-  | { ok: false; reason: "not_found" | "ambiguous" | "provider_not_found"; candidates: string[] };
+  | {
+      ok: false;
+      /** `channel_not_found`：模型在，`@渠道` 不在（候选是该模型可用的 `provider/model@渠道`）。 */
+      reason: "not_found" | "ambiguous" | "provider_not_found" | "channel_not_found";
+      candidates: string[];
+    };
 
 export interface ProviderRegistryApi {
   list(): readonly ProviderData[];

@@ -65,6 +65,7 @@ export async function probeChannels(
     timeoutMs: input.timeoutMs,
     retryDelayMs: input.retryDelayMs,
     onThrottle: (n) => progress.line(`  遇到 429 限流，并发降到 ${n}，稍后重试一次\n`),
+    onRecover: (n) => progress.line(`  一段时间没再限流，并发回升到 ${n}\n`),
   });
   let printed = 0;
   /** 按模型顺序输出：前面的模型都探完才输出后面的。 */
