@@ -30,6 +30,7 @@ import { AMA_VERSION } from "../../../version.js";
 import { runSlashCommand, type CommandContext } from "../../commands-core.js";
 import { createLineReader } from "../../rpc/jsonl.js";
 import { errorText, onTerminationSignals } from "../../shared.js";
+import { memoryLineCommand } from "../memory-panel.js";
 import { LineEditor } from "./line-editor.js";
 import { cacheNoticesEnabled } from "../../session-report.js";
 import { EventPrinter, approvalQuestion, logsInfo, pickHint } from "./line-render.js";
@@ -75,6 +76,7 @@ export async function runLineMode(
       unsubscribe = next.subscribe((event) => printer.handle(event));
       return next;
     },
+    extra: { memory: memoryLineCommand }, // [W6-M]
   };
 
   /** 一行输入：命令或提示；返回 "exit" 表示结束。 */

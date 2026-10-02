@@ -58,6 +58,7 @@ import { AgentUi } from "./agent-ui.js";
 import { ApprovalDialogBroker, approvalOutcomeText } from "./approval-dialog.js";
 import { mergingBroker } from "./approval-merge.js";
 import { ALL_COMMANDS, runInteractiveCommand, type CommandUi } from "./commands.js";
+import { memoryPanelFor } from "./memory-panel.js";
 import { InteractiveCompletion } from "./completion.js";
 import { confirmBypass } from "./confirm-dialog.js";
 import { createKeyDispatch } from "./key-dispatch.js";
@@ -405,6 +406,7 @@ export function runInteractiveMode(
     exit: (code) => exit(code),
     now,
     extra: (name, args) => agentUi.command(name, args),
+    memoryPanel: memoryPanelFor(() => commandUi, pickerHost, tui, env), // [W6-M]
   };
 
   const runCommand = (line: string): Promise<boolean> =>
