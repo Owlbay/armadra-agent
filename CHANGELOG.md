@@ -172,12 +172,6 @@ Wave 6: the agent bar and sub-agent view, traces, memory, ChatGPT login, the `/c
   entering the agent bar with `↓` in tmux and the light / dark HTML trace are covered by automated tests only and await a manual
   check.
 
-- **Continue / resume skip subagent sessions**: `ama -c`, the `--resume` picker, the interactive `/resume` picker and ACP
-  `session/list` no longer pick or list subagent (task) sessions — those whose header has `parentSession` and whose first entry
-  is `custom{ama.task}` (forks still count). `-c` only reads the first two lines of each file. `ama sessions list` hides them by
-  default; `--all` lists them marked `↳ subagent`. An explicit `--resume <subagent session id>` still works; `prune`, `stats` and
-  `sessions search` are unchanged.
-
 ## Earlier releases
 
 See [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md) (Chinese).
