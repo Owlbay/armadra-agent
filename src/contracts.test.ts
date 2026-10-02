@@ -52,7 +52,13 @@ import type {
   HostApi,
   HostModule,
 } from "./host/types.js";
-import type { SessionEntry, SessionEntryInput, SessionHeader } from "./session/types.js";
+import type {
+  LeafLine,
+  SessionEntry,
+  SessionEntryInput,
+  SessionHeader,
+  SessionLine,
+} from "./session/types.js";
 import type { Component, Focusable, Theme } from "./tui/component.js";
 import type { SubagentResult, ToolContext, ToolDefinition, ToolResult } from "./tools/types.js";
 import type { Runtime } from "./cli/runtime.js";
@@ -358,6 +364,7 @@ describe("会话契约", () => {
       | "custom_message"
       | "label"
       | "session_info"
+      | "usage"
     >();
     const input: SessionEntryInput = {
       type: "context_edit",
@@ -370,6 +377,23 @@ describe("会话契约", () => {
     expectTypeOf<Extract<SessionEntry, { type: "message" }>["message"]["role"]>().toEqualTypeOf<
       "system" | "user" | "assistant" | "toolResult"
     >();
+  });
+});
+
+describe("会话契约（W3-C0 ③：usage 条目与 leaf 行）", () => {
+  it("usage 条目可 append；leaf 行不是条目", () => {
+    const warm: SessionEntryInput = {
+      type: "usage",
+      kind: "cache_warm",
+      provider: "anthropic",
+      model: "claude-sonnet-5-5",
+      usage: { input: 0, output: 1, cacheRead: 40_000, cacheWrite: 0, totalTokens: 40_001 },
+    };
+    const leaf: LeafLine = { type: "leaf", id: null, timestamp: "2026-10-02T00:00:00.000Z" };
+    expectTypeOf<LeafLine>().toMatchTypeOf<SessionLine>();
+    expectTypeOf<Extract<SessionEntry, { type: "leaf" }>>().toBeNever();
+    expectTypeOf<LeafLine["id"]>().toEqualTypeOf<string | null>();
+    expect([warm.type, leaf.type]).toEqual(["usage", "leaf"]);
   });
 });
 
