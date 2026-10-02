@@ -34,6 +34,7 @@ import type {
   TranscriptContext,
   Usage,
 } from "../types.js";
+import { affinityHeaders, resolveCacheRetention } from "./cache-params.js";
 import {
   buildResponsesRequest,
   detectResponsesCompat,
@@ -268,6 +269,12 @@ function buildHeaders(model: Model, options: StreamOptions): Record<string, stri
   return mergeHeaders(
     { "content-type": "application/json", accept: "text/event-stream", "user-agent": USER_AGENT },
     authHeaders(options.apiKey, model.authHeader, "authorization-bearer"),
+    affinityHeaders(
+      model,
+      "openai-responses",
+      options.sessionId,
+      resolveCacheRetention(options.cacheRetention),
+    ),
     model.headers,
     options.headers,
   );

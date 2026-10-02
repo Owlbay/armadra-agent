@@ -32,6 +32,7 @@ import type {
   TranscriptContext,
   Usage,
 } from "../types.js";
+import { affinityHeaders, resolveCacheRetention } from "./cache-params.js";
 import { detectCompat } from "./openai-compat.js";
 import { REASONING_FIELDS, buildOpenAIRequest } from "./openai-request.js";
 import {
@@ -204,6 +205,12 @@ function buildHeaders(model: Model, options: StreamOptions): Record<string, stri
   return mergeHeaders(
     { "content-type": "application/json", accept: "text/event-stream", "user-agent": USER_AGENT },
     authHeaders(options.apiKey, model.authHeader, "authorization-bearer"),
+    affinityHeaders(
+      model,
+      "openai-completions",
+      options.sessionId,
+      resolveCacheRetention(options.cacheRetention),
+    ),
     model.headers,
     options.headers,
   );
