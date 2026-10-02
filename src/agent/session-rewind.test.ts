@@ -1,12 +1,12 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createTmpHome, type TmpHome } from "../../test/helpers/tmp-home.js";
 import type { Message } from "../ai/types.js";
+import { createCheckpointBackendFactory } from "../checkpoints/index.js";
 import { REWIND_NOTE_CUSTOM_TYPE } from "../checkpoints/types.js";
 import { sessionDirForCwd } from "../session/store.js";
 import { createEditTool } from "../tools/edit.js";
-import { resolvePath } from "../tools/paths.js";
 import { createReadTool } from "../tools/read.js";
 import { createTaskTool } from "../tools/task.js";
 import type { ToolDefinition } from "../tools/types.js";
@@ -24,24 +24,10 @@ afterEach(() => {
   home = undefined;
 });
 
-/** edit / write 写前后调 ctx.checkpoint（RW-A 在工具里做的两处调用，这里用包装模拟）。 */
-function tracked<I extends { path: string }>(tool: ToolDefinition<I>): ToolDefinition<I> {
-  return {
-    ...tool,
-    async execute(input, ctx) {
-      const abs = resolvePath(input.path, ctx.cwd);
-      await ctx.checkpoint?.beforeWrite(abs);
-      const result = await tool.execute(input, ctx);
-      ctx.checkpoint?.afterWrite(abs, existsSync(abs) ? readFileSync(abs) : "");
-      return result;
-    },
-  };
-}
-
 const TOOLS = [
   createReadTool(),
-  tracked(createEditTool()),
-  tracked(createWriteTool()),
+  createEditTool(),
+  createWriteTool(),
   createTaskTool(),
 ] as ToolDefinition[];
 
@@ -272,6 +258,61 @@ describe("rewind：对话 + 代码", () => {
       f.h.session.rewind({ entryId: target.entryId, mode: "both" }),
     ).rejects.toMatchObject({ code: "rewind_failed" });
     expect(f.h.manager.leafId()).toBe(leaf);
+  });
+});
+
+describe("rewind：真实检查点后端（RW-A）", () => {
+  it("edit 两个文件 → rewind both → 磁盘内容回到之前，备份在临时数据目录", async () => {
+    home = createTmpHome("ama-rw-b-real-");
+    const cwd = home.cwd;
+    writeFileSync(join(cwd, "a.txt"), "alpha\n");
+    writeFileSync(join(cwd, "b.txt"), "beta\n");
+    const h = createHarness({
+      script: [...READ_THEN_EDIT, { text: "again" }],
+      cwd,
+      dir: sessionDirForCwd(home.dataDir, cwd),
+      tools: TOOLS,
+      checkpoints: createCheckpointBackendFactory({ mode: "tools", dataDir: home.dataDir }),
+      cache: { warming: "off" },
+    });
+    await h.session.prompt("read a and b");
+    await h.session.prompt("edit a and b");
+    expect(readFileSync(join(cwd, "a.txt"), "utf8")).toBe("ALPHA\n");
+    const points = h.session.rewindPoints();
+    expect(points.map((p) => p.hasCheckpoint)).toEqual([true, true]);
+
+    const preview = await h.session.rewind({
+      entryId: points[1]!.entryId,
+      mode: "both",
+      dryRun: true,
+    });
+    expect(preview.code).toMatchObject({
+      restored: ["a.txt", "b.txt"],
+      insertions: 2,
+      deletions: 2,
+    });
+
+    const result = await h.session.rewind({ entryId: points[1]!.entryId, mode: "both" });
+    expect(result.code).toMatchObject({ restored: ["a.txt", "b.txt"], conflicts: [], failed: [] });
+    expect(readFileSync(join(cwd, "a.txt"), "utf8")).toBe("alpha\n");
+    expect(readFileSync(join(cwd, "b.txt"), "utf8")).toBe("beta\n");
+    expect(h.session.readFiles.has(join(cwd, "a.txt"))).toBe(false);
+    expect(readdirSync(join(home.dataDir, "file-history", "blobs")).length).toBeGreaterThan(0);
+    await h.session.prompt("edit a and b");
+    expect(h.session.rewindPoints().map((p) => p.text)).toEqual(["read a and b", "edit a and b"]);
+  });
+
+  it("checkpoints.mode off → 无后端，只能仅对话", async () => {
+    home = createTmpHome("ama-rw-b-off-");
+    const h = createHarness({
+      script: [{ text: "a" }],
+      cwd: home.cwd,
+      dir: sessionDirForCwd(home.dataDir, home.cwd),
+      checkpoints: createCheckpointBackendFactory({ mode: "off", dataDir: home.dataDir }),
+    });
+    await h.session.prompt("hi");
+    expect(h.session.rewindPoints()[0]?.hasCheckpoint).toBe(false);
+    expect(h.session.checkpointHooks()).toBeUndefined();
   });
 });
 

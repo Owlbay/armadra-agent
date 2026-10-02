@@ -13,7 +13,7 @@ import type {
   CheckpointBackend,
   CheckpointBackendContext,
   CheckpointBackendFactory,
-} from "../session-rewind.js";
+} from "../../checkpoints/index.js";
 
 type Content = string | null;
 

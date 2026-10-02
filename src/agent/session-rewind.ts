@@ -15,6 +15,7 @@
 
 import { isAbsolute, resolve } from "node:path";
 import type { ImageBlock, UserMessage } from "../ai/types.js";
+import type { CheckpointBackend } from "../checkpoints/index.js";
 import {
   CHECKPOINT_CUSTOM_TYPE,
   REWIND_NOTE_CUSTOM_TYPE,
@@ -31,41 +32,6 @@ import { resolvePath } from "../tools/paths.js";
 import type { SessionCore } from "./session-core.js";
 import { ABORTED_CUSTOM_TYPE } from "./session-run.js";
 import type { CompactionResult, RewindDraftText } from "./types.js";
-
-// ---------------------------------------------------------------------------
-// 后端接口（RW-A 在 src/checkpoints/backend.ts 实现同形状；合入后改为从 ../checkpoints/index.js 导入）
-// ---------------------------------------------------------------------------
-
-export interface CheckpointBackendContext {
-  cwd: string;
-  /** 全部会话条目（重放 `ama.checkpoint*` 用；不限活动分支）。 */
-  entries(): readonly SessionEntry[];
-  /** 追加 custom 条目（发 entry_appended）。 */
-  appendCustom(customType: string, data: unknown): void;
-  /** 当前回合的用户消息 id；没有回合时 undefined。 */
-  currentTurn(): string | undefined;
-  log(level: "debug" | "info" | "warn" | "error", message: string): void;
-}
-
-export interface CheckpointBackend {
-  /** 交给 ToolContext.checkpoint（子会话共用父会话这一份）。 */
-  readonly hooks: CheckpointHooks;
-  /** 新回合用户消息落盘后调；会话在首个模型请求前等它完成。 */
-  snapshot(userEntryId: string): Promise<void>;
-  /** 已计入 keep 上限。 */
-  hasCheckpoint(userEntryId: string): boolean;
-  /** 恢复到 userEntryId 之前；touched = 被恢复 / 删除文件的绝对路径（dryRun 为空）。 */
-  restore(
-    userEntryId: string,
-    options: { dryRun: boolean; onConflict: "skip" | "overwrite" },
-  ): Promise<{ result: CodeRestoreResult; touched: string[] }>;
-  /** 记录的 HEAD 与当前不同时返回。 */
-  gitHint(userEntryId: string): Promise<{ recordedHead: string; currentHead: string } | undefined>;
-}
-
-export type CheckpointBackendFactory = (
-  ctx: CheckpointBackendContext,
-) => CheckpointBackend | undefined;
 
 /** 提示里最多列出的文件数（§3.4）。 */
 export const REWIND_NOTE_MAX_FILES = 20;

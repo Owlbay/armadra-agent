@@ -22,7 +22,7 @@ import type { SubagentRequest, SubagentResult, ToolDefinition } from "../tools/t
 import type { Agent } from "./agent.js";
 import type { StreamFn } from "./loop.js";
 import type { SessionCacheController } from "./session-cache.js";
-import type { CheckpointBackendFactory } from "./session-rewind.js";
+import type { CheckpointBackendFactory } from "../checkpoints/index.js";
 import type { SystemPromptInput } from "./system-prompt.js";
 import type {
   CacheSettings,
