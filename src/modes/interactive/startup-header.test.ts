@@ -35,6 +35,13 @@ describe("启动头", () => {
     for (const line of header.render(80)) expect(visibleWidth(line)).toBe(64);
   });
 
+  it("没有「已加载」行时键列仍按 6 列对齐", () => {
+    const bare = { ...INFO, contextFiles: [], skills: 0, prompts: 0, hooks: 0, warnings: 0 };
+    const out = lines(new StartupHeader(bare, { theme: plainTheme(), level: "normal" }), 80);
+    expect(out[3]).toMatch(/^│ 模型   anthropic/);
+    expect(out[5]).toMatch(/^│ 模式   Accept edits/);
+  });
+
   it("< 56 列或 compact：去框去键列；路径从左截断", () => {
     const narrow = { ...INFO, cwd: "~/Projects/some/very/deep/path/armadra-agent" };
     const out = lines(new StartupHeader(narrow, { theme: plainTheme(), level: "normal" }), 40);

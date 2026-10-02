@@ -13,6 +13,7 @@ import { permissionModeLabel } from "../../permissions/modes.js";
 import {
   Box,
   KeyValue,
+  padToWidth,
   truncateToWidth,
   visibleWidth,
   type Component,
@@ -168,7 +169,9 @@ export class StartupHeader implements Component {
     if (info.warnings > 0) {
       rows.push({ key: "警告", value: t.fg("warning", `${info.warnings} 条（ama doctor 查看）`) });
     }
-    const kv = new KeyValue(rows, { theme: t, gap: 1, maxKeyRatio: 1 });
+    // 键列固定 6 列（「已加载」的宽度），没有这一行时也对齐
+    const padded = rows.map((row) => ({ ...row, key: padToWidth(row.key, 6) }));
+    const kv = new KeyValue(padded, { theme: t, gap: 1, maxKeyRatio: 1 });
     const body: Component = {
       render: (inner) => [
         this.title(),
