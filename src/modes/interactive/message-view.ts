@@ -30,6 +30,8 @@ import {
   type Theme,
 } from "../../tui.js";
 import { formatCost, formatTokens } from "./status-bar.js";
+import { notificationSummary } from "./subagent-view.js";
+import { PLAN_APPROVED_PROMPT } from "../../plan/prompts.js";
 
 export type ThinkingDisplay = "full" | "collapsed" | "hidden";
 export type NoticeLevel = "info" | "warn" | "error";
@@ -96,7 +98,12 @@ export const ORIGIN_LABELS: Readonly<Record<string, string>> = {
   steer: "插话",
   followUp: "之后",
   host: "宿主",
+  task: "子 Agent 通知",
+  plan: "计划",
 };
+
+/** [W5-U] origin 为 plan 的交接消息（给模型的英文开场）在消息区的说法。 */
+const PLAN_HANDOFF_TEXT = "按批准的计划开始执行";
 
 /** 首行带前缀、续行按 `indent` 缩进的文本（用户消息、排队消息）。 */
 export class PrefixedText implements Component {
@@ -195,6 +202,13 @@ class ThinkingView implements Component {
 }
 
 /** 粗估 token（4 字符 ≈ 1 token），只用于思考块的流式计数。 */
+/** [W5-U] 计划块的开闭标签（独占一行）只给模型与提取用，消息区不显示（计划正文照常渲染）。 */
+const PLAN_TAG_LINE = /^[ \t]*<\/?proposed_plan>[ \t]*$/gm;
+
+export function displayText(text: string): string {
+  return text.includes("proposed_plan>") ? text.replace(PLAN_TAG_LINE, "") : text;
+}
+
 export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
@@ -255,7 +269,8 @@ export class AssistantView extends Container {
       const view = this.part(index, () =>
         this.options.markdown === false ? new Text("") : new Markdown("", { theme }),
       );
-      if (view.getText() !== block.text) view.setText(block.text);
+      const text = displayText(block.text);
+      if (view.getText() !== text) view.setText(text);
       order.push(view);
     });
     const gap = this.options.compact !== true;
@@ -387,6 +402,22 @@ export class MessageView extends Container {
       return;
     }
     const label = ORIGIN_LABELS[origin] ?? origin;
+    // [W5-U] 后台子 Agent 的 <task-notification> 是给模型的全文，消息区只留一行
+    const summary =
+      origin === "task"
+        ? notificationSummary(text)
+        : origin === "plan" && text === PLAN_APPROVED_PROMPT
+          ? PLAN_HANDOFF_TEXT
+          : undefined;
+    if (summary !== undefined) {
+      this.add(
+        new PrefixedText(
+          t.fg("dim", t.glyphs.queued) + " " + t.fg("muted", `${label}  `),
+          t.fg("muted", summary),
+        ),
+      );
+      return;
+    }
     this.add(
       new PrefixedText(
         t.fg("dim", t.glyphs.queued) + " " + t.fg("muted", `${label}  `),

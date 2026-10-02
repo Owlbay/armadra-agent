@@ -9,7 +9,9 @@
  *     … 另 117 行（Ctrl+O 展开）
  * ```
  * - 运行中摘要行 `⎿ ⠋ 运行中 · 4s`：spinner 与底部 Loader 同帧（ToolTracker.tick 由 Loader.onFrame 驱动），
- *   标题行不变；bash 流式显示尾部 8 行（muted）。task 显示 `子 Agent · 运行中 1m05s`。
+ *   标题行不变；bash 流式显示尾部 8 行（muted）。task 显示 `子 Agent · 运行中 1m05s`；有 `subagent_*`
+ *   事件时（W5-U，subagent-view.ts）改为 `explore · 运行中 1m05s · 3 轮 · 最近 3 个工具 · ↑↓`，后台任务
+ *   在结果摘要下多一行跟随状态。
  * - 折叠（缺省）：结果前 3 行；edit 显示 `details.diff`（`@@` dim、`+` success、`-` error、上下文 muted，
  *   宽 ≥ 60 时带行号列），前 12 行；`Ctrl+O` 展开全部（上限 400 行，长行折行）。
  * - 嵌套：带 `parentToolCallId` 的调用（codemode 脚本里的 `tools.*`）挂在外层调用下、右移 4 列；折叠时只列
@@ -29,6 +31,7 @@ import {
   type Theme,
 } from "../../tui.js";
 import { contentText } from "./message-view.js";
+import { subagentLine, type SubagentState } from "./subagent-view.js";
 import {
   bashOutput,
   cleanLines,
@@ -62,6 +65,8 @@ export interface ToolViewOptions {
   now?(): number;
   /** 运行中摘要行的 spinner 帧（与 Loader 同帧）；缺省静态字形。 */
   spinner?(): string;
+  /** [W5-U] task 调用对应的子 Agent 状态（折叠视图）；缺省不显示。 */
+  subagent?(toolCallId: string): SubagentState | undefined;
 }
 
 type ToolState = "running" | "done" | "error";
@@ -145,9 +150,18 @@ export class ToolView implements Component {
     this.touch();
   }
 
-  /** spinner 换帧 / 秒数变化：运行中的视图重画摘要行。 */
+  /** spinner 换帧 / 秒数变化：运行中的视图重画摘要行（后台子 Agent 运行中也算）。 */
   tick(): void {
-    if (this.state === "running") this.touch();
+    if (this.state === "running" || this.subagentState()?.status === "running") this.touch();
+  }
+
+  /** 外部状态变了（子 Agent 事件）：重画。 */
+  refresh(): void {
+    this.touch();
+  }
+
+  private subagentState(): SubagentState | undefined {
+    return this.toolName === "task" ? this.options.subagent?.(this.toolCallId) : undefined;
   }
 
   private touch(): void {
@@ -164,9 +178,12 @@ export class ToolView implements Component {
     if (this.cache && this.cache.width === width && this.cache.version === this.version) {
       return this.cache.lines;
     }
-    const lines = [this.header(width), this.summaryLine(width), ...this.body(width)].filter(
-      (line): line is string => line !== undefined,
-    );
+    const lines = [
+      this.header(width),
+      this.summaryLine(width),
+      this.followLine(width),
+      ...this.body(width),
+    ].filter((line): line is string => line !== undefined);
     this.cache = { width, version: this.version, lines };
     return lines;
   }
@@ -189,6 +206,12 @@ export class ToolView implements Component {
     const lead = "  " + theme.fg("border", g.result) + " ";
     if (this.state === "running" && this.awaiting) {
       return truncateToWidth(lead + theme.fg("dim", `${g.spinnerStatic} 等待确认`), width);
+    }
+    const sub = this.subagentState();
+    if (this.state === "running" && sub !== undefined) {
+      const frame = this.options.spinner?.() ?? g.spinnerStatic;
+      const line = subagentLine(sub, theme, this.now());
+      return truncateToWidth(lead + theme.fg("accent", frame) + " " + line, width);
     }
     if (this.state === "running") {
       const frame = this.options.spinner?.() ?? g.spinnerStatic;
@@ -214,6 +237,15 @@ export class ToolView implements Component {
       theme,
     );
     return truncateToWidth(lead + text, width);
+  }
+
+  /** 后台子 Agent：结果摘要下一行跟随状态 `    ↳ t2 explore · 完成 2m · 7 轮 …`。 */
+  private followLine(width: number): string | undefined {
+    const sub = this.subagentState();
+    if (this.state === "running" || sub === undefined || !sub.background) return undefined;
+    const { theme } = this.options;
+    const head = theme.fg("dim", `${theme.glyphs.queued} ${sub.taskId} `);
+    return truncateToWidth(BODY + head + subagentLine(sub, theme, this.now()), width);
   }
 
   private custom<T>(render: (tool: ToolDefinition) => T): T | undefined {
