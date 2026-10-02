@@ -225,6 +225,7 @@ async function plan(
     if (!ok) return { plans: [], cancelled: ExitCode.Ok };
     outer: for (const id of capped.ids) {
       const result: { ok: string[]; error?: string } = { ok: [] };
+      const failed: string[] = [];
       results.set(id, result);
       for (const name of tryChannels(id)) {
         const channel = input.candidates.find((c) => c.name === name) as CandidateChannel;
@@ -234,6 +235,7 @@ async function plan(
         if (error === undefined) result.ok.push(name);
         else {
           result.error = error.split("\n")[0]?.slice(0, 120) ?? error;
+          failed.push(`${name}：${result.error}`);
           if (FATAL_STATUS.test(error)) {
             stopped = error;
             break outer;
@@ -241,7 +243,8 @@ async function plan(
         }
       }
       io.stdout(
-        `  ${id}  ${result.ok.length > 0 ? result.ok.join(", ") : `失败：${result.error ?? "?"}`}\n`,
+        `  ${id}  ${result.ok.length > 0 ? result.ok.join(", ") : "全部失败"}` +
+          `${failed.length > 0 ? `（失败 ${failed.join("；")}）` : ""}\n`,
       );
     }
   }
@@ -403,7 +406,9 @@ async function add(ctx: Ctx, id: string, refresh: boolean): Promise<number> {
   writeConfigFile(level.userConfigPath, config, { backup: true });
   if (key.store !== undefined) setAuthKey(level.authFile, id, key.store);
   io.stdout(`已写入 ${level.userConfigPath}${backup ? "（原文件备份为 config.json.bak）" : ""}\n`);
-  const sample = merged.addedModels[0];
+  const sample =
+    result.plans.find((p) => p.status === "ok" && merged.addedModels.includes(p.id))?.id ??
+    merged.addedModels[0];
   if (sample !== undefined) io.stdout(`试试：ama -p "hi" --model ${id}/${sample}\n`);
   if (result.stopped !== undefined) {
     io.stderr(`ama: 探测提前停止（${result.stopped}）\n`);
