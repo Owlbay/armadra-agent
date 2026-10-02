@@ -5,10 +5,14 @@
  * - 可写目录取 realpath（SBPL 按真实路径匹配，macOS 的 /tmp、/var 是符号链接；bwrap 绑定也要求存在），
  *   不存在的丢弃；
  * - `unshare` 只能隔离网络：策略要求联网时等于不包装；
- * - `none`：原样返回（调用方按 `sandboxed: false` 决定是否继续）。
+ * - `none`：原样返回（调用方按 `sandboxed: false` 决定是否继续）；
+ * - 只读路径（`readOnly`）：存在的取 realpath；不存在的按「父目录 realpath + 名字」只给 SBPL（挡住新建），
+ *   bwrap 只能挂到已存在的路径，跳过；不可读路径（`hiddenDirs` / `hiddenFiles`）只保留存在的，并按实际
+ *   类型重新归类（bwrap 对目录挂 tmpfs、对文件挂 /dev/null）。
  */
 
-import { realpathSync } from "node:fs";
+import { realpathSync, statSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import type { OsSandboxStatus } from "./detect.js";
 import {
   buildBwrapArgs,
@@ -46,12 +50,57 @@ export function resolveWritable(
   return out;
 }
 
+function isDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/** 解析只读与不可读路径（见文件头）。`missingOk`：不存在的只读路径按父目录解析保留（SBPL）。 */
+export function resolveExtras(
+  policy: OsSandboxPolicy,
+  missingOk: boolean,
+  realpath: (path: string) => string = realpathSync,
+  isDir: (path: string) => boolean = isDirectory,
+): Pick<OsSandboxPolicy, "readOnly" | "hiddenDirs" | "hiddenFiles"> {
+  const readOnly: string[] = [];
+  for (const path of policy.readOnly ?? []) {
+    let real: string | undefined;
+    try {
+      real = realpath(path);
+    } catch {
+      if (missingOk) {
+        try {
+          real = join(realpath(dirname(path)), basename(path));
+        } catch {
+          real = undefined;
+        }
+      }
+    }
+    if (real !== undefined && !readOnly.includes(real)) readOnly.push(real);
+  }
+  const hidden = resolveWritable(
+    [...(policy.hiddenDirs ?? []), ...(policy.hiddenFiles ?? [])],
+    realpath,
+  );
+  const out: Pick<OsSandboxPolicy, "readOnly" | "hiddenDirs" | "hiddenFiles"> = {};
+  if (readOnly.length > 0) out.readOnly = readOnly;
+  const dirs = hidden.filter((p) => isDir(p));
+  const files = hidden.filter((p) => !dirs.includes(p));
+  if (dirs.length > 0) out.hiddenDirs = dirs;
+  if (files.length > 0) out.hiddenFiles = files;
+  return out;
+}
+
 export function wrapCommand(
   status: Pick<OsSandboxStatus, "kind" | "path">,
   command: string,
   args: readonly string[],
   policy: OsSandboxPolicy,
   realpath?: (path: string) => string,
+  isDir?: (path: string) => boolean,
 ): WrappedCommand {
   const plain: WrappedCommand = {
     command,
@@ -64,6 +113,7 @@ export function wrapCommand(
   const resolved: OsSandboxPolicy = {
     network: policy.network,
     writable: resolveWritable(policy.writable, realpath),
+    ...resolveExtras(policy, status.kind === "sandbox-exec", realpath, isDir),
   };
   const networkDenied = policy.network === "deny";
   switch (status.kind) {

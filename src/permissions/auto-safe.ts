@@ -554,3 +554,21 @@ export function analyzeBashForAuto(command: string, options: BashAutoOptions): B
   }
   return { safe: true, reason: "every command is in the auto safe list" };
 }
+
+/**
+ * [S2] 命令文本里出现的机密路径（读写都算，含嵌套命令）；没有返回 undefined。default 模式「沙箱内免审批」
+ * 用它把 `cat .env` 之类留给正常审批：OS 沙箱挡不住读工作区里的机密文件，输出会进模型上下文。
+ */
+export function secretReferenceReason(command: string, cwd: string): string | undefined {
+  const nested = collectNestedCommands(command);
+  for (const text of [command, ...nested.commands]) {
+    for (const segment of splitShellSegments(text)) {
+      const { argv, redirects } = parseSegment(segment);
+      for (const word of [...argv.slice(1), ...redirects.inputs, ...redirects.outputs]) {
+        const reason = secretInWord(word, cwd);
+        if (reason !== undefined) return reason;
+      }
+    }
+  }
+  return undefined;
+}

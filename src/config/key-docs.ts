@@ -25,7 +25,7 @@ const IMPLICIT_DEFAULTS: Partial<AmaConfig> = {
   request: { idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS },
   ui: { compact: false, animation: true, restoreOnCancel: true },
   checkpoints: { ...DEFAULT_CHECKPOINTS_CONFIG },
-  sandbox: { enabled: "auto" },
+  sandbox: { enabled: "auto", bash: "off", network: "deny", writable: [] },
   // [W5-C0] 第五波键的缺省（行为由各批次实现）
   compaction: { prune: { keepResults: 5, clearAtLeast: "auto" }, pruneExclude: [] },
   images: { resize: "auto" },
@@ -138,9 +138,14 @@ export const CONFIG_KEY_DOCS: Readonly<Record<string, string>> = Object.freeze({
   "checkpoints.maxFileBytes":
     "单个文件的备份上限（字节），超出不备份、回滚时报告无法恢复；项目级只能调小",
   "checkpoints.keep": "可回滚的最近检查点数，更早的不再列为回滚点；只认用户级 / profile",
-  sandbox: "操作系统级沙箱（docs/sandbox.md）；整段只认用户级 / profile",
+  sandbox: '操作系统级沙箱（docs/sandbox.md）；只认用户级 / profile，项目级只接受 network: "deny"',
   "sandbox.enabled":
     "auto：探测到可用的 macOS sandbox-exec / Linux bwrap、unshare 就用（codemode 子进程拒绝网络与写入；Node 22 / 24 上 codemode 因此网络隔离）；off：不用；AMA_SANDBOX=off 覆盖",
+  "sandbox.bash":
+    "auto：bash 经 sandbox-exec / bwrap 运行（unshare 不算），写入只限工作区、临时目录、输出目录与 sandbox.writable，default 模式下沙箱内命令免审批；off：不用；只认用户级 / profile",
+  "sandbox.network":
+    "bash 沙箱里的网络：deny 拒绝（沙箱内免审批的前提）；allow 允许联网但写入仍受限、照常审批；项目级只能设 deny",
+  "sandbox.writable": "bash 沙箱追加的可写目录（绝对路径或 ~/…）；只认用户级 / profile",
   // [W5-C0] 第五波（docs/wave5-plan.md）；括号里是起生效的批次
   images: "图像输入；只认用户级（第五波 W5-I 起生效）",
   "images.resize":

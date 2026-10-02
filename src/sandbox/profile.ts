@@ -15,6 +15,12 @@ export interface OsSandboxPolicy {
   network: "deny" | "allow";
   /** 允许写入的目录（绝对路径，已 realpath）；其余位置一律不可写。 */
   writable: readonly string[];
+  /** 可写目录里仍然只读的路径（已 realpath；bash 用：项目 `.ama/`、`.git/hooks`、`.git/config`）。 */
+  readOnly?: readonly string[];
+  /** 不可读的目录（已 realpath；bash 用：`~/.ssh` 等凭据目录）。 */
+  hiddenDirs?: readonly string[];
+  /** 不可读的文件（已 realpath；bash 用：`~/.netrc`、ama 的 `auth.json` 等）。 */
+  hiddenFiles?: readonly string[];
 }
 
 /** 沙箱里始终可写的设备文件（stdio 是继承的描述符，不经路径检查）。 */
@@ -49,6 +55,11 @@ export function buildSbplProfile(policy: OsSandboxPolicy): string {
   for (const dir of policy.writable) lines.push(`(allow file-write* (subpath ${sbplString(dir)}))`);
   const devices = SBPL_DEVICE_WRITES.map((d) => `(literal ${sbplString(d)})`).join(" ");
   lines.push(`(allow file-write* ${devices} (regex #"^/dev/fd/"))`);
+  // SBPL 后出现的规则优先：只读与不可读放在最后，覆盖前面的允许。
+  for (const path of policy.readOnly ?? [])
+    lines.push(`(deny file-write* (subpath ${sbplString(path)}))`);
+  for (const path of [...(policy.hiddenDirs ?? []), ...(policy.hiddenFiles ?? [])])
+    lines.push(`(deny file-read* file-write* (subpath ${sbplString(path)}))`);
   return lines.join("\n");
 }
 
@@ -59,6 +70,20 @@ export function buildBwrapArgs(policy: OsSandboxPolicy): string[] {
   for (const dir of policy.writable) {
     assertSafePath(dir);
     args.push("--bind", dir, dir);
+  }
+  // 之后的挂载盖住前面的：只读路径重新只读绑定，不可读目录换成空 tmpfs、文件换成 /dev/null。
+  // bwrap 只能挂到已存在的路径上，调用方只传存在的。
+  for (const path of policy.readOnly ?? []) {
+    assertSafePath(path);
+    args.push("--ro-bind", path, path);
+  }
+  for (const dir of policy.hiddenDirs ?? []) {
+    assertSafePath(dir);
+    args.push("--tmpfs", dir);
+  }
+  for (const file of policy.hiddenFiles ?? []) {
+    assertSafePath(file);
+    args.push("--ro-bind", "/dev/null", file);
   }
   args.push("--");
   return args;

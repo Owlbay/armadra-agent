@@ -10,7 +10,9 @@
  * - [W5-H2] 后台命令（§8.3 H6，不加新工具）：`{ command, background: true }` 立即返回
  *   `{ jobId, outputPath, pid }`；`{ job, action: "wait" | "output" | "stop" }` 查询 / 结束
  *   （background-jobs.ts，按会话登记，会话 dispose 时回收进程树；退出经提醒通道通知）。
- * - **进程只在 `spawnShell` 里创建**（前台与后台共用；S2 的 bash 沙箱在这一处包一层）。
+ * - **进程只在 `spawnShell` 里创建**（前台与后台共用）。[S2] `sandbox.bash: auto` 且有能限制写入的
+ *   OS 沙箱时在这一处包一层（src/sandbox/bash.ts）；`sandbox: false` 不包装（权限管线照常审批）。
+ *   失败输出像是被沙箱拒绝时末尾追加一行说明。
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
@@ -30,6 +32,14 @@ import {
 import { OutputAccumulator } from "./output-accumulator.js";
 import { formatSize, resolveOutputDir, safeFileName } from "./truncate.js";
 import { jobsForSession, type BackgroundJobs, type Job } from "./background-jobs.js";
+import {
+  looksLikeSandboxDenial,
+  runsSandboxed,
+  sandboxDenialHint,
+  wrapBashCommand,
+  type BashCallPlace,
+  type BashSandbox,
+} from "../sandbox/bash.js";
 
 export const DEFAULT_BASH_TIMEOUT_MS = 120_000;
 export const MAX_BASH_TIMEOUT_MS = 600_000;
@@ -48,6 +58,8 @@ export interface BashInput {
   /** [W5-H2] 后台任务 id（与 action 一起用）。 */
   job?: string;
   action?: "wait" | "output" | "stop";
+  /** [S2] false：不经 OS 沙箱运行（走正常审批）。只在沙箱生效时出现在 schema 里。 */
+  sandbox?: boolean;
 }
 
 /** [W5-H2] `wait` 的缺省等待（毫秒）。 */
@@ -57,6 +69,8 @@ export interface BackgroundStart {
   jobId: string;
   outputPath: string;
   pid?: number;
+  /** [S2] 经 OS 沙箱运行。 */
+  sandboxed?: true;
 }
 
 export interface BashStructured {
@@ -65,6 +79,8 @@ export interface BashStructured {
   truncated: boolean;
   full_output_path?: string;
   wall_time_seconds: number;
+  /** [S2] 经 OS 沙箱运行。 */
+  sandboxed?: true;
 }
 
 export interface BashDetails extends BashStructured {
@@ -88,6 +104,8 @@ export interface BashToolOptions {
   baseEnv?(): NodeJS.ProcessEnv;
   /** 测试注入：会话的后台任务表，缺省按会话 id 登记（background-jobs.ts）。 */
   jobs?(sessionId: string): BackgroundJobs;
+  /** [S2] bash 的 OS 沙箱设定（组装时算一次，会话内不变）；缺省不用沙箱。 */
+  sandbox?: BashSandbox;
 }
 
 export interface SpawnShellOptions {
@@ -97,17 +115,25 @@ export interface SpawnShellOptions {
   detached: boolean;
   /** 前台 `["ignore", "pipe", "pipe"]`；后台把输出文件描述符直接交给子进程。 */
   stdio: ["ignore", "pipe" | number, "pipe" | number];
+  /** [S2] 经 OS 沙箱运行：设定与这次调用的位置（工作区、输出目录）。 */
+  sandbox?: { settings: BashSandbox; place: BashCallPlace };
 }
 
 /**
- * bash 工具唯一的进程创建点（前台 / 后台共用）。之后的 OS 沙箱（S2 第二阶段）在这里包一层即可。
+ * bash 工具唯一的进程创建点（前台 / 后台共用）；[S2] 给了 `sandbox` 时经 OS 沙箱包装（包不上抛错，
+ * 不悄悄裸跑）。
  */
 export function spawnShell(
   shell: ShellConfig,
   command: string,
   options: SpawnShellOptions,
 ): ChildProcess {
-  return spawn(shell.shell, buildShellArgs(shell, command), {
+  const args = buildShellArgs(shell, command);
+  const wrapped =
+    options.sandbox === undefined
+      ? { command: shell.shell, args }
+      : wrapBashCommand(options.sandbox.settings, shell.shell, args, options.sandbox.place);
+  return spawn(wrapped.command, wrapped.args, {
     cwd: options.cwd,
     env: options.env,
     detached: options.detached,
@@ -190,8 +216,18 @@ export async function executeBash(
     depth: ctx.depth,
   });
   const isWindows = (options.processDeps?.platform ?? process.platform) === "win32";
+  const sandbox =
+    options.sandbox !== undefined && runsSandboxed(options.sandbox, input)
+      ? {
+          settings: options.sandbox,
+          place: {
+            workspace: ctx.cwd,
+            outputDir: resolveOutputDir(ctx.outputDir),
+          } satisfies BashCallPlace,
+        }
+      : undefined;
   if (input.background === true)
-    return startBackground(command, { cwd, env, shell, isWindows }, ctx, options);
+    return startBackground(command, { cwd, env, shell, isWindows, sandbox }, ctx, options);
   const started = Date.now();
   const acc = new OutputAccumulator({
     spillPath: () =>
@@ -205,6 +241,7 @@ export async function executeBash(
       env,
       detached: !isWindows,
       stdio: ["ignore", "pipe", "pipe"],
+      ...(sandbox === undefined ? {} : { sandbox }),
     });
   } catch (err) {
     return fail(`Failed to start shell ${shell.shell}: ${(err as Error).message}`);
@@ -272,6 +309,7 @@ export async function executeBash(
     truncated: out.truncated,
     ...(out.fullOutputPath !== undefined ? { full_output_path: out.fullOutputPath } : {}),
     wall_time_seconds: wall,
+    ...(sandbox === undefined ? {} : { sandboxed: true as const }),
   };
   const details: BashDetails = {
     ...structured,
@@ -295,6 +333,10 @@ export async function executeBash(
   if (aborted) parts.push("aborted by user");
   else if (timedOut) parts.push(`[Command timed out after ${timeoutMs} ms and was killed]`);
   if (exitCode !== 0) parts.push(`[exit code: ${exitCode}]`);
+  const networkDenied = sandbox?.settings.network === "deny";
+  if (sandbox !== undefined && exitCode !== 0 && !aborted && !timedOut)
+    if (looksLikeSandboxDenial(out.output, networkDenied))
+      parts.push(sandboxDenialHint(networkDenied));
   return {
     content: parts.join("\n\n"),
     isError: exitCode !== 0 || timedOut || aborted,
@@ -313,11 +355,17 @@ function jobsOf(ctx: ToolContext, options: BashToolOptions): BackgroundJobs {
 
 function startBackground(
   command: string,
-  spawnInfo: { cwd: string; env: NodeJS.ProcessEnv; shell: ShellConfig; isWindows: boolean },
+  spawnInfo: {
+    cwd: string;
+    env: NodeJS.ProcessEnv;
+    shell: ShellConfig;
+    isWindows: boolean;
+    sandbox: SpawnShellOptions["sandbox"];
+  },
   ctx: ToolContext,
   options: BashToolOptions,
 ): ToolResult {
-  const { cwd, env, shell, isWindows } = spawnInfo;
+  const { cwd, env, shell, isWindows, sandbox } = spawnInfo;
   const outputPath = join(
     resolveOutputDir(ctx.outputDir),
     safeFileName(`bash-bg-${ctx.toolCallId}.log`),
@@ -329,13 +377,20 @@ function startBackground(
       outputPath,
       ...(options.processDeps === undefined ? {} : { processDeps: options.processDeps }),
       spawn: (fd) =>
-        spawnShell(shell, command, { cwd, env, detached: !isWindows, stdio: ["ignore", fd, fd] }),
+        spawnShell(shell, command, {
+          cwd,
+          env,
+          detached: !isWindows,
+          stdio: ["ignore", fd, fd],
+          ...(sandbox === undefined ? {} : { sandbox }),
+        }),
     });
   } catch (err) {
     return fail(`Failed to start shell ${shell.shell}: ${(err as Error).message}`);
   }
   const structured: BackgroundStart = { jobId: job.id, outputPath: job.outputPath };
   if (job.pid !== undefined) structured.pid = job.pid;
+  if (sandbox !== undefined) structured.sandboxed = true;
   return {
     content:
       `Started background job ${job.id}${job.pid !== undefined ? ` (pid ${job.pid})` : ""}; ` +
@@ -362,7 +417,7 @@ async function jobAction(
   options: BashToolOptions,
 ): Promise<ToolResult> {
   const id = input.job as string;
-  if (input.command !== undefined || input.background === true)
+  if (input.command !== undefined || input.background === true || input.sandbox !== undefined)
     return fail("job queries take only job, action and timeoutMs");
   const action = input.action ?? "output";
   const jobs = jobsOf(ctx, options);
@@ -405,14 +460,23 @@ async function jobAction(
   };
 }
 
+/** [S2] 沙箱生效时追加到描述末尾的一句（会话内不变）。 */
+export function sandboxDescription(sandbox: BashSandbox | undefined): string {
+  if (sandbox?.active !== true) return "";
+  const net = sandbox.network === "deny" ? ", no network" : "";
+  return ` Runs in an OS sandbox (writes only in workspace/temp${net}); sandbox:false needs approval.`;
+}
+
 export function createBashTool(options: BashToolOptions = {}): ToolDefinition<BashInput> {
+  const sandboxed = options.sandbox?.active === true;
   return {
     name: "bash",
     label: "Bash",
     description:
       "Run a shell command; stdout+stderr combined, keeps the last 2000 lines / 50 KB (full " +
       `output saved). Timeout ${DEFAULT_BASH_TIMEOUT_MS / 1000} s, max ${MAX_BASH_TIMEOUT_MS / 1000} s. ` +
-      "background:true gives a job id for {job, action}.",
+      "background:true gives a job id for {job, action}." +
+      sandboxDescription(options.sandbox),
     parameters: {
       type: "object",
       properties: {
@@ -423,6 +487,8 @@ export function createBashTool(options: BashToolOptions = {}): ToolDefinition<Ba
         background: { type: "boolean" },
         job: { type: "string" },
         action: { type: "string", enum: ["wait", "output", "stop"] },
+        // [S2] 只在沙箱生效时出现：沙箱关闭的会话工具 schema 与以前逐字节相同
+        ...(sandboxed ? { sandbox: { type: "boolean" } } : {}),
       },
       additionalProperties: false,
     },

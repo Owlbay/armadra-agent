@@ -25,6 +25,11 @@
  * 命中；带 path 的工具记文件所在目录，之后该目录下的路径命中；其它工具只记工具名。
  * 记忆只作用于第 ③ 步模式产生的 ask（auto 里只作用于规则层之后）。
  *
+ * [S2] bash 沙箱（docs/permissions.md「判定顺序」）：default / auto-edit 下，bash 调用若将在 OS 沙箱内
+ * 运行且沙箱拒绝网络、没请求 `sandbox: false`、命令文本不碰机密路径、嵌套不超深，第 ③ 步的 ask 变
+ * allow（`sandboxed: true`）；①② 与 Hook ask 照旧优先。auto 下沙箱不直接放行，只作为分类器输入；
+ * 请求 `sandbox: false` 越出沙箱时规则层询问（allow 规则 / Hook allow / 会话记忆仍可放行）。
+ *
  * 包装里的命令（`sh -c '…'`、`eval`、`xargs`、`find -exec`，见 dangerous.ts）逐层核对：deny 规则命中
  * 任一层即 deny；allow 规则与会话记忆要求外层与每一层嵌套命令都被覆盖，嵌套超深时不放行。
  */
@@ -52,7 +57,8 @@ import {
   splitShellSegments,
 } from "./rules.js";
 import { collectNestedCommands, matchDangerous } from "./dangerous.js";
-import { analyzeBashForAuto } from "./auto-safe.js";
+import { analyzeBashForAuto, secretReferenceReason } from "./auto-safe.js";
+import { runsSandboxed, wantsUnsandboxed, type BashSandbox } from "../sandbox/bash.js";
 import { isReadonlyBash } from "./readonly-bash.js";
 import type { PlanBashMode } from "../config/types-w5.js";
 import { secretPathReason, writeProtectionReason } from "./protected.js";
@@ -185,6 +191,8 @@ export interface PermissionPipelineOptions {
   autoSafeCommands?: readonly string[];
   /** [W5-F] plan 模式下的 bash（config `plan.bash`），缺省 readonly。 */
   planBash?: PlanBashMode;
+  /** [S2] bash 的 OS 沙箱设定（与 bash 工具用同一份，保证「会不会在沙箱里跑」两边结论一致）。 */
+  bashSandbox?: BashSandbox;
 }
 
 export class PermissionPipeline implements PermissionPipelineApi {
@@ -196,8 +204,10 @@ export class PermissionPipeline implements PermissionPipelineApi {
   readonly projectRoot: string;
   readonly autoSafeCommands: readonly string[];
   private planBashMode: PlanBashMode;
+  readonly bashSandbox: BashSandbox | undefined;
 
   constructor(options: PermissionPipelineOptions) {
+    this.bashSandbox = options.bashSandbox;
     this.currentMode = options.mode;
     this.planBashMode = options.planBash ?? "readonly";
     this.ruleList = [...options.rules];
@@ -346,6 +356,11 @@ export class PermissionPipeline implements PermissionPipelineApi {
       else if (input.hookDecision === "allow") verdict = { decision: "allow", step: "hook" };
       else if (granted) {
         verdict = { decision: "allow", step: "session" };
+      } else if (
+        (this.currentMode === "default" || this.currentMode === "auto-edit") &&
+        this.sandboxAllows(input, command, layers.tooDeep)
+      ) {
+        verdict = { decision: "allow", step: "mode", sandboxed: true };
       }
     }
     if (input.hookDecision === "ask") {
@@ -358,6 +373,30 @@ export class PermissionPipeline implements PermissionPipelineApi {
       };
     }
     return verdict;
+  }
+
+  /**
+   * [S2] default / auto-edit 的「沙箱内免审批」：将在沙箱内运行、沙箱拒绝网络（联网可外带数据）、
+   * 命令文本不碰机密路径（沙箱挡不住读工作区里的 `.env`）、嵌套不超深。
+   */
+  private sandboxAllows(
+    input: PermissionCheckInput,
+    command: string | undefined,
+    tooDeep: boolean,
+  ): boolean {
+    if (input.toolName !== "bash" || command === undefined || tooDeep) return false;
+    if (!runsSandboxed(this.bashSandbox, input.input)) return false;
+    if (this.bashSandbox?.network !== "deny") return false;
+    return secretReferenceReason(command, this.cwd) === undefined;
+  }
+
+  /** [S2] 沙箱生效时请求 `sandbox: false` 越出沙箱。 */
+  private escapesSandbox(input: PermissionCheckInput): boolean {
+    return (
+      input.toolName === "bash" &&
+      this.bashSandbox?.active === true &&
+      wantsUnsandboxed(input.input)
+    );
   }
 
   /** allow 规则（每层都覆盖）/ Hook allow / 会话记忆；都不命中返回 undefined。 */
@@ -461,6 +500,16 @@ export class PermissionPipeline implements PermissionPipelineApi {
             : "allowed for this session";
       return { ...allowed, auto: rule("allow", reason) };
     }
+    if (this.escapesSandbox(input)) {
+      const why = "runs outside the OS sandbox (sandbox:false)";
+      return {
+        decision: "ask",
+        step: "auto-rule",
+        approvalReason: "mode",
+        message: `Auto mode asks before this: ${why}`,
+        auto: rule("ask", why),
+      };
+    }
     const fixed = (reason: string): PermissionVerdict => ({
       decision: "allow",
       step: "auto-static",
@@ -479,6 +528,9 @@ export class PermissionPipeline implements PermissionPipelineApi {
       step: "auto-classify",
       approvalReason: "mode",
       classify: true,
+      ...(command !== undefined && runsSandboxed(this.bashSandbox, input.input)
+        ? { sandboxed: true }
+        : {}),
       auto: {
         layer: "classifier",
         decision: "ask",

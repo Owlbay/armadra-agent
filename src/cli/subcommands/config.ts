@@ -60,6 +60,8 @@ import { noModelGuidance, pickDefaultModel } from "../default-model.js";
 import type { CliIo, RuntimeDeps } from "../deps.js";
 import { ExitCode } from "../exit-codes.js";
 import { buildRegistry, loadUserLevel, type UserLevel } from "./context.js";
+import { osSandboxStatus } from "../../sandbox/detect.js";
+import { resolveBashSandbox } from "../../sandbox/bash.js";
 
 export const CONFIG_USAGE = `用法：ama config show [--json] [--profile <文件>] [--auth-file <文件>]
                         [--tools-preset <名>] [--codemode off|on|only]
@@ -411,6 +413,9 @@ export async function runConfig(
   const model = await describeModel(config, registry);
   const providers = describeProviders(config, registry);
   const codemode = describeCodemode(config);
+  const bashSandbox = resolveBashSandbox(config.sandbox, {
+    status: osSandboxStatus(config.sandbox?.enabled ?? "auto"),
+  });
   const builtin = new Set(builtinTools().map((tool) => tool.name));
   if (codemode.mode !== "off" && codemode.unavailable === undefined) builtin.add(CODEMODE_TOOL);
   const preset = resolvePreset({
@@ -439,7 +444,7 @@ export async function runConfig(
       source,
     }));
     io.stdout(
-      `${JSON.stringify({ model, providers, tools: preset.builtin, preset: preset.preset, codemode, entries, layers: layers.map((l) => ({ name: l.name, file: l.label })), notes, warnings }, null, 2)}\n`,
+      `${JSON.stringify({ model, providers, tools: preset.builtin, preset: preset.preset, codemode, bashSandbox: { active: bashSandbox.active, detail: bashSandbox.detail }, entries, layers: layers.map((l) => ({ name: l.name, file: l.label })), notes, warnings }, null, 2)}\n`,
     );
     return ExitCode.Ok;
   }
@@ -457,6 +462,7 @@ export async function runConfig(
   );
   lines.push(`codemode：${codemode.mode}  ${codemode.reason}`);
   if (codemode.unavailable !== undefined) lines.push(`  ${codemode.unavailable}`);
+  lines.push(`bash 沙箱：${bashSandbox.detail}`);
   for (const note of notes) lines.push(`提示：${note}`);
   for (const warning of [...warnings, ...preset.warnings]) lines.push(`警告：${warning}`);
   io.stdout(`${lines.join("\n")}\n`);

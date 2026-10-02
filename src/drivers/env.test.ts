@@ -45,6 +45,23 @@ describe("buildChildEnv（子进程环境清理真值表）", () => {
     expect(name in out).toBe(!stripped);
   });
 
+  it("Armadra 终端节点的身份变量剥离，askpass 保留", () => {
+    const out = buildChildEnv(
+      {
+        PATH: "/bin",
+        ARMADRA_NODE_ID: "n1",
+        ARMADRA_SESSION_ID: "s1",
+        ARMADRA_CANVAS_CONTROL: "1",
+        ARMADRA_ENDPOINT_FILE: "/x/endpoint",
+        armadra_hook_token: "t",
+        ARMADRA_ASKPASS_SOCKET: "/x/askpass.sock",
+      },
+      "claude",
+      undefined,
+    );
+    expect(out).toEqual({ PATH: "/bin", ARMADRA_ASKPASS_SOCKET: "/x/askpass.sock" });
+  });
+
   it("内置供应商表里每个 envKeys 都剥离", () => {
     for (const provider of BUILTIN_PROVIDERS)
       for (const key of provider.envKeys ?? []) expect(isStrippedEnvKey(key)).toBe(true);

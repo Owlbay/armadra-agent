@@ -107,6 +107,7 @@ export function classifierRequest(
   toolName: string,
   input: unknown,
   projectRoot: string | undefined,
+  sandbox?: ClassifierRequest["sandbox"],
 ): ClassifierRequest {
   const request: ClassifierRequest = {
     toolName,
@@ -114,6 +115,7 @@ export function classifierRequest(
     cwd: core.cwd,
     projectRoot: projectRoot ?? core.cwd,
   };
+  if (sandbox !== undefined) request.sandbox = sandbox;
   const user = latestUserText(core);
   if (user !== undefined) request.userMessage = user;
   return request;

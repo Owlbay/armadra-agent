@@ -195,6 +195,11 @@ export interface PermissionVerdict {
    * 的 decision（ask，无人值守时已是 deny）。不认识这个字段的调用方得到的就是保守结论。
    */
   classify?: boolean;
+  /**
+   * [S2] 这次 bash 调用将经 OS 沙箱运行（docs/sandbox.md「第二阶段」）。default / auto-edit 下因此免审批时
+   * 为真；auto 下随 `classify` 一起交给分类器作为输入。
+   */
+  sandboxed?: boolean;
 }
 
 export interface PermissionPipelineApi {
