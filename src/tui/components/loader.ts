@@ -117,12 +117,26 @@ export class Loader implements Component {
     if (this.timer !== null) return;
     this.startedAt = this.now();
     this.frameIndex = 0;
+    this.schedule();
+    this.requestRender();
+  }
+
+  private schedule(): void {
     const glyphs = this.options.theme?.glyphs ?? UNICODE_GLYPHS;
     const interval = this.animated
       ? (this.options.intervalMs ?? (glyphs.ascii ? 250 : 80))
       : Math.max(this.options.intervalMs ?? 1000, 1000);
     this.timer = setInterval(() => this.tick(), interval);
     this.timer.unref?.();
+  }
+
+  /** [W6-S] 运行中切换动画（`/config ui.animation`）：换定时器间隔，已用时不清零。 */
+  setAnimation(on: boolean): void {
+    if (this.animated === on) return;
+    this.options.animation = on;
+    if (this.timer === null) return;
+    clearInterval(this.timer);
+    this.schedule();
     this.requestRender();
   }
 

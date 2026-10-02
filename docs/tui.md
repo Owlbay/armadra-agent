@@ -394,6 +394,47 @@ Plan 模式（Shift+Tab、`/permission plan`、`/plan <目标>`、`--permission-
 - **字符错位**：`⏺`（U+23FA）、`⎿`、`▎` 在个别字体（尤其 emoji 回退字体）下画成两格，宽度计算按 wcwidth（一格），会出现列错位或残影——换等宽字体或设 `AMA_ASCII=1`。
 - **颜色**：`NO_COLOR` 或 `TERM=dumb` 无色；16 色终端按内置表取近，选中行不用底色而用强调色粗体；浅色终端设 `ui.theme: "light"`。
 
+### `/config` 设置面板与 `ama config`
+
+`/config` 打开设置面板（底部覆盖层）：按分组列出约 60 个标量设置，每行「标签 · 生效值 · 生效档 · 来源」。
+
+```text
+▎ 设置  写入：用户级 ~/.config/ama/config.json  [Tab 切换]
+▎ / 搜索
+▎ 界面
+▎ › 主题                      light             重启             来源 user
+▎   Markdown 渲染             true              即时
+▎ 权限
+▎   权限模式                  plan              即时             [锁定] project
+▎ ────────────────────────────────────────────────────────────
+▎ 配色主题：dark、light，或 auto（…）
+▎ ↑↓ 选择 · Enter/空格 修改 · / 搜索 · Tab 用户级/项目级 · Backspace 恢复缺省 · Esc 关闭
+```
+
+- **按键**：↑↓ 移动；Enter / 空格：布尔取反、≤ 4 项的枚举循环、更长的枚举（思考强度、权限模式等）与模型开选择器、数字和文本开行内输入（非法值红字留在框里，Esc 放弃）；`/` 搜索键名、标签、枚举值与说明，Esc 先清搜索再关闭；Backspace / Delete 按两次 = 删掉写入层里的这一项（回到下层的值）。
+- **写入层**：缺省写用户级 `~/.config/ama/config.json`；Tab 切到项目级 `.ama/config.json`，只许收紧（与合并规则同一判定），只认用户级的项变灰、Enter 给出原因。改动**立即写盘**（写前重读文件、只改这一项、校验、留 `.bak`），没有「保存」按钮；没有文件锁，与 `ama config edit` 同时改时后写者覆盖这一项。手排的格式会被规整成 2 空格缩进。
+- **来源与锁定**：来源是 default / user / profile / project / cli / env；被更上层覆盖的项（profile、项目级、命令行参数、`AMA_CACHE_WARMING` 等环境变量）标 `[锁定]`，说明行写出原因，不让改。嵌入宿主（有 profile）时标题提示「写入用户级配置」。
+- **生效档**：「即时」项当场作用于本会话与界面（主题以外的 `ui` 显示项、`defaultModel`、`thinkingLevel`、`permission.mode`、`compaction.enabled`、`retry.enabled`、`cache.warming`）；「新会话」项在 `/new` / `/resume` 后生效；「重启」项（工具预设、codemode、沙箱、`ui.theme`、`ui.ascii`、`ui.language` 等）下次启动生效。面板 = 持久化，`/model` `/thinking` `/permission` `/statusline` 仍只改本会话。
+- **缓存**：标「动缓存」的项会改变缓存前缀；对话已有回复时第一次改这类项，面板底部提示一次「下一次请求按未命中计费」。
+- 面板里把 `permission.mode` 设为 `full-auto` 会先弹 Bypass 确认，并说明以后每次启动都生效。
+- 关闭时消息区出一条汇总：「主题：dark → light（用户级）」，需重启 / 新会话生效的项另列一行；没改动不出。
+- 列表、对象类的键不在面板里，最后一组「在别处修改」给出入口（`ama providers`、`/permissions`、`ama config edit`、`--json-value` 等）。
+
+`/config key=value`（或 `/config key value`）不开面板，直接写用户级一项，回显与命令行相同；line 模式同样可用，无参数时列出全部设置。
+
+命令行（与面板共用编辑核心）：
+
+```text
+ama config get <key> [--json]                              生效值、来源、生效档
+ama config set <key> <value> [--project] [--json-value] [--yes]
+ama config unset <key> [--project]
+ama config list [前缀] [--json] [--all]                    缺省只列面板里的设置
+```
+
+值按类型解析：`true/false/on/off/1/0`、数字（可写 `30_000`）、枚举不分大小写、`none` / `unset` = 删除；列表与对象用 `--json-value`（如 `ama config set tools.disabled '["bash"]' --json-value`）。未知键、非法值、项目级放宽被拒都退出码 3，文件不动；`get` / `list` 不会创建配置目录。`ama config set permission.mode full-auto` 在终端里先确认，非终端需要 `--yes`。
+
+可选 `ui.replyLanguage`（如 `Chinese`）：会话开始在系统提示 `rules` 节末尾追加一句英文规则 `Reply to the user in Chinese.`，不设时请求零字节变化；只认用户级 / profile。
+
 ## 组件库（`@armadra/agent/tui`）
 
 交互模式用的终端组件单独导出，零依赖，宿主或其它 Node 程序可以直接用来画主屏界面。
