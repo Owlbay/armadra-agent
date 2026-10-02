@@ -160,10 +160,14 @@ export async function describeModel(
   const picked = await pickDefaultModel(registry);
   if (picked === undefined) return { ref: undefined, reason: noModelGuidance(registry) };
   const ref = `${picked.provider.id}/${picked.model.id}`;
-  if (picked.via === "local") return { ref, reason: `零配置：本地 ${picked.provider.id} 可达` };
+  if (picked.via === "local")
+    return { ref, reason: `零配置：本地 ${picked.provider.id} 可达；${picked.rule}` };
   const key = await registry.resolveApiKey(picked.provider.id);
   const origin = key.origin !== undefined ? ` ${key.origin}` : "";
-  return { ref, reason: `零配置：${picked.provider.id} 有 key（${key.source}${origin}）` };
+  return {
+    ref,
+    reason: `零配置：${picked.provider.id} 有 key（${key.source}${origin}）；${picked.rule}`,
+  };
 }
 
 export interface ProviderDescription {

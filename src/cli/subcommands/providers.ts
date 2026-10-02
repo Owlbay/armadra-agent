@@ -22,6 +22,7 @@ import type { AmaConfig, ProviderConfig } from "../../config/types.js";
 import { CONFIG_FILE_VERSION } from "../../config/types.js";
 import { writeConfigFile } from "../../config/write.js";
 import { parseSubArgs, UsageError } from "../args.js";
+import { pickByPrice } from "../default-model.js";
 import type { CliIo, RuntimeDeps } from "../deps.js";
 import { ExitCode } from "../exit-codes.js";
 import { extractKey } from "./auth.js";
@@ -361,10 +362,30 @@ async function add(ctx: Ctx, id: string, refresh: boolean): Promise<number> {
           prefer: list(ctx.values.get("prefer")) ?? [...DEFAULT_PREFER],
         });
   const keyNote = key.store !== undefined ? `；key → ${level.authFile}（0600）` : "";
+  // 还没有缺省模型时按价格规则挑一个写进 defaultModel（default-model.ts 的 pickByPrice）；
+  // 探测过时只在探测通过的模型里挑
+  const verified = writable.filter((p) => p.status === "ok");
+  const defaultPick =
+    level.merged.config.defaultModel === undefined && config.defaultModel === undefined
+      ? pickByPrice(
+          (verified.length > 0 ? verified : writable).map((p) => ({
+            id: p.id,
+            contextWindow: p.fields.contextWindow,
+            inputCost: p.fields.cost?.input,
+            toolCall: p.fields.toolCall,
+          })),
+        )
+      : undefined;
+  const defaultNote = defaultPick !== undefined ? `；defaultModel → ${id}/${defaultPick.id}` : "";
   const summary =
     `\n将写入 ${level.userConfigPath}：${id} 新增渠道 ${merged.addedChannels.join(", ") || "无"}，` +
-    `新增模型 ${merged.addedModels.length} 个${keyNote}`;
+    `新增模型 ${merged.addedModels.length} 个${keyNote}${defaultNote}`;
   io.stdout(`${summary}\n`);
+  if (defaultPick !== undefined) io.stdout(`  选 ${defaultPick.id}：${defaultPick.reason}\n`);
+  else if (level.merged.config.defaultModel === undefined && writable.length > 0)
+    io.stdout(
+      "  未设置 defaultModel：没有同时支持工具调用、上下文 ≥ 64k 且有价格的模型；用 ama config edit 设置\n",
+    );
   if (
     merged.addedModels.length === 0 &&
     merged.addedChannels.length === 0 &&
@@ -383,11 +404,13 @@ async function add(ctx: Ctx, id: string, refresh: boolean): Promise<number> {
   }
   const providers = (config.providers ??= {});
   providers[id] = merged.config;
+  if (defaultPick !== undefined) config.defaultModel = `${id}/${defaultPick.id}`;
   const backup = existsSync(level.userConfigPath);
   writeConfigFile(level.userConfigPath, config, { backup: true });
   if (key.store !== undefined) setAuthKey(level.authFile, id, key.store);
   io.stdout(`已写入 ${level.userConfigPath}${backup ? "（原文件备份为 config.json.bak）" : ""}\n`);
   const sample =
+    defaultPick?.id ??
     result.plans.find((p) => p.status === "ok" && merged.addedModels.includes(p.id))?.id ??
     merged.addedModels[0];
   if (sample !== undefined) io.stdout(`试试：ama -p "hi" --model ${id}/${sample}\n`);
