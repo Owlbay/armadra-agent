@@ -60,6 +60,10 @@ export interface Glyphs {
   readonly ellipsis: string;
   readonly arrowUp: string;
   readonly arrowDown: string;
+  /** [W5-A] 状态栏 git 分支标记。 */
+  readonly branch: string;
+  /** [W5-A] 速率行分隔点。 */
+  readonly dot: string;
 }
 
 export const UNICODE_GLYPHS: Glyphs = {
@@ -96,6 +100,8 @@ export const UNICODE_GLYPHS: Glyphs = {
   ellipsis: "…",
   arrowUp: "↑",
   arrowDown: "↓",
+  branch: "⎇",
+  dot: "•",
 };
 
 export const ASCII_GLYPHS: Glyphs = {
@@ -132,6 +138,8 @@ export const ASCII_GLYPHS: Glyphs = {
   ellipsis: "...",
   arrowUp: "^",
   arrowDown: "v",
+  branch: "git",
+  dot: "*",
 };
 
 function truthy(value: string | undefined): boolean | undefined {

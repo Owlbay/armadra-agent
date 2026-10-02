@@ -54,7 +54,8 @@ export const DEFAULT_CONFIG: Readonly<AmaConfig> = Object.freeze({
 
 /** 嵌入宿主（有 profile）时的缺省覆盖（§12.10）。 */
 export const PROFILE_DEFAULTS: Readonly<Partial<AmaConfig>> = Object.freeze({
-  ui: { quietStartup: "header" },
+  // [W5-A] 嵌入宿主以「最后一行 = 状态栏」锚定，底部信息行缺省单行
+  ui: { quietStartup: "header", statusLine: "compact" },
 } satisfies Partial<AmaConfig>);
 
 export type ConfigLayerName = "default" | "user" | "profile" | "project" | "cli";

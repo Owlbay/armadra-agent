@@ -37,7 +37,8 @@
 ────────────────────────────────────────────────
 › 输入消息，/ 命令，@ 文件，Shift+Enter 换行        ← 输入框（占位）
 ────────────────────────────────────────────────
-Accept edits · shift+tab 切换     sonnet-4-5 · medium · ↑12k ↓1.2k · cache 80% ♨ · $0.12 · ctx 34%
+tps: 100 tok/s • 546 tok / 5.5s (avg 100 · ttft 1.4s)    ↑12k ↓1.2k · cache 80% ♨ · [-]   ← 速率行（full）
+Accept edits     claude-opus-5-5 medium | Ctx 3.0% | proj ⎇ main 5ae9e54 (+12,-3) | $0.26 | 2h24m
 ```
 
 - **用户消息**：`›` 开头，续行缩进 2 列；运行中插话标 `↳ 插话`，排到本轮之后的标 `↳ 之后`，宿主（Armadra 画布）注入的标 `↳ 宿主`（会话文件里的 `origin` 不变：steer / followUp / host）。
@@ -45,7 +46,13 @@ Accept edits · shift+tab 切换     sonnet-4-5 · medium · ↑12k ↓1.2k · c
 - **工具调用**：标题 `⏺ 工具名 摘要`，`⏺` 运行中为强调色、成功绿、失败红；第二行 `⎿` 后是结果摘要——`读取 N 行`、`N 处修改 · +a −b`、`退出 0 · 2.1s · 48 行`、`14 处匹配 · 6 个文件`、`N 个内层调用 · 脚本输出 M 行`、`子 Agent · 运行中 1m05s` / `完成 · 1m42s · ↑28k ↓4.1k`；运行中摘要行带与底部同帧的 spinner 与秒数。正文折叠显示前 3 行，`edit` 显示 diff（前 12 行，≥ 60 列带行号），`bash` 运行中滚动显示最后 8 行。`Ctrl+O` 展开 / 折叠全部（含思考块）。codemode 脚本里的内层调用挂在外层调用下面（折叠时只列最近 5 个的标题与摘要）。
 - **提示**：`✗` 错误、`↻ 重试 n/m`、`!` 警告（缓存未命中、上下文余量）、`⛔ Hook 阻止`、宿主通知、审批被拒或超时的说明；压缩 / 分支摘要是左竖条卡片（`▎ 上下文已压缩  128k → 24k token`）。
 - **运行中**：`⠋ 动词 · 已用时 · …`，动词按当前最深状态取：`等待确认`（审批打开）、`运行 bash` / `运行 3 个工具`、`重试 2/3 · 2s 后`、`压缩上下文`、`回复中 · ↓≈1.2k`（本条输出的估算 token）、`思考中`。
-- **状态栏**：永远是最后一行。左区权限模式与 `shift+tab 切换` 提示，右区按固定顺序：模型 · 思考级别 · `↑` 输入（含缓存读写）`↓` 输出 · 缓存 · 费用 · 重计费 · 上下文占用 · 排队数 · codemode · 工具预设（非 default 时）· 宿主状态；分隔符固定为 `·`，宿主可按此解析。模型名随宽度缩写（< 100 列去供应商、< 60 去渠道、< 48 去版本后缀）。终端太窄时依次丢弃切换提示、宿主状态、预设、重计费、费用、缓存、token、思考级别、排队数、codemode、上下文、模型；权限模式永不丢。≥ 110 列时上下文显示为余量表 `ctx ▮▮▮▯▯▯▯▯▯▯ 34%`。
+- **状态栏**：永远是最后一行，模式永远在最左。`compact` 的分隔符固定为 `·`（嵌入宿主按此解析），`full` 用 `|`。布局由 `ui.statusLine` 决定：独立终端缺省 `full`（两行），有 profile 的嵌入宿主缺省 `compact`（一行，布局与以前相同）；运行时 `Ctrl+G` 或 `/statusline [full|compact]` 切换，只影响本会话。`full` 时输入框在倒数第 4 行（`compact` 仍是倒数第 3 行）。
+  - **`full` 上行（速率行）**：`tps: <速率> tok/s • <输出 token> tok / <耗时> (avg <会话均速> · ttft <首 token 延迟>)`——速率在流式中是最近 2 s 的瞬时值（`tps:` 强调色），结束后是该请求的平均值，生成不足 0.25 s 的整块回复不算速率、显示 `—`；耗时从首 token 起；ASCII 下 `•` 为 `*`。右区是用量类项 `↑` 输入（含缓存读写）`↓` 输出 · 缓存 · 重计费 · 排队数 · codemode · 工具预设（非 default 时）· 宿主状态，行尾 `[-]` 提示可折叠。只统计对话请求（压缩摘要、保温、分类器不计）。窄时依次丢弃 输出量 / 耗时、codemode、排队数、token、缓存、重计费、预设、宿主状态、avg、ttft；`tps` 与 `[-]` 不丢。
+  - **`full` 下行**：左区 `权限模式 | shift+tab 切换`，右区 `模型 思考级别 | Ctx 3.0% | <目录名> ⎇ <分支> <短提交> (+a,-d) | $费用 | 会话时长`（Ctx 一位小数，宽屏也不换余量表）；窄时依次丢弃切换提示、思考级别、增删行、目录名、分支与提交、时长、费用、上下文、模型。
+  - **`compact`**：一行，右区 模型 · 思考级别 · `↑ ↓` · 缓存 · 费用 · 重计费 · 上下文占用 · 目录 ⎇ 分支 提交 +a −b · 会话时长 · 排队数 · codemode · 预设 · 宿主状态；窄时依次丢弃切换提示、宿主状态、预设、重计费、费用、缓存、token、思考级别、排队数、codemode、增删行、目录名、分支与提交、时长、上下文、模型。
+  - **git**：分支与短提交直接读 `.git/HEAD`（worktree 认；detached 只显示短提交；非 git 目录整段省略，只剩目录名）；`+a −b` 是工作区（含暂存）相对 HEAD 的增删行，回合结束、写类工具结束、回滚、`/tree` 之后在后台跑 `git diff --numstat HEAD`，至多 10 秒一次，超过 2 秒或失败就本会话不再显示增删；`AMA_STATUS_GIT=0` 关闭。
+  - **费用**含子任务、保温、分类器与外部 Agent 以美元计的用量（其它单位只在 `/session`）；**时长**从本进程打开当前会话起算（`Ns` / `Nm` / `NhMm`）。
+  - 模型名随宽度缩写（< 100 列去供应商、< 60 去渠道、< 48 去版本后缀）；`compact` ≥ 110 列时上下文显示为余量表 `ctx ▮▮▮▯▯▯▯▯▯▯ 34%`；会变的数字按最宽形状占位，数值变化不会让某项时有时无。ASCII 模式 `⎇` → `git`、`−` → `-`、`♨` → `~`。
 - **退出**：消息区最后追加一行会话摘要与恢复命令，留在终端回滚里：
 
 ```
@@ -113,12 +120,13 @@ Accept edits · shift+tab 切换     sonnet-4-5 · medium · ↑12k ↓1.2k · c
 | Shift+Tab            | 循环权限模式 Manual → Accept edits → Plan → Auto → Bypass permissions |
 | Ctrl+O               | 展开 / 折叠工具输出与思考块                                           |
 | Ctrl+L / Ctrl+T      | 选择模型 / 思考级别                                                   |
+| Ctrl+G               | 底部信息行 两行（full）↔ 一行（compact），只影响本会话                |
 | Ctrl+C               | 清空输入；输入为空时 1.5 秒内再按一次退出（退出码 130）               |
 | Ctrl+D               | 输入为空时退出                                                        |
 | Tab                  | 补全                                                                  |
 | ↑ / ↓                | 单行时浏览历史（`<数据目录>/history`，500 条）                        |
 
-按键可在 `~/.config/ama/keybindings.json` 覆盖，键是动作 id（`app.interrupt`、`app.rewind`、`app.message.followUp`、`tui.editor.newLine` ……），值是按键或按键数组，空数组表示禁用。`app.rewind` 是空闲时双击的那个键（缺省 Esc，两次间隔 ≤ 800 ms）。
+按键可在 `~/.config/ama/keybindings.json` 覆盖，键是动作 id（`app.interrupt`、`app.rewind`、`app.message.followUp`、`app.statusLine.toggle`、`tui.editor.newLine` ……），值是按键或按键数组，空数组表示禁用。`app.rewind` 是空闲时双击的那个键（缺省 Esc，两次间隔 ≤ 800 ms）。
 
 ## 回滚
 
@@ -172,6 +180,7 @@ Accept edits · shift+tab 切换     sonnet-4-5 · medium · ↑12k ↓1.2k · c
 - `/permission` 选择器标题「权限模式」：Manual / Accept edits / Plan / Auto / Bypass permissions / Allowlist only，每项一行说明，右侧数字 1–6 直接选；当前模式打 `✓`，配置里的缺省模式标 `Default`，Auto 标 `Recommended`，底部一行按键提示。`/permission auto`、`/permission Accept edits` 直接切换。状态栏最左是模式的显示名。auto 模式下需要确认时，审批对话框多一行「Auto 规则层 / 分类器：原因」。详见 [permissions.md](permissions.md)。
 - 选择器底部一行按键提示（`↑↓ 选择 · Enter 确认 · Esc 取消`），选中行有底色（≥ 256 色；更少时强调色粗体）。`/model` 选择器给当前模型打 `✓`，并带 `(i/n)` 计数；按「供应商 · 渠道」分组（多渠道模型在每个渠道下各一项，非首选渠道带 `@渠道`），说明里有上下文与 `img`（收图片）；`/model packy/kimi-k2.5@messages` 直接切到指定渠道。
 - 输入里的 `@图片路径`（可加引号，Tab 补全路径）或粘贴 / 拖入的图片文件路径作为图片附件随消息发送；当前模型不收图片时 `@` 附件报错、不发送，未加 `@` 的路径忽略（见 [providers.md](providers.md)「图像输入」）。
+- `/statusline [full|compact]`：切换底部信息行（无参数时在两者间切换，同 `Ctrl+G`），只影响本会话；line 模式没有底部信息行。
 - `/session`、`/cache`：会话用量与缓存统计面板（见上文「缓存与上下文」）；`/permissions` 同样是面板，allow 绿、deny 红，判定顺序折行对齐。
 
 ## 补全

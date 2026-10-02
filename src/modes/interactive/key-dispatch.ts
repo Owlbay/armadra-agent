@@ -3,7 +3,8 @@
  *
  * 编辑器之前的输入监听：Ctrl+C 清空输入 / 再按退出、Esc 中断（clearQueue 回填编辑器后 abort）、
  * Ctrl+D 空输入退出、Alt+Enter followUp、Alt+↑ 取回最后一条排队消息、Shift+Tab 循环权限模式、
- * Ctrl+O 展开工具输出与思考块、Ctrl+L 模型、Ctrl+T 思考级别。键位由 `keybindings.json` 覆盖。
+ * Ctrl+O 展开工具输出与思考块、Ctrl+L 模型、Ctrl+T 思考级别、Ctrl+G 底部信息行 full ↔ compact（W5-A）。
+ * 键位由 `keybindings.json` 覆盖。
  *
  * [RW-C] 空闲时双击 Esc（`app.rewind`，double-esc.ts）：输入框为空打开回滚列表，有字则清空并存进
  * 输入历史；运行中 Esc 仍为中断，中断后交给 `onInterrupted`（中断即撤回）。
@@ -14,6 +15,7 @@ import { ExitCode } from "../../cli/exit-codes.js";
 import { nextCycleMode, permissionModeLabel } from "../../permissions/modes.js";
 import type { Editor, Keybindings } from "../../tui.js";
 import { DOUBLE_ESC_HINT_MS, DoubleEscape } from "./double-esc.js";
+import { statusLineText } from "./status-area.js";
 import type { StatusBar } from "./status-bar.js";
 import type { ToolTracker } from "./tool-view.js";
 
@@ -34,6 +36,8 @@ export interface KeyDispatchDeps {
   showHint(text: string, ms?: number): void;
   /** Ctrl+O 之后（消息区思考块跟着展开 / 折叠）。 */
   onExpandToggle?(expanded: boolean): void;
+  /** Ctrl+G：切换底部信息行，返回切换后的布局。 */
+  onStatusLineToggle?(): "full" | "compact";
   submit(text: string, via: "followUp"): void;
   runCommand(line: string): void;
   exit(code: number): void;
@@ -163,6 +167,11 @@ export function createKeyDispatch(deps: KeyDispatchDeps): (data: string) => bool
     }
     if (is("app.thinking.select")) {
       deps.runCommand("/thinking");
+      return true;
+    }
+    if (is("app.statusLine.toggle") && deps.onStatusLineToggle !== undefined) {
+      const mode = deps.onStatusLineToggle();
+      deps.showHint(statusLineText(mode));
       return true;
     }
     return false;
