@@ -1,0 +1,20 @@
+{"id":"c","type":"response","command":"set_client_capabilities","success":true,"data":{"capabilities":["approvals"]}}
+{"id":"p","type":"response","command":"prompt","success":true,"data":{"disposition":"started"}}
+{"type":"tool_execution_start","toolCallId":"fake_call_0","toolName":"task","args":{"prompt":"run it","agent":"acp:ama","description":"child"}}
+{"type":"permission_request","requestId":"<uuid>","toolName":"task","input":{"prompt":"run it","agent":"acp:ama","description":"child"},"reason":"mode","timeoutMs":600000,"preview":{"kind":"other","lines":["child"],"severity":"info"}}
+{"type":"response","command":"permission_response","success":true,"data":{"accepted":true}}
+{"type":"permission_resolved","requestId":"<uuid>","decision":"allow"}
+{"type":"permission_request","requestId":"<uuid>","toolName":"task","input":{"agent":"acp:ama","mode":"default","note":"Runs ACP agent ama with your existing login in that CLI (mode default)."},"reason":"mode","timeoutMs":600000,"context":{"taskId":"t1"}}
+{"type":"response","command":"permission_response","success":true,"data":{"accepted":true}}
+{"type":"permission_resolved","requestId":"<uuid>","decision":"allow"}
+{"type":"subagent_start","taskId":"t1","parentToolCallId":"fake_call_0","agent":"acp:ama","runner":"acp:ama","description":"child","background":false,"cwd":"<root>/work"}
+{"type":"subagent_update","taskId":"t1","kind":"turn","turn":1}
+{"type":"tool_execution_update","toolCallId":"fake_call_0","toolName":"task","partial":"[task] bash: echo from-child"}
+{"type":"subagent_update","taskId":"t1","kind":"tool","toolName":"bash: echo from-child","turn":1}
+{"type":"permission_request","requestId":"<uuid>","toolName":"agent:acp:ama","input":{"title":"bash: echo from-child","kind":"execute","inputSummary":"{\"command\":\"echo from-child\"}"},"reason":"mode","timeoutMs":600000,"context":{"depth":1,"taskId":"t1","origin":{"agent":"acp:ama","sessionId":"<uuid>","toolCall":{"title":"bash: echo from-child","kind":"execute","inputSummary":"{\"command\":\"echo from-child\"}"},"options":[{"optionId":"allow_once","kind":"allow_once"},{"optionId":"allow_always","kind":"allow_always"},{"optionId":"reject_once","kind":"reject_once"}]}}}
+{"type":"response","command":"permission_response","success":true,"data":{"accepted":true}}
+{"type":"permission_resolved","requestId":"<uuid>","decision":"allow"}
+{"type":"subagent_update","taskId":"t1","kind":"text","textDelta":"child ran it","turn":1}
+{"type":"subagent_end","taskId":"t1","status":"completed","usage":"<usage>"}
+{"type":"tool_execution_end","toolCallId":"fake_call_0","toolName":"task","result":{"content":"[task t1] child ran it\n\n工具调用：\n- ✓ execute bash: echo from-child","isError":false,"details":{"taskId":"t1","status":"completed","usage":"<usage>","stopReason":"end_turn"}},"isError":false}
+{"type":"agent_settled"}
