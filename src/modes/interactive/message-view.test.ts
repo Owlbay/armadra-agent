@@ -15,27 +15,69 @@ describe("消息区", () => {
     expect(lines(view)).toEqual([
       "› 修一下登录",
       "",
-      "↳ steer  顺便加测试",
+      "↳ 插话  顺便加测试",
       "",
-      "↳ host  画布有新连线",
+      "↳ 宿主  画布有新连线",
       "",
-      "↳ followUp  然后提交",
+      "↳ 之后  然后提交",
     ]);
+  });
+
+  it("用户消息续行缩进 2 列；未知 origin 原样显示", () => {
+    const view = new MessageView({ theme });
+    view.addUser({ content: "第一行很长很长很长很长很长\n第二行" });
+    view.addUser({ content: "x", origin: "canvas" });
+    expect(lines(view, 16)).toEqual([
+      "› 第一行很长很长",
+      "  很长很长很长",
+      "  第二行",
+      "",
+      "↳ canvas  x",
+    ]);
+  });
+
+  it("相邻工具调用之间不空行；compact 全部不空行", () => {
+    const view = new MessageView({ theme });
+    view.addUser({ content: "u" });
+    view.addTool(new Text("⏺ a"));
+    view.addTool(new Text("⏺ b"));
+    view.addNotice("info", "n");
+    view.addTool(new Text("⏺ c"));
+    expect(lines(view)).toEqual(["› u", "", "⏺ a", "⏺ b", "", "n", "", "⏺ c"]);
+    const compact = new MessageView({ theme, compact: true });
+    compact.addUser({ content: "u" });
+    compact.endAssistant(assistant([{ type: "text", text: "a\n\nb" }]));
+    compact.addNotice("warn", "w");
+    expect(lines(compact)).toEqual(["› u", "a", "", "b", "! w"]);
   });
 
   it("助手流式：思考折叠为一行计数，Markdown 增量；结束后计数换成用量里的 reasoning", () => {
     const view = new MessageView({ theme });
     const thinking = { type: "thinking" as const, thinking: "a".repeat(40) };
     view.startAssistant(assistant([thinking]));
-    expect(lines(view)).toEqual(["思考… 10 token"]);
+    expect(lines(view)).toEqual(["✻ 思考中…"]);
     view.updateAssistant(assistant([thinking, { type: "text", text: "# 标题\n\n正文 **加粗**" }]));
-    expect(lines(view)).toEqual(["思考… 10 token", "", "标题", "", "正文 加粗"]);
+    expect(lines(view)).toEqual(["✻ 思考中…", "", "标题", "", "正文 加粗"]);
     view.endAssistant(
       assistant([thinking, { type: "text", text: "# 标题\n\n正文 **加粗**" }], {
-        usage: usage({ reasoning: 37 }),
+        usage: usage({ reasoning: 1234 }),
       }),
     );
-    expect(lines(view)[0]).toBe("思考 · 37 token");
+    expect(lines(view)[0]).toBe("✻ 思考 · 1.2k token");
+    view.setThinkingExpanded(true);
+    expect(lines(view).slice(0, 2)).toEqual(["✻ 思考 · 1.2k token  ▾", "  " + "a".repeat(40)]);
+    view.setThinkingExpanded(false);
+    expect(lines(view)[1]).toBe("");
+  });
+
+  it("思考展开最多 60 行；之后的新消息沿用展开状态", () => {
+    const view = new MessageView({ theme });
+    view.setThinkingExpanded(true);
+    const long = Array.from({ length: 65 }, (_, i) => `t${i}`).join("\n");
+    view.endAssistant(assistant([{ type: "thinking", thinking: long }]));
+    const out = lines(view);
+    expect(out).toHaveLength(62);
+    expect(out[61]).toBe("  … 另 5 行");
   });
 
   it("showThinking full / hidden；markdown: false 原样输出", () => {
@@ -45,7 +87,7 @@ describe("消息区", () => {
     ];
     const full = new MessageView({ theme, showThinking: "full", markdown: false });
     full.endAssistant(assistant(content));
-    expect(lines(full)).toEqual(["先看文件", "", "**ok**"]);
+    expect(lines(full)).toEqual(["✻ 思考 · 1 token  ▾", "  先看文件", "", "**ok**"]);
     const hidden = new MessageView({ theme, showThinking: "hidden" });
     hidden.endAssistant(assistant(content));
     expect(lines(hidden)).toEqual(["ok"]);
@@ -92,13 +134,11 @@ describe("消息区", () => {
     view.addNotice("info", "宿主已连接");
     view.addNotice("warn", "上下文接近上限");
     expect(lines(view, 40)).toEqual([
-      "╭─ 上下文已压缩 ───────────────────────╮",
-      "│ 120000 → 8000 token                  │",
-      "│ 目标：修登录                         │",
-      "│ 已改 auth.ts                         │",
-      "│ 待测                                 │",
-      "│ …（另 1 行）                         │",
-      "╰──────────────────────────────────────╯",
+      "▎ 上下文已压缩  120k → 8.0k token",
+      "▎ 目标：修登录",
+      "▎ 已改 auth.ts",
+      "▎ 待测",
+      "▎ … 另 1 行",
       "",
       "↻ 重试 1/3（2s 后）：429 rate limited",
       "",
@@ -153,7 +193,7 @@ describe("消息区", () => {
     expect(out).toContain("宿主备注");
     expect(out).not.toContain("隐藏");
     expect(out.join("\n")).toContain("分支摘要");
-    expect(out.join("\n")).toContain("5000 token");
+    expect(out.join("\n")).toContain("5.0k token");
   });
 
   it("reset 清空；彩色主题下用户前缀带样式；工具函数", () => {

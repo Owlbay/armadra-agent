@@ -144,6 +144,7 @@ export function runInteractiveMode(
     theme,
     ...(ui.showThinking !== undefined ? { showThinking: ui.showThinking } : {}),
     ...(ui.markdown !== undefined ? { markdown: ui.markdown } : {}),
+    ...(ui.compact === true ? { compact: true } : {}),
   });
   const tools = new ToolTracker({
     theme,
@@ -292,7 +293,7 @@ export function runInteractiveMode(
         return;
       case "tool_execution_start": {
         const started = tools.start(event);
-        if (started.topLevel) view.add(started.view);
+        if (started.topLevel) view.addTool(started.view);
         render();
         return;
       }
