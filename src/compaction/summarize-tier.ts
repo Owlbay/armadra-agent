@@ -8,8 +8,11 @@
  *
  * [W3-C1b] 会话前缀续写（第三波 §1.8）：调用方给出 `continuation.prefix`（与上一次真实请求
  * 逐字节同前缀的完整转录）时，请求 = 前缀 + 一条摘要指令（「只摘要第 1–N 条，第 N+1 条起
- * 保留原文」+ 首行引文），`toolChoice: "none"`、`cacheRetention: "short"`、`purpose: "summary"`，
- * 按读价计费；响应为空 / 被截断 / 含工具调用 / 请求出错 → 回落现行独立请求（序列化转录、
+ * 保留原文」+ 首行引文），`cacheRetention: "short"`、`purpose: "summary"`，按读价计费。
+ * **不发 `toolChoice`**：实测（docs/benchmarks/cache-2026-10-02.md E3）中转与 Kimi 在
+ * `tool_choice: "none"` 时渲染的提示不带工具定义，前缀在工具段断开、cacheRead 为 0；Anthropic
+ * 文档也写明改动 tool_choice 会让消息缓存失效。所以 system + tools + 消息前缀与上一次真实请求
+ * 逐字节相同，「不调用工具、只输出摘要」只写在末尾指令里；响应为空 / 被截断 / 含工具调用 / 请求出错 → 回落现行独立请求（序列化转录、
  * `cacheRetention: "none"`）并经 `onFallback` 记 warning。
  */
 
@@ -75,6 +78,10 @@ Keep every section concise. Preserve exact file paths, function names, and error
 /** 续写指令的首句（测试据此识别摘要请求）。 */
 export const SUMMARY_CONTINUATION_PREAMBLE =
   "Stop here: do not continue the conversation, do not answer questions from it and do not call any tools.";
+
+/** 续写指令的末句：工具仍在请求里（为了缓存前缀），只靠指令禁止调用。 */
+export const SUMMARY_CONTINUATION_TAIL =
+  "Tools are still listed above, but you must not call any of them now. Reply with the summary text only.";
 
 const TURN_PREFIX_PROMPT = `The record above is the BEGINNING of the current turn; the rest of the turn is kept verbatim after this summary. Summarize only what the agent was asked to do in this turn and what it has done so far, in a short "## Turn So Far" section followed by "## Critical Context".`;
 
@@ -296,12 +303,13 @@ function continuationPrompt(
   if (instructions !== undefined && instructions.trim() !== "") {
     parts.push(`Additional instructions:\n${instructions.trim()}`);
   }
+  parts.push(SUMMARY_CONTINUATION_TAIL);
   return parts.join("\n\n");
 }
 
 /**
- * 会话前缀续写：前缀 + 一条摘要指令，`toolChoice: "none"`。空 / 截断 / 含工具调用 / 出错
- * 抛 `compaction_failed`（调用方回落），abort 抛 `aborted`。
+ * 会话前缀续写：前缀 + 一条摘要指令，不发 `toolChoice`（保住含工具段的缓存前缀）。空 / 截断 /
+ * 含工具调用 / 出错抛 `compaction_failed`（调用方回落），abort 抛 `aborted`。
  */
 export async function completeByContinuation(
   options: SummarizerOptions,
@@ -312,13 +320,13 @@ export async function completeByContinuation(
   const context: TranscriptContext = {
     messages: [...input.prefix.messages, { role: "user", content: prompt, timestamp: Date.now() }],
   };
-  const base = options.continuation?.streamOptions ?? {};
+  // 改动 tool_choice 会让缓存前缀失效：即使调用方传了也不带。
+  const { toolChoice: _toolChoice, ...base } = options.continuation?.streamOptions ?? {};
   const streamOptions: StreamOptions = {
     ...base,
     signal: options.signal,
     maxTokens:
       base.maxTokens ?? Math.min(options.maxTokens ?? SUMMARY_MAX_TOKENS, options.model.maxTokens),
-    toolChoice: "none",
     cacheRetention: "short",
     purpose: "summary",
   };

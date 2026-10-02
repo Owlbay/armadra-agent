@@ -171,7 +171,8 @@ describe("未命中与摘要续写（第三波 §1.5 / §1.8）", () => {
     const turn = h.fake.calls[compactAfter]!;
     const summary = h.fake.calls[compactAfter + 1]!;
     for (const call of h.fake.calls.slice(compactAfter + 1, compactAfter + 3)) {
-      expect(call.options).toMatchObject({ purpose: "summary", toolChoice: "none" });
+      expect(call.options).toMatchObject({ purpose: "summary" });
+      expect(call.options).not.toHaveProperty("toolChoice");
     }
     const last = summary.context.messages.at(-1);
     expect(last?.role === "user" && String(last.content)).toMatch(
