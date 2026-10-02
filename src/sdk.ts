@@ -32,6 +32,7 @@ import type { PlanData, TodoItemView } from "./agent/types.js";
 import type { PlanConfig } from "./config/types-w5.js";
 import { parseArgs, type ParsedArgs } from "./cli/args.js";
 import { bootstrap } from "./cli/bootstrap.js";
+import { resolveMemory } from "./cli/compose-memory.js";
 import { withExtraProviders } from "./cli/compose-providers.js";
 import { composeSession, emptyComposeState, type LogFn } from "./cli/compose-session.js";
 import { buildRules, createRuntimeDeps, createTools, type ComposeOptions } from "./cli/compose.js";
@@ -269,8 +270,16 @@ export async function createAgentSession(
   const state = emptyComposeState();
   let tools: PresetToolRegistry;
   if (options.tools === undefined || options.tools === "default") {
+    // [W6-M] SDK 同嵌入宿主：只有 `options.memory = { enabled, dir }` 开启（workspace 作用域）
+    const memory = resolveMemory({
+      config,
+      cwd,
+      dataDir: resolveDataDir(),
+      trusted: true,
+      embedded: { memory: options.memory },
+    });
     tools = createTools(
-      { config, cwd, mode: "line" },
+      { config, cwd, mode: "line", memory },
       { extraTools: options.extraTools ?? [] },
       state,
     );

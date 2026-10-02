@@ -11,14 +11,36 @@
  *
  * 外部 Agent 的 notice（W5-E runner 的 `{type:"notice"}`）由任务注册表写进会话日志（`[task tN] …`），没有
  * 事件；这里在会话的 `options.log` 外面套一层，只把这类行转到消息区，其余照原样写日志。
+ *
+ * [W6-A] Agent 栏（agent-bar.ts，提示行之下、状态行之上）与子 Agent 视图（agent-view.ts，底部覆盖层）：
+ * - 键位：空输入时 `Ctrl+B`（有任务即可）或 `↓`（栏可见时）进栏（`app.agents.focus`，key-dispatch.ts 先问这里）；
+ *   栏内 ↑↓ 选、Enter 打开视图、Esc / Ctrl+B 返回，可打印字符回到输入框；
+ * - `/tasks` 无参 = 聚焦栏（`ui.agentBar: "off"` 时仍是原来的选择器），`/tasks <id>` = 直接进视图；
+ * - 等审批的任务按 `permission_request.context.taskId` 记下（栏与视图标题显示「等待审批」）。
  */
 
 import type { AgentSession, SessionEvent } from "../../agent/types.js";
 import type { SwitchRequest } from "../../cli/compose-session.js";
 import type { ClipboardDeps } from "../../tools/clipboard-image.js";
-import { taskRegistryView } from "../../agent/subagent-registry.js";
+import { registryOf, taskRegistryView } from "../../agent/subagent-registry.js";
 import { planController } from "../../plan/controller.js";
-import type { Component, Editor, TUI, Theme } from "../../tui.js";
+import { msg } from "../../i18n/index.js";
+import {
+  defaultKeybindings,
+  isPrintableText,
+  parseKey,
+  type Keybindings,
+  type Component,
+  type Editor,
+  type OverlayHandle,
+  type TUI,
+  type Theme,
+} from "../../tui.js";
+import { AgentBar } from "./agent-bar.js";
+import { AgentView } from "./agent-view.js";
+import type { CommandUi } from "./commands.js";
+import type { AgentKeys } from "./key-dispatch.js";
+import type { StatusArea } from "./status-area.js";
 import { agentsPanel, planPanel, taskOutputPanel } from "./agent-panels.js";
 import { FirstRunMerge } from "./approval-merge.js";
 import { pasteImage } from "./clipboard-paste.js";
@@ -56,6 +78,16 @@ export interface AgentUiDeps {
   displayPath(path: string): string;
   /** 剪贴板读取的注入（测试）。 */
   clipboard?: ClipboardDeps;
+  /** [W6-A] 底部区域：Agent 栏插在速率行 / 状态栏之上；`ui.*` 配置。 */
+  area?: Pick<StatusArea, "rate" | "ui">;
+}
+
+/** [W6-A] `CommandUi` 的 Agent 栏 / 视图钩子（`/tasks`、`/tasks <id>`）；晚绑定，装配时 agentUi 还没建。 */
+export function agentCommandHooks(get: () => AgentUi): Pick<CommandUi, "agentBar" | "agentView"> {
+  return {
+    agentBar: () => get().focusBar(),
+    agentView: (taskId) => get().openView(taskId),
+  };
 }
 
 const TASK_NOTICE = /^\[task (t\d+)\] ([\s\S]*)$/;
@@ -63,6 +95,16 @@ const TASK_NOTICE = /^\[task (t\d+)\] ([\s\S]*)$/;
 export class AgentUi {
   readonly plan: PlanFlow;
   readonly merge: FirstRunMerge;
+  /** [W6-A] Agent 栏。 */
+  readonly bar: AgentBar;
+  /** [W6-A] key-dispatch.ts 的 Agent 栏入口。 */
+  readonly keys: AgentKeys = {
+    handleKey: (data) => this.barKey(data),
+    focus: (data) => this.focusFromKey(data),
+  };
+  private view: { component: AgentView; handle: OverlayHandle } | undefined;
+  /** 等审批的请求 → 任务。 */
+  private readonly approvals = new Map<string, string>();
   private restoreLog: (() => void) | undefined;
   /** 后台子 Agent 运行中：每秒重画跟随行的耗时（主会话空闲时 Loader 不转）。 */
   private ticker: ReturnType<typeof setInterval> | undefined;
@@ -88,10 +130,37 @@ export class AgentUi {
       notice: (level, text) => deps.notice(level, text),
       prompt: (text) => deps.prompt(text),
     });
+    this.bar = new AgentBar({
+      theme: deps.theme,
+      registry: () => registryOf(deps.session().state.sessionId),
+      tracker: deps.subagents,
+      now: () => deps.now(),
+      approvals: () => this.waiting(),
+      enabled: () => this.barEnabled(),
+    });
+    if (deps.area !== undefined) deps.tui.insertBefore(this.bar, deps.area.rate);
+  }
+
+  private keybindings(): Keybindings {
+    return this.deps.dialog.keybindings ?? defaultKeybindings;
+  }
+
+  private barEnabled(): boolean {
+    return this.deps.area !== undefined && this.deps.area.ui().agentBar !== "off";
+  }
+
+  private waiting(): ReadonlySet<string> {
+    return new Set(this.approvals.values());
   }
 
   /** 新会话（启动、/new /resume /fork）：接管计划审批，转发外部 Agent notice。 */
   attach(session: AgentSession): void {
+    const viewing = this.viewing;
+    this.closeView();
+    // 换了会话：原来在看的任务不在新会话里
+    if (viewing !== undefined) this.deps.notice("info", msg().agents.view.removed(viewing));
+    this.bar.reset();
+    this.approvals.clear();
     this.deps.subagents.clear();
     this.stopTicker();
     this.plan.attach(session);
@@ -99,6 +168,7 @@ export class AgentUi {
   }
 
   detach(): void {
+    this.closeView();
     this.restoreLog?.();
     this.restoreLog = undefined;
     this.stopTicker();
@@ -112,6 +182,7 @@ export class AgentUi {
       const live = this.deps.subagents.running().filter((s) => s.background);
       if (live.length === 0) return this.stopTicker();
       for (const state of live) this.deps.tools().get(state.parentToolCallId)?.refresh();
+      this.view?.component.tick();
       this.deps.render();
     }, 1000);
     this.ticker.unref?.();
@@ -154,6 +225,9 @@ export class AgentUi {
         const state = this.deps.subagents.onEvent(event);
         if (state === undefined) return true;
         this.deps.tools().get(state.parentToolCallId)?.refresh();
+        // 视图里看的任务又开跑（续聊、被释放后重开）：重新接上它的子会话
+        if (event.type === "subagent_start" && this.view?.component.task === event.taskId)
+          this.view.component.attach();
         // 后台任务：完成时 <task-notification> 那一行就是提示；失败 / 停止另给一行
         if (event.type === "subagent_end" && state.background && state.status !== "completed")
           this.deps.notice("warn", backgroundEndText(state));
@@ -169,6 +243,14 @@ export class AgentUi {
       case "background_job":
         this.deps.notice("info", backgroundJobText(event));
         return true;
+      case "permission_request": {
+        const taskId = event.context?.taskId;
+        if (taskId !== undefined) this.approvals.set(event.requestId, taskId);
+        return false;
+      }
+      case "permission_resolved":
+        this.approvals.delete(event.requestId);
+        return false;
       default:
         return false;
     }
@@ -180,9 +262,6 @@ export class AgentUi {
     switch (name) {
       case "plan":
         await this.showPlan();
-        return true;
-      case "tasks":
-        await this.tasks();
         return true;
       case "agents":
         this.deps.panel(agentsPanel(this.deps.session().state.sessionId, this.deps.theme));
@@ -205,6 +284,103 @@ export class AgentUi {
     this.deps.panel(planPanel(controller, session, this.deps.theme, this.deps.displayPath));
     const pending = controller.pending();
     if (pending !== undefined && !session.state.isStreaming) await this.plan.ask(session, pending);
+  }
+
+  // -------------------------------------------------------------------------
+  // [W6-A] Agent 栏与子 Agent 视图
+  // -------------------------------------------------------------------------
+
+  /** `/tasks`（无参）：聚焦 Agent 栏；栏关闭（嵌入宿主缺省）时仍是选择器。 */
+  async focusBar(): Promise<void> {
+    if (!this.barEnabled()) return this.tasks();
+    if (!this.bar.focus()) {
+      this.deps.notice("info", msg().agents.bar.empty);
+      return;
+    }
+    this.deps.render();
+  }
+
+  /** `app.agents.focus`（输入为空）：`↓` 只在栏可见时进入，其它键（`Ctrl+B`）有任务即可。 */
+  private focusFromKey(data: string): boolean {
+    if (this.view !== undefined || !this.barEnabled()) return false;
+    if (parseKey(data)?.id === "down" && !this.bar.visible) return false;
+    if (!this.bar.focus()) return false;
+    this.deps.render();
+    return true;
+  }
+
+  /** 栏聚焦时的按键；不在栏里返回 false。 */
+  private barKey(data: string): boolean {
+    if (!this.bar.focused) return false;
+    const keys = this.keybindings();
+    if (keys.matches(data, "tui.select.up")) {
+      if (!this.bar.move(-1)) this.bar.blur();
+    } else if (keys.matches(data, "tui.select.down")) this.bar.move(1);
+    else if (keys.matches(data, "tui.editor.submit")) {
+      const taskId = this.bar.selected();
+      if (taskId !== undefined) this.openView(taskId);
+    } else if (keys.matches(data, "tui.select.cancel") || keys.matches(data, "app.agents.focus"))
+      this.bar.blur();
+    else {
+      // 可打印字符与其它键：退出栏，交给输入框
+      this.bar.blur();
+      this.deps.render();
+      return !isPrintableText(data) && keys.actionsFor(data).length === 0;
+    }
+    this.deps.render();
+    return true;
+  }
+
+  /** `/tasks <id>` 与栏里 Enter：打开子 Agent 视图。 */
+  openView(taskId: string): void {
+    const sessionId = this.deps.session().state.sessionId;
+    if (taskRegistryView(sessionId)?.get(taskId) === undefined) {
+      this.deps.notice("info", msg().agents.view.unknown(taskId));
+      return;
+    }
+    this.closeView();
+    const ui = this.deps.area?.ui() ?? {};
+    const component = new AgentView(taskId, {
+      theme: this.deps.theme,
+      keys: this.keybindings(),
+      registry: () => registryOf(this.deps.session().state.sessionId),
+      tracker: this.deps.subagents,
+      approvals: () => this.waiting(),
+      now: () => this.deps.now(),
+      rows: () => this.deps.tui.terminal.rows,
+      render: () => this.deps.render(),
+      siblings: () => this.bar.all().map((row) => row.taskId),
+      close: () => this.closeView(),
+      stop: (id) => stopTask(this.deps.session().state.sessionId, id),
+      messages: {
+        ...(ui.showThinking !== undefined ? { showThinking: ui.showThinking } : {}),
+        ...(ui.markdown !== undefined ? { markdown: ui.markdown } : {}),
+        ...(ui.compact === true ? { compact: true } : {}),
+      },
+    });
+    // 视图盖住主区时主区不变（栏收起）；Esc 回到主界面
+    this.bar.blur();
+    const handle = this.deps.tui.showOverlay(component, { anchor: "bottom" });
+    this.view = { component, handle };
+    this.deps.render();
+  }
+
+  get viewing(): string | undefined {
+    return this.view?.component.task;
+  }
+
+  /** 撤掉视图（Esc、换会话、退出）；看到了结束后的状态就算查看过。 */
+  closeView(): void {
+    const view = this.view;
+    if (view === undefined) return;
+    this.view = undefined;
+    view.component.dispose();
+    view.handle.hide();
+    const taskId = view.component.task;
+    const info = taskRegistryView(this.deps.session().state.sessionId)?.get(taskId);
+    if (info !== undefined && info.status !== "running") this.bar.markViewed(taskId);
+    this.bar.blur();
+    this.deps.render();
   }
 
   private async tasks(): Promise<void> {

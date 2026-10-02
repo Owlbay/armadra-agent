@@ -3,12 +3,14 @@
  * （docs/providers.md「配置目录」）。规则与 schema.ts 的 `validateConfig` 一一对应：未知字段在那里是
  * warning、这里是 `additionalProperties: false`；渠道引用（模型 `channels` 指向已定义的渠道）这类跨字段
  * 规则 JSON Schema 表达不了，只在 `validateConfig` 里查。一致性由 json-schema.test.ts 的正反例守住。
- * 顶层与各段的键（供应商内部除外）的 description / default 来自 key-docs.ts（`annotate`）。
+ * 顶层与各段的键（供应商内部除外）的 description / default 来自 key-docs.ts（`annotate`）；说明跟随界面
+ * 语言（D21），`ama init` 按当前语言重写。
  */
 
 import { WARMING_MODES } from "../ai/cache/types.js";
 import { PERMISSION_MODES_STRICT_FIRST } from "../permissions/types.js";
-import { CONFIG_KEY_DOCS, DYNAMIC_DEFAULTS, defaultFor } from "./key-docs.js";
+import { msg } from "../i18n/index.js";
+import { defaultFor, isDynamicDefault, keyDoc } from "./key-docs.js";
 import { HOOK_TIMEOUT_MAX_MS, THINKING_LEVELS } from "./schema.js";
 import {
   CACHE_RETENTIONS,
@@ -68,47 +70,49 @@ const oneOf = (values: readonly string[], description?: string): Schema => ({
   enum: [...values],
   ...(description ? { description } : {}),
 });
-/** api 只查是字符串（与 validateConfig 一致），enum 给编辑器补全。 */
-const api: Schema = {
-  type: "string",
-  description: "协议",
-  examples: KNOWN_APIS,
-  anyOf: [{ enum: KNOWN_APIS }, { type: "string" }],
-};
+/** 供应商的 schema（说明按当前界面语言，每次生成时现取）。 */
+function providerSchema(): Schema {
+  const m = msg().config.jsonSchema;
+  /** api 只查是字符串（与 validateConfig 一致），enum 给编辑器补全。 */
+  const api: Schema = {
+    type: "string",
+    description: m.api,
+    examples: KNOWN_APIS,
+    anyOf: [{ enum: KNOWN_APIS }, { type: "string" }],
+  };
 
-const compat: Schema = {
-  type: "object",
-  description: "协议兼容开关（docs/providers.md「compat」）",
-  properties: {
-    sendPromptCacheKey: bool(),
-    sendSessionAffinityHeaders: bool(),
-    supportsLongCacheRetention: bool(),
-    supportsExplicitPromptCacheMode: bool(),
-    cacheReporting: oneOf(["auto", "silent", "reported"]),
-  },
-};
+  const compat: Schema = {
+    type: "object",
+    description: m.compat,
+    properties: {
+      sendPromptCacheKey: bool(),
+      sendSessionAffinityHeaders: bool(),
+      supportsLongCacheRetention: bool(),
+      supportsExplicitPromptCacheMode: bool(),
+      cacheReporting: oneOf(["auto", "silent", "reported"]),
+    },
+  };
 
-function model(description: string): Schema {
-  return {
+  const model = (description: string): Schema => ({
     type: "object",
     description,
     required: ["id"],
     properties: {
-      id: str("模型 id（发给上游的名字）"),
+      id: str(m.modelId),
       name: str(),
       api,
-      baseUrl: str("覆盖渠道 / 供应商的地址"),
-      contextWindow: num(1, undefined, "上下文 token；缺省从 models.dev 补，匹配不到不猜"),
-      maxTokens: num(1, undefined, "单次输出上限；缺省 min(models.dev, 64k) 或 8192"),
+      baseUrl: str(m.modelBaseUrl),
+      contextWindow: num(1, undefined, m.contextWindow),
+      maxTokens: num(1, undefined, m.maxTokens),
       reasoning: bool(),
       input: {
         type: "array",
         items: { enum: ["text", "image"] },
-        description: '["text"] 或 ["text", "image"]（收图片）',
+        description: m.input,
       },
-      channels: { ...strings, description: "挂载的渠道，第一个是首选" },
+      channels: { ...strings, description: m.modelChannels },
       modelsDev: {
-        description: 'models.dev 条目 "provider/model"；false 关闭补全',
+        description: m.modelsDev,
         anyOf: [{ type: "string", pattern: "^[^/]+/.+$" }, { const: false }],
       },
       headers: stringRecord,
@@ -118,42 +122,42 @@ function model(description: string): Schema {
       thinkingLevelMap: { type: "object" },
       samplingParams: { type: "object" },
     },
-  };
-}
+  });
 
-const channel: Schema = object(
-  {
+  const channel: Schema = object(
+    {
+      api,
+      baseUrl: str(m.baseUrl),
+      apiKey: str(m.channelApiKey),
+      authHeader: { type: "object" },
+      headers: stringRecord,
+      compat,
+    },
+    { required: ["api", "baseUrl"] },
+  );
+
+  return object({
+    name: str(),
     api,
-    baseUrl: str("接口地址"),
-    apiKey: str("$ENV / ${ENV} / !command / 字面量；缺省用供应商的 key"),
+    baseUrl: str(),
+    apiKey: str(m.apiKey),
+    envKeys: strings,
     authHeader: { type: "object" },
     headers: stringRecord,
     compat,
-  },
-  { required: ["api", "baseUrl"] },
-);
-
-const provider: Schema = object({
-  name: str(),
-  api,
-  baseUrl: str(),
-  apiKey: str("$ENV / ${ENV} / !command / 字面量"),
-  envKeys: strings,
-  authHeader: { type: "object" },
-  headers: stringRecord,
-  compat,
-  requiresApiKey: bool(),
-  channels: {
-    type: "object",
-    description: "渠道：一个供应商下的多种接口",
-    minProperties: 1,
-    propertyNames: { pattern: CHANNEL_NAME_PATTERN.source },
-    additionalProperties: channel,
-  },
-  defaultChannel: str("首选渠道；缺省 channels 的第一个"),
-  models: { type: "array", items: model("自定义模型（同 id 整条替换）") },
-  modelOverrides: { type: "array", items: model("只改已有模型的元数据") },
-});
+    requiresApiKey: bool(),
+    channels: {
+      type: "object",
+      description: m.channels,
+      minProperties: 1,
+      propertyNames: { pattern: CHANNEL_NAME_PATTERN.source },
+      additionalProperties: channel,
+    },
+    defaultChannel: str(m.defaultChannel),
+    models: { type: "array", items: model(m.models) },
+    modelOverrides: { type: "array", items: model(m.modelOverrides) },
+  });
+}
 
 // [W5-C0] 第五波的段（规则同 schema-w5.ts）
 const agentEntry: Schema = object({
@@ -229,7 +233,7 @@ function annotate(properties: Record<string, Schema>, prefix = ""): void {
     // 片段（strings、bool() 等）在多处复用：先浅拷贝再写说明
     const schema: Schema = { ...shared };
     properties[key] = schema;
-    const description = CONFIG_KEY_DOCS[path];
+    const description = keyDoc(path);
     if (description !== undefined) schema["description"] = description;
     const nested = schema["properties"] as Record<string, Schema> | undefined;
     if (nested !== undefined && path !== "providers") {
@@ -237,7 +241,7 @@ function annotate(properties: Record<string, Schema>, prefix = ""): void {
       continue;
     }
     const value = defaultFor(path);
-    if (value !== undefined && DYNAMIC_DEFAULTS[path] === undefined) schema["default"] = value;
+    if (value !== undefined && !isDynamicDefault(path)) schema["default"] = value;
   }
 }
 
@@ -256,15 +260,15 @@ function buildBaseSchema(): Schema {
     ...object({
       $schema: str(),
       version: { const: 1 },
-      defaultModel: str("provider/model 或 provider/model@channel"),
+      defaultModel: str(),
       thinkingLevel: oneOf(THINKING_LEVELS),
-      providers: { type: "object", additionalProperties: provider },
+      providers: { type: "object", additionalProperties: providerSchema() },
       permission: object({
         mode: oneOf(PERMISSION_MODES_STRICT_FIRST),
         allow: strings,
         deny: strings,
         builtinDeny: { anyOf: [{ type: "boolean" }, strings] },
-        autoModel: str("auto 模式分类器的模型 provider/model；缺省用当前会话模型"),
+        autoModel: str(),
         autoSafeCommands: strings,
       }),
       compaction: object({
@@ -327,9 +331,9 @@ function buildBaseSchema(): Schema {
       }),
       sandbox: object({
         enabled: oneOf(SANDBOX_ENABLED_MODES),
-        bash: oneOf(SANDBOX_ENABLED_MODES, "bash 经 OS 沙箱运行（缺省 off）"),
-        network: oneOf(SANDBOX_NETWORK_MODES, "bash 沙箱里的网络（缺省 deny）"),
-        writable: { ...strings, description: "bash 沙箱追加的可写目录（绝对路径或 ~/…）" },
+        bash: oneOf(SANDBOX_ENABLED_MODES),
+        network: oneOf(SANDBOX_NETWORK_MODES),
+        writable: strings,
       }),
       ...w5Sections(),
       ...w6Sections(),

@@ -32,6 +32,7 @@ import { configCommand } from "../config-ui.js";
 import { lineTraceCommand } from "../../../trace/session.js";
 import { createLineReader } from "../../rpc/jsonl.js";
 import { errorText, onTerminationSignals } from "../../shared.js";
+import { memoryLineCommand } from "../memory-panel.js";
 import { LineEditor } from "./line-editor.js";
 import { cacheNoticesEnabled } from "../../session-report.js";
 import { EventPrinter, approvalQuestion, logsInfo, pickHint } from "./line-render.js";
@@ -69,7 +70,11 @@ export async function runLineMode(
   let unsubscribe = session.subscribe((event) => printer.handle(event));
   const commands: CommandContext = {
     runtime,
-    extra: { config: configCommand(runtime, context), trace: lineTraceCommand },
+    extra: {
+      config: configCommand(runtime, context),
+      trace: lineTraceCommand,
+      memory: memoryLineCommand, // [W6-M]
+    },
     session: () => session,
     async switchSession(request) {
       const next = await switchSession(runtime, request);

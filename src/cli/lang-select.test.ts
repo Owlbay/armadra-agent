@@ -66,14 +66,14 @@ describe("参数", () => {
     );
   });
 
-  it("memory 登记为子命令（W6-M 实现前报尚未提供，退出码 2）", async () => {
+  it("memory 子命令已实现（W6-M）：list 退出码 0，未开启时提示条目不使用", async () => {
     const err: string[] = [];
     const code = await main(["memory", "list"], {
       io: { ...io(envWithout({ AMA_LANG: "zh" })), stderr: (t: string) => void err.push(t) },
       processHooks: false,
     });
-    expect(code).toBe(2);
-    expect(err.join("")).toContain("ama memory：当前版本尚未提供");
+    expect(code).toBe(0);
+    expect(err.join("")).toContain("memory.enabled 为 false");
   });
 });
 

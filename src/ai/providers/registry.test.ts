@@ -21,7 +21,7 @@ function registry(config?: AmaConfig, env: Record<string, string> = {}): Provide
 }
 
 describe("ProviderRegistry", () => {
-  it("17 家内置 + fake；模型已物化（baseUrl / authHeader / requiresApiKey / headers）", () => {
+  it("18 家内置（[W6-O] 加 chatgpt）+ fake；模型已物化（baseUrl / authHeader / requiresApiKey / headers）", () => {
     const r = registry();
     expect(r.list().map((p) => p.id)).toEqual([
       "anthropic",
@@ -39,6 +39,7 @@ describe("ProviderRegistry", () => {
       "stepfun",
       "volcengine",
       "tencent",
+      "chatgpt",
       "ollama",
       "lmstudio",
       "fake",

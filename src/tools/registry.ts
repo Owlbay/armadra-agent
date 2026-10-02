@@ -59,7 +59,7 @@ export function validateToolDefinition(tool: ToolDefinition): void {
   if (typeof tool.name !== "string" || !TOOL_NAME_RE.test(tool.name)) {
     throw new AmaError("invalid_arguments", `Invalid tool name "${String(tool.name)}"`);
   }
-  if (!["read", "write", "execute"].includes(tool.permission)) {
+  if (!["read", "write", "execute", "memory"].includes(tool.permission)) {
     throw new AmaError("invalid_arguments", `Tool ${tool.name}: invalid permission`);
   }
   if (typeof tool.execute !== "function") {

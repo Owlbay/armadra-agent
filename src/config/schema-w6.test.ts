@@ -157,14 +157,23 @@ describe("auth.json 联合类型", () => {
     ]);
   });
 
-  it("区分条目；describeAuthFile 对 OAuth 只给 kind，不碰 token", () => {
+  it("区分条目；describeAuthFile 对 OAuth 只给 kind / flavor / expiresIn / needsLogin，不碰 token", () => {
     expect(isOAuthEntry(file.providers["chatgpt"])).toBe(true);
     expect(apiKeyEntry(file.providers["chatgpt"])).toBeUndefined();
     expect(apiKeyEntry(file.providers["anthropic"])?.apiKey).toBe("$ANTHROPIC_API_KEY");
-    const described = describeAuthFile(file);
+    // [W6-O] OAuth 条目补 flavor / expiresIn / needsLogin（C0 时只有 kind）
+    const described = describeAuthFile(file, 1001);
     expect(described).toEqual([
       { provider: "anthropic", kind: "env-ref", hasBaseUrl: false, envNames: [] },
-      { provider: "chatgpt", kind: "oauth", hasBaseUrl: false, envNames: [] },
+      {
+        provider: "chatgpt",
+        kind: "oauth",
+        hasBaseUrl: false,
+        envNames: [],
+        flavor: "siwc",
+        expiresIn: -1000,
+        needsLogin: false,
+      },
     ]);
     expect(JSON.stringify(described)).not.toContain("rt");
   });

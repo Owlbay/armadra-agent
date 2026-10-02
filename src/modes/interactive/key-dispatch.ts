@@ -9,6 +9,9 @@
  *
  * [RW-C] 空闲时双击 Esc（`app.rewind`，double-esc.ts）：输入框为空打开回滚列表，有字则清空并存进
  * 输入历史；运行中 Esc 仍为中断，中断后交给 `onInterrupted`（中断即撤回）。
+ *
+ * [W6-A] Agent 栏（agent-ui.ts）：栏聚焦时它先收键（Esc 是「返回」，不中断、不回滚）；输入为空、补全没开时
+ * `app.agents.focus`（缺省 `Ctrl+B` / `↓`）先问它要不要进栏，不要就照常交给编辑器（光标左移、历史下一条）。
  */
 
 import type { AgentSession } from "../../agent/types.js";
@@ -22,6 +25,14 @@ import type { StatusBar } from "./status-bar.js";
 import type { ToolTracker } from "./tool-view.js";
 
 const DOUBLE_CTRL_C_MS = 1500;
+
+/** [W6-A] Agent 栏的按键入口。 */
+export interface AgentKeys {
+  /** 栏聚焦时先消费按键；返回 true 已处理。 */
+  handleKey(data: string): boolean;
+  /** `app.agents.focus`（输入为空）：进栏返回 true，否则交给编辑器。 */
+  focus(data: string): boolean;
+}
 
 export interface KeyDispatchDeps {
   keys: Keybindings;
@@ -54,6 +65,8 @@ export interface KeyDispatchDeps {
   onInterrupted?(editorWasEmpty: boolean): void;
   /** 双击 Esc 的间隔（测试注入）。 */
   doubleEscMs?: number;
+  /** [W6-A] Agent 栏（晚绑定）。 */
+  agents?(): AgentKeys | undefined;
 }
 
 /** 返回输入监听器：已处理返回 true，交给编辑器返回 false。 */
@@ -131,6 +144,19 @@ export function createKeyDispatch(deps: KeyDispatchDeps): (data: string) => bool
     const is = (action: Parameters<Keybindings["matches"]>[1]): boolean =>
       keys.matches(data, action);
     if (!is("app.rewind")) esc.reset();
+    const agents = deps.agents?.();
+    if (agents?.handleKey(data) === true) {
+      esc.reset();
+      return true;
+    }
+    if (
+      agents !== undefined &&
+      is("app.agents.focus") &&
+      editor.isEmpty() &&
+      !editor.isCompletionOpen &&
+      agents.focus(data)
+    )
+      return true;
     if (is("app.clear")) {
       if (!editor.isEmpty()) {
         editor.clear();

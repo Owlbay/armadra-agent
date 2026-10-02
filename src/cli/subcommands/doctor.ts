@@ -29,6 +29,8 @@ import { describeProxy, inspectProxy } from "../proxy.js";
 import { describeCodemode, describeModel } from "./config.js";
 import { buildRegistry, loadUserLevel, type UserLevel } from "./context.js";
 import { apiKeyEntry } from "../../config/types-w6.js";
+import { oauthDoctorLines } from "../../auth/chatgpt/doctor.js";
+import { readOAuthEntry } from "../../auth/oauth/token-store.js";
 
 export const DOCTOR_USAGE = `用法：ama doctor [--profile <文件>] [--auth-file <文件>] [--trust | --no-trust]
 `;
@@ -125,6 +127,18 @@ async function keySection(
     try {
       const registry = await buildRegistry(level, io, deps);
       for (const provider of registry.list()) {
+        // [W6-O] OAuth 条目：只读文件，不刷新 token
+        const oauth = readOAuthEntry(level.authFile, provider.id);
+        if (oauth !== undefined) {
+          const lines = await oauthDoctorLines(provider.id, oauth, {
+            env: io.env,
+            config: level.merged.config.auth?.chatgpt,
+          });
+          report.item(`${provider.id.padEnd(20)} ${lines.line}`);
+          if (lines.quota !== undefined) report.item(`${"".padEnd(20)} ${lines.quota}`);
+          if (lines.problem !== undefined) report.problem(lines.problem);
+          continue;
+        }
         const key = await registry.resolveApiKey(provider.id);
         const text =
           key.apiKey !== undefined

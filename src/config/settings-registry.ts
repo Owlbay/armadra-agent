@@ -12,7 +12,13 @@
  */
 
 import { buildConfigJsonSchema } from "./json-schema.js";
-import { CONFIG_KEY_DOCS, DYNAMIC_DEFAULTS, defaultFor, documentedLeaves } from "./key-docs.js";
+import {
+  defaultFor,
+  documentedLeaves,
+  dynamicDefaults,
+  isDynamicDefault,
+  keyDoc,
+} from "./key-docs.js";
 
 export type SettingGroup =
   "ui" | "model" | "permission" | "tools" | "context" | "session" | "sandbox" | "agents" | "memory";
@@ -133,9 +139,9 @@ const ROWS: readonly Row[] = [
   row("agents.sessionBudgetUsd", "agents", "nextSession", "deny", { kind: "optionalNumber" }),
   row("subagents.maxConcurrent", "agents", "nextSession", "deny"),
   row("subagents.maxPending", "agents", "nextSession", "deny"),
-  // [W6-M] reserved: added once Memory (W6-M) is merged --
-  // row("memory.enabled", "memory", "nextSession", "tighten", { envOverride: "AMA_MEMORY" }),
-  // row("memory.subagents", "memory", "nextSession", "deny"),
+  // [W6-M]
+  row("memory.enabled", "memory", "nextSession", "tighten", { envOverride: "AMA_MEMORY" }),
+  row("memory.subagents", "memory", "nextSession", "deny"),
 ];
 
 /** Keys edited elsewhere: key prefix -> hint id (messages `settings.hints`). */
@@ -216,18 +222,16 @@ export function settableKeys(): string[] {
 
 /** Built-in default of a key (undefined when it is unset or decided at run time). */
 export function settingDefault(key: string): unknown {
-  return DYNAMIC_DEFAULTS[key] === undefined ? defaultFor(key) : undefined;
+  return isDynamicDefault(key) ? undefined : defaultFor(key);
 }
 
-/**
- * Description of a key in the UI language. [W6-I4] provides a locale-aware `keyDoc(path)`; until it
- * is merged this falls back to the (Chinese) key-docs table.
- */
+/** Description of a key in the UI language (`keyDoc`, [W6-I4]). */
 export function settingDoc(key: string): string | undefined {
-  return CONFIG_KEY_DOCS[key];
+  return keyDoc(key);
 }
 
-/** Rule text for a key whose default is decided at run time (key-docs, same fallback as above). */
+/** Rule text for a key whose default is decided at run time, in the UI language. */
 export function settingDynamicDefault(key: string): string | undefined {
-  return DYNAMIC_DEFAULTS[key];
+  const rules = dynamicDefaults();
+  return Object.hasOwn(rules, key) ? rules[key] : undefined;
 }

@@ -22,7 +22,7 @@
 
 - `ama init`：建目录（0700）并补齐缺失的 `config.json` 与 `config.schema.json`，逐个打印「已创建」或
   「已存在，未改动」；已存在的 `config.json` 一律不覆盖（`--force` 也不），`config.schema.json` 不是用户文件，
-  每次 `init` 都重写为当前版本；不创建空的 `auth.json`。
+  每次 `init` 都重写为当前版本（说明跟随当前界面语言，切换语言后再 `init` 即重写）；不创建空的 `auth.json`。
 - **首次运行自动初始化**：进入对话的命令（交互、`-p`、`--mode rpc`）与 `ama providers add` 启动时若配置目录不存在，
   静默建目录并写最小 `config.json` 与 schema（`AMA_NO_INIT=1` 关闭；SDK 与测试不触发）。只读子命令（`config show` /
   `path`、`doctor`、`models list`、`providers list`、`auth list`、`sessions` 等）不创建也不改写配置目录。
@@ -92,6 +92,7 @@
 | `stepfun`    | **messages**、chat、responses（只 step-5-preview）、messages-intl、chat-intl（`.ai`） | `https://api.stepfun.com`                          | `STEPFUN_API_KEY`、`STEP_API_KEY`、`AMA_API_KEY_STEPFUN`      |
 | `volcengine` | **responses**、chat                                                                   | `https://ark.cn-beijing.volces.com/api/v3`         | `ARK_API_KEY`、`VOLCENGINE_API_KEY`、`AMA_API_KEY_VOLCENGINE` |
 | `tencent`    | **messages**、chat（`/v1`）                                                           | `https://tokenhub.tencentmaas.com`                 | `TOKENHUB_API_KEY`、`HUNYUAN_API_KEY`、`AMA_API_KEY_TENCENT`  |
+| `chatgpt`    | **siwc**、codex（缺省按登录的 flavor，见「ChatGPT 登录」）                            | `https://api.openai.com/v1`                        | 无（`ama auth login chatgpt`）                                |
 | `ollama`     | 单渠道 chat                                                                           | `http://127.0.0.1:11434/v1`                        | 可无（`OLLAMA_API_KEY`）                                      |
 | `lmstudio`   | 单渠道 chat                                                                           | `http://127.0.0.1:1234/v1`                         | 可无                                                          |
 
@@ -158,6 +159,71 @@
 
 然后 `--model volcengine/<模型>@coding`（订阅端点的模型 id 以各家文档为准，目录外的 id 用 `models[]` 补上并写
 `"channels": ["coding"]`）。
+
+## ChatGPT 登录
+
+用自己的 ChatGPT Plus / Pro 订阅额度驱动 ama（内置供应商 `chatgpt`，协议 openai-responses）。**仅限本人个人使用**：
+不要让一个登录服务多个人，嵌入宿主（Armadra）做成多人或托管服务时同样禁止。
+
+```bash
+ama auth login chatgpt                 # 缺省：官方 Sign in with ChatGPT（siwc），浏览器授权
+ama auth login chatgpt --paste         # 没有浏览器（SSH / 宿主）：打开打印的地址，把回调 URL 粘回终端
+ama auth status                        # flavor、计划、掩码邮箱、token 剩余；codex 另显示配额
+ama --model chatgpt/<模型>             # 账户可用的模型：ama models discover chatgpt
+ama auth logout chatgpt                # siwc 先撤销 refresh token 再删本地
+```
+
+**两条路径**（`--flavor` 或用户级配置 `auth.chatgpt.flavor`；缺省 siwc）：
+
+|          | `siwc`（缺省，官方）                                                                                                                                | `codex`（显式开启的备用）                                                                                                                             |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 登录     | OpenAI 官方动态注册：首次以 `dynamic_agent_client` 注册，签发的 client id 存进条目；`agent_name_hint=ama`；安装 id 存 `<dataDir>/chatgpt-host.json` | 借用 Codex CLI 的公开客户端；首次在终端确认「非官方用法、仅限本人、可能随时变更」（非 TTY 需 `--yes`）                                                |
+| 校验     | id_token 用 JWKS 验签并校验 iss / aud / nonce / exp；授予的 scope 必须含 `chatgpt.tokens.use.direct`                                                | 只解码 id_token 取账户 id 与计划                                                                                                                      |
+| 回调     | `http://127.0.0.1:1455/auth/callback`，1455 被占用用任意空闲端口                                                                                    | 1455 → 1457，被占用不抢占（提示 `--paste` / `--device`）                                                                                              |
+| 设备码   | 无（用 `--paste`）                                                                                                                                  | `--device`（可能需要在 ChatGPT → 设置 → Security 开启）                                                                                               |
+| 推理端点 | 渠道 `siwc`：`https://api.openai.com/v1`                                                                                                            | 渠道 `codex`：`https://chatgpt.com/backend-api/codex`，另发 `ChatGPT-Account-ID`、`originator`（缺省 `codex_cli_rs`，`auth.chatgpt.originator` 可改） |
+| 配额     | 只在超限（429）时可知；在 ChatGPT → 设置 → Usage → App limits 给 ama 设周上限                                                                       | 响应头、`codex.rate_limits` 事件、`ama auth status` 查 `wham/usage`                                                                                   |
+| 登出     | 调 `revocation_endpoint` 撤销，再删本地                                                                                                             | 只删本地                                                                                                                                              |
+
+`chatgpt` 的缺省渠道在组装时按 auth.json 条目的 flavor 决定；`provider/model@siwc|codex` 可显式指定，但必须与登录的
+flavor 一致（否则报 `chatgpt_flavor_mismatch`）。
+
+**凭据**：auth.json 的 `{ "type": "oauth", … }` 条目（文件 0600），`ama auth list` 只显示 `oauth · <flavor> · <计划>`。
+access token 剩余不到 5 分钟或请求返回 401 时自动刷新；多个 ama 进程（画布上的多个节点）共享一个 auth.json，刷新经
+`auth.json.lock` 串行（取锁后重读，别的进程刷过就直接用），refresh token 轮换不会互相顶掉。刷新永久失败时条目标
+`needsLogin`（不删 token），请求报 `auth_expired`，按提示重新 `ama auth login chatgpt`。token、code、id_token 原文不进
+日志、会话、事件与错误。不读取、不导入其它应用（Codex CLI 等）的登录。
+
+**请求体**：两条后端都强制 `store:false`、`stream:true`、`input` 数组，并删去不支持的字段（siwc：`max_output_tokens`、
+`temperature`、`top_p`、`metadata`、`user`、`truncation`、`prompt_cache_retention` 等 15 个；codex：
+`max_output_tokens`、`temperature`、`top_p`、`prompt_cache_retention`、`prompt_cache_options`）。`prompt_cache_key =
+会话 id` 两边都发，`cacheRetention: "long"` 自动降为 short。siwc 若以 `subscription_sharing_unsupported_capability`
+拒绝某个字段，删去后重试一次（本进程内记住）；codex 若报 `Instructions are not valid`，本会话改把系统提示放进开头的
+developer 消息（前缀依然稳定）。compat `toolsInNamespace: true` 时工具改放 `additional_tools` 输入项（形状待真账户
+实测）。
+
+**错误码**（错误文案以码开头，宿主按码判断）：
+
+| 码               | 来源                                                                                                         | 处理                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------- |
+| `quota_exceeded` | siwc 429 `subscription_sharing_usage_limit_exceeded`；codex 429 `usage_limit_reached` / `usage_not_included` | 不重试；附重置时间并发 `quota_update` |
+| `auth_expired`   | 401 刷新一次仍失败、刷新永久失败、条目 `needsLogin`                                                          | 不重试；重新 `ama auth login chatgpt` |
+| `not_eligible`   | siwc 403 `subscription_sharing_user_not_eligible`                                                            | 不重试、不重登                        |
+| （原样）         | 503 等                                                                                                       | 走会话层现有的退避重试                |
+
+**用量**：订阅请求 `usage.cost = 0` 并标 `billing: "subscription"`；`/session` 单列「订阅用量」（请求数、token、
+缓存命中率，不折算美元）与最近一次配额；事件 `quota_update`（RPC 原样转发，宿主事件同名）。
+
+**覆盖**（测试或将来换自有客户端用）：`auth.chatgpt.clientId` / `issuer` / `originator` / `redirectPorts`（只认用户级
+与 profile），环境变量 `AMA_CHATGPT_CLIENT_ID`、`AMA_CHATGPT_ISSUER`、`AMA_CHATGPT_BASE_URL`（改当前 flavor 渠道的
+地址）。
+
+**嵌入宿主**：有 profile 时 ama 不发起交互式登录；用到 `chatgpt` 而登录失效时请求报 `auth_expired`，由宿主引导用户
+在终端执行 `ama auth login chatgpt --paste`。宿主不读、不存、不转发 token，只消费 `quota_update` 与
+`auth_expired` / `quota_exceeded`。
+
+**真账户验证**（CI 不跑）：先登录，再 `AMA_E2E_CHATGPT=1 pnpm vitest run src/auth/chatgpt/chatgpt.e2e.test.ts`
+（可选 `AMA_E2E_CHATGPT_MODEL=<slug>`），输出 flavor、模型列表、停止原因与配额，不含 token。
 
 ## 模型引用
 

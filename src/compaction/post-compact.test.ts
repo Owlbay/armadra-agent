@@ -115,6 +115,23 @@ describe("压缩后回注（C6，D26）", () => {
     expect(text).toMatch(/Continue from/);
   });
 
+  it("[W6-M] 记忆路径：只列 memory 工具的 /memories/ 逻辑路径（最近的在前），不给正文", () => {
+    const m = SessionManager.inMemory(cwd);
+    m.append({ type: "message", message: user("记住") });
+    const memory = (id: string, args: Record<string, unknown>) =>
+      m.append({ type: "message", message: call(id, "memory", args) });
+    memory("m1", { command: "view", path: "/memories/user/a.md" });
+    memory("m2", { command: "create", path: "/memories/project/b.md", file_text: "BODY-XYZ" });
+    memory("m3", { command: "view", path: "../../etc/passwd" });
+    memory("m4", { command: "str_replace", path: "/memories/user/a.md", old_str: "x" });
+    const text = buildPostCompactContent({ branch: m.branch(), cwd });
+    const block = /<memory-files>\n([\s\S]*?)\n<\/memory-files>/.exec(text)?.[1];
+    expect(block).toBe("/memories/user/a.md\n/memories/project/b.md");
+    expect(text).not.toContain("BODY-XYZ");
+    expect(text).not.toContain("passwd");
+    expect(text).not.toContain("<recently-read-files>");
+  });
+
   it("文件清单各至多 20 个，多出的给计数", () => {
     const m = SessionManager.inMemory(cwd);
     for (let i = 0; i < 25; i++)

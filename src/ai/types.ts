@@ -465,6 +465,15 @@ export interface StreamOptions {
   /** 观测 / 替换请求体：返回非 undefined 即替换。 */
   onPayload?(payload: unknown): unknown;
   onResponse?(status: number, headers: Headers): void;
+  /**
+   * [W6-O] 订阅配额更新（ChatGPT 后端的响应头 / `codex.rate_limits` / 429）；会话层转成 `quota_update` 事件。
+   * 窗口时间为 epoch 毫秒，usedPercent 0–100。
+   */
+  onQuota?(update: {
+    planType?: string;
+    primary?: { usedPercent: number; resetsAt?: number; windowMinutes?: number };
+    secondary?: { usedPercent: number; resetsAt?: number; windowMinutes?: number };
+  }): void;
 }
 
 export type AssistantEvent =

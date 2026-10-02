@@ -41,6 +41,7 @@ import {
 } from "./startup-steps.js";
 import type { LoadedResources, Runtime } from "./runtime.js";
 import { resolveSystemPromptArg } from "./system-prompt-arg.js";
+import { memoryEnvOverride, resolveMemory } from "./compose-memory.js";
 import { msg, resolveLocale, setLocale } from "../i18n/index.js";
 
 /** §11.1 第 3–14 步。 */
@@ -140,7 +141,7 @@ export async function bootstrap(
       tuiMode: args.tuiMode,
       toolsPreset: args.toolsPreset,
       codemode: args.codemode,
-      memory: args.memory,
+      memory: args.memory ?? memoryEnvOverride(io.env),
     });
   });
   warnings.push(...merged.warnings);
@@ -219,6 +220,13 @@ export async function bootstrap(
       cwd: sessionCwd,
       mode,
       paths: { configDir: paths.configDir, dataDir: paths.dataDir },
+      memory: resolveMemory({
+        config,
+        cwd: sessionCwd,
+        dataDir: paths.dataDir,
+        trusted: trust.trusted,
+        embedded: profile,
+      }),
     }),
   );
   for (const name of config.tools?.disabled ?? []) {

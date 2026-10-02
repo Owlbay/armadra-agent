@@ -30,6 +30,7 @@
 
 - 响应带回请求的 `id`（字符串才带）。命令并发处理：`prompt` 不阻塞后续命令，所以响应顺序不一定与请求顺序相同，用 `id` 对应。
 - 失败时 `error` 是人读文本，`code` 是 `AmaError.code`（若有）。未知命令 → `code: "invalid_arguments"`。
+  **宿主按 `code` 判断，不得解析 `error` / `message`**：人读文本随界面语言（`AMA_LANG`、`--lang`、`ui.language`）变化（第六波起中英双语，见 [i18n.md](i18n.md)）；`notification` 事件的 `message` 同理。
 - 一行不是合法 JSON 或缺 `type` → `{ "type": "response", "command": "parse", "success": false, "error": … }`，没有 `id`。
 - 需要会话实现扩展方法的命令（下表标 †）在非 `AgentSessionImpl` 会话上返回 `code: "not_implemented"`；CLI 与 SDK 建出的会话都是 `AgentSessionImpl`。
 

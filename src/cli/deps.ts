@@ -16,6 +16,7 @@ import type { AmaConfig } from "../config/types.js";
 import type { PermissionRuleSpec } from "../config/merge.js";
 import type { TrustPromptAnswer } from "../config/trust.js";
 import type { HookDispatcherApi } from "../hooks/types.js";
+import type { MemoryRuntime } from "../memory/runtime.js";
 import type { WarmingDecisionHandler } from "../ai/cache/types.js";
 import type { AgentEventBus } from "../host/api-impl.js";
 import type { ApprovalBroker, HostAdapterHandle, InstructionSource } from "../host/types.js";
@@ -189,6 +190,8 @@ export interface RuntimeDeps {
       mode: RuntimeMode;
       /** CLI 启动时给出（一次性提示记在数据目录）；SDK 不给。 */
       paths?: { configDir: string; dataDir: string };
+      /** [W6-M] 记忆运行期（开启时注册 memory 工具；组装会话时渲染 memory 节）。 */
+      memory?: MemoryRuntime | undefined;
     }): ToolRegistryApi;
   };
   /** B3：权限管线。 */

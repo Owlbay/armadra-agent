@@ -4,7 +4,8 @@
  * - 目录 0700；`config.json` 只在不存在时写最小内容（`--force` 时先备份再重写）：只有 `$schema`、
  *   `version` 与空 `providers`，不写死任何缺省值——缺省值以后调整（例如 codemode 跟随预设）对老用户
  *   同样生效，`config show` 的来源也显示 default 而不是 user；
- * - `config.schema.json` 不是用户文件，每次 init 都按当前版本重写（内容相同则不动）；
+ * - `config.schema.json` 不是用户文件，每次 init 都按当前版本与当前界面语言重写（内容相同则不动；
+ *   说明跟随界面语言，D21）；
  * - 不创建 auth.json（只有 `ama auth set` / `ama providers add` 才写，0600）。
  * - 自动初始化只在 CLI 里、配置目录不存在时触发，`AMA_NO_INIT=1` 关闭；SDK 与测试不走这里。
  */
@@ -19,6 +20,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { msg } from "../i18n/index.js";
 import { CONFIG_SCHEMA_FILE, configSchemaText } from "./json-schema.js";
 import { AUTH_FILE, CONFIG_FILE } from "./paths.js";
 import { CONFIG_FILE_VERSION, type AmaConfig } from "./types.js";
@@ -92,25 +94,14 @@ export function autoInitConfigDir(
   }
 }
 
-const STATUS_TEXT: Record<InitStatus, string> = {
-  created: "已创建",
-  exists: "已存在，未改动",
-  updated: "已更新为当前版本",
-  unchanged: "已是当前版本",
-  overwritten: "已重写（原文件备份为 .bak）",
-};
-
-/** init 之后的下一步（配 key / 接中转站 / 自检）。 */
-export const INIT_NEXT_STEPS = [
-  "下一步：",
-  "  ama auth set anthropic          保存内置供应商的 key（或设置 ANTHROPIC_API_KEY 等环境变量）",
-  "  ama providers add <id> --base-url <url>   接入中转站或自建服务",
-  "  ama doctor                      检查配置、key 与运行环境",
-  "  ama config show                 查看生效配置与每项来源",
-];
+/** init 之后的下一步（配 key / 接中转站 / 自检；当前界面语言）。 */
+export function initNextSteps(): string[] {
+  return msg().config.init.nextSteps.split("\n");
+}
 
 export function describeInit(result: InitResult): string {
-  const lines = [`${result.dir}${result.dirCreated ? "  已创建（0700）" : "  已存在"}`];
-  for (const file of result.files) lines.push(`  ${file.path}  ${STATUS_TEXT[file.status]}`);
+  const m = msg().config.init;
+  const lines = [`${result.dir}  ${result.dirCreated ? m.dirCreated : m.dirExists}`];
+  for (const file of result.files) lines.push(`  ${file.path}  ${m.status[file.status]}`);
   return `${lines.join("\n")}\n`;
 }

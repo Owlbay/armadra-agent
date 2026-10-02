@@ -244,9 +244,7 @@ export async function main(argv: readonly string[], options: MainOptions = {}): 
         case "stats":
           return await runStats(parsed.argv, io);
         case "memory":
-          // [W6-C0] W6-M 换成 runMemory(parsed.argv, io, await resolveDeps())
-          io.stderr(`${msg().cli.main.subcommandUnavailable(parsed.name)}\n`);
-          return ExitCode.Usage;
+          return await (await import("./subcommands/memory.js")).runMemory(parsed.argv, io);
       }
     }
     if (parsed.args.version) {
