@@ -8,6 +8,7 @@
  * `modelItems` / `sessionItems` 同时供交互模式里的选择器（pickers.ts）使用。
  */
 
+import { msg } from "../../i18n/index.js";
 import { existsSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import type { Model, ProviderRegistryApi } from "../../ai/types.js";
@@ -104,7 +105,7 @@ function askSelect(
         done(item);
       },
       onCancel: () => {
-        finish("（已取消）");
+        finish(msg().interactive.startup.ui.cancelled);
         done(undefined);
       },
     });
@@ -115,10 +116,10 @@ function askSelect(
         r.theme.fg(
           "dim",
           prompt.filterable === true
-            ? "输入过滤 · ↑↓ 选择 · Enter 确认 · Esc 取消"
+            ? msg().interactive.startup.ui.hintFilter("↑↓")
             : prompt.numberKeys === true
-              ? `↑↓ 选择 · Enter 确认 · 1-${prompt.items.length} 直接选 · Esc 取消`
-              : "↑↓ 选择 · Enter 确认 · Esc 取消",
+              ? msg().interactive.startup.ui.hintNumbers("↑↓", prompt.items.length)
+              : msg().interactive.startup.ui.hint("↑↓"),
         ),
       ),
     );
@@ -157,7 +158,7 @@ function askText(
     body.addChild(error);
     tui.addInputListener((data) => {
       if (r.keys.matches(data, "tui.select.cancel") && !editor.isCompletionOpen) {
-        finish("（已取消）");
+        finish(msg().interactive.startup.ui.cancelled);
         done(undefined);
         return true;
       }
@@ -197,11 +198,11 @@ export async function modelItems(providers: ProviderRegistryApi): Promise<Select
     if (provider.models.length === 0) continue;
     let status: string;
     let ready = true;
-    if (!provider.requiresApiKey) status = "本地";
+    if (!provider.requiresApiKey) status = msg().interactive.startup.ui.local;
     else {
       const key = await providers.resolveApiKey(provider.id).catch(() => ({ apiKey: undefined }));
       ready = key.apiKey !== undefined;
-      status = ready ? "key ✓" : "无 key";
+      status = ready ? "key ✓" : msg().interactive.startup.ui.noKey;
     }
     const item = (model: Model, group: string, channel?: string): SelectItem => {
       const suffix = channel !== undefined && channel !== model.channel ? `@${channel}` : "";
@@ -235,13 +236,14 @@ export async function modelItems(providers: ProviderRegistryApi): Promise<Select
 export function relativeTime(iso: string, now: number): string {
   const at = Date.parse(iso);
   if (!Number.isFinite(at)) return "";
+  const m = msg().interactive.startup.ui;
   const minutes = Math.floor((now - at) / 60_000);
-  if (minutes < 1) return "刚刚";
-  if (minutes < 60) return `${minutes} 分钟前`;
+  if (minutes < 1) return m.justNow;
+  if (minutes < 60) return m.minutesAgo(minutes);
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} 小时前`;
+  if (hours < 24) return m.hoursAgo(hours);
   const days = Math.floor(hours / 24);
-  if (days < 30) return `${days} 天前`;
+  if (days < 30) return m.daysAgo(days);
   return iso.slice(0, 10);
 }
 
@@ -257,7 +259,7 @@ export function sessionItems(items: readonly SessionListItem[], now: number): Se
     .map((item) => ({
       value: item.id,
       label: oneLine(item.name ?? item.firstPrompt ?? item.id.slice(0, 8)),
-      description: `${relativeTime(item.modifiedAt, now)} · ${item.messageCount} 条`,
+      description: `${relativeTime(item.modifiedAt, now)} · ${msg().interactive.startup.ui.messages(item.messageCount)}`,
     }));
 }
 
@@ -265,12 +267,15 @@ export function sessionItems(items: readonly SessionListItem[], now: number): Se
 // InteractiveUi
 // ---------------------------------------------------------------------------
 
-const TRUST_CHOICES: readonly (SelectItem & { answer: TrustPromptAnswer })[] = [
-  { value: "trust", label: "信任并记住", answer: { trusted: true, remember: true } },
-  { value: "once", label: "仅本次信任", answer: { trusted: true, remember: false } },
-  { value: "skip", label: "本次不信任", answer: { trusted: false, remember: false } },
-  { value: "never", label: "不信任并记住", answer: { trusted: false, remember: true } },
-];
+function trustChoices(): (SelectItem & { answer: TrustPromptAnswer })[] {
+  const m = msg().interactive.startup.ui;
+  return [
+    { value: "trust", label: m.trustRemember, answer: { trusted: true, remember: true } },
+    { value: "once", label: m.trustOnce, answer: { trusted: true, remember: false } },
+    { value: "skip", label: m.trustSkip, answer: { trusted: false, remember: false } },
+    { value: "never", label: m.trustNever, answer: { trusted: false, remember: true } },
+  ];
+}
 
 function isDirectory(path: string): boolean {
   try {
@@ -284,24 +289,26 @@ export function createStartupUi(options: StartupUiOptions = {}): Required<Intera
   const r = resolveOptions(options);
   return {
     async promptTrust(cwd, resources) {
+      const m = msg().interactive.startup.ui;
+      const choices = trustChoices();
       const shown = resources.slice(0, 6).map((p) => `  ${p}`);
       if (resources.length > shown.length)
-        shown.push(`  …另有 ${resources.length - shown.length} 项`);
+        shown.push(m.moreResources(resources.length - shown.length));
       const picked = await askSelect(r, {
-        title: "信任这个目录的项目资源？",
+        title: m.trustTitle,
         lines: [cwd, ...shown],
-        items: TRUST_CHOICES.map(({ value, label }) => ({ value, label })),
+        items: choices.map(({ value, label }) => ({ value, label })),
         selected: "once",
         numberKeys: true,
       });
-      const choice = TRUST_CHOICES.find((c) => c.value === picked?.value);
+      const choice = choices.find((c) => c.value === picked?.value);
       return choice?.answer ?? { trusted: false, remember: false };
     },
 
     async pickSession(items) {
       if (items.length === 0) return undefined;
       const picked = await askSelect(r, {
-        title: "恢复哪个会话？",
+        title: msg().interactive.startup.ui.resumeTitle,
         items: sessionItems(items, r.now()),
         filterable: true,
       });
@@ -312,7 +319,7 @@ export function createStartupUi(options: StartupUiOptions = {}): Required<Intera
       const items = await modelItems(providers);
       if (items.length === 0) return undefined;
       const picked = await askSelect(r, {
-        title: "选择模型",
+        title: msg().interactive.startup.ui.modelTitle,
         lines: [reason],
         items,
         filterable: true,
@@ -321,15 +328,16 @@ export function createStartupUi(options: StartupUiOptions = {}): Required<Intera
     },
 
     askCwd(missing) {
+      const m = msg().interactive.startup.ui;
       return askText(r, {
-        title: "会话的工作目录不存在",
-        lines: [missing, "输入替代目录（Enter 确认 · Esc 取消）"],
-        placeholder: "目录路径",
+        title: m.cwdTitle,
+        lines: [missing, m.cwdPrompt],
+        placeholder: m.cwdPlaceholder,
         validate: (text) => {
-          if (text === "") return "请输入目录";
+          if (text === "") return m.cwdEmpty;
           const abs = resolve(text);
-          if (!existsSync(abs)) return `不存在：${abs}`;
-          if (!isDirectory(abs)) return `不是目录：${abs}`;
+          if (!existsSync(abs)) return m.cwdMissing(abs);
+          if (!isDirectory(abs)) return m.cwdNotDir(abs);
           return undefined;
         },
       });
