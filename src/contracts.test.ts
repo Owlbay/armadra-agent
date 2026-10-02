@@ -26,6 +26,14 @@ import type {
 } from "./agent/types.js";
 import type { MessageOrigin } from "./ai/types.js";
 import type {
+  CacheMiss,
+  RequestRecord,
+  WarmDecision,
+  WarmerStatus,
+  WarmingDecisionHandler,
+} from "./ai/cache/types.js";
+import { CACHE_MISS_REASONS, WARMING_MODES } from "./ai/cache/types.js";
+import type {
   HookCommonContext,
   HookContextOverrides,
   HookDispatcherApi,
@@ -146,6 +154,33 @@ describe("ai 契约（W3-C0 ①：缓存）", () => {
     const compat: ProviderCompat = { sendPromptCacheKey: true, cacheReporting: "silent" };
     const options: Omit<StreamOptions, "signal"> = { purpose: "summary", toolChoice: "none" };
     expect([compat.cacheReporting, options.purpose]).toEqual(["silent", "summary"]);
+  });
+});
+
+describe("会话层缓存共享类型（W3-C0 ②）", () => {
+  it("RequestRecord / CacheMiss / 三态 / 保温决策", () => {
+    expectTypeOf<RequestRecord["purpose"]>().toEqualTypeOf<NonNullable<StreamOptions["purpose"]>>();
+    expectTypeOf<RequestRecord["options"]>().toEqualTypeOf<Omit<StreamOptions, "signal">>();
+    expectTypeOf<RequestRecord["fingerprint"]>().toEqualTypeOf<{
+      system: string;
+      tools: string;
+      model: string;
+    }>();
+    expectTypeOf<CacheMiss["missedCost"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<CacheMiss["detail"]>().toEqualTypeOf<"system" | "tools" | undefined>();
+    expectTypeOf<WarmerStatus["state"]>().toEqualTypeOf<"inactive" | "scheduled" | "stopped">();
+    expectTypeOf<WarmDecision["action"]>().toEqualTypeOf<"warm" | "stop">();
+    expectTypeOf<ReturnType<WarmingDecisionHandler>>().toEqualTypeOf<
+      "warm" | "stop" | Promise<"warm" | "stop">
+    >();
+    expect(WARMING_MODES).toEqual(["off", "streaming", "idle"]);
+    expect(CACHE_MISS_REASONS).toEqual([
+      "prefix_changed",
+      "model_changed",
+      "idle",
+      "subtask",
+      "evicted",
+    ]);
   });
 });
 
