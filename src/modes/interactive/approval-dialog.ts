@@ -1,7 +1,11 @@
 /**
  * 审批对话框（设计 §12.6）：模式层的 UI `ApprovalBroker`，底部覆盖层。[B7]
  *
- * - 标题行：`[task]`（`request.context.depth > 0`，子 Agent 发起）+ 工具名 + 原因标签；
+ * - 标题行：来源标注 + 工具名 + 原因标签。来源（W5-U）：外部 Agent 的请求（`context.origin`）标
+ *   `[claude · 会话 abc12345]`，正文取 `origin.toolCall` 的标题 / 种类 / 路径；task 子 Agent（`depth > 0`）标
+ *   `[task:<agent>]`（类型名经 `ApprovalHost.taskAgent` 查注册表，查不到为 `[task]`）；外部 Agent 首次运行确认
+ *   （`toolName: "task"` 且输入带 `note`）标题为「首次运行外部 Agent」，正文是说明与模式；选项始终是
+ *   允许 / 本会话允许 / 拒绝三项（外部 Agent 的 `reject_always` 不由这里选）；
  * - 输入：bash 显示命令全文，write 显示路径与行数，edit 显示路径与每处修改的 −/+ 摘要，其它显示
  *   一行摘要；`v` 展开 / 收起完整输入（JSON）；
  * - 执行前预览（W3-B9a-2，`request.preview`）：输入摘要之后列出会碰到的路径与规模，danger 红、
@@ -35,6 +39,7 @@ import {
   type OverlayHandle,
   type Theme,
 } from "../../tui.js";
+import { displayPath, flat } from "./tool-summary.js";
 import { toolSummary } from "./tool-view.js";
 
 const COMMAND_LINES = 8;
@@ -43,6 +48,10 @@ const FULL_INPUT_LINES = 40;
 
 export interface ApprovalHost {
   theme: Theme;
+  /** task 子 Agent 的类型名（`[task:<agent>]`）；查不到返回 undefined。 */
+  taskAgent?(taskId: string): string | undefined;
+  /** `task` 调用的 agent 是外部 Agent 时返回 runner（见 approval-merge.ts）。 */
+  externalRunner?(agent: string): string | undefined;
   keybindings?: Keybindings;
   /** 路径显示的基准。 */
   cwd?: string;
@@ -72,18 +81,64 @@ export interface DescribeOptions {
   expanded?: boolean;
   /** 紧凑（窄屏）：首行只放工具名（原因已在标题上）。 */
   compact?: boolean;
+  /** task 子 Agent 的类型名（来源标注）。 */
+  taskAgent?: TaskAgentLookup;
+  /** `task` 调用的 agent 是外部 Agent 时返回 runner（正文写明首次运行一并确认）。 */
+  externalRunner?(agent: string): string | undefined;
 }
 
-/** 原因 → 标题文字（子 Agent 发起加 `[task] `）。 */
-export function approvalTitle(request: ApprovalRequest): string {
-  const task = (request.context?.depth ?? 0) > 0 ? "[task] " : "";
-  const reason =
-    request.reason === "dangerous"
+export type TaskAgentLookup = (taskId: string) => string | undefined;
+
+/** 外部 Agent 首次运行确认（`requestApproval` 发来的 `task` 请求，输入带 `note`）。 */
+export function isFirstRunRequest(request: ApprovalRequest): boolean {
+  return request.toolName === "task" && typeof record(request.input)["note"] === "string";
+}
+
+/** 来源标注：`[claude · 会话 abc12345]` / `[task:explore]` / `[task]`；主会话发起为 undefined。 */
+export function sourceLabel(
+  request: ApprovalRequest,
+  taskAgent?: TaskAgentLookup,
+): string | undefined {
+  const context = request.context;
+  const origin = context?.origin;
+  if (origin !== undefined) return `[${origin.agent} · 会话 ${origin.sessionId.slice(0, 8)}]`;
+  if ((context?.depth ?? 0) <= 0) return undefined;
+  const taskId = context?.taskId;
+  const agent = taskId === undefined ? undefined : taskAgent?.(taskId);
+  return agent === undefined ? "[task]" : `[task:${agent}]`;
+}
+
+/** 原因 → 标题文字（带来源标注）。 */
+export function approvalTitle(request: ApprovalRequest, taskAgent?: TaskAgentLookup): string {
+  const label = sourceLabel(request, taskAgent);
+  const reason = isFirstRunRequest(request)
+    ? "首次运行外部 Agent"
+    : request.reason === "dangerous"
       ? "危险命令"
       : request.reason === "hook"
         ? "Hook 要求确认"
         : "需要确认";
-  return task + reason;
+  return label === undefined ? reason : `${label} ${reason}`;
+}
+
+/** 外部 Agent 请求的正文：标题 + 种类、涉及路径、输入摘要。 */
+function originLines(
+  origin: NonNullable<NonNullable<ApprovalRequest["context"]>["origin"]>,
+  theme: Theme,
+  cwd: string | undefined,
+): string[] {
+  const out: string[] = [];
+  for (const path of (origin.toolCall.locations ?? []).slice(0, 3))
+    out.push(theme.fg("muted", displayPath(path, cwd)));
+  const hidden = (origin.toolCall.locations?.length ?? 0) - 3;
+  if (hidden > 0) out.push(theme.fg("dim", `… 另 ${hidden} 个路径`));
+  const summary = origin.toolCall.inputSummary;
+  if (summary !== undefined && summary.trim() !== "") {
+    const { shown, hidden: more } = lines(summary, COMMAND_LINES);
+    out.push(...shown.map((l) => theme.fg("code", l)));
+    if (more > 0) out.push(theme.fg("dim", `… 另 ${more} 行`));
+  }
+  return out;
 }
 
 /** 对话框正文（不含选项与按键行）。 */
@@ -93,18 +148,37 @@ export function describeRequest(
   options: DescribeOptions = {},
 ): string[] {
   const out: string[] = [];
-  const task = (request.context?.depth ?? 0) > 0 ? theme.fg("warning", "[task] ") : "";
+  const label = sourceLabel(request, options.taskAgent);
+  const task = label === undefined ? "" : theme.fg("warning", `${label} `);
+  const origin = request.context?.origin;
+  const firstRun = isFirstRunRequest(request);
   const tag =
     request.reason === "dangerous"
       ? theme.fg("error", "危险命令")
       : request.reason === "hook"
         ? theme.fg("warning", "Hook 要求确认")
-        : theme.fg("dim", "需要确认");
-  const name = theme.bold(theme.fg("tool", request.toolName));
-  out.push(options.compact === true ? `${task}${name}` : `${task}${name}  ${tag}`);
+        : origin !== undefined
+          ? theme.fg("dim", origin.toolCall.kind)
+          : theme.fg("dim", firstRun ? "首次运行" : "需要确认");
   const input = record(request.input);
+  const name =
+    origin !== undefined
+      ? theme.bold(theme.fg("tool", flat(origin.toolCall.title)))
+      : firstRun
+        ? theme.bold(theme.fg("tool", `task ${String(input["agent"] ?? "")}`.trim()))
+        : theme.bold(theme.fg("tool", request.toolName));
+  out.push(options.compact === true ? `${task}${name}` : `${task}${name}  ${tag}`);
   const more = (n: number): string => theme.fg("dim", `… 另 ${n} 行（v 查看）`);
-  if (options.expanded === true) {
+  if (origin !== undefined && options.expanded !== true) {
+    out.push(...originLines(origin, theme, options.cwd));
+  } else if (firstRun && options.expanded !== true) {
+    out.push(String(input["note"]));
+    const mode = input["mode"];
+    if (typeof mode === "string")
+      out.push(
+        theme.fg("dim", `模式 ${isPermissionMode(mode) ? permissionModeLabel(mode) : mode}`),
+      );
+  } else if (options.expanded === true) {
     const json = JSON.stringify(request.input, null, 2) ?? String(request.input);
     const { shown, hidden } = lines(json, FULL_INPUT_LINES);
     out.push(...shown.map((l) => theme.fg("code", l)));
@@ -136,12 +210,29 @@ export function describeRequest(
   } else {
     const summary = toolSummary(request.toolName, input, options.cwd);
     if (summary !== "") out.push(summary);
+    const agent = input["agent"];
+    const runner =
+      request.toolName === "task" && typeof agent === "string"
+        ? options.externalRunner?.(agent)
+        : undefined;
+    // 与首次运行确认合并（approval-merge.ts）：允许即同意本会话以你的登录运行该 CLI
+    if (runner !== undefined)
+      out.push(
+        theme.fg(
+          "warning",
+          `外部 Agent ${agent}：以你在 ${runner} CLI 的登录运行（含本会话首次运行确认）`,
+        ),
+      );
   }
   const severity = request.preview?.severity;
   const color = severity === "danger" ? "error" : severity === "warn" ? "warning" : "dim";
   out.push(...previewDisplayLines(request.preview).map((l) => theme.fg(color, l)));
   const auto = request.autoDecision;
-  if (request.reason === "hook") {
+  if (origin !== undefined || firstRun) {
+    // 外部 Agent 的请求由它自己的策略决定要问；首次运行确认的说明已在正文
+    if (origin !== undefined) out.push(theme.fg("dim", `${origin.agent} 请求确认`));
+    else out.push(theme.fg("dim", "本会话首次以你的登录运行该 CLI"));
+  } else if (request.reason === "hook") {
     out.push(theme.fg("warning", `Hook：${request.hookReason ?? "（无说明）"}`));
   } else if (request.reason === "dangerous") {
     out.push(theme.fg("error", "这条命令可能有破坏性，请确认"));
@@ -215,6 +306,8 @@ class ApprovalDialog implements Component, Focusable {
       compact,
     };
     if (this.host.cwd !== undefined) options.cwd = this.host.cwd;
+    if (this.host.taskAgent !== undefined) options.taskAgent = this.host.taskAgent;
+    if (this.host.externalRunner !== undefined) options.externalRunner = this.host.externalRunner;
     const body = describeRequest(this.request, theme, options);
     const lines: string[] = [];
     // 输入摘要（标题 + 命令）与预览 / 原因之间空一行
@@ -291,7 +384,7 @@ export class ApprovalDialogBroker implements ApprovalBroker {
       const severity = request.preview?.severity;
       handle = this.host.showOverlay(
         new Box(dialog, {
-          title: approvalTitle(request),
+          title: approvalTitle(request, this.host.taskAgent),
           theme: this.host.theme,
           ...(severity === "danger"
             ? { borderColor: "error" as const }
@@ -309,9 +402,12 @@ export class ApprovalDialogBroker implements ApprovalBroker {
 export function approvalOutcomeText(
   request: ApprovalRequest,
   outcome: ApprovalDecision | "cancelled",
+  taskAgent?: TaskAgentLookup,
 ): string {
-  const task = (request.context?.depth ?? 0) > 0 ? "[task] " : "";
-  const what = `${task}${request.toolName}`;
+  const label = sourceLabel(request, taskAgent);
+  const origin = request.context?.origin;
+  const tool = origin !== undefined ? flat(origin.toolCall.title, 60) : request.toolName;
+  const what = `${label === undefined ? "" : `${label} `}${tool}`;
   switch (outcome) {
     case "allow":
       return `已允许 ${what}`;
