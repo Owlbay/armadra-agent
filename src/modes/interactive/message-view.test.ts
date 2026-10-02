@@ -197,7 +197,9 @@ describe("消息区", () => {
   });
 
   it("reset 清空；彩色主题下用户前缀带样式；工具函数", () => {
-    const view = new MessageView({ theme: createTheme("dark", { caps: { colors: 256 } }) });
+    const view = new MessageView({
+      theme: createTheme("dark", { caps: { colors: 256 }, ascii: false }),
+    });
     view.addUser({ content: "x" });
     expect(view.render(20)[0]).toContain("\x1b[");
     view.reset();

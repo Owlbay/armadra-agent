@@ -11,7 +11,7 @@
  * `buildStartupScreen` 的纯文本行保留给 line 模式与测试。
  */
 
-import { basename, sep } from "node:path";
+import { basename } from "node:path";
 import { formatModelRef } from "../ai/providers/channels.js";
 import type { PermissionMode } from "../permissions/types.js";
 import { effectiveCodemodeMode } from "../tools/presets.js";
@@ -114,12 +114,15 @@ const TRUST_SOURCE: Record<Runtime["trust"]["source"], string> = {
   default: "缺省",
 };
 
-/** 家目录前缀缩写为 `~`。 */
+/** 家目录前缀缩写为 `~`（`/` 与 `\` 两种分隔都认，余下部分原样保留）。 */
 export function tildePath(path: string, home: string | undefined): string {
   if (home === undefined || home === "") return path;
-  const trimmed = home.endsWith(sep) ? home.slice(0, -1) : home;
+  const trimmed = /[\\/]$/.test(home) ? home.slice(0, -1) : home;
   if (path === trimmed) return "~";
-  return path.startsWith(trimmed + sep) ? `~${path.slice(trimmed.length)}` : path;
+  const next = path[trimmed.length];
+  return path.startsWith(trimmed) && (next === "/" || next === "\\")
+    ? `~${path.slice(trimmed.length)}`
+    : path;
 }
 
 export function startupInfo(

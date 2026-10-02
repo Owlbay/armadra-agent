@@ -140,13 +140,15 @@ describe("SelectList：徽标、数字快捷键、说明换行", () => {
   it("选中行上 selection 底色（≥ 256 色），stacked 时两行都上；< 256 色退化为 accent 粗体", () => {
     const rich = new SelectList(modes, {
       stacked: true,
-      theme: createTheme("dark", { caps: { colors: 256 } }),
+      theme: createTheme("dark", { caps: { colors: 256 }, ascii: false }),
     });
     const [first, second, third] = rich.render(32);
     expect(first).toContain("\x1b[48;5;236m");
     expect(second).toContain("\x1b[48;5;236m");
     expect(third).not.toContain("\x1b[48;5;236m");
-    const poor = new SelectList(modes, { theme: createTheme("dark", { caps: { colors: 16 } }) });
+    const poor = new SelectList(modes, {
+      theme: createTheme("dark", { caps: { colors: 16 }, ascii: false }),
+    });
     expect(poor.render(32)[0]).not.toContain("\x1b[4");
     expect(poor.render(32)[0]).toContain("\x1b[1m");
   });

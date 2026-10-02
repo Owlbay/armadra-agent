@@ -5,7 +5,7 @@ import { createTheme, plainTheme } from "../theme.js";
 import { Markdown, parseMarkdown, renderInline } from "./markdown.js";
 
 const plain = (lines: string[]) => lines.map(stripAnsi);
-const theme = createTheme("dark", { caps: { colors: 256 } });
+const theme = createTheme("dark", { caps: { colors: 256 }, ascii: false });
 
 describe("parseMarkdown 分块", () => {
   it("识别各类块", () => {

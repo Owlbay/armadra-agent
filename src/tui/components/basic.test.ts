@@ -65,7 +65,7 @@ describe("Box", () => {
     expect(new Box(new Text("x"), { border: false, paddingX: 2 }).render(6)).toEqual(["  x   "]);
   });
   it("带主题时边框着色，可见文本不变", () => {
-    const theme = createTheme("dark", { caps: { colors: 16 } });
+    const theme = createTheme("dark", { caps: { colors: 16 }, ascii: false });
     const lines = new Box(new Text("x"), { theme }).render(5);
     expect(lines.map(stripAnsi)).toEqual(["╭───╮", "│ x │", "╰───╯"]);
     expect(lines[0]).toContain("\x1b[");

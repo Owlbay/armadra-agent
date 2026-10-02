@@ -41,7 +41,7 @@ describe("工具视图", () => {
       "bash",
       { command: "false" },
       {
-        theme: createTheme("dark", { caps: { colors: 256 } }),
+        theme: createTheme("dark", { caps: { colors: 256 }, ascii: false }),
       },
     );
     colored.finish({ content: "boom", isError: true }, true);
