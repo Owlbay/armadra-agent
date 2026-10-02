@@ -36,6 +36,7 @@ function repo(): string {
       stdio: "ignore",
     });
   git("init", "-q");
+  git("config", "core.autocrlf", "false"); // Windows runner 缺省 true，检出会变 CRLF
   git("add", ".");
   git("commit", "-q", "-m", "init");
   return realpathSync.native(root);
