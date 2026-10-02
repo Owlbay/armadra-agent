@@ -15,6 +15,7 @@
  */
 
 import type { ContentBlock, JsonSchema, ModelRef, ModelThinkingLevel, Usage } from "../ai/types.js";
+import type { CheckpointHooks } from "../checkpoints/types.js";
 
 export type { JsonSchema } from "../ai/types.js";
 
@@ -123,6 +124,8 @@ export interface ToolContext {
     /** 活动分支上最近一条该类型 custom 条目的 data。 */
     lastCustom(customType: string): unknown;
   };
+  /** 检查点（docs/rewind-plan.md §2）：edit / write 写文件前后调用；未启用时为 undefined。 */
+  readonly checkpoint?: CheckpointHooks;
   /** 仅 depth 0 且 task 可用时存在。 */
   readonly spawnSubagent?: (request: SubagentRequest) => Promise<SubagentResult>;
   log(level: "debug" | "info" | "warn", message: string): void;
