@@ -57,6 +57,21 @@ describe("档一在会话里（C1 / C2）", () => {
     expect(h.events.some((e) => e.type === "compaction_start")).toBe(false);
   });
 
+  it("config compaction.pruneExclude 接到会话：列出的工具结果不裁", async () => {
+    const h = createHarness({
+      model,
+      tools: [readTool],
+      compaction: {
+        reserveTokens: 10_000,
+        prune: { clearAtLeast: 2000 },
+        pruneExclude: ["read"],
+      } as never,
+      script: toolLoop(50),
+    });
+    await h.session.prompt("读 50 个文件");
+    expect(prunes(h.manager.branch())).toEqual([]);
+  });
+
   it("没到 0.7 不裁", async () => {
     const h = createHarness({
       model,

@@ -17,6 +17,7 @@ import { AmaError } from "../errors.js";
 import { CompactionBreaker } from "../compaction/breaker.js";
 import { estimateProjectedTokens, type ContextEstimate } from "../compaction/estimate.js";
 import { planPrune, prunePolicy, type PrunePolicy } from "../compaction/prune-tier.js";
+import { createProtection, skillLocations } from "../compaction/protect.js";
 import type { CompactionConfig } from "../config/types.js";
 import {
   prepareCompaction,
@@ -130,12 +131,15 @@ export class CompactionController {
    * 档一；`need` = 清到目标还要省多少（undefined = 全部候选）。返回省下的 token 估算（0 = 未裁）。
    */
   prune(policy: PrunePolicy, need: number | undefined): number {
-    const branch = this.core.manager.branch();
-    const plan = planPrune(buildProjection(branch).items, {
-      policy,
-      need,
-      outputDir: this.core.outputDir(),
+    const core = this.core;
+    const items = buildProjection(core.manager.branch()).items;
+    const isProtected = createProtection({
+      cwd: core.cwd,
+      skillPaths: skillLocations(items),
+      exclude: this.pruneConfig.pruneExclude ?? [],
+      keepInContext: (name) => core.tool(name)?.annotations?.keepInContext === true,
     });
+    const plan = planPrune(items, { policy, need, outputDir: core.outputDir(), isProtected });
     for (const item of plan.items) {
       this.core.appendEntry({
         type: "context_edit",

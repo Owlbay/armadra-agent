@@ -1,9 +1,11 @@
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createTmpHome, type TmpHome } from "../../test/helpers/tmp-home.js";
 import type { AssistantMessage, Message, ToolResultMessage } from "../ai/types.js";
 import { SessionManager } from "../session/manager.js";
 import { buildProjection } from "../session/projection.js";
+import { createProtection, readPathOf, skillLocations } from "./protect.js";
 import { planPrune, prunePolicy, type PrunePolicy } from "./prune-tier.js";
 
 let home: TmpHome | undefined;
@@ -160,5 +162,68 @@ describe("档一 planPrune（C1 / C2）", () => {
     });
     expect(plan.items.map((p) => p.toolCallId)).toEqual(["zh"]);
     expect(plan.savedTokens).toBeGreaterThan(1900);
+  });
+});
+
+describe("保护集（C4）", () => {
+  const cwd = resolve("/w");
+  const skill = resolve("/skills/review/SKILL.md");
+  const build = (): SessionManager => {
+    const m = SessionManager.inMemory(cwd);
+    m.append({
+      type: "message",
+      message: {
+        role: "system",
+        sections: {
+          preamble: "p",
+          skills: `<available_skills>\n  <skill>\n    <name>review</name>\n    <location>${skill}</location>\n  </skill>\n</available_skills>`,
+        },
+        timestamp: 0,
+      },
+    });
+    m.append({ type: "message", message: user("task") });
+    const add = (id: string, name: string, args: Record<string, unknown>): void => {
+      m.append({ type: "message", message: call(id, name, args) });
+      m.append({ type: "message", message: result(id, "z".repeat(8000), name) });
+    };
+    add("skill-read", "read", { path: skill });
+    add("agents", "read", { path: "AGENTS.md" });
+    add("todo", "todo", { action: "set" });
+    add("host", "host_notes", {});
+    add("excluded", "grep", { pattern: "x" });
+    add("plain", "read", { path: "src/a.ts" });
+    add("recent", "read", { path: "src/b.ts" });
+    return m;
+  };
+
+  it("Skill 文件、AGENTS.md、todo、keepInContext 工具与 pruneExclude 都不裁", () => {
+    const items = buildProjection(build().branch()).items;
+    expect(skillLocations(items)).toEqual([skill]);
+    const isProtected = createProtection({
+      cwd,
+      skillPaths: skillLocations(items),
+      exclude: ["grep"],
+      keepInContext: (name) => name === "host_notes",
+    });
+    const plan = planPrune(items, {
+      policy: policy({ keepResults: 1, protectTokens: 0, clearAtLeast: 0 }),
+      isProtected,
+    });
+    expect(plan.items.map((p) => p.toolCallId)).toEqual(["plain"]);
+  });
+
+  it("不给保护集时都是候选（对照）", () => {
+    const plan = planPrune(buildProjection(build().branch()).items, {
+      policy: policy({ keepResults: 1, protectTokens: 0, clearAtLeast: 0 }),
+    });
+    expect(plan.items).toHaveLength(6);
+  });
+
+  it("readPathOf 只认 read 的 path，相对路径按 cwd 解析", () => {
+    expect(readPathOf({ toolName: "read", args: { path: "a/b.ts" } }, cwd)).toBe(
+      resolve(cwd, "a/b.ts"),
+    );
+    expect(readPathOf({ toolName: "write", args: { path: "a" } }, cwd)).toBeUndefined();
+    expect(readPathOf({ toolName: "read", args: undefined }, cwd)).toBeUndefined();
   });
 });
