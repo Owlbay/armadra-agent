@@ -35,6 +35,7 @@ export const DEFAULT_KEYBINDINGS = {
   "tui.select.confirm": ["enter", "tab"],
   "tui.select.cancel": ["escape", "ctrl+c"],
   "app.interrupt": ["escape"],
+  "app.rewind": ["escape"],
   "app.clear": ["ctrl+c"],
   "app.exit": ["ctrl+d"],
   "app.message.followUp": ["alt+enter"],

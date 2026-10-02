@@ -8,10 +8,12 @@
  *   `pick`（需要界面弹选择器，参数缺省时）、`exit`。
  *
  * 会话切换（/new /resume /fork）经 `ctx.switchSession`，调用方据返回的新会话重新订阅事件。
+ * `/rewind`（RW-C）：无参数列出回滚点，带参数执行（interactive/rewind-command.ts）；对话变了时
+ * `handled` 带 `draft`（原消息）与 `reload`，界面据此回填输入框、重画消息区。
  */
 
 import { AgentSessionImpl } from "../agent/session.js";
-import type { AgentSession } from "../agent/types.js";
+import type { AgentSession, RewindDraftText } from "../agent/types.js";
 import { WARMING_MODES, type WarmingMode } from "../ai/cache/types.js";
 import { THINKING_LEVELS } from "../ai/thinking.js";
 import type { ModelThinkingLevel } from "../ai/types.js";
@@ -23,12 +25,13 @@ import {
   parsePermissionMode,
   permissionModeLabel,
 } from "../permissions/modes.js";
+import { rewindCommand } from "./interactive/rewind-command.js";
 import { describeCache, describeFingerprint, describeSession } from "./session-report.js";
 
 export { describeSession } from "./session-report.js";
 
 export type CommandResult =
-  | { kind: "handled"; message?: string }
+  | { kind: "handled"; message?: string; draft?: RewindDraftText; reload?: boolean }
   | { kind: "prompt"; text: string }
   | { kind: "pick"; what: "model" | "session" | "tree" | "permission" | "thinking" }
   | { kind: "exit" };
@@ -52,6 +55,11 @@ export const BUILTIN_COMMANDS: readonly CommandInfo[] = [
   { name: "resume", args: "[id]", description: "恢复会话（无 id 时选择）" },
   { name: "fork", args: "[条目 id]", description: "从某条目分叉出新会话" },
   { name: "compact", args: "[说明]", description: "压缩上下文" },
+  {
+    name: "rewind",
+    args: "[n] [both|conversation|code|summarize-from|summarize-up-to]",
+    description: "回滚对话与代码到某条消息之前",
+  },
   { name: "model", args: "[provider/id]", description: "切换模型" },
   {
     name: "thinking",
@@ -203,6 +211,8 @@ export async function runSlashCommand(
       return { kind: "handled", message: describeSession(session) };
     case "cache":
       return { kind: "handled", message: cacheCommand(session, args) };
+    case "rewind":
+      return { kind: "handled", ...(await rewindCommand(session, args)) };
     default:
       return undefined;
   }
