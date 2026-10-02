@@ -1,0 +1,1 @@
+Implement the string-kit library described in `SPEC.md`: all six functions in `src/index.js` and the `## API` section in `README.md`. Verify each function against the examples in the spec before finishing.

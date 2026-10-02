@@ -24,6 +24,9 @@
  *   node scripts/bench-presets.mjs --config <cfg> --models packy/kimi-k2.5,packy/deepseek-v4-flash \
  *     --presets default,default-todo --max-requests 60 --budget-usd 2 --per-run 8 \
  *     --out docs/benchmarks/presets-todo-<date>.md --json docs/benchmarks/presets-todo-<date>.json
+ *
+ * [W5-Z] D20 复测用多步长任务：`--tasks long`（multi-bug-hunt、string-kit、inventory-feature），
+ * `--runs 3 --per-run 25`。
  */
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -58,6 +61,22 @@ export function presetVariant(name) {
 /** D20 的门：费用涨幅上限（todo 组相对对照组）。 */
 export const D20_MAX_COST_INCREASE = 0.05;
 export const TASKS = ["fix-bug", "search-summarize", "multi-file-refactor"];
+/**
+ * [W5-Z] 多步长任务（D20 复测）：每个需要 5+ 步、适合 todo 跟踪；不在缺省 `--tasks` 里，
+ * `--tasks long` 选全部，或逐个列名。
+ */
+export const LONG_TASKS = ["multi-bug-hunt", "string-kit", "inventory-feature"];
+export const ALL_TASKS = [...TASKS, ...LONG_TASKS];
+
+/** `--tasks` 解析：逗号分隔，`long` 展开为全部长任务。 */
+export function parseTasks(raw) {
+  const tasks = raw
+    .split(",")
+    .filter(Boolean)
+    .flatMap((t) => (t === "long" ? LONG_TASKS : [t]));
+  for (const t of tasks) if (!ALL_TASKS.includes(t)) throw new Error(`未知任务 ${t}`);
+  return tasks;
+}
 
 function sumUsage(entries) {
   const total = { input: 0, cacheRead: 0, cacheWrite: 0, output: 0 };
@@ -363,8 +382,7 @@ async function main() {
   const fakeOnly = settings.models.every((m) => m.startsWith("fake/"));
   if (!fakeOnly && !existsSync(settings.config)) throw new Error(`配置不存在：${settings.config}`);
   const presets = values.presets.split(",").filter(Boolean);
-  const tasks = values.tasks.split(",").filter(Boolean);
-  for (const t of tasks) if (!TASKS.includes(t)) throw new Error(`未知任务 ${t}`);
+  const tasks = parseTasks(values.tasks);
   const known = [...PRESETS, ...Object.keys(PRESET_VARIANTS)];
   for (const p of presets) if (!known.includes(p)) throw new Error(`未知预设 ${p}`);
   const runs = Number(values.runs);
