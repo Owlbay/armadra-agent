@@ -116,6 +116,8 @@ export class RealBudget {
             budget.log.push({
               run,
               purpose: options.purpose ?? "turn",
+              messages: context.messages.length,
+              toolChoice: options.toolChoice,
               model: `${model.provider}/${model.id}`,
               stopReason: message.stopReason,
               usage: message.usage,

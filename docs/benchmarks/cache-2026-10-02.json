@@ -1,0 +1,1432 @@
+{
+  "date": "2026-10-02",
+  "runs": [
+    {
+      "case": "E1",
+      "model": "packy/kimi-k2.5",
+      "requests": [
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 151,
+          "cacheRead": 640,
+          "cacheWrite": 0,
+          "output": 19,
+          "prompt": 791,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 394,
+          "cacheRead": 640,
+          "cacheWrite": 0,
+          "output": 42,
+          "prompt": 1034,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 72,
+          "cacheRead": 1024,
+          "cacheWrite": 0,
+          "output": 17,
+          "prompt": 1096,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 286,
+          "cacheRead": 1024,
+          "cacheWrite": 0,
+          "output": 27,
+          "prompt": 1310,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 85,
+          "cacheRead": 1280,
+          "cacheWrite": 0,
+          "output": 124,
+          "prompt": 1365,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 507,
+          "cacheRead": 1280,
+          "cacheWrite": 0,
+          "output": 149,
+          "prompt": 1787,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 300,
+          "cacheRead": 1664,
+          "cacheWrite": 0,
+          "output": 27,
+          "prompt": 1964,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 91,
+          "cacheRead": 1920,
+          "cacheWrite": 0,
+          "output": 45,
+          "prompt": 2011,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 161,
+          "cacheRead": 1920,
+          "cacheWrite": 0,
+          "output": 29,
+          "prompt": 2081,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 82,
+          "cacheRead": 2048,
+          "cacheWrite": 0,
+          "output": 7,
+          "prompt": 2130,
+          "stopReason": "stop"
+        }
+      ],
+      "events": [],
+      "stats": {
+        "reporting": "reported",
+        "reBilledTokens": 0,
+        "misses": {
+          "count": 0,
+          "byReason": {}
+        },
+        "warming": {
+          "mode": "streaming",
+          "state": "inactive"
+        },
+        "lastHitRate": 0.9615023474178404,
+        "hitRate": 0.8632539019847132,
+        "reBilledUsd": 0,
+        "contextRemainingTokens": 253852,
+        "estimatedTurnsLeft": 1659
+      },
+      "wallMs": 17071
+    },
+    {
+      "case": "E1",
+      "model": "packy/MiniMax-M2.7",
+      "requests": [
+        {
+          "purpose": "turn",
+          "model": "packy/MiniMax-M2.7",
+          "input": 1153,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 50,
+          "prompt": 1153,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/MiniMax-M2.7",
+          "input": 532,
+          "cacheRead": 891,
+          "cacheWrite": 0,
+          "output": 109,
+          "prompt": 1423,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/MiniMax-M2.7",
+          "input": 210,
+          "cacheRead": 1339,
+          "cacheWrite": 0,
+          "output": 41,
+          "prompt": 1549,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/MiniMax-M2.7",
+          "input": 443,
+          "cacheRead": 1339,
+          "cacheWrite": 0,
+          "output": 625,
+          "prompt": 1782,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/MiniMax-M2.7",
+          "input": 1091,
+          "cacheRead": 1339,
+          "cacheWrite": 0,
+          "output": 533,
+          "prompt": 2430,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/MiniMax-M2.7",
+          "input": 747,
+          "cacheRead": 2235,
+          "cacheWrite": 0,
+          "output": 94,
+          "prompt": 2982,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/MiniMax-M2.7",
+          "input": 415,
+          "cacheRead": 2683,
+          "cacheWrite": 0,
+          "output": 58,
+          "prompt": 3098,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/MiniMax-M2.7",
+          "input": 486,
+          "cacheRead": 2683,
+          "cacheWrite": 0,
+          "output": 42,
+          "prompt": 3169,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/MiniMax-M2.7",
+          "input": 94,
+          "cacheRead": 3131,
+          "cacheWrite": 0,
+          "output": 57,
+          "prompt": 3225,
+          "stopReason": "stop"
+        }
+      ],
+      "events": [],
+      "stats": {
+        "reporting": "reported",
+        "reBilledTokens": 0,
+        "misses": {
+          "count": 0,
+          "byReason": {}
+        },
+        "warming": {
+          "mode": "streaming",
+          "state": "stopped",
+          "reason": "no_ttl"
+        },
+        "lastHitRate": 0.9708527131782946,
+        "hitRate": 0.7515256354812359,
+        "reBilledUsd": 0,
+        "contextRemainingTokens": 196718,
+        "estimatedTurnsLeft": 681
+      },
+      "wallMs": 36801
+    },
+    {
+      "case": "E1",
+      "model": "packy/deepseek-v4-flash",
+      "requests": [
+        {
+          "purpose": "turn",
+          "model": "packy/deepseek-v4-flash",
+          "input": 1339,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 46,
+          "prompt": 1339,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/deepseek-v4-flash",
+          "input": 1587,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 38,
+          "prompt": 1587,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/deepseek-v4-flash",
+          "input": 1640,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 44,
+          "prompt": 1640,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/deepseek-v4-flash",
+          "input": 1873,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 219,
+          "prompt": 1873,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/deepseek-v4-flash",
+          "input": 2401,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 77,
+          "prompt": 2401,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/deepseek-v4-flash",
+          "input": 453,
+          "cacheRead": 2048,
+          "cacheWrite": 0,
+          "output": 421,
+          "prompt": 2501,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/deepseek-v4-flash",
+          "input": 895,
+          "cacheRead": 2048,
+          "cacheWrite": 0,
+          "output": 45,
+          "prompt": 2943,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/deepseek-v4-flash",
+          "input": 954,
+          "cacheRead": 2048,
+          "cacheWrite": 0,
+          "output": 57,
+          "prompt": 3002,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/deepseek-v4-flash",
+          "input": 1031,
+          "cacheRead": 2048,
+          "cacheWrite": 0,
+          "output": 45,
+          "prompt": 3079,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/deepseek-v4-flash",
+          "input": 1090,
+          "cacheRead": 2048,
+          "cacheWrite": 0,
+          "output": 7,
+          "prompt": 3138,
+          "stopReason": "stop"
+        }
+      ],
+      "events": [
+        {
+          "at": 10,
+          "type": "cache_miss",
+          "missedTokens": 1031,
+          "reason": "evicted",
+          "idleMs": 2234
+        }
+      ],
+      "stats": {
+        "reporting": "reported",
+        "reBilledTokens": 1031,
+        "misses": {
+          "count": 1,
+          "byReason": {
+            "evicted": 1
+          }
+        },
+        "warming": {
+          "mode": "streaming",
+          "state": "inactive"
+        },
+        "lastHitRate": 0.6526449968132568,
+        "hitRate": 0.4356890609709399,
+        "contextRemainingTokens": 124844,
+        "estimatedTurnsLeft": 846
+      },
+      "wallMs": 21999
+    },
+    {
+      "case": "E2",
+      "model": "packy/kimi-k2.5",
+      "warming": "off",
+      "ttl": 300,
+      "sleepStartIndex": 1,
+      "requests": [
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 139,
+          "cacheRead": 640,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 779,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 49,
+          "cacheRead": 768,
+          "cacheWrite": 0,
+          "output": 27,
+          "prompt": 817,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 97,
+          "cacheRead": 768,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 865,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 113,
+          "cacheRead": 768,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 881,
+          "stopReason": "stop"
+        }
+      ],
+      "events": [],
+      "stats": {
+        "reporting": "reported",
+        "reBilledTokens": 0,
+        "misses": {
+          "count": 0,
+          "byReason": {}
+        },
+        "warming": {
+          "mode": "off",
+          "state": "inactive"
+        },
+        "lastHitRate": 0.8717366628830874,
+        "hitRate": 0.8809096349491322,
+        "reBilledUsd": 0,
+        "contextRemainingTokens": 255117,
+        "estimatedTurnsLeft": 7503
+      },
+      "wallMs": 424377
+    },
+    {
+      "case": "E2",
+      "model": "packy/kimi-k2.5",
+      "warming": "off",
+      "ttl": 300,
+      "sleepStartIndex": 1,
+      "requests": [
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 139,
+          "cacheRead": 640,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 779,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 177,
+          "cacheRead": 640,
+          "cacheWrite": 0,
+          "output": 27,
+          "prompt": 817,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 97,
+          "cacheRead": 768,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 865,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 113,
+          "cacheRead": 768,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 881,
+          "stopReason": "stop"
+        }
+      ],
+      "events": [],
+      "stats": {
+        "reporting": "reported",
+        "reBilledTokens": 0,
+        "misses": {
+          "count": 0,
+          "byReason": {}
+        },
+        "warming": {
+          "mode": "off",
+          "state": "inactive"
+        },
+        "lastHitRate": 0.8717366628830874,
+        "hitRate": 0.8426092160383004,
+        "reBilledUsd": 0,
+        "contextRemainingTokens": 255117,
+        "estimatedTurnsLeft": 7503
+      },
+      "wallMs": 424326
+    },
+    {
+      "case": "E2",
+      "model": "packy/kimi-k2.5",
+      "warming": "streaming",
+      "ttl": 300,
+      "sleepStartIndex": 1,
+      "requests": [
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 139,
+          "cacheRead": 640,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 779,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 177,
+          "cacheRead": 640,
+          "cacheWrite": 0,
+          "output": 27,
+          "prompt": 817,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "warm",
+          "model": "packy/kimi-k2.5",
+          "input": 49,
+          "cacheRead": 768,
+          "cacheWrite": 0,
+          "output": 1,
+          "prompt": 817,
+          "stopReason": "length"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 97,
+          "cacheRead": 768,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 865,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 113,
+          "cacheRead": 768,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 881,
+          "stopReason": "stop"
+        }
+      ],
+      "events": [
+        {
+          "at": 1,
+          "type": "cache_warm",
+          "phase": "scheduled",
+          "nextWarmAt": 1790907845978
+        },
+        {
+          "at": 2,
+          "type": "cache_warm",
+          "phase": "scheduled",
+          "nextWarmAt": 1790907847280
+        },
+        {
+          "at": 3,
+          "type": "cache_warm",
+          "phase": "sent",
+          "usage": {
+            "input": 49,
+            "output": 1,
+            "cacheRead": 768,
+            "cacheWrite": 0,
+            "totalTokens": 818,
+            "cacheReported": true,
+            "cost": {
+              "input": 2.94e-5,
+              "output": 2.5e-6,
+              "cacheRead": 0.0001152,
+              "cacheWrite": 0,
+              "total": 0.0001471
+            }
+          },
+          "cost": 0.0001471
+        },
+        {
+          "at": 3,
+          "type": "cache_warm",
+          "phase": "scheduled",
+          "nextWarmAt": 1790908117273
+        },
+        {
+          "at": 4,
+          "type": "cache_warm",
+          "phase": "scheduled",
+          "nextWarmAt": 1790908268672
+        },
+        {
+          "at": 5,
+          "type": "cache_warm",
+          "phase": "scheduled",
+          "nextWarmAt": 1790908269847
+        }
+      ],
+      "stats": {
+        "reporting": "reported",
+        "reBilledTokens": 0,
+        "misses": {
+          "count": 0,
+          "byReason": {}
+        },
+        "warming": {
+          "mode": "streaming",
+          "state": "inactive",
+          "sent": 1,
+          "costUsd": 0.0001471,
+          "expectedSavingsUsd": 0.00024259999999999996
+        },
+        "lastHitRate": 0.8717366628830874,
+        "hitRate": 0.8617456119259438,
+        "reBilledUsd": 0,
+        "contextRemainingTokens": 255117,
+        "estimatedTurnsLeft": 7503
+      },
+      "wallMs": 424517
+    },
+    {
+      "case": "E2",
+      "model": "packy/kimi-k2.5",
+      "warming": "streaming",
+      "ttl": 300,
+      "sleepStartIndex": 1,
+      "requests": [
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 138,
+          "cacheRead": 640,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 778,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 48,
+          "cacheRead": 768,
+          "cacheWrite": 0,
+          "output": 27,
+          "prompt": 816,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "warm",
+          "model": "packy/kimi-k2.5",
+          "input": 176,
+          "cacheRead": 640,
+          "cacheWrite": 0,
+          "output": 1,
+          "prompt": 816,
+          "stopReason": "length"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 96,
+          "cacheRead": 768,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 864,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 240,
+          "cacheRead": 640,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 880,
+          "stopReason": "stop"
+        }
+      ],
+      "events": [
+        {
+          "at": 1,
+          "type": "cache_warm",
+          "phase": "scheduled",
+          "nextWarmAt": 1790908280817
+        },
+        {
+          "at": 2,
+          "type": "cache_warm",
+          "phase": "scheduled",
+          "nextWarmAt": 1790908282067
+        },
+        {
+          "at": 3,
+          "type": "cache_warm",
+          "phase": "sent",
+          "usage": {
+            "input": 176,
+            "output": 1,
+            "cacheRead": 640,
+            "cacheWrite": 0,
+            "totalTokens": 817,
+            "cacheReported": true,
+            "cost": {
+              "input": 0.00010559999999999999,
+              "output": 2.5e-6,
+              "cacheRead": 9.6e-5,
+              "cacheWrite": 0,
+              "total": 0.0002041
+            }
+          },
+          "cost": 0.0002041
+        },
+        {
+          "at": 3,
+          "type": "cache_warm",
+          "phase": "scheduled",
+          "nextWarmAt": 1790908552056
+        },
+        {
+          "at": 4,
+          "type": "cache_warm",
+          "phase": "scheduled",
+          "nextWarmAt": 1790908703163
+        },
+        {
+          "at": 5,
+          "type": "cache_warm",
+          "phase": "scheduled",
+          "nextWarmAt": 1790908704362
+        }
+      ],
+      "stats": {
+        "reporting": "reported",
+        "reBilledTokens": 0,
+        "misses": {
+          "count": 0,
+          "byReason": {}
+        },
+        "warming": {
+          "mode": "streaming",
+          "state": "inactive",
+          "sent": 1,
+          "costUsd": 0.0002041,
+          "expectedSavingsUsd": 0.00024229999999999998
+        },
+        "lastHitRate": 0.7272727272727273,
+        "hitRate": 0.8319691863264324,
+        "reBilledUsd": 0,
+        "contextRemainingTokens": 255118,
+        "estimatedTurnsLeft": 7503
+      },
+      "wallMs": 424194
+    },
+    {
+      "case": "E3",
+      "model": "packy/kimi-k2.5",
+      "label": "改进后",
+      "compactAt": 6,
+      "summaryRequests": 1,
+      "compaction": {
+        "tokensBefore": 20144,
+        "summaryChars": 1074
+      },
+      "requests": [
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 287,
+          "cacheRead": 512,
+          "cacheWrite": 0,
+          "output": 33,
+          "prompt": 799,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 19111,
+          "cacheRead": 640,
+          "cacheWrite": 0,
+          "output": 54,
+          "prompt": 19751,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 156,
+          "cacheRead": 19712,
+          "cacheWrite": 0,
+          "output": 61,
+          "prompt": 19868,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 124,
+          "cacheRead": 19840,
+          "cacheWrite": 0,
+          "output": 40,
+          "prompt": 19964,
+          "stopReason": "toolUse"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 227,
+          "cacheRead": 19840,
+          "cacheWrite": 0,
+          "output": 61,
+          "prompt": 20067,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 174,
+          "cacheRead": 19968,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 20142,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "summary",
+          "model": "packy/kimi-k2.5",
+          "input": 19704,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 239,
+          "prompt": 19704,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 821,
+          "cacheRead": 640,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 1461,
+          "stopReason": "stop"
+        }
+      ],
+      "events": [],
+      "stats": {
+        "reporting": "reported",
+        "reBilledTokens": 0,
+        "misses": {
+          "count": 0,
+          "byReason": {}
+        },
+        "warming": {
+          "mode": "streaming",
+          "state": "stopped",
+          "reason": "no_ttl"
+        },
+        "lastHitRate": 0.4380561259411362,
+        "hitRate": 0.6665133545780084,
+        "reBilledUsd": 0,
+        "contextRemainingTokens": 254537,
+        "estimatedTurnsLeft": 65
+      },
+      "wallMs": 19058
+    },
+    {
+      "case": "E4",
+      "model": "packy/kimi-k2.5",
+      "steps": [
+        {
+          "step": "轮 one",
+          "misses": []
+        },
+        {
+          "step": "轮 two",
+          "misses": []
+        },
+        {
+          "step": "轮 three",
+          "misses": []
+        },
+        {
+          "step": "切到 packy/MiniMax-M2.7",
+          "misses": []
+        },
+        {
+          "step": "切回 packy/kimi-k2.5",
+          "misses": []
+        },
+        {
+          "step": "宿主注册 canvas_note",
+          "misses": []
+        },
+        {
+          "step": "停用 grep",
+          "misses": []
+        }
+      ],
+      "requests": [
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 139,
+          "cacheRead": 640,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 779,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 155,
+          "cacheRead": 640,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 795,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 43,
+          "cacheRead": 768,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 811,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/MiniMax-M2.7",
+          "input": 1189,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 25,
+          "prompt": 1189,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 95,
+          "cacheRead": 768,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 863,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 392,
+          "cacheRead": 512,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 904,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 547,
+          "cacheRead": 256,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 803,
+          "stopReason": "stop"
+        }
+      ],
+      "events": [],
+      "stats": {
+        "reporting": "reported",
+        "reBilledTokens": 0,
+        "misses": {
+          "count": 0,
+          "byReason": {}
+        },
+        "warming": {
+          "mode": "streaming",
+          "state": "stopped",
+          "reason": "no_ttl"
+        },
+        "lastHitRate": 0.31880448318804483,
+        "hitRate": 0.5833333333333334,
+        "reBilledUsd": 0,
+        "contextRemainingTokens": 255195,
+        "estimatedTurnsLeft": 2263
+      },
+      "wallMs": 5544,
+      "pad": 0
+    },
+    {
+      "case": "E4",
+      "model": "packy/kimi-k2.5",
+      "pad": 24000,
+      "steps": [
+        {
+          "step": "轮 one",
+          "misses": []
+        },
+        {
+          "step": "轮 two",
+          "misses": []
+        },
+        {
+          "step": "轮 three",
+          "misses": []
+        },
+        {
+          "step": "切到 packy/MiniMax-M2.7",
+          "misses": [
+            {
+              "at": 4,
+              "type": "cache_miss",
+              "missedTokens": 7820,
+              "reason": "model_changed",
+              "idleMs": 958
+            }
+          ]
+        },
+        {
+          "step": "切回 packy/kimi-k2.5",
+          "misses": []
+        },
+        {
+          "step": "宿主注册 canvas_note",
+          "misses": [
+            {
+              "at": 6,
+              "type": "cache_miss",
+              "missedTokens": 7865,
+              "reason": "prefix_changed",
+              "idleMs": 890,
+              "detail": "tools"
+            }
+          ]
+        },
+        {
+          "step": "停用 grep",
+          "misses": [
+            {
+              "at": 7,
+              "type": "cache_miss",
+              "missedTokens": 7549,
+              "reason": "prefix_changed",
+              "idleMs": 1038,
+              "detail": "system"
+            }
+          ]
+        }
+      ],
+      "requests": [
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 7148,
+          "cacheRead": 640,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 7788,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 124,
+          "cacheRead": 7680,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 7804,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 140,
+          "cacheRead": 7680,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 7820,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/MiniMax-M2.7",
+          "input": 8199,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 17,
+          "prompt": 8199,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 57,
+          "cacheRead": 7808,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 7865,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 7906,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 7906,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/kimi-k2.5",
+          "input": 7549,
+          "cacheRead": 256,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 7805,
+          "stopReason": "stop"
+        }
+      ],
+      "events": [
+        {
+          "at": 4,
+          "type": "cache_miss",
+          "missedTokens": 7820,
+          "reason": "model_changed",
+          "idleMs": 958
+        },
+        {
+          "at": 6,
+          "type": "cache_miss",
+          "missedTokens": 7865,
+          "reason": "prefix_changed",
+          "idleMs": 890,
+          "detail": "tools"
+        },
+        {
+          "at": 7,
+          "type": "cache_miss",
+          "missedTokens": 7549,
+          "reason": "prefix_changed",
+          "idleMs": 1038,
+          "detail": "system"
+        }
+      ],
+      "stats": {
+        "reporting": "reported",
+        "reBilledTokens": 23234,
+        "misses": {
+          "count": 3,
+          "byReason": {
+            "model_changed": 1,
+            "prefix_changed": 2
+          }
+        },
+        "warming": {
+          "mode": "streaming",
+          "state": "stopped",
+          "reason": "no_ttl"
+        },
+        "lastHitRate": 0.03279948750800769,
+        "hitRate": 0.43604472067697103,
+        "contextRemainingTokens": 248193,
+        "estimatedTurnsLeft": 2196
+      },
+      "wallMs": 8333
+    },
+    {
+      "case": "E5",
+      "model": "packy/deepseek-v4-flash",
+      "states": ["reported", "reported", "reported", "reported"],
+      "probe": {
+        "verdict": "reported",
+        "shots": [
+          {
+            "input": 3410,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "cacheReported": true
+          },
+          {
+            "input": 1362,
+            "cacheRead": 2048,
+            "cacheWrite": 0,
+            "cacheReported": true
+          }
+        ]
+      },
+      "requests": [
+        {
+          "purpose": "turn",
+          "model": "packy/deepseek-v4-flash",
+          "input": 1326,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 1326,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/deepseek-v4-flash",
+          "input": 1337,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 12,
+          "prompt": 1337,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/deepseek-v4-flash",
+          "input": 1358,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 13,
+          "prompt": 1358,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/deepseek-v4-flash",
+          "input": 1380,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 2,
+          "prompt": 1380,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "probe",
+          "model": "packy/deepseek-v4-flash",
+          "input": 3410,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 12,
+          "prompt": 3410,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "probe",
+          "model": "packy/deepseek-v4-flash",
+          "input": 1362,
+          "cacheRead": 2048,
+          "cacheWrite": 0,
+          "output": 19,
+          "prompt": 3410,
+          "stopReason": "stop"
+        }
+      ],
+      "events": [
+        {
+          "at": 2,
+          "type": "cache_miss",
+          "missedTokens": 1326,
+          "reason": "evicted",
+          "idleMs": 1060
+        },
+        {
+          "at": 3,
+          "type": "cache_miss",
+          "missedTokens": 1337,
+          "reason": "evicted",
+          "idleMs": 1275
+        },
+        {
+          "at": 4,
+          "type": "cache_miss",
+          "missedTokens": 1358,
+          "reason": "evicted",
+          "idleMs": 1250
+        }
+      ],
+      "stats": {
+        "reporting": "reported",
+        "reBilledTokens": 4021,
+        "misses": {
+          "count": 3,
+          "byReason": {
+            "evicted": 3
+          }
+        },
+        "warming": {
+          "mode": "streaming",
+          "state": "stopped",
+          "reason": "no_ttl"
+        },
+        "lastHitRate": 0,
+        "hitRate": 0,
+        "contextRemainingTokens": 126618,
+        "estimatedTurnsLeft": 7034
+      },
+      "wallMs": 10944
+    },
+    {
+      "case": "E5",
+      "model": "packy/glm-5",
+      "states": ["unknown", "unknown", "reported", "reported"],
+      "probe": {
+        "verdict": "reported",
+        "shots": [
+          {
+            "input": 3340,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "cacheReported": true
+          },
+          {
+            "input": 268,
+            "cacheRead": 3072,
+            "cacheWrite": 0,
+            "cacheReported": true
+          }
+        ]
+      },
+      "requests": [
+        {
+          "purpose": "turn",
+          "model": "packy/glm-5",
+          "input": 1156,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 28,
+          "prompt": 1156,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/glm-5",
+          "input": 1191,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 28,
+          "prompt": 1191,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/glm-5",
+          "input": 202,
+          "cacheRead": 1024,
+          "cacheWrite": 0,
+          "output": 28,
+          "prompt": 1226,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "turn",
+          "model": "packy/glm-5",
+          "input": 237,
+          "cacheRead": 1024,
+          "cacheWrite": 0,
+          "output": 28,
+          "prompt": 1261,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "probe",
+          "model": "packy/glm-5",
+          "input": 3340,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "output": 22,
+          "prompt": 3340,
+          "stopReason": "stop"
+        },
+        {
+          "purpose": "probe",
+          "model": "packy/glm-5",
+          "input": 268,
+          "cacheRead": 3072,
+          "cacheWrite": 0,
+          "output": 22,
+          "prompt": 3340,
+          "stopReason": "stop"
+        }
+      ],
+      "events": [],
+      "stats": {
+        "reporting": "reported",
+        "reBilledTokens": 0,
+        "misses": {
+          "count": 0,
+          "byReason": {}
+        },
+        "warming": {
+          "mode": "streaming",
+          "state": "stopped",
+          "reason": "no_ttl"
+        },
+        "lastHitRate": 0.8120539254559873,
+        "hitRate": 0.4236657012825817,
+        "reBilledUsd": 0,
+        "contextRemainingTokens": 126711,
+        "estimatedTurnsLeft": 3620
+      },
+      "wallMs": 11640
+    }
+  ]
+}
