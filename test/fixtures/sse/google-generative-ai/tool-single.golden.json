@@ -51,6 +51,7 @@
         "cacheRead": 0,
         "cacheWrite": 0,
         "totalTokens": 222,
+        "cacheReported": false,
         "reasoning": 64,
         "cost": {
           "input": 0.00028,

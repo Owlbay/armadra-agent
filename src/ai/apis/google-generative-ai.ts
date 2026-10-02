@@ -12,6 +12,7 @@
  *   流里没出现过 finishReason → 断流错误；
  * - `usageMetadata`（每块累计，取最后一次）：input = promptTokenCount − cachedContentTokenCount，
  *   output = candidatesTokenCount + thoughtsTokenCount（思考按输出计费），reasoning = thoughts；
+ *   cachedContentTokenCount 出现（含 0）即 `cacheReported: true`（隐式缓存未命中时常常不给该字段）；
  * - 错误体 `{error:{code,status,message}}` 重排为 `429 RESOURCE_EXHAUSTED: …`。
  */
 
@@ -57,7 +58,8 @@ function str(value: unknown): string | undefined {
 
 export function parseGoogleUsage(raw: Json): Usage {
   const prompt = num(raw["promptTokenCount"]) ?? 0;
-  const cached = num(raw["cachedContentTokenCount"]) ?? 0;
+  const reported = num(raw["cachedContentTokenCount"]);
+  const cached = reported ?? 0;
   const thoughts = num(raw["thoughtsTokenCount"]) ?? 0;
   const usage: Usage = {
     input: Math.max(0, prompt - cached),
@@ -65,6 +67,7 @@ export function parseGoogleUsage(raw: Json): Usage {
     cacheRead: cached,
     cacheWrite: 0,
     totalTokens: 0,
+    cacheReported: reported !== undefined,
   };
   if (raw["thoughtsTokenCount"] !== undefined) usage.reasoning = thoughts;
   return usage;

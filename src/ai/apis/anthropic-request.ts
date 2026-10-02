@@ -1,14 +1,16 @@
 /**
  * anthropic-messages 请求体（设计 §3.1、§3.3、§3.6）：消息转换、三断点缓存、thinking、工具。
  *
- * 缓存断点（cacheRetention 缺省 short；none 不打；long 加 `ttl: "1h"`）按优先级取前
+ * 缓存断点（cacheRetention 缺省 short，未指定时读 `AMA_CACHE_RETENTION`；none 不打；long 加
+ * `ttl: "1h"`，仅 `supportsLongCacheRetention`——官方端点缺省开，中转缺省关、降为 short；最后做 TTL
+ * 顺序校验，5m 之后出现 1h 则全部降为 5m）按优先级取前
  * `maxCacheBreakpoints` 个：① 最后一条 user 消息（含工具结果）的最后一个块 ② system 末块
  * ③ 最后一个工具定义（`supportsCacheControlOnTools`）。
  *
  * thinking：`adaptiveThinking` 模型发 `{type:"adaptive"}` + `output_config.effort`；
  * 其余推理模型按预算发 `{type:"enabled", budget_tokens}`，预算计入 max_tokens；off 发
  * `{type:"disabled"}`（映射表 off 为 null 的模型不发）。思考开启时不发 temperature，
- * 除非 `supportsTemperatureWithThinking`。
+ * 除非 `supportsTemperatureWithThinking`。`toolChoice: "none"`（有工具时）→ `tool_choice:{type:"none"}`。
  */
 
 import { contentText, normalizeContext, sanitizeText } from "../context.js";
@@ -32,6 +34,11 @@ import type {
   TranscriptContext,
   UserMessage,
 } from "../types.js";
+import {
+  effectiveRetention,
+  resolveCacheRetention,
+  resolvePromptCacheCompat,
+} from "./cache-params.js";
 
 export const ANTHROPIC_VERSION = "2023-06-01";
 export const INTERLEAVED_THINKING_BETA = "interleaved-thinking-2025-05-14";
@@ -80,6 +87,36 @@ export function cacheControlFor(
 ): { type: "ephemeral"; ttl?: "1h" } | undefined {
   if (retention === "none") return undefined;
   return retention === "long" ? { type: "ephemeral", ttl: "1h" } : { type: "ephemeral" };
+}
+
+/**
+ * TTL 顺序校验：Anthropic 按 tools → system → messages 的顺序处理断点，要求 1h 条目都在 5m 之前。
+ * 出现「5m 之后的 1h」→ 全部降为 5m（去掉 ttl）。返回是否做了降级。
+ */
+export function enforceCacheTtlOrder(body: Json): boolean {
+  const marks: Json[] = [];
+  const collect = (value: unknown): void => {
+    if (Array.isArray(value)) value.forEach(collect);
+    else if (typeof value === "object" && value !== null) {
+      const record = value as Json;
+      const mark = record["cache_control"];
+      if (typeof mark === "object" && mark !== null) marks.push(mark as Json);
+      if (Array.isArray(record["content"])) collect(record["content"]);
+    }
+  };
+  collect(body["tools"]);
+  collect(body["system"]);
+  collect(body["messages"]);
+  const firstShort = marks.findIndex((mark) => mark["ttl"] !== "1h");
+  if (firstShort < 0 || !marks.slice(firstShort).some((mark) => mark["ttl"] === "1h")) return false;
+  for (const mark of marks) delete mark["ttl"];
+  return true;
+}
+
+/** `{baseUrl}/v1/messages`；baseUrl 已以 `/v1` 结尾（中转常见写法）时不再重复。 */
+export function anthropicMessagesUrl(baseUrl: string): string {
+  const trimmed = baseUrl.replace(/\/+$/, "");
+  return /\/v1$/i.test(trimmed) ? `${trimmed}/messages` : `${trimmed}/v1/messages`;
 }
 
 /** Anthropic 要求 tool_use id 匹配 `^[a-zA-Z0-9_-]+$` 且 ≤ 64。 */
@@ -249,7 +286,9 @@ export function buildAnthropicRequest(
 ): AnthropicRequest {
   const compat = detectAnthropicCompat(model);
   const normalized = normalizeContext(context, { model });
-  const cacheControl = cacheControlFor(options.cacheRetention);
+  const cacheCompat = resolvePromptCacheCompat(model, "anthropic-messages");
+  const retention = effectiveRetention(resolveCacheRetention(options.cacheRetention), cacheCompat);
+  const cacheControl = cacheControlFor(retention);
   const messages = convertMessages(normalized.messages);
   const level = clampThinkingLevel(model, options.thinkingLevel ?? "off");
   const betas: string[] = [];
@@ -279,6 +318,7 @@ export function buildAnthropicRequest(
   if (system.length > 0) body["system"] = system;
   body["messages"] = messages;
   if (tools.length > 0) body["tools"] = tools;
+  if (tools.length > 0 && options.toolChoice === "none") body["tool_choice"] = { type: "none" };
   const providerLevel = applyThinking(
     body,
     model,
@@ -296,5 +336,6 @@ export function buildAnthropicRequest(
     body["temperature"] = options.temperature;
   }
   if (model.samplingParams) Object.assign(body, model.samplingParams);
+  enforceCacheTtlOrder(body);
   return { body, betas, thinkingLevel: level, providerThinkingLevel: providerLevel };
 }

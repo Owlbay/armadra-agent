@@ -6,7 +6,8 @@
  * 测试守住两者一致）。本模块解析并校验它，另提供覆盖合并。
  *
  * 必填字段：id、name、maxTokens、reasoning；contextWindow 与 cost「宁缺不猜」——数据源里
- * 不确定的就不写（缺 contextWindow → 关自动压缩并警告；缺 cost → 显示 `$?`）。
+ * 不确定的就不写（缺 contextWindow → 关自动压缩并警告；缺 cost → 显示 `$?`）。`promptCache`
+ * （TTL 秒数与最小可缓存长度）同样只写有公开依据的值（第三波 §1.4），留空 = 不承诺。
  */
 
 import { AmaError } from "../../errors.js";
@@ -53,6 +54,22 @@ export function checkCatalogModel(value: unknown, path: string): string[] {
       }
       if (cost["tiers"] !== undefined && !Array.isArray(cost["tiers"])) {
         problems.push(`${path}.cost.tiers`);
+      }
+    }
+  }
+  const promptCache = value["promptCache"];
+  if (promptCache !== undefined) {
+    if (!isRecord(promptCache)) problems.push(`${path}.promptCache`);
+    else {
+      for (const [key, seconds] of Object.entries(promptCache)) {
+        const known = key === "short" || key === "long" || key === "minTokens";
+        if (!known || !Number.isInteger(seconds) || (seconds as number) <= 0) {
+          problems.push(`${path}.promptCache.${key}`);
+        }
+      }
+      const { short, long } = promptCache;
+      if (typeof short === "number" && typeof long === "number" && long < short) {
+        problems.push(`${path}.promptCache.long < short`);
       }
     }
   }
