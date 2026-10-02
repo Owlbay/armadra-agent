@@ -58,26 +58,42 @@ export function restorePreview(code: CodeRestoreResult, ascii = false): string {
   return `将恢复 ${codeFileCount(code)} 个文件 ${diffStat(code, ascii)}${suffix}`;
 }
 
+/** [W6-C0] 跳过原因按码分组（不按文案前缀判断，文案会随界面语言变）。 */
+type SkipCode = RewindSkipReason | "conflict" | "failed";
+
 interface Skip {
   path: string;
+  code: SkipCode;
+  /** 明细里显示的原因（failed 带错误信息）。 */
   reason: string;
+}
+
+function skipLabel(code: SkipCode): string {
+  return code === "conflict" ? "冲突" : code === "failed" ? "失败" : SKIP_REASON_TEXT[code];
 }
 
 function skips(code: CodeRestoreResult, overwrite: boolean): Skip[] {
   return [
-    ...(overwrite ? [] : code.conflicts.map((path) => ({ path, reason: "冲突" }))),
-    ...code.skipped.map((s) => ({ path: s.path, reason: SKIP_REASON_TEXT[s.reason] })),
-    ...code.failed.map((f) => ({ path: f.path, reason: `失败：${f.message}` })),
+    ...(overwrite
+      ? []
+      : code.conflicts.map((path) => ({
+          path,
+          code: "conflict" as const,
+          reason: skipLabel("conflict"),
+        }))),
+    ...code.skipped.map((s) => ({ path: s.path, code: s.reason, reason: skipLabel(s.reason) })),
+    ...code.failed.map((f) => ({
+      path: f.path,
+      code: "failed" as const,
+      reason: `失败：${f.message}`,
+    })),
   ];
 }
 
 function reasonCounts(list: readonly Skip[]): string {
-  const counts = new Map<string, number>();
-  for (const skip of list) {
-    const key = skip.reason.startsWith("失败") ? "失败" : skip.reason;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return [...counts].map(([reason, n]) => `${reason} ${n}`).join("、");
+  const counts = new Map<SkipCode, number>();
+  for (const skip of list) counts.set(skip.code, (counts.get(skip.code) ?? 0) + 1);
+  return [...counts].map(([code, n]) => `${skipLabel(code)} ${n}`).join("、");
 }
 
 /** 跳过明细（最多 5 行，其余计数）。 */

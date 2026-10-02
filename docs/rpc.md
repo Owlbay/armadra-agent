@@ -65,7 +65,7 @@
 | `set_thinking_level`            | `level: off \| minimal \| low \| medium \| high \| xhigh` | `{ level }`                                                      |
 | `get_available_thinking_levels` | —                                                         | `{ levels: string[] }`（当前模型支持的级别；无模型时 `["off"]`） |
 
-`RpcModelInfo`：`provider`、`id`、`name`、`hasKey`、`keySource`（`cli` / `auth-file` / `config` / `env` / `none`）、`contextWindow?`、`maxTokens`、`reasoning`、`input`（`"text"` / `"image"`）。**密钥不离开进程**：只报有无与来源。
+`RpcModelInfo`：`provider`、`id`、`name`、`hasKey`、`keySource`（`cli` / `auth-file` / `config` / `env` / `oauth` / `none`；`oauth` 是第六波的 ChatGPT 登录）、`contextWindow?`、`maxTokens`、`reasoning`、`input`（`"text"` / `"image"`）。**密钥不离开进程**：只报有无与来源。
 
 ### 队列、压缩、重试
 
@@ -183,7 +183,8 @@
 | `subagent_update` | `taskId`、`kind: tool \| text \| turn`、`toolName?`、`textDelta?`（≥ 250 ms 合并）、`turn`、`usage?`                                                                                     |
 | `subagent_end`    | `taskId`、`status: completed \| failed \| aborted \| max_turns \| interrupted`、`usage?`、`cache?`、`outputFile?`、`worktree?: { branch, changed }`                                      |
 
-子会话与外部 Agent 的审批照常以 `permission_request` 发给本连接，`context`（可选，只在不是主会话自己的调用时出现）标出来源：
+子会话与外部 Agent 的审批照常以 `permission_request` 发给本连接，`context`（可选）标出来源（第六波起本会话工具调用的审批也带
+`context.toolCallId`——触发审批的工具调用 id，轨迹据此算审批等待；外部 Agent 的请求不带）：
 `depth`（1 = 来自 task 子 Agent）、`taskId`（来源任务）、`origin`（外部 Agent 发来的权限请求：`agent`、`sessionId`（外部 CLI
 自己的会话 id）、`toolCall: { title, kind, locations?, inputSummary? }`、`options`）。对话框据此标 `[task:<agent>]` 或
 `[claude · 会话 abc1]`。外部 Agent 的请求 `toolName` 是 `agent:<id>`，回答只影响这一次（「本会话允许」交给外部 Agent 自己记）；

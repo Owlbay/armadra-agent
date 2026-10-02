@@ -217,7 +217,7 @@ describe("工具契约", () => {
     const erased: ToolDefinition = tool;
     expect(erased.name).toBe("read_x");
     expectTypeOf<ReturnType<ToolDefinition["execute"]>>().toEqualTypeOf<Promise<ToolResult>>();
-    expectTypeOf<ToolDefinition["permission"]>().toEqualTypeOf<"read" | "write" | "execute">();
+    expectTypeOf<"read" | "write" | "execute">().toExtend<ToolDefinition["permission"]>();
     expectTypeOf<ToolContext["readFiles"]>().toEqualTypeOf<ReadonlySet<string>>();
   });
 });

@@ -10,6 +10,7 @@
  * - `--resume [id]`：下一个参数形如会话 id（无空白、不以 `-` 开头）才被当作 id；
  *   否则仍作为提示文本。显式写法 `--resume=<id>`。
  * - `--provider` 不带 `--model` 不在这里报错，由 bootstrap 第 11 步报（退出码 2）。
+ * - [W6-C0] `--lang zh|en` 也可写在子命令名之前（`ama --lang en doctor`）；`--memory` / `--no-memory`。
  */
 
 import { AmaError } from "../errors.js";
@@ -17,6 +18,7 @@ import type { ModelThinkingLevel } from "../ai/types.js";
 import { PERMISSION_MODES_STRICT_FIRST, type PermissionMode } from "../permissions/types.js";
 import { canonicalPreset, type CodemodeMode, type ToolsPreset } from "../config/types.js";
 import { CODEMODE_MODES } from "../config/types.js";
+import { LOCALES, msg, type Locale } from "../i18n/index.js";
 
 export const SUBCOMMANDS = [
   "auth",
@@ -27,6 +29,8 @@ export const SUBCOMMANDS = [
   "config",
   "init",
   "stats",
+  // [W6-C0] W6-M 实现（cli/subcommands/memory.ts）；之前 main.ts 报「尚未提供」
+  "memory",
 ] as const;
 export type SubcommandName = (typeof SUBCOMMANDS)[number];
 
@@ -94,10 +98,15 @@ export interface ParsedArgs {
   prompt?: string;
   /** 原始位置参数。 */
   positionals: string[];
+  /** [W6-C0] `--lang zh|en`：界面语言（`AMA_LANG` 优先，docs/i18n.md）。 */
+  lang?: Locale;
+  /** [W6-C0] `--memory` → true、`--no-memory` → false：覆盖 `memory.enabled`（W6-M）。 */
+  memory?: boolean;
 }
 
 export type ParseResult =
-  { kind: "run"; args: ParsedArgs } | { kind: "subcommand"; name: SubcommandName; argv: string[] };
+  | { kind: "run"; args: ParsedArgs }
+  | { kind: "subcommand"; name: SubcommandName; argv: string[]; lang?: Locale };
 
 export class UsageError extends AmaError {
   constructor(message: string) {
@@ -153,7 +162,8 @@ type ValueOption =
   | "agent-dir"
   | "system-prompt"
   | "system-prompt-mode"
-  | "from";
+  | "from"
+  | "lang";
 
 const VALUE_OPTIONS: ReadonlySet<string> = new Set<ValueOption>([
   "profile",
@@ -186,6 +196,7 @@ const VALUE_OPTIONS: ReadonlySet<string> = new Set<ValueOption>([
   "system-prompt",
   "system-prompt-mode",
   "from",
+  "lang",
 ]);
 
 const FLAG_ALIASES: Readonly<Record<string, string>> = {
@@ -331,6 +342,9 @@ function applyValue(args: ParsedArgs, option: ValueOption, value: string): void 
     case "from":
       args.from = value;
       break;
+    case "lang":
+      args.lang = choice(option, value, LOCALES);
+      break;
   }
 }
 
@@ -364,6 +378,14 @@ function applyFlag(args: ParsedArgs, name: string): boolean {
         throw new UsageError("--trust 与 --no-trust 不能同时使用");
       }
       args.trust = value;
+      return true;
+    }
+    case "memory":
+    case "no-memory": {
+      const value = name === "memory";
+      if (args.memory !== undefined && args.memory !== value)
+        throw new UsageError(msg().cli.args.flagConflict("--memory", "--no-memory"));
+      args.memory = value;
       return true;
     }
     default:
@@ -408,9 +430,15 @@ function validate(args: ParsedArgs): void {
 
 /** 解析 argv（不含 node 与脚本路径）；用法错误抛 UsageError（退出码 2）。 */
 export function parseArgs(argv: readonly string[]): ParseResult {
-  const first = argv[0];
+  const lead = leadingLang(argv);
+  const first = argv[lead.next];
   if (first !== undefined && (SUBCOMMANDS as readonly string[]).includes(first)) {
-    return { kind: "subcommand", name: first as SubcommandName, argv: argv.slice(1) };
+    return {
+      kind: "subcommand",
+      name: first as SubcommandName,
+      argv: argv.slice(lead.next + 1),
+      ...(lead.lang !== undefined ? { lang: lead.lang } : {}),
+    };
   }
   const args = emptyArgs();
   for (let i = 0; i < argv.length; i++) {
@@ -466,6 +494,27 @@ export function parseArgs(argv: readonly string[]): ParseResult {
   if (args.positionals.length > 0) args.prompt = args.positionals.join(" ");
   if (!args.help && !args.version) validate(args);
   return { kind: "run", args };
+}
+
+/** [W6-C0] 子命令名之前的 `--lang X` / `--lang=X`（可重复，后者为准）。 */
+function leadingLang(argv: readonly string[]): { lang?: Locale; next: number } {
+  let lang: Locale | undefined;
+  let i = 0;
+  for (;;) {
+    const token = argv[i];
+    if (token === "--lang" && argv[i + 1] !== undefined) {
+      const value = argv[i + 1] as string;
+      lang = choice("lang", value, LOCALES);
+      i += 2;
+    } else if (token?.startsWith("--lang=") === true) {
+      lang = choice("lang", token.slice("--lang=".length), LOCALES);
+      i += 1;
+    } else break;
+  }
+  // 后面不是子命令时整段交回普通解析（--lang 照常进 ParsedArgs）
+  const next = argv[i];
+  if (next === undefined || !(SUBCOMMANDS as readonly string[]).includes(next)) return { next: 0 };
+  return lang === undefined ? { next: i } : { lang, next: i };
 }
 
 /** 子命令内部的小解析器：`--name value` / `--name=value` / 位置参数。 */

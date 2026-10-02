@@ -146,7 +146,7 @@ export class AcpDriver implements AgentDriver {
       const hint = stderrHint(transport);
       throw new AmaError(
         "agent_start_failed",
-        `${this.agentId}：ACP 启动失败（${(error as Error).message}）${hint !== "" ? `：${hint}` : ""}`,
+        `${this.agentId}: ACP failed to start (${(error as Error).message})${hint !== "" ? `: ${hint}` : ""}`,
         { cause: error },
       );
     }
@@ -223,8 +223,9 @@ class AcpDriverSession implements DriverSession {
   }
 
   async prompt(content: ContentBlock[], hooks: DriverPromptHooks): Promise<DriverTurnResult> {
-    if (this.closed) throw new AmaError("agent_closed", `${this.agentId} 会话已关闭`);
-    if (this.running !== undefined) throw new AmaError("busy", `${this.agentId} 正在运行`);
+    if (this.closed) throw new AmaError("agent_closed", `${this.agentId} session is closed`);
+    if (this.running !== undefined)
+      throw new AmaError("busy", `${this.agentId} is already running`);
     const turn = new TurnCollector((e) => hooks.onEvent(e));
     for (const text of this.notices.splice(0)) turn.push({ type: "notice", level: "info", text });
     this.hooks = hooks;
@@ -240,7 +241,7 @@ class AcpDriverSession implements DriverSession {
         const hint = stderrHint(this.transport);
         throw new AmaError(
           "agent_exited",
-          `${this.agentId} 进程已退出${hint !== "" ? `：${hint}` : ""}`,
+          `${this.agentId} process exited${hint !== "" ? `: ${hint}` : ""}`,
           {
             cause: error,
           },

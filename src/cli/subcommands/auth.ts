@@ -25,7 +25,12 @@ export const AUTH_USAGE = `用法：ama auth set <provider> [--auth-file <文件
       ama auth remove <provider> [--auth-file <文件>]
 `;
 
-const KIND_TEXT = { literal: "key", command: "!命令", "env-ref": "环境变量引用" } as const;
+const KIND_TEXT = {
+  literal: "key",
+  command: "!命令",
+  "env-ref": "环境变量引用",
+  oauth: "oauth", // [W6-C0] W6-O 补登录状态
+} as const;
 
 function providerArg(positionals: string[], action: string): string {
   const provider = positionals[1];

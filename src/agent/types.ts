@@ -62,6 +62,7 @@ import type {
 } from "../checkpoints/types.js";
 import type { ToolDefinition, ToolResult } from "../tools/types.js";
 import type { SessionEventW5, SessionStatsW5 } from "./types-w5.js";
+import type { SessionEventW6, SessionStatsW6 } from "./types-w6.js";
 
 export type * from "./types-w5.js";
 
@@ -335,7 +336,9 @@ export type SessionEvent =
       estimatedTurnsLeft?: number;
     }
   /** [W5-C0] 第五波事件（agent/types-w5.ts）。 */
-  | SessionEventW5;
+  | SessionEventW5
+  /** [W6-C0] 第六波事件（agent/types-w6.ts）。 */
+  | SessionEventW6;
 
 export type SessionEventType = SessionEvent["type"];
 
@@ -378,7 +381,7 @@ export interface SessionState {
 }
 
 /** [W5-C0] `telemetry? / external? / tasks?` 见 `SessionStatsW5`。 */
-export interface SessionStats extends SessionStatsW5 {
+export interface SessionStats extends SessionStatsW5, SessionStatsW6 {
   sessionId: string;
   sessionFile: string | undefined;
   userMessages: number;

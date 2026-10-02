@@ -200,6 +200,52 @@ export async function fitImage(
   };
 }
 
+/**
+ * [W6-C0] 读图失败的结构化说明：`AmaError.detail`。本模块属模型侧（不 import i18n），`message` 固定英文；
+ * 界面层（`modes/image-input.ts`）按 `reason` 渲染本地化文案。
+ */
+export type ImageFileErrorDetail =
+  | { reason: "missing" | "not_file" | "unsupported"; path: string }
+  | {
+      reason: "too_large";
+      path: string;
+      limitMb: string;
+      sizeMb: string;
+      hint?: ImageFitHint;
+    }
+  | {
+      reason: "too_wide";
+      path: string;
+      maxEdge: number;
+      size?: ImageSize;
+      hint?: ImageFitHint;
+    };
+
+/** 超限时为什么没缩放：配置关闭 / 没有缩放工具 / 缩放后仍超限。 */
+export type ImageFitHint = "resize_off" | "no_tool" | "still_too_large";
+
+const HINT_TEXT: Record<ImageFitHint, string> = {
+  resize_off: " (images.resize is off)",
+  no_tool: " (no resize tool found: install ImageMagick, or sips on macOS)",
+  still_too_large: " (resizing did not bring it under the limit)",
+};
+
+function imageError(message: string, detail: ImageFileErrorDetail): AmaError {
+  return new AmaError("invalid_arguments", message, { detail });
+}
+
+/** `AmaError.detail` 是否是读图失败的说明。 */
+export function isImageFileErrorDetail(detail: unknown): detail is ImageFileErrorDetail {
+  return (
+    typeof detail === "object" &&
+    detail !== null &&
+    typeof (detail as { path?: unknown }).path === "string" &&
+    ["missing", "not_file", "unsupported", "too_large", "too_wide"].includes(
+      String((detail as { reason?: unknown }).reason),
+    )
+  );
+}
+
 function fitError(
   path: string,
   fit: Extract<ImageFit, { ok: false }>,
@@ -207,28 +253,38 @@ function fitError(
   bytes: number,
   resizeOff: boolean,
 ): AmaError {
-  const hint = resizeOff
-    ? "（images.resize 为 off）"
+  const hint: ImageFitHint | undefined = resizeOff
+    ? "resize_off"
     : fit.note.includes("no resize tool")
-      ? "（没找到缩放工具：装 ImageMagick，macOS 自带 sips）"
+      ? "no_tool"
       : fit.note.includes("resizing did not")
-        ? "（缩放后仍超限）"
-        : "";
+        ? "still_too_large"
+        : undefined;
+  const hintText = hint === undefined ? "" : HINT_TEXT[hint];
   if (fit.reason === "too_wide") {
-    const dims = fit.size !== undefined ? `（${fit.size.width}×${fit.size.height}）` : "";
-    return new AmaError(
-      "invalid_arguments",
-      `图片任一边超过 ${MAX_IMAGE_EDGE} px：${path}${dims}${hint}`,
-    );
+    const dims = fit.size !== undefined ? ` (${fit.size.width}x${fit.size.height})` : "";
+    return imageError(`Image edge exceeds ${MAX_IMAGE_EDGE} px: ${path}${dims}${hintText}`, {
+      reason: "too_wide",
+      path,
+      maxEdge: MAX_IMAGE_EDGE,
+      ...(fit.size !== undefined ? { size: fit.size } : {}),
+      ...(hint !== undefined ? { hint } : {}),
+    });
   }
-  return new AmaError(
-    "invalid_arguments",
-    `图片超过 ${formatMb(limit)} 上限（按 base64 后计算）：${path}（${formatMb(base64Size(bytes))}）${hint}`,
-  );
+  const limitMb = formatMb(limit);
+  const sizeMb = formatMb(base64Size(bytes));
+  return imageError(`Image exceeds the ${limitMb} limit (base64): ${path} (${sizeMb})${hintText}`, {
+    reason: "too_large",
+    path,
+    limitMb,
+    sizeMb,
+    ...(hint !== undefined ? { hint } : {}),
+  });
 }
 
 /**
- * 读一张图片作为附件。文件不存在、不是图片、超过上限 → AmaError（`invalid_arguments`），文案给用户看。
+ * 读一张图片作为附件。文件不存在、不是图片、超过上限 → AmaError（`invalid_arguments`，英文 message，
+ * `detail` 为 `ImageFileErrorDetail`，界面层据此本地化）。
  */
 export async function loadImageFile(
   path: string,
@@ -238,19 +294,27 @@ export async function loadImageFile(
   try {
     info = await stat(path);
   } catch {
-    throw new AmaError("invalid_arguments", `图片不存在：${path}`);
+    throw imageError(`Image not found: ${path}`, { reason: "missing", path });
   }
-  if (!info.isFile()) throw new AmaError("invalid_arguments", `不是文件：${path}`);
+  if (!info.isFile()) throw imageError(`Not a file: ${path}`, { reason: "not_file", path });
   const limit = options.maxBase64Bytes ?? DEFAULT_IMAGE_BASE64_LIMIT;
-  if (info.size > MAX_IMAGE_FILE_BYTES)
-    throw new AmaError(
-      "invalid_arguments",
-      `图片超过 ${formatMb(limit)} 上限（按 base64 后计算）：${path}（${formatMb(base64Size(info.size))}）`,
-    );
+  if (info.size > MAX_IMAGE_FILE_BYTES) {
+    const limitMb = formatMb(limit);
+    const sizeMb = formatMb(base64Size(info.size));
+    throw imageError(`Image exceeds the ${limitMb} limit (base64): ${path} (${sizeMb})`, {
+      reason: "too_large",
+      path,
+      limitMb,
+      sizeMb,
+    });
+  }
   const buf = await readFile(path);
   const mimeType = sniffImageMime(buf) ?? imageMimeFromPath(path);
   if (mimeType === undefined)
-    throw new AmaError("invalid_arguments", `不是支持的图片（PNG / JPEG / GIF / WebP）：${path}`);
+    throw imageError(`Unsupported image (PNG / JPEG / GIF / WebP): ${path}`, {
+      reason: "unsupported",
+      path,
+    });
   const fit = await fitImage(buf, mimeType, options, path);
   if (!fit.ok) throw fitError(path, fit, limit, buf.length, options.resize === "off");
   return {

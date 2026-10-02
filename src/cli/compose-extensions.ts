@@ -21,6 +21,7 @@
 
 import type { SessionExtensionFactory } from "../agent/session-extensions.js";
 import { telemetryFactory } from "../agent/session-telemetry.js";
+import { traceWriterFactory } from "../agent/session-trace-writer.js";
 import { createImageBudgetExtension } from "../agent/session-images.js";
 import { createLimitsExtension } from "../agent/limits.js";
 import { createRemindersExtension, remindersSettings } from "../agent/reminders.js";
@@ -48,6 +49,7 @@ export function composeExtensions(deps: ComposeExtensionDeps): SessionExtensionF
     ({ core }) => createImageBudgetExtension(core),
     // [W5-A]  createTelemetryExtension(...)
     telemetryFactory(deps.assembly.config.ui),
+    traceWriterFactory(), // [W6-C0] ama.trace（主会话与子会话都写）
     // [W5-E] 外部 Agent 记账 → SessionStats.external（只主会话）
     ({ core }) =>
       core.depth > 0 ? undefined : createExternalStatsExtension(() => core.manager.branch()),

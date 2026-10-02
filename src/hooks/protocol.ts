@@ -108,6 +108,11 @@ function describe(result: HookRunResult): string {
   return `Hook ${result.event}「${result.command}」`;
 }
 
+/** [W6-C0] 回给模型的阻止理由固定英文（警告仍给人看）。 */
+function describeForModel(result: HookRunResult): string {
+  return `Hook ${result.event} "${result.command}"`;
+}
+
 function normalizeDecision(event: HookEvent, decision: HookDecision): HookDecision | undefined {
   const accepted = ACCEPTED[event];
   if (accepted.includes(decision)) return decision;
@@ -121,12 +126,17 @@ export function interpretResult(result: HookRunResult): Interpreted {
   if (result.timedOut) {
     const message = `${describe(result)} 超时（${result.durationMs} ms）`;
     if (event === "PreToolUse")
-      return { decision: "deny", reason: message, warning: message, useOutput: false };
+      return {
+        decision: "deny",
+        reason: `${describeForModel(result)} timed out (${result.durationMs} ms)`,
+        warning: message,
+        useOutput: false,
+      };
     return { warning: message, useOutput: false };
   }
   if (result.exitCode === 2) {
     const decision = blockingDecision(event);
-    const reason = result.stderr.trim() || `${describe(result)} 以退出码 2 阻止`;
+    const reason = result.stderr.trim() || `${describeForModel(result)} blocked with exit code 2`;
     if (decision === undefined) return { useOutput: false };
     return { decision, reason, useOutput: false };
   }

@@ -267,7 +267,7 @@ describe("工具执行", () => {
     const result = h.session.messages.find((m) => m.role === "toolResult");
     const text = result?.role === "toolResult" ? String(result.content) : "";
     expect(text).toMatch(
-      /\[… 400 字符已省略（输出过长已截断：共 500 字符，全文 .*outputs.*cbig\.txt）\]/,
+      /\[… 400 chars omitted \(truncated from 500 chars; full output at .*outputs.*cbig\.txt\)\]/,
     );
     expect(text.startsWith("a".repeat(70))).toBe(true);
     expect(text.endsWith("z".repeat(30))).toBe(true);

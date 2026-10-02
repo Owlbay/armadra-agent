@@ -1,7 +1,7 @@
 {"id":"c","type":"response","command":"set_client_capabilities","success":true,"data":{"capabilities":["approvals"]}}
 {"id":"p","type":"response","command":"prompt","success":true,"data":{"disposition":"started"}}
 {"type":"tool_execution_start","toolCallId":"fake_call_0","toolName":"task","args":{"prompt":"run it","agent":"acp:ama","description":"child"}}
-{"type":"permission_request","requestId":"<uuid>","toolName":"task","input":{"prompt":"run it","agent":"acp:ama","description":"child"},"reason":"mode","timeoutMs":600000,"preview":{"kind":"other","lines":["child"],"severity":"info"}}
+{"type":"permission_request","requestId":"<uuid>","toolName":"task","input":{"prompt":"run it","agent":"acp:ama","description":"child"},"reason":"mode","timeoutMs":600000,"preview":{"kind":"other","lines":["child"],"severity":"info"},"context":{"toolCallId":"fake_call_0"}}
 {"type":"response","command":"permission_response","success":true,"data":{"accepted":true}}
 {"type":"permission_resolved","requestId":"<uuid>","decision":"allow"}
 {"type":"permission_request","requestId":"<uuid>","toolName":"task","input":{"agent":"acp:ama","mode":"default","note":"Runs ACP agent ama with your existing login in that CLI (mode default)."},"reason":"mode","timeoutMs":600000,"context":{"taskId":"t1"}}
@@ -16,5 +16,5 @@
 {"type":"permission_resolved","requestId":"<uuid>","decision":"allow"}
 {"type":"subagent_update","taskId":"t1","kind":"text","textDelta":"child ran it","turn":1}
 {"type":"subagent_end","taskId":"t1","status":"completed","usage":"<usage>"}
-{"type":"tool_execution_end","toolCallId":"fake_call_0","toolName":"task","result":{"content":"[task t1] child ran it\n\n工具调用：\n- ✓ execute bash: echo from-child","isError":false,"details":{"taskId":"t1","status":"completed","usage":"<usage>","stopReason":"end_turn"}},"isError":false}
+{"type":"tool_execution_end","toolCallId":"fake_call_0","toolName":"task","result":{"content":"[task t1] child ran it\n\nTool calls:\n- ✓ execute bash: echo from-child","isError":false,"details":{"taskId":"t1","status":"completed","usage":"<usage>","stopReason":"end_turn"}},"isError":false}
 {"type":"agent_settled"}

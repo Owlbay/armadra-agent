@@ -23,6 +23,8 @@ export const SECTION_ORDER = [
   "rules",
   "project_context",
   "skills",
+  // [W6-C0] 记忆索引（W6-M，docs/wave6-plan.md §3.4）；未开启时为 undefined，字节不变
+  "memory",
   "hooks",
   "cwd",
   "host",
@@ -50,6 +52,8 @@ export interface SystemPromptInput {
   hostInstructions?: readonly string[];
   /** [W5-G] task 子会话的角色说明（子 Agent 通用说明 + 类型正文）；主会话没有。 */
   role?: string;
+  /** [W6-C0] 预渲染的 `<memory_index>` 节（W6-M 的 memory/section.ts）；未开启记忆时不给。 */
+  memory?: string;
 }
 
 function firstLine(text: string): string {
@@ -102,6 +106,7 @@ export function assembleSections(
     rules: rules.length > 0 ? `Rules:\n${rules.map((rule) => `- ${rule}`).join("\n")}` : undefined,
     project_context: nonEmpty(projectContext),
     skills: nonEmpty(skills),
+    memory: nonEmpty(input.memory),
     hooks: nonEmpty(input.hookContext),
     cwd: `Current working directory: ${input.cwd}`,
     host: host.length > 0 ? host.join("\n\n") : undefined,

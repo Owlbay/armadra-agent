@@ -30,6 +30,7 @@ import {
   trustGatedResources,
 } from "./trust.js";
 import type { AmaConfig } from "./types.js";
+import { apiKeyEntry } from "./types-w6.js";
 
 const posix = process.platform !== "win32";
 
@@ -332,7 +333,7 @@ describe("auth.json", () => {
       setAuthKey(path, "deepseek", "!pass show ds");
       if (posix) expect(statSync(path).mode & 0o777).toBe(0o600);
       const read = readAuthFile(path);
-      expect(read.file.providers["anthropic"]?.apiKey).toBe("sk-secret");
+      expect(apiKeyEntry(read.file.providers["anthropic"])?.apiKey).toBe("sk-secret");
       const summary = describeAuthFile(read.file);
       expect(summary.map((s) => `${s.provider}:${s.kind}`)).toEqual([
         "anthropic:literal",
@@ -353,7 +354,7 @@ describe("auth.json", () => {
         0o644,
       );
       const read = readAuthFile(path);
-      expect(read.file.providers["a"]?.apiKey).toBe("k");
+      expect(apiKeyEntry(read.file.providers["a"])?.apiKey).toBe("k");
       expect(read.warnings.join()).toMatch(/0600/);
     });
   });

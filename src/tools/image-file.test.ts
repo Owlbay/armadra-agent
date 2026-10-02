@@ -51,16 +51,23 @@ describe("image-file", () => {
     expect((await loadImageFile(join(d, "fake.png"))).mimeType).toBe("image/jpeg");
   });
 
-  it("loadImageFile：不存在、不是图片、超过上限 → 清楚的错误", async () => {
+  it("loadImageFile：不存在、不是图片、超过上限 → 清楚的错误（英文 message + 结构化 detail，界面层本地化）", async () => {
     const d = dir();
-    await expect(loadImageFile(join(d, "none.png"))).rejects.toThrow(/图片不存在/);
+    await expect(loadImageFile(join(d, "none.png"))).rejects.toMatchObject({
+      message: expect.stringMatching(/Image not found/),
+      detail: { reason: "missing", path: join(d, "none.png") },
+    });
     writeFileSync(join(d, "notes.bin"), "hello");
-    await expect(loadImageFile(join(d, "notes.bin"))).rejects.toThrow(/不是支持的图片/);
+    await expect(loadImageFile(join(d, "notes.bin"))).rejects.toMatchObject({
+      message: expect.stringMatching(/Unsupported image/),
+      detail: { reason: "unsupported" },
+    });
     // 原始 4 MB → base64 后约 5.3 MB：按 base64 计超过缺省 5 MB
     writeFileSync(join(d, "big.png"), Buffer.concat([PNG, Buffer.alloc(4 * MB)]));
-    await expect(loadImageFile(join(d, "big.png"), { resize: "off" })).rejects.toThrow(
-      /超过 5 MB 上限（按 base64.*images\.resize 为 off/,
-    );
+    await expect(loadImageFile(join(d, "big.png"), { resize: "off" })).rejects.toMatchObject({
+      message: expect.stringMatching(/exceeds the 5 MB limit \(base64\).*images\.resize is off/),
+      detail: { reason: "too_large", limitMb: "5 MB", hint: "resize_off" },
+    });
     // 官方 Anthropic 的 10 MB 档放行
     await expect(
       loadImageFile(join(d, "big.png"), { maxBase64Bytes: 10 * MB }),

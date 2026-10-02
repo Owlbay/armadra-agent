@@ -85,7 +85,7 @@ export class OneshotDriver implements AgentDriver {
     if (!isReadOnlyMode(options.mode))
       throw new AmaError(
         "agent_mode_unsupported",
-        `${this.agentId} 只有一次性打印模式可用，它不能审批，只能用于只读（plan）任务`,
+        `${this.agentId} only has a one-shot print mode, which cannot ask for approval; use it for read-only (plan) tasks only`,
       );
     const probed = await probeCandidate(this.candidate, this.deps);
     const dialect = this.candidate.oneshot ?? "claude";
@@ -122,8 +122,9 @@ class OneshotSession implements DriverSession {
   }
 
   async prompt(content: ContentBlock[], hooks: DriverPromptHooks): Promise<DriverTurnResult> {
-    if (this.closed) throw new AmaError("agent_closed", `${this.agentId} 会话已关闭`);
-    if (this.transport !== undefined) throw new AmaError("busy", `${this.agentId} 正在运行`);
+    if (this.closed) throw new AmaError("agent_closed", `${this.agentId} session is closed`);
+    if (this.transport !== undefined)
+      throw new AmaError("busy", `${this.agentId} is already running`);
     const turn = new TurnCollector((e) => hooks.onEvent(e));
     const text = content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
     if (content.some((b) => b.type === "image"))
@@ -171,7 +172,7 @@ class OneshotSession implements DriverSession {
       if (failure !== undefined || code !== 0)
         throw new AmaError(
           "agent_failed",
-          `${this.agentId} 失败：${oneLine(failure ?? (stderrHint(transport) || `退出码 ${String(code)}`), 300)}`,
+          `${this.agentId} failed: ${oneLine(failure ?? (stderrHint(transport) || `exit code ${String(code)}`), 300)}`,
         );
       this.resumable = this.dialect !== "gemini" && this.id !== "";
       return turn.result("end_turn");
@@ -201,7 +202,7 @@ class OneshotSession implements DriverSession {
       if (this.interrupted) return turn.result("cancelled");
       throw new AmaError(
         "agent_failed",
-        `${this.agentId} 没有输出结果（退出码 ${String(code)}）：${stderrHint(transport)}`,
+        `${this.agentId} produced no result (exit code ${String(code)}): ${stderrHint(transport)}`,
       );
     }
     if (typeof result.session_id === "string") this.id = result.session_id;
@@ -219,7 +220,7 @@ class OneshotSession implements DriverSession {
     if (stop === undefined)
       throw new AmaError(
         "agent_failed",
-        `${this.agentId} 失败：${oneLine(result.result ?? result.subtype ?? "", 300)}`,
+        `${this.agentId} failed: ${oneLine(result.result ?? result.subtype ?? "", 300)}`,
       );
     return turn.result(stop);
   }

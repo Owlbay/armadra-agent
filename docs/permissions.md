@@ -87,7 +87,7 @@ schema 校验
       default / auto-edit / full-auto：同以前的模式真值表
         [default / auto-edit] 模式要询问的 bash：allow 规则 / Hook allow / 会话记忆之外，
         沙箱内免审批（见下）→ 放行；Hook ask 仍把结论改回询问
-      allowlist：只读工具、只读命令、task 放行，其余拒绝（不在允许名单）
+      allowlist：只读工具、只读命令、task 放行，其余拒绝（Not in the allowlist）
       auto：[沙箱生效时] 请求 sandbox:false 越出沙箱 → 询问（allow 规则 / Hook allow / 会话记忆之后）
             静态判定（不调模型）→ 放行；未决定 → ③
    ③ [auto] 模型分类器（沙箱内的 bash 附 os_sandbox 输入）：allow → 放行；ask / 出错 / 超时 → 询问
@@ -95,7 +95,7 @@ schema 校验
 ```
 
 - 后面的步骤不能放宽前面的结论：allow 规则越不过危险命令和 auto 的规则层，分类器只能处理①②都没决定的调用。
-- `allowlist` 从不询问：凡是会询问的（危险命令、Hook ask）一律拒绝，拒绝说明写「不在允许名单」。
+- `allowlist` 从不询问：凡是会询问的（危险命令、Hook ask）一律拒绝，拒绝说明写 `Not in the allowlist`（回给模型的文本固定英文）。
 - 无人值守（`-p`、RPC 未接审批）时，询问一律按拒绝；auto 模式下分类器仍会先跑，判 allow 的照样执行。
 
 ### 沙箱内命令免审批

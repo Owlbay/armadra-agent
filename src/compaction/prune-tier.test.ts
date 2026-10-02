@@ -83,7 +83,7 @@ describe("档一 planPrune（C1 / C2）", () => {
     expect(plan.items.at(-1)?.toolCallId).toBe("c39");
     expect(plan.savedTokens).toBe(plan.availableTokens);
     expect(plan.items[0]?.replacement).toMatch(
-      /^\[已裁剪：read 的结果原有 8000 字节，全文不可用\]$/,
+      /^\[pruned: read result was 8000 bytes; full text unavailable\]$/,
     );
   });
 
@@ -138,7 +138,7 @@ describe("档一 planPrune（C1 / C2）", () => {
     };
     const plan = planPrune(buildProjection(m.branch()).items, opts);
     expect(plan.items.map((p) => p.targetId)).toEqual([big.id]);
-    expect(plan.items[0]?.replacement).toMatch(/^\[已裁剪.*全文 .*big\.txt\]$/);
+    expect(plan.items[0]?.replacement).toMatch(/^\[pruned: .*full text at .*big\.txt\]$/);
     expect(readFileSync(plan.items[0]?.fullTextPath as string, "utf8")).toHaveLength(5000);
     for (const item of plan.items)
       m.append({

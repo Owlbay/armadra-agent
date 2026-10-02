@@ -107,10 +107,26 @@ const SOURCE: Readonly<Record<string, string>> = {
 
 /** 类型一行的状态：外部 Agent 写安装与版本。 */
 export function agentFacts(agent: AgentInfo): string[] {
-  const facts = [agent.runner, SOURCE[agent.source] ?? agent.source];
-  if (agent.installed === false) facts.push("未安装");
+  return agentFactItems(agent).map((fact) => fact.text);
+}
+
+/** [W6-C0] 带状态的事实项：界面按 `state` 上色，不按文案判断（文案会随界面语言变）。 */
+export interface AgentFact {
+  text: string;
+  state?: "missing" | "installed";
+}
+
+export function agentFactItems(agent: AgentInfo): AgentFact[] {
+  const facts: AgentFact[] = [
+    { text: agent.runner },
+    { text: SOURCE[agent.source] ?? agent.source },
+  ];
+  if (agent.installed === false) facts.push({ text: "未安装", state: "missing" });
   else if (agent.installed === true)
-    facts.push(agent.version !== undefined ? `已安装 ${agent.version}` : "已安装");
+    facts.push({
+      text: agent.version !== undefined ? `已安装 ${agent.version}` : "已安装",
+      state: "installed",
+    });
   return facts;
 }
 

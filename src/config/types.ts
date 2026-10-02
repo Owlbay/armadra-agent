@@ -23,8 +23,19 @@ import type {
 import type { PermissionMode } from "../permissions/types.js";
 import type { CheckpointMode } from "../checkpoints/types.js";
 import type { AmaConfigW5, PruneConfig, StatusLineMode } from "./types-w5.js";
+import type { AmaConfigW6, AuthFileEntry, ProfileMemoryOptions, UiConfigW6 } from "./types-w6.js";
 
 export type * from "./types-w5.js";
+export type * from "./types-w6.js";
+export {
+  AGENT_BAR_MODES,
+  CHATGPT_FLAVORS,
+  LANGUAGE_SETTINGS,
+  MEMORY_SCOPES,
+  MEMORY_SUBAGENT_MODES,
+  apiKeyEntry,
+  isOAuthEntry,
+} from "./types-w6.js";
 export {
   AGENTS_RESERVED_KEYS,
   IMAGE_RESIZE_MODES,
@@ -183,7 +194,7 @@ export interface HooksSettings {
   timeoutMs?: number;
 }
 
-export interface UiConfig {
+export interface UiConfig extends UiConfigW6 {
   /** auto 按 `COLORFGBG` / `TERM_PROGRAM` 猜（不发查询序列），猜不出用 dark。 */
   theme?: "dark" | "light" | "auto";
   markdown?: boolean;
@@ -283,7 +294,7 @@ export interface SandboxConfig {
 }
 
 /** config.json（用户级 / 项目级 / profile.config 同形状；项目级只接受受限字段，§10.2）。 */
-export interface AmaConfig extends AmaConfigW5 {
+export interface AmaConfig extends AmaConfigW5, AmaConfigW6 {
   version: typeof CONFIG_FILE_VERSION;
   /** `provider/model-id`。 */
   defaultModel?: string;
@@ -303,10 +314,10 @@ export interface AmaConfig extends AmaConfigW5 {
   sandbox?: SandboxConfig;
 }
 
-/** auth.json（0600）。 */
+/** auth.json（0600）。[W6-C0] 条目可以是 API key 或 OAuth（`isOAuthEntry` / `apiKeyEntry` 区分）。 */
 export interface AuthFile {
   version: typeof CONFIG_FILE_VERSION;
-  providers: Record<string, { apiKey: string; env?: Record<string, string>; baseUrl?: string }>;
+  providers: Record<string, AuthFileEntry>;
 }
 
 /** profile.json（宿主用，§10.3；与 Armadra 文档 B §2.4 一致）；路径必须是绝对路径，不含密钥。 */
@@ -325,6 +336,10 @@ export interface ProfileFile {
   sessionDir?: string;
   config?: string;
   trustProject?: boolean;
+  /** [W6-C0] 宿主界面语言（跟随画布）；优先于配置的 `ui.language`，`AMA_LANG` / `--lang` 仍更优先。 */
+  language?: "zh" | "en";
+  /** [W6-C0] 记忆（W6-M）：缺省禁用；`enabled: true` 时 `dir` 必填（按工作空间隔离的绝对路径）。 */
+  memory?: ProfileMemoryOptions;
 }
 
 export interface TrustEntry {

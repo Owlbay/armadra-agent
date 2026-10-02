@@ -13,7 +13,8 @@ export const TOOL_RESULT_SERIALIZE_LIMIT = 2000;
 
 function truncate(text: string, limit: number): string {
   if (text.length <= limit) return text;
-  return `${text.slice(0, limit)}… [截断，原 ${text.length} 字符]`;
+  // [W6-C0] 送摘要模型的文本，固定英文
+  return `${text.slice(0, limit)}… [truncated; ${text.length} chars originally]`;
 }
 
 function formatArgs(args: Record<string, unknown>): string {

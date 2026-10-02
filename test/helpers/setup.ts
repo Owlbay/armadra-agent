@@ -7,6 +7,8 @@
  *   候选名），测试不会意外用到开发者本机的真 key。
  * - `AMA_NO_INIT=1`：CLI 不自动初始化配置目录（`AMA_CONFIG_DIR` 指向的目录此时还不存在）。
  * - `AMA_NO_AGENT_PROBE=1`：外部 Agent 不按本机 PATH 登记、不探测版本（W5-EG）。
+ * - [W6-C0] 界面语言钉在 zh（`AMA_LANG=zh` 让子进程与按 env 解析的入口也是 zh，再 `setLocale("zh")`）：
+ *   迁移批次的验收是现有 zh 黄金与断言字节不变；en 用例自己 `setLocale("en")` 或传 `AMA_LANG=en`，用完复原。
  * - 清掉 `AMA_LOG` / `AMA_LOG_FILE` / `AMA_SHELL` 与 `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`
  *   （内置供应商据此改 baseUrl，W3-B12），避免本机设置影响断言。
  * - **泄漏护栏**：测试给 bootstrap / createRuntimeDeps 传显式 `env` 时不经过上面的 process.env，
@@ -20,6 +22,7 @@ import { existsSync, mkdtempSync, readdirSync, realpathSync, rmSync } from "node
 import { tmpdir, userInfo } from "node:os";
 import { join } from "node:path";
 import { afterAll } from "vitest";
+import { setLocale } from "../../src/i18n/index.js";
 import { sessionDirForCwd } from "../../src/session/store.js";
 import { isApiKeyVar } from "./tmp-home.js";
 
@@ -45,6 +48,9 @@ process.env["AMA_NO_INIT"] = "1";
 // [W5-EG] 不按本机 PATH 登记 claude / codex 进 task 描述、不探测版本（结果随机器变化）；
 // 外部 Agent 的用例显式注入 spawn / env。
 process.env["AMA_NO_AGENT_PROBE"] = "1";
+// [W6-C0] 测试缺省钉 zh（docs/wave6-plan.md D20）
+process.env["AMA_LANG"] = "zh";
+setLocale("zh");
 
 const realHome = userInfo().homedir;
 const REAL_ROOTS = [join(realHome, ".local", "share", "ama"), join(realHome, ".config", "ama")];

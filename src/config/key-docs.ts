@@ -23,7 +23,19 @@ const IMPLICIT_DEFAULTS: Partial<AmaConfig> = {
   codemode: { inlineBudget: DEFAULT_INLINE_BUDGET, requireStrict: false },
   cache: { ...DEFAULT_CACHE_CONFIG },
   request: { idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS },
-  ui: { compact: false, animation: true, restoreOnCancel: true },
+  ui: { compact: false, animation: true, restoreOnCancel: true, language: "auto" },
+  // [W6-C0] 第六波键的缺省（行为由各批次实现）
+  memory: {
+    enabled: false,
+    scopes: ["user", "project"],
+    indexMaxBytes: 4096,
+    fileMaxBytes: 16384,
+    maxFiles: 200,
+    subagents: "read",
+  },
+  auth: {
+    chatgpt: { flavor: "siwc", issuer: "https://auth.openai.com", originator: "codex_cli_rs" },
+  },
   checkpoints: { ...DEFAULT_CHECKPOINTS_CONFIG },
   sandbox: { enabled: "auto", bash: "off", network: "deny", writable: [] },
   // [W5-C0] 第五波键的缺省（行为由各批次实现）
@@ -60,6 +72,12 @@ export const DYNAMIC_DEFAULTS: Readonly<Record<string, string>> = Object.freeze(
   fallbackModel: "不设：不回退",
   "limits.maxTurns": "不设：不限",
   "limits.maxCostUsd": "不设：不限",
+  // [W6-C0]
+  "ui.replyLanguage": "不设：不追加回复语言规则（零字节变化）",
+  "ui.agentBar": "独立终端 auto，嵌入宿主（有 profile）off",
+  "auth.chatgpt.clientId":
+    "siwc 首次登录动态注册；codex 用公开客户端 id（AMA_CHATGPT_CLIENT_ID 覆盖）",
+  "auth.chatgpt.redirectPorts": "siwc 1455 → 任意空闲端口；codex 1455 → 1457",
 });
 
 /** 键路径 → 说明（段落本身也有一条）。 */
@@ -121,6 +139,28 @@ export const CONFIG_KEY_DOCS: Readonly<Record<string, string>> = Object.freeze({
     "运行中 Esc 中断、本回合还没有任何回复或工具调用时，撤回该回合并把原消息放回输入框",
   "ui.statusLine":
     "底部信息行：full 两行（速率行 + 状态行），compact 一行；运行时 Ctrl+G 或 /statusline 切换（第五波 W5-A 起生效）",
+  "ui.language":
+    "界面语言：auto 按 LC_ALL / LC_MESSAGES / LANG 判断（zh* 为中文，其余英文），zh，en；AMA_LANG、--lang 覆盖；只影响界面，发给模型的文本固定英文",
+  "ui.replyLanguage":
+    "模型回复语言（如 Chinese）：会话开始在 rules 节末尾追加一句英文规则；不设时零字节变化；只认用户级（第六波起生效）",
+  "ui.agentBar":
+    "Agent 栏（状态行上方的子 Agent 列表）：auto 有任务时显示，off 不显示；Ctrl+B / 空输入时 ↓ 进入（第六波 W6-A 起生效）",
+  memory:
+    "跨会话记忆（docs/memory.md）：缺省关闭，关闭时请求逐字节不变；项目级只能设 enabled: false（第六波 W6-M 起生效）",
+  "memory.enabled": "总开关；--memory / --no-memory、AMA_MEMORY=0|1 覆盖",
+  "memory.scopes": "启用的作用域：user（数据目录，跨项目）、project（按仓库路径哈希）",
+  "memory.indexMaxBytes": "每作用域索引进系统提示的上限（字节），超出按更新时间截断",
+  "memory.fileMaxBytes": "单条记忆上限（字节），超出拒写",
+  "memory.maxFiles": "每作用域条目上限",
+  "memory.subagents": "子 Agent：read 只读（写命令拒绝），off 连 view 也拒绝",
+  auth: "订阅登录设置（不含密钥，凭据在 auth.json）；只认用户级 / profile（第六波 W6-O 起生效）",
+  "auth.chatgpt": "ChatGPT 登录（ama auth login chatgpt）",
+  "auth.chatgpt.flavor":
+    "siwc：OpenAI 官方 Sign in with ChatGPT（缺省）；codex：借用 Codex 公开客户端（非官方、需显式开启）",
+  "auth.chatgpt.clientId": "OAuth 客户端 id",
+  "auth.chatgpt.issuer": "授权服务器（测试用 AMA_CHATGPT_ISSUER 覆盖）",
+  "auth.chatgpt.originator": "codex flavor 的 originator 请求头",
+  "auth.chatgpt.redirectPorts": "本地回调端口，依次尝试；0 = 任意空闲端口",
   skills: "Skill",
   "skills.dirs": "追加的 Skill 目录；各层累加",
   cache: "提示缓存；整段只认用户级",

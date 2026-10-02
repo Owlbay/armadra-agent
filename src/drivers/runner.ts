@@ -37,6 +37,7 @@ import type {
   DriverSession,
   DriverTurnResult,
 } from "./types.js";
+import type { TraceExternalTool } from "../trace/types.js";
 
 export const RUN_TIMEOUT_MS = 30 * 60 * 1000;
 export const IDLE_CLOSE_MS = 10 * 60 * 1000;
@@ -60,6 +61,8 @@ export interface ProcessRunnerDeps {
   timeoutMs?: number;
   idleMs?: number;
   setTimer?(fn: () => void, ms: number): () => void;
+  /** [W6-C0] 轨迹计时的时钟（测试注入）；缺省 Date.now。 */
+  now?(): number;
   log?(level: "debug" | "info" | "warn", message: string): void;
 }
 
@@ -95,13 +98,13 @@ function statusOf(turn: DriverTurnResult, timedOut: boolean, stopped: boolean): 
   }
 }
 
-/** 最终报告：最终文本 + 工具摘要 / 触及文件（给协调者当资料，不是指令）。 */
+/** 最终报告：最终文本 + 工具摘要 / 触及文件（给协调者当资料，不是指令；[W6-C0] 标题固定英文）。 */
 export function reportText(turn: DriverTurnResult): string {
   const parts = [turn.finalText.trim()];
   if (turn.toolSummary.length > 0)
-    parts.push(`工具调用：\n${turn.toolSummary.map((l) => `- ${l}`).join("\n")}`);
+    parts.push(`Tool calls:\n${turn.toolSummary.map((l) => `- ${l}`).join("\n")}`);
   if (turn.filesTouched.length > 0)
-    parts.push(`修改的文件：\n${turn.filesTouched.map((f) => `- ${f}`).join("\n")}`);
+    parts.push(`Files changed:\n${turn.filesTouched.map((f) => `- ${f}`).join("\n")}`);
   return parts.filter((p) => p !== "").join("\n\n");
 }
 
@@ -150,12 +153,12 @@ export class ProcessRunner implements SubagentRunner {
     for (const driver of this.drivers) {
       const probe = await driver.probe();
       if (!probe.installed) {
-        reasons.push(`${driver.kind} 未安装`);
+        reasons.push(`${driver.kind} is not installed`);
         continue;
       }
       const usable = supportedMode(mode, probe.capabilities.modes);
       if (usable === undefined) {
-        reasons.push(`${driver.kind} 不支持「${mode}」`);
+        reasons.push(`${driver.kind} does not support "${mode}"`);
         continue;
       }
       const warning = (probe as { warning?: string }).warning;
@@ -168,7 +171,7 @@ export class ProcessRunner implements SubagentRunner {
     }
     throw new AmaError(
       "agent_unavailable",
-      `外部 Agent ${this.id} 不可用（${reasons.join("；")}）`,
+      `external agent ${this.id} is unavailable (${reasons.join("; ")})`,
     );
   }
 
@@ -176,11 +179,14 @@ export class ProcessRunner implements SubagentRunner {
     if (!this.deps.trusted(request.cwd))
       throw new AmaError(
         "agent_untrusted",
-        `目录 ${request.cwd} 尚未被 ama 信任，不能在这里启动外部 Agent（它会执行项目里的 hooks 与配置）；先运行 ama trust`,
+        `${request.cwd} is not trusted by ama, so external agents cannot start here (they run the project's hooks and config); run ama trust there first`,
       );
     const budget = this.deps.config?.sessionBudgetUsd;
     if (budget !== undefined && (this.deps.store?.totalUsd() ?? 0) >= budget)
-      throw new AmaError("budget_exhausted", `本会话外部 Agent 预算 $${budget} 已用尽`);
+      throw new AmaError(
+        "budget_exhausted",
+        `external agent budget for this session ($${budget}) is used up`,
+      );
     const entry = agentEntry(this.deps.config, this.agentId);
     const mode = clampMode(request.mode, this.deps.parentMode?.(), entry?.maxMode);
     const chosen = await this.choose(mode);
@@ -208,13 +214,15 @@ interface HandleDeps extends ProcessRunnerDeps {
 class ProcessHandle implements RunnerHandle {
   private session: DriverSession | undefined;
   private sessionId = "";
-  private chain: Promise<SubagentResult> = Promise.resolve(failed("尚未运行", "", ""));
+  private chain: Promise<SubagentResult> = Promise.resolve(failed("not started", "", ""));
   private busy = false;
   private turns = 0;
   private stopped = false;
   private readonly lifetime = new AbortController();
   private clearIdle: (() => void) | undefined;
   private readonly agent: string;
+  /** [W6-C0] 本回合工具的骨架（id → 种类 / 状态 / 起止），回合结束写 `turn_trace`。 */
+  private turnTools = new Map<string, TraceExternalTool>();
 
   constructor(
     private readonly runner: ProcessRunner,
@@ -274,7 +282,7 @@ class ProcessHandle implements RunnerHandle {
   }
 
   async send(text: string): Promise<void> {
-    if (this.stopped) throw new AmaError("agent_closed", `${this.agent} 已停止`);
+    if (this.stopped) throw new AmaError("agent_closed", `${this.agent} stopped`);
     if (this.busy && this.session?.steer !== undefined && this.chosen.capabilities.steer) {
       await this.session.steer([{ type: "text", text }]);
       return;
@@ -315,7 +323,18 @@ class ProcessHandle implements RunnerHandle {
       case "thought_delta":
         this.emit({ type: "thought", delta: event.text });
         return;
-      case "tool_call":
+      case "tool_call": {
+        const at = this.now();
+        const skeleton = this.turnTools.get(event.id) ?? {
+          kind: event.kind,
+          status: "in_progress" as const,
+          startedAt: at,
+        };
+        if (event.status === "completed" || event.status === "failed") {
+          skeleton.status = event.status;
+          skeleton.endedAt = at;
+        }
+        this.turnTools.set(event.id, skeleton);
         if (event.status === "pending") return;
         this.emit({
           type: "tool",
@@ -326,8 +345,11 @@ class ProcessHandle implements RunnerHandle {
               : event.status === "failed"
                 ? "failed"
                 : "completed",
+          id: event.id,
+          at,
         });
         return;
+      }
       case "notice":
         this.emit({ type: "notice", level: event.level, text: event.text });
         return;
@@ -355,26 +377,55 @@ class ProcessHandle implements RunnerHandle {
     }
   }
 
+  private now(): number {
+    return (this.deps.now ?? Date.now)();
+  }
+
+  /** [W6-C0] 回合骨架：只有种类、状态、时间与计数（不含工具标题、命令行、路径）。 */
+  private emitTurnTrace(startedAt: number, stopReason: string, filesTouched: number): void {
+    const tools = [...this.turnTools.values()];
+    this.turnTools = new Map();
+    this.emit({
+      type: "turn_trace",
+      trace: {
+        sessionId: this.sessionId,
+        turn: this.turns,
+        startedAt,
+        endedAt: this.now(),
+        stopReason,
+        tools,
+        toolCount: tools.length,
+        filesTouched,
+      },
+    });
+  }
+
   /** 关掉空闲进程后再续聊：能续接的以 resume 重开。 */
   private async ensureSession(): Promise<DriverSession> {
     if (this.session !== undefined) return this.session;
     if (this.chosen.capabilities.resume === "none" || this.sessionId === "")
-      throw new AmaError("agent_closed", `${this.agent} 会话已因空闲关闭且不支持续接`);
+      throw new AmaError(
+        "agent_closed",
+        `${this.agent} session was closed while idle and cannot be resumed`,
+      );
     await this.open(this.sessionId);
     return this.session as unknown as DriverSession;
   }
 
   private async runTurn(text: string): Promise<SubagentResult> {
-    if (this.stopped) return failed(`${this.agent} 已停止`, this.sessionId, this.runner.id);
+    if (this.stopped) return failed(`${this.agent} stopped`, this.sessionId, this.runner.id);
     this.clearIdle?.();
     let release: (() => void) | undefined;
     const setTimer = this.deps.setTimer ?? defaultSetTimer;
     let timedOut = false;
+    let turnStartedAt: number | undefined;
     try {
       release = await this.deps.pool.acquire(this.agent, this.lifetime.signal);
       const session = this.session ?? (await this.ensureSession());
       this.busy = true;
       this.turns += 1;
+      turnStartedAt = this.now();
+      this.turnTools = new Map();
       this.emit({ type: "turn", turn: this.turns });
       const turnCost = { usd: 0 };
       const cancel = (): void => void session.cancel();
@@ -424,10 +475,15 @@ class ProcessHandle implements RunnerHandle {
         this.emit({ type: "usage", usage, unit, amount });
       }
       const status = statusOf(turn, timedOut, this.stopped);
+      this.emitTurnTrace(
+        turnStartedAt,
+        timedOut ? "timeout" : turn.stopReason,
+        turn.filesTouched.length,
+      );
       this.armIdle();
       return {
         text: timedOut
-          ? `${this.agent} 运行超时被中断。${turn.finalText !== "" ? `\n\n${reportText(turn)}` : ""}`
+          ? `${this.agent} timed out and was interrupted.${turn.finalText !== "" ? `\n\n${reportText(turn)}` : ""}`
           : reportText(turn),
         usage,
         stopReason: timedOut ? "timeout" : turn.stopReason,
@@ -436,13 +492,15 @@ class ProcessHandle implements RunnerHandle {
         sessionRef: { runner: this.runner.id, sessionId: this.sessionId },
       };
     } catch (error) {
+      if (turnStartedAt !== undefined)
+        this.emitTurnTrace(turnStartedAt, this.stopped ? "cancelled" : "error", 0);
       if (this.stopped)
         return {
-          ...failed(`${this.agent} 已停止`, this.sessionId, this.runner.id),
+          ...failed(`${this.agent} stopped`, this.sessionId, this.runner.id),
           status: "aborted",
         };
       return failed(
-        `${this.agent} 失败：${(error as Error).message}`,
+        `${this.agent} failed: ${(error as Error).message}`,
         this.sessionId,
         this.runner.id,
       );

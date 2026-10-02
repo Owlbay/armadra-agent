@@ -170,13 +170,13 @@ describe("权限真值表（6 模式 × 读 / 写 / bash × Hook 三值 + 无决
   }
 
   it("modeDecision 与表的无 Hook 一列一致（auto 的 write / execute 在这一步是 ask）", () => {
-    const permOf: Record<ToolPermission, CallKind> = {
+    const permOf: Record<Exclude<ToolPermission, "memory">, CallKind> = {
       read: "read",
       write: "writeIn",
       execute: "bashUnknown",
     };
     for (const mode of MODES) {
-      for (const perm of ["read", "write", "execute"] as ToolPermission[]) {
+      for (const perm of ["read", "write", "execute"] as const) {
         const letter = TABLE[mode][permOf[perm]][0] as string;
         const expected = mode === "auto" && perm !== "read" ? "ask" : LETTER[letter];
         expect(modeDecision(mode, perm), `${mode}/${perm}`).toBe(expected);
@@ -299,14 +299,14 @@ describe("auto 三层", () => {
 });
 
 describe("allowlist", () => {
-  it("只放行 allow 规则命中的，拒绝说明写「不在允许名单」", () => {
+  it("只放行 allow 规则命中的，拒绝说明写 Not in the allowlist（回给模型，固定英文）", () => {
     const p = pipeline("allowlist", [], ["write(src/**)", "bash(pnpm test*)"]);
     const write = (path: string) =>
       p.check({ toolName: "write", permission: "write", input: { path }, unattended: false });
     expect(write("src/a.ts").decision).toBe("allow");
     const denied = write("lib/a.ts");
     expect(denied).toMatchObject({ decision: "deny", step: "allowlist" });
-    expect(denied.message).toContain("不在允许名单");
+    expect(denied.message).toContain("Not in the allowlist");
     const bash = (command: string) =>
       p.check({ toolName: "bash", permission: "execute", input: { command }, unattended: false });
     expect(bash("pnpm test --run").decision).toBe("allow");

@@ -114,8 +114,9 @@ describe("task(agent=acp:ama)：ama 驱动 ama", () => {
       origin: { agent: "acp:ama", sessionId: childSession, toolCall: { kind: "execute" } },
     });
     const requests = p.events.filter((e) => e.type === "permission_request");
+    // [W6-C0] 本会话工具调用的审批带 toolCallId（轨迹算审批等待）；外部 Agent 的请求不带
     expect(requests.map((e) => (e.type === "permission_request" ? e.context : null))).toEqual([
-      undefined,
+      { toolCallId: "fake_call_0" },
       { taskId: "t1" },
       {
         depth: 1,
@@ -258,7 +259,7 @@ describe("task(agent=acp:ama)：ama 驱动 ama", () => {
 });
 
 describe("permission_request.context：ama 子会话", () => {
-  it("task(general) 的子会话审批带 depth 1 与 taskId；主会话自己的审批不带 context", async () => {
+  it("task(general) 的子会话审批带 depth 1 与 taskId；主会话自己的审批只带 toolCallId（W6-C0）", async () => {
     const h = composeHarness([
       { steps: [{ toolCall: { name: "bash", arguments: { command: "echo main" } } }] },
       { steps: [{ toolCall: { name: "task", arguments: { prompt: "run", agent: "general" } } }] },
@@ -277,9 +278,9 @@ describe("permission_request.context：ama 子会话", () => {
       e.type === "permission_request" ? [{ tool: e.toolName, context: e.context }] : [],
     );
     expect(requests).toEqual([
-      { tool: "bash", context: undefined },
-      { tool: "task", context: undefined },
-      { tool: "bash", context: { depth: 1, taskId: "t1" } },
+      { tool: "bash", context: { toolCallId: "fake_call_0" } },
+      { tool: "task", context: { toolCallId: "fake_call_0" } },
+      { tool: "bash", context: { depth: 1, taskId: "t1", toolCallId: "fake_call_0" } },
     ]);
   });
 });

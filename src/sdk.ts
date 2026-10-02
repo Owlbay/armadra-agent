@@ -13,6 +13,7 @@
  * - [W5-F] 计划（docs/plan.md）：`CreateSessionOptions.plan`（plan.* 配置 + `onProposed` 审批回调）；
  *   返回的会话带 `plan.current() / respond() / todos()`。没有 `onProposed` 时按 `plan.unattended`
  *   （缺省 stop：计划落盘后停下，不替人批准）。
+ * - [W6-C0] `language`（两个入口都有）：界面语言，跟随宿主界面（docs/i18n.md）；进程级，`AMA_LANG` 仍优先。
  */
 
 import { resolve } from "node:path";
@@ -40,8 +41,15 @@ import type { Runtime } from "./cli/runtime.js";
 import { findContextFiles } from "./config/context-files.js";
 import { DEFAULT_CONFIG, mergeConfig } from "./config/merge.js";
 import { resolveConfigDir, resolveDataDir } from "./config/paths.js";
-import { canonicalPreset, type AmaConfig, type ToolsPresetInput } from "./config/types.js";
+import {
+  canonicalPreset,
+  type AmaConfig,
+  type ProfileMemoryOptions,
+  type ToolsPresetInput,
+} from "./config/types.js";
+import type { Trace, TraceOptions } from "./trace/types.js";
 import { AmaError } from "./errors.js";
+import { resolveLocale, setLocale, type Locale } from "./i18n/index.js";
 import { hooksFromConfig } from "./hooks/config.js";
 import { HookDispatcher } from "./hooks/dispatcher.js";
 import type { HookConfig } from "./hooks/types.js";
@@ -91,6 +99,10 @@ export interface RuntimeOptions {
   stderr?: (text: string) => void;
   /** 组装根选项：追加供应商 / 协议 / 工具 / 工具工厂。 */
   compose?: ComposeOptions;
+  /** [W6-C0] 界面语言（等价 `--lang`）；进程级。 */
+  language?: Locale;
+  /** [W6-C0] 记忆开关（等价 `--memory` / `--no-memory`；W6-M 实现）。 */
+  memory?: boolean;
 }
 
 export async function createRuntime(options: RuntimeOptions = {}): Promise<Runtime> {
@@ -105,7 +117,10 @@ export async function createRuntime(options: RuntimeOptions = {}): Promise<Runti
   if (options.sessionDir !== undefined) args.sessionDir = options.sessionDir;
   if (options.profile !== undefined) args.profile = options.profile;
   if (options.unattended === true) args.print = true;
+  if (options.language !== undefined) args.lang = options.language;
+  if (options.memory !== undefined) args.memory = options.memory;
   const env = options.env ?? process.env;
+  if (args.lang !== undefined) setLocale(resolveLocale(env, undefined, args.lang));
   const io: CliIo = {
     stdout: () => undefined,
     stderr: options.stderr ?? ((text) => void process.stderr.write(text)),
@@ -138,7 +153,11 @@ export interface SessionPlanApi {
   todos(): TodoItemView[];
 }
 
-export type SdkAgentSession = AgentSessionImpl & { readonly plan: SessionPlanApi };
+export type SdkAgentSession = AgentSessionImpl & {
+  readonly plan: SessionPlanApi;
+  /** [W6-C0] 本会话的轨迹（W6-T2 实现；之前不存在）。 */
+  trace?(options?: TraceOptions): Trace;
+};
 
 export type SessionAuth =
   | { kind: "file"; path: string }
@@ -188,6 +207,13 @@ export interface CreateSessionOptions {
   unattended?: boolean;
   onWarning?: (message: string) => void;
   log?: LogFn;
+  /** [W6-C0] 界面语言（跟随宿主界面）；进程级，`AMA_LANG` 仍优先。不影响发给模型的文本。 */
+  language?: Locale;
+  /**
+   * [W6-C0] 记忆（W6-M 实现，D11）：缺省禁用；`enabled: true` 时 `dir` 必填（按工作空间隔离的绝对路径），
+   * 作用域只有 workspace，不读用户级记忆。
+   */
+  memory?: ProfileMemoryOptions;
 }
 
 function keyOptions(auth: SessionAuth | undefined): KeyResolverOptions {
@@ -210,6 +236,8 @@ export async function createAgentSession(
 ): Promise<SdkAgentSession> {
   const cwd = resolve(options.cwd ?? process.cwd());
   const warn = options.onWarning ?? (() => undefined);
+  if (options.language !== undefined)
+    setLocale(resolveLocale(process.env, undefined, options.language));
   let config = mergeConfig(DEFAULT_CONFIG as AmaConfig, options.config);
   const { onProposed, ...planConfig } = options.plan ?? {};
   if (options.plan !== undefined) config = { ...config, plan: { ...config.plan, ...planConfig } };

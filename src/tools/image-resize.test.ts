@@ -162,9 +162,11 @@ describe("image-resize", () => {
     expect(loaded.bytes).toBeLessThan(6 * MB);
 
     const none = { platform: "linux" as const, run: fakeRun([]).run, tmpDir: d };
-    await expect(loadImageFile(input, { resizeDeps: none })).rejects.toThrow(/没找到缩放工具/);
+    await expect(loadImageFile(input, { resizeDeps: none })).rejects.toThrow(
+      /no resize tool found/,
+    );
     await expect(loadImageFile(input, { resize: "off", resizeDeps: deps })).rejects.toThrow(
-      /images\.resize 为 off/,
+      /images\.resize is off/,
     );
 
     const ctx = { cwd: d, markRead: () => undefined } as unknown as ToolContext;

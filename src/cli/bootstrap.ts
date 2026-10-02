@@ -41,6 +41,7 @@ import {
 } from "./startup-steps.js";
 import type { LoadedResources, Runtime } from "./runtime.js";
 import { resolveSystemPromptArg } from "./system-prompt-arg.js";
+import { resolveLocale, setLocale } from "../i18n/index.js";
 
 /** §11.1 第 3–14 步。 */
 export async function bootstrap(
@@ -137,10 +138,15 @@ export async function bootstrap(
       tuiMode: args.tuiMode,
       toolsPreset: args.toolsPreset,
       codemode: args.codemode,
+      memory: args.memory,
     });
   });
   warnings.push(...merged.warnings);
   const config = merged.config;
+  // [W6-C0] main.ts 只看了用户级；profile 的 language 与合并后的 ui.language 在这里补定（AMA_LANG / --lang 仍优先）
+  const language = profile?.language ?? config.ui?.language;
+  if (language === "zh" || language === "en")
+    setLocale(resolveLocale(io.env, { language }, args.lang));
   // 10. 资源发现
   const context = findContextFiles({ cwd: sessionCwd, configDir: paths.configDir });
   warnings.push(...context.warnings);

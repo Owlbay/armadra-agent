@@ -12,12 +12,16 @@
  *   只由增量驱动、不起计时器）；
  *   `ticks: false`（`ui.animation: false`）时不发，界面在 message_end 时刷新。
  *
+ * [W6-C0] 拆成「测量」与「发 tick」：子会话（depth > 0）也装、只测量不发 tick；每个请求结束时通知
+ * `onRequestEnd` 的订阅者（`session-trace-writer.ts` 据此写 `ama.trace step`）；`telemetryOf(core)` 取本会话实例。
+ *
  * 数据从 `getStats().telemetry` 取（`contributeStats`）：进行中的请求出了首 token 后 `last` 即指向它（只有
  * `requestAt / firstTokenAt / ttftMs`），结束后补齐 `doneAt / outputTokens / tps`；`sessionStartedAt` 是扩展创建（本进程打开会话）的时刻。
  */
 
 import type { AssistantEvent, AssistantEventStream, AssistantMessage } from "../ai/types.js";
 import type { StreamFn } from "./loop.js";
+import type { SessionCore } from "./session-core.js";
 import type { SessionExtension, SessionExtensionFactory } from "./session-extensions.js";
 import type { SessionEvent } from "./types.js";
 import type { RequestTelemetry, SessionTelemetry } from "./types-w5.js";
@@ -35,7 +39,24 @@ export interface TelemetryDeps {
   ticks?: boolean;
 }
 
-export type TelemetryExtension = SessionExtension & { snapshot(): SessionTelemetry };
+/** 一个 turn 请求结束（成功、失败或被中断）时的记录。 */
+export type RequestEndListener = (
+  record: RequestTelemetry,
+  message: AssistantMessage | undefined,
+) => void;
+
+export type TelemetryExtension = SessionExtension & {
+  snapshot(): SessionTelemetry;
+  /** [W6-C0] 订阅请求结束；返回取消函数。 */
+  onRequestEnd(listener: RequestEndListener): () => void;
+};
+
+const byCore = new WeakMap<SessionCore, TelemetryExtension>();
+
+/** [W6-C0] 本会话的遥测扩展（组装表装了才有）。 */
+export function telemetryOf(core: SessionCore): TelemetryExtension | undefined {
+  return byCore.get(core);
+}
 
 /** 一段增量文本的 token 估算（不取整，逐块累加不放大）。 */
 export function deltaTokens(text: string): number {
@@ -143,6 +164,7 @@ export function createTelemetryExtension(deps: TelemetryDeps = {}): TelemetryExt
   let sumOutput = 0;
   let sumMs = 0;
   let lastTickAt = Number.NEGATIVE_INFINITY;
+  const listeners = new Set<RequestEndListener>();
 
   const finish = (tracker: RequestTracker, message: AssistantMessage | undefined): void => {
     if (tracker.finished) return;
@@ -150,6 +172,7 @@ export function createTelemetryExtension(deps: TelemetryDeps = {}): TelemetryExt
     if (current === tracker) current = undefined;
     const r = tracker.record;
     last = { ...r };
+    for (const listener of listeners) listener({ ...r }, message);
     const failed = message === undefined || message.stopReason === "error";
     if (!failed && r.firstTokenAt !== undefined && r.doneAt !== undefined) {
       const ms = r.doneAt - r.firstTokenAt;
@@ -236,16 +259,27 @@ export function createTelemetryExtension(deps: TelemetryDeps = {}): TelemetryExt
       stats.telemetry = snapshot();
     },
     snapshot,
+    onRequestEnd(listener) {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
   };
 }
 
-/** 组装表用的工厂：只装主会话（depth 0）；`ui.animation: false` 不发 tick。 */
+/**
+ * 组装表用的工厂：主会话测量并发 tick（`ui.animation: false` 不发）；[W6-C0] 子会话（depth > 0）也装，
+ * 只测量（供 `ama.trace` 与子 Agent 视图），不发 tick。
+ */
 export function telemetryFactory(ui?: { animation?: boolean }): SessionExtensionFactory {
-  return ({ core }) =>
-    core.depth > 0
-      ? undefined
-      : createTelemetryExtension({
-          emit: (event) => core.emit(event),
-          ticks: ui?.animation !== false,
-        });
+  return ({ core }) => {
+    const extension =
+      core.depth > 0
+        ? createTelemetryExtension({ ticks: false })
+        : createTelemetryExtension({
+            emit: (event) => core.emit(event),
+            ticks: ui?.animation !== false,
+          });
+    byCore.set(core, extension);
+    return extension;
+  };
 }

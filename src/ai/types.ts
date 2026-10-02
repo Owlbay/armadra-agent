@@ -141,6 +141,8 @@ export interface Usage {
    * 协议尚未解析该标记时缺省（第三波 §1.6，「值为 0」与「不报」由此区分）。
    */
   cacheReported?: boolean;
+  /** [W6-C0] 订阅计费（ChatGPT 登录，W6-O）：`cost` 为 0，统计单列「订阅」不折算美元。 */
+  billing?: "subscription";
 }
 
 export type StopReason = "stop" | "length" | "toolUse" | "aborted" | "error";
@@ -272,6 +274,12 @@ export interface OpenAIResponsesCompat {
   supportsStore: boolean;
   /** [W5-C0] 端点私有的显式缓存字段：`volcengine` = 火山方舟 `caching: { type: "enabled" }`。 */
   explicitCacheField?: "volcengine";
+  /** [W6-C0] ChatGPT 订阅后端（W6-O）：决定请求体白名单、请求头与配额解析。 */
+  chatgptBackend?: "siwc" | "codex";
+  /** [W6-C0] 系统提示的放法：native（`instructions`）/ developer-message（codex flavor 400 回退）。 */
+  instructionsMode?: "native" | "developer-message";
+  /** [W6-C0] 工具放进 namespace（SIWC 待实测）。 */
+  toolsInNamespace?: boolean;
 }
 
 /**
@@ -504,7 +512,8 @@ export interface ApiImplementation<C = unknown> {
 // 密钥与注册表（§3.5；Runtime 需要的最小接口）
 // ---------------------------------------------------------------------------
 
-export type KeySource = "cli" | "auth-file" | "config" | "env" | "none";
+/** [W6-C0] `oauth`：auth.json 的 OAuth 条目（W6-O）。 */
+export type KeySource = "cli" | "auth-file" | "config" | "env" | "oauth" | "none";
 
 /** 密钥只存在于 `apiKey` 字段，不进日志、会话、事件。 */
 export interface ApiKeyResolution {

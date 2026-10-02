@@ -22,11 +22,15 @@
 import type { ContentBlock, JsonSchema, ModelRef, ModelThinkingLevel, Usage } from "../ai/types.js";
 import type { CheckpointHooks } from "../checkpoints/types.js";
 import type { PermissionMode } from "../permissions/types.js";
+import type { TraceExternalTurnData } from "../trace/types.js";
 
 export type { JsonSchema } from "../ai/types.js";
 
 /** 权限管线的粗分类（§7）。 */
-export type ToolPermission = "read" | "write" | "execute";
+/**
+ * [W6-C0] `memory`：记忆工具专用（`permissions/memory-class.ts`）——`view` 按 read、写命令按 execute 判定。
+ */
+export type ToolPermission = "read" | "write" | "execute" | "memory";
 export type ToolExecutionMode = "sequential" | "parallel";
 
 export interface ToolAnnotations {
@@ -135,8 +139,21 @@ export interface SubagentResult {
 export type SubagentEvent =
   | { type: "text"; delta: string }
   | { type: "thought"; delta: string }
-  | { type: "tool"; toolName: string; status: "started" | "completed" | "failed" }
+  | {
+      type: "tool";
+      toolName: string;
+      status: "started" | "completed" | "failed";
+      /** [W6-C0] runner 内的调用 id（外部 Agent 的 tool_call id；配对 started / 结束）。 */
+      id?: string;
+      /** [W6-C0] 事件时刻（epoch ms）。 */
+      at?: number;
+    }
   | { type: "turn"; turn: number }
+  /**
+   * [W6-C0] 外部 Agent 一个回合结束时的骨架（docs/wave6-plan.md §2.2）：任务注册表写成父会话的
+   * `ama.trace{kind:"external_turn"}`。只有种类、状态、时间与计数——不含工具标题、命令行、路径。
+   */
+  | { type: "turn_trace"; trace: Omit<TraceExternalTurnData, "kind" | "taskId" | "agent"> }
   | {
       type: "usage";
       usage?: Usage;

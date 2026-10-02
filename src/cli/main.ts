@@ -14,9 +14,12 @@
  *   `createRuntimeDeps()`（cli/compose.ts，动态 import）。
  * - 签名 `main(argv): Promise<number>` 与「直接执行才自动运行」判定保持不变：
  *   src/bundle.ts 显式调用 `main()`。
+ * - [W6-C0] 界面语言在解析参数后、任何输出前定一次：`AMA_LANG` > `--lang` > 用户级 `ui.language` >
+ *   `LC_ALL` / `LC_MESSAGES` / `LANG`（docs/i18n.md）；profile / 项目级的 `ui.language` 由 bootstrap 合并后补定。
  */
 
-import { fstatSync, realpathSync } from "node:fs";
+import { fstatSync, readFileSync, realpathSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { AMA_VERSION } from "../version.js";
 import { parseArgs } from "./args.js";
@@ -34,6 +37,7 @@ import { resolveConfigDir } from "../config/paths.js";
 import { runSessions } from "./subcommands/sessions.js";
 import { runStats } from "./subcommands/stats.js";
 import { enableEnvProxy, proxyHint } from "./proxy.js";
+import { msg, resolveLocale, setLocale, type LanguageSetting } from "../i18n/index.js";
 
 declare const __AMA_BUNDLED__: boolean | undefined;
 
@@ -156,6 +160,17 @@ export function defaultIo(): CliIo {
   };
 }
 
+/** 用户级 config.json 的 `ui.language`（只读、不校验、读不到当未设；完整校验在 bootstrap）。 */
+export function peekUserLanguage(env: NodeJS.ProcessEnv): LanguageSetting | undefined {
+  try {
+    const raw = readFileSync(join(resolveConfigDir({ env }), "config.json"), "utf8");
+    const value = (JSON.parse(raw) as { ui?: { language?: unknown } }).ui?.language;
+    return value === "auto" || value === "zh" || value === "en" ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 let hooksInstalled = false;
 
 function installProcessHooks(io: CliIo): void {
@@ -193,6 +208,8 @@ export async function main(argv: readonly string[], options: MainOptions = {}): 
     });
   try {
     const parsed = parseArgs(argv);
+    const cliLang = parsed.kind === "run" ? parsed.args.lang : parsed.lang;
+    setLocale(resolveLocale(io.env, { language: peekUserLanguage(io.env) }, cliLang));
     if (parsed.kind !== "subcommand") noTui = parsed.args.noTui;
     const informational =
       parsed.kind === "run" ? parsed.args.help || parsed.args.version : parsed.name === "init";
@@ -226,6 +243,10 @@ export async function main(argv: readonly string[], options: MainOptions = {}): 
           return runInit(parsed.argv, io);
         case "stats":
           return await runStats(parsed.argv, io);
+        case "memory":
+          // [W6-C0] W6-M 换成 runMemory(parsed.argv, io, await resolveDeps())
+          io.stderr(`${msg().cli.main.subcommandUnavailable(parsed.name)}\n`);
+          return ExitCode.Usage;
       }
     }
     if (parsed.args.version) {

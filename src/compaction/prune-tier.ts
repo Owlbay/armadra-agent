@@ -9,7 +9,7 @@
  * 打断一次缓存。缓存已冷时（C3，调用方判断）`need` 为 undefined：全部候选一次换掉。
  * 保护集（C4）：调用方给 `isProtected`（Skill 文件、AGENTS.md、todo、`keepInContext` 工具、
  * `compaction.pruneExclude`），见 `protect.ts`。
- * 动作：返回 `context_edit{reason:"prune", replacement:"[已裁剪 …全文 path]"}` 计划；有 outputDir 时
+ * 动作：返回 `context_edit{reason:"prune", replacement:"[pruned: … full text at path]"}` 计划（[W6-C0] 固定英文）；有 outputDir 时
  * 把全文写到 `<outputDir>/<toolCallId>.txt`（已存在则不覆盖），模型可用 read 取回。
  */
 
@@ -173,8 +173,8 @@ function materialize(candidate: Candidate, outputDir: string | undefined): Prune
   }
   const replacement =
     fullTextPath === undefined
-      ? `[已裁剪：${message.toolName} 的结果原有 ${bytes} 字节，全文不可用]`
-      : `[已裁剪：${message.toolName} 的结果原有 ${bytes} 字节，全文 ${fullTextPath}]`;
+      ? `[pruned: ${message.toolName} result was ${bytes} bytes; full text unavailable]`
+      : `[pruned: ${message.toolName} result was ${bytes} bytes; full text at ${fullTextPath}]`;
   const planned: PrunePlanItem = {
     targetId: entry.id,
     replacement,
