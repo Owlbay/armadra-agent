@@ -343,8 +343,19 @@ ama 用它给**没写元数据**的自定义模型补上下文、输出上限、
   Anthropic `image`（base64 source）、Gemini `inlineData`；工具结果里的图片同样映射。
 - 入口：`ama -p "描述这张图" --image a.png --image b.jpg`；交互界面与行式界面里写 `@图片路径`，或粘贴 /
   拖入一个图片文件路径（整段输入里以 `.png` / `.jpg` / `.jpeg` / `.gif` / `.webp` 结尾且文件存在的词）。
-- 与 `read` 工具共用 MIME 检测（按文件头识别 PNG / JPEG / GIF / WebP，扩展名不符时以文件头为准）与大小上限
-  （单张 5 MB，取各家上限中最小的 Anthropic）。
+- 与 `read` 工具共用 MIME 检测（按文件头识别 PNG / JPEG / GIF / WebP，扩展名不符时以文件头为准）与大小上限。
+  上限按 **base64 后**计算（`ceil(字节/3)*4`），按当前模型的端点分档：官方 Anthropic（`api.anthropic.com`）
+  10 MB、官方 Gemini 与 OpenAI 20 MB，中转（内置供应商改了 baseUrl）与其它主机 5 MB；任一边超过 8000 px 拒绝。
+- 缩放（`images.resize`，缺省 `auto`）：超限时依次找 `sips`（macOS）、`magick` / `convert`（ImageMagick）缩到
+  上限以内再附上；找不到工具或 `off` 时按上面的规则拒绝并提示。零依赖，不内置图像解码。
+- 单次请求的图片总量预算按协议：`anthropic-messages` 32 MB，其它 20 MB（base64 后）。历史图片每轮重发，超预算时
+  从最旧的图开始换成占位文本 `[earlier image omitted to fit request size]`，一次降到预算的 60% 以下；超过当前端点
+  单图上限的旧图（换了模型 / 渠道之后）直接换成占位；单请求超过 20 张图且有长边 > 2000 px 的图时，继续从最旧的
+  降到 20 张以内。最新一条带图的消息不降。降级写成会话里的 `context_edit{reason:"image_budget"}`，之后前缀稳定，
+  缓存统计把这一次当重置点。
+- 剪贴板图片：`pasteClipboardImage` 依次调 `osascript` / `pngpaste`（macOS）、`wl-paste`（Wayland）/ `xclip`（X11）、
+  PowerShell `Get-Clipboard -Format Image`（Windows），写到 `<数据目录>/clipboard/<时间戳>.png`；
+  `ama sessions prune` 清理其中超过 7 天的文件。
 - 模型 `input` 不含 `image` 时直接拒绝并提示换模型（`-p` 退出 2，界面里给错误提示，不发请求）；`read`
   工具读图时只返回路径、尺寸与「当前模型不接受图片」。
 

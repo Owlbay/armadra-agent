@@ -2,16 +2,26 @@
  * 图片文件（`read` 工具、`ama -p --image`、界面里的 `@图片路径` 共用）：MIME 检测、尺寸、大小上限。
  *
  * - MIME 以文件头为准（PNG / JPEG / GIF / WebP），文件头认不出时退回扩展名；
- * - 单张上限 5 MB（各家图片上限里最小的 Anthropic）；
+ * - [W5-I] 单张上限按 **base64 后**计算，按端点分档（ai/image-limits.ts，缺省 5 MB）；任一边
+ *   > 8000 px 拒绝；超限时按 `images.resize`（缺省 auto）用系统工具缩放（image-resize.ts），
+ *   没有工具则拒绝并提示；
  * - 不解码像素，只读文件头取尺寸。
  */
 
 import { readFile, stat } from "node:fs/promises";
 import { extname } from "node:path";
 import { AmaError } from "../errors.js";
+import {
+  DEFAULT_IMAGE_BASE64_LIMIT,
+  MAX_IMAGE_EDGE,
+  base64Size,
+  formatMb,
+} from "../ai/image-limits.js";
 import type { ImageBlock } from "../ai/types.js";
+import { resizeImage, type ResizeDeps } from "./image-resize.js";
 
-export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+/** 读进内存前的硬上限（原始字节）：再大的文件缩放也不现实，直接拒绝。 */
+export const MAX_IMAGE_FILE_BYTES = 64 * 1024 * 1024;
 
 export const IMAGE_EXTENSIONS: Readonly<Record<string, string>> = {
   ".png": "image/png",
@@ -98,14 +108,132 @@ export interface LoadedImage {
   block: ImageBlock;
   path: string;
   mimeType: string;
+  /** 实际附上的字节数（缩放后为缩放结果的大小）。 */
   bytes: number;
   size?: ImageSize;
+}
+
+export interface ImageFitOptions {
+  /** 单张 base64 后的上限（字节）；缺省 5 MB（未知端点 / 中转）。 */
+  maxBase64Bytes?: number;
+  /** 超限时缩放：`auto`（缺省）找 sips / magick，`off` 从不缩放。 */
+  resize?: "auto" | "off";
+  /** 测试注入（平台、命令执行器）。 */
+  resizeDeps?: ResizeDeps;
+}
+
+export type ImageFit =
+  | {
+      ok: true;
+      buf: Buffer;
+      mimeType: string;
+      size?: ImageSize;
+      /** 缩放过：用的工具与原尺寸。 */
+      resized?: { tool: string; from?: ImageSize };
+    }
+  | {
+      ok: false;
+      mimeType: string;
+      size?: ImageSize;
+      reason: "too_large" | "too_wide";
+      /** 给模型 / 日志的英文说明（read 工具原样放进结果）。 */
+      note: string;
+    };
+
+function longEdge(size: ImageSize | undefined): number {
+  return size === undefined ? 0 : Math.max(size.width, size.height);
+}
+
+function checkFit(buf: Buffer, mimeType: string, limit: number): ImageFit {
+  const size = imageSize(buf, mimeType);
+  const sized = size !== undefined ? { size } : {};
+  if (longEdge(size) > MAX_IMAGE_EDGE) {
+    return {
+      ok: false,
+      mimeType,
+      ...sized,
+      reason: "too_wide",
+      note: `Image is larger than ${MAX_IMAGE_EDGE}px on a side; not attached.`,
+    };
+  }
+  if (base64Size(buf.length) > limit) {
+    return {
+      ok: false,
+      mimeType,
+      ...sized,
+      reason: "too_large",
+      note: `Image exceeds the ${formatMb(limit)} attachment limit (base64); not attached.`,
+    };
+  }
+  return { ok: true, buf, mimeType, ...sized };
+}
+
+/**
+ * 检查一张图是否在上限内（base64 后大小、边长）；超限且给了 `path`、`resize` 不是 off 时先缩放再查。
+ */
+export async function fitImage(
+  buf: Buffer,
+  mimeType: string,
+  options: ImageFitOptions = {},
+  path?: string,
+): Promise<ImageFit> {
+  const limit = options.maxBase64Bytes ?? DEFAULT_IMAGE_BASE64_LIMIT;
+  const fit = checkFit(buf, mimeType, limit);
+  if (fit.ok || path === undefined || options.resize === "off") return fit;
+  const resized = await resizeImage(
+    path,
+    { maxEdge: MAX_IMAGE_EDGE, maxBase64Bytes: limit, mimeType, size: fit.size },
+    options.resizeDeps,
+  );
+  if (!resized.ok) {
+    const hint =
+      resized.reason === "no_tool"
+        ? " (no resize tool found: install ImageMagick, or sips on macOS)"
+        : " (resizing did not bring it under the limit)";
+    return { ...fit, note: fit.note.replace(/; not attached\.$/, `${hint}; not attached.`) };
+  }
+  const again = checkFit(resized.buf, resized.mimeType, limit);
+  if (!again.ok) return fit;
+  return {
+    ...again,
+    resized: { tool: resized.tool, ...(fit.size !== undefined ? { from: fit.size } : {}) },
+  };
+}
+
+function fitError(
+  path: string,
+  fit: Extract<ImageFit, { ok: false }>,
+  limit: number,
+  bytes: number,
+  resizeOff: boolean,
+): AmaError {
+  const hint = resizeOff
+    ? "（images.resize 为 off）"
+    : fit.note.includes("no resize tool")
+      ? "（没找到缩放工具：装 ImageMagick，macOS 自带 sips）"
+      : fit.note.includes("resizing did not")
+        ? "（缩放后仍超限）"
+        : "";
+  if (fit.reason === "too_wide") {
+    const dims = fit.size !== undefined ? `（${fit.size.width}×${fit.size.height}）` : "";
+    return new AmaError(
+      "invalid_arguments",
+      `图片任一边超过 ${MAX_IMAGE_EDGE} px：${path}${dims}${hint}`,
+    );
+  }
+  return new AmaError(
+    "invalid_arguments",
+    `图片超过 ${formatMb(limit)} 上限（按 base64 后计算）：${path}（${formatMb(base64Size(bytes))}）${hint}`,
+  );
 }
 
 /**
  * 读一张图片作为附件。文件不存在、不是图片、超过上限 → AmaError（`invalid_arguments`），文案给用户看。
  */
-export async function loadImageFile(path: string): Promise<LoadedImage> {
+export async function loadImageFile(
+  path: string,
+  options: ImageFitOptions = {},
+): Promise<LoadedImage> {
   let info;
   try {
     info = await stat(path);
@@ -113,21 +241,23 @@ export async function loadImageFile(path: string): Promise<LoadedImage> {
     throw new AmaError("invalid_arguments", `图片不存在：${path}`);
   }
   if (!info.isFile()) throw new AmaError("invalid_arguments", `不是文件：${path}`);
-  if (info.size > MAX_IMAGE_BYTES)
+  const limit = options.maxBase64Bytes ?? DEFAULT_IMAGE_BASE64_LIMIT;
+  if (info.size > MAX_IMAGE_FILE_BYTES)
     throw new AmaError(
       "invalid_arguments",
-      `图片超过 ${MAX_IMAGE_BYTES / 1024 / 1024} MB 上限：${path}（${(info.size / 1024 / 1024).toFixed(1)} MB）`,
+      `图片超过 ${formatMb(limit)} 上限（按 base64 后计算）：${path}（${formatMb(base64Size(info.size))}）`,
     );
   const buf = await readFile(path);
   const mimeType = sniffImageMime(buf) ?? imageMimeFromPath(path);
   if (mimeType === undefined)
     throw new AmaError("invalid_arguments", `不是支持的图片（PNG / JPEG / GIF / WebP）：${path}`);
-  const size = imageSize(buf, mimeType);
+  const fit = await fitImage(buf, mimeType, options, path);
+  if (!fit.ok) throw fitError(path, fit, limit, buf.length, options.resize === "off");
   return {
-    block: { type: "image", data: buf.toString("base64"), mimeType },
+    block: { type: "image", data: fit.buf.toString("base64"), mimeType: fit.mimeType },
     path,
-    mimeType,
-    bytes: buf.length,
-    ...(size ? { size } : {}),
+    mimeType: fit.mimeType,
+    bytes: fit.buf.length,
+    ...(fit.size ? { size: fit.size } : {}),
   };
 }
