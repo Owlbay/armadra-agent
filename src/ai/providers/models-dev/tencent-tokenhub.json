@@ -1,0 +1,73 @@
+{
+  "api": "https://tokenhub.tencentmaas.com/v1",
+  "id": "tencent-tokenhub",
+  "models": {
+    "hy3": {
+      "canonical_model_id": "tencent/hy3",
+      "cost": {
+        "cache_read": 0,
+        "cache_write": 0,
+        "input": 0,
+        "output": 0
+      },
+      "family": "Hy",
+      "limit": {
+        "context": 256000,
+        "input": 192000,
+        "output": 128000
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "Hy3",
+      "reasoning": true,
+      "release_date": "2026-07-06"
+    },
+    "hy3-preview": {
+      "canonical_model_id": "tencent/hy3-preview",
+      "cost": {
+        "cache_read": 0,
+        "cache_write": 0,
+        "input": 0,
+        "output": 0
+      },
+      "family": "Hy",
+      "limit": {
+        "context": 256000,
+        "output": 64000
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "Hy3 preview",
+      "reasoning": true,
+      "release_date": "2026-04-20"
+    },
+    "hy4-preview": {
+      "canonical_model_id": "tencent/hy4-preview",
+      "cost": {
+        "cache_read": 0.042,
+        "input": 0.834,
+        "output": 2.501
+      },
+      "family": "Hy",
+      "limit": {
+        "context": 1024000,
+        "output": 64000
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "Hy4 preview",
+      "reasoning": true,
+      "release_date": "2026-08-28"
+    }
+  },
+  "name": "Tencent TokenHub"
+}

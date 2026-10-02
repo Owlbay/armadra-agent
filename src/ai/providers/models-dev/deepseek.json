@@ -1,0 +1,57 @@
+{
+  "api": "https://api.deepseek.com",
+  "id": "deepseek",
+  "models": {
+    "deepseek-flash": {
+      "canonical_model_id": "deepseek/deepseek-v4.1-flash",
+      "cost": {
+        "cache_read": 0.003,
+        "input": 0.15,
+        "output": 0.6
+      },
+      "family": "deepseek-flash",
+      "interleaved": {
+        "field": "reasoning_content"
+      },
+      "knowledge": "2025-05",
+      "limit": {
+        "context": 1000000,
+        "output": 393216
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ]
+      },
+      "name": "DeepSeek V4.1 Flash",
+      "reasoning": true,
+      "release_date": "2026-09-10"
+    },
+    "deepseek-v4-pro": {
+      "canonical_model_id": "deepseek/deepseek-v4-pro-0813",
+      "cost": {
+        "cache_read": 0.003625,
+        "input": 0.435,
+        "output": 0.87
+      },
+      "family": "deepseek-thinking",
+      "interleaved": {
+        "field": "reasoning_content"
+      },
+      "limit": {
+        "context": 1000000,
+        "output": 393216
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "DeepSeek V4 Pro",
+      "reasoning": true,
+      "release_date": "2026-08-12"
+    }
+  },
+  "name": "DeepSeek"
+}
