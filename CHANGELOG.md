@@ -38,6 +38,17 @@ get_todos / get_tasks / get_agents`（命令表 42 条，实现前回 `not_imple
   `HostApi.runners` 可选面；`@armadra/agent/acp` 子路径（驱动类型与 NDJSON 分帧）；第五波配置键的校验、说明与 JSON Schema
   （行为随各批次生效）。命令行新增 `--mode acp`、`--max-cost`、`--agent-dir`（实现前分别报「尚未实现」或提示不生效），
   退出码 8 = `-p` 到达预算上限（7 仍是工具被拒）。
+- **外部 Agent 驱动与 ACP**（docs/agents.md「外部 Agent」、docs/acp.md）：`src/drivers/` 以 ACP 词汇统一驱动 Claude Code
+  （stream-json 原生协议，`can_use_tool` 交人、中断看门狗、续聊与成本）、Codex（`app-server` 的 thread / turn 与服务端审批）、
+  任意 ACP Agent（零依赖 ACP 客户端）与一次性打印模式（只读兜底）。`ProcessRunner` 把它们接成子 Agent runner，供
+  `task(agent=…)` 使用（接线在 W5-G）。外部 Agent 的审批**只交给人**（宿主 → 界面 → 无人值守拒绝，分类器与模型不参与；
+  提问类请求不代答），模式不得比 ama 当前模式宽（plan / allowlist 下只读），子进程缺省剥离供应商 key、`*_BASE_URL`、
+  `AMA_*`（防订阅被切成 API 计费，`agents.<id>.env.passthrough` 放回），只在已信任目录里启动；并发池、美元预算、
+  看门狗、空闲关闭与孤儿进程清理；每回合写 `custom{ama.agent-usage}`，`get_session_stats` 新增 `external`。
+  有宿主时不自己启动外部 CLI，只用 `HostApi.runners` 注入的 runner。
+- **`ama --mode acp`**：ama 作为 ACP Agent（会话新开 / 回放 / 续接 / 列表 / 关闭、prompt 事件映射、审批经
+  `session/request_permission` 交给客户端、`session/cancel`、`session/set_mode`）。`@armadra/agent/acp` 导出 ACP 类型、
+  JSON-RPC 对等端、`AcpClient`、`AcpDriver` 与假 ACP Agent（`runFakeAcpAgent` / `fakeAcpAgentPath()`）。
 
 ## 0.4.0（2026-10-02）
 
