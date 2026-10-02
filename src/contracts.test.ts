@@ -11,6 +11,7 @@ import type {
   AssistantMessage,
   AuthHeader,
   Model,
+  ProviderCompat,
   ProviderData,
   StreamOptions,
   ToolCallBlock,
@@ -111,6 +112,40 @@ describe("ai 契约（B1 追加）", () => {
   it("Model.authHeader / Model.requiresApiKey：registry 从 ProviderData 物化", () => {
     expectTypeOf<Model["authHeader"]>().toEqualTypeOf<AuthHeader | undefined>();
     expectTypeOf<Model["requiresApiKey"]>().toEqualTypeOf<boolean | undefined>();
+  });
+});
+
+describe("ai 契约（W3-C0 ①：缓存）", () => {
+  it("Usage.cacheReported、StreamOptions.purpose / toolChoice、promptCache.minTokens", () => {
+    expectTypeOf<AssistantMessage["usage"]["cacheReported"]>().toEqualTypeOf<boolean | undefined>();
+    expectTypeOf<StreamOptions["purpose"]>().toEqualTypeOf<
+      "turn" | "summary" | "warm" | "probe" | undefined
+    >();
+    expectTypeOf<StreamOptions["toolChoice"]>().toEqualTypeOf<"none" | undefined>();
+    expectTypeOf<NonNullable<Model["promptCache"]>>().toEqualTypeOf<{
+      short?: number;
+      long?: number;
+      minTokens?: number;
+    }>();
+  });
+
+  it("ProviderCompat 的五个缓存开关全部可选", () => {
+    expectTypeOf<ProviderCompat["sendPromptCacheKey"]>().toEqualTypeOf<boolean | undefined>();
+    expectTypeOf<ProviderCompat["sendSessionAffinityHeaders"]>().toEqualTypeOf<
+      boolean | undefined
+    >();
+    expectTypeOf<ProviderCompat["supportsLongCacheRetention"]>().toEqualTypeOf<
+      boolean | undefined
+    >();
+    expectTypeOf<ProviderCompat["supportsExplicitPromptCacheMode"]>().toEqualTypeOf<
+      boolean | undefined
+    >();
+    expectTypeOf<ProviderCompat["cacheReporting"]>().toEqualTypeOf<
+      "auto" | "silent" | "reported" | undefined
+    >();
+    const compat: ProviderCompat = { sendPromptCacheKey: true, cacheReporting: "silent" };
+    const options: Omit<StreamOptions, "signal"> = { purpose: "summary", toolChoice: "none" };
+    expect([compat.cacheReporting, options.purpose]).toEqual(["silent", "summary"]);
   });
 });
 
