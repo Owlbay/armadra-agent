@@ -19,6 +19,7 @@
  * - 费用 = `stats.cost` + 外部 Agent 以美元计的用量（`stats.external`，W5-E；其它单位只在 /session 显示）。
  * - 着色：整行 dim；模式名正文色（Bypass permissions warning、Plan accent）；模型 accent；ctx 按阈值
  *   success / warning / error；rebill、queue warning；`net!` error。宽 ≥ 110 时 ctx 用余量表。
+ * - [W5-U] bash 在操作系统沙箱里跑时（S2）用量类项多一个 `沙箱`（与 codemode 同一丢弃优先级）。
  * - [W5-U] 模型回退中（`model_fallback`）模型项显示 `主模型 → 回退模型`，切回主模型后恢复。
  * - 模型名缩写：宽 < 100 去掉供应商前缀，< 60 再去掉 `@渠道`，< 48 去掉版本后缀（第一个 `-数字` 起）。
  * - ASCII：`⎇` → `git`（字形表 `branch`）、`−` → `-`、`♨` → `~`。
@@ -58,6 +59,8 @@ export interface StatusBarSource {
   now?(): number;
   /** 会话时长的起点；缺省取 `getStats().telemetry.sessionStartedAt`。 */
   sessionStartedAt?(): number | undefined;
+  /** [W5-U] bash 命令在操作系统沙箱里跑（S2 第二阶段，`sandbox.bash: auto` 且可用、bash 工具活动）。 */
+  bashSandbox?(): boolean;
   /** [W5-U] 模型回退中（`model_fallback` 之后、切回主模型之前）：主模型与回退模型的引用。 */
   fallback?(): { from: string; to: string } | undefined;
 }
@@ -214,6 +217,7 @@ export interface UsageItems {
   rebill?: string;
   queue?: string;
   codemode?: string;
+  sandbox?: string;
   preset?: string;
   host?: string;
 }
@@ -255,6 +259,7 @@ export function usageItems(
     const label = dim(`codemode ${codemode}`);
     out.codemode = strict ? label : `${label} ${theme.fg("error", "net!")}`;
   }
+  if (source.bashSandbox?.() === true) out.sandbox = dim("沙箱");
   const preset = source.preset();
   if (preset !== "default") out.preset = dim(`preset ${preset}`);
   const host = source.hostStatus?.();
@@ -386,6 +391,7 @@ export class StatusBar implements Component {
     }
     if (usage.queue !== undefined) right(usage.queue, COMPACT.queue);
     if (usage.codemode !== undefined) right(usage.codemode, COMPACT.codemode);
+    if (usage.sandbox !== undefined) right(usage.sandbox, COMPACT.codemode);
     if (usage.preset !== undefined) right(usage.preset, COMPACT.preset);
     if (usage.host !== undefined) right(usage.host, COMPACT.host);
     return parts;

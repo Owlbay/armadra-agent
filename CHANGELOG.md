@@ -163,7 +163,7 @@ get_todos / get_tasks / get_agents`（命令表 42 条，实现前回 `not_imple
   「外部 Agent」段。审批框标注来源 `[task:<类型>]`、`[claude · 会话 abc12345]`（标题 / 种类 / 路径取自外部 Agent），
   外部 Agent 首次运行单独标题；Manual 模式下 `task(agent="claude")` 的两次确认合并为一次（只在允许 task 调用后紧接着、
   同一任务时自动通过首次运行确认）。外部 Agent 的提示显示在消息区。`Ctrl+V` / `/paste` 粘贴剪贴板图片（插入
-  `@<路径>`），交互与 line 模式的 `@图片` 按 `images.resize` 缩放。模型回退时状态栏显示 `主模型 → 回退模型`；预算到限、
+  `@<路径>`），交互与 line 模式的 `@图片` 按 `images.resize` 缩放。模型回退时状态栏显示 `主模型 → 回退模型`，bash 沙箱生效时多一个 `沙箱` 标记；预算到限、
   模型回退、后台命令启动 / 退出各给一行中文提示。新键位动作 `app.paste.image`（缺省 Ctrl+V）。
 
 ## 0.4.0（2026-10-02）

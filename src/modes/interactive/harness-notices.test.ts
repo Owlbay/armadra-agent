@@ -129,3 +129,18 @@ describe("harness 提示（W5-H2 事件）", () => {
     );
   });
 });
+
+describe("状态栏：bash 沙箱标记（S2）", () => {
+  it("沙箱生效时用量类项多一个「沙箱」，宽度不够时与 codemode 一起先丢", () => {
+    const source = {
+      session: () => session({ provider: "anthropic", id: "claude-sonnet-4-5" }),
+      preset: () => "default",
+      bashSandbox: () => true,
+    };
+    const bar = new StatusBar(source, plainTheme());
+    expect(lines(bar, 120)[0]).toMatch(/ctx \? · 沙箱$/);
+    expect(lines(bar, 30)[0]).not.toContain("沙箱");
+    const off = new StatusBar({ ...source, bashSandbox: () => false }, plainTheme());
+    expect(lines(off, 120)[0]).not.toContain("沙箱");
+  });
+});

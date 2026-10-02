@@ -17,6 +17,8 @@ import type { Runtime } from "../../cli/runtime.js";
 import type { StatusLineMode } from "../../config/types.js";
 import { formatModelRef } from "../../ai/providers/channels.js";
 import { GitInfoWatcher } from "../../git/info.js";
+import { resolveBashSandbox } from "../../sandbox/bash.js";
+import { osSandboxStatus } from "../../sandbox/detect.js";
 import { effectiveCodemodeMode } from "../../tools/presets.js";
 import { truncateToWidth, type Component, type Theme } from "../../tui.js";
 import { StatusBar, type StatusBarSource } from "./status-bar.js";
@@ -68,6 +70,7 @@ export class StatusArea {
   private sandboxStrict: boolean | undefined;
   /** [W5-U] 模型回退中（`model_fallback` 到切回主模型）。 */
   private fallback: { from: string; to: string } | undefined;
+  private bashSandbox: boolean | undefined;
 
   constructor(private readonly deps: StatusAreaDeps) {
     const { runtime } = deps;
@@ -92,6 +95,15 @@ export class StatusArea {
       now: () => deps.now(),
       sessionStartedAt: () => this.startedAt,
       fallback: () => this.fallback,
+      // S2：bash 沙箱生效（配置 + 本机能力，与 compose 同一结论）且 bash 工具活动
+      bashSandbox: () =>
+        (this.bashSandbox ??= resolveBashSandbox(runtime.config.sandbox, {
+          status: osSandboxStatus(),
+        }).active) &&
+        deps
+          .session()
+          .getTools()
+          .some((tool) => tool.name === "bash"),
     };
     this.bar = new StatusBar(source, deps.theme);
     this.rate = new StatusLine(this.bar, source, deps.theme);
