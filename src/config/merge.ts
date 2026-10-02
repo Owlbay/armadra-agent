@@ -6,19 +6,26 @@
  *   `tools.disabled`、`skills.dirs` 跨层拼接去重。
  * - 项目级 `.ama/config.json` 只接受：`permission.deny`（追加）、`permission.mode`（只能更严，且不能是
  *   auto / full-auto）、
- *   `compaction`、`tools.disabled`、`tools.preset`（只能更严）、`codemode.mode: "off"`、`ui`；
+ *   `compaction`、`tools.disabled`、`tools.preset`（只能更严）、`codemode.mode: "off"`、`ui`、
+ *   `checkpoints.mode: "off"`、`checkpoints.maxFileBytes`（只能调小）；
  *   其它字段与放宽项（含 `permission.builtinDeny / autoModel / autoSafeCommands`）被忽略并记 warning。
  * - 同时产出带来源的权限规则清单（`ruleSpecs`），交给权限管线（B3 的 rules.ts 解析）。
  */
 
 import type {
   AmaConfig,
+  CheckpointsConfig,
   CodemodeMode,
   PermissionConfig,
   ToolsConfig,
   ToolsPresetInput,
 } from "./types.js";
-import { CONFIG_FILE_VERSION, TOOLS_PRESETS_STRICT_FIRST, canonicalPreset } from "./types.js";
+import {
+  CONFIG_FILE_VERSION,
+  DEFAULT_CHECKPOINTS_CONFIG,
+  TOOLS_PRESETS_STRICT_FIRST,
+  canonicalPreset,
+} from "./types.js";
 import type { PermissionMode, RuleSource } from "../permissions/types.js";
 import { isAtLeastAsStrict } from "../permissions/rules.js";
 import type { ModelThinkingLevel } from "../ai/types.js";
@@ -135,6 +142,7 @@ export function restrictProjectConfig(
   currentMode: PermissionMode,
   label = ".ama/config.json",
   currentPreset: ToolsPresetInput = "default",
+  currentMaxFileBytes: number = DEFAULT_CHECKPOINTS_CONFIG.maxFileBytes,
 ): RestrictResult {
   const warnings: string[] = [];
   const accepted: Partial<AmaConfig> = {};
@@ -179,6 +187,16 @@ export function restrictProjectConfig(
         if (codemode.mode === "off") accepted.codemode = { mode: "off" };
         break;
       }
+      case "checkpoints": {
+        const checkpoints = restrictCheckpoints(
+          project.checkpoints ?? {},
+          currentMaxFileBytes,
+          label,
+          warnings,
+        );
+        if (checkpoints !== undefined) accepted.checkpoints = checkpoints;
+        break;
+      }
       case "permission": {
         const permission = restrictPermission(
           project.permission ?? {},
@@ -194,6 +212,31 @@ export function restrictProjectConfig(
     }
   }
   return { accepted, warnings };
+}
+
+/** 项目级检查点：只能关闭、只能调小单文件上限（多备份即多占用户磁盘）；`keep` 只认用户级。 */
+function restrictCheckpoints(
+  checkpoints: CheckpointsConfig,
+  currentMaxFileBytes: number,
+  label: string,
+  warnings: string[],
+): CheckpointsConfig | undefined {
+  const result: CheckpointsConfig = {};
+  for (const [sub, v] of Object.entries(checkpoints)) {
+    if (sub === "mode") {
+      if (v === "off") result.mode = "off";
+      else warnings.push(`${label}: 项目级只接受 checkpoints.mode "off"，忽略 ${String(v)}`);
+    } else if (sub === "maxFileBytes" && typeof v === "number") {
+      if (v <= currentMaxFileBytes) result.maxFileBytes = v;
+      else
+        warnings.push(
+          `${label}: 项目级只能调小 checkpoints.maxFileBytes，忽略 ${v}（当前 ${currentMaxFileBytes}）`,
+        );
+    } else {
+      warnings.push(`${label}: 项目级不能设 checkpoints.${sub}，已忽略`);
+    }
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
 }
 
 function restrictPermission(
@@ -332,6 +375,7 @@ export function mergeProjectAndCli(
       baseline,
       projectLabel,
       config.tools?.preset ?? "default",
+      config.checkpoints?.maxFileBytes ?? DEFAULT_CHECKPOINTS_CONFIG.maxFileBytes,
     );
     warnings.push(...restricted.warnings);
     config = mergeConfig(config, restricted.accepted);
