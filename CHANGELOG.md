@@ -20,6 +20,9 @@
   命令行 `--memory` / `--no-memory`；`auth.json` 可存 OAuth 条目（`type: "oauth"`）。
 - `ama memory`、`/config`、`/trace`、`/memory` 已登记，当前回「尚未提供」。
 - bundle 改用 UTF-8 输出（中文不再转成 `\uXXXX`），体积约减 40 KB。
+- **`/trace` 轨迹**（W6-T1）：交互模式打开轨迹覆盖层——回合 → 请求 → 工具 → 子调用 / 子 Agent，每行耗时、TTFT / 解码 / 工具条形、
+  token 与缓存命中，Enter 看详情，子 Agent 可展开到子会话，长会话尾部先加载、运行中自动跟随；`/trace <任务 id>` 看单个任务；
+  line 模式打印文本树。老会话没有计时记录时按条目时间推算并标 `≈`，不改会话文件。SDK 导出纯函数 `buildTrace()`。见 [docs/tui.md](docs/tui.md)「轨迹」。
 
 ## 0.5.1（2026-10-03）
 
