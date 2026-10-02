@@ -5,11 +5,21 @@
  * 一票否决；updatedInput 替换输入；allow / ask 作为 hookDecision 交给管线）→ 权限管线（B3，注入）→
  * ask 时走审批链（宿主 broker → UI broker → 无人值守 deny；超时 deny）→ 执行 → PostToolUse
  * （additionalContext 追加到结果末尾；block 把结果改为错误）。
+ *
+ * （W3-B9a-2）ask 时请求带 `context{depth, readFiles}` 与执行前预览 `preview`（只读、有上限，
+ * 见 permissions/preview.ts）；预览出错或为空则缺省，不影响审批。`permission_request` 事件同样带
+ * `preview`，RPC 客户端可直接显示。
  */
 
 import { randomUUID } from "node:crypto";
 import type { ToolCallBlock } from "../ai/types.js";
-import type { ApprovalDecision, ApprovalRequest, Decision } from "../permissions/types.js";
+import { previewAction } from "../permissions/preview.js";
+import type {
+  ActionPreview,
+  ApprovalDecision,
+  ApprovalRequest,
+  Decision,
+} from "../permissions/types.js";
 import type { ToolContext, ToolResult } from "../tools/types.js";
 import type { SessionCore } from "./session-core.js";
 import { runSingleToolCall, type ToolRunnerOptions } from "./tool-runner.js";
@@ -40,6 +50,7 @@ export async function requestApproval(
     timeoutMs,
   };
   if (request.hookReason !== undefined) event.hookReason = request.hookReason;
+  if (request.preview !== undefined) event.preview = request.preview;
   core.emit(event);
   void core.runHook("Notification", {
     notification: { kind: "approval", message: `approval requested for ${request.toolName}` },
@@ -81,6 +92,20 @@ function nestedFields(parent: NestedCallInfo | undefined): {
   return parent.viaCodemode
     ? { viaCodemode: true, parentToolCallId: parent.toolCallId }
     : { parentToolCallId: parent.toolCallId };
+}
+
+/** 审批请求的执行前预览；出错或没有可显示的内容时 undefined（预览永不阻塞审批）。 */
+function safePreview(core: SessionCore, request: ApprovalRequest): ActionPreview | undefined {
+  try {
+    const preview = previewAction(request, { cwd: core.cwd });
+    return preview.lines.length > 0 ? preview : undefined;
+  } catch (err) {
+    core.log(
+      "warn",
+      `approval preview failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return undefined;
+  }
 }
 
 export async function gateToolCall(
@@ -147,8 +172,11 @@ export async function gateToolCall(
       toolName: call.name,
       input,
       reason: approvalReason,
+      context: { depth: core.depth, readFiles: core.readFiles },
     };
     if (hookReason !== undefined) request.hookReason = hookReason;
+    const preview = safePreview(core, request);
+    if (preview !== undefined) request.preview = preview;
     const answer = await requestApproval(core, request, ctx.signal);
     if (answer === "deny") return { block: true, reason: `The user denied ${call.name}` };
     if (answer === "allow_session") permission?.rememberForSession(call.name, input);

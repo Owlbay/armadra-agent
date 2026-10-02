@@ -138,7 +138,11 @@ export function runInteractiveMode(
     ...(ui.showThinking !== undefined ? { showThinking: ui.showThinking } : {}),
     ...(ui.markdown !== undefined ? { markdown: ui.markdown } : {}),
   });
-  const tools = new ToolTracker({ theme, cwd: session.state.cwd });
+  const tools = new ToolTracker({
+    theme,
+    cwd: session.state.cwd,
+    getTool: (name) => session.getTools().find((tool) => tool.name === name),
+  });
   const queueText = new Text("");
   const loaderSlot = new Container();
   const loader = new Loader(() => tui.requestRender(), {
