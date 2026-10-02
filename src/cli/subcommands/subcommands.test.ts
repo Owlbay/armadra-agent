@@ -7,7 +7,7 @@ import type { SessionListItem } from "../../session/types.js";
 import type { CliIo, RuntimeDeps } from "../deps.js";
 import { defaultIo, main } from "../main.js";
 import { runDoctor } from "./doctor.js";
-import { runModels } from "./models.js";
+import { MODELS_ACTIONS, MODELS_USAGE, runModels } from "./models.js";
 import { runSessions } from "./sessions.js";
 
 let home: TmpHome;
@@ -238,6 +238,18 @@ describe("ama models / sessions（依赖注入）", () => {
     expect(await ama(["models", "check", "fake/none"], stubDeps())).toBe(4);
     expect(await runModels(["list"], fullIo(), undefined)).toBe(1);
     expect(await ama(["models", "check"], stubDeps())).toBe(2);
+  });
+
+  it("models 动作表（W3-C0）：用法文本由表生成且与改表前一致；未知动作与选项 → 2", async () => {
+    expect(Object.keys(MODELS_ACTIONS)).toEqual(["list", "check"]);
+    expect(MODELS_USAGE).toBe(
+      "用法：ama models list [--provider <id>]\n      ama models check <provider/id>\n",
+    );
+    expect(await ama(["models", "--help"], stubDeps())).toBe(0);
+    expect(out.join("")).toContain(MODELS_USAGE);
+    expect(await ama(["models", "frob"], stubDeps())).toBe(2);
+    expect(await ama(["models", "toString"], stubDeps())).toBe(2);
+    expect(await ama(["models", "list", "--json"], stubDeps())).toBe(2);
   });
 
   it("sessions list / show / prune", async () => {
