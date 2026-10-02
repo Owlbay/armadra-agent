@@ -150,7 +150,8 @@ export interface RpcModelInfo {
   name: string;
   /** 只报有无，不回密钥。 */
   hasKey: boolean;
-  keySource: "cli" | "auth-file" | "config" | "env" | "none";
+  /** [W6-C0] 加 `oauth`（ChatGPT 登录，W6-O）。 */
+  keySource: "cli" | "auth-file" | "config" | "env" | "oauth" | "none";
   contextWindow?: number;
   maxTokens: number;
   reasoning: boolean;

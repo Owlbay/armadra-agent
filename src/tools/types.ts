@@ -27,7 +27,10 @@ import type { TraceExternalTurnData } from "../trace/types.js";
 export type { JsonSchema } from "../ai/types.js";
 
 /** 权限管线的粗分类（§7）。 */
-export type ToolPermission = "read" | "write" | "execute";
+/**
+ * [W6-C0] `memory`：记忆工具专用（`permissions/memory-class.ts`）——`view` 按 read、写命令按 execute 判定。
+ */
+export type ToolPermission = "read" | "write" | "execute" | "memory";
 export type ToolExecutionMode = "sequential" | "parallel";
 
 export interface ToolAnnotations {

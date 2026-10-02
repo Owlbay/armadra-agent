@@ -170,13 +170,13 @@ describe("权限真值表（6 模式 × 读 / 写 / bash × Hook 三值 + 无决
   }
 
   it("modeDecision 与表的无 Hook 一列一致（auto 的 write / execute 在这一步是 ask）", () => {
-    const permOf: Record<ToolPermission, CallKind> = {
+    const permOf: Record<Exclude<ToolPermission, "memory">, CallKind> = {
       read: "read",
       write: "writeIn",
       execute: "bashUnknown",
     };
     for (const mode of MODES) {
-      for (const perm of ["read", "write", "execute"] as ToolPermission[]) {
+      for (const perm of ["read", "write", "execute"] as const) {
         const letter = TABLE[mode][permOf[perm]][0] as string;
         const expected = mode === "auto" && perm !== "read" ? "ask" : LETTER[letter];
         expect(modeDecision(mode, perm), `${mode}/${perm}`).toBe(expected);

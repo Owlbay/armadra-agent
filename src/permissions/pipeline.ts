@@ -48,6 +48,7 @@ import type {
   Rule,
 } from "./types.js";
 import type { ToolPermission } from "../tools/types.js";
+import { memoryEffectivePermission } from "./memory-class.js";
 import {
   findAllowRule,
   findDenyRule,
@@ -279,7 +280,12 @@ export class PermissionPipeline implements PermissionPipelineApi {
     return verdict;
   }
 
-  private evaluate(input: PermissionCheckInput): PermissionVerdict {
+  private evaluate(raw: PermissionCheckInput): PermissionVerdict {
+    // [W6-C0] 权限类 memory 按命令折成 read / execute（memory-class.ts）
+    const input: PermissionCheckInput =
+      raw.permission === "memory"
+        ? { ...raw, permission: memoryEffectivePermission(raw.input) }
+        : raw;
     const { toolName, permission } = input;
     // ① deny
     const layers = layeredInputs(toolName, input.input);

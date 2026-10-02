@@ -217,7 +217,10 @@ describe("工具契约", () => {
     const erased: ToolDefinition = tool;
     expect(erased.name).toBe("read_x");
     expectTypeOf<ReturnType<ToolDefinition["execute"]>>().toEqualTypeOf<Promise<ToolResult>>();
-    expectTypeOf<ToolDefinition["permission"]>().toEqualTypeOf<"read" | "write" | "execute">();
+    // [W6-C0] 加了 memory 类（docs/wave6-plan.md §3.3）
+    expectTypeOf<ToolDefinition["permission"]>().toEqualTypeOf<
+      "read" | "write" | "execute" | "memory"
+    >();
     expectTypeOf<ToolContext["readFiles"]>().toEqualTypeOf<ReadonlySet<string>>();
   });
 });
