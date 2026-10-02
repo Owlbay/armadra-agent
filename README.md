@@ -23,9 +23,15 @@ ama
 - [工具与预设](#工具与预设)
 - [缓存](#缓存)
 - [安全](#安全)
+- [沙箱](#沙箱)
+- [Plan](#plan)
+- [子 Agent](#子-agent)
+- [外部 Agent](#外部-agent)
+- [回滚](#回滚)
 - [界面与入口](#界面与入口)
 - [嵌入 Armadra](#嵌入-armadra)
 - [文档](#文档)
+- [已知限制](#已知限制)
 - [开发](#开发)
 
 ## 为什么做 ama
@@ -38,20 +44,23 @@ ama
 
 ## 特性一览
 
-| 方面           | 内容                                                                                                                                                                                                                                                   |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 多协议与供应商 | 4 条协议线、17 家内置供应商（Anthropic、OpenAI、Google、DeepSeek、Moonshot、智谱、通义、OpenRouter、Groq、xAI、Mistral、MiniMax、阶跃、火山方舟、腾讯、Ollama、LM Studio）、内置渠道（Messages / Responses 优先、Chat 回落）、自定义供应商、模型级协议 |
-| 零配置与中转站 | 有 key 就选第一个可用的供应商（中转站按价格规则挑缺省模型）；识别 `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`；`ama providers add` 只给 baseUrl 与 key 一键接入：列模型、探测渠道、写回配置                                                               |
-| 模型元数据     | 上下文、输出上限、图像输入、推理、价格缺省从 models.dev 补（本地缓存，启动不联网）；一个供应商可挂多个渠道（Chat / Responses / Messages），`provider/model@渠道`                                                                                       |
-| 图像输入       | `-p --image`、界面里 `@图片路径`；四条协议都映射；模型不收图片时直接拒绝并提示换模型                                                                                                                                                                   |
-| 工具与预设     | read / edit / write / bash / grep / glob，另有 ls、todo、task（子 Agent）、codemode；四个预设 `default` / `minimal` / `codemode-only` / `coordinator`                                                                                                  |
-| codemode       | 模型写一段 JS，在受 Node 权限模型约束的子进程里编排多次工具调用，只有输出回到模型                                                                                                                                                                      |
-| Skill          | `SKILL.md` 目录，模型按索引自行读取，用户用 `/skill:<名字>` 调用；另有提示模板                                                                                                                                                                         |
-| 两层 Hook      | 命令式 Hook（`hooks.json`，9 个事件，用户策略）与进程内宿主适配器 HostApi（嵌入方）                                                                                                                                                                    |
-| 权限           | 四种模式、allow / deny 规则、危险命令识别（穿透 `sh -c` / `eval` / `xargs` / `find -exec`）、项目信任、审批时的执行前预览                                                                                                                              |
-| 缓存           | 前缀稳定、缓存字段与兼容开关、未命中归因、「报 / 不报缓存」三态、长工具运行时保温、压缩摘要按会话前缀续写                                                                                                                                              |
-| 会话           | JSONL 条目树，分叉与 `/tree` 回溯；两档压缩（裁剪大工具结果 → 摘要）与熔断                                                                                                                                                                             |
-| 入口           | 差分渲染终端界面、`--no-tui` 行式、`-p`（text / json / stream-json）、`--mode rpc`、SDK                                                                                                                                                                |
+| 方面            | 内容                                                                                                                                                                                                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 多协议与供应商  | 4 条协议线、17 家内置供应商（Anthropic、OpenAI、Google、DeepSeek、Moonshot、智谱、通义、OpenRouter、Groq、xAI、Mistral、MiniMax、阶跃、火山方舟、腾讯、Ollama、LM Studio）、内置渠道（Messages / Responses 优先、Chat 回落）、自定义供应商、模型级协议 |
+| 零配置与中转站  | 有 key 就选第一个可用的供应商（中转站按价格规则挑缺省模型）；识别 `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`；`ama providers add` 只给 baseUrl 与 key 一键接入：列模型、探测渠道、写回配置                                                               |
+| 模型元数据      | 上下文、输出上限、图像输入、推理、价格来自随包的 models.dev 内置快照（启动与运行都不联网，`ama models refresh` 显式刷新）；一个供应商可挂多个渠道（Chat / Responses / Messages），`provider/model@渠道`                                                |
+| 图像输入        | `-p --image`、界面里 `@图片路径`、`Ctrl+V` / `/paste` 粘贴剪贴板图片；按端点分档的单图上限、超限自动缩放；模型不收图片时直接拒绝并提示换模型                                                                                                           |
+| 工具与预设      | read / edit / write / bash / grep / glob / todo，另有 ls、task / task_ctl（子 Agent）、codemode；四个预设 `default` / `minimal` / `codemode-only` / `coordinator`                                                                                      |
+| Plan 与子 Agent | Plan 模式只读调研、出计划后审批执行；`task` 委派子 Agent（内置 general / explore / plan，可自定义类型，前台 / 后台 / 续聊 / worktree 隔离）                                                                                                            |
+| 外部 Agent      | `task(agent="claude" \| "codex" \| "acp:<程序>")` 以各 CLI 自己的登录驱动外部编码 Agent，审批只交给人；`ama --mode acp` 把 ama 暴露为 ACP Agent                                                                                                        |
+| 回滚与沙箱      | 每回合检查点，`/rewind` / 双击 Esc 回到任一条消息之前（代码、对话或两者）；macOS / Linux 的操作系统沙箱隔离 codemode 与（可选）bash                                                                                                                    |
+| codemode        | 模型写一段 JS，在受 Node 权限模型约束的子进程里编排多次工具调用，只有输出回到模型                                                                                                                                                                      |
+| Skill           | `SKILL.md` 目录，模型按索引自行读取，用户用 `/skill:<名字>` 调用；另有提示模板                                                                                                                                                                         |
+| 两层 Hook       | 命令式 Hook（`hooks.json`，11 个事件，用户策略）与进程内宿主适配器 HostApi（嵌入方）                                                                                                                                                                   |
+| 权限            | 四种模式、allow / deny 规则、危险命令识别（穿透 `sh -c` / `eval` / `xargs` / `find -exec`）、项目信任、审批时的执行前预览                                                                                                                              |
+| 缓存            | 前缀稳定、缓存字段与兼容开关、未命中归因、「报 / 不报缓存」三态、长工具运行时保温、压缩摘要按会话前缀续写                                                                                                                                              |
+| 会话            | JSONL 条目树，分叉与 `/tree` 回溯；两档压缩（裁剪大工具结果 → 摘要）与熔断；预算上限（`--max-turns` / `--max-cost`）、重复调用检测、模型回退                                                                                                           |
+| 入口            | 差分渲染终端界面、`--no-tui` 行式、`-p`（text / json / stream-json）、`--mode rpc`、`--mode acp`、SDK                                                                                                                                                  |
 
 ## 安装
 
@@ -85,13 +94,13 @@ pnpm build                 # 产出 dist/ 与 dist/bundle/ama.cjs、dist/bundle/
 node dist/bundle/ama.cjs --version
 ```
 
-### Node 版本与 codemode
+### Node 版本、codemode 与沙箱
 
-| Node                                        | codemode 沙箱                                                                                                                                                         |
-| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ≥ 25                                        | 文件系统与网络都隔离；`codemode` 按只读类工具处理，`default` 权限模式下免审批；`default` 预设**缺省开启** codemode                                                    |
-| 22 / 24 + 操作系统沙箱（macOS、多数 Linux） | 子进程经 `sandbox-exec` / bubblewrap 启动，网络由内核拒绝；与 Node ≥ 25 相同：只读类、`default` 预设缺省开启                                                          |
-| 22 / 24，没有操作系统沙箱（如 Windows）     | 隔离文件系统，**不隔离网络**；`codemode` 按执行类处理，每次都要审批（状态栏显示红色 `net!`）；`default` 预设缺省**不开** codemode，启动时提示一次（每个配置目录一次） |
+| Node / 平台                                 | codemode                                                                                                                                                              | bash 沙箱（`sandbox.bash: "auto"`）                           |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| ≥ 25                                        | 文件系统与网络都隔离；`codemode` 按只读类工具处理，`default` 权限模式下免审批；`default` 预设**缺省开启** codemode                                                    | 取决于平台（下两行）                                          |
+| 22 / 24 + 操作系统沙箱（macOS、多数 Linux） | 子进程经 `sandbox-exec` / bubblewrap 启动，网络由内核拒绝；与 Node ≥ 25 相同：只读类、`default` 预设缺省开启                                                          | macOS `sandbox-exec`、Linux bubblewrap 可用（`unshare` 不算） |
+| 22 / 24，没有操作系统沙箱（如 Windows）     | 隔离文件系统，**不隔离网络**；`codemode` 按执行类处理，每次都要审批（状态栏显示红色 `net!`）；`default` 预设缺省**不开** codemode，启动时提示一次（每个配置目录一次） | 不可用，bash 照常审批                                         |
 
 其余功能在 Node 22 起都一样。`ama doctor` 显示本机的操作系统沙箱能力（[docs/sandbox.md](docs/sandbox.md)）；`sandbox.enabled: "off"` 或 `AMA_SANDBOX=off` 关闭它。网络未隔离时想用 codemode 就显式开：`--codemode on` 或 config 写 `"codemode": { "mode": "on" }`。`codemode.requireStrict: true` 可以在网络未隔离时直接禁用 codemode。
 
@@ -123,14 +132,19 @@ ama -p "列出 TODO" --model deepseek/deepseek-v4-pro --output-format json
 
 **常用参数**：
 
-| 参数                                                    | 作用                                           |
-| ------------------------------------------------------- | ---------------------------------------------- |
-| `--model provider/id`                                   | 选模型（配置、命令行、`/model`、SDK 写法一致） |
-| `--thinking off\|minimal\|low\|medium\|high\|xhigh`     | 思考级别（缺省 `medium`）                      |
-| `--permission-mode plan\|default\|auto-edit\|full-auto` | 权限模式（缺省 `default`）                     |
-| `-c` / `-r [id]`                                        | 继续本目录最近的会话 / 选择会话恢复            |
-| `--tools-preset <名>`                                   | 工具预设（见下文）                             |
-| `--allow <规则>` / `--deny <规则>`                      | 追加权限规则，可重复                           |
+| 参数                                                    | 作用                                                         |
+| ------------------------------------------------------- | ------------------------------------------------------------ |
+| `--model provider/id`                                   | 选模型（配置、命令行、`/model`、SDK 写法一致）               |
+| `--thinking off\|minimal\|low\|medium\|high\|xhigh`     | 思考级别（缺省 `medium`）                                    |
+| `--permission-mode plan\|default\|auto-edit\|full-auto` | 权限模式（缺省 `default`）                                   |
+| `-c` / `-r [id]`                                        | 继续本目录最近的会话 / 选择会话恢复                          |
+| `--tools-preset <名>`                                   | 工具预设（见下文）                                           |
+| `--allow <规则>` / `--deny <规则>`                      | 追加权限规则，可重复                                         |
+| `--max-turns N` / `--max-cost USD`                      | 一次运行的轮数 / 美元上限（`-p` 到限退出 8）                 |
+| `--agent-dir <目录>`                                    | 追加子 Agent 定义目录，可重复                                |
+| `--mode rpc` / `--mode acp`                             | stdio 上说 RPC（JSONL）/ ACP（JSON-RPC），供宿主与编辑器驱动 |
+
+**内置供应商**（17 家）：Anthropic、OpenAI、Google、DeepSeek、Moonshot（Kimi）、智谱、通义（DashScope）、OpenRouter、Groq、xAI、Mistral、MiniMax、阶跃、火山方舟、腾讯 TokenHub、Ollama、LM Studio。多协议的供应商带内置渠道，缺省协议 Messages / Responses 优先、Chat 回落：OpenAI、xAI、火山方舟走 Responses，通义、MiniMax、阶跃、腾讯走 Messages，DeepSeek、智谱、Kimi 暂走 Chat（`@messages` 可选），`provider/model@渠道` 指定渠道。完整表见 [docs/providers.md](docs/providers.md)「内置供应商」。
 
 本地 Ollama / LM Studio 不需要 key：`ama --model ollama/<模型名>`。`ama --help` 列出全部参数与子命令；测试或排查时可用不花钱的 `--model fake/echo`（回显最后一条用户消息；模型选择器、`models list`、`doctor` 缺省不列这个测试供应商，`AMA_SHOW_FAKE=1` 时列出）。
 
@@ -169,7 +183,7 @@ ama -p "列出 TODO" --model deepseek/deepseek-v4-pro --output-format json
 | 位置                  | 内容                                                                                                                                                 |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `~/.config/ama/`      | 用户级：`config.json`、`config.schema.json`（ama 生成）、`auth.json`（0600）、`hooks.json`、`keybindings.json`、`trust.json`、`AGENTS.md`、`skills/` |
-| `~/.local/share/ama/` | 数据：`sessions/`（会话 JSONL）、`models-dev.json`（模型元数据缓存）、输入历史                                                                       |
+| `~/.local/share/ama/` | 数据：`sessions/`（会话 JSONL）、`plans/`（计划文件）、`file-history/`（检查点备份）、`models-dev.json`（`ama models refresh` 的覆盖）、输入历史     |
 | `<项目>/.ama/`        | 项目级：`config.json`（只能收紧）、`hooks.json` / `skills/` / `prompts/`（需信任）                                                                   |
 | `<项目>/AGENTS.md`    | 项目约定，从 cwd 向上查找，自动进系统提示                                                                                                            |
 | `--profile <文件>`    | 宿主 profile（嵌入方用，见「嵌入 Armadra」）                                                                                                         |
@@ -200,8 +214,8 @@ ama providers list                                 # 供应商 → 渠道 → �
 ```
 
 `add` 列出 `GET {baseUrl}/models` 的模型，从 baseUrl 推出 chat / responses / messages 三个候选渠道，`--probe` 逐渠道发最小
-请求，把能用的渠道写进每个模型的 `channels`；上下文、输出上限、图像、推理与价格不写进配置，运行时从 models.dev 缓存补
-（`ama models list` 标出每个字段的来源）。不给 `--key-env` 时 key 从 stdin 读（不回显）存进 `auth.json`。写入后的配置：
+请求，把能用的渠道写进每个模型的 `channels`；上下文、输出上限、图像、推理与价格不写进配置，运行时从内置的 models.dev
+快照补（`ama models list` 标出每个字段的来源）。不给 `--key-env` 时 key 从 stdin 读（不回显）存进 `auth.json`。写入后的配置：
 
 ```json
 {
@@ -251,8 +265,8 @@ OPENAI_BASE_URL=https://proxy.example/v1 OPENAI_API_KEY=$PACKY_API_KEY \
 
 - `api` 缺省 `openai-completions`；可选 `openai-responses`、`anthropic-messages`、`google-generative-ai`。
 - `apiKey` 支持 `$ENV` / `${ENV}`（读环境变量）与 `!command`（执行命令取值），不要把 key 明文写进配置。
-- 自定义模型的元数据缺省从 models.dev 补（`ama models refresh-catalog` 刷新缓存）；匹配不到时不猜 `contextWindow`，自动
-  压缩关闭，需要时在模型条目里补上或写 `"modelsDev": "provider/model"` 指定条目。
+- 自定义模型的元数据缺省从随包的 models.dev 快照补（启动不联网；`ama models refresh` 显式联网刷新到数据目录，`refresh-catalog`
+  是旧名）；匹配不到时不猜 `contextWindow`，自动压缩关闭，需要时在模型条目里补上或写 `"modelsDev": "provider/model"` 指定条目。
 
 **不想手写模型表**：让 ama 去问中转站。
 
@@ -269,18 +283,18 @@ ama models cache-probe packy/grok-4.7                  # 这个端点报不报�
 
 | 预设            | 模型直接看到的工具                                                   | 适合                                                                                        |
 | --------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `default`       | read、edit、write、bash、grep、glob、todo；网络隔离时另加 `codemode` | 缺省                                                                                        |
+| `default`       | read、edit、write、bash、grep、glob、todo；网络隔离时另加 `codemode` | 缺省（`todo` 自 0.5.0 起在内）                                                              |
 | `minimal`       | read、edit、write、bash                                              | 小模型、小上下文；`full-auto`                                                               |
 | `codemode-only` | 只有 `codemode`                                                      | 长流程、工具调用密集的任务                                                                  |
 | `coordinator`   | read 与宿主注册的画布工具                                            | 嵌入 Armadra 的协调者：不写文件、不跑 bash；codemode 缺省关，显式开了脚本里也只能调这些工具 |
 
 - `--tools-preset <名>` 或 `tools.preset` 选预设。`codemode` 是 `codemode-only` 的旧名（0.3.0），配置、命令行、RPC、SDK 都还认，`ama config show` 显示规范名并提示。
-- `tools.default` 在预设上微调：`["+todo", "+task", "-glob"]`；不带前缀的名字整组替换。
+- `tools.default` 在预设上微调：`["+task", "-todo", "-glob"]`；不带前缀的名字整组替换。`task` 与 `task_ctl` 同进退（`+task` 一起加）。
 - 另有 `--tools a,b,c`（只启用这些）、`--exclude-tools a,b`、交互模式的 `/tools`。
 
 **codemode** 让模型写一段 JavaScript，用 `tools.<name>(args)` 编排多次工具调用（可以 `Promise.all` 并发），只有脚本输出回到模型。脚本跑在 `node --permission` 子进程的 vm 里：没有 `require` / `import` / `process` / `fetch`，每次内层调用仍逐个经过 Hook、权限与审批。
 
-**缺省开放**：`codemode.mode` 不写时跟随预设——`default` → `on`（七个工具 + codemode，只在网络隔离的沙箱里：Node ≥ 25，或 Node 22 / 24 + 操作系统沙箱；否则 `off`），`codemode-only` → `only`，`minimal` / `coordinator` → `off`。显式的 `--codemode off|on|only` 或 `codemode.mode` 优先，项目级只能写 `off`。`on` 模式下 codemode 的描述只用一行列出可在脚本里调用的直接工具（参数相同）与仅脚本可调的工具名，不重复声明，前缀只多约 400 token（[三预设基准](docs/benchmarks/presets-2026-10-02.md)测的是去重前的 codemode 预设：小任务输入多约 45%、轮数不减）。只读检索多、调用次数多的长流程可以用 `codemode-only`。
+**缺省开放**：`codemode.mode` 不写时跟随预设——`default` → `on`（七个工具 + codemode，只在网络隔离的沙箱里：Node ≥ 25，或 Node 22 / 24 + 操作系统沙箱；否则 `off`），`codemode-only` → `only`，`minimal` / `coordinator` → `off`。显式的 `--codemode off|on|only` 或 `codemode.mode` 优先，项目级只能写 `off`。`on` 模式下 codemode 的描述只用一行列出可在脚本里调用的直接工具（参数相同）与仅脚本可调的工具名，不重复声明，前缀只多约 400 token（[三预设基准](https://github.com/Owlbay/armadra-agent/blob/main/docs/benchmarks/presets-2026-10-02.md)测的是去重前的 codemode 预设：小任务输入多约 45%、轮数不减）。只读检索多、调用次数多的长流程可以用 `codemode-only`。
 
 ## 缓存
 
@@ -292,9 +306,14 @@ ama models cache-probe packy/grok-4.7                  # 这个端点报不报�
 
 ### 读状态栏
 
+独立终端缺省两行（`Ctrl+G` / `/statusline` 切换成一行，嵌入宿主缺省一行）：
+
 ```
-anthropic/<model-id> · think:medium · ↑412k ↓8.1k · cache 83% ♨ · $0.84 · rebill $0.11 · ctx 34% · mode:default
+tps: 100 tok/s • 546 tok / 5.5s (avg 100 · ttft 1.4s)    ↑412k ↓8.1k · cache 83% ♨ · rebill $0.11 · [-]
+Accept edits     claude-opus-5-5 medium | Ctx 34.0% | proj ⎇ main 5ae9e54 (+12,-3) | $0.84 | 2h24m
 ```
+
+上行是速率与用量，下行是权限模式、模型与思考级别、上下文、目录与 git 分支（含工作区增删行）、费用、会话时长。缓存相关的项：
 
 | 项             | 怎么读                                                                     |
 | -------------- | -------------------------------------------------------------------------- |
@@ -303,7 +322,7 @@ anthropic/<model-id> · think:medium · ↑412k ↓8.1k · cache 83% ♨ · $0.8
 | `cache 未报告` | 端点不报缓存（连续 3 次读写都是 0）；这类请求不算进命中率，而不是显示成 0% |
 | `♨`            | 保温计时中                                                                 |
 | `rebill $0.11` | 本会话因缓存未命中多付的钱（无价格的模型显示 token）；为 0 不显示          |
-| `ctx 34%`      | 上下文占用；≥ 70% 黄、≥ 90% 红，跨过时消息区提示「约剩 N 回合」            |
+| `Ctx 34.0%`    | 上下文占用；≥ 70% 黄、≥ 90% 红，跨过时消息区提示「约剩 N 回合」            |
 
 一次未命中重计费 ≥ 20k token 或 ≥ $0.10 时，消息区写一行原因。`/cache` 看缓存统计，`/cache fingerprint` 查前缀指纹（两次之间哈希变了，就是系统提示或工具表被改了）。
 
@@ -315,7 +334,7 @@ anthropic/<model-id> · think:medium · ↑412k ↓8.1k · cache 83% ♨ · $0.8
 
 ### 实测
 
-[缓存验收实验](docs/benchmarks/cache-2026-10-02.md)（2026-10-02，经一家测试中转站）：
+[缓存验收实验](https://github.com/Owlbay/armadra-agent/blob/main/docs/benchmarks/cache-2026-10-02.md)（2026-10-02，经一家测试中转站）：
 
 | 场景                        | 结果                                                                                           |
 | --------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -345,10 +364,61 @@ anthropic/<model-id> · think:medium · ↑412k ↓8.1k · cache 83% ♨ · $0.8
 
 - **规则**：`bash(git push*)`、`write(src/**)`、`read(**)`、`canvas_*`；`--allow` / `--deny` 可重复。内置 deny：写 `.git/**`、读写 `.ssh/**`。
 - **危险命令**：`rm -rf /`、`sudo`、`git push --force`、`git reset --hard`、`git clean -f`、`curl … | sh`、`chmod -R 777`、`npm publish`、`shutdown` 等，即使有 allow 规则也要询问。识别会穿透 `sh -c '…'`、`eval`、`xargs`、`find -exec` 与 git 全局选项。
-- **bash 沙箱**（缺省关闭）：配置 `"sandbox": { "bash": "auto" }` 后 bash 经 macOS `sandbox-exec` / Linux bubblewrap 运行，只能写工作区与临时目录（`sandbox.writable` 追加）、缺省不能联网、读不到 `~/.ssh` 等凭据；`default` / `auto-edit` 下沙箱内的命令免审批（危险命令、deny 规则照旧），被沙箱拒绝时模型可以请求 `sandbox: false` 不经沙箱重跑，这一步照常审批。见 [docs/sandbox.md](docs/sandbox.md)「第二阶段」。
+- **bash 沙箱**（缺省关闭）：见下文「沙箱」。
 - **项目信任**：`.ama/hooks.json`、`.ama/skills/`、`.ama/prompts/` 会执行或注入项目里的内容，需要先信任目录（交互模式问一次，可记住；`--trust` / `--no-trust`；非交互缺省不信任）。`AGENTS.md` 与 `.ama/config.json` 不需要信任，因为后者只能收紧。
 - **执行前预览**：审批对话框除了输入摘要，还列出这一步会碰到什么——bash 里 `rm` / `mv` / `git clean` / `git reset --hard` / 重定向的目标路径是否存在、大小、目录里有多少文件；write 显示路径与行数，edit 显示每处修改的 −/+ 摘要。`y` 允许、`n` 拒绝、`a` 本会话同类不再问、`v` 看完整输入。
-- **Hook**：`hooks.json` 在 `PreToolUse`、`PostToolUse`、`UserPromptSubmit`、`Stop` 等 9 个事件运行 shell 命令，可以否决工具调用、改写输入、追加上下文、让运行再跑一轮。见 [docs/hooks.md](docs/hooks.md)。
+- **Hook**：`hooks.json` 在 `PreToolUse`、`PostToolUse`、`UserPromptSubmit`、`Stop`、`PostCompact`、`PostRewind` 等 11 个事件运行 shell 命令，可以否决工具调用、改写输入、追加上下文、让运行再跑一轮。见 [docs/hooks.md](docs/hooks.md)。
+- **审批来源**：子 Agent 与外部 Agent 发起的审批在对话框标题标出来源（`[task:explore]`、`[claude · 会话 abc12345]`、「首次运行外部 Agent」），见 [docs/permissions.md](docs/permissions.md)「审批对话框的来源标注」。
+
+## 沙箱
+
+macOS 用 `sandbox-exec`，Linux 用 bubblewrap（退而 `unshare -r -n`，只隔离网络），启动时用目标配置跑一次最小探针确认真能用（嵌套沙箱、没有用户命名空间时降级），`ama doctor` 显示结果。Windows 没有操作系统沙箱。
+
+- **codemode**：子进程经沙箱启动，内核拒绝网络与一切写入；有沙箱时 Node 22 / 24 与 Node ≥ 25 一样按只读类处理、`default` 预设缺省开启（见上文「Node 版本、codemode 与沙箱」）。
+- **bash**（缺省关闭）：`"sandbox": { "bash": "auto" }` 后 bash（含后台 bash）在沙箱里跑——只能写工作区、系统临时目录与 `sandbox.writable` 追加的目录，工作区的 `.ama/`、`.git/hooks`、`.git/config` 只读，读不到 `~/.ssh` 等凭据，缺省不能联网（`sandbox.network: "allow"` 放开）。`default` / `auto-edit` 下沙箱内的命令免审批（危险命令、deny 规则、Hook ask 照旧）；被沙箱拒绝时模型可以请求 `sandbox: false` 不经沙箱重跑，这一步照常审批、无人值守拒绝。状态栏多一个 `沙箱` 标记。
+- `sandbox.*` 只认用户级 / profile，项目级只能写收紧的 `network: "deny"`；`sandbox.enabled: "off"` 或 `AMA_SANDBOX=off` 整体关闭。
+
+细节、各平台策略与已知绕过见 [docs/sandbox.md](docs/sandbox.md)。
+
+## Plan
+
+Plan 模式（`Shift+Tab`、`/permission plan`、`/plan <目标>`、`--permission-mode plan`）下模型只读调研——只放行读工具、只读命令（`ls`、`rg`、`git log / diff` 等）与只读子 Agent——最后输出 `<proposed_plan>` 计划块。ama 提取步骤、把计划落到 `<数据目录>/plans/`，弹出审批框：
+
+- **批准并执行** / **批准，在新上下文执行**（新建会话，以计划全文开场），接着选执行模式（回到进入前的模式 / Accept edits / Auto）；步骤变成 todo，逐步推进；
+- **继续修改**（意见发给模型重写计划）/ **放弃并退出 Plan**；`e` 在外部编辑器里改计划，Esc 放弃但留在 Plan。
+
+line 模式用 `/plan approve [模式|fresh]` / `/plan reject`；RPC 声明 `plans` 能力后由客户端审批；SDK 用 `createAgentSession({ plan: { onProposed } })`。**ama 不替人批准**：`-p` 缺省停在「计划待审批」并退出 9，用户级配置 `"plan": { "unattended": "approve" }` 才在无人值守时自动批准执行。`plan.model` 可让规划与执行用不同模型。见 [docs/plan.md](docs/plan.md)。
+
+## 子 Agent
+
+`task` 工具把子任务交给一个全新上下文的子 Agent（同进程、独立会话文件，深度 1），结果作为工具结果回到父会话。`default` 预设下 `task` 只在 codemode 脚本里可用，直接暴露用 `--tools …,task` 或 `tools.default: ["+task"]`。
+
+- 内置类型 `general`（缺省）、`explore`、`plan`（后两者强制只读、不弹审批）；`~/.config/ama/agents/*.md`、`.ama/agents/*.md`（需信任）或 `--agent-dir` 定义自己的类型（工具白名单、模型、权限、轮数、worktree 隔离）。
+- 同一回复里的多个 task 并行（`subagents.maxConcurrent`，缺省 4）；`background: true` 立即返回 `taskId`，完成后父会话收到 `<task-notification>`；`task{taskId}` 续聊；`task_ctl` 列出 / 等待 / 停止 / 读输出；`isolation: "worktree"` 在独立 git worktree 里跑。
+- 子会话工具表与父逐字节相同，首个请求复用父的缓存前缀。界面里 task 工具行折叠显示进度，`/tasks` 看输出或停止，`/agents` 列出可用类型。
+
+见 [docs/agents.md](docs/agents.md)「子 Agent」。
+
+## 外部 Agent
+
+`task(agent="claude")`、`"codex"` 或 `"acp:<程序>"`（Gemini CLI、OpenCode、Kimi、ama 自己等任意 ACP Agent）用你在该 CLI 里的**现有登录**驱动外部编码 Agent，前台 / 后台 / 续聊 / `task_ctl` 与 ama 子 Agent 一致；结果按资料处理。
+
+- **审批只交给人**：外部 Agent 要确认的操作走界面 / 宿主，auto 分类器与模型都不参与；无人值守一律拒绝。每个会话首次以某个外部 Agent 运行时确认一次（allow 规则 `task(claude)` 或 `full-auto` 放行）。
+- 外部 Agent 的模式不比 ama 当前模式宽（plan / allowlist 下只读）；子进程缺省剥离供应商 key、`*_BASE_URL`、`AMA_*`，不把订阅切成 API 计费；只在已信任目录里启动；有并发池、美元预算与看门狗。
+- 嵌入宿主时 ama 不自己启动外部 CLI，只用宿主经 `HostApi.runners` 注入的 runner。
+- **ama 作为 ACP Agent**：`ama --mode acp` 供 Zed、JetBrains、Armadra 的 ACP 节点驱动；`@armadra/agent/acp` 导出客户端、驱动与假 Agent。
+
+见 [docs/agents.md](docs/agents.md)「外部 Agent」与 [docs/acp.md](docs/acp.md)。
+
+## 回滚
+
+每条开启新回合的用户消息都是回滚点：edit / write 第一次写文件前备份，每个新回合重拍已跟踪文件（`checkpoints.mode: "shadow-git"` 时整个工作目录进影子仓库，bash 的改动也能回滚）。
+
+- `/rewind` 或空闲时双击 Esc 打开列表，确认面板给出：恢复代码和对话 / 恢复对话 / 恢复代码 / 从这里摘要 / 摘要到这里，每项带预览；回合外被手动改过的文件按冲突列出、缺省跳过，可选择覆盖；git HEAD 变了只提示命令，不动 git。
+- 运行中 Esc 中断且本回合还没有输出时自动撤回这条消息并回填（`ui.restoreOnCancel`）。
+- line 模式 `/rewind <n> [both|conversation|code] [overwrite]`；RPC `get_rewind_points` / `rewind`；SDK `session.rewind()`；Hook `PostRewind`。
+
+见 [docs/tui.md](docs/tui.md)「回滚」、[docs/rewind-plan.md](docs/rewind-plan.md) 与 [docs/sessions.md](docs/sessions.md)。
 
 ## 界面与入口
 
@@ -356,19 +426,22 @@ anthropic/<model-id> · think:medium · ↑412k ↓8.1k · cache 83% ♨ · $0.8
 
 直接运行 `ama`（stdin / stdout 都是 TTY）进入交互模式。界面只用主屏，对话历史留在终端回滚里，tmux `capture-pane` 能读到完整对话。
 
-| 按键                 | 作用                                       |
-| -------------------- | ------------------------------------------ |
-| Enter                | 发送；运行中插话（steer）                  |
-| Alt+Enter            | 运行中排到本轮之后（followUp）             |
-| Shift+Enter / Ctrl+J | 换行                                       |
-| Esc                  | 中断当前运行                               |
-| Shift+Tab            | 循环权限模式                               |
-| Ctrl+O               | 展开 / 折叠工具输出                        |
-| Ctrl+L / Ctrl+T      | 选择模型 / 思考级别                        |
-| Ctrl+C               | 清空输入；输入为空时 1.5 秒内再按一次退出  |
-| Tab                  | 补全：`/` 命令、模板与 Skill，`@` 文件路径 |
+| 按键                 | 作用                                                           |
+| -------------------- | -------------------------------------------------------------- |
+| Enter                | 发送；运行中插话（steer）                                      |
+| Alt+Enter            | 运行中排到本轮之后（followUp）                                 |
+| Shift+Enter / Ctrl+J | 换行                                                           |
+| Esc                  | 中断当前运行                                                   |
+| Esc Esc（空闲）      | 输入框为空：打开回滚列表（同 `/rewind`）；有字：清空并存进历史 |
+| Shift+Tab            | 循环权限模式                                                   |
+| Ctrl+O               | 展开 / 折叠工具输出                                            |
+| Ctrl+L / Ctrl+T      | 选择模型 / 思考级别                                            |
+| Ctrl+G               | 底部信息行 两行 ↔ 一行（同 `/statusline`）                     |
+| Ctrl+V               | 粘贴剪贴板里的图片，插入 `@<路径>`（同 `/paste`）              |
+| Ctrl+C               | 清空输入；输入为空时 1.5 秒内再按一次退出                      |
+| Tab                  | 补全：`/` 命令、模板与 Skill，`@` 文件路径                     |
 
-常用命令：`/model`、`/thinking`、`/permission`、`/tools`、`/compact`、`/tree`（回到某条消息之前重新分支）、`/fork`、`/resume`、`/new`、`/session`、`/cache`、`/hooks`、`/skill:<名字>`、`/help`。输入里的 `@图片路径`（或粘贴 / 拖入的图片路径）作为图片附件发给模型；`/model` 按「供应商 · 渠道」分组，标出上下文与 `img`。按键可在 `~/.config/ama/keybindings.json` 覆盖。见 [docs/tui.md](docs/tui.md)。
+常用命令：`/model`、`/thinking`、`/permission`、`/tools`、`/compact`、`/tree`（回到某条消息之前重新分支）、`/fork`、`/resume`、`/new`、`/session`、`/cache`、`/hooks`、`/skill:<名字>`、`/help`；第五波新增 `/plan`（计划面板与审批，`/plan <目标>` 进入 Plan）、`/tasks`（子 Agent 任务）、`/agents`（可用类型与外部 Agent）、`/paste`（剪贴板图片）、`/rewind`（回滚）、`/statusline [full|compact]`。输入里的 `@图片路径`（或粘贴 / 拖入的图片路径）作为图片附件发给模型；`/model` 按「供应商 · 渠道」分组，标出上下文与 `img`。按键可在 `~/.config/ama/keybindings.json` 覆盖。见 [docs/tui.md](docs/tui.md)。
 
 `--no-tui`（或 stdin / stdout 不是 TTY、`TERM=dumb`）进入行式界面：readline + 括号粘贴，命令相同。
 
@@ -388,8 +461,9 @@ anthropic/<model-id> · think:medium · ↑412k ↓8.1k · cache 83% ♨ · $0.8
 `--image <文件>` 可重复，随提示发送图片（PNG / JPEG / GIF / WebP，单张上限按端点分档、base64 后计：官方 Anthropic 10 MB、Gemini / OpenAI 20 MB、中转 5 MB，超限时尝试用 sips / ImageMagick 缩放）；提示里的 `@图片路径` 同样作为附件。当前
 模型不收图片时直接退出 2，不发请求。
 
-`--max-turns N` 限制一次运行最多 N 轮（一次模型请求加它的工具执行算一轮），到上限仍在调用工具时提前结束，退出码 1，
-`json` 结果带 `maxTurnsReached: true`。
+`--max-turns N` 限制一次运行最多 N 轮（一次模型请求加它的工具执行算一轮），`--max-cost USD` 限制一次运行的美元用量（配置
+`limits.maxTurns / maxCostUsd` 同义），到上限时提前结束（事件 `limit_reached`），**退出码 8**（0.4.x 的 `--max-turns` 是 1），
+`json` 结果带 `limitReached{kind, value, limit}`（轮数到限另有 `maxTurnsReached: true`）。Plan 模式下计划待审批时退出 9（见上文「Plan」）。
 
 `--system-prompt <文本|@文件>` 补充系统提示（任何模式都可用）：缺省作为最后一条规则追加，preamble 与工具表这段最长的
 缓存前缀不变；`--system-prompt-mode replace` 改为替换开头的角色说明，工具表、规则与 AGENTS.md 仍然保留。
@@ -401,7 +475,20 @@ anthropic/<model-id> · think:medium · ↑412k ↓8.1k · cache 83% ♨ · $0.8
 工具与原因，`json` 结果带 `deniedTools`，`stream-json` 的 `tool_execution_end` 带 `denied: true`，退出码 7。需要放行时用
 `--permission-mode auto-edit`（放行写入）/ `auto`（ama 判断每一步），或 `--allow "bash(npm test*)"` 按规则放行。
 
-退出码：0 正常 · 1 运行期错误 · 2 用法错误 · 3 配置错误 · 4 无可用模型或 key · 5 会话错误 · 6 宿主 / Hook 启动失败 · 7 `-p` 有工具调用被拒 · 78 宿主 API 版本不匹配 · 130 / 143 信号。
+| 退出码 | 含义                                                         |
+| ------ | ------------------------------------------------------------ |
+| 0      | 正常                                                         |
+| 1      | 运行期错误（模型最终失败等）                                 |
+| 2      | 用法错误；当前模型不收图片                                   |
+| 3      | 配置 / profile / 路径错误                                    |
+| 4      | 无可用模型或 key                                             |
+| 5      | 会话不存在 / 损坏                                            |
+| 6      | 宿主 / Hook 启动失败                                         |
+| 7      | `-p` 有工具调用被拒（无人审批、deny 规则、plan 等）          |
+| 8      | `-p` 到达预算上限（`--max-turns` / `--max-cost` / `limits`） |
+| 9      | `-p` 产出的计划已落盘、待审批（`plan.unattended: stop`）     |
+| 78     | 宿主 API 版本不匹配                                          |
+| 130    | SIGINT；143 = SIGTERM                                        |
 
 ### 会话统计、检索与复用
 
@@ -425,7 +512,9 @@ ama sessions export 3f9a1c2e --format md --output s.md   # md / json / jsonl，�
 printf '{"id":"1","type":"prompt","message":"hi"}\n' | ama --mode rpc --model fake/echo
 ```
 
-协议见 [docs/rpc.md](docs/rpc.md)，类型从 `@armadra/agent/rpc` 导入。
+`hello.capabilities` 列出服务端能力（`approvals`、`images`、`hooks`、`plans`），客户端用 `set_client_capabilities` 声明要接管的审批与计划审批。第五波新增计划（`plan_response` / `get_plan` / `get_todos`）、任务（`get_tasks` / `get_agents`）、回滚（`get_rewind_points` / `rewind` / `summarize_*`）命令与 `subagent_*`、`plan_*`、`limit_reached`、`telemetry_tick` 等事件。协议见 [docs/rpc.md](docs/rpc.md)，类型从 `@armadra/agent/rpc` 导入。
+
+`ama --mode acp` 说 ACP（JSON-RPC over NDJSON），见 [docs/acp.md](docs/acp.md)。
 
 ### SDK
 
@@ -456,10 +545,11 @@ await session.dispose();
 
 - `createAgentSession` 不读文件系统配置：内存会话、指定工具、回调审批，适合嵌在别的程序里。
 - 回滚：`session.rewindPoints()` 列出活动路径上开启新回合的用户消息；`session.rewind({ entryId, mode: "both" | "conversation" | "code", dryRun?, onConflict? })` 回到该消息之前（返回原消息草稿与代码恢复结果，内存会话只能仅对话）；`session.summarizeFrom(entryId, instructions?)` / `session.summarizeUpTo(entryId, instructions?)` 对应「从这里摘要」「摘要到这里」。设计见 [docs/rewind-plan.md](docs/rewind-plan.md)。
+- 计划：`createAgentSession({ plan: { onProposed } })` 在计划提出后回调审批（返回 `{ decision: "approve" | "approve_fresh" | "revise" | "reject", mode?, feedback? }`），或之后用 `session.plan.respond()`；`session.plan.current()` / `todos()` 读当前计划与待办。类型 `SessionPlanOptions`、`PlanDecision` 等从包入口导出，见 [docs/plan.md](docs/plan.md)「接口」。
 - `createRuntime({ argv })` 走与 `ama` 命令行相同的启动序列（读配置、AGENTS.md、Skill、hooks.json、auth.json）。
-- 子路径：`@armadra/agent/host`（宿主适配器类型）、`@armadra/agent/rpc`（RPC 类型）、`@armadra/agent/tui`（终端组件库）、`@armadra/agent/bundle`（单文件 `ama.cjs`，`require.resolve` 可取路径交给 `node` 或 `ELECTRON_RUN_AS_NODE=1` 启动）。
+- 子路径：`@armadra/agent/host`（宿主适配器类型）、`@armadra/agent/rpc`（RPC 类型）、`@armadra/agent/tui`（终端组件库）、`@armadra/agent/acp`（ACP 类型、客户端、驱动与假 Agent）、`@armadra/agent/bundle`（单文件 `ama.cjs`，`require.resolve` 可取路径交给 `node` 或 `ELECTRON_RUN_AS_NODE=1` 启动）。
 
-完整示例见 [examples/sdk-demo.ts](examples/sdk-demo.ts)（自定义工具、流式输出、用量统计）。
+完整示例见 [examples/sdk-demo.ts](https://github.com/Owlbay/armadra-agent/blob/main/examples/sdk-demo.ts)（自定义工具、流式输出、用量统计）。
 
 ## 嵌入 Armadra
 
@@ -472,24 +562,47 @@ Armadra 以 `ama --profile <path>` 启动 ama。profile 是一个 JSON 文件，
 
 ## 文档
 
-| 文档                                                                                                 | 内容                                                                                           |
-| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| [docs/providers.md](docs/providers.md)                                                               | 内置供应商、API Key、自定义供应商与中转站、compat、缓存                                        |
-| [docs/tui.md](docs/tui.md)                                                                           | 终端界面：布局、按键、命令、审批预览、缓存显示、组件库                                         |
-| [docs/codemode.md](docs/codemode.md)                                                                 | codemode 脚本、沙箱与权限                                                                      |
-| [docs/permissions.md](docs/permissions.md)                                                           | 权限模式、auto 三层判定、安全名单、allowlist                                                   |
-| [docs/hooks.md](docs/hooks.md)                                                                       | 命令式 Hook（hooks.json）                                                                      |
-| [docs/host-api.md](docs/host-api.md)                                                                 | 宿主适配器 API                                                                                 |
-| [docs/rpc.md](docs/rpc.md)                                                                           | RPC 协议（stdio JSONL）                                                                        |
-| [docs/session-format.md](docs/session-format.md)                                                     | 会话文件格式                                                                                   |
-| [docs/sessions.md](docs/sessions.md)                                                                 | 会话统计、检索、`--from` 复用、导出与检查点备份                                                |
-| [docs/extensions.md](docs/extensions.md)                                                             | 本地扩展（设计草案，未实现）                                                                   |
-| [docs/design.md](docs/design.md)                                                                     | 总体设计与决策记录                                                                             |
-| [docs/benchmarks/](docs/benchmarks/)                                                                 | 三预设基准与缓存验收实验（报告与原始数据）                                                     |
-| [docs/implementation-plan.md](docs/implementation-plan.md)、[docs/wave3-plan.md](docs/wave3-plan.md) | 实施计划（追溯用）                                                                             |
-| [docs/rewind-plan.md](docs/rewind-plan.md)                                                           | 检查点与回滚（设计，实施中）                                                                   |
-| [docs/wave5-plan.md](docs/wave5-plan.md)                                                             | 第五波：状态行、模型元数据入库、渠道、图像、外部 Agent、Plan、子 Agent、压缩与 harness（设计） |
-| [docs/research/](docs/research/)                                                                     | 第五波调研报告（追溯用）                                                                       |
+| 文档                                                  | 内容                                                                                    |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| [docs/providers.md](docs/providers.md)                | 内置供应商与渠道、API Key、自定义供应商与中转站、模型元数据快照、图像输入、compat、缓存 |
+| [docs/tui.md](docs/tui.md)                            | 终端界面：布局、状态栏、按键、命令、回滚、审批、Plan 审批、子 Agent、剪贴板图片、组件库 |
+| [docs/permissions.md](docs/permissions.md)            | 权限模式、plan 只读命令、判定顺序、沙箱内免审批、auto 三层判定、审批来源标注            |
+| [docs/plan.md](docs/plan.md)                          | Plan 模式：流程、计划格式、审批、分模型、配置与持久化                                   |
+| [docs/agents.md](docs/agents.md)                      | 子 Agent（类型、定义文件、后台、续聊、worktree）与外部 Agent（驱动、权限、环境、预算）  |
+| [docs/acp.md](docs/acp.md)                            | ACP：`ama --mode acp` 与 ama 作为 ACP 客户端                                            |
+| [docs/sandbox.md](docs/sandbox.md)                    | 操作系统沙箱：codemode 与 bash、各平台实现、配置与已知绕过                              |
+| [docs/codemode.md](docs/codemode.md)                  | codemode 脚本、沙箱与权限                                                               |
+| [docs/hooks.md](docs/hooks.md)                        | 命令式 Hook（hooks.json）                                                               |
+| [docs/host-api.md](docs/host-api.md)                  | 宿主适配器 API                                                                          |
+| [docs/rpc.md](docs/rpc.md)                            | RPC 协议（stdio JSONL）                                                                 |
+| [docs/session-format.md](docs/session-format.md)      | 会话文件格式                                                                            |
+| [docs/sessions.md](docs/sessions.md)                  | 会话统计、检索、`--from` 复用、导出、检查点与影子 git                                   |
+| [docs/rewind-plan.md](docs/rewind-plan.md)            | 检查点与回滚的设计                                                                      |
+| [docs/tui-design.md](docs/tui-design.md)              | 终端界面视觉规格与逐屏样稿                                                              |
+| [docs/design.md][design]                              | 总体设计与决策记录（第五波增补指引在 §0 之后）                                          |
+| [docs/extensions.md][extensions]                      | 本地扩展（设计草案，未实现）                                                            |
+| [docs/benchmarks/][benchmarks]                        | 预设基准、D20 todo 复测与缓存验收实验（报告与原始数据）                                 |
+| [docs/wave5-plan.md][wave5]                           | 第五波设计：状态行、模型元数据、渠道、图像、外部 Agent、Plan、子 Agent、压缩与 harness  |
+| [docs/implementation-plan.md][impl]、[wave3-plan][w3] | 早期实施计划（追溯用）                                                                  |
+| [docs/research/][research]                            | 第五波调研报告（追溯用）                                                                |
+
+npm 包里带上表前十五份（用户文档）；其余是设计与追溯材料，链接指向 GitHub。
+
+[design]: https://github.com/Owlbay/armadra-agent/blob/main/docs/design.md
+[extensions]: https://github.com/Owlbay/armadra-agent/blob/main/docs/extensions.md
+[benchmarks]: https://github.com/Owlbay/armadra-agent/tree/main/docs/benchmarks
+[wave5]: https://github.com/Owlbay/armadra-agent/blob/main/docs/wave5-plan.md
+[impl]: https://github.com/Owlbay/armadra-agent/blob/main/docs/implementation-plan.md
+[w3]: https://github.com/Owlbay/armadra-agent/blob/main/docs/wave3-plan.md
+[research]: https://github.com/Owlbay/armadra-agent/tree/main/docs/research
+
+## 已知限制
+
+- **Linux 沙箱未在真机上验证**：bubblewrap 路径只在 CI 容器与单元测试里跑过；没有 bwrap 时退到 `unshare -r -n`（只隔离网络，不能用于 bash 沙箱），都没有则按无沙箱处理（codemode 回到执行类、每次审批）。
+- **外部 Agent 的真实 CLI 测试只在本地跑**：CI 只跑录制回放与 ama 驱动 ama；接 `claude` / `codex` 的端到端需要本机已登录，`AMA_E2E_AGENTS=1` 时运行（会用你的订阅额度），见 [docs/agents.md](docs/agents.md)「本地验证真实 CLI」。
+- **DeepSeek、智谱、Kimi 缺省仍走 Chat**：它们的 Messages 渠道（`@messages`）只在中转上测过，等官方直连过了实测门（`scripts/channel-probe.mjs`）再切缺省。
+- **models.dev 刷新 PR 不自动触发 CI**：仓库 secret `MODELS_DEV_PR_TOKEN` 没配时，每周的 workflow 用缺省 token 开 PR（先在 workflow 里自跑 `pnpm run ci` 并把结果写进描述）。
+- 子 Agent 深度 1，不读 `.claude/agents`，不支持继承父对话的 fork 模式；Windows 没有操作系统沙箱。
 
 ## 开发
 
@@ -498,7 +611,7 @@ Armadra 以 `ama --profile <path>` 启动 ama。profile 是一个 JSON 文件，
 ```sh
 pnpm install
 pnpm run ci              # typecheck、fmt:check、check:deps、release:check、test、build，再跑 bundle --version
-AMA_E2E=1 pnpm test:e2e  # bundle 级端到端：print / rpc / codemode / cache / host（fake 供应商，不花钱）
+AMA_E2E=1 pnpm test:e2e  # bundle 级端到端：print / rpc / acp / plan / 子 Agent / 回滚 / codemode / cache / host（fake 供应商，不花钱）
 ```
 
 pnpm 10 起 `pnpm ci` 是内置的「清理后安装」，跑检查要写 `pnpm run ci`。常用单项：`pnpm test`、`pnpm typecheck`、`pnpm fmt`、`pnpm build`。测试一律用 fake 供应商：`AMA_FAKE_SCRIPT=<脚本.json>` 让它按脚本产出文本、工具调用、429、断流等，示例在 `test/fixtures/scripts/`。
@@ -507,7 +620,7 @@ pnpm 10 起 `pnpm ci` 是内置的「清理后安装」，跑检查要写 `pnpm 
 
 | 脚本                                                      | 用途                                  |
 | --------------------------------------------------------- | ------------------------------------- |
-| `node scripts/bench-presets.mjs`（`pnpm bench:presets`）  | 三预设基准                            |
+| `node scripts/bench-presets.mjs`（`pnpm bench:presets`）  | 预设基准（`--tasks long` 多步长任务） |
 | `node scripts/cache-experiment.mjs`（`pnpm bench:cache`） | 缓存验收实验 E1–E5                    |
 | `node scripts/record-sse.mjs`                             | 录制各协议的 SSE 样本作为测试 fixture |
 
