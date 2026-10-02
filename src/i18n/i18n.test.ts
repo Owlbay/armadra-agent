@@ -152,6 +152,12 @@ describe("语言选择", () => {
 describe("setLocale / msg", () => {
   afterEach(() => setLocale("zh"));
 
+  it("测试进程缺省钉在 zh（test/helpers/setup.ts）", () => {
+    expect(process.env["AMA_LANG"]).toBe("zh");
+    expect(getLocale()).toBe("zh");
+    expect(msg()).toBe(CATALOGS.zh);
+  });
+
   it("setLocale 切换 msg() 的目录", () => {
     setLocale("en");
     expect(msg()).toBe(CATALOGS.en);
