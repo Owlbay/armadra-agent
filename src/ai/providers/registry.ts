@@ -278,21 +278,32 @@ export class ProviderRegistry implements ProviderRegistryApi {
 }
 
 /**
- * 本地服务的模型枚举（`ama models list --provider ollama|lmstudio`，§3.3 唯一的联网枚举）：
- * ollama 走 `/api/tags`，其它走 OpenAI 兼容的 `GET {baseUrl}/models`。失败抛错由调用方展示。
+ * 模型枚举：本地服务（`ama models list --provider ollama|lmstudio`）与 `ama models discover`
+ * （第三波 §2.3）共用。ollama 走 `/api/tags`，其它走 OpenAI 兼容的 `GET {baseUrl}/models`；
+ * `url` / `headers` 由调用方给出时原样使用（远端中转要带鉴权头）。失败抛错由调用方展示。
  */
 export async function discoverLocalModels(
   provider: ProviderData,
-  options: { signal?: AbortSignal; timeoutMs?: number } = {},
+  options: {
+    signal?: AbortSignal;
+    timeoutMs?: number;
+    url?: string;
+    headers?: Record<string, string>;
+  } = {},
 ): Promise<Model[]> {
   const signal = AbortSignal.any([
     options.signal ?? new AbortController().signal,
     AbortSignal.timeout(options.timeoutMs ?? 5000),
   ]);
   const base = provider.baseUrl.replace(/\/+$/, "");
-  const isOllama = provider.id === "ollama" || base.includes(":11434");
-  const url = isOllama ? `${base.replace(/\/v1$/, "")}/api/tags` : `${base}/models`;
-  const response = await fetch(url, { signal });
+  const isOllama =
+    options.url === undefined && (provider.id === "ollama" || base.includes(":11434"));
+  const url =
+    options.url ?? (isOllama ? `${base.replace(/\/v1$/, "")}/api/tags` : `${base}/models`);
+  const response = await fetch(url, {
+    signal,
+    ...(options.headers !== undefined ? { headers: options.headers } : {}),
+  });
   if (!response.ok) throw new Error(`${response.status} listing models from ${url}`);
   const body = (await response.json()) as {
     models?: { name?: unknown }[];
@@ -301,7 +312,7 @@ export async function discoverLocalModels(
   const ids = isOllama
     ? (body.models ?? []).map((m) => m.name)
     : (body.data ?? []).map((m) => m.id);
-  return ids
-    .filter((id): id is string => typeof id === "string" && id.length > 0)
-    .map((id) => withCustomDefaults({ id }, provider.id, provider.api));
+  return [
+    ...new Set(ids.filter((id): id is string => typeof id === "string" && id.length > 0)),
+  ].map((id) => withCustomDefaults({ id }, provider.id, provider.api));
 }

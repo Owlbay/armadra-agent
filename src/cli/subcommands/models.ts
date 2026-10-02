@@ -14,6 +14,7 @@ import { parseSubArgs, UsageError } from "../args.js";
 import type { CliIo, RuntimeDeps } from "../deps.js";
 import { ExitCode } from "../exit-codes.js";
 import { buildRegistry, loadUserLevel, type UserLevel } from "./context.js";
+import { DISCOVER_ACTION } from "./models-discover.js";
 
 /** 动作执行时拿到的上下文（参数已按表解析、注册表已构造）。 */
 export interface ModelsActionContext {
@@ -136,6 +137,7 @@ export const MODELS_ACTIONS: Readonly<Record<string, ModelsAction>> = Object.fre
     required: "<provider/id>",
     run: (ctx) => check(ctx.io, ctx.registry, ctx.args[0] ?? ""),
   },
+  discover: DISCOVER_ACTION,
 });
 
 export const MODELS_USAGE = `用法：${Object.values(MODELS_ACTIONS)
