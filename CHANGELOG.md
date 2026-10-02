@@ -1,6 +1,6 @@
 # 更新记录
 
-## 未发布
+## 0.5.1（2026-10-03）
 
 - **Tab 切换权限模式**：输入为空、补全未打开时按 Tab 与 Shift+Tab 一样循环权限模式；有输入时 Tab 仍是补全。可在 `keybindings.json` 的 `app.permission.cycle` 改回只用 `shift+tab`。
 - **进入 Bypass 前确认**：Tab / Shift+Tab 循环到 Bypass permissions、`/permission` 选择器选它或 `/permission full-auto` 时，先弹确认框
