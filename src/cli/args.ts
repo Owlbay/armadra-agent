@@ -25,6 +25,7 @@ export const SUBCOMMANDS = [
   "doctor",
   "config",
   "init",
+  "stats",
 ] as const;
 export type SubcommandName = (typeof SUBCOMMANDS)[number];
 
@@ -167,6 +168,8 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
   ama config path              配置目录、数据目录与各文件路径
   ama config edit              用 $VISUAL / $EDITOR 打开 config.json
   ama init [--force]           建配置目录（0700）与 config.json、config.schema.json；已有的不覆盖
+  ama stats [--since 7d] [--by day|week|month|provider|channel|model|project] [--all] [--json]
+                               跨会话统计：请求、token、缓存命中率、费用、工具调用
 
 其它
   -h, --help                   输出本帮助
