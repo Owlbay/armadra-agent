@@ -11,6 +11,7 @@
  *   不保温）；结果带 `cache{hitRate, reBilledTokens}`，并汇总进父会话的「子任务」统计。
  */
 
+import type { CheckpointHooks } from "../checkpoints/types.js";
 import { AmaError } from "../errors.js";
 import type { ApprovalBroker, ApprovalRequestContext } from "../permissions/types.js";
 import { SessionManager } from "../session/manager.js";
@@ -52,6 +53,8 @@ export interface SubagentParent {
   childBase(): Pick<AgentSessionOptions, "model" | "thinkingLevel" | "activeTools" | "system">;
   /** 子会话的审批事件转发给父会话的订阅者（RPC 客户端 / TUI 据此作答）。 */
   emit?(event: SessionEvent): void;
+  /** [RW-B] 父会话的检查点钩子：子会话的编辑记到父会话当前回合。 */
+  checkpointHooks?(): CheckpointHooks | undefined;
   /** [W3-C1b] 父会话的缓存控制器：汇总子会话的命中与重计费。 */
   readonly cache?: {
     addSubagent(tokens: { cacheRead: number; prompt: number }, reBilledTokens: number): void;
@@ -114,6 +117,7 @@ export async function runSubagent(
         parentSession: parentFile,
       },
     });
+    const checkpointHooks = parent.checkpointHooks?.();
     const available = new Set((parent.options.tools ?? []).map((tool) => tool.name));
     const names = (request.tools ?? base.activeTools ?? [...available]).filter(
       (name) => name !== "task" && available.has(name),
@@ -132,6 +136,7 @@ export async function runSubagent(
       depth: parent.depth + 1,
       maxTurns: request.maxTurns ?? DEFAULT_SUBAGENT_MAX_TURNS,
       subagents: false,
+      ...(checkpointHooks === undefined ? {} : { checkpointHooks }),
     });
     const onAbort = (): void => void child.abort();
     request.signal.addEventListener("abort", onAbort, { once: true });

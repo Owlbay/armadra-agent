@@ -10,6 +10,7 @@
 {"type":"message_start","message":{"role":"user","content":"hi","timestamp":0}}
 {"type":"entry_appended","entry":{"type":"message","message":{"role":"user","content":"hi","timestamp":0},"id":"<id>","parentId":"<id>","timestamp":0}}
 {"type":"message_end","message":{"role":"user","content":"hi","timestamp":0}}
+{"type":"entry_appended","entry":{"type":"custom","customType":"ama.checkpoint","data":{"v":1,"userEntryId":"<id>","files":{}},"id":"<id>","parentId":"<id>","timestamp":0}}
 {"type":"message_start","message":{"role":"assistant","content":[],"api":"fake","provider":"fake","model":"echo","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0},"stopReason":"stop","timestamp":0,"thinkingLevel":"medium"}}
 {"type":"message_update","assistantMessageEvent":{"type":"text_start","contentIndex":0},"usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0}}
 {"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"hello back"},"usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0}}

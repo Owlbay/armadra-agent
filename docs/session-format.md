@@ -110,6 +110,7 @@
 | `ama.codemode-store` | `custom`         | `data: { entries }`，`store()` 的完整快照                                           | codemode 脚本成功结束且写过 store；读取取分支上最近一条 |
 | `ama.aborted`        | `custom_message` | `content`：告诉模型上一条回复被用户中断；`display: false`                           | 用户中断运行                                            |
 | `ama.hook_context`   | `custom_message` | `content`：UserPromptSubmit Hook 的 `additionalContext`；`display: false`           | 随用户提示进上下文                                      |
+| `ama.rewind-note`    | `custom_message` | `content`：回滚后哪些文件与对话不一致（最多列 20 个）；`display: false`             | 仅对话 / 仅代码回滚后，下一次提示之前追加在末尾         |
 
 其它程序（宿主、SDK 工具经 `ToolContext.session.appendCustom`）可以写自己的 `customType`；建议加前缀避免冲突，`ama.` 前缀保留给 ama。
 

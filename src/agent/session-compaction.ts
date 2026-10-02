@@ -17,6 +17,7 @@ import { estimateProjectedTokens, type ContextEstimate } from "../compaction/est
 import { planPrune, shouldPrune } from "../compaction/prune-tier.js";
 import {
   prepareCompaction,
+  prepareCompactionAt,
   runCompaction,
   type SummarizerOptions,
 } from "../compaction/summarize-tier.js";
@@ -170,11 +171,13 @@ export class CompactionController {
     return { retry: true };
   }
 
+  /** `cutAt`：[RW-B] 以该条目为切点（「摘要到这里」），不按保留预算找切点。 */
   async compactManual(
     instructions: string | undefined,
     signal: AbortSignal,
+    cutAt?: string,
   ): Promise<CompactionResult> {
-    const outcome = await this.summarize("manual", signal, instructions);
+    const outcome = await this.summarize("manual", signal, instructions, cutAt);
     if (outcome.result === undefined) {
       if (outcome.aborted) throw new AmaError("aborted", "compaction aborted");
       throw new AmaError("compaction_failed", outcome.error ?? "compaction failed");
@@ -208,6 +211,7 @@ export class CompactionController {
     trigger: CompactionTrigger,
     signal: AbortSignal,
     instructions?: string,
+    cutAt?: string,
   ): Promise<SummarizeOutcome> {
     const core = this.core;
     this.compacting = true;
@@ -251,9 +255,12 @@ export class CompactionController {
     const projection = buildProjection(core.manager.branch());
     const keep = this.keepRecent();
     let plan: ReturnType<typeof prepareCompaction>;
-    for (const budget of [keep, Math.floor(keep / 4), 1]) {
-      plan = prepareCompaction(projection, Math.max(1, budget));
-      if (plan !== undefined) break;
+    if (cutAt !== undefined) plan = prepareCompactionAt(projection, cutAt);
+    else {
+      for (const budget of [keep, Math.floor(keep / 4), 1]) {
+        plan = prepareCompaction(projection, Math.max(1, budget));
+        if (plan !== undefined) break;
+      }
     }
     if (plan === undefined) {
       if (trigger !== "manual") this.breaker.recordSummary(false);

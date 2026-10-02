@@ -38,17 +38,18 @@
 
 ## 事件
 
-| 事件               | 时机                                                       | stdout JSON 可改变什么                                                                                                    | 退出码 2                            |
-| ------------------ | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| `SessionStart`     | 会话创建 / 恢复后、首次提示前（`source`）                  | `additionalContext` → 系统提示的 `hooks` 节；`decision: "block"` → 启动失败                                               | 启动失败，退出码 6（换会话时忽略）  |
-| `UserPromptSubmit` | 用户提示展开后、入转录前                                   | `decision: "block"` + `reason` 阻止本次提示；`updatedPrompt` 替换提示；`additionalContext` 作为 custom 消息随提示进上下文 | 阻止，reason 显示给用户             |
-| `PreToolUse`       | schema 校验之后、权限管线之前                              | `decision: "allow" \| "deny" \| "ask"`、`reason`、`updatedInput` 替换工具输入                                             | deny，stderr 作为 reason 进工具结果 |
-| `PostToolUse`      | 工具执行后、结果入转录前                                   | `additionalContext` 追加到工具结果末尾；`decision: "block"` 把结果改为错误                                                | 结果标为错误，stderr 追加进结果     |
-| `Stop`             | 运行将要结束（`agent_before_settle`，没有排队的 followUp） | `decision: "block"` + `reason` → 以 reason 作为新的 user 消息**再跑一轮**（每次运行最多 3 次）                            | 同左                                |
-| `SubagentStop`     | `task` 子会话将要结束                                      | 同 Stop，作用于子会话                                                                                                     | 同左                                |
-| `PreCompact`       | 档二摘要压缩前                                             | `customInstructions` 追加到摘要提示；`decision: "block"` 取消本次压缩                                                     | 取消压缩                            |
-| `Notification`     | 需要用户注意：审批等待、运行结束、错误、重试               | 无（纯通知）                                                                                                              | 忽略                                |
-| `SessionEnd`       | 退出或换会话前（`reason: exit \| new \| switch`）          | 无                                                                                                                        | 忽略                                |
+| 事件               | 时机                                                                      | stdout JSON 可改变什么                                                                                                    | 退出码 2                            |
+| ------------------ | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `SessionStart`     | 会话创建 / 恢复后、首次提示前（`source`）                                 | `additionalContext` → 系统提示的 `hooks` 节；`decision: "block"` → 启动失败                                               | 启动失败，退出码 6（换会话时忽略）  |
+| `UserPromptSubmit` | 用户提示展开后、入转录前                                                  | `decision: "block"` + `reason` 阻止本次提示；`updatedPrompt` 替换提示；`additionalContext` 作为 custom 消息随提示进上下文 | 阻止，reason 显示给用户             |
+| `PreToolUse`       | schema 校验之后、权限管线之前                                             | `decision: "allow" \| "deny" \| "ask"`、`reason`、`updatedInput` 替换工具输入                                             | deny，stderr 作为 reason 进工具结果 |
+| `PostToolUse`      | 工具执行后、结果入转录前                                                  | `additionalContext` 追加到工具结果末尾；`decision: "block"` 把结果改为错误                                                | 结果标为错误，stderr 追加进结果     |
+| `Stop`             | 运行将要结束（`agent_before_settle`，没有排队的 followUp）                | `decision: "block"` + `reason` → 以 reason 作为新的 user 消息**再跑一轮**（每次运行最多 3 次）                            | 同左                                |
+| `SubagentStop`     | `task` 子会话将要结束                                                     | 同 Stop，作用于子会话                                                                                                     | 同左                                |
+| `PreCompact`       | 档二摘要压缩前                                                            | `customInstructions` 追加到摘要提示；`decision: "block"` 取消本次压缩                                                     | 取消压缩                            |
+| `Notification`     | 需要用户注意：审批等待、运行结束、错误、重试                              | 无（纯通知）                                                                                                              | 忽略                                |
+| `SessionEnd`       | 退出或换会话前（`reason: exit \| new \| switch`）                         | 无                                                                                                                        | 忽略                                |
+| `PostRewind`       | 回滚完成后（`/rewind`、RPC `rewind`、SDK `session.rewind()`；预览不触发） | 无（纯通知，不可阻止）                                                                                                    | 忽略                                |
 
 每个事件只接受上表的决策；`deny` 与 `block` 在两类事件间互换（`UserPromptSubmit` 返回 `deny` 视为 `block`，`PreToolUse` 返回 `block` 视为 `deny`），其它不接受的决策忽略并记 warning。
 
@@ -71,16 +72,17 @@ stdin 是一个 JSON 对象，写完即关闭。所有事件共有：
 
 事件特有：
 
-| 事件                    | 字段                                                                                                  |
-| ----------------------- | ----------------------------------------------------------------------------------------------------- |
-| `SessionStart`          | `source: startup \| resume \| new \| fork`                                                            |
-| `SessionEnd`            | `reason: exit \| new \| switch`                                                                       |
-| `UserPromptSubmit`      | `prompt`                                                                                              |
-| `PreToolUse`            | `toolCallId`、`toolName`、`toolInput`、`viaCodemode?`、`parentToolCallId?`                            |
-| `PostToolUse`           | 同上 + `toolResult: { content, isError }`（content 为文本）                                           |
-| `Stop` / `SubagentStop` | `lastAssistantText`、`stopHookActive`（本次运行已被 Stop Hook 续跑过；处理器应避免再 block 造成循环） |
-| `PreCompact`            | `tokensBefore`、`trigger: auto \| manual`                                                             |
-| `Notification`          | `notification: { kind: approval \| settled \| error \| retry, message }`                              |
+| 事件                    | 字段                                                                                                             |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `SessionStart`          | `source: startup \| resume \| new \| fork`                                                                       |
+| `SessionEnd`            | `reason: exit \| new \| switch`                                                                                  |
+| `UserPromptSubmit`      | `prompt`                                                                                                         |
+| `PreToolUse`            | `toolCallId`、`toolName`、`toolInput`、`viaCodemode?`、`parentToolCallId?`                                       |
+| `PostToolUse`           | 同上 + `toolResult: { content, isError }`（content 为文本）                                                      |
+| `Stop` / `SubagentStop` | `lastAssistantText`、`stopHookActive`（本次运行已被 Stop Hook 续跑过；处理器应避免再 block 造成循环）            |
+| `PreCompact`            | `tokensBefore`、`trigger: auto \| manual`                                                                        |
+| `Notification`          | `notification: { kind: approval \| settled \| error \| retry, message }`                                         |
+| `PostRewind`            | `entryId`（回滚到的用户消息）、`mode: both \| conversation \| code`、`files`（被恢复或删除的文件，仅对话时为空） |
 
 **codemode**：脚本里经 `tools.*` 发起的每次调用都单独经过 PreToolUse / PostToolUse，matcher 按**真实工具名**匹配（`bash`，不是 `codemode`），输入多两个字段：`viaCodemode: true` 与 `parentToolCallId`（外层 `codemode` 调用的 id）。`codemode` 调用本身也作为一次工具调用经过两个事件。模型直接发起的调用不带这两个字段。
 

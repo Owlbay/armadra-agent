@@ -7,6 +7,14 @@
   （符号链接、硬链接、非普通文件、父目录移动；非 Windows 用 `O_NOFOLLOW`），可预览行级增删。
   `ama sessions prune` 结束后清理未引用的备份，`ama doctor` 显示占用。新配置 `checkpoints.mode`
   （`AMA_CHECKPOINTS` 覆盖）、`checkpoints.maxFileBytes`、`checkpoints.keep`。
+- **会话回滚（接口层）**（设计见 docs/rewind-plan.md）：`AgentSession.rewindPoints()` 列出活动路径上开启新回合的用户消息；
+  `rewind({ entryId, mode: both | conversation | code, dryRun?, onConflict? })` 回到该消息之前——对话复用 `/tree` 换叶子、
+  代码经检查点后端恢复，返回原消息草稿、恢复结果与 git HEAD 变化提示；全部失败报 `rewind_failed`，运行中报 `busy`。
+  「已读」集合按新路径重算并去掉被恢复 / 不一致的文件；仅对话或仅代码时在下一次提示前追加 `ama.rewind-note`，前缀不变、缓存照常命中。
+  `summarizeFrom` / `summarizeUpTo` 对应「从这里摘要」「摘要到这里」；`canUndoAbortedTurn` / `undoAbortedTurn` 供中断即撤回，
+  新配置 `ui.restoreOnCancel`（缺省 true）。新回合用户消息落盘后建检查点，`task` 子会话的编辑记到父会话当前回合。
+- RPC 新增 `get_rewind_points`、`rewind`、`summarize_from`、`summarize_up_to` 与事件 `session_rewound`（命令表 37 条）；
+  命令式 Hook 新增 `PostRewind`（`{ entryId, mode, files }`，不可阻止）；SDK 导出回滚类型。
 - **影子 git 检查点**（`checkpoints.mode: "shadow-git"`，docs/sessions.md「影子 git 模式」）：每个新回合把工作目录快照进
   `<数据目录>/file-history/shadow/` 下的独立仓库，bash 与手动的新增、修改、删除、重命名也能回滚；尊重 `.gitignore`，
   不碰用户仓库。git 不在 PATH、文件数超过 20 000 或快照超过 3 秒时本会话降级为 `tools`；家目录与根目录不启用。

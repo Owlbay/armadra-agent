@@ -453,6 +453,7 @@ await session.dispose();
 ```
 
 - `createAgentSession` 不读文件系统配置：内存会话、指定工具、回调审批，适合嵌在别的程序里。
+- 回滚：`session.rewindPoints()` 列出活动路径上开启新回合的用户消息；`session.rewind({ entryId, mode: "both" | "conversation" | "code", dryRun?, onConflict? })` 回到该消息之前（返回原消息草稿与代码恢复结果，内存会话只能仅对话）；`session.summarizeFrom(entryId, instructions?)` / `session.summarizeUpTo(entryId, instructions?)` 对应「从这里摘要」「摘要到这里」。设计见 [docs/rewind-plan.md](docs/rewind-plan.md)。
 - `createRuntime({ argv })` 走与 `ama` 命令行相同的启动序列（读配置、AGENTS.md、Skill、hooks.json、auth.json）。
 - 子路径：`@armadra/agent/host`（宿主适配器类型）、`@armadra/agent/rpc`（RPC 类型）、`@armadra/agent/tui`（终端组件库）、`@armadra/agent/bundle`（单文件 `ama.cjs`，`require.resolve` 可取路径交给 `node` 或 `ELECTRON_RUN_AS_NODE=1` 启动）。
 

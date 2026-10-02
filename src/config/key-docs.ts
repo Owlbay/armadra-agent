@@ -23,7 +23,7 @@ const IMPLICIT_DEFAULTS: Partial<AmaConfig> = {
   codemode: { inlineBudget: DEFAULT_INLINE_BUDGET, requireStrict: false },
   cache: { ...DEFAULT_CACHE_CONFIG },
   request: { idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS },
-  ui: { compact: false, animation: true },
+  ui: { compact: false, animation: true, restoreOnCancel: true },
   checkpoints: { ...DEFAULT_CHECKPOINTS_CONFIG },
 };
 
@@ -91,6 +91,8 @@ export const CONFIG_KEY_DOCS: Readonly<Record<string, string>> = Object.freeze({
     "ASCII 字形（> * L、+ - |）；不写时自动检测：区域设置不含 UTF-8、TERM=linux、旧 conhost 时开启；AMA_ASCII=1/0 覆盖",
   "ui.compact": "消息区块间不空行、启动头不画框",
   "ui.animation": "false：运行中 spinner 静止，只在秒数变化时重绘",
+  "ui.restoreOnCancel":
+    "运行中 Esc 中断、本回合还没有任何回复或工具调用时，撤回该回合并把原消息放回输入框",
   skills: "Skill",
   "skills.dirs": "追加的 Skill 目录；各层累加",
   cache: "提示缓存；整段只认用户级",

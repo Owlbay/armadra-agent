@@ -1,17 +1,11 @@
 /**
  * AgentSessionImpl（设计 §4.2–§4.3、§9、§11.1 第 16 步、§13.1）。[B2]
  *
- * 会话 = SessionManager（JSONL 树，事实来源）+ Agent（上下文消息、队列、run）+ 压缩 / 重试 / Hook 调度。
- * - 每条 message_end 落盘为条目；Agent 的上下文 = 活动分支的投影（压缩 / context_edit 后重建）。
- * - 首次模型请求前把系统提示 + 工具表作为首条 `system` 消息落盘并 `flush()`（此时才创建文件）；
- *   之后节或工具表变化落 system 补丁。
- * - `prompt()`：运行中且无 streamingBehavior → `AmaError{code:"busy"}`；否则展开（expandPrompt）→
- *   UserPromptSubmit Hook → 阈值压缩检查 → 会话周期（session-run.ts）；周期结束后 resolve。
- * - `steer()` / `followUp()`：运行中入队（返回 "queued"）；空闲时直接以该消息开始一个周期（"handled"）。
- * - `abort()`：中断供应商流、工具、重试等待与压缩；回到 idle 后 resolve；不清队列。
+ * 会话 = SessionManager（JSONL 树，事实来源）+ Agent（上下文、队列、run）+ 压缩 / 重试 / Hook / 回滚调度。
+ * 每条 message_end 落盘；首次请求前落 system + 工具表并 flush。`prompt()` 运行中且无
+ * streamingBehavior → busy；`steer / followUp` 运行中入队、空闲时直接开周期；`abort()` 不清队列。
  */
 
-import { modelRefOf } from "../ai/providers/channels.js";
 import { join } from "node:path";
 import type { Model, ModelThinkingLevel, UserMessage } from "../ai/types.js";
 import { AmaError } from "../errors.js";
@@ -35,11 +29,20 @@ import { resolveRetrySettings } from "./retry.js";
 import type { AgentSessionOptions, SessionCore } from "./session-core.js";
 import { SessionCacheController, resolveCacheSettings } from "./session-cache.js";
 import { CompactionController } from "./session-compaction.js";
-import { makeUserMessage, runPrompt, type RunCycleDeps } from "./session-run.js";
+import { makeUserMessage, normalizeOrigin, runPrompt, type RunCycleDeps } from "./session-run.js";
 import { buildSessionState, computeStats, lastAssistantText } from "./session-state.js";
 import { DEFAULT_SUBAGENT_CONCURRENCY, SubagentPool, runSubagent } from "./session-subagent.js";
-import { persistMessage, runHookWithEvents, syncSystemMessage } from "./session-sync.js";
+import {
+  appendModelChange,
+  findModelOrThrow,
+  persistMessage,
+  runHookWithEvents,
+  sessionStartEvent,
+  syncSystemMessage,
+} from "./session-sync.js";
 import { createToolRunnerOptions } from "./session-tools.js";
+import { RewindController, type RewindDraft, type SummarizeFromResult } from "./session-rewind.js";
+import type * as CP from "../checkpoints/types.js";
 import type { SystemPromptInput } from "./system-prompt.js";
 import { convertToLlm } from "./transform.js";
 import type {
@@ -56,15 +59,7 @@ import type {
 
 export type { AgentSessionOptions } from "./session-core.js";
 
-/** `"user"` = 普通用户输入，不写 origin。 */
-function normalizeOrigin(origin: string | undefined): string | undefined {
-  return origin === undefined || origin === "user" ? undefined : origin;
-}
-
-interface Cycle {
-  controller: AbortController;
-  promise: Promise<void>;
-}
+type Cycle = { controller: AbortController; promise: Promise<void> };
 
 export class AgentSessionImpl implements AgentSession, SessionCore {
   readonly options: AgentSessionOptions;
@@ -93,6 +88,7 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
   private classifier: PermissionClassifier | undefined;
   /** 已入队、尚未投递的消息（投递时发 queue_update）。 */
   private readonly queuedMessages = new WeakSet<object>();
+  private readonly rewinder: RewindController;
 
   constructor(options: AgentSessionOptions) {
     this.options = options;
@@ -155,6 +151,7 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
       beforeRequest: async () => {
         this.syncSystem();
         this.manager.flush();
+        await this.rewinder.ready();
       },
       tools: runner,
       messages: buildProjection(this.manager.branch()).messages,
@@ -168,6 +165,15 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
     this.compaction = new CompactionController(this, options.compaction);
     const subagents = options.subagents === false ? undefined : options.subagents;
     this.subagentPool = new SubagentPool(subagents?.maxConcurrent ?? DEFAULT_SUBAGENT_CONCURRENCY);
+    this.rewinder = new RewindController({
+      core: this,
+      running: () => {
+        this.assertUsable();
+        return this.cycle !== undefined;
+      },
+      navigate: (targetId, navigateOptions) => this.navigate(targetId, navigateOptions),
+      compactAt: (entryId, instructions) => this.compact(instructions, entryId),
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -252,7 +258,8 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
   // -------------------------------------------------------------------------
 
   private onAgentEvent(event: SessionEvent): void {
-    if (event.type === "message_end") persistMessage(this, event.message);
+    if (event.type === "message_end")
+      this.rewinder.onPersisted(persistMessage(this, event.message));
     else if (event.type === "agent_start") this.compaction.breaker.startRun();
     this.emit(event);
     if (
@@ -316,6 +323,7 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
         this.retrying = value;
       },
       lastAssistantText: () => this.getLastAssistantText(),
+      beginTurn: (message) => this.rewinder.beginTurn(message),
     };
   }
 
@@ -401,13 +409,26 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
     return () => this.listeners.delete(listener);
   }
 
-  /** 手动压缩；运行中 → busy。 */
-  compact(instructions?: string): Promise<CompactionResult> {
+  /** 手动压缩；运行中 → busy。`cutAt`：以该条目为切点（「摘要到这里」）。 */
+  compact(instructions?: string, cutAt?: string): Promise<CompactionResult> {
     this.assertUsable();
     if (this.cycle !== undefined)
       return Promise.reject(new AmaError("busy", "cannot compact while running"));
-    return this.startCycle((signal) => this.compaction.compactManual(instructions, signal));
+    return this.startCycle((signal) => this.compaction.compactManual(instructions, signal, cutAt));
   }
+
+  // [RW-B] 回滚（docs/rewind-plan.md §3；编排与校验在 session-rewind.ts）
+  readonly rewindPoints = (): CP.RewindPoint[] => this.rewinder.points();
+  readonly rewind = (request: CP.RewindRequest): Promise<CP.RewindResult> =>
+    this.rewinder.rewind(request);
+  readonly summarizeFrom = (entryId: string, instructions?: string): Promise<SummarizeFromResult> =>
+    this.rewinder.summarizeFrom(entryId, instructions);
+  readonly summarizeUpTo = (entryId: string, instructions?: string): Promise<CompactionResult> =>
+    this.rewinder.summarizeUpTo(entryId, instructions);
+  readonly canUndoAbortedTurn = (): boolean => this.rewinder.canUndoAbortedTurn();
+  readonly undoAbortedTurn = (): Promise<RewindDraft | undefined> =>
+    this.rewinder.undoAbortedTurn();
+  readonly checkpointHooks = (): CP.CheckpointHooks | undefined => this.rewinder.hooks();
 
   async fork(entryId: string): Promise<AgentSessionImpl> {
     this.assertUsable();
@@ -419,9 +440,7 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
     });
   }
 
-  /**
-   * `/tree`：同文件换叶子；`summarize` 时为离开的分支写 branch_summary（挂在新叶子下）。
-   */
+  /** `/tree`：同文件换叶子；`summarize` 时为离开的分支写 branch_summary（挂在新叶子下）。 */
   async navigate(
     targetId: string | null,
     options: { summarize?: boolean; instructions?: string } = {},
@@ -441,22 +460,9 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
 
   async setModel(ref: string): Promise<void> {
     this.assertUsable();
-    const lookup = this.options.providers.findModel(ref);
-    if (!lookup.ok) {
-      throw new AmaError("model_not_found", `model ${ref} not found`, {
-        detail: lookup.candidates,
-      });
-    }
-    this.currentModel = lookup.model;
+    this.currentModel = findModelOrThrow(this.options.providers, ref);
     this.compaction.refresh();
-    const next = modelRefOf(lookup.model);
-    this.appendEntry({
-      type: "model_change",
-      provider: next.provider,
-      modelId: next.id,
-      ...(next.channel !== undefined ? { channel: next.channel } : {}),
-    });
-    this.emit({ type: "model_changed", model: next });
+    this.emit({ type: "model_changed", model: appendModelChange(this, this.currentModel) });
   }
 
   setThinkingLevel(level: ModelThinkingLevel): void {
@@ -507,15 +513,7 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
 
   /** 发 session_start（bootstrap / SDK 在会话就绪后调用一次）。 */
   announceStart(reason: "startup" | "resume" | "new" | "fork"): void {
-    const event: SessionEvent = {
-      type: "session_start",
-      sessionId: this.manager.id,
-      cwd: this.cwd,
-      reason,
-    };
-    const file = this.manager.file();
-    if (file !== undefined) event.sessionFile = file;
-    this.emit(event);
+    this.emit(sessionStartEvent(this.manager, reason));
   }
 
   get state(): SessionState {
