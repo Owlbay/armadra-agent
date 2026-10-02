@@ -11,7 +11,8 @@
  * - 停止：completed → stop（有工具调用则 toolUse）；incomplete + max_output_tokens → length，其它
  *   incomplete 原因 → error；failed / `error` 事件 → error（`code: message`）；无终止事件 → 断流；
  * - usage：input = input_tokens − input_tokens_details.cached_tokens，reasoning =
- *   output_tokens_details.reasoning_tokens（已含在 output_tokens 里）。
+ *   output_tokens_details.reasoning_tokens（已含在 output_tokens 里）；cached_tokens 出现（含 0）即
+ *   `cacheReported: true`。
  */
 
 import { AssistantEventStreamImpl } from "../event-stream.js";
@@ -68,13 +69,15 @@ function str(value: unknown): string | undefined {
 
 export function parseResponsesUsage(raw: Json): Usage {
   const input = num(raw["input_tokens"]) ?? 0;
-  const cacheRead = num(obj(raw["input_tokens_details"])?.["cached_tokens"]) ?? 0;
+  const cached = num(obj(raw["input_tokens_details"])?.["cached_tokens"]);
+  const cacheRead = cached ?? 0;
   const usage: Usage = {
     input: Math.max(0, input - cacheRead),
     output: num(raw["output_tokens"]) ?? 0,
     cacheRead,
     cacheWrite: 0,
     totalTokens: 0,
+    cacheReported: cached !== undefined,
   };
   const reasoning = num(obj(raw["output_tokens_details"])?.["reasoning_tokens"]);
   if (reasoning !== undefined) usage.reasoning = reasoning;

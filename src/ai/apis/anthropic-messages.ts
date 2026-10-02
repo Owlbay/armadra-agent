@@ -7,7 +7,8 @@
  *
  * usage：`input_tokens` 本就不含缓存；`cache_read_input_tokens` → cacheRead，
  * `cache_creation_input_tokens` → cacheWrite，`cache_creation.ephemeral_1h_input_tokens` →
- * cacheWrite1h。message_delta 只覆盖非 null 字段（部分代理在 delta 里省略 input）。
+ * cacheWrite1h。message_delta 只覆盖非 null 字段（部分代理在 delta 里省略 input）。两个缓存字段
+ * 任一出现过（含 0）即 `cacheReported: true`，之后的事件不会把它改回 false。
  */
 
 import { AssistantEventStreamImpl } from "../event-stream.js";
@@ -73,6 +74,8 @@ export function applyAnthropicUsage(usage: Usage, raw: Json | undefined): void {
   if (output !== undefined) usage.output = output;
   if (cacheRead !== undefined) usage.cacheRead = cacheRead;
   if (cacheWrite !== undefined) usage.cacheWrite = cacheWrite;
+  if (cacheRead !== undefined || cacheWrite !== undefined) usage.cacheReported = true;
+  else usage.cacheReported ??= false;
   if (longWrite !== undefined) usage.cacheWrite1h = longWrite;
   if (reasoning !== undefined) usage.reasoning = reasoning;
 }
