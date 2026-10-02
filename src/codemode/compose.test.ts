@@ -170,12 +170,17 @@ describe("组装根里的 codemode", () => {
     expect(on.session.getTools().map((t) => t.name)).toContain("codemode");
     expect(on.warnings.join("\n")).not.toContain("codemode 缺省关闭");
     await on.dispose();
-    const off = await h.boot(["--model", "fake/echo", "-p", "x"]);
+    // -p / RPC 的 stderr 常被脚本解析：一次性提示只在交互 / 行式界面出现，也不消耗「已提示」记录
+    const quiet = await h.boot(["--model", "fake/echo", "-p", "x"]);
+    expect(quiet.session.getTools().map((t) => t.name)).not.toContain("codemode");
+    expect(quiet.warnings.join("\n")).not.toContain("codemode 缺省关闭");
+
+    const off = await h.boot(["--model", "fake/echo", "--no-tui"]);
     expect(off.session.getTools().map((t) => t.name)).not.toContain("codemode");
     expect(off.warnings.filter((w) => w.includes("codemode 缺省关闭"))).toHaveLength(1);
     expect(off.warnings.join("\n")).toContain("Node 24 < 25");
     await off.dispose();
-    const again = await h.boot(["--model", "fake/echo", "-p", "x"]);
+    const again = await h.boot(["--model", "fake/echo", "--no-tui"]);
     expect(again.warnings.join("\n")).not.toContain("codemode 缺省关闭");
     await again.dispose();
     // 显式写了 codemode.mode（含 off）不提示
