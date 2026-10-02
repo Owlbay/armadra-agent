@@ -128,7 +128,7 @@ async function run(ctx: ModelsActionContext): Promise<number> {
     return ExitCode.NoModel;
   }
   const { model, provider } = found;
-  const key = await registry.resolveApiKey(provider.id);
+  const key = await registry.resolveApiKey(provider.id, model.channel);
   if (key.apiKey === undefined && provider.requiresApiKey) {
     io.stderr(`ama: ${provider.id} 没有 API key（ama auth set ${provider.id}）\n`);
     return ExitCode.NoModel;

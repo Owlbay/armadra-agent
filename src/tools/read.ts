@@ -2,17 +2,20 @@
  * `read` 工具（设计 §5.2）。[B3]
  *
  * 文本按 `cat -n` 形状返回（行号右对齐 6 位 + Tab）；头截断 2000 行 / 50 KB 先到者，末尾提示
- * `offset` 续读；NUL 嗅探判二进制并拒绝；png / jpg / gif / webp 作为 ImageBlock 返回（模型不支持
- * 图片时只给路径与尺寸）；成功后 `ctx.markRead(abs)`。
+ * `offset` 续读；NUL 嗅探判二进制并拒绝；png / jpg / gif / webp 作为 ImageBlock 返回（MIME 按文件头，
+ * 与 `--image` / `@图片` 共用 image-file.ts；模型不支持图片或超过 5 MB 时只给路径与尺寸）；成功后
+ * `ctx.markRead(abs)`。
  */
 
 import { readFile, stat } from "node:fs/promises";
-import { extname } from "node:path";
 import type { ContentBlock } from "../ai/types.js";
 import type { ToolContext, ToolDefinition, ToolResult } from "./types.js";
 import { displayPath, resolvePath } from "./paths.js";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, truncateHead } from "./truncate.js";
 import { normalizeToLF, splitBom } from "./edit-fuzzy.js";
+import { MAX_IMAGE_BYTES, imageMimeFromPath, imageSize, sniffImageMime } from "./image-file.js";
+
+export { imageSize, type ImageSize } from "./image-file.js";
 
 export interface ReadInput {
   path: string;
@@ -25,73 +28,12 @@ export interface ReadToolOptions {
   supportsImages?(ctx: ToolContext): boolean;
 }
 
-const IMAGE_MIME: Record<string, string> = {
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".gif": "image/gif",
-  ".webp": "image/webp",
-};
-
 const SNIFF_BYTES = 8000;
 
 export function isBinary(buf: Buffer): boolean {
   const end = Math.min(buf.length, SNIFF_BYTES);
   for (let i = 0; i < end; i++) if (buf[i] === 0) return true;
   return false;
-}
-
-export interface ImageSize {
-  width: number;
-  height: number;
-}
-
-/** 只读文件头取尺寸；不认识返回 undefined。 */
-export function imageSize(buf: Buffer, mimeType: string): ImageSize | undefined {
-  try {
-    if (mimeType === "image/png" && buf.length >= 24) {
-      return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
-    }
-    if (mimeType === "image/gif" && buf.length >= 10) {
-      return { width: buf.readUInt16LE(6), height: buf.readUInt16LE(8) };
-    }
-    if (mimeType === "image/jpeg") return jpegSize(buf);
-    if (mimeType === "image/webp") return webpSize(buf);
-  } catch {
-    return undefined;
-  }
-  return undefined;
-}
-
-function jpegSize(buf: Buffer): ImageSize | undefined {
-  let i = 2;
-  while (i + 9 < buf.length) {
-    if (buf[i] !== 0xff) {
-      i++;
-      continue;
-    }
-    const marker = buf[i + 1] ?? 0;
-    const isSof = marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker);
-    if (isSof) return { height: buf.readUInt16BE(i + 5), width: buf.readUInt16BE(i + 7) };
-    i += 2 + buf.readUInt16BE(i + 2);
-  }
-  return undefined;
-}
-
-function webpSize(buf: Buffer): ImageSize | undefined {
-  if (buf.length < 30 || buf.toString("ascii", 0, 4) !== "RIFF") return undefined;
-  const chunk = buf.toString("ascii", 12, 16);
-  if (chunk === "VP8 ") {
-    return { width: buf.readUInt16LE(26) & 0x3fff, height: buf.readUInt16LE(28) & 0x3fff };
-  }
-  if (chunk === "VP8L") {
-    const b = buf.readUInt32LE(21);
-    return { width: (b & 0x3fff) + 1, height: ((b >> 14) & 0x3fff) + 1 };
-  }
-  if (chunk === "VP8X") {
-    return { width: buf.readUIntLE(24, 3) + 1, height: buf.readUIntLE(27, 3) + 1 };
-  }
-  return undefined;
 }
 
 function error(message: string): ToolResult {
@@ -106,11 +48,11 @@ export function numberLines(lines: readonly string[], firstLine: number): string
 async function readImage(
   abs: string,
   shown: string,
-  mimeType: string,
   ctx: ToolContext,
   options: ReadToolOptions,
 ): Promise<ToolResult> {
   const buf = await readFile(abs);
+  const mimeType = sniffImageMime(buf) ?? imageMimeFromPath(abs) ?? "application/octet-stream";
   const size = imageSize(buf, mimeType);
   const dims = size ? `${size.width}x${size.height}, ` : "";
   const caption = `Image: ${shown} (${dims}${mimeType}, ${formatSize(buf.length)})`;
@@ -118,6 +60,12 @@ async function readImage(
   const details = { path: abs, mimeType, bytes: buf.length, ...(size ? { size } : {}) };
   if (options.supportsImages && !options.supportsImages(ctx)) {
     return { content: `${caption}\n[The current model does not accept image input.]`, details };
+  }
+  if (buf.length > MAX_IMAGE_BYTES) {
+    return {
+      content: `${caption}\n[Image exceeds the ${formatSize(MAX_IMAGE_BYTES)} attachment limit; not attached.]`,
+      details,
+    };
   }
   const blocks: ContentBlock[] = [
     { type: "text", text: caption },
@@ -141,8 +89,7 @@ export async function executeRead(
   }
   if (info.isDirectory()) return error(`${shown} is a directory; use the ls tool instead`);
 
-  const mimeType = IMAGE_MIME[extname(abs).toLowerCase()];
-  if (mimeType !== undefined) return readImage(abs, shown, mimeType, ctx, options);
+  if (imageMimeFromPath(abs) !== undefined) return readImage(abs, shown, ctx, options);
 
   const buf = await readFile(abs);
   if (isBinary(buf)) return error(`${shown} appears to be a binary file; refusing to read it`);

@@ -54,13 +54,13 @@
 | `get_last_assistant_text` | —    | `{ text: string \| null }`                           |
 | `get_session_stats`       | —    | `SessionStats`（见「会话统计」）                     |
 
-`SessionState`：`isStreaming`、`isCompacting`、`isRetrying`、`model`（`{ provider, id }` 或缺省）、`thinkingLevel`、`permissionMode`、`sessionId`、`sessionFile`、`cwd`、`sessionName`、`messageCount`、`pendingMessageCount`、`steeringMode`、`followUpMode`、`autoCompaction`、`autoRetry`。
+`SessionState`：`isStreaming`、`isCompacting`、`isRetrying`、`model`（`{ provider, id, channel? }` 或缺省；`channel` 只在多渠道供应商上出现）、`thinkingLevel`、`permissionMode`、`sessionId`、`sessionFile`、`cwd`、`sessionName`、`messageCount`、`pendingMessageCount`、`steeringMode`、`followUpMode`、`autoCompaction`、`autoRetry`。
 
 ### 模型
 
 | 命令                            | 参数                                                      | `data`                                                           |
 | ------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------- |
-| `set_model`                     | `provider: string`、`modelId: string`                     | `{ model: { provider, id } }`                                    |
+| `set_model`                     | `provider: string`、`modelId: string`、`channel?: string` | `{ model: { provider, id, channel? } }`                          |
 | `get_available_models`          | —                                                         | `{ models: RpcModelInfo[] }`                                     |
 | `set_thinking_level`            | `level: off \| minimal \| low \| medium \| high \| xhigh` | `{ level }`                                                      |
 | `get_available_thinking_levels` | —                                                         | `{ levels: string[] }`（当前模型支持的级别；无模型时 `["off"]`） |
@@ -137,7 +137,7 @@
 | `permission_request`                                 | `requestId`、`toolName`、`input`、`reason: mode \| dangerous \| hook`、`hookReason?`、`timeoutMs`、`preview?` |
 | `permission_resolved`                                | `requestId`、`decision`                                                                                       |
 | `permission_mode_changed`                            | `mode`                                                                                                        |
-| `model_changed`                                      | `model: { provider, id }`                                                                                     |
+| `model_changed`                                      | `model: { provider, id, channel? }`                                                                           |
 | `thinking_level_changed`                             | `level`                                                                                                       |
 | `entry_appended`                                     | `entry`（刚落盘的会话条目）                                                                                   |
 | `hook_executed`                                      | `event`、`command`、`exitCode`（超时或被信号杀死为 null）、`durationMs`                                       |

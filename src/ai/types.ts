@@ -41,6 +41,8 @@ export type RequestPurpose = "turn" | "summary" | "warm" | "probe";
 export interface ModelRef {
   provider: string;
   id: string;
+  /** 所选渠道（多渠道供应商；单渠道 / 隐式渠道不填）。 */
+  channel?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -353,6 +355,20 @@ export interface Model {
    * 填入。缺省视为 true：流函数缺 key 时同步抛 `AmaError{code:"no_api_key"}`。
    */
   requiresApiKey?: boolean;
+  /** 所选渠道名（registry 物化时填入；隐式 `default` 渠道不填）。 */
+  channel?: string;
+  /** 该模型挂载的全部渠道，首个为首选（多渠道供应商才有）。 */
+  channels?: string[];
+}
+
+/** 物化后的渠道（docs/providers.md「渠道」）；key 不在这里，经 `resolveApiKey(provider, channel)` 取。 */
+export interface ProviderChannel {
+  name: string;
+  api: Api;
+  baseUrl: string;
+  authHeader?: AuthHeader;
+  headers?: Record<string, string>;
+  compat?: ProviderCompat;
 }
 
 export interface ProviderData {
@@ -369,6 +385,10 @@ export interface ProviderData {
   /** 本地服务 false：无 key 也能用。 */
   requiresApiKey: boolean;
   builtin: boolean;
+  /** 显式配置的渠道（没有 `channels` 的供应商不填，按单渠道处理）。 */
+  channels?: ProviderChannel[];
+  /** 首选渠道名（有 `channels` 时）。 */
+  defaultChannel?: string;
 }
 
 /** `catalog/*.json` 文件形状（§3.4）。 */
@@ -470,6 +490,7 @@ export interface ProviderRegistryApi {
   get(providerId: string): ProviderData | undefined;
   /** 解析 `provider/model-id` 或无斜杠的模型 id（§3.4）。 */
   findModel(ref: string): ModelLookup;
-  resolveApiKey(providerId: string): Promise<ApiKeyResolution>;
+  /** `channel`：渠道自己配了 key 时用渠道的，否则用供应商的。 */
+  resolveApiKey(providerId: string, channel?: string): Promise<ApiKeyResolution>;
   getApi(api: Api): ApiImplementation | undefined;
 }

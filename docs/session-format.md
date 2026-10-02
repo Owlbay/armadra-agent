@@ -37,7 +37,7 @@
 | `compaction`            | `summary`、`firstKeptEntryId`、`tokensBefore`、`usage?`、`details?`（`readFiles` / `modifiedFiles`） | 是，作为摘要消息             |
 | `branch_summary`        | `fromId`、`summary`、`usage?`、`details?`                                                            | 是，作为分支摘要消息         |
 | `context_edit`          | `targetId`、`replacement: string \| null`、`reason: prune \| abort \| retry \| overflow \| manual`   | 改写目标条目                 |
-| `model_change`          | `provider`、`modelId`                                                                                | 否（决定续会话时的模型）     |
+| `model_change`          | `provider`、`modelId`、可选 `channel`（多渠道供应商的渠道名）                                        | 否（决定续会话时的模型）     |
 | `thinking_level_change` | `thinkingLevel`                                                                                      | 否（决定续会话时的思考级别） |
 | `custom`                | `customType`、`data`                                                                                 | 否                           |
 | `custom_message`        | `customType`、`content`（字符串或内容块）、`display`、`details?`                                     | 是，作为 custom 消息         |

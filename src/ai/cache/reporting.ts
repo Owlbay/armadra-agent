@@ -46,7 +46,8 @@ function hostOf(baseUrl: string): string {
 }
 
 export function endpointKey(record: Pick<RequestRecord, "model" | "baseUrl">): string {
-  return `${record.model.provider}|${hostOf(record.baseUrl)}|${record.model.id}`;
+  const channel = record.model.channel !== undefined ? `@${record.model.channel}` : "";
+  return `${record.model.provider}|${hostOf(record.baseUrl)}|${record.model.id}${channel}`;
 }
 
 function sameFingerprint(a: PrefixFingerprint, b: PrefixFingerprint): boolean {

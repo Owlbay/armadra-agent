@@ -10,6 +10,7 @@
  * - 密钥不离开进程：`get_available_models` 只回 `hasKey` 与 `keySource`。
  */
 
+import { formatModelRef } from "../../ai/providers/channels.js";
 import { AgentSessionImpl } from "../../agent/session.js";
 import type { AgentSession, PromptDisposition } from "../../agent/types.js";
 import { getSupportedLevels } from "../../ai/thinking.js";
@@ -184,7 +185,13 @@ export const handlers: RpcHandlers = {
   // [W3-C2] 含 `cache`（三态、最近 / 会话命中率、未命中、保温、余量；第三波 §1.10）。
   get_session_stats: async (_p, ctx) => ctx.session().getStats(),
   set_model: async (p, ctx) => {
-    await ctx.session().setModel(`${p.provider}/${p.modelId}`);
+    await ctx.session().setModel(
+      formatModelRef({
+        provider: p.provider,
+        id: p.modelId,
+        ...(p.channel !== undefined ? { channel: p.channel } : {}),
+      }),
+    );
     return { model: ctx.session().state.model };
   },
   get_available_models: async (_p, ctx) => ({ models: await availableModels(ctx.runtime) }),
@@ -195,7 +202,7 @@ export const handlers: RpcHandlers = {
   get_available_thinking_levels: async (_p, ctx) => {
     const ref = ctx.session().state.model;
     const found =
-      ref === undefined ? undefined : ctx.runtime.providers.findModel(`${ref.provider}/${ref.id}`);
+      ref === undefined ? undefined : ctx.runtime.providers.findModel(formatModelRef(ref));
     return { levels: found?.ok === true ? getSupportedLevels(found.model) : ["off"] };
   },
   set_steering_mode: async (p, ctx) => {

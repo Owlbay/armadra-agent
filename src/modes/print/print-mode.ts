@@ -2,6 +2,8 @@
  * print 模式（`ama -p`，设计 §11.1 第 15–16 步）。[B6]
  *
  * - 提示 = 位置参数 + stdin 管道（stdin 非 TTY 时读到 EOF），两者都有时空一行拼接；都没有 → 用法错误 2。
+ * - 图片：`--image`（可重复）与提示里的 `@图片路径` / 图片文件路径作为附件（modes/image-input.ts）；
+ *   显式附件遇到当前模型不收图片、文件不存在或超限 → 用法错误 2，不发请求。
  * - `--output-format text`（缺省）：运行结束后输出最后一条助手文本；`json`：一个结果对象（文本、
  *   停止原因、用量、缓存命中率、[W3-C2] `cache` 统计（同 `get_session_stats.cache`）、全部条目）；
  *   `stream-json`：每个会话事件一行（线上形状同 RPC，含 `cache_miss` / `cache_warm` /
@@ -16,6 +18,8 @@ import { ExitCode } from "../../cli/exit-codes.js";
 import type { Runtime } from "../../cli/runtime.js";
 import { errorText, lastAssistant, onStdoutClosed, onTerminationSignals } from "../shared.js";
 import { toJsonLine, toWireEvent } from "./json-event.js";
+import type { ImageBlock } from "../../ai/types.js";
+import { promptImages, sessionModel } from "../image-input.js";
 
 export function joinPrompt(argument: string | undefined, piped: string): string {
   const parts = [argument ?? "", piped.replace(/\s+$/, "")].filter((p) => p.trim() !== "");
@@ -32,6 +36,18 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
     return ExitCode.Usage;
   }
   const session = currentSession(runtime);
+  let images: ImageBlock[];
+  try {
+    images = await promptImages(
+      prompt,
+      context.args.images,
+      io.cwd,
+      sessionModel(runtime.providers, session),
+    );
+  } catch (error) {
+    io.stderr(`ama: ${errorText(error)}\n`);
+    return ExitCode.Usage;
+  }
   const unsubscribe =
     format === "stream-json"
       ? session.subscribe((event) => io.stdout(`${toJsonLine(toWireEvent(event))}\n`))
@@ -48,7 +64,7 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
   });
   let failure: string | undefined;
   try {
-    await session.prompt(prompt);
+    await session.prompt(prompt, images.length > 0 ? { images } : {});
   } catch (error) {
     failure = errorText(error);
   } finally {

@@ -4,7 +4,8 @@
  *
  * - 设 `AMA=1`、`AI_AGENT=ama`；直接执行时装 `uncaughtException` / `unhandledRejection` →
  *   stderr 一行 + 退出码 1；SIGINT / SIGTERM 交给当前模式。
- * - `--version` / `--help` 短路；子命令 `auth / sessions / models / doctor / config` 分派后返回；
+ * - `--version` / `--help` 短路；子命令 `auth / sessions / models / providers / doctor / config /
+ *   init` 分派后返回；其余命令启动前若配置目录不存在则静默初始化（`AMA_NO_INIT=1` 关闭）；
  *   其余交给 `runCli()`（bootstrap → 模式）。
  * - 运行时实现（RuntimeDeps）：`MainOptions.deps` > `registerRuntimeDeps()` > 组装根
  *   `createRuntimeDeps()`（cli/compose.ts，动态 import）。
@@ -23,6 +24,10 @@ import { runAuth } from "./subcommands/auth.js";
 import { runConfig } from "./subcommands/config.js";
 import { runDoctor } from "./subcommands/doctor.js";
 import { runModels } from "./subcommands/models.js";
+import { runProviders } from "./subcommands/providers.js";
+import { runInit } from "./subcommands/init.js";
+import { autoInitConfigDir } from "../config/init.js";
+import { resolveConfigDir } from "../config/paths.js";
 import { runSessions } from "./subcommands/sessions.js";
 
 declare const __AMA_BUNDLED__: boolean | undefined;
@@ -130,6 +135,9 @@ export async function main(argv: readonly string[], options: MainOptions = {}): 
   try {
     const parsed = parseArgs(argv);
     if (parsed.kind !== "subcommand") noTui = parsed.args.noTui;
+    const informational =
+      parsed.kind === "run" ? parsed.args.help || parsed.args.version : parsed.name === "init";
+    if (!informational) autoInitConfigDir(resolveConfigDir({ env: io.env }), io.env);
     if (parsed.kind === "subcommand") {
       switch (parsed.name) {
         case "auth":
@@ -138,10 +146,14 @@ export async function main(argv: readonly string[], options: MainOptions = {}): 
           return await runSessions(parsed.argv, io, await resolveDeps());
         case "models":
           return await runModels(parsed.argv, io, await resolveDeps());
+        case "providers":
+          return await runProviders(parsed.argv, io, await resolveDeps());
         case "doctor":
           return await runDoctor(parsed.argv, io, await resolveDeps());
         case "config":
           return await runConfig(parsed.argv, io, await resolveDeps());
+        case "init":
+          return runInit(parsed.argv, io);
       }
     }
     if (parsed.args.version) {

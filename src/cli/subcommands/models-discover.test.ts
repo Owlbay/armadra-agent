@@ -172,7 +172,7 @@ describe("ama models discover", () => {
     const text = out.join("");
     expect(text).toContain("relay：发现 3 个模型（https://relay.example/v1/models）");
     expect(text).toContain("  glm-5  已配置（anthropic-messages）");
-    expect(text).toContain("  grok-4.7\n");
+    expect(text).toContain("  grok-4.7  models.dev 未匹配\n");
     expect(await runModels(["discover", "nope"], io(), deps())).toBe(4);
     expect(await runModels(["discover"], io(), deps()).catch((e: Error) => e.message)).toMatch(
       /需要 <provider>/,
@@ -200,7 +200,7 @@ describe("ama models discover", () => {
     expect(text).toContain("  glm-5  openai-completions\n");
     expect(text).toContain("  grok-4.7  openai-responses\n");
     expect(text).toContain("  MiniMax-M2.7  anthropic-messages\n");
-    expect(text).not.toContain("qwen-x  ");
+    expect(text).not.toContain("qwen-x  openai");
     expect(calls.map((c) => `${c.id}:${c.api}`)).toEqual([
       "deepseek-v4-flash:openai-completions",
       "glm-5:openai-completions",
@@ -246,7 +246,7 @@ describe("ama models discover", () => {
       providers: { relay: RELAY },
     });
     expect(out.join("")).toContain("relay 新增 2 个模型，1 个已存在未覆盖");
-    expect(err.join("")).toContain("未设 contextWindow，自动压缩关闭");
+    expect(err.join("")).toContain("在 models.dev 未匹配，没有 contextWindow，自动压缩关闭");
     out = [];
     expect(await runModels(["discover", "relay", "--write"], io(), deps())).toBe(0);
     expect(JSON.parse(readFileSync(path, "utf8")).providers.relay.models).toContainEqual({
@@ -268,5 +268,40 @@ describe("ama models discover", () => {
     };
     expect(await runModels(["discover", "relay", "--write"], io(), profileDeps)).toBe(0);
     expect(err.join("")).toContain("relay 不在用户级配置");
+  });
+
+  it("models.dev：列表标出元数据与匹配；--write 跳过不支持工具调用的模型", async () => {
+    writeConfig({ relay: { ...RELAY, models: [] } });
+    const md = {
+      moonshotai: {
+        models: {
+          "kimi-k2.5": {
+            tool_call: true,
+            modalities: { input: ["text", "image"] },
+            limit: { context: 262144, output: 32768 },
+          },
+          "embed-x": { tool_call: false, limit: { context: 8192 } },
+        },
+      },
+    };
+    vi.stubGlobal("fetch", async (input: string | URL | Request) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url === "http://md.test/api.json") return Response.json(md);
+      return Response.json({ data: [{ id: "kimi-k2.5" }, { id: "embed-x" }, { id: "odd" }] });
+    });
+    const withMd = { ...io(), env: { ...io().env, AMA_MODELS_DEV_URL: "http://md.test/api.json" } };
+    expect(await runModels(["discover", "relay", "--write"], withMd, deps())).toBe(0);
+    const text = out.join("");
+    expect(text).toContain("models.dev：已更新");
+    expect(text).toContain("  kimi-k2.5  ctx 262k · out 33k · 图片 · 原厂 moonshotai/kimi-k2.5\n");
+    expect(text).toContain(
+      "  embed-x  ctx 8k · out ? · 不支持工具调用 · 原厂 moonshotai/embed-x\n",
+    );
+    expect(text).toContain("跳过不支持工具调用的模型（models.dev）：embed-x");
+    const written = JSON.parse(home.read("home/.config/ama/config.json")) as {
+      providers: { relay: { models: { id: string }[] } };
+    };
+    expect(written.providers.relay.models.map((m) => m.id)).toEqual(["kimi-k2.5", "odd"]);
+    expect(err.join("")).toContain("odd 在 models.dev 未匹配");
   });
 });

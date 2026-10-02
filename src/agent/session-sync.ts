@@ -45,15 +45,22 @@ export function recordModelState(
 ): void {
   let provider: string | undefined;
   let modelId: string | undefined;
+  let channel: string | undefined;
   let thinking: ModelThinkingLevel | undefined;
   for (const entry of core.manager.branch()) {
     if (entry.type === "model_change") {
       provider = entry.provider;
       modelId = entry.modelId;
+      channel = entry.channel;
     } else if (entry.type === "thinking_level_change") thinking = entry.thinkingLevel;
   }
-  if (provider !== model.provider || modelId !== model.id) {
-    core.appendEntry({ type: "model_change", provider: model.provider, modelId: model.id });
+  if (provider !== model.provider || modelId !== model.id || channel !== model.channel) {
+    core.appendEntry({
+      type: "model_change",
+      provider: model.provider,
+      modelId: model.id,
+      ...(model.channel !== undefined ? { channel: model.channel } : {}),
+    });
   }
   if (thinking !== thinkingLevel) {
     core.appendEntry({ type: "thinking_level_change", thinkingLevel });

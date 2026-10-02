@@ -9,6 +9,12 @@
  * 选项表与必填位置参数都从表里来。
  */
 
+import { formatModelRef, modelRefOf } from "../../ai/providers/channels.js";
+import {
+  describeRefresh,
+  modelsDevCachePath,
+  refreshModelsDev,
+} from "../../ai/providers/models-dev-cache.js";
 import type { ProviderRegistryApi } from "../../ai/types.js";
 import { parseSubArgs, UsageError } from "../args.js";
 import type { CliIo, RuntimeDeps } from "../deps.js";
@@ -16,6 +22,7 @@ import { ExitCode } from "../exit-codes.js";
 import { buildRegistry, loadUserLevel, type UserLevel } from "./context.js";
 import { CACHE_PROBE_ACTION } from "./models-cache-probe.js";
 import { DISCOVER_ACTION } from "./models-discover.js";
+import { metadataOf, modelFlags, sourcesLine } from "./model-meta.js";
 
 /** 动作执行时拿到的上下文（参数已按表解析、注册表已构造）。 */
 export interface ModelsActionContext {
@@ -45,13 +52,6 @@ const COMMON_VALUE_OPTIONS = ["profile", "auth-file"] as const;
 
 export const CHECK_TIMEOUT_MS = 30_000;
 
-function compact(n: number | undefined): string {
-  if (n === undefined) return "?";
-  if (n >= 1_000_000) return `${Math.round(n / 100_000) / 10}M`;
-  if (n >= 1000) return `${Math.round(n / 1000)}k`;
-  return String(n);
-}
-
 async function list(
   io: CliIo,
   registry: ProviderRegistryApi,
@@ -71,14 +71,12 @@ async function list(
           ? "无 key"
           : "无需 key";
     io.stdout(`${provider.id}  ${provider.api}  ${keyText}\n`);
+    for (const channel of provider.channels ?? [])
+      io.stdout(`  @${channel.name}  ${channel.api}  ${channel.baseUrl}\n`);
     for (const model of provider.models) {
-      const flags = [
-        `ctx ${compact(model.contextWindow)}`,
-        `out ${compact(model.maxTokens)}`,
-        model.reasoning ? "思考" : undefined,
-        model.input.includes("image") ? "图片" : undefined,
-      ].filter((x) => x !== undefined);
-      io.stdout(`  ${provider.id}/${model.id}  ${flags.join(" · ")}\n`);
+      io.stdout(`  ${provider.id}/${model.id}  ${modelFlags(model)}\n`);
+      const sources = sourcesLine(metadataOf(registry, provider.id, model.id));
+      if (sources !== undefined) io.stdout(`      ${sources}\n`);
     }
   }
   return ExitCode.Ok;
@@ -93,7 +91,7 @@ async function check(io: CliIo, registry: ProviderRegistryApi, ref: string): Pro
     return ExitCode.NoModel;
   }
   const { model, provider } = found;
-  const key = await registry.resolveApiKey(provider.id);
+  const key = await registry.resolveApiKey(provider.id, model.channel);
   if (key.apiKey === undefined && provider.requiresApiKey) {
     io.stderr(`ama: ${provider.id} 没有 API key（ama auth set ${provider.id}）\n`);
     return ExitCode.NoModel;
@@ -122,7 +120,8 @@ async function check(io: CliIo, registry: ProviderRegistryApi, ref: string): Pro
     );
     return ExitCode.RuntimeError;
   }
-  io.stdout(`${provider.id}/${model.id} 可用（${ms} ms，stopReason ${message.stopReason}）\n`);
+  const shown = formatModelRef(modelRefOf(model));
+  io.stdout(`${shown} 可用（${model.api}，${ms} ms，stopReason ${message.stopReason}）\n`);
   return ExitCode.Ok;
 }
 
@@ -140,6 +139,19 @@ export const MODELS_ACTIONS: Readonly<Record<string, ModelsAction>> = Object.fre
   },
   discover: DISCOVER_ACTION,
   "cache-probe": CACHE_PROBE_ACTION,
+  "refresh-catalog": {
+    usage: "ama models refresh-catalog",
+    run: async (ctx) => {
+      const result = await refreshModelsDev({
+        dataDir: ctx.level.dataDir,
+        env: ctx.io.env,
+        force: true,
+      });
+      ctx.io.stdout(`${describeRefresh(result)}\n${modelsDevCachePath(ctx.level.dataDir)}\n`);
+      if (result.warning !== undefined) ctx.io.stderr(`ama: 警告：${result.warning}\n`);
+      return result.status === "unavailable" ? ExitCode.RuntimeError : ExitCode.Ok;
+    },
+  },
 });
 
 export const MODELS_USAGE = `用法：${Object.values(MODELS_ACTIONS)

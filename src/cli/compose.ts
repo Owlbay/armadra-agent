@@ -24,7 +24,8 @@
  */
 
 import type { ApiRegistry } from "../ai/apis/api.js";
-import type { ProviderData } from "../ai/types.js";
+import { formatModelRef } from "../ai/providers/channels.js";
+import type { ModelRef, ProviderData } from "../ai/types.js";
 import type { AgentSession } from "../agent/types.js";
 import type { AmaConfig } from "../config/types.js";
 import { PermissionPipeline } from "../permissions/pipeline.js";
@@ -119,7 +120,10 @@ export function createTools(
     input.config.tools?.bashTimeoutMs !== undefined
       ? { defaultTimeoutMs: input.config.tools.bashTimeoutMs }
       : {};
-  const builtins = builtinTools({ bash });
+  const builtins = builtinTools({
+    bash,
+    read: { supportsImages: (ctx) => modelAcceptsImages(state, ctx.model) },
+  });
   const ctx: ToolFactoryContext = {
     ...input,
     registry,
@@ -150,6 +154,13 @@ export function createTools(
   applyCodemodeMode(registry, preset);
   state.warnings.push(...preset.warnings);
   return registry;
+}
+
+/** 当前模型是否收图片（read 工具用）；查不到模型时按收（交给协议层过滤）。 */
+export function modelAcceptsImages(state: ComposeState, model: ModelRef | undefined): boolean {
+  if (model === undefined || state.providers === undefined) return true;
+  const found = state.providers.findModel(formatModelRef(model));
+  return found.ok ? found.model.input.includes("image") : true;
 }
 
 /** 第 14 步前：内置 deny（builtinDeny 过滤）+ 用户规则；非法规则 warning 后跳过。 */
@@ -217,15 +228,18 @@ export function createRuntimeDeps(
   const state = emptyComposeState();
   const deps: RuntimeDeps = {
     providers: {
-      create: (input) =>
-        buildProviderRegistry(input, {
+      create: async (input) => {
+        const registry = await buildProviderRegistry(input, {
           providers: options.providers,
           apis: options.apis,
           env: options.env,
           includeFake: options.includeFake,
           probeLocal: options.probeLocal,
           warn: (message) => state.warnings.push(message),
-        }),
+        });
+        state.providers = registry;
+        return registry;
+      },
     },
     sessions: createSessionStore(),
     tools: { create: (input) => createTools(input, options, state) },

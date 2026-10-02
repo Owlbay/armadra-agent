@@ -1,0 +1,3113 @@
+{
+ "zai": {
+  "id": "zai",
+  "name": "Z.AI",
+  "env": [
+   "ZHIPU_API_KEY"
+  ],
+  "api": "https://api.z.ai/api/paas/v4",
+  "doc": "https://docs.z.ai/guides/overview/pricing",
+  "models": {
+   "glm-5": {
+    "id": "glm-5",
+    "name": "GLM-5",
+    "family": "glm",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-02-12",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 204800,
+     "output": 131072
+    },
+    "cost": {
+     "input": 1,
+     "output": 3.2,
+     "cache_read": 0.2,
+     "cache_write": 0
+    },
+    "canonical_model_id": "zhipuai/glm-5"
+   }
+  }
+ },
+ "alibaba-token-plan": {
+  "id": "alibaba-token-plan",
+  "name": "Alibaba Token Plan",
+  "env": [
+   "ALIBABA_TOKEN_PLAN_API_KEY"
+  ],
+  "api": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+  "doc": "https://www.alibabacloud.com/help/en/model-studio/token-plan-overview",
+  "models": {
+   "qwen3.8-max": {
+    "id": "qwen3.8-max",
+    "name": "Qwen3.8 Max",
+    "family": "qwen",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-08-03",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video",
+      "pdf"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 1000000,
+     "output": 131072
+    },
+    "cost": {
+     "input": 0,
+     "output": 0,
+     "cache_read": 0,
+     "cache_write": 0
+    },
+    "canonical_model_id": "alibaba/qwen3.8-max"
+   },
+   "glm-5": {
+    "id": "glm-5",
+    "name": "GLM-5",
+    "family": "glm",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-02-12",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 202752,
+     "output": 16384
+    },
+    "cost": {
+     "input": 0,
+     "output": 0,
+     "cache_read": 0,
+     "cache_write": 0
+    },
+    "canonical_model_id": "zhipuai/glm-5"
+   },
+   "kimi-k2.5": {
+    "id": "kimi-k2.5",
+    "name": "Kimi K2.5",
+    "family": "kimi-k2",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-01",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262144,
+     "output": 98304
+    },
+    "cost": {
+     "input": 0,
+     "output": 0,
+     "cache_read": 0,
+     "cache_write": 0
+    },
+    "canonical_model_id": "moonshotai/kimi-k2.5"
+   }
+  }
+ },
+ "deepseek": {
+  "id": "deepseek",
+  "name": "DeepSeek",
+  "env": [
+   "DEEPSEEK_API_KEY"
+  ],
+  "api": "https://api.deepseek.com",
+  "doc": "https://api-docs.deepseek.com/quick_start/pricing",
+  "models": {
+   "deepseek-flash": {
+    "id": "deepseek-flash",
+    "name": "DeepSeek V4.1 Flash",
+    "family": "deepseek-flash",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-09-10",
+    "modalities": {
+     "input": [
+      "text",
+      "image"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 1000000,
+     "output": 393216
+    },
+    "cost": {
+     "input": 0.15,
+     "output": 0.6,
+     "reasoning": 0.6,
+     "cache_read": 0.003
+    },
+    "canonical_model_id": "deepseek/deepseek-v4.1-flash"
+   }
+  }
+ },
+ "minimax-coding-plan": {
+  "id": "minimax-coding-plan",
+  "name": "MiniMax Token Plan (minimax.io)",
+  "env": [
+   "MINIMAX_API_KEY"
+  ],
+  "api": "https://api.minimax.io/anthropic/v1",
+  "doc": "https://platform.minimax.io/docs/token-plan/intro",
+  "models": {
+   "MiniMax-M2.7": {
+    "id": "MiniMax-M2.7",
+    "name": "MiniMax-M2.7",
+    "family": "minimax",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-03-18",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 204800,
+     "output": 131072
+    },
+    "cost": {
+     "input": 0,
+     "output": 0,
+     "cache_read": 0,
+     "cache_write": 0
+    }
+   }
+  }
+ },
+ "alibaba-coding-plan": {
+  "id": "alibaba-coding-plan",
+  "name": "Alibaba Coding Plan",
+  "env": [
+   "ALIBABA_CODING_PLAN_API_KEY"
+  ],
+  "api": "https://coding-intl.dashscope.aliyuncs.com/v1",
+  "doc": "https://www.alibabacloud.com/help/en/model-studio/coding-plan",
+  "models": {
+   "qwen3-coder-next": {
+    "id": "qwen3-coder-next",
+    "name": "Qwen3 Coder Next",
+    "family": "qwen",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": true,
+    "release_date": "2026-02-03",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262144,
+     "output": 65536
+    },
+    "cost": {
+     "input": 0,
+     "output": 0,
+     "cache_read": 0,
+     "cache_write": 0
+    }
+   },
+   "glm-5": {
+    "id": "glm-5",
+    "name": "GLM-5",
+    "family": "glm",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-02-11",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 202752,
+     "output": 16384
+    },
+    "cost": {
+     "input": 0,
+     "output": 0,
+     "cache_read": 0,
+     "cache_write": 0
+    }
+   },
+   "kimi-k2.5": {
+    "id": "kimi-k2.5",
+    "name": "Kimi K2.5",
+    "family": "kimi-k2",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-01-27",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262144,
+     "output": 32768
+    },
+    "cost": {
+     "input": 0,
+     "output": 0,
+     "cache_read": 0,
+     "cache_write": 0
+    }
+   }
+  }
+ },
+ "above": {
+  "id": "above",
+  "name": "above.dev",
+  "env": [
+   "ABOVE_API_KEY"
+  ],
+  "api": "https://api.above.dev/v1",
+  "doc": "https://above.dev/docs",
+  "models": {
+   "qwen3.8-max": {
+    "id": "qwen3.8-max",
+    "name": "Qwen 3.8 Max",
+    "family": "qwen",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-08-03",
+    "modalities": {
+     "input": [
+      "text",
+      "image"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 1000000,
+     "output": 32768
+    },
+    "cost": {
+     "input": 2.2,
+     "output": 6.6,
+     "cache_read": 0.275
+    },
+    "canonical_model_id": "alibaba/qwen3.8-max"
+   }
+  }
+ },
+ "alibaba-token-plan-cn": {
+  "id": "alibaba-token-plan-cn",
+  "name": "Alibaba Token Plan (China)",
+  "env": [
+   "ALIBABA_TOKEN_PLAN_API_KEY"
+  ],
+  "api": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+  "doc": "https://www.alibabacloud.com/help/zh/model-studio/token-plan-overview",
+  "models": {
+   "qwen3.8-max": {
+    "id": "qwen3.8-max",
+    "name": "Qwen3.8 Max",
+    "family": "qwen",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-08-03",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video",
+      "pdf"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 1000000,
+     "output": 131072
+    },
+    "cost": {
+     "input": 0,
+     "output": 0,
+     "cache_read": 0,
+     "cache_write": 0
+    },
+    "canonical_model_id": "alibaba/qwen3.8-max"
+   },
+   "glm-5": {
+    "id": "glm-5",
+    "name": "GLM-5",
+    "family": "glm",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-02-12",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 202752,
+     "output": 16384
+    },
+    "cost": {
+     "input": 0,
+     "output": 0,
+     "cache_read": 0,
+     "cache_write": 0
+    },
+    "canonical_model_id": "zhipuai/glm-5"
+   },
+   "kimi-k2.5": {
+    "id": "kimi-k2.5",
+    "name": "Kimi K2.5",
+    "family": "kimi-k2",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-01",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262144,
+     "output": 98304
+    },
+    "cost": {
+     "input": 0,
+     "output": 0,
+     "cache_read": 0,
+     "cache_write": 0
+    },
+    "canonical_model_id": "moonshotai/kimi-k2.5"
+   }
+  }
+ },
+ "minimax-cn-coding-plan": {
+  "id": "minimax-cn-coding-plan",
+  "name": "MiniMax Token Plan (minimax.cn)",
+  "env": [
+   "MINIMAX_API_KEY"
+  ],
+  "api": "https://api.minimax.cn/anthropic/v1",
+  "doc": "https://platform.minimaxi.com/docs/token-plan/intro",
+  "models": {
+   "MiniMax-M2.7": {
+    "id": "MiniMax-M2.7",
+    "name": "MiniMax-M2.7",
+    "family": "minimax",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-03-18",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 204800,
+     "output": 131072
+    },
+    "cost": {
+     "input": 0,
+     "output": 0,
+     "cache_read": 0,
+     "cache_write": 0
+    }
+   }
+  }
+ },
+ "melious": {
+  "id": "melious",
+  "name": "Melious",
+  "env": [
+   "MELIOUS_API_KEY"
+  ],
+  "api": "https://api.melious.ai/v1",
+  "doc": "https://melious.ai/docs/reference/models",
+  "models": {
+   "glm-5": {
+    "id": "glm-5",
+    "name": "GLM-5",
+    "family": "glm",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-02-12",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 203000,
+     "output": 131072
+    },
+    "cost": {
+     "input": 1.10124,
+     "output": 3.36168,
+     "cache_read": 0.266616
+    },
+    "canonical_model_id": "zhipuai/glm-5"
+   },
+   "kimi-k2.5": {
+    "id": "kimi-k2.5",
+    "name": "Kimi K2.5",
+    "family": "kimi-k2",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-01",
+    "modalities": {
+     "input": [
+      "text",
+      "image"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262000,
+     "output": 262000
+    },
+    "cost": {
+     "input": 0.5796,
+     "output": 2.95596,
+     "cache_read": 0.139104
+    },
+    "canonical_model_id": "moonshotai/kimi-k2.5"
+   }
+  }
+ },
+ "abacus": {
+  "id": "abacus",
+  "name": "Abacus",
+  "env": [
+   "ABACUS_API_KEY"
+  ],
+  "api": "https://routellm.abacus.ai/v1",
+  "doc": "https://abacus.ai/help/api",
+  "models": {
+   "qwen3.8-max": {
+    "id": "qwen3.8-max",
+    "name": "Qwen3.8 Max",
+    "family": "qwen",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-08-03",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 1000000,
+     "output": 131072
+    },
+    "cost": {
+     "input": 2,
+     "output": 6
+    },
+    "canonical_model_id": "alibaba/qwen3.8-max"
+   },
+   "kimi-k2.5": {
+    "id": "kimi-k2.5",
+    "name": "Kimi K2.5",
+    "family": "kimi-k2",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-01",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262144,
+     "output": 32768
+    },
+    "cost": {
+     "input": 0.6,
+     "output": 3
+    }
+   }
+  }
+ },
+ "302ai": {
+  "id": "302ai",
+  "name": "302.AI",
+  "env": [
+   "302AI_API_KEY"
+  ],
+  "api": "https://api.302.ai/v1",
+  "doc": "https://doc.302.ai",
+  "models": {
+   "grok-4.7": {
+    "id": "grok-4.7",
+    "name": "Grok 4.7",
+    "family": "grok",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-09-21",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "pdf"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 500000,
+     "output": 500000
+    },
+    "cost": {
+     "input": 2,
+     "output": 6,
+     "cache_read": 0.5,
+     "cache_write": 0.5
+    },
+    "canonical_model_id": "xai/grok-4.7"
+   },
+   "qwen3.8-max": {
+    "id": "qwen3.8-max",
+    "name": "Qwen3.8 Max",
+    "family": "qwen",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-08-03",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video",
+      "pdf"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 1000000,
+     "output": 131072
+    },
+    "cost": {
+     "input": 2.16,
+     "output": 6.36
+    },
+    "canonical_model_id": "alibaba/qwen3.8-max"
+   },
+   "glm-5": {
+    "id": "glm-5",
+    "name": "glm-5",
+    "family": "glm",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-02-12",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 204800,
+     "output": 131072
+    },
+    "cost": {
+     "input": 0.6,
+     "output": 2.6
+    }
+   },
+   "kimi-k2.5": {
+    "id": "kimi-k2.5",
+    "name": "Kimi K2.5",
+    "family": "kimi-k2",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-01",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262144,
+     "output": 262144
+    },
+    "cost": {
+     "input": 0.66,
+     "output": 3.3
+    },
+    "canonical_model_id": "moonshotai/kimi-k2.5"
+   },
+   "deepseek-flash": {
+    "id": "deepseek-flash",
+    "name": "DeepSeek V4.1 Flash",
+    "family": "deepseek-flash",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-09-10",
+    "modalities": {
+     "input": [
+      "text",
+      "image"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 1000000,
+     "output": 384000
+    },
+    "cost": {
+     "input": 0.15,
+     "output": 0.6,
+     "cache_read": 0.003
+    },
+    "canonical_model_id": "deepseek/deepseek-v4.1-flash"
+   },
+   "MiniMax-M2.7": {
+    "id": "MiniMax-M2.7",
+    "name": "MiniMax-M2.7",
+    "family": "minimax",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-03-18",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 204800,
+     "output": 131072
+    },
+    "cost": {
+     "input": 0.3,
+     "output": 1.2
+    },
+    "canonical_model_id": "minimax/MiniMax-M2.7"
+   }
+  }
+ },
+ "azure": {
+  "id": "azure",
+  "name": "Azure",
+  "env": [
+   "AZURE_RESOURCE_NAME",
+   "AZURE_API_KEY"
+  ],
+  "doc": "https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models",
+  "models": {
+   "kimi-k2.5": {
+    "id": "kimi-k2.5",
+    "name": "Kimi K2.5",
+    "family": "kimi-k2",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-02-06",
+    "modalities": {
+     "input": [
+      "text",
+      "image"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262144,
+     "output": 262144
+    },
+    "provider": {
+     "npm": "@ai-sdk/openai-compatible",
+     "api": "https://${AZURE_RESOURCE_NAME}.services.ai.azure.com/models",
+     "shape": "completions"
+    },
+    "cost": {
+     "input": 0.6,
+     "output": 3
+    }
+   }
+  }
+ },
+ "azure-cognitive-services": {
+  "id": "azure-cognitive-services",
+  "name": "Azure Cognitive Services",
+  "env": [
+   "AZURE_COGNITIVE_SERVICES_RESOURCE_NAME",
+   "AZURE_COGNITIVE_SERVICES_API_KEY"
+  ],
+  "doc": "https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models",
+  "models": {
+   "kimi-k2.5": {
+    "id": "kimi-k2.5",
+    "name": "Kimi K2.5",
+    "family": "kimi-k2",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-01",
+    "modalities": {
+     "input": [
+      "text",
+      "image"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262144,
+     "output": 262144
+    },
+    "provider": {
+     "npm": "@ai-sdk/openai-compatible",
+     "api": "https://${AZURE_COGNITIVE_SERVICES_RESOURCE_NAME}.services.ai.azure.com/models",
+     "shape": "completions"
+    },
+    "cost": {
+     "input": 0.6,
+     "output": 3
+    },
+    "canonical_model_id": "moonshotai/kimi-k2.5"
+   }
+  }
+ },
+ "alibaba": {
+  "id": "alibaba",
+  "name": "Alibaba",
+  "env": [
+   "DASHSCOPE_API_KEY"
+  ],
+  "api": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+  "doc": "https://www.alibabacloud.com/help/en/model-studio/models",
+  "models": {
+   "qwen3.8-max": {
+    "id": "qwen3.8-max",
+    "name": "Qwen3.8 Max",
+    "family": "qwen",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-08-03",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video",
+      "pdf"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 1000000,
+     "output": 131072
+    },
+    "cost": {
+     "input": 2,
+     "output": 6,
+     "cache_read": 0.25,
+     "cache_write": 2.5
+    },
+    "canonical_model_id": "alibaba/qwen3.8-max"
+   }
+  }
+ },
+ "auriko": {
+  "id": "auriko",
+  "name": "Auriko",
+  "env": [
+   "AURIKO_API_KEY"
+  ],
+  "api": "https://api.auriko.ai/v1",
+  "doc": "https://docs.auriko.ai",
+  "models": {
+   "kimi-k2.5": {
+    "id": "kimi-k2.5",
+    "name": "Kimi K2.5",
+    "family": "kimi-k2",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-01",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262144,
+     "output": 262144
+    },
+    "cost": {
+     "input": 0.5,
+     "output": 2.8
+    },
+    "canonical_model_id": "moonshotai/kimi-k2.5"
+   }
+  }
+ },
+ "unorouter": {
+  "id": "unorouter",
+  "name": "UnoRouter",
+  "env": [
+   "UNOROUTER_API_KEY"
+  ],
+  "api": "https://api.unorouter.com/v1",
+  "doc": "https://unorouter.com/models",
+  "models": {
+   "minimax-m2.7": {
+    "id": "minimax-m2.7",
+    "name": "MiniMax-M2.7",
+    "family": "minimax",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-03-18",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 204800,
+     "output": 131072
+    },
+    "cost": {
+     "input": 0.819,
+     "output": 3.276
+    },
+    "canonical_model_id": "minimax/MiniMax-M2.7"
+   }
+  }
+ },
+ "regolo-ai": {
+  "id": "regolo-ai",
+  "name": "Regolo AI",
+  "env": [
+   "REGOLO_API_KEY"
+  ],
+  "api": "https://api.regolo.ai/v1",
+  "doc": "https://docs.regolo.ai/",
+  "models": {
+   "qwen3-coder-next": {
+    "id": "qwen3-coder-next",
+    "name": "Qwen3-Coder-Next",
+    "family": "qwen",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-03-01",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262144,
+     "output": 16384
+    },
+    "cost": {
+     "input": 0.3,
+     "output": 1.2
+    }
+   }
+  }
+ },
+ "vancine": {
+  "id": "vancine",
+  "name": "Vancine",
+  "env": [
+   "VANCINE_API_KEY"
+  ],
+  "api": "https://vancine.com/v1",
+  "doc": "https://vancine.com/docs",
+  "models": {
+   "qwen3.8-max": {
+    "id": "qwen3.8-max",
+    "name": "Qwen3.8 Max",
+    "family": "qwen",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-08-03",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video",
+      "pdf"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 1000000,
+     "output": 131072
+    },
+    "cost": {
+     "input": 1.6,
+     "output": 4.8,
+     "cache_read": 0.2
+    },
+    "canonical_model_id": "alibaba/qwen3.8-max"
+   }
+  }
+ },
+ "frogbot": {
+  "id": "frogbot",
+  "name": "FrogBot",
+  "env": [
+   "FROGBOT_API_KEY"
+  ],
+  "api": "https://app.frogbot.ai/api/v1",
+  "doc": "https://docs.frogbot.ai",
+  "models": {
+   "kimi-k2.5": {
+    "id": "kimi-k2.5",
+    "name": "Kimi-K2.5",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "1970-01-01",
+    "modalities": {
+     "input": [
+      "text",
+      "image"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 256000,
+     "output": 128000
+    },
+    "cost": {
+     "input": 0.6,
+     "output": 3,
+     "cache_read": 0.1
+    }
+   }
+  }
+ },
+ "ollama-cloud": {
+  "id": "ollama-cloud",
+  "name": "Ollama Cloud",
+  "env": [
+   "OLLAMA_API_KEY"
+  ],
+  "api": "https://ollama.com/v1",
+  "doc": "https://docs.ollama.com/cloud",
+  "models": {
+   "kimi-k2.5": {
+    "id": "kimi-k2.5",
+    "name": "kimi-k2.5",
+    "family": "kimi-k2",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-01-27",
+    "modalities": {
+     "input": [
+      "text",
+      "image"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262144,
+     "output": 262144
+    }
+   },
+   "minimax-m2.7": {
+    "id": "minimax-m2.7",
+    "name": "minimax-m2.7",
+    "family": "minimax",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-03-18",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 196608,
+     "output": 196608
+    },
+    "cost": {
+     "input": 0.3,
+     "output": 1.2,
+     "cache_read": 0.06
+    }
+   }
+  }
+ },
+ "xai": {
+  "id": "xai",
+  "name": "xAI",
+  "env": [
+   "XAI_API_KEY"
+  ],
+  "doc": "https://docs.x.ai/docs/models",
+  "models": {
+   "grok-4.7": {
+    "id": "grok-4.7",
+    "name": "Grok 4.7",
+    "family": "grok",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-09-21",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "pdf"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 500000,
+     "output": 500000
+    },
+    "cost": {
+     "input": 2,
+     "output": 6,
+     "cache_read": 0.5,
+     "tiers": [
+      {
+       "input": 4,
+       "output": 12,
+       "cache_read": 1,
+       "tier": {
+        "type": "context",
+        "size": 200000
+       }
+      }
+     ],
+     "context_over_200k": {
+      "input": 4,
+      "output": 12,
+      "cache_read": 1
+     }
+    },
+    "canonical_model_id": "xai/grok-4.7"
+   }
+  }
+ },
+ "minimax-cn": {
+  "id": "minimax-cn",
+  "name": "MiniMax (minimax.cn)",
+  "env": [
+   "MINIMAX_API_KEY"
+  ],
+  "api": "https://api.minimax.cn/anthropic/v1",
+  "doc": "https://platform.minimaxi.com/docs/guides/quickstart",
+  "models": {
+   "MiniMax-M2.7": {
+    "id": "MiniMax-M2.7",
+    "name": "MiniMax-M2.7",
+    "family": "minimax",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-03-18",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 204800,
+     "output": 131072
+    },
+    "cost": {
+     "input": 0.3,
+     "output": 1.2,
+     "cache_read": 0.06,
+     "cache_write": 0.375
+    }
+   }
+  }
+ },
+ "hyper": {
+  "id": "hyper",
+  "name": "Charm Hyper",
+  "env": [
+   "HYPER_API_KEY"
+  ],
+  "api": "https://hyper.charm.land/v1",
+  "doc": "https://hyper.charm.land",
+  "models": {
+   "qwen3.8-max": {
+    "id": "qwen3.8-max",
+    "name": "Qwen3.8 Max Preview",
+    "family": "qwen",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-07-19",
+    "modalities": {
+     "input": [
+      "text",
+      "image"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 1000000,
+     "output": 65536
+    },
+    "cost": {
+     "input": 2,
+     "output": 6,
+     "cache_read": 0.25
+    },
+    "canonical_model_id": "alibaba/qwen3.8-max-preview"
+   },
+   "minimax-m2.7": {
+    "id": "minimax-m2.7",
+    "name": "MiniMax-M2.7",
+    "family": "minimax",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-06-05",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262100,
+     "output": 6553
+    },
+    "cost": {
+     "input": 0.484,
+     "output": 1.852,
+     "cache_read": 0.242
+    },
+    "canonical_model_id": "minimax/MiniMax-M2.7"
+   }
+  }
+ },
+ "jalapeno": {
+  "id": "jalapeno",
+  "name": "Jalapeno Cloud",
+  "env": [
+   "JALAPENO_API_KEY"
+  ],
+  "api": "https://api.jalapeno-cloud.ai/v1",
+  "doc": "https://www.jalapeno-cloud.ai/docs/",
+  "models": {
+   "Kimi-K2.5": {
+    "id": "Kimi-K2.5",
+    "name": "Kimi K2.5",
+    "family": "kimi-k2",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-01",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262144,
+     "output": 180224
+    },
+    "cost": {
+     "input": 0.6,
+     "output": 3
+    },
+    "canonical_model_id": "moonshotai/kimi-k2.5"
+   }
+  }
+ },
+ "dinference": {
+  "id": "dinference",
+  "name": "DInference",
+  "env": [
+   "DINFERENCE_API_KEY"
+  ],
+  "api": "https://api.dinference.com/v1",
+  "doc": "https://dinference.com",
+  "models": {
+   "glm-5": {
+    "id": "glm-5",
+    "name": "GLM-5",
+    "family": "glm",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-02-12",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 200000,
+     "output": 128000
+    },
+    "cost": {
+     "input": 0.75,
+     "output": 2.4
+    },
+    "canonical_model_id": "zhipuai/glm-5"
+   }
+  }
+ },
+ "scx-ai": {
+  "id": "scx-ai",
+  "name": "SCX.ai",
+  "env": [
+   "SCX_API_KEY"
+  ],
+  "api": "https://api.scx.ai/v1",
+  "doc": "https://platform.scx.ai/docs",
+  "models": {
+   "Qwen3.8-Max": {
+    "id": "Qwen3.8-Max",
+    "name": "Qwen3.8 Max",
+    "family": "qwen",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-08-03",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 1000000,
+     "input": 983616,
+     "output": 131072
+    },
+    "cost": {
+     "input": 1.815,
+     "output": 5.4461,
+     "cache_read": 0.17,
+     "cache_write": 2.5
+    },
+    "canonical_model_id": "alibaba/qwen3.8-max"
+   },
+   "MiniMax-M2.7": {
+    "id": "MiniMax-M2.7",
+    "name": "MiniMax-M2.7",
+    "family": "minimax",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-03-18",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 196608,
+     "output": 196608
+    },
+    "cost": {
+     "input": 0.48,
+     "output": 1.79,
+     "cache_read": 0.05
+    },
+    "canonical_model_id": "minimax/MiniMax-M2.7"
+   }
+  }
+ },
+ "scnet-token-plan": {
+  "id": "scnet-token-plan",
+  "name": "SCNet Token Plan",
+  "env": [
+   "SCNET_API_KEY"
+  ],
+  "api": "https://api.scnet.cn/api/llm/v1",
+  "doc": "https://www.scnet.cn/ac/openapi/doc/2.0/moduleapi/plans/token-plan.html",
+  "models": {
+   "Qwen3.8-Max": {
+    "id": "Qwen3.8-Max",
+    "name": "Qwen3.8 Max",
+    "family": "qwen",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-08-03",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video",
+      "pdf"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 1000000,
+     "output": 131072
+    },
+    "cost": {
+     "input": 0,
+     "output": 0,
+     "cache_read": 0
+    },
+    "canonical_model_id": "alibaba/qwen3.8-max"
+   },
+   "GLM-5": {
+    "id": "GLM-5",
+    "name": "GLM-5",
+    "family": "glm",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-02-12",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 204800,
+     "output": 131072
+    },
+    "cost": {
+     "input": 0,
+     "output": 0,
+     "cache_read": 0
+    },
+    "canonical_model_id": "zhipuai/glm-5"
+   },
+   "MiniMax-M2.7": {
+    "id": "MiniMax-M2.7",
+    "name": "MiniMax-M2.7",
+    "family": "minimax",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-03-18",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 204800,
+     "output": 131072
+    },
+    "cost": {
+     "input": 0,
+     "output": 0,
+     "cache_read": 0
+    },
+    "canonical_model_id": "minimax/MiniMax-M2.7"
+   },
+   "Kimi-K2.5": {
+    "id": "Kimi-K2.5",
+    "name": "Kimi K2.5",
+    "family": "kimi-k2",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-01",
+    "modalities": {
+     "input": [
+      "text",
+      "image"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262144,
+     "output": 262144
+    },
+    "cost": {
+     "input": 0,
+     "output": 0,
+     "cache_read": 0
+    },
+    "canonical_model_id": "moonshotai/kimi-k2.5"
+   }
+  }
+ },
+ "aihubmix": {
+  "id": "aihubmix",
+  "name": "AIHubMix",
+  "env": [
+   "AIHUBMIX_API_KEY"
+  ],
+  "doc": "https://docs.aihubmix.com",
+  "models": {
+   "grok-4.7": {
+    "id": "grok-4.7",
+    "name": "Grok 4.7",
+    "family": "grok",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-09-21",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "pdf"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 500000,
+     "output": 500000
+    },
+    "cost": {
+     "input": 2.2,
+     "output": 6.6,
+     "cache_read": 0.55,
+     "tiers": [
+      {
+       "input": 4.4,
+       "output": 13.2,
+       "cache_read": 1.1,
+       "tier": {
+        "type": "context",
+        "size": 200000
+       }
+      }
+     ],
+     "context_over_200k": {
+      "input": 4.4,
+      "output": 13.2,
+      "cache_read": 1.1
+     }
+    },
+    "canonical_model_id": "xai/grok-4.7"
+   },
+   "qwen3.8-max": {
+    "id": "qwen3.8-max",
+    "name": "Qwen3.8 Max",
+    "family": "qwen",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-08-03",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 991000,
+     "output": 128000
+    },
+    "cost": {
+     "input": 1.69,
+     "output": 5.07,
+     "cache_read": 0.169,
+     "cache_write": 2.1125
+    },
+    "canonical_model_id": "alibaba/qwen3.8-max"
+   },
+   "kimi-k2.5": {
+    "id": "kimi-k2.5",
+    "name": "Kimi K2.5",
+    "family": "kimi-k2",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-01",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262144,
+     "output": 32768
+    },
+    "cost": {
+     "input": 0.6,
+     "output": 3,
+     "cache_read": 0.1
+    }
+   },
+   "minimax-m2.7": {
+    "id": "minimax-m2.7",
+    "name": "MiniMax M2.7",
+    "family": "minimax",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-03-18",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 204800,
+     "output": 128000
+    },
+    "cost": {
+     "input": 0.3,
+     "output": 1.2,
+     "cache_read": 0.06,
+     "cache_write": 0.375
+    }
+   }
+  }
+ },
+ "opper": {
+  "id": "opper",
+  "name": "Opper",
+  "env": [
+   "OPPER_API_KEY"
+  ],
+  "api": "https://api.opper.ai/v3/compat",
+  "doc": "https://opper.ai/models",
+  "models": {
+   "qwen3.8-max": {
+    "id": "qwen3.8-max",
+    "name": "Qwen3.8 Max",
+    "family": "qwen",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-08-03",
+    "modalities": {
+     "input": [
+      "text",
+      "image"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 983616,
+     "output": 131072
+    },
+    "cost": {
+     "input": 2,
+     "output": 6,
+     "cache_read": 0.25
+    },
+    "canonical_model_id": "alibaba/qwen3.8-max"
+   },
+   "qwen3-coder-next": {
+    "id": "qwen3-coder-next",
+    "name": "Qwen3 Coder Next",
+    "family": "qwen",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": true,
+    "release_date": "2026-02-03",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262144,
+     "output": 65536
+    },
+    "cost": {
+     "input": 0.5811,
+     "output": 2.3244
+    },
+    "canonical_model_id": "alibaba/qwen3-coder-next"
+   },
+   "minimax-m2.7": {
+    "id": "minimax-m2.7",
+    "name": "MiniMax-M2.7",
+    "family": "minimax",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-03-18",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 196608,
+     "output": 131072
+    },
+    "cost": {
+     "input": 0.69732,
+     "output": 2.78928
+    },
+    "canonical_model_id": "minimax/MiniMax-M2.7"
+   }
+  }
+ },
+ "minimax": {
+  "id": "minimax",
+  "name": "MiniMax (minimax.io)",
+  "env": [
+   "MINIMAX_API_KEY"
+  ],
+  "api": "https://api.minimax.io/anthropic/v1",
+  "doc": "https://platform.minimax.io/docs/guides/quickstart",
+  "models": {
+   "MiniMax-M2.7": {
+    "id": "MiniMax-M2.7",
+    "name": "MiniMax-M2.7",
+    "family": "minimax",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-03-18",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 204800,
+     "output": 131072
+    },
+    "cost": {
+     "input": 0.3,
+     "output": 1.2,
+     "cache_read": 0.06,
+     "cache_write": 0.375
+    }
+   }
+  }
+ },
+ "github-copilot": {
+  "id": "github-copilot",
+  "name": "GitHub Copilot",
+  "env": [
+   "GITHUB_TOKEN"
+  ],
+  "api": "https://api.githubcopilot.com",
+  "doc": "https://docs.github.com/en/copilot",
+  "models": {
+   "grok-4.7": {
+    "id": "grok-4.7",
+    "name": "Grok 4.7",
+    "family": "grok",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-09-21",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "pdf"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 500000,
+     "input": 372000,
+     "output": 128000
+    },
+    "cost": {
+     "input": 2,
+     "output": 6,
+     "cache_read": 0.5,
+     "tiers": [
+      {
+       "input": 4,
+       "output": 12,
+       "cache_read": 1,
+       "tier": {
+        "type": "context",
+        "size": 200000
+       }
+      }
+     ],
+     "context_over_200k": {
+      "input": 4,
+      "output": 12,
+      "cache_read": 1
+     }
+    },
+    "canonical_model_id": "xai/grok-4.7"
+   }
+  }
+ },
+ "opencode-go": {
+  "id": "opencode-go",
+  "name": "OpenCode Go",
+  "env": [
+   "OPENCODE_API_KEY"
+  ],
+  "api": "https://opencode.ai/zen/go/v1",
+  "doc": "https://opencode.ai/docs/go",
+  "models": {
+   "grok-4.7": {
+    "id": "grok-4.7",
+    "name": "Grok 4.7",
+    "family": "grok",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-09-21",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "pdf"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 500000,
+     "output": 500000
+    },
+    "provider": {
+     "npm": "@ai-sdk/openai"
+    },
+    "cost": {
+     "input": 2,
+     "output": 6,
+     "cache_read": 0.5,
+     "tiers": [
+      {
+       "input": 4,
+       "output": 12,
+       "cache_read": 1,
+       "tier": {
+        "type": "context",
+        "size": 200000
+       }
+      }
+     ],
+     "context_over_200k": {
+      "input": 4,
+      "output": 12,
+      "cache_read": 1
+     }
+    },
+    "canonical_model_id": "xai/grok-4.7"
+   },
+   "qwen3.8-max": {
+    "id": "qwen3.8-max",
+    "name": "Qwen3.8 Max",
+    "family": "qwen3.8-max",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-08-03",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 1000000,
+     "output": 131072
+    },
+    "cost": {
+     "input": 2,
+     "output": 6,
+     "cache_read": 0.25,
+     "cache_write": 2.5
+    },
+    "canonical_model_id": "alibaba/qwen3.8-max"
+   },
+   "minimax-m2.7": {
+    "id": "minimax-m2.7",
+    "name": "MiniMax-M2.7",
+    "family": "minimax-m2.7",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-03-18",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 204800,
+     "output": 131072
+    },
+    "provider": {
+     "npm": "@ai-sdk/anthropic"
+    },
+    "cost": {
+     "input": 0.3,
+     "output": 1.2,
+     "cache_read": 0.06,
+     "cache_write": 0.375
+    }
+   }
+  }
+ },
+ "tencent-coding-plan": {
+  "id": "tencent-coding-plan",
+  "name": "Tencent Coding Plan (China)",
+  "env": [
+   "TENCENT_CODING_PLAN_API_KEY"
+  ],
+  "api": "https://api.lkeap.cloud.tencent.com/coding/v3",
+  "doc": "https://cloud.tencent.com/document/product/1772/128947",
+  "models": {
+   "glm-5": {
+    "id": "glm-5",
+    "name": "GLM-5",
+    "family": "glm",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-02-11",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 202752,
+     "output": 16384
+    },
+    "cost": {
+     "input": 0,
+     "output": 0,
+     "cache_read": 0,
+     "cache_write": 0
+    }
+   },
+   "kimi-k2.5": {
+    "id": "kimi-k2.5",
+    "name": "Kimi-K2.5",
+    "family": "kimi-k2",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-01-27",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262144,
+     "output": 32768
+    },
+    "cost": {
+     "input": 0,
+     "output": 0,
+     "cache_read": 0,
+     "cache_write": 0
+    }
+   }
+  }
+ },
+ "opencode": {
+  "id": "opencode",
+  "name": "OpenCode Zen",
+  "env": [
+   "OPENCODE_API_KEY"
+  ],
+  "api": "https://opencode.ai/zen/v1",
+  "doc": "https://opencode.ai/docs/zen",
+  "models": {
+   "grok-4.7": {
+    "id": "grok-4.7",
+    "name": "Grok 4.7",
+    "family": "grok",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-09-21",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "pdf"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 500000,
+     "output": 500000
+    },
+    "provider": {
+     "npm": "@ai-sdk/openai"
+    },
+    "cost": {
+     "input": 2,
+     "output": 6,
+     "cache_read": 0.5,
+     "tiers": [
+      {
+       "input": 4,
+       "output": 12,
+       "cache_read": 1,
+       "tier": {
+        "type": "context",
+        "size": 200000
+       }
+      }
+     ],
+     "context_over_200k": {
+      "input": 4,
+      "output": 12,
+      "cache_read": 1
+     }
+    },
+    "canonical_model_id": "xai/grok-4.7"
+   },
+   "qwen3.8-max": {
+    "id": "qwen3.8-max",
+    "name": "Qwen3.8 Max",
+    "family": "qwen",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-08-03",
+    "modalities": {
+     "input": [
+      "text",
+      "image"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 262144,
+     "output": 131072
+    },
+    "cost": {
+     "input": 2,
+     "output": 6,
+     "cache_read": 0.25,
+     "cache_write": 2.5
+    },
+    "canonical_model_id": "alibaba/qwen3.8-max"
+   },
+   "glm-5": {
+    "id": "glm-5",
+    "name": "GLM-5",
+    "family": "glm",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-02-11",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 204800,
+     "output": 131072
+    },
+    "cost": {
+     "input": 1,
+     "output": 3.2,
+     "cache_read": 0.2
+    }
+   },
+   "kimi-k2.5": {
+    "id": "kimi-k2.5",
+    "name": "Kimi K2.5",
+    "family": "kimi-k2",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-01-27",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262144,
+     "output": 65536
+    },
+    "cost": {
+     "input": 0.6,
+     "output": 3,
+     "cache_read": 0.08
+    }
+   },
+   "minimax-m2.7": {
+    "id": "minimax-m2.7",
+    "name": "MiniMax-M2.7",
+    "family": "minimax",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-03-18",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 204800,
+     "output": 131072
+    },
+    "cost": {
+     "input": 0.3,
+     "output": 1.2,
+     "cache_read": 0.06
+    }
+   }
+  }
+ },
+ "zhipuai": {
+  "id": "zhipuai",
+  "name": "Zhipu AI",
+  "env": [
+   "ZHIPU_API_KEY"
+  ],
+  "api": "https://open.bigmodel.cn/api/paas/v4",
+  "doc": "https://docs.z.ai/guides/overview/pricing",
+  "models": {
+   "glm-5": {
+    "id": "glm-5",
+    "name": "GLM-5",
+    "family": "glm",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-02-11",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 204800,
+     "output": 131072
+    },
+    "cost": {
+     "input": 1,
+     "output": 3.2,
+     "cache_read": 0.2,
+     "cache_write": 0
+    }
+   }
+  }
+ },
+ "requesty": {
+  "id": "requesty",
+  "name": "Requesty",
+  "env": [
+   "REQUESTY_API_KEY"
+  ],
+  "api": "https://router.requesty.ai/v1",
+  "doc": "https://requesty.ai/solution/llm-routing/models",
+  "models": {
+   "qwen3.8-max": {
+    "id": "qwen3.8-max",
+    "name": "Qwen3.8 Max",
+    "family": "qwen",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-08-03",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video",
+      "pdf"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 1048576,
+     "output": 131072
+    },
+    "cost": {
+     "input": 2,
+     "output": 6,
+     "cache_read": 0.25,
+     "cache_write": 2.5
+    },
+    "canonical_model_id": "alibaba/qwen3.8-max"
+   },
+   "minimax-m2.7": {
+    "id": "minimax-m2.7",
+    "name": "MiniMax-M2.7",
+    "family": "minimax",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-03-18",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 200000,
+     "output": 128000
+    },
+    "cost": {
+     "input": 0.3,
+     "output": 1.2,
+     "cache_read": 0.06,
+     "cache_write": 1.2
+    },
+    "canonical_model_id": "minimax/MiniMax-M2.7"
+   }
+  }
+ },
+ "llmgateway": {
+  "id": "llmgateway",
+  "name": "DevPass (LLM Gateway)",
+  "env": [
+   "LLMGATEWAY_API_KEY"
+  ],
+  "api": "https://api.llmgateway.io/v1",
+  "doc": "https://llmgateway.io/docs",
+  "models": {
+   "qwen3.8-max": {
+    "id": "qwen3.8-max",
+    "name": "Qwen3.8 Max Preview",
+    "family": "qwen",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-07-19",
+    "modalities": {
+     "input": [
+      "text",
+      "image"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 1000000,
+     "output": 1000000
+    },
+    "cost": {
+     "input": 2,
+     "output": 6,
+     "cache_read": 0.25,
+     "cache_write": 2.5
+    },
+    "canonical_model_id": "alibaba/qwen3.8-max-preview"
+   },
+   "qwen3-coder-next": {
+    "id": "qwen3-coder-next",
+    "name": "Qwen3 Coder Next",
+    "family": "qwen",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2025-10-15",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 262144,
+     "output": 65536
+    },
+    "cost": {
+     "input": 0.108,
+     "output": 0.675,
+     "cache_read": 0.06
+    }
+   },
+   "glm-5": {
+    "id": "glm-5",
+    "name": "GLM-5",
+    "family": "glm",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-02-12",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 203000,
+     "output": 131072
+    },
+    "cost": {
+     "input": 0.72,
+     "output": 2.3,
+     "cache_read": 0.144,
+     "cache_write": 0
+    },
+    "canonical_model_id": "zhipuai/glm-5"
+   },
+   "qwen3-vl-flash": {
+    "id": "qwen3-vl-flash",
+    "name": "Qwen3 VL Flash",
+    "family": "qwen",
+    "attachment": true,
+    "reasoning": false,
+    "tool_call": true,
+    "release_date": "2025-10-09",
+    "modalities": {
+     "input": [
+      "text",
+      "image"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 262144,
+     "output": 32000
+    },
+    "cost": {
+     "input": 0.05,
+     "output": 0.4,
+     "cache_read": 0.01
+    }
+   },
+   "kimi-k2.5": {
+    "id": "kimi-k2.5",
+    "name": "Kimi K2.5",
+    "family": "kimi-k2",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-01",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262144,
+     "output": 262144
+    },
+    "cost": {
+     "input": 0.405,
+     "output": 1.98,
+     "cache_read": 0.225
+    },
+    "canonical_model_id": "moonshotai/kimi-k2.5"
+   },
+   "minimax-m2.7": {
+    "id": "minimax-m2.7",
+    "name": "MiniMax-M2.7",
+    "family": "minimax",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-03-18",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 204800,
+     "output": 131072
+    },
+    "cost": {
+     "input": 0.08,
+     "output": 0.32,
+     "cache_read": 0.017,
+     "cache_write": 0.375
+    },
+    "canonical_model_id": "minimax/MiniMax-M2.7"
+   }
+  }
+ },
+ "cortecs": {
+  "id": "cortecs",
+  "name": "Cortecs",
+  "env": [
+   "CORTECS_API_KEY"
+  ],
+  "api": "https://api.cortecs.ai/v1",
+  "doc": "https://api.cortecs.ai/v1/models",
+  "models": {
+   "qwen3-coder-next": {
+    "id": "qwen3-coder-next",
+    "name": "Qwen3 Coder Next",
+    "family": "qwen",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": true,
+    "release_date": "2026-02-03",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 256000,
+     "output": 256000
+    },
+    "cost": {
+     "input": 0.167,
+     "output": 0.891
+    },
+    "canonical_model_id": "alibaba/qwen3-coder-next"
+   },
+   "glm-5": {
+    "id": "glm-5",
+    "name": "GLM-5",
+    "family": "glm",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-02-12",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 202752,
+     "output": 202752
+    },
+    "cost": {
+     "input": 0.988,
+     "output": 3.164,
+     "cache_read": 0.247
+    },
+    "canonical_model_id": "zhipuai/glm-5"
+   },
+   "kimi-k2.5": {
+    "id": "kimi-k2.5",
+    "name": "Kimi K2.5",
+    "family": "kimi-k2",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-01",
+    "modalities": {
+     "input": [
+      "text",
+      "image"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262144,
+     "output": 262144
+    },
+    "cost": {
+     "input": 0.495,
+     "output": 2.768,
+     "cache_read": 0.124
+    },
+    "canonical_model_id": "moonshotai/kimi-k2.5"
+   }
+  }
+ },
+ "daoxe": {
+  "id": "daoxe",
+  "name": "DaoXE",
+  "env": [
+   "DAOXE_API_KEY"
+  ],
+  "api": "https://daoxe.com/v1",
+  "doc": "https://daoxe.com/pricing",
+  "models": {
+   "kimi-k2.5": {
+    "id": "kimi-k2.5",
+    "name": "Kimi K2.5",
+    "family": "kimi-k2",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-01",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262144,
+     "output": 262144
+    },
+    "cost": {
+     "input": 0.6,
+     "output": 3,
+     "cache_read": 0.1
+    },
+    "canonical_model_id": "moonshotai/kimi-k2.5"
+   }
+  }
+ },
+ "openai": {
+  "id": "openai",
+  "name": "OpenAI",
+  "env": [
+   "OPENAI_API_KEY"
+  ],
+  "doc": "https://platform.openai.com/docs/models",
+  "models": {
+   "gpt-4o-2024-08-06": {
+    "id": "gpt-4o-2024-08-06",
+    "name": "GPT-4o (2024-08-06)",
+    "family": "gpt",
+    "attachment": true,
+    "reasoning": false,
+    "tool_call": true,
+    "release_date": "2024-08-06",
+    "modalities": {
+     "input": [
+      "text",
+      "image"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 128000,
+     "output": 16384
+    },
+    "cost": {
+     "input": 2.5,
+     "output": 10,
+     "cache_read": 1.25
+    }
+   }
+  }
+ },
+ "alibaba-coding-plan-cn": {
+  "id": "alibaba-coding-plan-cn",
+  "name": "Alibaba Coding Plan (China)",
+  "env": [
+   "ALIBABA_CODING_PLAN_API_KEY"
+  ],
+  "api": "https://coding.dashscope.aliyuncs.com/v1",
+  "doc": "https://help.aliyun.com/zh/model-studio/coding-plan",
+  "models": {
+   "qwen3-coder-next": {
+    "id": "qwen3-coder-next",
+    "name": "Qwen3 Coder Next",
+    "family": "qwen",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": true,
+    "release_date": "2026-02-03",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262144,
+     "output": 65536
+    },
+    "cost": {
+     "input": 0,
+     "output": 0,
+     "cache_read": 0,
+     "cache_write": 0
+    }
+   },
+   "glm-5": {
+    "id": "glm-5",
+    "name": "GLM-5",
+    "family": "glm",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-02-11",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 202752,
+     "output": 16384
+    },
+    "cost": {
+     "input": 0,
+     "output": 0,
+     "cache_read": 0,
+     "cache_write": 0
+    }
+   },
+   "kimi-k2.5": {
+    "id": "kimi-k2.5",
+    "name": "Kimi K2.5",
+    "family": "kimi-k2",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-01-27",
+    "modalities": {
+     "input": [
+      "text",
+      "image"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262144,
+     "output": 32768
+    },
+    "cost": {
+     "input": 0,
+     "output": 0,
+     "cache_read": 0,
+     "cache_write": 0
+    }
+   }
+  }
+ },
+ "digitalocean": {
+  "id": "digitalocean",
+  "name": "DigitalOcean",
+  "env": [
+   "DIGITALOCEAN_ACCESS_TOKEN"
+  ],
+  "api": "https://inference.do-ai.run/v1",
+  "doc": "https://docs.digitalocean.com/products/gradient-ai-platform/details/models/",
+  "models": {
+   "qwen3.8-max": {
+    "id": "qwen3.8-max",
+    "name": "Qwen3.8-Max",
+    "family": "qwen",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-08-03",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 1000000,
+     "output": 262144
+    },
+    "cost": {
+     "input": 2,
+     "output": 6,
+     "cache_read": 0.2
+    },
+    "canonical_model_id": "alibaba/qwen3.8-max"
+   },
+   "glm-5": {
+    "id": "glm-5",
+    "name": "GLM 5",
+    "family": "glm",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-02-11",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 64000,
+     "output": 64000
+    },
+    "cost": {
+     "input": 1,
+     "output": 3.2,
+     "cache_read": 0.2
+    }
+   },
+   "kimi-k2.5": {
+    "id": "kimi-k2.5",
+    "name": "Kimi K2.5",
+    "family": "kimi-k2",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-01",
+    "modalities": {
+     "input": [
+      "text",
+      "image"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262144,
+     "output": 262144
+    },
+    "cost": {
+     "input": 0.5,
+     "output": 2.7,
+     "cache_read": 0.203
+    }
+   }
+  }
+ },
+ "alibaba-cn": {
+  "id": "alibaba-cn",
+  "name": "Alibaba (China)",
+  "env": [
+   "DASHSCOPE_API_KEY"
+  ],
+  "api": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "doc": "https://www.alibabacloud.com/help/en/model-studio/models",
+  "models": {
+   "qwen3.8-max": {
+    "id": "qwen3.8-max",
+    "name": "Qwen3.8 Max",
+    "family": "qwen",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-08-03",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video",
+      "pdf"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 1000000,
+     "output": 131072
+    },
+    "cost": {
+     "input": 1.77744,
+     "output": 5.33231,
+     "cache_read": 0.22218,
+     "cache_write": 2.22179
+    },
+    "canonical_model_id": "alibaba/qwen3.8-max"
+   },
+   "glm-5": {
+    "id": "glm-5",
+    "name": "GLM-5",
+    "family": "glm",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-02-11",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 202752,
+     "output": 16384
+    },
+    "cost": {
+     "input": 0.573,
+     "output": 2.58,
+     "tiers": [
+      {
+       "input": 0.86,
+       "output": 3.154,
+       "tier": {
+        "type": "context",
+        "size": 32000
+       }
+      }
+     ]
+    }
+   },
+   "kimi-k2.5": {
+    "id": "kimi-k2.5",
+    "name": "Moonshot Kimi K2.5",
+    "family": "kimi-k2",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "release_date": "2026-01-27",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 262144,
+     "output": 32768
+    },
+    "cost": {
+     "input": 0.574,
+     "output": 2.411
+    }
+   }
+  }
+ }
+}

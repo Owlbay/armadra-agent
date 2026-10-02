@@ -185,6 +185,7 @@ export async function bootstrap(
           ? resolve(io.cwd, args.authFile)
           : defaultAuthFilePath(paths.configDir),
       authEnv: profile?.authEnv ?? true,
+      dataDir: paths.dataDir,
       ...(args.apiKey !== undefined && args.model !== undefined
         ? {
             cliApiKey: {

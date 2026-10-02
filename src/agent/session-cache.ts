@@ -8,6 +8,7 @@
  * fork 出的会话沿用根会话 id 作 `prompt_cache_key`（只是路由提示）；task 子会话不沿用。
  */
 
+import { modelRefOf } from "../ai/providers/channels.js";
 import { readFileSync } from "node:fs";
 import { evaluateWarm } from "../ai/cache/economics.js";
 import { fingerprintContext } from "../ai/cache/fingerprint.js";
@@ -223,7 +224,7 @@ export class SessionCacheController {
           const record: RequestRecord = {
             at,
             purpose,
-            model: { provider: model.provider, id: model.id },
+            model: modelRefOf(model),
             api: model.api,
             baseUrl: model.baseUrl ?? "",
             fingerprint: fingerprintContext(context, model),
@@ -347,7 +348,12 @@ export class SessionCacheController {
     const record = this.lastTurnRecord;
     const model = this.core.model();
     if (record === undefined || this.disposed) return undefined;
-    if (model.provider !== record.model.provider || model.id !== record.model.id) return undefined;
+    if (
+      model.provider !== record.model.provider ||
+      model.id !== record.model.id ||
+      model.channel !== record.model.channel
+    )
+      return undefined;
     const messages = convertToLlm(this.core.agent.messages, {
       provider: model.provider,
       model: model.id,

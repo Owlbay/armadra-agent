@@ -14,6 +14,13 @@
  * 的；仍不唯一 → ambiguous 并列出候选。模型表为空的供应商（ollama、lmstudio、未列模型的
  * 自定义供应商）与 baseUrl 被改到非官方主机的内置供应商（中转站）接受任意 model id，按自定义
  * 缺省合成；后者 compat 未显式配置 `sendPromptCacheKey` 时置 false。
+ *
+ * 渠道（channels.ts）：有 `channels` 的供应商，模型按首选渠道物化；`provider/model@channel` 换渠道
+ * 重新物化（协议、地址、headers、compat 取渠道的，模型级 api / baseUrl 仍覆盖）；渠道 key 经
+ * `resolveApiKey(provider, channel)`。没有 `channels` 的供应商行为不变。
+ *
+ * models.dev（enrich.ts）：config 里缺元数据的自定义模型与合成模型，用传入的索引（只读缓存）补
+ * contextWindow / maxTokens / input / reasoning / cost，来源记在 `modelMetadata()`；内置目录不补。
  */
 
 import type { AmaConfig, ProviderConfig } from "../../config/types.js";
@@ -26,12 +33,22 @@ import type {
   ApiKeyResolution,
   Model,
   ModelLookup,
+  ProviderChannel,
   ProviderData,
   ProviderRegistryApi,
 } from "../types.js";
 import { ApiKeyResolver, type KeyResolverOptions } from "./auth.js";
 import { BUILTIN_PROVIDERS, fallbackEnvKey, isRelayedBaseUrl } from "./builtin.js";
 import { applyModelOverride, loadBuiltinCatalog, toModel, withCustomDefaults } from "./catalog.js";
+import { channelKeyId, modelChannels, parseChannels, splitChannelRef } from "./channels.js";
+import {
+  catalogMetadata,
+  enrichEntry,
+  lazyIndex,
+  type ModelMetadata,
+  type ModelsDevSource,
+} from "./enrich.js";
+import type { ModelsDevIndex } from "./models-dev.js";
 
 export type ModelSource = "builtin" | "config" | "discovered";
 
@@ -44,6 +61,11 @@ export interface ProviderRegistryOptions {
   /** 注册 `fake` 供应商（缺省 true）。 */
   includeFake?: boolean | undefined;
   onWarning?: ((message: string) => void) | undefined;
+  /**
+   * models.dev 索引（或惰性加载函数，只读缓存不联网）：给 config 里缺元数据的自定义模型补
+   * contextWindow / maxTokens / input / reasoning / cost。
+   */
+  modelsDev?: ModelsDevSource;
 }
 
 export interface ModelEntry {
@@ -52,25 +74,51 @@ export interface ModelEntry {
   source: ModelSource;
 }
 
-/** 物化：模型补齐供应商级字段（不可变：返回新对象）。 */
-export function materializeModel(model: Model, provider: ProviderData): Model {
+/**
+ * 物化：模型补齐供应商级字段（不可变：返回新对象）。给了 `channel` 时协议与地址取渠道的（模型级
+ * `explicit` 覆盖优先），headers / compat 按 供应商 ← 渠道 ← 模型 合并，并记下渠道名。
+ */
+export function materializeModel(
+  model: Model,
+  provider: ProviderData,
+  channel?: ProviderChannel,
+  explicit?: { api?: Api | undefined; baseUrl?: string | undefined },
+): Model {
   const out: Model = {
     ...model,
     provider: provider.id,
     baseUrl: model.baseUrl ?? provider.baseUrl,
   };
-  if (provider.headers || model.headers)
-    out.headers = mergeHeaders(provider.headers, model.headers);
-  if (provider.compat || model.compat) out.compat = { ...provider.compat, ...model.compat };
-  if (provider.authHeader !== undefined) out.authHeader = model.authHeader ?? provider.authHeader;
+  if (channel !== undefined) {
+    out.api = explicit?.api ?? channel.api;
+    out.baseUrl = explicit?.baseUrl ?? channel.baseUrl;
+    out.channel = channel.name;
+  }
+  if (provider.headers || channel?.headers || model.headers)
+    out.headers = mergeHeaders(provider.headers, channel?.headers, model.headers);
+  if (provider.compat || channel?.compat || model.compat)
+    out.compat = { ...provider.compat, ...channel?.compat, ...model.compat };
+  const authHeader = channel?.authHeader ?? provider.authHeader;
+  if (authHeader !== undefined) out.authHeader = model.authHeader ?? authHeader;
   out.requiresApiKey = provider.requiresApiKey;
   return out;
 }
 
 function configKeysOf(config: AmaConfig | undefined): Record<string, string | undefined> {
   const keys: Record<string, string | undefined> = {};
-  for (const [id, provider] of Object.entries(config?.providers ?? {})) keys[id] = provider.apiKey;
+  for (const [id, provider] of Object.entries(config?.providers ?? {})) {
+    keys[id] = provider.apiKey;
+    for (const [name, channel] of Object.entries(provider.channels ?? {})) {
+      if (channel?.apiKey !== undefined) keys[channelKeyId(id, name)] = channel.apiKey;
+    }
+  }
   return keys;
+}
+
+/** 物化前的模型与它的显式协议 / 地址（渠道切换时重新物化用）。 */
+interface RawModel {
+  model: Model;
+  explicit: { api?: Api; baseUrl?: string };
 }
 
 export class ProviderRegistry implements ProviderRegistryApi {
@@ -81,12 +129,18 @@ export class ProviderRegistry implements ProviderRegistryApi {
   private readonly envBaseUrls = new Map<string, string>();
   /** baseUrl 指向非官方主机的内置供应商：接受目录外的 model id。 */
   private readonly relayed = new Set<string>();
+  /** `provider/model` → 物化前的模型（多渠道供应商切换渠道时重新物化）。 */
+  private readonly raw = new Map<string, RawModel>();
+  /** `provider/model` → 元数据来源与 models.dev 匹配。 */
+  private readonly metadata = new Map<string, ModelMetadata>();
+  private readonly modelsDev: () => ModelsDevIndex | undefined;
   private readonly apis: ApiRegistry;
   private readonly keys: ApiKeyResolver;
   private readonly onWarning: ((message: string) => void) | undefined;
 
   constructor(options: ProviderRegistryOptions = {}) {
     this.onWarning = options.onWarning;
+    this.modelsDev = lazyIndex(options.modelsDev);
     this.apis = options.apis ?? createDefaultApiRegistry();
     this.keys = new ApiKeyResolver({
       ...options.keys,
@@ -99,7 +153,11 @@ export class ProviderRegistry implements ProviderRegistryApi {
       const models = (catalog.get(base.id) ?? []).map((entry) => {
         const api = (entry as { api?: Api }).api ?? base.api;
         this.sources.set(`${base.id}/${entry.id}`, "builtin");
-        return toModel(entry, base.id, api);
+        const model = toModel(entry, base.id, api);
+        this.metadata.set(`${base.id}/${entry.id}`, catalogMetadata(model));
+        if ((entry as { api?: Api }).api !== undefined)
+          this.raw.set(`${base.id}/${entry.id}`, { model, explicit: { api } });
+        return model;
       });
       const fromEnv = baseUrlEnv !== undefined ? env[baseUrlEnv]?.trim() : undefined;
       if (baseUrlEnv !== undefined && fromEnv) this.envBaseUrls.set(base.id, baseUrlEnv);
@@ -131,7 +189,7 @@ export class ProviderRegistry implements ProviderRegistryApi {
       this.providers.set(fake.id, fake);
     }
     for (const provider of this.providers.values()) {
-      provider.models = provider.models.map((model) => materializeModel(model, provider));
+      provider.models = provider.models.map((model) => this.materialize(provider, model));
     }
   }
 
@@ -140,17 +198,35 @@ export class ProviderRegistry implements ProviderRegistryApi {
     this.onWarning?.(message);
   }
 
+  /** 物化并记下原始模型；多渠道供应商用模型的首选渠道。 */
+  private materialize(provider: ProviderData, model: Model, channelName?: string): Model {
+    const key = `${provider.id}/${model.id}`;
+    const raw = this.raw.get(key) ?? { model, explicit: {} };
+    if (!this.raw.has(key)) {
+      if (model.baseUrl !== undefined) raw.explicit.baseUrl = model.baseUrl;
+      this.raw.set(key, raw);
+    }
+    if (provider.channels === undefined || provider.channels.length === 0)
+      return materializeModel(raw.model, provider);
+    const name = channelName ?? raw.model.channels?.[0] ?? provider.defaultChannel;
+    const channel = provider.channels.find((c) => c.name === name) ?? provider.channels[0];
+    return materializeModel(raw.model, provider, channel, raw.explicit);
+  }
+
   private applyConfig(id: string, config: ProviderConfig): void {
     const existing = this.providers.get(id);
-    if (!existing && !config.baseUrl) {
+    const parsed = config.channels !== undefined ? parseChannels(id, config) : undefined;
+    for (const warning of parsed?.warnings ?? []) this.warn(warning);
+    const first = parsed?.channels.find((c) => c.name === parsed.defaultChannel);
+    if (!existing && !config.baseUrl && first === undefined) {
       this.warn(`provider "${id}" in config.json has no baseUrl; ignored`);
       return;
     }
     const provider: ProviderData = existing ?? {
       id,
       name: config.name ?? id,
-      api: config.api ?? "openai-completions",
-      baseUrl: config.baseUrl ?? "",
+      api: config.api ?? first?.api ?? "openai-completions",
+      baseUrl: config.baseUrl ?? first?.baseUrl ?? "",
       envKeys: [fallbackEnvKey(id)],
       models: [],
       requiresApiKey: true,
@@ -160,6 +236,14 @@ export class ProviderRegistry implements ProviderRegistryApi {
     if (config.api !== undefined) provider.api = config.api;
     if (config.baseUrl !== undefined) {
       provider.baseUrl = config.baseUrl;
+      this.envBaseUrls.delete(id);
+    }
+    if (parsed !== undefined && first !== undefined) {
+      // 有渠道时供应商级 api / baseUrl 取首选渠道的（discover 等单地址的用法看它）。
+      provider.channels = parsed.channels;
+      provider.defaultChannel = first.name;
+      provider.api = first.api;
+      provider.baseUrl = first.baseUrl;
       this.envBaseUrls.delete(id);
     }
     if (config.envKeys !== undefined) {
@@ -172,13 +256,30 @@ export class ProviderRegistry implements ProviderRegistryApi {
     if (config.headers) provider.headers = mergeHeaders(provider.headers, config.headers);
     if (config.compat) provider.compat = { ...provider.compat, ...config.compat };
     if (config.requiresApiKey !== undefined) provider.requiresApiKey = config.requiresApiKey;
+    const channelsOf = (wanted: readonly string[] | undefined, modelId: string): string[] =>
+      modelChannels(wanted, provider.channels ?? [], provider.defaultChannel ?? "", (name) =>
+        this.warn(`model "${id}/${modelId}" channel "${name}" not found; ignored`),
+      );
     for (const entry of config.models ?? []) {
-      // 模型级 api（第三波 §2.3）：同一中转下不同模型走不同协议；缺省沿用供应商的。
-      const model = withCustomDefaults(entry, id, entry.api ?? provider.api);
+      // 模型级 api（第三波 §2.3）：同一中转下不同模型走不同协议；缺省沿用供应商（或渠道）的。
+      const { entry: filled, metadata } = enrichEntry(entry, this.modelsDev);
+      if (typeof entry.modelsDev === "string" && metadata.looked && metadata.match === undefined)
+        this.warn(`modelsDev "${entry.modelsDev}" for "${id}/${entry.id}" not found`);
+      const model = withCustomDefaults(filled, id, entry.api ?? provider.api);
+      if (provider.channels !== undefined) model.channels = channelsOf(entry.channels, entry.id);
       const index = provider.models.findIndex((m) => m.id === entry.id);
       if (index >= 0) provider.models[index] = model;
       else provider.models.push(model);
-      this.sources.set(`${id}/${entry.id}`, "config");
+      const key = `${id}/${entry.id}`;
+      this.raw.set(key, {
+        model,
+        explicit: {
+          ...(entry.api !== undefined ? { api: entry.api } : {}),
+          ...(entry.baseUrl !== undefined ? { baseUrl: entry.baseUrl } : {}),
+        },
+      });
+      this.sources.set(key, "config");
+      this.metadata.set(key, metadata);
     }
     for (const override of config.modelOverrides ?? []) {
       const index = provider.models.findIndex((m) => m.id === override.id);
@@ -187,8 +288,30 @@ export class ProviderRegistry implements ProviderRegistryApi {
         this.warn(`modelOverrides: "${id}/${override.id}" not found; ignored`);
         continue;
       }
-      const next = applyModelOverride(current, override);
-      provider.models[index] = override.api !== undefined ? { ...next, api: override.api } : next;
+      const { channels, modelsDev: _md, ...fields } = override;
+      let next = applyModelOverride(current, fields);
+      if (override.api !== undefined) next = { ...next, api: override.api };
+      if (channels !== undefined && provider.channels !== undefined)
+        next.channels = channelsOf(channels, override.id);
+      provider.models[index] = next;
+      const key = `${id}/${override.id}`;
+      const raw = this.raw.get(key);
+      this.raw.set(key, {
+        model: next,
+        explicit: {
+          ...raw?.explicit,
+          ...(override.api !== undefined ? { api: override.api } : {}),
+          ...(override.baseUrl !== undefined ? { baseUrl: override.baseUrl } : {}),
+        },
+      });
+      const meta = this.metadata.get(key);
+      if (meta !== undefined)
+        for (const field of Object.keys(meta.sources) as (keyof ModelMetadata["sources"])[])
+          if (fields[field] !== undefined) meta.sources[field] = "config";
+    }
+    if (provider.channels !== undefined) {
+      // 目录模型（给内置供应商加了渠道时）挂到首选渠道。
+      for (const model of provider.models) model.channels ??= [provider.defaultChannel ?? ""];
     }
     this.providers.set(id, provider);
   }
@@ -201,6 +324,11 @@ export class ProviderRegistry implements ProviderRegistryApi {
   /** 内置供应商的 baseUrl 指向非官方主机（中转站）。 */
   isRelayed(providerId: string): boolean {
     return this.relayed.has(providerId);
+  }
+
+  /** 模型元数据的来源与 models.dev 匹配（`ama models list` / `config show` / providers 表格）。 */
+  modelMetadata(providerId: string, modelId: string): ModelMetadata | undefined {
+    return this.metadata.get(`${providerId}/${modelId}`);
   }
 
   list(): readonly ProviderData[] {
@@ -234,7 +362,8 @@ export class ProviderRegistry implements ProviderRegistryApi {
     const provider = this.providers.get(providerId);
     if (!provider) return;
     for (const raw of models) {
-      const model = materializeModel({ ...raw, provider: providerId }, provider);
+      this.raw.delete(`${providerId}/${raw.id}`);
+      const model = this.materialize(provider, { ...raw, provider: providerId });
       const index = provider.models.findIndex((m) => m.id === model.id);
       if (index >= 0) provider.models[index] = model;
       else provider.models.push(model);
@@ -242,15 +371,43 @@ export class ProviderRegistry implements ProviderRegistryApi {
     }
   }
 
-  private synthesize(provider: ProviderData, modelId: string): Model {
-    return materializeModel(
-      withCustomDefaults({ id: modelId }, provider.id, provider.api),
-      provider,
-    );
+  private synthesize(provider: ProviderData, modelId: string, channel?: string): Model {
+    const key = `${provider.id}/${modelId}`;
+    const { entry, metadata } = enrichEntry({ id: modelId }, this.modelsDev);
+    if (!this.metadata.has(key)) this.metadata.set(key, metadata);
+    const model = withCustomDefaults(entry, provider.id, provider.api);
+    if (provider.channels !== undefined) model.channels = [provider.defaultChannel ?? ""];
+    const channelData = provider.channels?.find((c) => c.name === (channel ?? model.channels?.[0]));
+    return materializeModel(model, provider, channelData);
+  }
+
+  /** 按渠道取模型：渠道不在模型的 channels 里 → 列出可用渠道。 */
+  private withChannel(provider: ProviderData, model: Model, channel: string): ModelLookup {
+    const available = model.channels ?? [];
+    if (!available.includes(channel)) {
+      return {
+        ok: false,
+        reason: "not_found",
+        candidates: available.map((c) => `${provider.id}/${model.id}@${c}`),
+      };
+    }
+    if (channel === model.channel) return { ok: true, model, provider };
+    return { ok: true, model: this.materialize(provider, model, channel), provider };
   }
 
   findModel(ref: string): ModelLookup {
     const trimmed = ref.trim();
+    const direct = this.findPlain(trimmed);
+    if (direct.ok) return direct;
+    const split = splitChannelRef(trimmed);
+    if (split === undefined) return direct;
+    const base = this.findPlain(split.base, split.channel);
+    if (!base.ok) return base.reason === "ambiguous" ? base : direct;
+    if (!base.provider.channels?.some((c) => c.name === split.channel)) return direct;
+    return this.withChannel(base.provider, base.model, split.channel);
+  }
+
+  private findPlain(trimmed: string, channel?: string): ModelLookup {
     const slash = trimmed.indexOf("/");
     if (slash > 0) {
       const provider = this.providers.get(trimmed.slice(0, slash));
@@ -259,7 +416,10 @@ export class ProviderRegistry implements ProviderRegistryApi {
         const model = provider.models.find((m) => m.id === id);
         if (model) return { ok: true, model, provider };
         if ((provider.models.length === 0 || this.relayed.has(provider.id)) && id.length > 0) {
-          return { ok: true, model: this.synthesize(provider, id), provider };
+          const synthesized = this.synthesize(provider, id);
+          if (channel !== undefined && provider.channels?.some((c) => c.name === channel))
+            synthesized.channels = [...new Set([...(synthesized.channels ?? []), channel])];
+          return { ok: true, model: synthesized, provider };
         }
         return { ok: false, reason: "not_found", candidates: this.similar(id, provider.id) };
       }
@@ -301,9 +461,17 @@ export class ProviderRegistry implements ProviderRegistryApi {
     return provider ? this.keys.hasConfiguredKey(provider) : false;
   }
 
-  async resolveApiKey(providerId: string): Promise<ApiKeyResolution> {
+  async resolveApiKey(providerId: string, channel?: string): Promise<ApiKeyResolution> {
     const provider = this.providers.get(providerId);
     if (!provider) return { apiKey: undefined, source: "none" };
+    if (channel !== undefined && provider.channels?.some((c) => c.name === channel)) {
+      const own = await this.keys.resolve({
+        id: channelKeyId(provider.id, channel),
+        envKeys: [],
+        requiresApiKey: provider.requiresApiKey,
+      });
+      if (own.apiKey !== undefined) return own;
+    }
     return this.keys.resolve(provider);
   }
 

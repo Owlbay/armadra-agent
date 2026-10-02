@@ -230,6 +230,9 @@ describe("openai-responses：SSE 样本黄金", () => {
   it("mapResponsesStatus", () => {
     expect(mapResponsesStatus("completed")).toEqual({ reason: "stop" });
     expect(mapResponsesStatus("incomplete", "max_output_tokens")).toEqual({ reason: "length" });
+    // 中转转发 DeepSeek 时写 length（实测）
+    expect(mapResponsesStatus("incomplete", "length")).toEqual({ reason: "length" });
+    expect(mapResponsesStatus("incomplete", "content_filter").reason).toBe("error");
     expect(mapResponsesStatus("cancelled").reason).toBe("error");
   });
 });

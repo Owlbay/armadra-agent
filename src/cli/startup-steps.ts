@@ -3,6 +3,7 @@
  * 模型与思考级别解析、工具过滤、指令文件。[B5] 由 cli/bootstrap.ts 编排。
  */
 
+import { formatModelRef } from "../ai/providers/channels.js";
 import { statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import type { Model, ModelThinkingLevel, ProviderData, ProviderRegistryApi } from "../ai/types.js";
@@ -151,7 +152,13 @@ export async function resolveModel(
   } else {
     const change = lastEntry(manager, (e) => e.type === "model_change");
     if (change?.type === "model_change") {
-      const found = registry.findModel(`${change.provider}/${change.modelId}`);
+      const found = registry.findModel(
+        formatModelRef({
+          provider: change.provider,
+          id: change.modelId,
+          ...(change.channel !== undefined ? { channel: change.channel } : {}),
+        }),
+      );
       if (found.ok) choice = { model: found.model, provider: found.provider };
     }
     if (choice === undefined && defaultModel !== undefined)

@@ -14,6 +14,7 @@
  * - 启动画面按 `ui.quietStartup`：normal 标题 + 模型 / 信任 / 资源清单，header 只有标题，silent 不输出。
  */
 
+import { promptImages, sessionModel } from "../image-input.js";
 import { join } from "node:path";
 import { AgentSessionImpl } from "../../agent/session.js";
 import type { AgentSession, SessionEvent } from "../../agent/types.js";
@@ -393,7 +394,15 @@ export function runInteractiveMode(
     const target = session;
     void target
       .waitForIdle()
-      .then(() => target.prompt(text))
+      .then(async () => {
+        const images = await promptImages(
+          text,
+          [],
+          target.state.cwd,
+          sessionModel(runtime.providers, target),
+        );
+        return target.prompt(text, images.length > 0 ? { images } : {});
+      })
       .catch((error: unknown) => {
         if (isAmaError(error) && error.code === "busy") {
           void target.followUp(text).catch(() => undefined);

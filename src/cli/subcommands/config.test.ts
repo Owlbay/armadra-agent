@@ -88,8 +88,8 @@ describe("ama config show", () => {
     const text = out.join("");
     expect(text).toContain("供应商：\n  openai  ");
     expect(text).toContain("\n  relay  openai-completions  https://relay.example/v1\n");
-    expect(text).toContain("    relay/glm-5  anthropic-messages\n");
-    expect(text).toContain("    relay/deepseek-v4-flash  openai-completions\n");
+    expect(text).toContain("    relay/glm-5  anthropic-messages  ctx ? · out 8k\n");
+    expect(text).toContain("    relay/deepseek-v4-flash  openai-completions  ctx ? · out 8k\n");
     expect(text).toContain(
       "  openai  openai-completions  https://relay.example/v1（baseUrl 来自环境变量 OPENAI_BASE_URL）",
     );

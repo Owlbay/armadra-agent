@@ -48,6 +48,8 @@ export interface ProviderBuildInput {
   authEnv: boolean;
   /** `--api-key`：只作用于 `modelRef` 所属的供应商（§3.5 ①）。 */
   cliApiKey?: { apiKey: string; modelRef: string; provider?: string };
+  /** 数据目录：读 models.dev 缓存（`<dataDir>/models-dev.json`，只读不联网）；缺省不补元数据。 */
+  dataDir?: string;
 }
 
 export interface ResourceDiscoveryInput {

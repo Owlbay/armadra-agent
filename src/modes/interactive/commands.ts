@@ -9,6 +9,7 @@
  * - 不是命令（含模板与 `/skill:`）返回 false，调用方把整行当提示发出。
  */
 
+import { formatModelRef } from "../../ai/providers/channels.js";
 import { AgentSessionImpl } from "../../agent/session.js";
 import type { AgentSession } from "../../agent/types.js";
 import type { ModelThinkingLevel } from "../../ai/types.js";
@@ -185,9 +186,7 @@ async function handlePick(
     case "thinking": {
       const model = session.state.model;
       const found =
-        model === undefined
-          ? undefined
-          : ui.runtime.providers.findModel(`${model.provider}/${model.id}`);
+        model === undefined ? undefined : ui.runtime.providers.findModel(formatModelRef(model));
       const reasoning = found?.ok === true ? found.model.reasoning : true;
       const picked = await ui.pick({
         title: "思考级别",

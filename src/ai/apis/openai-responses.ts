@@ -81,7 +81,8 @@ type MappedStop = { reason: "stop" | "length" } | { reason: "error"; message: st
 
 export function mapResponsesStatus(status: string | undefined, incomplete?: string): MappedStop {
   if (status === "incomplete") {
-    if (incomplete === "max_output_tokens") return { reason: "length" };
+    // 中转转发的 DeepSeek 等上游写 `length`（实测 2026-10-02），与 `max_output_tokens` 同义。
+    if (incomplete === "max_output_tokens" || incomplete === "length") return { reason: "length" };
     return {
       reason: "error",
       message: incomplete ? `Response incomplete: ${incomplete}` : "Response incomplete",

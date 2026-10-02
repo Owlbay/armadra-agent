@@ -2,7 +2,8 @@
  * 手写参数解析（设计 §11.1 第 2 步、§12.10、§13）。[B5]
  *
  * - 支持 `--opt value` 与 `--opt=value`；`--` 之后全部作为提示文本；可重复的参数累加。
- * - 子命令只在第一个参数是 `auth / sessions / models / doctor / config` 时识别，其余参数原样交给子命令。
+ * - 子命令只在第一个参数是 `auth / sessions / models / providers / doctor / config / init` 时识别，
+ *   其余参数原样交给子命令。
  * - 互斥：`-p` 与 `--mode rpc`；`--continue` / `--resume` / `--session-id` / `--fork` 两两互斥；
  *   `--trust` 与 `--no-trust`；`--api-key` 需要 `--model`；`--output-format` 需要 `-p`。
  * - `--resume [id]`：下一个参数形如会话 id（无空白、不以 `-` 开头）才被当作 id；
@@ -16,7 +17,15 @@ import type { PermissionMode } from "../permissions/types.js";
 import type { CodemodeMode, ToolsPreset } from "../config/types.js";
 import { CODEMODE_MODES } from "../config/types.js";
 
-export const SUBCOMMANDS = ["auth", "sessions", "models", "doctor", "config"] as const;
+export const SUBCOMMANDS = [
+  "auth",
+  "sessions",
+  "models",
+  "providers",
+  "doctor",
+  "config",
+  "init",
+] as const;
 export type SubcommandName = (typeof SUBCOMMANDS)[number];
 
 export type OutputFormat = "text" | "json" | "stream-json";
@@ -59,6 +68,8 @@ export interface ParsedArgs {
   toolsPreset?: ToolsPreset;
   /** `--codemode`：覆盖 config `codemode.mode`。 */
   codemode?: CodemodeMode;
+  /** `--image <文件>`（可重复，只用于 -p）：随首条提示发送的图片。 */
+  images: string[];
   /** 位置参数拼成的提示（空格连接）。 */
   prompt?: string;
   /** 原始位置参数。 */
@@ -98,12 +109,14 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
   --no-tui                     行式界面（readline + 括号粘贴）
   -p, --print                  非交互：执行提示后退出（提示可来自参数与 stdin 管道）
   --output-format <格式>       -p 的输出：text（缺省）| json | stream-json
+  --image <文件>               -p 随提示发送图片（可重复；png / jpg / gif / webp，单张 ≤ 5 MB）；
+                               交互界面里写 @图片路径 或粘贴图片路径
   --mode rpc                   stdio JSONL 协议（供嵌入）
   --tui-mode <模式>            显示模式，第一期只有 regular（主屏）
   --quiet-startup <档>         启动画面：normal | header | silent
 
 模型
-  --model <provider/id>        模型（可配合 --provider 只写 id）
+  --model <provider/id>        模型（可配合 --provider 只写 id；@渠道 指定渠道，如 packy/kimi-k2.5@messages）
   --provider <id>              供应商（必须同时给 --model）
   --api-key <key>              只用于本次启动的 key（需要 --model；优先用 ama auth set）
   --thinking <级别>            off | minimal | low | medium | high | xhigh
@@ -141,10 +154,18 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
   ama models check <provider/id>     发一次最小请求检查可用性
   ama models discover <provider> [--probe] [--write] [--limit N]
                                从中转 /v1/models 列出模型，探测协议并写入配置
+  ama models refresh-catalog   强制刷新 models.dev 模型元数据缓存
+  ama providers add <id> --base-url <url> [--key-env VAR] [--probe] [--channel n=api@url] [--yes]
+                               一键接入：列模型、补 models.dev 元数据、探测渠道、写入配置
+  ama providers list|channels <id>|remove <id>|refresh <id>
+                               供应商 → 渠道 → 模型；删除；重拉模型列表
   ama models cache-probe <provider/id> [--tokens N] [--gap-ms MS] [--yes] [--json]
                                判断端点是否报告缓存命中
   ama doctor                   配置层级、信任、key 来源、Hook、终端能力
   ama config show [--json]     生效配置与每项来源、将使用的模型
+  ama config path              配置目录、数据目录与各文件路径
+  ama config edit              用 $VISUAL / $EDITOR 打开 config.json
+  ama init [--force]           建配置目录（0700）与 config.json、config.schema.json；已有的不覆盖
 
 其它
   -h, --help                   输出本帮助
@@ -177,7 +198,8 @@ type ValueOption =
   | "tools"
   | "exclude-tools"
   | "tools-preset"
-  | "codemode";
+  | "codemode"
+  | "image";
 
 const VALUE_OPTIONS: ReadonlySet<string> = new Set<ValueOption>([
   "profile",
@@ -203,6 +225,7 @@ const VALUE_OPTIONS: ReadonlySet<string> = new Set<ValueOption>([
   "exclude-tools",
   "tools-preset",
   "codemode",
+  "image",
 ]);
 
 const FLAG_ALIASES: Readonly<Record<string, string>> = {
@@ -233,6 +256,7 @@ export function emptyArgs(): ParsedArgs {
     skillDirs: [],
     allow: [],
     deny: [],
+    images: [],
     continue: false,
     resume: false,
     print: false,
@@ -315,6 +339,9 @@ function applyValue(args: ParsedArgs, option: ValueOption, value: string): void 
     case "codemode":
       args.codemode = choice(option, value, CODEMODE_MODES);
       break;
+    case "image":
+      args.images.push(value);
+      break;
   }
 }
 
@@ -363,6 +390,9 @@ function validate(args: ParsedArgs): void {
   }
   if (args.outputFormat !== undefined && !args.print) {
     throw new UsageError("--output-format 只用于 -p / --print");
+  }
+  if (args.images.length > 0 && !args.print) {
+    throw new UsageError("--image 只用于 -p / --print（交互界面里写 @图片路径）");
   }
 }
 
