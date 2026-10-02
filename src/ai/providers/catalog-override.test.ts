@@ -74,6 +74,18 @@ describe("目录「快照 ⊕ 覆盖」", () => {
     expect(snapshotRefOf({ modelsDev: false }, { id: "a" })).toBeUndefined();
   });
 
+  it("目录把窗口调小时，不保留继承来的更大输入上限", () => {
+    const { model, inherited } = resolveCatalogEntry(
+      { id: "m", contextWindow: 100 },
+      { name: "M", reasoning: false, maxTokens: 10, contextWindow: 1000, inputLimit: 900 },
+    );
+    expect(model.inputLimit).toBeUndefined();
+    expect(inherited).not.toContain("inputLimit");
+    expect(
+      resolveCatalogEntry({ id: "m" }, { contextWindow: 1000, inputLimit: 900 }).model.inputLimit,
+    ).toBe(900);
+  });
+
   it("快照里没有的条目必须自己写齐必填字段；cost 写一部分时其余要能继承", () => {
     expect(() => parseCatalogFile(file([{ id: "not-in-snapshot" }]), "t")).toThrowError(
       /\$\.models\[0\]\.name.*\$\.models\[0\]\.reasoning.*\$\.models\[0\]\.maxTokens/,

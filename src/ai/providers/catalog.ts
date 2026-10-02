@@ -196,7 +196,15 @@ export function resolveCatalogEntry(
   const model = { ...structuredClone(inherited), ...own } as CatalogModel;
   if (own.cost !== undefined && inherited.cost !== undefined)
     model.cost = { ...structuredClone(inherited.cost), ...own.cost };
-  const from = INHERITED_FIELDS.filter((k) => own[k] === undefined && inherited[k] !== undefined);
+  // 目录有意把窗口调小（如 272k 计价档）时，继承来的更大的输入上限没有意义
+  if (
+    own.inputLimit === undefined &&
+    model.inputLimit !== undefined &&
+    model.contextWindow !== undefined &&
+    model.inputLimit >= model.contextWindow
+  )
+    delete model.inputLimit;
+  const from = INHERITED_FIELDS.filter((k) => own[k] === undefined && model[k] !== undefined);
   return { model, inherited: from };
 }
 
