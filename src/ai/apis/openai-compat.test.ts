@@ -74,6 +74,7 @@ const TRUTH: Row[] = [
   ["minimax", "MiniMax-M2.7", {}],
   ["stepfun", "step-5-preview", {}],
   ["volcengine", "doubao-seed-2-1-pro-260628", {}],
+  ["tencent", "hy3", {}],
   ["ollama", "llama3", {}],
   ["lmstudio", "qwen", {}],
 ];

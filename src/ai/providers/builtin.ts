@@ -233,6 +233,20 @@ export const BUILTIN_PROVIDERS: readonly BuiltinProvider[] = [
     requiresApiKey: true,
   },
   {
+    id: "tencent",
+    name: "Tencent TokenHub (Hunyuan)",
+    api: "openai-completions",
+    baseUrl: "https://tokenhub.tencentmaas.com/v1",
+    // Anthropic 线执行 cache_control（含 1h），直接切
+    channels: [
+      ch("messages", MESSAGES, "https://tokenhub.tencentmaas.com"),
+      ch("chat", CHAT, "https://tokenhub.tencentmaas.com/v1"),
+    ],
+    defaultChannel: "messages",
+    envKeys: ["TOKENHUB_API_KEY", "HUNYUAN_API_KEY", "AMA_API_KEY_TENCENT"],
+    requiresApiKey: true,
+  },
+  {
     id: "ollama",
     name: "Ollama (local)",
     api: "openai-completions",

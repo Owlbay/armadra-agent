@@ -366,6 +366,8 @@ describe("新增内置供应商", () => {
       "openai-completions",
       "https://ark.cn-beijing.volces.com/api/v3",
     ],
+    ["tencent/hy3", "messages", "anthropic-messages", "https://tokenhub.tencentmaas.com"],
+    ["tencent/hy3@chat", "chat", "openai-completions", "https://tokenhub.tencentmaas.com/v1"],
   ])("%s → %s", (ref, channel, api, baseUrl) => {
     expect(model(registry(), ref)).toMatchObject({ channel, api, baseUrl });
   });
@@ -379,5 +381,7 @@ describe("新增内置供应商", () => {
     });
     expect(model(r, "minimax/MiniMax-M3").authHeader).toBe("authorization-bearer");
     expect(model(r, "stepfun/step-3.5-flash").channels).not.toContain("responses");
+    // 腾讯 hy3：快照价为 0，目录按官方价覆盖
+    expect(model(r, "tencent/hy3").cost?.input).toBeGreaterThan(0);
   });
 });

@@ -38,6 +38,7 @@ describe("ProviderRegistry", () => {
       "minimax",
       "stepfun",
       "volcengine",
+      "tencent",
       "ollama",
       "lmstudio",
       "fake",
