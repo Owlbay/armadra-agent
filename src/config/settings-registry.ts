@@ -15,15 +15,7 @@ import { buildConfigJsonSchema } from "./json-schema.js";
 import { CONFIG_KEY_DOCS, DYNAMIC_DEFAULTS, defaultFor, documentedLeaves } from "./key-docs.js";
 
 export type SettingGroup =
-  | "ui"
-  | "model"
-  | "permission"
-  | "tools"
-  | "context"
-  | "session"
-  | "sandbox"
-  | "agents"
-  | "memory";
+  "ui" | "model" | "permission" | "tools" | "context" | "session" | "sandbox" | "agents" | "memory";
 
 export const SETTING_GROUPS: readonly SettingGroup[] = [
   "ui",

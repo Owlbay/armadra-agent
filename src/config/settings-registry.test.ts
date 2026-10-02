@@ -78,10 +78,9 @@ describe("settings registry", () => {
           expect(type, spec.key).toBe("number");
           break;
         case "optionalNumber":
-          expect(
-            type === "number" || anyOf?.some((s) => s["type"] === "number"),
-            spec.key,
-          ).toBe(true);
+          expect(type === "number" || anyOf?.some((s) => s["type"] === "number"), spec.key).toBe(
+            true,
+          );
           break;
         case "model":
         case "text":
