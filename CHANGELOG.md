@@ -21,6 +21,19 @@
 - `ama memory`、`/config`、`/trace`、`/memory` 已登记，当前回「尚未提供」。
 - bundle 改用 UTF-8 输出（中文不再转成 `\uXXXX`），体积约减 40 KB。
 
+ChatGPT 登录（W6-O）：
+
+- **`ama auth login chatgpt`**：用自己的 ChatGPT Plus / Pro 订阅驱动 ama。缺省走 OpenAI 官方 Sign in with ChatGPT（动态注册、
+  JWKS 验签 id_token）；`--flavor codex` 是显式开启的备用路径（借用 Codex CLI 公开客户端，首次确认「非官方、仅个人使用」）。
+  `--paste` 粘贴回调 URL（SSH / 宿主），`--device` 设备码（只 codex）；`ama auth status` / `logout chatgpt`；`ama auth list`
+  显示 `oauth · <flavor> · <计划>`。新内置供应商 `chatgpt`（渠道 `siwc` / `codex`，缺省按登录 flavor），模型用
+  `ama models discover chatgpt` 查看。
+- 凭据存 auth.json 的 OAuth 条目（0600）；自动刷新，多进程经 `auth.json.lock` 串行刷新；失效报 `auth_expired`。
+  token 不进日志、会话、事件与错误。
+- 订阅请求 `cost = 0` 并标 `billing: "subscription"`；`/session` 单列「订阅用量」与配额；新事件 `quota_update`
+  （RPC 与宿主事件）；配额耗尽报 `quota_exceeded`、不重试。doctor 显示 OAuth 状态与配额。详见
+  [docs/providers.md](docs/providers.md)「ChatGPT 登录」。
+
 ## 0.5.1（2026-10-03）
 
 - **Tab 切换权限模式**：输入为空、补全未打开时按 Tab 与 Shift+Tab 一样循环权限模式；有输入时 Tab 仍是补全。可在 `keybindings.json` 的 `app.permission.cycle` 改回只用 `shift+tab`。
