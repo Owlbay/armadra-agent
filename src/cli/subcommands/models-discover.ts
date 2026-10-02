@@ -35,6 +35,7 @@ import { loadConfigFile } from "../../config/load.js";
 import type { AmaConfig, ModelConfig } from "../../config/types.js";
 import { writeConfigFile } from "../../config/write.js";
 import { UsageError } from "../args.js";
+import { msg } from "../../i18n/index.js";
 import { ExitCode } from "../exit-codes.js";
 import { compactTokens } from "./model-meta.js";
 import {
@@ -180,7 +181,8 @@ export async function probeModelApis(
 function parseLimit(raw: string | undefined): number {
   if (raw === undefined) return DEFAULT_PROBE_LIMIT;
   const n = Number(raw);
-  if (!Number.isInteger(n) || n < 1) throw new UsageError(`--limit 需要正整数：${raw}`);
+  if (!Number.isInteger(n) || n < 1)
+    throw new UsageError(msg().subcommands.discover.limitPositive(raw));
   return n;
 }
 
@@ -192,13 +194,14 @@ function writeEntries(
   notes: { noTools: ReadonlySet<string>; unmatched: ReadonlySet<string> },
 ): number {
   const { io } = ctx;
+  const m = msg().subcommands.discover;
   const path = ctx.level.userConfigPath;
   const config: AmaConfig = structuredClone(
     loadConfigFile("config", path)?.value ?? { version: 1 },
   );
   const providers = (config.providers ??= {});
   if (providers[provider.id] === undefined && !provider.builtin) {
-    io.stderr(`ama: ${provider.id} 不在用户级配置（${path}）里，未写入\n`);
+    io.stderr(m.notInUserConfig(provider.id, path));
     return 0;
   }
   const target = (providers[provider.id] ??= {});
@@ -207,50 +210,43 @@ function writeEntries(
   const added = entries.filter((entry) => !existing.has(entry.id));
   const kept = entries.length - added.length;
   if (added.length === 0) {
-    io.stdout(`\n没有新模型要写入${kept > 0 ? `（${kept} 个已存在，未覆盖）` : ""}\n`);
+    io.stdout(m.nothingToWrite(kept));
     return 0;
   }
   models.push(...added);
   const backup = existsSync(path);
   writeConfigFile(path, config, { backup: true });
-  io.stdout(
-    `\n已写入 ${path}：${provider.id} 新增 ${added.length} 个模型` +
-      `${kept > 0 ? `，${kept} 个已存在未覆盖` : ""}${backup ? `（原文件备份为 ${path}.bak）` : ""}\n`,
-  );
-  if (notes.noTools.size > 0)
-    io.stdout(`跳过不支持工具调用的模型（models.dev）：${[...notes.noTools].join(", ")}\n`);
+  io.stdout(m.written(path, provider.id, added.length, kept, backup));
+  if (notes.noTools.size > 0) io.stdout(m.skippedNoTools([...notes.noTools].join(", ")));
   const blind = added.filter((entry) => notes.unmatched.has(entry.id)).map((entry) => entry.id);
-  if (blind.length > 0)
-    io.stderr(
-      `ama: 警告：${blind.join(", ")} 在 models.dev 未匹配，没有 contextWindow，自动压缩关闭；` +
-        `需要时在 config.json 里补上或写 modelsDev\n`,
-    );
+  if (blind.length > 0) io.stderr(m.unmatchedWarning(blind.join(", ")));
   return added.length;
 }
 
 async function run(ctx: ModelsActionContext): Promise<number> {
   const { io, registry } = ctx;
+  const m = msg().subcommands.discover;
   const id = ctx.args[0] ?? "";
   const limit = parseLimit(ctx.values.get("limit"));
   const provider = registry.get(id);
   if (provider === undefined) {
-    io.stderr(`ama: 供应商不存在：${id}\n`);
+    io.stderr(msg().subcommands.common.providerNotFound(id));
     return ExitCode.NoModel;
   }
   const key = await registry.resolveApiKey(provider.id);
   if (key.apiKey === undefined && provider.requiresApiKey) {
-    io.stderr(`ama: ${provider.id} 没有 API key（ama auth set ${provider.id}）\n`);
+    io.stderr(msg().subcommands.common.noApiKey(provider.id));
     return ExitCode.NoModel;
   }
   let found: Model[];
   try {
     found = await discoverModels(provider, key.apiKey);
   } catch (error) {
-    io.stderr(`ama: ${provider.id} 模型列表获取失败：${(error as Error).message}\n`);
+    io.stderr(m.listFailed(provider.id, (error as Error).message));
     return ExitCode.RuntimeError;
   }
   const configured = new Map(provider.models.map((m) => [m.id, m]));
-  io.stdout(`${provider.id}：发现 ${found.length} 个模型（${modelsUrl(provider)}）\n`);
+  io.stdout(m.found(provider.id, found.length, modelsUrl(provider)));
   // models.dev 只读本地（快照 ⊕ `ama models refresh` 的覆盖），不联网。
   const mdIndex = loadModelsDevIndex(ctx.level.dataDir);
   io.stdout(`${describeModelsDev(ctx.level.dataDir)}\n`);
@@ -264,11 +260,11 @@ async function run(ctx: ModelsActionContext): Promise<number> {
     if (match === undefined) unmatched.add(model.id);
     const meta =
       fields === undefined
-        ? "  models.dev 未匹配"
+        ? m.unmatched
         : `  ctx ${compactTokens(fields.contextWindow)} · out ${compactTokens(fields.maxTokens)}` +
-          `${fields.input?.includes("image") ? " · 图片" : ""}${fields.reasoning ? " · 思考" : ""}` +
-          `${fields.toolCall === false ? " · 不支持工具调用" : ""} · ${matchLabel(match)}`;
-    io.stdout(`  ${model.id}${known !== undefined ? `  已配置（${known.api}）` : ""}${meta}\n`);
+          `${fields.input?.includes("image") ? m.image : ""}${fields.reasoning ? m.reasoning : ""}` +
+          `${fields.toolCall === false ? m.noTools : ""} · ${matchLabel(match)}`;
+    io.stdout(`  ${model.id}${known !== undefined ? m.configured(known.api) : ""}${meta}\n`);
   }
   const write = ctx.flags.has("write");
   if (!ctx.flags.has("probe") || provider.id === CHATGPT_PROVIDER_ID) {
@@ -286,8 +282,7 @@ async function run(ctx: ModelsActionContext): Promise<number> {
   const order = probeOrder(provider);
   const tuning = parseProbeTuning(ctx.values);
   io.stdout(
-    `\n探测协议：${count} 个模型（${order.join(" → ")}），最多 ${count * order.length} 次请求` +
-      `${ids.length > count ? `；另有 ${ids.length - count} 个超出 --limit ${limit}，未探测` : ""}\n` +
+    m.probeHeader(count, order.join(" → "), count * order.length, ids.length - count, limit) +
       `${describeProbePlan(count * order.length, tuning.concurrency, tuning.timeoutMs)}\n`,
   );
   let stopped: string | undefined;
@@ -295,8 +290,7 @@ async function run(ctx: ModelsActionContext): Promise<number> {
   const probed = await probeModelApis(registry, provider, ids, limit, {
     ...tuning,
     onSettled: () => progress.tick(),
-    onResult: (modelId, api) =>
-      progress.line(`  ${modelId}  ${api ?? "不可用（三种协议均失败）"}\n`),
+    onResult: (modelId, api) => progress.line(`  ${modelId}  ${api ?? m.unavailable}\n`),
     onStop: (reason) => (stopped = reason),
   });
   progress.finish();
@@ -309,7 +303,7 @@ async function run(ctx: ModelsActionContext): Promise<number> {
     writeEntries(ctx, provider, entries, { noTools, unmatched });
   }
   if (stopped !== undefined) {
-    io.stderr(`ama: 探测提前停止（${stopped}）\n`);
+    io.stderr(m.probeStopped(stopped));
     return ExitCode.RuntimeError;
   }
   return ExitCode.Ok;

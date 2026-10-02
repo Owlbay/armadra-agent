@@ -63,32 +63,33 @@ import { buildRegistry, loadUserLevel, type UserLevel } from "./context.js";
 import { osSandboxStatus } from "../../sandbox/detect.js";
 import { resolveBashSandbox } from "../../sandbox/bash.js";
 import { msg } from "../../i18n/index.js";
+import { padToWidth, visibleWidth } from "../../tui/ansi.js";
 import { CONFIG_EDIT_ACTIONS, runConfigEdit, type ConfigEditAction } from "./config-set.js";
 
 const isEditAction = (value: string | undefined): value is ConfigEditAction =>
   (CONFIG_EDIT_ACTIONS as readonly (string | undefined)[]).includes(value);
 
-export const CONFIG_USAGE = `用法：ama config show [--json] [--profile <文件>] [--auth-file <文件>]
-                        [--tools-preset <名>] [--codemode off|on|only]
-      ama config path    配置目录、数据目录与各文件路径
-      ama config edit    用 $VISUAL / $EDITOR 打开 config.json（没有编辑器时打印路径）
-`;
+/** `ama config --help` 的前半（get / set 等编辑子命令的用法接在后面）。 */
+export const configUsage = (): string => msg().subcommands.configShow.usage;
 
 /** `ama config path`：目录与文件路径，标出是否存在。 */
 function showPaths(io: CliIo): number {
   const configDir = resolveConfigDir({ env: io.env });
   const dataDir = resolveDataDir({ env: io.env });
-  const mark = (path: string): string => `${path}${existsSync(path) ? "" : "  （不存在）"}`;
+  const m = msg().subcommands.configShow;
+  const mark = (path: string): string => `${path}${existsSync(path) ? "" : m.missing}`;
+  const width = Math.max(...[m.configDir, m.dataDir, m.projectLevel].map(visibleWidth)) + 2;
+  const label = (text: string): string => padToWidth(text, width);
   const lines = [
-    `配置目录  ${mark(configDir)}`,
+    `${label(m.configDir)}${mark(configDir)}`,
     `  config.json         ${mark(join(configDir, CONFIG_FILE))}`,
     `  config.schema.json  ${mark(join(configDir, CONFIG_SCHEMA_FILE))}`,
     `  auth.json           ${mark(join(configDir, AUTH_FILE))}`,
     `  hooks.json          ${mark(join(configDir, HOOKS_FILE))}`,
-    `数据目录  ${mark(dataDir)}`,
+    `${label(m.dataDir)}${mark(dataDir)}`,
     `  sessions/           ${mark(join(dataDir, "sessions"))}`,
     `  models-dev.json     ${mark(modelsDevCachePath(dataDir))}`,
-    `项目级    ${mark(projectFile(io.cwd, CONFIG_FILE))}`,
+    `${label(m.projectLevel)}${mark(projectFile(io.cwd, CONFIG_FILE))}`,
   ];
   io.stdout(`${lines.join("\n")}\n`);
   return ExitCode.Ok;
@@ -101,13 +102,13 @@ function editConfig(io: CliIo): number {
   if (!existsSync(path)) initConfigDir(configDir);
   const editor = (io.env["VISUAL"] ?? io.env["EDITOR"] ?? "").trim();
   if (editor === "") {
-    io.stdout(`${path}\n（没有设置 $VISUAL / $EDITOR，请用编辑器打开上面的文件）\n`);
+    io.stdout(msg().subcommands.configShow.noEditor(path));
     return ExitCode.Ok;
   }
   const quoted = process.platform === "win32" ? `"${path}"` : `'${path.replace(/'/g, `'\\''`)}'`;
   const result = spawnSync(`${editor} ${quoted}`, { stdio: "inherit", shell: true });
   if (result.error !== undefined || result.status !== 0) {
-    io.stderr(`ama: 编辑器退出异常（${editor}）；文件在 ${path}\n`);
+    io.stderr(msg().subcommands.configShow.editorFailed(editor, path));
     return ExitCode.RuntimeError;
   }
   return ExitCode.Ok;
@@ -167,17 +168,18 @@ export async function describeModel(
 ): Promise<ModelDescription> {
   if (config.defaultModel !== undefined)
     return { ref: config.defaultModel, reason: "config.defaultModel" };
-  if (registry === undefined) return { ref: undefined, reason: "注册表未装配" };
+  const m = msg().subcommands.configShow;
+  if (registry === undefined) return { ref: undefined, reason: m.registryMissing };
   const picked = await pickDefaultModel(registry);
   if (picked === undefined) return { ref: undefined, reason: noModelGuidance(registry) };
   const ref = `${picked.provider.id}/${picked.model.id}`;
   if (picked.via === "local")
-    return { ref, reason: `零配置：本地 ${picked.provider.id} 可达；${picked.rule}` };
+    return { ref, reason: m.zeroConfigLocal(picked.provider.id, picked.rule) };
   const key = await registry.resolveApiKey(picked.provider.id);
   const origin = key.origin !== undefined ? ` ${key.origin}` : "";
   return {
     ref,
-    reason: `零配置：${picked.provider.id} 有 key（${key.source}${origin}）；${picked.rule}`,
+    reason: m.zeroConfigKey(picked.provider.id, `${key.source}${origin}`, picked.rule),
   };
 }
 
@@ -244,9 +246,10 @@ export function describeProviders(
 
 function providerLines(providers: readonly ProviderDescription[]): string[] {
   if (providers.length === 0) return [];
-  const lines = ["", "供应商："];
+  const m = msg().subcommands.configShow;
+  const lines = ["", m.providersHeading];
   for (const p of providers) {
-    const env = p.baseUrlEnv !== undefined ? `（baseUrl 来自环境变量 ${p.baseUrlEnv}）` : "";
+    const env = p.baseUrlEnv !== undefined ? m.baseUrlFromEnv(p.baseUrlEnv) : "";
     lines.push(`  ${p.id}  ${p.api}  ${p.baseUrl}${env}`);
     for (const c of p.channels ?? []) lines.push(`    @${c.name}  ${c.api}  ${c.baseUrl}`);
     for (const m of p.models) {
@@ -263,7 +266,8 @@ function layersOf(
   effective: AmaConfig,
   cli: Partial<AmaConfig> | undefined,
 ): Layer[] {
-  const layers: Layer[] = [{ name: "default", label: "内置缺省", value: DISPLAY_DEFAULTS }];
+  const m = msg().subcommands.configShow;
+  const layers: Layer[] = [{ name: "default", label: m.layerDefault, value: DISPLAY_DEFAULTS }];
   const user = loadConfigFile("config", level.userConfigPath)?.value;
   if (user !== undefined) layers.push({ name: "user", label: level.userConfigPath, value: user });
   if (level.profile !== undefined) {
@@ -286,7 +290,7 @@ function layersOf(
     layers.push({ name: "project", label: ".ama/config.json", value: unflatten(accepted) });
   }
   if (cli !== undefined && Object.keys(cli).length > 0)
-    layers.push({ name: "cli", label: "命令行", value: cli });
+    layers.push({ name: "cli", label: m.layerCli, value: cli });
   return layers;
 }
 
@@ -334,16 +338,17 @@ export function describeCodemode(config: AmaConfig, nodeVersion?: string): Codem
   const capability =
     nodeVersion === undefined ? sandboxCapabilityFor(config) : detectSandboxCapability(nodeVersion);
   const resolved = resolveCodemodeMode(config, capability.strict);
+  const m = msg().subcommands.configShow;
   const sandbox =
     capability.nodeMajor >= 25
-      ? `Node ${capability.nodeMajor} 网络已隔离`
+      ? m.sandboxIsolated(capability.nodeMajor)
       : capability.strict
-        ? `Node ${capability.nodeMajor} 网络由操作系统沙箱 ${capability.os.kind} 隔离`
-        : `Node ${capability.nodeMajor} < 25 网络未隔离`;
+        ? m.sandboxOs(capability.nodeMajor, capability.os.kind)
+        : m.sandboxNone(capability.nodeMajor);
   const reason =
     resolved.source === "config"
-      ? `codemode.mode 显式设置（${sandbox}）`
-      : `跟随预设 ${resolved.preset}（${sandbox}）`;
+      ? m.codemodeExplicit(sandbox)
+      : m.codemodeFollowsPreset(resolved.preset, sandbox);
   const out: CodemodeDescription = {
     mode: resolved.mode,
     source: resolved.source,
@@ -364,7 +369,12 @@ function presetAliasNotes(layers: readonly Layer[]): string[] {
     const preset = (layer.value as AmaConfig | undefined)?.tools?.preset;
     if (preset !== undefined && Object.hasOwn(TOOLS_PRESET_ALIASES, preset))
       notes.push(
-        `${layer.name}（${layer.label}）的 tools.preset 写的是旧名 ${preset}，规范名 ${canonicalPreset(preset)}`,
+        msg().subcommands.configShow.presetAlias(
+          layer.name,
+          layer.label,
+          preset,
+          canonicalPreset(preset),
+        ),
       );
   }
   return notes;
@@ -373,7 +383,7 @@ function presetAliasNotes(layers: readonly Layer[]): string[] {
 function choice<T extends string>(name: string, value: string | undefined, all: readonly T[]) {
   if (value === undefined) return undefined;
   if ((all as readonly string[]).includes(value)) return value as T;
-  throw new UsageError(`--${name} 的取值应为 ${all.join(" | ")}（收到 ${value}）`);
+  throw new UsageError(msg().subcommands.common.invalidChoice(`--${name}`, all, value));
 }
 
 export async function runConfig(
@@ -392,12 +402,13 @@ export async function runConfig(
   );
   const action = positionals[0] ?? "show";
   if (flags.has("help")) {
-    io.stdout(`${CONFIG_USAGE}${msg().settings.cli.usage}`);
+    io.stdout(`${configUsage()}${msg().settings.cli.usage}`);
     return ExitCode.Ok;
   }
   if (action === "path") return showPaths(io);
   if (action === "edit") return editConfig(io);
-  if (action !== "show") throw new UsageError(`未知的 config 子命令：${action}`);
+  const m = msg().subcommands.configShow;
+  if (action !== "show") throw new UsageError(m.unknownAction(action));
   const cli: CliConfigOverrides = {};
   const presetFlag = choice<ToolsPresetInput>(
     "tools-preset",
@@ -443,7 +454,7 @@ export async function runConfig(
     rows.push({
       path: "codemode.mode",
       value: codemode.mode,
-      source: `default（${codemode.reason}）`,
+      source: m.defaultSource(codemode.reason),
     });
   rows.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   if (flags.has("json")) {
@@ -457,24 +468,22 @@ export async function runConfig(
     );
     return ExitCode.Ok;
   }
-  const lines = ["生效配置（来源：default 内置 ← user ← profile ← project 只能收紧 ← cli）"];
-  for (const layer of layers.slice(1)) lines.push(`  ${layer.name}：${layer.label}`);
+  const lines = [m.heading];
+  for (const layer of layers.slice(1)) lines.push(m.layerLine(layer.name, layer.label));
   lines.push("");
   const texts = rows.map((row) => [`${row.path} = ${display(row.path, row.value)}`, row.source]);
   const width = Math.min(60, Math.max(...texts.map(([text]) => (text ?? "").length)));
   for (const [text, source] of texts) lines.push(`  ${(text ?? "").padEnd(width)}  ${source}`);
   lines.push(...providerLines(providers));
   lines.push("");
-  lines.push(`模型：${model.ref ?? "（无）"}  ${model.reason}`);
-  lines.push(
-    `工具：${preset.builtin.join(", ")}（预设 ${preset.preset}，codemode ${preset.codemode}）`,
-  );
-  lines.push(`codemode：${codemode.mode}  ${codemode.reason}`);
+  lines.push(m.model(model.ref, model.reason));
+  lines.push(m.tools(preset.builtin.join(", "), preset.preset, preset.codemode));
+  lines.push(m.codemode(codemode.mode, codemode.reason));
   if (codemode.unavailable !== undefined) lines.push(`  ${codemode.unavailable}`);
-  lines.push(`bash 沙箱：${bashSandbox.detail}`);
-  for (const note of notes) lines.push(`提示：${note}`);
+  lines.push(m.bashSandbox(bashSandbox.detail));
+  for (const note of notes) lines.push(m.note(note));
   const presetWarnings = preset.warnings.map((w) => msg().session.codemode.presetWarning(w));
-  for (const warning of [...warnings, ...presetWarnings]) lines.push(`警告：${warning}`);
+  for (const warning of [...warnings, ...presetWarnings]) lines.push(m.warning(warning));
   io.stdout(`${lines.join("\n")}\n`);
   return ExitCode.Ok;
 }
