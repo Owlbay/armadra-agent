@@ -1,6 +1,6 @@
 # ama 设计 v2：可独立使用、可嵌入 Armadra 的调用型编码 / 协调 Agent
 
-> 状态：目标设计 v2（2026-10-02），未开始实施；替代 v1 全文。仓库 `github.com/yovinchen/armadra-agent`（MIT），npm 包名 `@armadra/agent`（0.2.1 起发布到 npm，打 `v*` tag 时由 CI 发布；Release 附件照常提供），可执行名 `ama`。
+> 状态：目标设计 v2（2026-10-02），未开始实施；替代 v1 全文。仓库 `github.com/Owlbay/armadra-agent`（MIT），npm 包名 `@armadra/agent`（0.2.1 起发布到 npm，打 `v*` tag 时由 CI 发布；Release 附件照常提供），可执行名 `ama`。
 > 两种用法都是一等公民：① 任意目录下的独立 CLI；② 嵌入 Armadra 画布作为协调者（Armadra 仓库 `docs/design/coordinator-agent.md`，下称「文档 B」；其 `HostApi`、`profile.json`、事件词汇、内置 id `ama` 的契约以本文 §6.2 / §10.3 / §13 为准）。
 > 参考版本 Pi 1.0（2026-10-01）。设计只借鉴 Pi 的分层、流事件契约、会话树、压缩与 TUI 组件模型；运行时不依赖它，也不出现其它任何第三方项目名。本文面向一个多代理并行实施团队：§1 给到文件级的目录树与所有权，§16 给批次与验收。
 
@@ -990,7 +990,7 @@ export type { ToolDefinition, ToolContext, ToolResult, Model, ProviderData, Sess
 
 | 产物                        | 构建                                                              | 用途                                                                       |
 | --------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `dist/`（ESM + d.ts）        | `tsc -p tsconfig.build.json`                                      | SDK；宿主拿类型（Armadra 以 Git 依赖 `github:yovinchen/armadra-agent#v0.x` 或 Release tarball 安装） |
+| `dist/`（ESM + d.ts）        | `tsc -p tsconfig.build.json`                                      | SDK；宿主拿类型（Armadra 以 Git 依赖 `github:Owlbay/armadra-agent#v0.x` 或 Release tarball 安装） |
 | `dist/bundle/ama.cjs`       | esbuild，全部内联，无原生模块，`target node22`                    | 宿主随包携带；`node ama.cjs` 或 `ELECTRON_RUN_AS_NODE=1 <Electron> ama.cjs` |
 | GitHub Release              | `v*` 标签 → CI 全绿 → 附 `ama.cjs` + `ama-sandbox.cjs` + `SHA256SUMS` + `package.tgz`（`pnpm pack`） | 不走 npm 的用户直接跑 `ama.cjs`（与 `ama-sandbox.cjs` 同目录），或 `npm i -g ./package.tgz` |
 | npm publish                 | 0.2.1 起：`v*` 标签 → release job 在 GitHub Release 之后 `npm publish --provenance --access public`（`NODE_AUTH_TOKEN` = 仓库 secret `NPM_TOKEN`；缺 secret 或版本已在 npm 上则跳过） | `npm i -g @armadra/agent`；SDK `import … from "@armadra/agent"`；包内只有 `dist/`（无源映射、无测试辅助）、README、LICENSE、CHANGELOG 与用户文档 |
