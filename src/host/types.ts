@@ -14,6 +14,8 @@ import type { ApprovalBroker, ApprovalDecision } from "../permissions/types.js";
 import type { ToolDefinition } from "../tools/types.js";
 
 export type {
+  ActionPreview,
+  ActionPreviewTarget,
   ApprovalBroker,
   ApprovalDecision,
   ApprovalReason,

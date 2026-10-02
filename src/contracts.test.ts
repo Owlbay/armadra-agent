@@ -45,6 +45,7 @@ import type {
   HookOutcome,
 } from "./hooks/types.js";
 import type {
+  ActionPreview,
   AgentEvents,
   ApprovalBroker,
   ApprovalRequest,
@@ -282,7 +283,7 @@ describe("宿主契约", () => {
 
   it("ApprovalRequest.context（契约 A3）", () => {
     expectTypeOf<ApprovalRequest["context"]>().toEqualTypeOf<
-      { depth: number; parentToolCallId?: string } | undefined
+      { depth: number; parentToolCallId?: string; readFiles?: ReadonlySet<string> } | undefined
     >();
     const request: ApprovalRequest = {
       requestId: "r1",
@@ -292,6 +293,30 @@ describe("宿主契约", () => {
       context: { depth: 1 },
     };
     expect(request.context?.depth).toBe(1);
+  });
+});
+
+describe("执行前预览（W3-C0 ③）", () => {
+  it("ApprovalRequest.preview / context.readFiles 与 permission_request.preview", () => {
+    expectTypeOf<ApprovalRequest["preview"]>().toEqualTypeOf<ActionPreview | undefined>();
+    expectTypeOf<ActionPreview["severity"]>().toEqualTypeOf<"info" | "warn" | "danger">();
+    expectTypeOf<Extract<SessionEvent, { type: "permission_request" }>["preview"]>().toEqualTypeOf<
+      ActionPreview | undefined
+    >();
+    const request: ApprovalRequest = {
+      requestId: "r2",
+      toolName: "write",
+      input: { path: "a.ts", content: "x" },
+      reason: "mode",
+      context: { depth: 0, readFiles: new Set(["b.ts"]) },
+      preview: {
+        kind: "write",
+        lines: ["覆盖 a.ts（未读过）：12 行 → 1 行"],
+        severity: "warn",
+        affected: [{ path: "a.ts", exists: true, bytes: 340 }],
+      },
+    };
+    expect(JSON.parse(JSON.stringify(request.preview))).toEqual(request.preview);
   });
 });
 

@@ -42,7 +42,12 @@ import type {
   WarmingMode,
 } from "../ai/cache/types.js";
 import type { HookEvent } from "../hooks/types.js";
-import type { ApprovalDecision, ApprovalReason, PermissionMode } from "../permissions/types.js";
+import type {
+  ActionPreview,
+  ApprovalDecision,
+  ApprovalReason,
+  PermissionMode,
+} from "../permissions/types.js";
 import type { AgentMessage, SessionEntry } from "../session/types.js";
 import type { ToolDefinition, ToolResult } from "../tools/types.js";
 
@@ -255,6 +260,8 @@ export type SessionEvent =
       reason: ApprovalReason;
       hookReason?: string;
       timeoutMs: number;
+      /** [W3-C0] 执行前预览（同 `ApprovalRequest.preview`）。 */
+      preview?: ActionPreview;
     }
   | { type: "permission_resolved"; requestId: string; decision: ApprovalDecision }
   | { type: "permission_mode_changed"; mode: PermissionMode }
