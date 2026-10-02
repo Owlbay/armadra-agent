@@ -32,10 +32,23 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # pnpm 10+ 的 `pnpm ci` 是内置的 clean install，脚本必须写成 `pnpm run ci`
       - run: pnpm run ci
-      # -p 与 fake 供应商由 B6 / B1 交付；B9 去掉这里的 if 启用 Windows 冒烟
-      - name: print smoke (windows)
-        if: ${{ false && runner.os == 'Windows' }}
-        run: node dist/bundle/ama.cjs -p "hi" --provider fake --model fake/echo
+      # bundle 级 e2e（fake 供应商，不花钱）：bundle 已由 ci 构建。环境变量写在步骤上，
+      # 不用 `AMA_E2E=1 pnpm …` 的前缀写法（Windows 的 cmd 不认）。
+      - name: e2e
+        env:
+          AMA_E2E: "1"
+        run: pnpm exec vitest run test/e2e
+      - name: print + codemode smoke (windows)
+        if: ${{ runner.os == 'Windows' }}
+        shell: pwsh
+        run: |
+          $hi = node dist/bundle/ama.cjs -p "hi" --model fake/echo
+          if ($LASTEXITCODE -ne 0 -or $hi -ne "hi") { Write-Error "print smoke: $hi"; exit 1 }
+          $env:AMA_FAKE_SCRIPT = "test/fixtures/scripts/codemode-parallel.json"
+          $out = node dist/bundle/ama.cjs -p "summarize" --model fake/echo --tools-preset codemode --allow codemode
+          if ($LASTEXITCODE -ne 0 -or $out -ne "Summary written from the codemode output.") {
+            Write-Error "codemode smoke: $out"; exit 1
+          }
 
   release:
     name: release
