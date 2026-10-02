@@ -13,6 +13,7 @@ import type { PlanData, PlanStateData, TodoItemView } from "../agent/types.js";
 import type { PermissionMode } from "../permissions/types.js";
 import type { SessionEntry } from "../session/types.js";
 import { TODO_CUSTOM_TYPE, parseTodoState } from "../tools/todo.js";
+import { msg } from "../i18n/index.js";
 
 export const PLAN_CUSTOM_TYPE = "ama.plan";
 export const PLAN_STATE_CUSTOM_TYPE = "ama.plan_state";
@@ -105,7 +106,7 @@ export function resolvePlanDirectory(
   if (rel.startsWith("..") || isAbsolute(rel)) {
     return {
       dir: fallback,
-      warning: `plan.directory ${configured} 不在项目根 ${projectRoot} 之内，计划文件改写到 ${fallback}`,
+      warning: msg().session.plan.directoryOutside(configured, projectRoot, fallback),
     };
   }
   return { dir };

@@ -42,6 +42,7 @@ import type {
   AcpToolCallLocation,
 } from "./types.js";
 import { AMA_VERSION } from "../../version.js";
+import { msg } from "../../i18n/index.js";
 
 export function toAcpContent(blocks: readonly ContentBlock[], images: boolean): AcpContentBlock[] {
   const out: AcpContentBlock[] = [];
@@ -199,7 +200,7 @@ class AcpDriverSession implements DriverSession {
         }
         this.id = options.resume;
       } else {
-        this.notices.push(`${this.agentId} 不支持续接会话，已新开`);
+        this.notices.push(msg().drivers.agent.resumeUnsupported(this.agentId));
       }
     }
     if (this.id === "") {
@@ -213,12 +214,10 @@ class AcpDriverSession implements DriverSession {
     } else if (isReadOnlyMode(options.mode)) {
       throw new AmaError(
         "agent_mode_unsupported",
-        `${this.agentId} 没有与 ama「${options.mode}」对应的只读模式，不能以它的缺省模式代替`,
+        `${this.agentId} has no read-only mode matching ama's "${options.mode}"; its default mode cannot stand in for it`,
       );
     } else if (modes != null) {
-      this.notices.push(
-        `${this.agentId} 没有「${options.mode}」模式，按它自己的缺省模式运行（需要授权的操作仍交给你）`,
-      );
+      this.notices.push(msg().drivers.agent.noMatchingMode(this.agentId, options.mode));
     }
   }
 
@@ -232,7 +231,11 @@ class AcpDriverSession implements DriverSession {
     this.turn = turn;
     const images = this.client.supportsImages();
     if (!images && content.some((b) => b.type === "image"))
-      turn.push({ type: "notice", level: "warn", text: `${this.agentId} 不接受图片，已省略` });
+      turn.push({
+        type: "notice",
+        level: "warn",
+        text: msg().drivers.agent.noImages(this.agentId),
+      });
     const request = this.client.prompt(this.id, toAcpContent(content, images));
     this.running = request;
     try {

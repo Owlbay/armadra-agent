@@ -7,6 +7,7 @@
 
 import { CHECKPOINT_MODES, DEFAULT_CHECKPOINTS_CONFIG, type AmaConfig } from "../config/types.js";
 import type { CheckpointMode } from "./types.js";
+import { msg } from "../i18n/index.js";
 
 export interface CheckpointSettings {
   mode: CheckpointMode;
@@ -24,7 +25,7 @@ export function resolveCheckpointSettings(
   const raw = env["AMA_CHECKPOINTS"]?.trim();
   if (raw !== undefined && raw !== "") {
     if ((CHECKPOINT_MODES as readonly string[]).includes(raw)) mode = raw as CheckpointMode;
-    else warn(`AMA_CHECKPOINTS=${raw} 无效（${CHECKPOINT_MODES.join(" | ")}），已忽略`);
+    else warn(msg().session.checkpoints.invalidEnv(raw, CHECKPOINT_MODES));
   }
   return {
     mode,

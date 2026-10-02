@@ -8,6 +8,7 @@
 import { existsSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import type { InteractiveUi } from "../cli/deps.js";
+import { msg } from "../i18n/index.js";
 
 export interface TextUiIo {
   stdin: NodeJS.ReadableStream & { readableEnded?: boolean };
@@ -66,13 +67,10 @@ export function createTextStartupUi(io: TextUiIo): Required<InteractiveUi> {
     values.map((_, i) => `  ${i + 1}. ${labels[i]}`);
   return {
     async promptTrust(cwd, resources) {
+      const m = msg().report.startup;
       const shown = resources.slice(0, 6).map((p) => `  ${p}`);
-      if (resources.length > shown.length)
-        shown.push(`  …另有 ${resources.length - shown.length} 项`);
-      const answer = await ask(
-        [`信任这个目录的项目资源？${cwd}`, ...shown],
-        "[y 仅本次 / a 信任并记住 / N 不信任] ",
-      );
+      if (resources.length > shown.length) shown.push(m.more(resources.length - shown.length));
+      const answer = await ask([m.trustQuestion(cwd), ...shown], m.trustChoices);
       const key = answer?.trim().toLowerCase();
       if (key === "a") return { trusted: true, remember: true };
       return { trusted: key === "y" || key === "yes", remember: false };
@@ -86,7 +84,8 @@ export function createTextStartupUi(io: TextUiIo): Required<InteractiveUi> {
         (item) =>
           `${item.id.slice(0, 8)}  ${(item.name ?? item.firstPrompt ?? "").replace(/\s+/g, " ").slice(0, 60)}`,
       );
-      return choose(await ask(["恢复哪个会话？", ...list(ids, labels)], "编号或 id："), ids);
+      const m = msg().report.startup;
+      return choose(await ask([m.resumeQuestion, ...list(ids, labels)], m.resumeAnswer), ids);
     },
 
     async pickModel(providers, reason) {
@@ -94,18 +93,18 @@ export function createTextStartupUi(io: TextUiIo): Required<InteractiveUi> {
       for (const provider of providers.list())
         for (const model of provider.models) refs.push(`${provider.id}/${model.id}`);
       if (refs.length === 0) return undefined;
-      const answer = await ask([reason, "选择模型：", ...list(refs, refs)], "编号或 provider/id：");
+      const m = msg().report.startup;
+      const answer = await ask([reason, m.pickModel, ...list(refs, refs)], m.pickModelAnswer);
       return choose(answer, refs);
     },
 
     async askCwd(missing) {
-      const answer = (
-        await ask([`会话的工作目录不存在：${missing}`], "替代目录（空行取消）：")
-      )?.trim();
+      const m = msg().report.startup;
+      const answer = (await ask([m.cwdMissing(missing)], m.cwdAnswer))?.trim();
       if (answer === undefined || answer === "") return undefined;
       const abs = resolve(answer);
       if (!existsSync(abs) || !isDirectory(abs)) {
-        io.write(`不是目录：${abs}\n`);
+        io.write(m.notDirectory(abs));
         return undefined;
       }
       return abs;

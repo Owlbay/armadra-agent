@@ -96,6 +96,14 @@ Wave 6 (docs/wave6-plan.md) contracts and infrastructure (W6-C0):
   (`turnLimit` / `before`), increments by `since` (driven by `entry_appended`), `taskId` sub-traces and redacted previews with
   `content: "preview"` (the result gains the optional fields `task` and `previews`). SDK `session.trace()`. See
   [docs/en/sessions.md](docs/en/sessions.md) "Trace" and [docs/en/rpc.md](docs/en/rpc.md) "Trace".
+- **English for the remaining modes and areas** (W6-I3): the stderr of `ama -p` (retries, budget limits, pending plans,
+  denied tools), human-readable RPC `error` and ACP error messages / permission option names, slash command descriptions and
+  replies, `/session` and `/cache` reports and cache notices, the `--no-tui` startup questions, `ama doctor` (now also shows
+  "UI language: en (source …)"), `ama sessions list / show / prune` (usage now lists `ama sessions trace`), Markdown session
+  export, checkpoint / sandbox / hook / host adapter / external agent notices, model lookup failures and models.dev
+  descriptions follow the interface language. Chinese output is unchanged word for word; JSON fields of RPC and
+  `-p --output-format json` do not change. Errors that land in `task` tool results (unknown external agent, host-only agent,
+  queued interrupt) and the "… N more tool calls" summary line are now always English, like other model-facing text.
 
 ## Earlier releases
 

@@ -270,12 +270,14 @@ describe("ExternalAgents", () => {
 
   it("有宿主：内置外部 runner 不可用，只认宿主注入的", () => {
     const agents = new ExternalAgents({ ...base, hosted: true });
-    expect(() => agents.resolve("claude")).toThrow(/宿主/);
+    // [W6-I3] 进 task 结果（模型可见）的错误固定英文
+    expect(() => agents.resolve("claude")).toThrow(/come from the host/);
     const runner = { id: "claude", description: "canvas node", start: async () => ({}) as never };
     const off = agents.hostRunners.provide(runner);
     expect(agents.resolve("claude")).toBe(runner);
     off();
-    expect(() => agents.resolve("claude")).toThrow(/宿主/);
+    // [W6-I3] 进 task 结果（模型可见）的错误固定英文
+    expect(() => agents.resolve("claude")).toThrow(/come from the host/);
   });
 
   it("独立：claude / codex / acp:<program> 解析为 ProcessRunner；未知报错；同 spec 复用", () => {
@@ -284,7 +286,7 @@ describe("ExternalAgents", () => {
     expect(claude.id).toBe("claude");
     expect(agents.resolve("claude")).toBe(claude);
     expect(agents.resolve("acp:my-agent").id).toBe("acp:my-agent");
-    expect(() => agents.resolve("nope")).toThrow(/未知/);
+    expect(() => agents.resolve("nope")).toThrow(/unknown external agent/);
   });
 
   it("list：宿主 runner + 表里的 Agent（探测安装）", async () => {

@@ -473,7 +473,8 @@ export async function runConfig(
   if (codemode.unavailable !== undefined) lines.push(`  ${codemode.unavailable}`);
   lines.push(`bash 沙箱：${bashSandbox.detail}`);
   for (const note of notes) lines.push(`提示：${note}`);
-  for (const warning of [...warnings, ...preset.warnings]) lines.push(`警告：${warning}`);
+  const presetWarnings = preset.warnings.map((w) => msg().session.codemode.presetWarning(w));
+  for (const warning of [...warnings, ...presetWarnings]) lines.push(`警告：${warning}`);
   io.stdout(`${lines.join("\n")}\n`);
   return ExitCode.Ok;
 }

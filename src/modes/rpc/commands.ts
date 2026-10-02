@@ -36,6 +36,7 @@ import type {
   RpcModelInfo,
 } from "../../rpc.js";
 import { BUILTIN_COMMANDS } from "../commands-core.js";
+import { msg } from "../../i18n/index.js";
 import { sessionTrace } from "../../trace/query-session.js";
 
 /** 审批 broker：等客户端 `permission_response`。 */
@@ -101,13 +102,13 @@ export type RpcHandlers = {
 
 function impl(session: AgentSession): AgentSessionImpl {
   if (session instanceof AgentSessionImpl) return session;
-  throw new AmaError("not_implemented", "该会话不支持此命令");
+  throw new AmaError("not_implemented", msg().print.rpc.unsupported);
 }
 
 /** [W5-F] 当前会话的计划控制面；会话没有装配 plan 扩展时报 not_implemented。 */
 function plans(ctx: RpcContext): PlanController {
   const controller = planController(ctx.session());
-  if (controller === undefined) throw new AmaError("not_implemented", "该会话没有装配 plan 扩展");
+  if (controller === undefined) throw new AmaError("not_implemented", msg().print.rpc.noPlan);
   return controller;
 }
 
@@ -343,7 +344,7 @@ export const handlers: RpcHandlers = {
     if (!isPermissionMode(p.mode)) {
       throw new AmaError(
         "invalid_arguments",
-        `mode 应为 ${PERMISSION_MODES_STRICT_FIRST.join(" | ")}`,
+        msg().print.rpc.badMode(PERMISSION_MODES_STRICT_FIRST),
       );
     }
     ctx.session().setPermissionMode(p.mode);

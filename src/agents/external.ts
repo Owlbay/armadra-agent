@@ -152,7 +152,10 @@ class ExternalTaskHandle implements RunnerHandle {
       }
     }
     if (this.inner.id === "")
-      throw new AmaError("agent_closed", "外部 Agent 会话没有建立，不能续聊");
+      throw new AmaError(
+        "agent_closed",
+        "the external agent session was never established; cannot continue it",
+      );
     this.inner = await this.reopen(this.inner.id, text);
     this.stopped = false;
   }

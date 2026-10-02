@@ -31,6 +31,7 @@ import { spawnTransport } from "./process.js";
 import { ProcessRunner } from "./runner.js";
 import type { AgentStore } from "./store.js";
 import type { AgentDriver } from "./types.js";
+import { msg } from "../i18n/index.js";
 
 /** 按候选种类建驱动。 */
 export function createDriver(
@@ -94,7 +95,7 @@ export class ExternalAgents {
         .reapOrphans()
         .then((killed) => {
           if (killed.length > 0)
-            options.log?.("info", `清理了上次遗留的外部 Agent 进程：${killed.join(", ")}`);
+            options.log?.("info", msg().drivers.agent.reapedOrphans(killed.join(", ")));
         })
         .catch(() => undefined);
     }
@@ -124,12 +125,12 @@ export class ExternalAgents {
     if (this.options.hosted)
       throw new AmaError(
         "agent_host_only",
-        `嵌入宿主时外部 Agent 由宿主提供：「${spec}」没有被宿主注入（ama 不自行启动外部 CLI）`,
+        `when embedded, external agents come from the host: "${spec}" was not provided by the host (ama does not start external CLIs itself)`,
       );
     const cached = this.runners.get(spec);
     if (cached !== undefined) return cached;
     const found = candidatesFor(spec);
-    if (found === undefined) throw new AmaError("agent_unknown", `未知的外部 Agent：${spec}`);
+    if (found === undefined) throw new AmaError("agent_unknown", `unknown external agent: ${spec}`);
     const drivers = found.candidates.map((c) => createDriver(found.agentId, c, this.driverDeps));
     const o = this.options;
     const runner = new ProcessRunner(drivers, {

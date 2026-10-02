@@ -48,7 +48,8 @@ export function findImageRefs(text: string, cwd: string): ImageRef[] {
     let token = m[1] ?? m[2] ?? m[3] ?? "";
     const explicit = m[0].startsWith("@");
     if (m[3] !== undefined && explicit) token = token.slice(1);
-    token = token.replace(/\\ /g, " ").replace(/[,，。;；)）]+$/, "");
+    // 结尾标点（含全角，写成转义：输入识别与界面语言无关）
+    token = token.replace(/\\ /g, " ").replace(/[,\uFF0C\u3002;\uFF1B)\uFF09]+$/, "");
     if (token === "" || imageMimeFromPath(token) === undefined) continue;
     const path = expand(token, cwd);
     if (!explicit && !existsSync(path)) continue;
@@ -82,11 +83,11 @@ export async function loadPromptImages(
   const wanted = refs.filter((ref) => ref.explicit || accepts);
   if (wanted.length === 0) return [];
   if (!accepts) {
-    const name = model === undefined ? "当前模型" : `${model.provider}/${model.id}`;
     throw new AmaError(
       "invalid_arguments",
-      `${name} 不接受图片输入（模型 input 没有 image）；换一个支持图像的模型再试` +
-        `（ama models list 里标「图片」的，或在配置里给该模型写 "input": ["text", "image"]）`,
+      msg().errors.imageUnsupported(
+        model === undefined ? undefined : `${model.provider}/${model.id}`,
+      ),
     );
   }
   const fit: ImageFitOptions = {

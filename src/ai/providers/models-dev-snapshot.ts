@@ -15,6 +15,7 @@ import {
   type ModelsDevModel,
   type ModelsDevProvider,
 } from "./models-dev.js";
+import { msg } from "../../i18n/index.js";
 
 export interface SnapshotMeta {
   /** ISO 8601；只在内容 sha256 变化时更新。 */
@@ -33,7 +34,7 @@ export interface SnapshotList {
 
 function parse<T>(id: string): T {
   const text = MODELS_DEV_SOURCES[id];
-  if (text === undefined) throw new Error(`models.dev 快照缺少 ${id}`);
+  if (text === undefined) throw new Error(msg().errors.models.snapshotMissing(id));
   return JSON.parse(text) as T;
 }
 
@@ -107,11 +108,11 @@ export function buildSnapshot(
   snapshot: SnapshotList = snapshotList(),
   only?: readonly string[],
 ): ModelsDevData {
-  if (!isRecord(raw)) throw new Error("api.json 顶层不是对象");
+  if (!isRecord(raw)) throw new Error(msg().errors.models.apiNotObject);
   const out: ModelsDevData = {};
   for (const id of only ?? snapshot.providers) {
     const provider = raw[id];
-    if (!isRecord(provider)) throw new Error(`api.json 缺少供应商 ${id}`);
+    if (!isRecord(provider)) throw new Error(msg().errors.models.apiMissingProvider(id));
     const prefixes = snapshot.prefixes?.[id];
     const trimmed = trimProvider(
       id,
@@ -120,7 +121,8 @@ export function buildSnapshot(
         keepForSnapshot(model) &&
         (prefixes === undefined || prefixes.some((p) => modelId.startsWith(`${p}/`))),
     );
-    if (Object.keys(trimmed.models).length === 0) throw new Error(`${id} 过滤后没有模型`);
+    if (Object.keys(trimmed.models).length === 0)
+      throw new Error(msg().errors.models.noModelsAfterFilter(id));
     for (const model of Object.values(trimmed.models)) delete model.tool_call;
     out[id] = trimmed;
   }
@@ -137,7 +139,7 @@ export interface SnapshotDiff {
 function priceText(model: ModelsDevModel): string {
   const c = model.cost;
   return c === undefined
-    ? "无"
+    ? msg().errors.models.none
     : `${c.input}/${c.output}/${c.cache_read ?? "-"}/${c.cache_write ?? "-"}`;
 }
 
@@ -157,11 +159,14 @@ export function diffSnapshots(before: ModelsDevData, after: ModelsDevData): Snap
       const parts: string[] = [];
       for (const key of ["context", "output"] as const) {
         if (prev.limit?.[key] !== next.limit?.[key])
-          parts.push(`${key} ${prev.limit?.[key] ?? "无"} → ${next.limit?.[key] ?? "无"}`);
+          parts.push(
+            `${key} ${prev.limit?.[key] ?? msg().errors.models.none} → ${next.limit?.[key] ?? msg().errors.models.none}`,
+          );
       }
       if (priceText(prev) !== priceText(next))
         parts.push(`cost ${priceText(prev)} → ${priceText(next)}`);
-      if (parts.length > 0) out.changed.push(`${providerId}/${id}：${parts.join("；")}`);
+      if (parts.length > 0)
+        out.changed.push(msg().errors.models.changed(`${providerId}/${id}`, parts));
     }
   }
   out.added.sort();

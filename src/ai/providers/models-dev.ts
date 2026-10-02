@@ -10,6 +10,7 @@
  */
 
 import type { Model, ModelCost } from "../types.js";
+import { msg } from "../../i18n/index.js";
 
 /** 价格（$/1M token）；input 与 output 都有才保留。 */
 export interface ModelsDevPrices {
@@ -248,7 +249,7 @@ export function trimProvider(
 
 /** 校验并裁剪 api.json：只留用到的字段；形状不对的供应商 / 模型跳过。整体不是对象抛错。 */
 export function trimModelsDev(raw: unknown): ModelsDevData {
-  if (!isRecord(raw)) throw new Error("models.dev 数据不是对象");
+  if (!isRecord(raw)) throw new Error(msg().errors.models.notObject);
   const out: ModelsDevData = {};
   for (const [providerId, provider] of Object.entries(raw)) {
     if (!isRecord(provider) || !isRecord(provider["models"])) continue;
@@ -411,9 +412,13 @@ export class ModelsDevIndex {
       candidates,
     };
     if (groups.size > 1) {
-      match.warning =
-        `${key}：models.dev 有 ${pool.length} 个条目、${groups.size} 种取值，` +
-        `取多数（${best.length} 条：${signature(chosen.model)}）`;
+      match.warning = msg().errors.models.consensus(
+        key,
+        pool.length,
+        groups.size,
+        best.length,
+        signature(chosen.model),
+      );
     }
     return match;
   }
@@ -482,15 +487,6 @@ export type EnrichableField = (typeof ENRICHABLE_FIELDS)[number];
 
 /** 匹配方式的中文说明（表格与 `models list`）。 */
 export function matchLabel(match: ModelsDevMatch | undefined): string {
-  if (match === undefined) return "未匹配";
-  const kind: Record<MatchKind, string> = {
-    explicit: "显式",
-    prefix: "前缀",
-    canonical: "原厂",
-    vendor: "原厂",
-    consensus: "多数",
-    single: "唯一",
-  };
-  const via = match.normalized !== undefined ? `，按 ${match.normalized}` : "";
-  return `${kind[match.kind]} ${match.ref}${via}`;
+  if (match === undefined) return msg().errors.models.unmatched;
+  return msg().errors.models.match(match.kind, match.ref, match.normalized);
 }

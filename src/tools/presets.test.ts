@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { validateConfig } from "../config/schema.js";
 import { mergeConfigLayers } from "../config/merge.js";
 import type { AmaConfig } from "../config/types.js";
+import { msg } from "../i18n/index.js";
 import {
   PresetToolRegistry,
   applyToolAdjustments,
@@ -71,7 +72,8 @@ describe("工具预设", () => {
     expect(without.preset).toBe("default");
     expect(without.codemode).toBe("off");
     expect(without.builtin).toContain("grep");
-    expect(without.warnings[0]).toContain("回退到 default");
+    // [W6-I3] 警告改为结构（本目录不 import i18n），断言经界面层渲染后的文案（zh 字节不变）
+    expect(msg().session.codemode.presetWarning(without.warnings[0]!)).toContain("回退到 default");
   });
 
   it("codemode 开关跟随预设：default→on（只在 strict）、codemode-only→only、minimal / coordinator→off；显式 codemode.mode 覆盖", () => {
@@ -152,7 +154,9 @@ describe("工具预设", () => {
     });
     // [W5-C0] task_ctl 随 task 进出
     expect(r.builtin).toEqual(["edit", "read", "task", "task_ctl", "write"]);
-    expect(r.warnings).toEqual(["tools.default：未知工具 nope，已忽略"]);
+    expect(r.warnings.map((w) => msg().session.codemode.presetWarning(w))).toEqual([
+      "tools.default：未知工具 nope，已忽略",
+    ]);
     const without = resolvePreset({
       config: cfg({ default: ["read", "task_ctl"] }),
       available: available(),
