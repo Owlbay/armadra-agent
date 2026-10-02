@@ -94,13 +94,16 @@ describe.skipIf(!hasBundle)("e2e：ACP（bundle 子进程，ama 驱动 ama）", 
     );
     expect(r.code, r.stderr).toBe(0);
     const events = jsonLines(r.stdout);
+    const end = events.find((e) => e["type"] === "tool_execution_end" && e["toolName"] === "task");
+    // 失败时把 task 的结果与 stderr 带进断言信息（Windows 上排查 .cmd 垫片用）。
+    expect(JSON.stringify(end), `${JSON.stringify(end)}\n${r.stderr}`).toContain(
+      "child ama says hi",
+    );
     expect(events.find((e) => e["type"] === "subagent_start")).toMatchObject({
       taskId: "t1",
       runner: "acp:ama",
     });
     expect(events.find((e) => e["type"] === "subagent_end")).toMatchObject({ status: "completed" });
-    const end = events.find((e) => e["type"] === "tool_execution_end" && e["toolName"] === "task");
-    expect(JSON.stringify(end)).toContain("child ama says hi");
     const last = events.filter((e) => e["type"] === "message_end").at(-1);
     expect(JSON.stringify(last)).toContain("parent done");
 
