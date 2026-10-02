@@ -758,7 +758,7 @@ tool_call（模型产出）
 | 压缩少而一次到位 | 档一只在 70% 阈值触发；档二一次压到 keepRecentTokens | 压缩次数断言 |
 | 可观测 | 状态栏与 `get_session_stats` 显示缓存命中率 = cacheRead /（input + cacheRead + cacheWrite） | 统计单测 |
 | 指纹 | 每次真实请求记前缀指纹（system、工具表各取 sha256 前 16 位 hex + `provider/model`），只在内存；未命中时据此说出「变了什么」，`/cache fingerprint` 可查 | `src/ai/cache/fingerprint.test.ts` |
-| 未命中 | `missed = min(上次前缀, 本次前缀) − cacheRead`，噪声下限 `max(1024, minTokens)`，规模自适应比例或 ≥ 20k 才计；原因按 `prefix_changed → model_changed → idle → subtask → evicted` 归因；压缩 / 分支摘要 / 档一裁剪后的首个请求是重置点；界面只提示 ≥ 20k token 或 ≥ $0.10 的那次 | `src/ai/cache/miss.test.ts` |
+| 未命中 | `missed = min(上次前缀, 本次前缀) − cacheRead`，噪声下限 `max(1024, minTokens, 端点推断的缓存读粒度)`（粒度 = 非零 cacheRead 的最大公约数，≥ 2 样本且在 128–8192 才采信），规模自适应比例或 ≥ 20k 才计；原因按 `prefix_changed → model_changed → idle → subtask → evicted` 归因；压缩 / 分支摘要 / 档一裁剪后的首个请求是重置点；界面只提示 ≥ 20k token 或 ≥ $0.10 的那次 | `src/ai/cache/miss.test.ts` |
 | 三态 | 按 `(provider, baseUrl 主机, model)` 维护 `unknown / reported / silent`（连续 3 个可比请求读写都为 0 判 silent，`compat.cacheReporting` 可强制）；只有 `reported` 计命中率、检测未命中与保温，其余显示 `—` / `未报告` 而不是 0% | `src/ai/cache/reporting.test.ts` |
 | 保温 | `cache.warming`：`off` / `streaming`（缺省，工具运行期间）/ `idle`；TTL 到期前重放上一次请求（`maxTokens: 1`），从请求发出时刻计时；`p·missCost − warmCost ≥ minSavingsUsd` 才发；streaming 60 min、idle 30 min 上限，连续 2 次零命中即停；成功记 `usage{kind:"cache_warm"}` 条目；宿主 `cache.onWarmingDecision` 可否决 | `src/ai/cache/warmer.test.ts`、`economics.test.ts` |
 | 摘要续写 | 档二摘要在与上一次真实请求逐字节相同的前缀（含 tools）后追加摘要指令（`cacheRetention: "short"`；不发 `toolChoice`，改动它会断开缓存前缀，禁止调用工具只写在指令里），按读价计；空回复 / 截断 / 含工具调用 / 出错回落独立请求 | `src/compaction/continuation.test.ts` |

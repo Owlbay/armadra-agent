@@ -114,7 +114,7 @@ export function detectMiss(
 算法（Pi 内置做法 + 两点改进）：
 
 1. 不计的情形：没有 `prev`；`cur.promptTokens === 0`；`cur.cacheRead + cur.cacheWrite === 0` 且该端点状态不是 `reported`（§1.6）；`prev.promptTokens < minTokens`（低于最小可缓存长度判 unknown 不判 miss，这是「低于门槛不判未命中」的生态做法）。
-2. `missed = min(prev.promptTokens, cur.promptTokens) − cur.cacheRead`；`missed ≤ noiseFloor` 不计，`noiseFloor = max(1024, promptCache.minTokens ?? 1024)`。
+2. `missed = min(prev.promptTokens, cur.promptTokens) − cur.cacheRead`；`missed ≤ noiseFloor` 不计，`noiseFloor = max(1024, promptCache.minTokens ?? 1024, 端点推断的缓存粒度)`（粒度见 §1.6；实测 DeepSeek 经中转按 2048 一块报 cacheRead，不足一块的尾部会被算成假未命中，`docs/benchmarks/cache-2026-10-02.md` E1 / E5）。
 3. 规模自适应判据（改进）：`missed / prev.promptTokens > clamp(0.10 × √(100k / prev.promptTokens), 0.02, 0.30)` 或 `missed ≥ 20 000` 才记为一次 miss（长会话里 95% 命中率也可能是一次 5k 的真未命中）。
 4. 成本：`paidPerToken = (cost.input + cost.cacheWrite) / (input + cacheWrite)`（含写入溢价，用本条实付反推），`readPerToken = cost.cacheRead / cacheRead`（无读则目录价 / 1e6）；`missedCost = missed × max(0, paidPerToken − readPerToken)`；模型无价格 → `missedCost` 为 undefined，统计显示 `$?`。
 5. 重置点：`compaction` / `branch_summary` / 档一 `context_edit{reason:"prune"}` 之后的首个请求把 `prev` 清空（上下文合法地变了，不算重计费）；**模型切换不豁免**（确实全价重读）。
@@ -136,6 +136,7 @@ export function detectMiss(
 - 协议层新增 `Usage.cacheReported?: boolean`：原始响应里**出现过**任何缓存字段（即使值为 0）。字段缺失直接记 `silent` 的一票；字段存在但恒为 0 仍走连续 3 次规则（有些中转总塞 `cached_tokens: 0`）。落点：`parseOpenAIUsage`、`applyAnthropicUsage`、`parseResponsesUsage`、Google 的 usageMetadata 解析。
 - `compat.cacheReporting: "auto" | "silent" | "reported"` 可强制（`cache-probe` 建议写法）。
 - 状态只在内存与 `get_session_stats` 里，不写会话文件；进程内跨会话复用（同一端点换会话不必再探 3 次）。
+- 同一键下还记**缓存读粒度**：观察到的非零 `cacheRead` 的最大公约数，至少 2 个样本且落在 [128, 8192] 才采信（只有相同的大值时公约数超上限，不采信）；用于 §1.5 的噪声下限，`get_session_stats.cache.granularity` 给出。实测 Kimi 经中转为 128（不改变 1024 下限），DeepSeek 为 2048，MiniMax / Anthropic 逐 token 报、不采信。
 - 实测对照：DeepSeek / GLM 在该中转报 0 → `silent`（官方端点两家都报，所以是中转没透传）；Kimi / Qwen / MiniMax → `reported`。
 
 ### §1.7 缓存保温（`off | streaming | idle`）

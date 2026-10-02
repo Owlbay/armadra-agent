@@ -213,7 +213,7 @@ OpenRouter、Google 没有承诺的 TTL，留空（不保温，归因按隐式�
 
 每次真实请求在内存里记一条记录：前缀指纹（system 与工具表各取 sha256 前 16 位 hex，加 `provider/model`）、`promptTokens`（input + cacheRead + cacheWrite）、用量与发出时刻。下一次请求与上一条比对：
 
-- **未命中**：`missed = min(上次前缀, 本次前缀) − 本次 cacheRead`，低于噪声下限（`max(1024, promptCache.minTokens)`）不计；相对比例超过随规模自适应的门槛（约 `0.10 × √(100k / 前缀)`，夹在 2%–30%），或绝对值 ≥ 20 000 才记一次。重计费金额按本条实付单价与读价之差估算，模型无价格时只有 token。
+- **未命中**：`missed = min(上次前缀, 本次前缀) − 本次 cacheRead`，低于噪声下限（`max(1024, promptCache.minTokens, 端点缓存粒度)`）不计——有的端点按块报缓存读（DeepSeek 经中转是 2048 一块），粒度取同一端点（供应商 + 主机 + 模型）观察到的非零 cacheRead 的最大公约数，至少 2 个样本且在 128–8192 之间才采信，只在内存、进程内跨会话复用；相对比例超过随规模自适应的门槛（约 `0.10 × √(100k / 前缀)`，夹在 2%–30%），或绝对值 ≥ 20 000 才记一次。重计费金额按本条实付单价与读价之差估算，模型无价格时只有 token。
 - **原因**（按顺序判定）：system / 工具表指纹变了 → `prefix_changed`（`detail` 说明哪段，多半是宿主中途注册工具或 Hook 上下文变化）；模型变了 → `model_changed`；间隔超过 TTL → `idle`（目录没有 TTL 的隐式缓存按 10 分钟估）；两次请求之间 `task` 子任务占了间隔的 80% 以上 → `subtask`；其余 → `evicted`（服务端淘汰）。
 - **不算未命中**：压缩、分支摘要、档一裁剪之后的首个请求（上下文合法地变了）；前缀低于最小可缓存长度。切换模型**不**豁免。
 - **三态**：按 `(provider, baseUrl 主机名, model)` 在进程内维护。`unknown`：还没有足够长的可比请求；`reported`：出现过 cacheRead 或 cacheWrite > 0；`silent`：连续 3 个可比请求（前缀 ≥ minTokens、指纹未变、间隔 < TTL）读写都是 0，或 `compat.cacheReporting: "silent"`。只有 `reported` 时显示命中率、检测未命中并保温；`unknown` / `silent` 的请求不进命中率分母，界面显示 `—` / `未报告` 而不是 0%。

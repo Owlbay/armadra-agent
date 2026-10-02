@@ -214,6 +214,7 @@
 | `warming`                                       | `mode`（`off` / `streaming` / `idle`）、`state`（`inactive` / `scheduled` / `stopped`）、`phase?`、`nextWarmAt?`、停止原因 `reason?`、`sent?`、`costUsd?`、`expectedSavingsUsd?` |
 | `contextRemainingTokens` / `estimatedTurnsLeft` | 上下文余量与按最近 5 回合增量估算的剩余回合                                                                                                                                      |
 | `subagents`                                     | task 子会话汇总：`count`、`hitRate?`、`reBilledTokens`                                                                                                                           |
+| `granularity`                                   | 可选：当前端点推断的缓存读分块粒度（token，非零 cacheRead 的最大公约数，≥ 2 个样本且在 128–8192 才给）；未命中的噪声下限取它与 1024、`minTokens` 中的最大者                      |
 
 `tokens` / `cacheHitRate` 保持旧口径，新客户端用 `cache`。缓存事件示例：
 
