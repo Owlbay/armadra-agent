@@ -7,12 +7,14 @@
  * - 交互模式自有命令：`/tree`（同一文件内换叶子到选中消息之前，文本回填编辑器，可改后重发形成新分支）、
  *   `/permissions`（当前模式、判定顺序与已加载规则）；`/help` 追加这两条与按键说明。
  * - `/session`、`/cache`（无参数）与 `/permissions` 在消息区画左竖条面板（panels.ts），不再拍成文本。
+ * - `/rewind`（无参数）打开回滚列表与确认面板（rewind-flow.ts）；带参数走 commands-core，对话变了时
+ *   重画消息区并回填原消息。
  * - 不是命令（含模板与 `/skill:`）返回 false，调用方把整行当提示发出。
  */
 
 import { formatModelRef } from "../../ai/providers/channels.js";
 import { AgentSessionImpl } from "../../agent/session.js";
-import type { AgentSession } from "../../agent/types.js";
+import type { AgentSession, RewindDraftText } from "../../agent/types.js";
 import type { ModelThinkingLevel } from "../../ai/types.js";
 import type { SwitchRequest } from "../../cli/compose-session.js";
 import { listSessions } from "../../cli/compose-store.js";
@@ -51,6 +53,7 @@ export const ALL_COMMANDS: readonly CommandInfo[] = [...BUILTIN_COMMANDS, ...INT
 export const KEY_HINTS = [
   "Enter 发送（运行中 = 插话）  Alt+Enter 排到本轮之后  Shift+Enter / Ctrl+J 换行",
   "Esc 中断（排队消息回填编辑器）  Alt+↑ 取回最后一条排队消息",
+  "空闲时 Esc Esc：输入框为空 = 回滚（/rewind），有字 = 清空（↑ 取回）",
   "Shift+Tab 切换权限模式  Ctrl+L 模型  Ctrl+T 思考级别  Ctrl+O 展开工具输出与思考",
   "审批：1–3 或 ↑↓ Enter 选择，y 允许  a 本会话允许同类  n / Esc 拒绝  v 完整输入",
   "Ctrl+C 清空输入（再按退出）  Ctrl+D 空输入时退出  Tab 补全  @ 引用文件",
@@ -70,6 +73,10 @@ export interface CommandUi {
   prompt(text: string): void;
   /** /tree 换叶子后重画消息区。 */
   reload(): void;
+  /** 回滚列表与确认面板（`/rewind` 无参数）；没有时回落为文字列表。 */
+  rewind?(): Promise<void>;
+  /** 回填原消息（文本 + 图片）；缺省只回填文本。 */
+  setDraft?(draft: RewindDraftText): void;
   exit(code: number): void;
   now(): number;
   /** 面板用的主题（与 panel 一起提供）。 */
@@ -252,6 +259,10 @@ export async function runInteractiveCommand(line: string, ui: CommandUi): Promis
       await treeCommand(ui);
       return true;
     }
+    if (parsed.name === "rewind" && parsed.args === "" && ui.rewind !== undefined) {
+      await ui.rewind();
+      return true;
+    }
     const theme = ui.theme?.();
     if (parsed.name === "permissions") {
       if (ui.panel !== undefined && theme !== undefined) {
@@ -290,10 +301,15 @@ export async function runInteractiveCommand(line: string, ui: CommandUi): Promis
         await handlePick(result.what, ui);
         break;
       case "handled":
+        if (result.reload === true) ui.reload();
         if (parsed.name === "help") {
           const extra = INTERACTIVE_COMMANDS.map((c) => `/${c.name}  ${c.description}`);
           ui.notice("info", [result.message ?? "", ...extra, "", KEY_HINTS].join("\n"));
         } else if (result.message !== undefined) ui.notice("info", result.message);
+        if (result.draft !== undefined) {
+          if (ui.setDraft !== undefined) ui.setDraft(result.draft);
+          else ui.setEditorText(result.draft.text);
+        }
         break;
     }
   } catch (error) {
