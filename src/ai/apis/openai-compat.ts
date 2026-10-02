@@ -122,6 +122,7 @@ export const INFERENCE_RULES: readonly InferenceRule[] = [
   },
   { provider: "minimax", baseUrl: "minimax", patch: () => ({}) },
   { provider: "stepfun", baseUrl: "stepfun", patch: () => ({}) },
+  { provider: "volcengine", baseUrl: "volces.com", patch: () => ({}) },
   { provider: "ollama", baseUrl: ":11434", patch: () => ({}) },
   { provider: "lmstudio", baseUrl: ":1234", patch: () => ({}) },
 ];

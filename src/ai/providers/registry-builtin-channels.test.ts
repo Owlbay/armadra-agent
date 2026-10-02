@@ -354,6 +354,18 @@ describe("新增内置供应商", () => {
       "openai-responses",
       "https://api.stepfun.com/v1",
     ],
+    [
+      "volcengine/doubao-seed-2-1-pro-260628",
+      "responses",
+      "openai-responses",
+      "https://ark.cn-beijing.volces.com/api/v3",
+    ],
+    [
+      "volcengine/doubao-seed-2-1-pro-260628@chat",
+      "chat",
+      "openai-completions",
+      "https://ark.cn-beijing.volces.com/api/v3",
+    ],
   ])("%s → %s", (ref, channel, api, baseUrl) => {
     expect(model(registry(), ref)).toMatchObject({ channel, api, baseUrl });
   });

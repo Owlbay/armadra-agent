@@ -73,6 +73,7 @@ const TRUTH: Row[] = [
   ["mistral", "mistral-large-latest", { thinkingFormat: "none", requiresToolResultName: true }],
   ["minimax", "MiniMax-M2.7", {}],
   ["stepfun", "step-5-preview", {}],
+  ["volcengine", "doubao-seed-2-1-pro-260628", {}],
   ["ollama", "llama3", {}],
   ["lmstudio", "qwen", {}],
 ];

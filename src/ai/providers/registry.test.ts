@@ -37,6 +37,7 @@ describe("ProviderRegistry", () => {
       "mistral",
       "minimax",
       "stepfun",
+      "volcengine",
       "ollama",
       "lmstudio",
       "fake",

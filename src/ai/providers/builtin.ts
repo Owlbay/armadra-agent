@@ -218,6 +218,21 @@ export const BUILTIN_PROVIDERS: readonly BuiltinProvider[] = [
     requiresApiKey: true,
   },
   {
+    id: "volcengine",
+    name: "Volcengine Ark (Doubao)",
+    api: "openai-completions",
+    catalogApi: RESPONSES,
+    baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+    // 官方推荐 Responses（显式缓存只在 Responses 上）；Anthropic 兼容只在 Coding Plan，不做渠道（D9）
+    channels: [
+      ch("responses", RESPONSES, "https://ark.cn-beijing.volces.com/api/v3"),
+      ch("chat", CHAT, "https://ark.cn-beijing.volces.com/api/v3"),
+    ],
+    defaultChannel: "responses",
+    envKeys: ["ARK_API_KEY", "VOLCENGINE_API_KEY", "AMA_API_KEY_VOLCENGINE"],
+    requiresApiKey: true,
+  },
+  {
     id: "ollama",
     name: "Ollama (local)",
     api: "openai-completions",
