@@ -2,6 +2,11 @@
 
 ## 未发布
 
+- **图像能力**（第五波 W5-I，docs/providers.md「图像输入」）：单图上限改按 base64 后计算并按端点分档（官方 Anthropic
+  10 MB、Gemini / OpenAI 20 MB、中转与未知 5 MB，原来按原始字节 5 MB），任一边超 8000 px 拒绝；超限时按
+  `images.resize`（缺省 `auto`）用 `sips` / ImageMagick 缩放。请求图片总量超预算（Anthropic 32 MB、其它 20 MB）时把
+  最旧的图换成占位文本，写成 `context_edit{reason:"image_budget"}`。新增剪贴板图片读取（`pasteClipboardImage`，
+  界面接线在后续批次），`ama sessions prune` 清理超过 7 天的剪贴板文件。
 - **子 Agent**（第五波 W5-G，docs/agents.md「子 Agent」）：定义文件 `.ama/agents/*.md`（项目级需信任）与
   `~/.config/ama/agents/*.md`，`--agent-dir` / profile `agentDirs` / config `agents.dirs` 追加目录；内置 `general`、
   `explore`、`plan`（后两者以 plan 模式强制只读，不弹审批）。`task` 新增 `agent`、`background`、`taskId`（续聊）、

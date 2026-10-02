@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest";
 import { ProviderRegistry } from "../ai/providers/registry.js";
 import { modelAcceptsImages } from "../cli/compose.js";
 import { emptyComposeState } from "../cli/compose-session.js";
-import { MAX_IMAGE_BYTES, imageMimeFromPath, loadImageFile, sniffImageMime } from "./image-file.js";
+import { DEFAULT_IMAGE_BASE64_LIMIT, MB } from "../ai/image-limits.js";
+import { fitImage, imageMimeFromPath, loadImageFile, sniffImageMime } from "./image-file.js";
 import { createReadTool } from "./read.js";
 import type { ToolContext } from "./types.js";
 
@@ -55,17 +56,48 @@ describe("image-file", () => {
     await expect(loadImageFile(join(d, "none.png"))).rejects.toThrow(/图片不存在/);
     writeFileSync(join(d, "notes.bin"), "hello");
     await expect(loadImageFile(join(d, "notes.bin"))).rejects.toThrow(/不是支持的图片/);
-    writeFileSync(join(d, "big.png"), Buffer.alloc(MAX_IMAGE_BYTES + 1));
-    await expect(loadImageFile(join(d, "big.png"))).rejects.toThrow(/超过 5 MB/);
+    // 原始 4 MB → base64 后约 5.3 MB：按 base64 计超过缺省 5 MB
+    writeFileSync(join(d, "big.png"), Buffer.concat([PNG, Buffer.alloc(4 * MB)]));
+    await expect(loadImageFile(join(d, "big.png"), { resize: "off" })).rejects.toThrow(
+      /超过 5 MB 上限（按 base64.*images\.resize 为 off/,
+    );
+    // 官方 Anthropic 的 10 MB 档放行
+    await expect(
+      loadImageFile(join(d, "big.png"), { maxBase64Bytes: 10 * MB }),
+    ).resolves.toMatchObject({ mimeType: "image/png" });
+  });
+
+  it("fitImage：base64 边界与 8000 px 边长", async () => {
+    // 3 字节 → 4 字节 base64：恰好等于上限放行，多一组拒绝
+    const head = PNG.subarray(0, 24);
+    const limit = Math.ceil(head.length / 3) * 4;
+    expect((await fitImage(head, "image/png", { maxBase64Bytes: limit })).ok).toBe(true);
+    expect((await fitImage(head, "image/png", { maxBase64Bytes: limit - 1 })).ok).toBe(false);
+    const wide = Buffer.from(PNG);
+    wide.writeUInt32BE(8001, 16);
+    const fit = await fitImage(wide, "image/png");
+    expect(fit).toMatchObject({ ok: false, reason: "too_wide" });
+    expect(DEFAULT_IMAGE_BASE64_LIMIT).toBe(5 * MB);
   });
 
   it("read 工具：超过上限只给说明不附图", async () => {
     const d = dir();
-    writeFileSync(join(d, "big.png"), Buffer.concat([PNG, Buffer.alloc(MAX_IMAGE_BYTES)]));
+    writeFileSync(join(d, "big.png"), Buffer.concat([PNG, Buffer.alloc(5 * MB)]));
     const ctx = { cwd: d, markRead: () => undefined } as unknown as ToolContext;
-    const result = await createReadTool().execute({ path: "big.png" }, ctx);
+    const off = createReadTool({ imageOptions: () => ({ resize: "off" }) });
+    const result = await off.execute({ path: "big.png" }, ctx);
     expect(typeof result.content).toBe("string");
     expect(result.content).toContain("attachment limit");
+    const wide = Buffer.from(PNG);
+    wide.writeUInt32BE(9000, 20);
+    writeFileSync(join(d, "tall.png"), wide);
+    const tall = await off.execute({ path: "tall.png" }, ctx);
+    expect(tall.content).toContain("larger than 8000px");
+    // 按模型分档：给 10 MB 时 4 MB 原图（≈5.3 MB base64）可附
+    writeFileSync(join(d, "mid.png"), Buffer.concat([PNG, Buffer.alloc(4 * MB)]));
+    const tiered = createReadTool({ imageOptions: () => ({ maxBase64Bytes: 10 * MB }) });
+    const mid = await tiered.execute({ path: "mid.png" }, ctx);
+    expect(Array.isArray(mid.content)).toBe(true);
   });
 
   it("modelAcceptsImages：按注册表里当前模型的 input 判断", () => {

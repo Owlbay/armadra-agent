@@ -20,6 +20,7 @@
  */
 
 import type { SessionExtensionFactory } from "../agent/session-extensions.js";
+import { createImageBudgetExtension } from "../agent/session-images.js";
 import { createSubagentsFactory } from "./compose-agents.js";
 import type { SessionAssembly } from "./deps.js";
 
@@ -36,6 +37,7 @@ export function composeExtensions(deps: ComposeExtensionDeps): SessionExtensionF
     // [W5-F]  createPlanExtension(...)
     // [W5-H2] createRemindersExtension(...), createLimitsExtension(...)
     // [W5-I]  createImageBudgetExtension(...)
+    ({ core }) => createImageBudgetExtension(core),
     // [W5-A]  createTelemetryExtension(...)
     createSubagentsFactory(deps), // [W5-G] 子 Agent 任务注册表
   ];

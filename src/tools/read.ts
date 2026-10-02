@@ -3,8 +3,8 @@
  *
  * 文本按 `cat -n` 形状返回（行号右对齐 6 位 + Tab）；头截断 2000 行 / 50 KB 先到者，末尾提示
  * `offset` 续读；NUL 嗅探判二进制并拒绝；png / jpg / gif / webp 作为 ImageBlock 返回（MIME 按文件头，
- * 与 `--image` / `@图片` 共用 image-file.ts；模型不支持图片或超过 5 MB 时只给路径与尺寸）；成功后
- * `ctx.markRead(abs)`。
+ * 与 `--image` / `@图片` 共用 image-file.ts；模型不支持图片、超过当前端点的单图上限（base64 后，
+ * [W5-I] 按端点分档）或任一边 > 8000 px 时只给路径与尺寸）；成功后 `ctx.markRead(abs)`。
  */
 
 import { readFile, stat } from "node:fs/promises";
@@ -13,7 +13,14 @@ import type { ToolContext, ToolDefinition, ToolResult } from "./types.js";
 import { displayPath, resolvePath } from "./paths.js";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, truncateHead } from "./truncate.js";
 import { normalizeToLF, splitBom } from "./edit-fuzzy.js";
-import { MAX_IMAGE_BYTES, imageMimeFromPath, imageSize, sniffImageMime } from "./image-file.js";
+import {
+  MAX_IMAGE_FILE_BYTES,
+  fitImage,
+  imageMimeFromPath,
+  imageSize,
+  sniffImageMime,
+  type ImageFitOptions,
+} from "./image-file.js";
 
 export { imageSize, type ImageSize } from "./image-file.js";
 
@@ -26,6 +33,8 @@ export interface ReadInput {
 export interface ReadToolOptions {
   /** 当前模型是否接受图片输入；缺省 true。 */
   supportsImages?(ctx: ToolContext): boolean;
+  /** [W5-I] 当前模型的单图上限与缩放设置；缺省 5 MB（base64 后）。 */
+  imageOptions?(ctx: ToolContext): ImageFitOptions;
 }
 
 const SNIFF_BYTES = 8000;
@@ -61,15 +70,18 @@ async function readImage(
   if (options.supportsImages && !options.supportsImages(ctx)) {
     return { content: `${caption}\n[The current model does not accept image input.]`, details };
   }
-  if (buf.length > MAX_IMAGE_BYTES) {
-    return {
-      content: `${caption}\n[Image exceeds the ${formatSize(MAX_IMAGE_BYTES)} attachment limit; not attached.]`,
-      details,
-    };
+  if (buf.length > MAX_IMAGE_FILE_BYTES) {
+    return { content: `${caption}\n[Image file is too large to attach.]`, details };
   }
+  const fit = await fitImage(buf, mimeType, options.imageOptions?.(ctx) ?? {}, abs);
+  if (!fit.ok) return { content: `${caption}\n[${fit.note}]`, details };
+  const note =
+    fit.resized !== undefined && fit.size !== undefined
+      ? `\n[Resized to ${fit.size.width}x${fit.size.height} to fit the attachment limit.]`
+      : "";
   const blocks: ContentBlock[] = [
-    { type: "text", text: caption },
-    { type: "image", data: buf.toString("base64"), mimeType },
+    { type: "text", text: caption + note },
+    { type: "image", data: fit.buf.toString("base64"), mimeType: fit.mimeType },
   ];
   return { content: blocks, details };
 }
