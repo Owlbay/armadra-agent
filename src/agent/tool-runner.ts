@@ -15,6 +15,9 @@
  * 发带 `parentToolCallId` 的 `tool_execution_start / update / end`（不入转录），门禁与 PostToolUse
  * 拿到 `parent`（Hook 输入的 `viaCodemode / parentToolCallId`）；结果给脚本而不是模型，截断上限放宽到
  * `NESTED_MAX_RESULT_CHARS`。
+ *
+ * [W5-H2] 重复调用检测（loop-guard.ts）只看顶层调用：同 run 同名同参第 3、4 次在结果末尾追加提醒，
+ * 第 5 次不执行、给错误结果，整批返回 `stop: "repeated_tool_call"`（循环据此结束 run）。
  */
 
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -25,6 +28,13 @@ import type {
   ToolCallBlock,
   ToolResultMessage,
 } from "../ai/types.js";
+import {
+  REPEATED_TOOL_CALL,
+  guardFor,
+  loopReminderText,
+  loopStopText,
+  type LoopVerdict,
+} from "./loop-guard.js";
 import { formatSchemaErrors, validateSchema } from "./schema.js";
 import type { NestedCallInfo, SessionEvent, ToolCallGate, ToolCallGateContext } from "./types.js";
 import type { AutoDecision } from "../permissions/types.js";
@@ -72,6 +82,8 @@ export interface ToolRunnerOptions {
 export interface ToolBatchResult {
   messages: ToolResultMessage[];
   terminate: boolean;
+  /** [W5-H2] 结束本 run 的原因（重复调用检测到 5 次：`repeated_tool_call`）。 */
+  stop?: string;
 }
 
 /** 门禁给出的 auto 判定，随 tool_execution_end 发出（按调用对象记，调用结束后随之回收）。 */
@@ -322,6 +334,9 @@ export async function runToolBatch(
 ): Promise<ToolBatchResult> {
   const calls = toolCallsOf(assistant);
   const preparedList: (Prepared | Immediate)[] = [];
+  const guard = guardFor(signal);
+  const verdicts = new Map<ToolCallBlock, LoopVerdict>();
+  let stop: string | undefined;
   for (const call of calls) {
     await emit({
       type: "tool_execution_start",
@@ -329,6 +344,15 @@ export async function runToolBatch(
       toolName: call.name,
       args: call.arguments,
     });
+    const verdict = guard.observe(call, options.getTool(call.name));
+    verdicts.set(call, verdict);
+    if (verdict === "stop") {
+      stop = REPEATED_TOOL_CALL;
+      const result = errorResult(loopStopText(call.name, guard.count(call)));
+      await emitEnd(call, result, emit);
+      preparedList.push({ kind: "immediate", call, result });
+      continue;
+    }
     const prepared = await prepare(call, assistant, options, signal);
     if (prepared.kind === "immediate") await emitEnd(call, prepared.result, emit);
     preparedList.push(prepared);
@@ -358,10 +382,26 @@ export async function runToolBatch(
     );
     finalized.push(...results);
   }
+  for (const item of finalized) {
+    if (verdicts.get(item.call) === "remind")
+      item.result = withReminder(
+        item.result,
+        loopReminderText(item.call.name, guard.count(item.call)),
+      );
+  }
   const messages = await emitResultMessages(finalized, emit);
   const terminate =
     finalized.length > 0 && finalized.every(({ result }) => result.terminate === true);
-  return { messages, terminate };
+  return stop === undefined ? { messages, terminate } : { messages, terminate, stop };
+}
+
+/** 在结果末尾追加一段文本（字符串结果拼接，块数组追加 text 块）。 */
+function withReminder(result: ToolResult, text: string): ToolResult {
+  const content =
+    typeof result.content === "string"
+      ? `${result.content}\n\n${text}`
+      : [...result.content, { type: "text" as const, text }];
+  return { ...result, content };
 }
 
 /** `length` 截断的助手消息：整批判失败，不执行。 */

@@ -10,6 +10,8 @@
  * 内层结束（无 tool_call 且 steer 空）→ 收 followUp（有则继续外层）→ 返回
  * ```
  *
+ * [W5-H2] 工具批次带 `stop`（重复调用检测）时本轮结束即返回，`RunOutcome.warning` 交给会话层。
+ *
  * 循环不发 agent_start / agent_end（由 Agent 发，以便带上 willRetry）；上下文每次请求前从
  * `getMessages()` 现取（压缩 / context_edit 会替换 Agent 的消息数组）。
  */
@@ -59,6 +61,8 @@ export interface RunOutcome {
   /** 最后一条助手消息的 stopReason；工具执行中被中断为 "aborted"。 */
   stopReason: string;
   newMessages: AgentMessage[];
+  /** [W5-H2] run 被 harness 提前结束的原因（重复调用检测：`repeated_tool_call`）。 */
+  warning?: string;
 }
 
 export const ZERO_USAGE: Usage = {
@@ -205,6 +209,7 @@ export async function runLoop(
       const calls = toolCallsOf(assistant);
       hasMoreToolCalls = false;
       let toolResults: TurnResult["toolResults"] = [];
+      let stop: string | undefined;
       if (calls.length > 0) {
         const batch =
           assistant.stopReason === "length"
@@ -213,11 +218,14 @@ export async function runLoop(
         toolResults = batch.messages;
         newMessages.push(...toolResults);
         hasMoreToolCalls = !batch.terminate;
+        stop = batch.stop;
       }
       lastTurn = { assistant, toolResults };
       const decision = await hooks.finishTurn?.(lastTurn);
       await emit({ type: "turn_end", message: assistant, toolResults });
       if (signal.aborted) return outcome("aborted");
+      // [W5-H2] 重复调用检测要求结束：不再投递 steer / followUp（留在队列）
+      if (stop !== undefined) return { ...outcome(assistant.stopReason), warning: stop };
       // length 且无工具调用：输出被截断，交给会话层的溢出恢复，不投递 steer / followUp。
       if (assistant.stopReason === "length" && calls.length === 0) return outcome("length");
       if (decision === "end") return outcome(assistant.stopReason);

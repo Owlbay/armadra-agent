@@ -10,6 +10,7 @@
  * - 将要停下时发 agent_before_settle 并跑 Stop（子 Agent 为 SubagentStop）Hook：block + reason →
  *   以 reason 作为新 user 消息再跑一轮（上限 3 次，stopHookActive 传给 Hook）。
  * - 最终失败后若 followUp 队列非空，照常投递。
+ * - [W5-H2] run 带 `warning`（重复调用检测 `repeated_tool_call`）：不跑 Stop Hook，agent_settled 带该 warning。
  */
 
 import type { AssistantMessage, ImageBlock, UserMessage } from "../ai/types.js";
@@ -187,6 +188,9 @@ export async function runCycle(
       continue;
     }
     endRetry(current.kind === "done", current.kind === "failed" ? current.errorMessage : undefined);
+    // [W5-H2] harness 提前结束（重复调用检测）：带 warning 停下，不跑 Stop Hook、不续投队列
+    const harnessStop = outcome.warning;
+    if (harnessStop !== undefined) warning = harnessStop;
 
     if (current.kind === "overflow") {
       overflowRecovered = true;
@@ -217,6 +221,7 @@ export async function runCycle(
     announced = true;
     if (
       current.kind === "done" &&
+      harnessStop === undefined &&
       !deps.stopRequested() &&
       stopHooks < MAX_STOP_HOOK_CONTINUATIONS
     ) {
