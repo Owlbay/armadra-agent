@@ -12,7 +12,7 @@ B10 草稿（B9 统稿）；设计依据见 [design.md](design.md) §5.5、§5.6
 | `--codemode on` / `codemode.mode: "on"`     | 预设的工具 + `codemode`；其它工具描述末尾加一行提示                                 |
 | `--codemode off` / 缺省（非 codemode 预设） | 不注册 `codemode`                                                                   |
 
-`codemode` 本身是 `execute` 类工具，`default` 权限模式下每次都要审批，`-p` 等无人值守场景直接拒绝。常用做法是在配置里放行它，脚本里的每次调用仍逐个经过权限管线：
+`codemode` 本身的权限类随沙箱能力：网络隔离（Node ≥ 25，见下文沙箱）时是 `read` 类，`default` 权限模式下免审批——脚本只能经 `tools.*` 做事，每次内层调用仍逐个经过权限管线；网络未隔离（Node 22 / 24）时是 `execute` 类，`default` 模式下每次都要审批，`-p` 等无人值守场景直接拒绝，此时常用做法是在配置里放行它：
 
 ```json
 { "version": 1, "tools": { "preset": "codemode" }, "permission": { "allow": ["codemode"] } }
@@ -40,7 +40,14 @@ B10 草稿（B9 统稿）；设计依据见 [design.md](design.md) §5.5、§5.6
 | `ALL_TOOLS`                    | 可调用工具名（执行时的清单，含描述冻结之后才注册的宿主工具）                      |
 | `describeTool(name)`           | 单个工具的 TypeScript 声明                                                        |
 
-没有 `require`、`process`、`fetch`、定时器；`eval` 与 `new Function` 被拒绝。
+没有 `require`、`import`、`process`、`fetch`、定时器；`eval` 与 `new Function` 被拒绝。工具只能写成 `tools.read({ path })`，不能直接 `read(...)`。
+
+### 给模型的描述
+
+描述首段写明规则（只有 `tools.<name>(args)`；没有 require / import / process / fetch / 定时器；不要把工具当函数直接调用），随后是一段 6 行示例脚本：`Promise.all` 并发两个 `tools.read`、过滤、`return`。实测 Kimi、MiniMax 在旧描述下会在脚本里写 `require` / `import`，或在 `only` 模式下直接调用 `read`。两类错误都给出正确写法：
+
+- 脚本因 `require` / `import` / `process` / `fetch` / 定时器失败：`Script error` 后追加一行 `Only tools.<name>(args) is available in codemode scripts …`；脚本里直接调用工具名（`read is not defined`）：追加 `Call tools as tools.read({...}), not read(...).`
+- `only` 模式下模型绕过 `codemode` 直接调用工具：错误结果是 `Tool read is only callable inside a codemode script: tools.read({...})`（真不存在的工具仍是 `Tool X not found`）。
 
 ### 返回值
 
