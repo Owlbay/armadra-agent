@@ -12,3 +12,4 @@
 | disconnect-then-ok.json | 断流 → 成功（失败尝试用 context_edit 剔除） |
 | parallel-tools.json | 一轮三个工具调用（并行 / 串行传染） |
 | slow-stream.json | 慢流（abort 落在块中间） |
+| codemode-parallel.json | 一次 codemode 调用：脚本里 Promise.all 并行 read / grep / glob，只回脚本输出 |

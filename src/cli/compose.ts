@@ -27,6 +27,7 @@ import type { Rule } from "../permissions/types.js";
 import { discoverSkills, skillSources } from "../skills/discover.js";
 import { discoverPromptTemplates, promptSources } from "../skills/templates.js";
 import { applyCodemodeMode, decorateForMode } from "../codemode/modes.js";
+import { codemodeToolFactory } from "../codemode/tool.js";
 import { PresetToolRegistry, resolvePreset } from "../tools/presets.js";
 import { builtinTools } from "../tools/registry.js";
 import type { ToolDefinition, ToolRegistryApi } from "../tools/types.js";
@@ -56,8 +57,8 @@ export interface ToolFactoryContext {
 /** 返回 undefined = 本次不注册（例如配置关闭）。 */
 export type ToolFactory = (ctx: ToolFactoryContext) => ToolDefinition | undefined;
 
-/** 缺省工具工厂（B10 在这里加 codemode）。 */
-export const DEFAULT_TOOL_FACTORIES: readonly ToolFactory[] = [];
+/** 缺省工具工厂：codemode（`codemode.mode` 生效值为 off 时不注册）。 */
+export const DEFAULT_TOOL_FACTORIES: readonly ToolFactory[] = [codemodeToolFactory()];
 
 export interface ComposeOptions {
   /** 追加 / 覆盖供应商（SDK）。 */

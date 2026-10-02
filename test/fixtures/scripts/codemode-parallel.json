@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "responses": [
+    {
+      "steps": [
+        {
+          "text": "Batching the lookups in one script."
+        },
+        {
+          "toolCall": {
+            "name": "codemode",
+            "arguments": {
+              "script": "const [readme, todos, docs] = await Promise.all([\n  tools.read({ path: \"README.md\" }),\n  tools.grep({ pattern: \"TODO\" }),\n  tools.glob({ pattern: \"*.md\" }),\n]);\ntext(\"README lines: \" + readme.trim().split(\"\\n\").length);\ntext(\"TODO hits: \" + todos.trim().split(\"\\n\").length);\nreturn \"markdown files: \" + docs.trim().split(\"\\n\").length;"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "text": "Summary written from the codemode output."
+    }
+  ],
+  "whenExhausted": "repeat-last"
+}
