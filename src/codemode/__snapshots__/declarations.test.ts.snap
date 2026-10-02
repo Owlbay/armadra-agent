@@ -82,13 +82,15 @@ declare const tools: {
     thinkingLevel?: "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
     maxTurns?: number;
   }): Promise<string>;
-  /** Manage background sub-agent tasks started by task: list, wait for one, stop it, or read its output. */
+  /** Manage sub-agent tasks started by task: list them, wait for one, stop it, read its output, or send it a follow-up message (runs in background). */
   task_ctl(args: {
-    action: "list" | "wait" | "stop" | "output";
+    action: "list" | "wait" | "stop" | "output" | "send";
     /** Required except for list */
     taskId?: string;
-    /** wait only */
+    /** wait only (default 30000) */
     timeoutMs?: number;
+    /** send only */
+    prompt?: string;
   }): Promise<string>;
   /** Session task list for multi-step work: \`set\` replaces the whole list, \`get\` returns it. */
   todo(args: {

@@ -46,6 +46,11 @@ import {
   type TaskHandle,
   type TaskRecord,
 } from "../agents/task-record.js";
+import {
+  registerTaskControl,
+  unregisterTaskControl,
+  type TaskControl,
+} from "../agents/task-control.js";
 import type { AgentDefinition, AgentInfo } from "../agents/types.js";
 import { ZERO_USAGE } from "./loop.js";
 import type { SessionCore } from "./session-core.js";
@@ -76,6 +81,7 @@ export type RegistryHost = Pick<
   "manager" | "cwd" | "emit" | "appendEntry" | "outputDir" | "log" | "options"
 > & {
   followUp?(text: string, options?: { origin?: string }): Promise<unknown>;
+  waitForIdle?(): Promise<void>;
 };
 
 const registries = new Map<string, SubagentRegistry>();
@@ -103,6 +109,7 @@ export function subagentRegistryFor(
   if (existing !== undefined) return existing;
   const registry = new SubagentRegistry(host, env);
   registries.set(host.manager.id, registry);
+  registerTaskControl(host.manager.id, registry);
   return registry;
 }
 
@@ -118,13 +125,14 @@ const TERMINAL: readonly SubagentStatus[] = [
   "interrupted",
 ];
 
-export class SubagentRegistry implements TaskRegistryView {
+export class SubagentRegistry implements TaskControl {
   readonly catalog: AgentCatalog;
   private readonly pool: SubagentPool;
   private readonly tasks: Map<string, TaskRecord>;
   private readonly retained: string[] = [];
   private seq = 0;
   private disposed = false;
+  private delivery: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly host: RegistryHost,
@@ -468,7 +476,8 @@ export class SubagentRegistry implements TaskRegistryView {
   }
 
   private notify(record: TaskRecord, result: SubagentResult): void {
-    if (this.disposed) return;
+    // 被停止的任务（task_ctl stop、会话关闭）不再通知：发起停止的一方已经知道
+    if (this.disposed || result.status === "aborted") return;
     const info = record.info;
     const text = taskNotification({
       taskId: info.taskId,
@@ -479,16 +488,20 @@ export class SubagentRegistry implements TaskRegistryView {
       ...(info.outputFile === undefined ? {} : { outputFile: info.outputFile }),
       report: result.text,
     });
-    const followUp = this.host.followUp;
+    const host = this.host;
+    const followUp = host.followUp;
     if (followUp === undefined) {
-      this.host.log("warn", `task ${info.taskId} finished but the session cannot be notified`);
+      host.log("warn", `task ${info.taskId} finished but the session cannot be notified`);
       return;
     }
-    followUp
-      .call(this.host, text, { origin: "task" })
-      .catch((error: unknown) =>
-        this.host.log("warn", `task notification failed: ${String(error)}`),
-      );
+    // 父空闲时投递（开新回合）；父正忙则等这一周期结束再投——周期收尾阶段入队的 followUp 会滞留到
+    // 下一次提示。串行投递保证按完成顺序到达。
+    this.delivery = this.delivery
+      .then(async () => {
+        await host.waitForIdle?.();
+        if (!this.disposed) await followUp.call(host, text, { origin: "task" });
+      })
+      .catch((error: unknown) => host.log("warn", `task notification failed: ${String(error)}`));
   }
 
   // -------------------------------------------------------------------------
@@ -551,5 +564,6 @@ export class SubagentRegistry implements TaskRegistryView {
     }
     this.disposed = true;
     if (registries.get(this.host.manager.id) === this) registries.delete(this.host.manager.id);
+    unregisterTaskControl(this.host.manager.id, this);
   }
 }

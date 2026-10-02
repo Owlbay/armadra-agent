@@ -185,8 +185,13 @@ describe("后台运行与完成通知", () => {
     expect(started[0]).toMatch(/^\[task t1\] Started background task t1 \(agent explore\)/);
     expect(results(h)[0]?.details).toMatchObject({ taskId: "t1", status: "running" });
     // 父在后台任务期间照常对话
-    await h.session.prompt("still here?");
-    expect(h.session.getLastAssistantText()).toBe("ack still here?");
+    await h.session.prompt("still here?", { streamingBehavior: "followUp" });
+    await h.session.waitForIdle();
+    expect(
+      h.session.messages.some(
+        (m) => m.role === "assistant" && JSON.stringify(m.content).includes("ack still here?"),
+      ),
+    ).toBe(true);
     const notes = () =>
       h.session.messages.flatMap((m) =>
         m.role === "user" &&

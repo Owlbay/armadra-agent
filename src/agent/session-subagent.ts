@@ -255,10 +255,10 @@ async function startAmaChild(
     else if (event.type === "turn_end") {
       turns++;
       toolUse = event.toolResults.length > 0;
-      const tokens = child.getStats().tokens;
+      const { input, output, cacheRead, cacheWrite, total } = child.getStats().tokens;
       run.onEvent({
         type: "usage",
-        usage: { ...tokens, totalTokens: tokens.total },
+        usage: { input, output, cacheRead, cacheWrite, totalTokens: total },
       });
       run.onEvent({ type: "turn", turn: turns });
     } else if (event.type === "permission_request" || event.type === "permission_resolved")
