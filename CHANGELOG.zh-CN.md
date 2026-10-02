@@ -4,87 +4,139 @@
 
 > 从 0.6.0 起 [CHANGELOG.md](CHANGELOG.md) 为英文，本文件保留中文记录（0.1–0.5.1 的完整历史在此）。新条目两份都要加。
 
-## 未发布
+## 0.6.0（2026-10-03）
 
-第六波（docs/wave6-plan.md）的契约与基础设施（W6-C0）：
+第六波：Agent 栏与子 Agent 视图、轨迹、记忆（Memory）、ChatGPT 登录、`/config` 设置面板、中英双语界面。设计依据与决定表见
+docs/wave6-plan.md，各主题的现状文档见下文链接。
 
-- **界面语言**：新增 `AMA_LANG`、`--lang zh|en`、配置 `ui.language`（`auto` / `zh` / `en`）、profile 与 SDK 的 `language`；
-  `auto` 按 `LC_ALL` / `LC_MESSAGES` / `LANG` 判断，判断不出用英文。消息目录在 `src/i18n/`，界面文案由后续批次迁入，本版界面仍是中文。
-  开发约定见 [docs/i18n.md](docs/i18n.md)；`pnpm check:i18n` 进 CI（只许减少的中文行基线）。
-- **发给模型的文本固定英文**（与界面语言无关，两种语言下请求逐字节相同）：工具结果截断标记 `[… N chars omitted …]`、
-  压缩裁剪占位 `[pruned: …]`、摘要序列化截断、外部 Agent 报告的 `Tool calls:` / `Files changed:` 与失败说明、Hook 阻止理由、
-  allowlist 拒绝说明。只影响新会话之后的工具结果，不碰缓存前缀；按旧中文标记解析工具结果的脚本需要更新。
-- **轨迹落盘**：会话文件新增 `custom{customType:"ama.trace"}` 条目（每次模型请求一条 `step`，另有重试等待、回退、压缩、辅助请求、
-  外部 Agent 回合骨架），只有 id、时间与计数，不含正文；不进上下文、不改请求。RPC 客户端会多看到这些条目的 `entry_appended`。
-  子会话也测量首 token 延迟与速率。
-- **RPC**：`permission_request.context` 可带 `toolCallId`（本会话工具调用的审批现在也有 `context`）；`keySource` 可为 `oauth`；
-  新命令 `get_trace` 先登记（返回 `not_implemented`，轨迹批次实现）。
-- **配置**：新键 `ui.replyLanguage`、`ui.agentBar`、`memory.*`、`auth.chatgpt.*` 已能校验并写进 `config.schema.json`（功能随后续批次生效）；
-  项目级只能把 `memory.enabled` 设为 `false`，`ui.replyLanguage` 与 `auth` 只认用户级；嵌入宿主 Agent 栏缺省关。
-  命令行 `--memory` / `--no-memory`；`auth.json` 可存 OAuth 条目（`type: "oauth"`）。
-- `ama memory`、`/config`、`/trace`、`/memory` 已登记，当前回「尚未提供」。
-- bundle 改用 UTF-8 输出（中文不再转成 `\uXXXX`），体积约减 40 KB。
-- **CLI 英文界面**（W6-I1）：`ama --help`、启动画面与启动报错、退出码说明、`ama providers` / `models` / `stats` /
-  `sessions export` · `search` / `init` 的输出与报错随界面语言（`AMA_LANG=en` / `--lang en`）；中文输出逐字不变。
-  `ama models cache-probe --json` 的 `advice` 是人读文本，也随界面语言。
-- **交互界面英文**（W6-I2）：TUI 与行式界面随界面语言——启动头、状态行、审批框（含执行前预览与来源标注）、Plan 审批框、
-  回滚列表与面板、`/session`、`/cache`、`/permissions`、选择器、`/agents`、`/tasks`、Bypass 确认、提示与按键说明；中文输出逐字不变，
-  compact 状态行记号（`ctx`、`cache`、`$`、`↑ ↓`）不译。`permission_request` 事件里的审批预览也随界面语言。
-- **`/config` 设置面板**（W6-S）：分组列出标量设置与生效值、来源（default / user / profile / project / cli / env）和生效档（即时 / 新会话 / 重启），
-  ↑↓ Enter / 空格修改、`/` 搜索、Tab 切写入层（项目级只许收紧）、被覆盖的项标锁定；改动立即写盘（写前重读、只改一项、留 `.bak`），
-  即时项当场作用于本会话，关闭时汇总。`/config key=value` 直接改一项（line 模式也可用）。
+### 破坏性变更与升级注意
+
+- **界面语言可能变成英文**：新的缺省 `ui.language: "auto"` 按 `LC_ALL` / `LC_MESSAGES` / `LANG` 判断，`zh*` 为中文，其余（包括
+  判断不出）都是英文。macOS 上常见的 `LANG=en_US.UTF-8` 会让中文用户升级后看到英文界面，固定中文：`ama config set ui.language zh`
+  （或 `--lang zh`、`AMA_LANG=zh`）。
+- **README 与 CHANGELOG 改为英文**：`README.md` / `CHANGELOG.md` 是英文（npm 包页显示），中文在 `README.zh-CN.md` /
+  `CHANGELOG.zh-CN.md`（0.1–0.5.1 的记录整体在此）；中文文档原路径不动，`docs/en/` 有六篇英文版。
+- **发给模型的标记改为英文**（与界面语言无关，两种语言下请求逐字节相同）：工具结果截断 `[… N chars omitted …]`、压缩裁剪占位
+  `[pruned: …]`、摘要序列化截断、外部 Agent 报告的 `Tool calls:` / `Files changed:` 与失败说明、Hook 阻止理由、allowlist 拒绝说明、
+  进 `task` 工具结果的错误（未知外部 Agent、宿主独占、排队时中断）与「… N more tool calls」摘要行。只影响升级后新产生的工具结果，
+  不碰缓存前缀；**按旧中文标记解析工具结果的脚本需要更新**。
+- **会话文件多了 `custom{customType:"ama.trace"}` 条目**（每次模型请求一条，另有重试等待、回退、压缩、辅助请求、外部 Agent
+  回合骨架；只有 id、时间与计数，不进上下文、不改请求）：RPC 客户端会多收到这些条目的 `entry_appended`，按条目遍历会话文件的
+  脚本需要跳过它们。
+- **`/tasks` 改为聚焦 Agent 栏**，`/tasks <id>` 直接打开子 Agent 视图；`ui.agentBar: "off"`（嵌入宿主缺省）时仍是原来的选择器。
+- **`ama --help` 变化**：两种语言都补上 `--lang`、`--memory` / `--no-memory`、`ama auth login | logout | status`、
+  `ama config get | set | unset | list`、`ama memory`、`ama sessions trace`；解析帮助文本的脚本需要更新。
+- **`ama sessions list` 缺省隐藏子 Agent（task）会话**，`--all` 列出并标 `↳ 子 Agent`；`ama -c` 与 `--resume` / `/resume`
+  选择器不再选中它们（见「其它修复与改进」）。
+- **`ama stats` 统计索引版本升级**：首次运行自动重扫全部会话（之后照常增量）。
+- **`PresetResolution.warnings` 改为结构化**：`resolvePreset()` 的警告从中文字符串改为 `{ kind: "codemode_only_fallback" |
+"codemode_unavailable" | "unknown_tool", … }`，由调用方渲染。
+- **内置供应商 18 家**（新增 `chatgpt`）：列举内置供应商的脚本会多一项。
+- **缓存未命中一次的情形**（只在开启相应功能时）：开启记忆后的首个请求（多出 `memory` 系统节与 `memory` 工具）；设置
+  `ui.replyLanguage` 后的首个会话（`rules` 节末尾多一句）。两者都不开时，`default` / `minimal` 预设发给模型的 system 与工具表与 0.5.1
+  逐字节相同。
+- 协议版本常量（`RPC_PROTOCOL_VERSION`、`HOST_API_VERSION`、会话格式版本）不变；新增的事件、命令、字段全部可选；退出码不变。
+
+### Agent 栏与子 Agent 视图
+
+- **Agent 栏**（[docs/tui.md](docs/tui.md)「Agent 栏」）：状态行上方列出子 Agent 任务（排队 / 运行中 · 用时 · 轮数 · 最近工具 /
+  等待审批 / 完成 / 失败 / 已停止），最多 3 行 +「另 N 个」；结束后保留到在视图里看过为止，最多 10 分钟。输入为空时 `Ctrl+B` 或 `↓`
+  进入（键位动作 `app.agents.focus`；有字时 `Ctrl+B` 仍是光标左移，tmux 里用 `↓`），↑↓ 选、Enter 打开。嵌入宿主缺省不显示
+  （`ui.agentBar: "off"`）。
+- **子 Agent 视图**：主屏上的全屏覆盖层（行数 − 1），实时跟随子会话的消息与工具调用；外部 Agent 显示内存里的实时输出（≤ 2000 条 /
+  1 MB，不落盘）。输入框直接发给子 Agent：运行中排到本轮结束、外部 Agent 等本次运行结束、已结束则后台续聊；子会话里记为
+  `origin: "direct"`。Esc 返回（不中断）；子 Agent 的审批在视图上弹出并标来源；`/tasks stop <id>` 在视图里也能用。
+
+### 轨迹
+
+- **计时落盘**：每次模型请求记一条 `ama.trace`（首 token 延迟、解码、工具、重试等待、回退、压缩、辅助请求），子会话同样测量首
+  token 延迟与速率；只有 id、时间与计数，不含正文。
+- **`/trace`**（[docs/tui.md](docs/tui.md)「轨迹」）：回合 → 请求 → 工具 → 子调用 / 子 Agent，每行耗时、TTFT / 解码 / 工具条形、
+  token 与缓存命中，Enter 看详情，子 Agent 可展开到子会话，长会话尾部先加载、运行中自动跟随；`/trace <任务 id>` 看单个任务；
+  line 模式打印文本树。老会话没有计时记录时按条目时间推算并标 `≈`，不改会话文件。
+- **`ama sessions trace <id|文件>`**（[docs/sessions.md](docs/sessions.md)「轨迹」）：导出自包含单文件 HTML（树 + 瀑布图、
+  TTFT / 解码 / 工具分色、子 Agent 与外部 Agent 嵌套、搜索、按回合跳转、缩放、详情、虚拟列表、深浅色；内联样式与脚本，CSP
+  禁外联；数据与正文双重脱敏、数据块转义防注入）。`--json` 输出与 `get_trace` 同形，`--no-content` 只留结构与数字，`--children`
+  内嵌子会话预览，`--open` 用浏览器打开，`--now` 固定生成时间（输出逐字节确定）。
+- **RPC `get_trace`**（[docs/rpc.md](docs/rpc.md)「轨迹」）：尾部分页（`turnLimit` / `before`）、按 `since` 增量（配合
+  `entry_appended`）、`taskId` 子轨迹、`content: "preview"` 附脱敏预览；RPC 合计 43 条命令。SDK `session.trace()`，纯函数
+  `buildTrace()` 与 `Trace` 类型从包入口导出。
+
+### 记忆（Memory）
+
+- 跨会话记忆（[docs/memory.md](docs/memory.md)），**缺省关闭**：`ama memory enable` / `--memory` / `AMA_MEMORY=1` 开启。条目是
+  `<数据目录>/memory/{user,projects/<目录名>-<sha8>}/` 下带 frontmatter 的 Markdown，`MEMORY.md` 索引自动重建；项目作用域需项目已受信任；
+  关闭时请求体逐字节不变。
+- 新工具 `memory`（`view` / `create` / `str_replace` / `delete`，路径限定 `/memories/<作用域>/`）与权限类 `memory`：default 下写入首次询问、
+  可本会话允许；内容像凭据即拒写；子 Agent 只读；规则 `memory(...)` 按命令名或逻辑路径匹配。项目级只能把 `memory.enabled` 设为 `false`。
+- 系统提示新增 `memory` 节（`skills` 之后，只放索引）：会话开始定稿，会话内写入下次会话生效，`/memory reload` 与压缩后刷新；压缩回注
+  列出读写过的记忆路径。
+- `/memory`（面板、show、edit、rm、on|off、reload）与 `ama memory list|show|edit|rm|path|enable|disable`。嵌入宿主与 SDK 缺省禁用，
+  `memory: { enabled, dir }` 开启，只有 `workspace` 作用域、不读用户级。
+
+### ChatGPT 登录
+
+- `ama auth login chatgpt` 用自己的 ChatGPT Plus / Pro 订阅驱动 ama（[docs/providers.md](docs/providers.md)「ChatGPT 登录」）。缺省走
+  OpenAI 官方 Sign in with ChatGPT（动态注册、JWKS 验签 id_token）；`--flavor codex` 是显式开启的备用路径（借用 Codex CLI 公开客户端，
+  首次确认「非官方、仅个人使用」）。`--paste` 粘贴回调 URL（SSH / 宿主），`--device` 设备码（只 codex）；`ama auth status` /
+  `logout chatgpt`；`ama auth list` 显示 `oauth · <flavor> · <计划>`。
+- 新内置供应商 `chatgpt`（渠道 `siwc` / `codex`，缺省按登录 flavor），模型用 `ama models discover chatgpt` 查看。
+- 凭据存 `auth.json` 的 OAuth 条目（`type: "oauth"`，0600），自动刷新，多进程经 `auth.json.lock` 串行刷新，失效报 `auth_expired`；
+  token 不进日志、会话、事件与错误；RPC `keySource` 可为 `oauth`。
+- 订阅请求 `cost = 0` 并标 `billing: "subscription"`；`/session` 单列「订阅用量」与配额，`ama stats` 单列「订阅」一行（不进费用、不算无价）；
+  新事件 `quota_update`（RPC 与宿主事件）；配额耗尽报 `quota_exceeded`、不重试。
+
+### `/config` 与 `ama config`
+
+- **`/config` 设置面板**（[docs/tui.md](docs/tui.md)「`/config` 设置面板与 `ama config`」）：分组列出标量设置与生效值、来源（default /
+  user / profile / project / cli / env）和生效档（即时 / 新会话 / 重启），↑↓ Enter / 空格修改、`/` 搜索、Tab 切写入层（项目级只许收紧）、
+  被覆盖的项标锁定；改动立即写盘（写前重读、只改一项、留 `.bak`），即时项当场作用于本会话，关闭时汇总。`/config key=value` 直接改一项
+  （line 模式也可用）。
 - **`ama config get | set | unset | list`**：`--project` 写项目级、`--json-value` 传列表 / 对象；未知键、非法值、项目级放宽退出码 3；
   持久化 `permission.mode full-auto` 在终端里先确认，非终端需 `--yes`。
-- **`ui.replyLanguage`**：设置后会话开始在系统提示 `rules` 节末尾追加 `Reply to the user in <语言>.`；不设时请求零字节变化。
-- **双语文档与配置说明**（W6-I4）：`README.md` 与 `CHANGELOG.md` 改为英文（npm 包页显示），中文移到 `README.zh-CN.md` 与
-  `CHANGELOG.zh-CN.md`（0.1–0.5.1 的记录整体在此）；`docs/en/` 新增 `tui`、`permissions`、`providers`、`rpc`、`host-api`、`sessions`
-  六篇英文版，中文原路径不动。配置键说明、校验诊断与 `ama init` 输出跟随界面语言；`config.schema.json` 的说明按当前界面语言写，
-  切换语言后再跑 `ama init`（或任何会自动初始化的命令）会重写。`pnpm release:check` 认新的 CHANGELOG 结构。
-- **`/trace` 轨迹**（W6-T1）：交互模式打开轨迹覆盖层——回合 → 请求 → 工具 → 子调用 / 子 Agent，每行耗时、TTFT / 解码 / 工具条形、
-  token 与缓存命中，Enter 看详情，子 Agent 可展开到子会话，长会话尾部先加载、运行中自动跟随；`/trace <任务 id>` 看单个任务；
-  line 模式打印文本树。老会话没有计时记录时按条目时间推算并标 `≈`，不改会话文件。SDK 导出纯函数 `buildTrace()`。见 [docs/tui.md](docs/tui.md)「轨迹」。
-- **Agent 栏**（W6-A，[docs/tui.md](docs/tui.md)「子 Agent」）：状态行上方列出子 Agent 任务（排队 / 运行中 · 用时 · 轮数 · 最近工具 / 等待审批 / 完成 / 失败 / 已停止），
-  最多 3 行 +「另 N 个」；结束后保留到在视图里看过为止，最多 10 分钟。输入为空时 `Ctrl+B` 或 `↓` 进入（`app.agents.focus`；有字时 `Ctrl+B` 仍是光标左移，
-  tmux 里用 `↓`），↑↓ 选、Enter 打开。嵌入宿主缺省不显示（`ui.agentBar: "off"`）。
-- **子 Agent 视图**（W6-A）：主屏上的全屏覆盖层（行数 − 1），实时跟随子会话的消息与工具调用；外部 Agent 显示内存里的实时输出（≤ 2000 条 / 1 MB，不落盘）。
-  输入框直接发给子 Agent：运行中排到本轮结束、外部 Agent 等本次运行结束、已结束则后台续聊；子会话里记为 `origin: "direct"`。Esc 返回（不中断），
-  子 Agent 的审批在视图上弹出并标来源。`/tasks` 改为聚焦 Agent 栏，`/tasks <id>` 直接打开视图（`ui.agentBar: "off"` 时仍是原来的选择器）。
-- **ChatGPT 登录**（W6-O）：`ama auth login chatgpt` 用自己的 ChatGPT Plus / Pro 订阅驱动 ama。缺省走 OpenAI 官方 Sign in with ChatGPT
-  （动态注册、JWKS 验签 id_token）；`--flavor codex` 是显式开启的备用路径（借用 Codex CLI 公开客户端，首次确认「非官方、仅个人使用」）。
-  `--paste` 粘贴回调 URL（SSH / 宿主），`--device` 设备码（只 codex）；`ama auth status` / `logout chatgpt`；`ama auth list` 显示
-  `oauth · <flavor> · <计划>`。新内置供应商 `chatgpt`（渠道 `siwc` / `codex`，缺省按登录 flavor），模型用 `ama models discover chatgpt` 查看。
-  凭据存 auth.json 的 OAuth 条目（0600），自动刷新，多进程经 `auth.json.lock` 串行刷新，失效报 `auth_expired`；token 不进日志、会话、事件与错误。
-  订阅请求 `cost = 0` 并标 `billing: "subscription"`；`/session` 单列「订阅用量」与配额；新事件 `quota_update`；配额耗尽报 `quota_exceeded`、不重试。
-  详见 [docs/providers.md](docs/providers.md)「ChatGPT 登录」。
-- **记忆（Memory）**（W6-M，[docs/memory.md](docs/memory.md)）：跨会话记忆，**缺省关闭**，`ama memory enable` / `--memory` / `AMA_MEMORY=1` 开启。条目是
-  `<数据目录>/memory/{user,projects/<目录名>-<sha8>}/` 下带 frontmatter 的 Markdown，`MEMORY.md` 索引自动重建；项目作用域需项目已受信任；关闭时请求体逐字节不变。
-  新工具 `memory`（`view` / `create` / `str_replace` / `delete`，路径限定 `/memories/<作用域>/`）与权限类 `memory`：default 下写入首次询问、可本会话允许；
-  内容像凭据即拒写；子 Agent 只读；规则 `memory(...)` 按命令名或逻辑路径匹配。系统提示新增 `memory` 节（`skills` 之后，只放索引）：会话开始定稿，
-  会话内写入下次会话生效，`/memory reload` 与压缩后刷新；**开启后首个请求会因新节与工具未命中一次缓存。** `/memory`（面板、show、edit、rm、on|off、reload）
-  与 `ama memory list|show|edit|rm|path|enable|disable`；压缩回注列出读写过的记忆路径。嵌入宿主与 SDK 缺省禁用，`memory: { enabled, dir }` 开启，
-  只有 `workspace` 作用域、不读用户级。
-- **轨迹 HTML、`ama sessions trace` 与 RPC `get_trace`**（W6-T2）：`ama sessions trace <id|文件>` 导出自包含单文件 HTML
-  （树 + 瀑布图、TTFT / 解码 / 工具分色、子 Agent 与外部 Agent 嵌套、搜索、按回合跳转、缩放、详情、长会话虚拟列表、深浅色；内联样式与脚本、
-  CSP 禁外联；数据与正文双重脱敏、数据块转义防注入），`--json` 输出与 `get_trace` 同形的 JSON，`--no-content` 只留结构与数字，
-  `--children` 内嵌子会话预览，`--open` 用浏览器打开，`--now` 固定生成时间（输出确定）。RPC `get_trace` 实现：尾部分页（`turnLimit` /
-  `before`）、按 `since` 增量（配合 `entry_appended`）、`taskId` 子轨迹、`content: "preview"` 附脱敏预览（结果新增可选字段 `task`、`previews`）。
-  SDK `session.trace()`。见 [docs/sessions.md](docs/sessions.md)「轨迹」与 [docs/rpc.md](docs/rpc.md)「轨迹」。
-- **其余模式与领域的英文界面**（W6-I3）：`ama -p` 的 stderr（重试、预算到限、计划待审批、工具被拒）、RPC 的人读 `error` 与 ACP 的错误 /
-  审批选项名、斜杠命令说明与回执、`/session` `/cache` 报告与缓存提示、`--no-tui` 的启动期问答、`ama doctor`（新增「界面语言：zh（来源 …）」一行）、
-  `ama sessions list / show / prune`（用法补上 `ama sessions trace`）、会话 Markdown 导出、检查点 / 沙箱 / Hook / 宿主适配器 / 外部 Agent 的提示、
-  模型查找失败与 models.dev 说明随界面语言；中文输出逐字不变，RPC 与 `-p --output-format json` 的 JSON 字段不变。进 `task` 工具结果的错误
-  （未知外部 Agent、宿主独占、排队时中断）与「… N more tool calls」摘要行改为固定英文（与其它发给模型的文本一致）。
-- **i18n 收尾**（W6-I5）：迁完最后的中文——命令行参数错误、`ama config show | path | edit`（含 `ama doctor` 的 codemode 一行）、
-  `ama models discover`、项目级配置收紧告警、profile 与 `auth.json` 权限报错、缓存参数自动去掉的告警。`pnpm check:i18n` 改为严格模式：
-  `src/**` 出现中文行即失败（基线删除），保留的几处（输入别名、粘贴标记、价格数据的 `_reason`）逐条写明理由。`ama --help` 补上
-  `--lang`、`--memory` / `--no-memory`、`ama auth login | logout | status`、`ama config get | set | unset | list`、`ama memory`、
-  `ama sessions trace`（中文帮助随之变化）。`ama stats` 把走 ChatGPT 套餐的请求单列为「订阅」一行（不进费用、不算无价；统计索引重建一次）。
-  `/trace` 详情的键列宽按最长的键对齐；`/config` 面板英文底部提示在 80 列不再截断。`release-check` 在中文文档比 `docs/en/` 译本
-  的基准提交多改了 5 次以上时提示（不失败）。
+- **`ui.replyLanguage`**：设置后会话开始在系统提示 `rules` 节末尾追加 `Reply to the user in <语言>.`；不设时请求零字节变化（只认用户级）。
+
+### 中英双语
+
+- **界面语言**：`AMA_LANG`、`--lang zh|en`、配置 `ui.language`（`auto` / `zh` / `en`）、profile 与 SDK 的 `language`。CLI（`--help`、启动画面、
+  报错、各子命令输出）、TUI 与行式界面（启动头、状态行、审批框与预览、Plan 审批、回滚、各面板与选择器、提示与按键说明）、`-p` 的 stderr、
+  RPC 人读 `error` 与 ACP 错误 / 审批选项名、`permission_request` 的审批预览、斜杠命令说明与回执、`ama doctor`（新增「界面语言」一行）、
+  会话 Markdown 导出、配置键说明与校验诊断、`ama init` 输出都随界面语言；中文输出逐字不变，compact 状态行记号（`ctx`、`cache`、`$`、
+  `↑ ↓`）不译，RPC 与 `-p --output-format json` 的 JSON 字段不变。`config.schema.json` 的说明按当前语言写，切换后再跑 `ama init` 重写。
+- **宿主按 `code` 判断**，不要解析人读的 `error` / `message`（[docs/rpc.md](docs/rpc.md)）。
+- **双语文档**：`docs/en/` 新增 `tui`、`permissions`、`providers`、`rpc`、`host-api`、`sessions` 六篇英文版（头部记着对应的中文版提交）；
+  开发约定见 [docs/i18n.md](docs/i18n.md)。
+
+### 其它修复与改进
 
 - **继续 / 恢复会话跳过子 Agent 会话**：`ama -c`、`--resume` 选择器、交互 `/resume` 选择器与 ACP `session/list` 不再选中或列出
   子 Agent（task）会话——头有 `parentSession` 且第一条条目是 `custom{ama.task}` 的会话（fork 出来的照常算）；`-c` 每个文件只读头两行。
-  `ama sessions list` 缺省隐藏，`--all` 列出并标 `↳ 子 Agent`。显式 `--resume <子会话 id>` 仍可打开；`prune`、`stats`、`sessions search` 不变。
+  显式 `--resume <子会话 id>` 仍可打开；`prune`、`stats`、`sessions search` 不变。
+- bundle 改用 UTF-8 输出（中文不再转成 `\uXXXX`），体积约减 40 KB。
+- RPC `permission_request.context` 可带 `toolCallId`（本会话工具调用的审批现在也有 `context`）。
+- `ama memory enable / disable` 改走与 `/config` 相同的写盘路径（写前重读、只改一项、留 `.bak`）。
+- `/trace` 详情的键列宽按最长的键对齐（英文不再错位）；`/config` 面板英文底部提示在 80 列不再截断。
+
+### 接口、测试与发布
+
+- 第六波契约（docs/wave6-plan.md §7，全部可选、向后兼容）：`Trace` 类型与 `buildTrace()`、SDK `session.trace()` 与 `memory` 选项、RPC
+  `get_trace`（结果可选字段 `task`、`previews`）、事件 `quota_update`、`KeySource` 的 `oauth`、`auth.json` 的 OAuth 条目、配置键
+  `ui.language` / `ui.replyLanguage` / `ui.agentBar` / `memory.*` / `auth.chatgpt.*`（已写进 `config.schema.json`）。
+- `pnpm check:i18n` 进 CI 且为严格模式：`src/**` 出现中文行即失败，保留的几处（输入别名、粘贴标记、价格数据的 `_reason`）逐条写明理由；
+  测试缺省钉 zh，另有 en 帧黄金与 CLI 英文抽样。
+- `release-check` 认双语 CHANGELOG（两份都要有当前版本段），并在中文文档比 `docs/en/` 译本的基准提交多改 5 次以上时提示（不失败）。
+- bundle 级 e2e 新增：`ama auth status` 无条目、`ama sessions trace --html` 确定且无外链、`AMA_LANG=en -p` 请求与 zh 逐字节相同、
+  `ama config set / get / unset` 往返、`--memory` 写入后 `ama memory list` 可见。
+- npm 包增带 `docs/memory.md` 与 `docs/en/*.md`。
+
+### 已知限制
+
+- **ChatGPT 登录尚未用真账户验证**：两种 flavor 都只对本地模拟服务测过。待 Plus / Pro 真账户确认三项：官方（siwc）路径的工具
+  `namespace` 形状（`toolsInNamespace` 保持关闭）、codex 设备码是否需在 ChatGPT 安全设置里开启、codex `wham/usage` 配额返回体的字段。
+  真账户检查本地用 `AMA_E2E_CHATGPT=1` 跑（CI 不跑）。
+- Linux 沙箱（bubblewrap）仍未在真机上验证，只经单元测试与 Ubuntu CI。
+- 记忆不做自动提取（只在模型调用 `memory` 工具或用户命令时写入）；Agent 栏在 tmux 里的 `↓` 进入与 HTML 轨迹的深浅色只经自动化测试，
+  待人工确认。
 
 ## 0.5.1（2026-10-03）
 

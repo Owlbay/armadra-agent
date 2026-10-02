@@ -2,7 +2,7 @@
 
 English · [简体中文](../rpc.md)
 
-> Translated from the Chinese [docs/rpc.md](../rpc.md) as of commit `ee89edb`. When the two differ, the Chinese version is
+> Translated from the Chinese [docs/rpc.md](../rpc.md) as of commit `312ddb6`. When the two differ, the Chinese version is
 > authoritative.
 
 `ama --mode rpc` reads commands from stdin and writes responses and events to stdout, one JSON value per line. The types are defined in `@armadra/agent/rpc` (`src/rpc.ts`) and implemented in `src/modes/rpc/`. The events printed by `ama -p --output-format stream-json` have the same shapes. The design rationale is in [design.md](../design.md) §13.2 (Chinese).

@@ -5,126 +5,172 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 > This file is in English starting with 0.6.0. Release notes for 0.1 through 0.5.1 are in Chinese in
 > [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md). New entries go into both files.
 
-## Unreleased
+## 0.6.0 (2026-10-03)
 
-Wave 6 (docs/wave6-plan.md) contracts and infrastructure (W6-C0):
+Wave 6: the agent bar and sub-agent view, traces, memory, ChatGPT login, the `/config` settings panel, and a bilingual
+(Chinese / English) interface. The design and decision table are in docs/wave6-plan.md; current docs per topic are linked below.
 
-- **Interface language**: new `AMA_LANG`, `--lang zh|en`, config `ui.language` (`auto` / `zh` / `en`), and `language` for
-  profiles and the SDK. `auto` decides from `LC_ALL` / `LC_MESSAGES` / `LANG` and falls back to English. Message catalogs live in
-  `src/i18n/`; interface text is migrated by later batches, so this build's interface is still Chinese. Development conventions
-  are in [docs/i18n.md](docs/i18n.md); `pnpm check:i18n` runs in CI (a baseline of Chinese lines that may only shrink).
-- **Text sent to the model is always English** (independent of the interface language; requests are byte-identical in both
-  languages): the tool-result truncation marker `[… N chars omitted …]`, the compaction prune placeholder `[pruned: …]`, summary
-  serialization truncation, `Tool calls:` / `Files changed:` and failure notes in external agent reports, hook block reasons and
-  allowlist denial notes. Only tool results in new sessions are affected, the cache prefix is untouched; scripts that parse tool
-  results by the old Chinese markers need updating.
-- **Trace persistence**: session files gain `custom{customType:"ama.trace"}` entries (one `step` per model request, plus retry
-  waits, fallbacks, compaction, auxiliary requests and external agent turn skeletons). They hold only ids, times and counts, no
-  content, never enter the context and do not change requests. RPC clients see extra `entry_appended` events for them.
-  Sub-sessions also measure time to first token and throughput.
-- **RPC**: `permission_request.context` may carry `toolCallId` (approvals for this session's own tool calls now have `context`
-  too); `keySource` may be `oauth`; the new command `get_trace` is registered (returns `not_implemented` until the trace batch
-  lands).
-- **Config**: the new keys `ui.replyLanguage`, `ui.agentBar`, `memory.*` and `auth.chatgpt.*` are validated and written to
-  `config.schema.json` (the features arrive with later batches). Project level can only set `memory.enabled` to `false`;
-  `ui.replyLanguage` and `auth` are user level only; the agent bar is off by default in embedding hosts. Command-line
-  `--memory` / `--no-memory`; `auth.json` can hold OAuth entries (`type: "oauth"`).
-- `ama memory`, `/config`, `/trace` and `/memory` are registered and currently reply "not available yet".
-- The bundle is emitted as UTF-8 (Chinese is no longer escaped as `\uXXXX`), about 40 KB smaller.
-- **English CLI interface** (W6-I1): `ama --help`, the startup screen and startup errors, exit code descriptions, and the
-  output and errors of `ama providers` / `models` / `stats` / `sessions export` · `search` / `init` follow the interface
-  language (`AMA_LANG=en` / `--lang en`); Chinese output is unchanged word for word. The `advice` of
-  `ama models cache-probe --json` is human-readable text and follows the interface language too.
-- **English interactive interface** (W6-I2): the TUI and line mode follow the interface language — startup header, status
-  line, approval dialog (including the pre-execution preview and origin labels), Plan dialog, rewind list and panel, `/session`,
-  `/cache`, `/permissions`, pickers, `/agents`, `/tasks`, Bypass confirmation, notices and key hints. Chinese output is
-  byte-for-byte unchanged; compact status line notation (`ctx`, `cache`, `$`, `↑ ↓`) is not translated. Approval previews in
-  `permission_request` events follow the interface language too.
-- **`/config` settings panel** (W6-S): lists scalar settings by group with their effective value, source (default / user /
-  profile / project / cli / env) and when a change takes effect (immediately / new session / restart); ↑↓ Enter / Space to
-  change, `/` to search, Tab to switch the target layer (project level may only tighten), and overridden items are marked
-  locked. Changes are written to disk at once (re-read before writing, one key only, `.bak` kept); immediate items apply to
-  the current session right away, with a summary on close. `/config key=value` sets a single key (line mode too).
-- **`ama config get | set | unset | list`**: `--project` writes the project level, `--json-value` passes lists / objects;
-  unknown keys, invalid values and loosening at project level exit with 3; persisting `permission.mode full-auto` asks for
-  confirmation in a terminal and needs `--yes` otherwise.
-- **`ui.replyLanguage`**: when set, `Reply to the user in <language>.` is appended to the end of the system prompt's
-  `rules` section at session start; requests are byte-identical when unset.
-- **Bilingual docs and config descriptions** (W6-I4): `README.md` and `CHANGELOG.md` are now English (shown on the npm page);
-  the Chinese versions moved to `README.zh-CN.md` and `CHANGELOG.zh-CN.md` (which keeps the full 0.1–0.5.1 history).
-  `docs/en/` adds English versions of `tui`, `permissions`, `providers`, `rpc`, `host-api` and `sessions`; the Chinese docs keep
-  their paths. Config key descriptions, validation diagnostics and `ama init` output follow the interface language;
-  `config.schema.json` descriptions are written in the current interface language and rewritten by the next `ama init` (or any
-  command that auto-initializes) after switching. `pnpm release:check` understands the new CHANGELOG layout.
-- **`/trace`** (W6-T1): interactive mode opens a trace overlay — turn → request → tool → sub-call / subagent, each row with
-  duration, TTFT / decode / tool bars, tokens and cache hits; Enter shows details, subagents expand into their child sessions,
-  long sessions load from the tail and follow while running; `/trace <task id>` shows one task; line mode prints a text tree.
-  Old sessions without timing records are estimated from entry timestamps and marked `≈` (session files are not changed).
-  The SDK exports the pure function `buildTrace()`. See [docs/tui.md](docs/tui.md) "Trace".
-- **Agent bar** (W6-A): above the status line, lists subagent tasks (queued / running · elapsed · turns · last tool / awaiting
-  approval / done / failed / stopped), up to 3 rows + "N more"; finished tasks stay until viewed, at most 10 minutes. With an
-  empty input, `Ctrl+B` or `↓` focuses it (`app.agents.focus`; with text `Ctrl+B` still moves the cursor left; use `↓` in tmux),
-  ↑↓ selects, Enter opens. Hidden by default when embedded in a host (`ui.agentBar: "off"`).
-- **Subagent view** (W6-A): a full-screen overlay on the main screen (rows − 1) that follows the child session's messages and
-  tool calls live; external agents show in-memory live output (≤ 2000 events / 1 MB, not persisted). The input box talks to the
-  subagent directly: queued until the end of its current turn while running, until the end of the run for external agents, or
-  resumed in the background when finished; recorded as `origin: "direct"` in the child session. Esc returns without
-  interrupting; the subagent's approvals pop up in the view with their origin. `/tasks` now focuses the agent bar and
-  `/tasks <id>` opens the view directly (the old picker remains when `ui.agentBar` is `"off"`).
-- **ChatGPT login** (W6-O): `ama auth login chatgpt` drives ama with your own ChatGPT Plus / Pro subscription. The default is
-  OpenAI's official Sign in with ChatGPT (dynamic registration, JWKS-verified id_token); `--flavor codex` is an explicit
-  opt-in fallback that borrows the Codex CLI public client (first use asks you to confirm it is unofficial and for personal use
-  only). `--paste` pastes the callback URL (SSH / hosts), `--device` uses a device code (codex only); `ama auth status` /
-  `logout chatgpt`; `ama auth list` shows `oauth · <flavor> · <plan>`. New built-in provider `chatgpt` (channels `siwc` /
-  `codex`, defaulting to the login flavor); list models with `ama models discover chatgpt`. Credentials are stored as an OAuth
-  entry in auth.json (0600) and refreshed automatically, serialized across processes with `auth.json.lock`; failures report
-  `auth_expired`; tokens never reach logs, sessions, events or errors. Subscription requests record `cost = 0` with
-  `billing: "subscription"`; `/session` lists subscription usage and quota; new event `quota_update`; an exhausted quota
-  reports `quota_exceeded` without retrying. See [docs/providers.md](docs/providers.md) "ChatGPT login".
-- **Memory** (W6-M, [docs/memory.md](docs/memory.md)): cross-session memory, **off by default**; enable with `ama memory enable`,
+### Breaking changes and upgrade notes
+
+- **The interface may switch to English**: the new default `ui.language: "auto"` decides from `LC_ALL` / `LC_MESSAGES` / `LANG`;
+  `zh*` is Chinese and everything else (including undecidable) is English. The common macOS `LANG=en_US.UTF-8` makes Chinese
+  users see English after upgrading; to keep Chinese, run `ama config set ui.language zh` (or use `--lang zh`, `AMA_LANG=zh`).
+- **README and CHANGELOG are now English**: `README.md` / `CHANGELOG.md` are English (shown on the npm page); the Chinese versions
+  are `README.zh-CN.md` / `CHANGELOG.zh-CN.md` (with all notes for 0.1–0.5.1). Chinese docs keep their paths; `docs/en/` has six
+  English translations.
+- **Markers sent to the model are now English** (independent of the interface language; requests are byte-identical in both):
+  the tool-result truncation marker `[… N chars omitted …]`, the compaction prune placeholder `[pruned: …]`, summary
+  serialization truncation, `Tool calls:` / `Files changed:` and failure notes in external agent reports, hook block reasons,
+  allowlist denial notes, errors that land in `task` tool results (unknown external agent, host-only agent, queued interrupt) and
+  the "… N more tool calls" summary line. Only tool results produced after upgrading are affected and the cache prefix is
+  untouched; **scripts that parse tool results by the old Chinese markers need updating**.
+- **Session files gain `custom{customType:"ama.trace"}` entries** (one per model request, plus retry waits, fallbacks,
+  compaction, auxiliary requests and external agent turn skeletons; ids, times and counts only, never in the context and never
+  changing requests). RPC clients see extra `entry_appended` events for them; scripts that walk session entries should skip them.
+- **`/tasks` now focuses the agent bar**, and `/tasks <id>` opens the sub-agent view directly; with `ui.agentBar: "off"` (the
+  default in embedding hosts) it is still the old picker.
+- **`ama sessions list` hides sub-agent (task) sessions by default**; `--all` lists them marked `↳ subagent`. `ama -c` and the
+  `--resume` / `/resume` pickers no longer pick them (see "Other fixes and improvements").
+- **`ama --help` changed**: both languages now list `--lang`, `--memory` / `--no-memory`, `ama auth login | logout | status`,
+  `ama config get | set | unset | list`, `ama memory` and `ama sessions trace`; scripts that parse the help text need updating.
+- **The `ama stats` index version was bumped**: the first run rescans all sessions automatically (incremental afterwards).
+- **`PresetResolution.warnings` is structured**: the warnings of `resolvePreset()` changed from Chinese strings to
+  `{ kind: "codemode_only_fallback" | "codemode_unavailable" | "unknown_tool", … }`, rendered by the caller.
+- **18 built-in providers** (new: `chatgpt`): scripts that enumerate built-in providers see one more.
+- **One cache miss** (only when the matching feature is turned on): the first request after enabling memory (the new `memory`
+  system section and `memory` tool), and the first session after setting `ui.replyLanguage` (one more line at the end of
+  `rules`). With neither, the system prompt and tool table sent for the `default` / `minimal` presets are byte-identical to 0.5.1.
+- Protocol version constants (`RPC_PROTOCOL_VERSION`, `HOST_API_VERSION`, session format version) are unchanged; all new events,
+  commands and fields are optional; exit codes are unchanged.
+
+### Agent bar and sub-agent view
+
+- **Agent bar** ([docs/en/tui.md](docs/en/tui.md) "Agent bar"): sub-agent tasks are listed above the status line (queued /
+  running · elapsed · turns · latest tool / awaiting approval / done / failed / stopped), at most 3 lines plus "N more"; finished
+  tasks stay until viewed, at most 10 minutes. Enter it with `Ctrl+B` or `↓` on an empty input (key action `app.agents.focus`;
+  with text `Ctrl+B` still moves the cursor left; use `↓` in tmux), ↑↓ to select, Enter to open. Hidden by default in embedding
+  hosts (`ui.agentBar: "off"`).
+- **Sub-agent view**: a full-screen overlay on the main screen (rows − 1) that follows the sub-session's messages and tool calls
+  live; external agents show live output kept in memory (≤ 2000 items / 1 MB, never written to disk). The input box talks to the
+  sub-agent directly: while it runs the message is queued until the turn ends, external agents get it after the current run, and
+  finished tasks continue in the background; the sub-session records it as `origin: "direct"`. Esc goes back (no interrupt); the
+  sub-agent's approvals pop up over the view with their origin; `/tasks stop <id>` works inside the view too.
+
+### Traces
+
+- **Timing on disk**: every model request records an `ama.trace` entry (time to first token, decode, tools, retry waits,
+  fallbacks, compaction, auxiliary requests); sub-sessions measure time to first token and throughput too. Ids, times and counts
+  only, no content.
+- **`/trace`** ([docs/en/tui.md](docs/en/tui.md) "Traces"): turn → request → tool → sub-call / sub-agent, each row with duration,
+  TTFT / decode / tool bars, tokens and cache hits; Enter for details; sub-agents expand into their sub-sessions; long sessions
+  load from the tail and follow while running; `/trace <task id>` for one task; line mode prints a text tree. Older sessions
+  without timing records are estimated from entry times and marked `≈`, without changing the session file.
+- **`ama sessions trace <id|file>`** ([docs/en/sessions.md](docs/en/sessions.md) "Traces"): exports a self-contained single-file
+  HTML page (tree + waterfall, TTFT / decode / tool colors, nested sub-agents and external agents, search, jump to turn, zoom,
+  details, virtual list, light and dark; inline styles and script with a CSP that blocks all external loads; data and content
+  redacted twice and the data block escaped against injection). `--json` prints the same shape as `get_trace`, `--no-content`
+  keeps only structure and numbers, `--children` embeds child-session previews, `--open` opens a browser and `--now` pins the
+  generation time (byte-for-byte deterministic output).
+- **RPC `get_trace`** ([docs/en/rpc.md](docs/en/rpc.md) "Traces"): tail-first paging (`turnLimit` / `before`), increments by
+  `since` (driven by `entry_appended`), `taskId` sub-traces and redacted previews with `content: "preview"`; 43 RPC commands in
+  total. SDK `session.trace()`; the pure function `buildTrace()` and the `Trace` type are exported from the package entry.
+
+### Memory
+
+- Cross-session memory ([docs/memory.md](docs/memory.md), Chinese), **off by default**: enable with `ama memory enable`,
   `--memory` or `AMA_MEMORY=1`. Entries are Markdown files with frontmatter under
-  `<data dir>/memory/{user,projects/<dir>-<sha8>}/`, with an auto-rebuilt `MEMORY.md` index; the project scope requires a trusted
-  project; when disabled the request body is byte-for-byte unchanged. New `memory` tool (`view` / `create` / `str_replace` /
-  `delete`, paths limited to `/memories/<scope>/`) with a `memory` permission class: in default mode the first write asks and
-  can be allowed for the session; content that looks like a credential is refused; subagents are read-only; `memory(...)`
-  rules match by command or logical path. New `memory` system-prompt section (after `skills`, index only): fixed at session
-  start, writes take effect next session, refreshed by `/memory reload` and after compaction; **enabling it causes one cache
-  miss on the first request.** `/memory` (panel, show, edit, rm, on|off, reload) and
-  `ama memory list|show|edit|rm|path|enable|disable`; post-compaction notes list memory paths read or written. Disabled by
-  default for embedding hosts and the SDK; enable with `memory: { enabled, dir }` (workspace scope only, no user scope).
-- **Trace HTML, `ama sessions trace` and RPC `get_trace`** (W6-T2): `ama sessions trace <id|file>` exports a self-contained
-  single-file HTML page (tree + waterfall, TTFT / decode / tool colors, nested subagents and external agents, search, jump to
-  turn, zoom, details, a virtual list for long sessions, light and dark; inline styles and script with a CSP that blocks all
-  external loads; data and content redacted twice and the data block escaped against injection). `--json` prints the same shape
-  as `get_trace`, `--no-content` keeps only structure and numbers, `--children` embeds child-session previews, `--open` opens a
-  browser and `--now` pins the generation time (deterministic output). RPC `get_trace` is implemented: tail-first paging
-  (`turnLimit` / `before`), increments by `since` (driven by `entry_appended`), `taskId` sub-traces and redacted previews with
-  `content: "preview"` (the result gains the optional fields `task` and `previews`). SDK `session.trace()`. See
-  [docs/en/sessions.md](docs/en/sessions.md) "Trace" and [docs/en/rpc.md](docs/en/rpc.md) "Trace".
-- **English for the remaining modes and areas** (W6-I3): the stderr of `ama -p` (retries, budget limits, pending plans,
-  denied tools), human-readable RPC `error` and ACP error messages / permission option names, slash command descriptions and
-  replies, `/session` and `/cache` reports and cache notices, the `--no-tui` startup questions, `ama doctor` (now also shows
-  "UI language: en (source …)"), `ama sessions list / show / prune` (usage now lists `ama sessions trace`), Markdown session
-  export, checkpoint / sandbox / hook / host adapter / external agent notices, model lookup failures and models.dev
-  descriptions follow the interface language. Chinese output is unchanged word for word; JSON fields of RPC and
-  `-p --output-format json` do not change. Errors that land in `task` tool results (unknown external agent, host-only agent,
-  queued interrupt) and the "… N more tool calls" summary line are now always English, like other model-facing text.
-- **i18n wrap-up** (W6-I5): the last Chinese strings are migrated — command-line argument errors, `ama config show | path |
-edit` (and the codemode line of `ama doctor`), `ama models discover`, project-level config warnings, profile and `auth.json`
-  permission errors, and the cache-parameter fallback notice. `pnpm check:i18n` is now strict: any Chinese line in `src/**`
-  fails (the baseline is gone); the few allowed lines — input aliases, paste markers, `_reason` in price data — each carry a
-  reason. `ama --help` now lists `--lang`, `--memory` / `--no-memory`, `ama auth login | logout | status`, `ama config get |
-set | unset | list`, `ama memory` and `ama sessions trace` (the Chinese help changes accordingly). `ama stats` shows requests
-  billed to a ChatGPT plan in their own "Subscription" row (not in the cost, not counted as unpriced; the stats index is
-  rebuilt once). The `/trace` detail key column fits the longest key, and the `/config` footer no longer truncates at 80
-  columns in English. `release-check` notes (without failing) when a Chinese doc changed more than 5 times since the commit
-  its `docs/en/` translation is based on.
+  `<data dir>/memory/{user,projects/<dir>-<sha8>}/`, with an auto-rebuilt `MEMORY.md` index; the project scope requires a
+  trusted project; when disabled the request body is byte-for-byte unchanged.
+- New `memory` tool (`view` / `create` / `str_replace` / `delete`, paths limited to `/memories/<scope>/`) with a `memory`
+  permission class: in default mode the first write asks and can be allowed for the session; content that looks like a
+  credential is refused; sub-agents are read-only; `memory(...)` rules match by command or logical path. Project level can only
+  set `memory.enabled` to `false`.
+- New `memory` system-prompt section (after `skills`, index only): fixed at session start, writes take effect next session,
+  refreshed by `/memory reload` and after compaction; post-compaction notes list memory paths read or written.
+- `/memory` (panel, show, edit, rm, on|off, reload) and `ama memory list|show|edit|rm|path|enable|disable`. Disabled by default
+  for embedding hosts and the SDK; enable with `memory: { enabled, dir }` (workspace scope only, no user scope).
 
-- **Continue / resume skip subagent sessions**: `ama -c`, the `--resume` picker, the interactive `/resume` picker and ACP
-  `session/list` no longer pick or list subagent (task) sessions — those whose header has `parentSession` and whose first entry
-  is `custom{ama.task}` (forks still count). `-c` only reads the first two lines of each file. `ama sessions list` hides them by
-  default; `--all` lists them marked `↳ subagent`. An explicit `--resume <subagent session id>` still works; `prune`, `stats` and
-  `sessions search` are unchanged.
+### ChatGPT login
+
+- `ama auth login chatgpt` drives ama with your own ChatGPT Plus / Pro plan ([docs/en/providers.md](docs/en/providers.md)
+  "ChatGPT login"). By default it uses OpenAI's official Sign in with ChatGPT (dynamic registration, id_token verified against
+  JWKS); `--flavor codex` is an opt-in fallback (borrowing the Codex CLI public client after a one-time "unofficial, personal use
+  only" confirmation). `--paste` pastes the callback URL (SSH / hosts), `--device` uses a device code (codex only);
+  `ama auth status` / `logout chatgpt`; `ama auth list` shows `oauth · <flavor> · <plan>`.
+- New built-in provider `chatgpt` (channels `siwc` / `codex`, defaulting to the signed-in flavor); list its models with
+  `ama models discover chatgpt`.
+- Credentials are an OAuth entry in `auth.json` (`type: "oauth"`, 0600), refreshed automatically and serialized across processes
+  with `auth.json.lock`; failures report `auth_expired`; tokens never reach logs, sessions, events or errors; RPC `keySource` may
+  be `oauth`.
+- Plan requests record `cost = 0` with `billing: "subscription"`; `/session` lists subscription usage and quota, and `ama stats`
+  has its own "Subscription" row (not in the cost, not counted as unpriced); new event `quota_update` (RPC and host events); an
+  exhausted quota reports `quota_exceeded` without retrying.
+
+### `/config` and `ama config`
+
+- **`/config` settings panel** ([docs/en/tui.md](docs/en/tui.md) "The `/config` settings panel and `ama config`"): lists scalar
+  settings by group with their effective value, source (default / user / profile / project / cli / env) and when a change takes
+  effect (immediately / new session / restart); ↑↓ Enter / Space to change, `/` to search, Tab to switch the target layer
+  (project level may only tighten), overridden items marked locked. Changes are written at once (re-read before writing, one key
+  only, `.bak` kept); immediate items apply to the current session right away, with a summary on close. `/config key=value`
+  sets a single key (line mode too).
+- **`ama config get | set | unset | list`**: `--project` writes the project level, `--json-value` passes lists / objects; unknown
+  keys, invalid values and loosening at project level exit with 3; persisting `permission.mode full-auto` asks for confirmation
+  in a terminal and needs `--yes` otherwise.
+- **`ui.replyLanguage`**: when set, `Reply to the user in <language>.` is appended to the end of the system prompt's `rules`
+  section at session start; requests are byte-identical when unset (user level only).
+
+### Bilingual interface
+
+- **Interface language**: `AMA_LANG`, `--lang zh|en`, config `ui.language` (`auto` / `zh` / `en`), and `language` for profiles
+  and the SDK. The CLI (`--help`, startup screen, errors, subcommand output), the TUI and line mode (startup header, status line,
+  approval dialog and preview, Plan dialog, rewind, panels and pickers, notices and key hints), the stderr of `-p`,
+  human-readable RPC `error` and ACP error / permission option names, approval previews in `permission_request`, slash command
+  descriptions and replies, `ama doctor` (with a new "UI language" line), Markdown session export, config key descriptions and
+  validation diagnostics, and `ama init` output all follow it. Chinese output is unchanged word for word; compact status line
+  notation (`ctx`, `cache`, `$`, `↑ ↓`) is not translated; JSON fields of RPC and `-p --output-format json` do not change.
+  `config.schema.json` descriptions are written in the current language; run `ama init` again after switching.
+- **Hosts decide by `code`** and must never parse the human-readable `error` / `message` ([docs/en/rpc.md](docs/en/rpc.md)).
+- **Bilingual docs**: `docs/en/` adds English versions of `tui`, `permissions`, `providers`, `rpc`, `host-api` and `sessions`
+  (each header records the Chinese commit it translates); development conventions are in [docs/i18n.md](docs/i18n.md) (Chinese).
+
+### Other fixes and improvements
+
+- **Continue / resume skip sub-agent sessions**: `ama -c`, the `--resume` picker, the interactive `/resume` picker and ACP
+  `session/list` no longer pick or list sub-agent (task) sessions — those whose header has `parentSession` and whose first
+  entry is `custom{ama.task}` (forks still count). `-c` only reads the first two lines of each file. An explicit
+  `--resume <sub-agent session id>` still works; `prune`, `stats` and `sessions search` are unchanged.
+- The bundle is emitted as UTF-8 (Chinese is no longer escaped as `\uXXXX`), about 40 KB smaller.
+- RPC `permission_request.context` may carry `toolCallId` (approvals for this session's own tool calls now have `context` too).
+- `ama memory enable / disable` write through the same path as `/config` (re-read before writing, one key only, `.bak` kept).
+- The `/trace` detail key column fits the longest key (no misalignment in English); the `/config` footer no longer truncates at
+  80 columns in English.
+
+### Interfaces, tests and release
+
+- Wave 6 contracts (docs/wave6-plan.md §7, all optional and backward compatible): the `Trace` type and `buildTrace()`, SDK
+  `session.trace()` and the `memory` option, RPC `get_trace` (optional result fields `task` and `previews`), the `quota_update`
+  event, `oauth` in `KeySource`, OAuth entries in `auth.json`, and the config keys `ui.language` / `ui.replyLanguage` /
+  `ui.agentBar` / `memory.*` / `auth.chatgpt.*` (written to `config.schema.json`).
+- `pnpm check:i18n` runs in CI in strict mode: any Chinese line in `src/**` fails; the few allowed lines (input aliases, paste
+  markers, `_reason` in price data) each carry a reason. Tests pin zh by default, plus English frame goldens and CLI samples.
+- `release-check` understands the bilingual changelogs (both need a section for the current version) and notes (without failing)
+  when a Chinese doc changed more than 5 times since the commit its `docs/en/` translation is based on.
+- New bundle-level e2e: `ama auth status` without entries, deterministic `ama sessions trace --html` without external links,
+  `AMA_LANG=en -p` requests byte-identical to zh, `ama config set / get / unset` round trips, and a `--memory` write visible in
+  `ama memory list`.
+- The npm package now also ships `docs/memory.md` and `docs/en/*.md`.
+
+### Known limitations
+
+- **ChatGPT login is not yet verified with a real account**: both flavors are tested against a local mock only. Three items
+  await a real Plus / Pro account: the tool `namespace` shape on the official (siwc) path (`toolsInNamespace` stays off), whether
+  the codex device code needs enabling in ChatGPT security settings, and the fields of the codex `wham/usage` quota response.
+  Real-account checks run locally with `AMA_E2E_CHATGPT=1` (never in CI).
+- The Linux sandbox (bubblewrap) is still not verified on real machines, only by unit tests and Ubuntu CI.
+- Memory has no automatic extraction (writes happen only when the model calls the `memory` tool or the user runs a command);
+  entering the agent bar with `↓` in tmux and the light / dark HTML trace are covered by automated tests only and await a manual
+  check.
 
 ## Earlier releases
 

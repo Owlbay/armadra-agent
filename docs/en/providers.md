@@ -2,7 +2,7 @@
 
 English · [简体中文](../providers.md)
 
-> Translated from the Chinese [docs/providers.md](../providers.md) as of commit `ee89edb`. When the two differ, the
+> Translated from the Chinese [docs/providers.md](../providers.md) as of commit `e3bde2e`. When the two differ, the
 > Chinese version is authoritative.
 
 Built-in providers, model references, API keys, custom providers and relays, the compat switches of each protocol, and caching. The design rationale is in [design.md](../design.md) §3 and §9.1 (Chinese).
@@ -89,6 +89,7 @@ Example: a three-channel relay + an image model + an override of a built-in prov
 | `stepfun`    | **messages**, chat, responses (step-5-preview only), messages-intl, chat-intl (`.ai`) | `https://api.stepfun.com`                          | `STEPFUN_API_KEY`, `STEP_API_KEY`, `AMA_API_KEY_STEPFUN`      |
 | `volcengine` | **responses**, chat                                                                   | `https://ark.cn-beijing.volces.com/api/v3`         | `ARK_API_KEY`, `VOLCENGINE_API_KEY`, `AMA_API_KEY_VOLCENGINE` |
 | `tencent`    | **messages**, chat (`/v1`)                                                            | `https://tokenhub.tencentmaas.com`                 | `TOKENHUB_API_KEY`, `HUNYUAN_API_KEY`, `AMA_API_KEY_TENCENT`  |
+| `chatgpt`    | **siwc**, codex (default follows the signed-in flavor, see "ChatGPT login")           | `https://api.openai.com/v1`                        | none (`ama auth login chatgpt`)                               |
 | `ollama`     | single channel chat                                                                   | `http://127.0.0.1:11434/v1`                        | optional (`OLLAMA_API_KEY`)                                   |
 | `lmstudio`   | single channel chat                                                                   | `http://127.0.0.1:1234/v1`                         | optional                                                      |
 
@@ -144,6 +145,53 @@ The Coding Plan / Token Plan quotas of Volcengine Ark, Alibaba Bailian, Zhipu, K
 ```
 
 Then `--model volcengine/<model>@coding` (model ids of subscription endpoints follow each vendor's docs; add ids outside the catalog with `models[]` and `"channels": ["coding"]`).
+
+## ChatGPT login
+
+Drive ama with your own ChatGPT Plus / Pro subscription (built-in provider `chatgpt`, protocol openai-responses). **For your own personal use only**: do not let one login serve several people; embedding hosts (Armadra) must not turn it into a multi-user or hosted service either.
+
+```bash
+ama auth login chatgpt                 # default: official Sign in with ChatGPT (siwc), browser authorization
+ama auth login chatgpt --paste         # no browser (SSH / host): open the printed URL and paste the callback URL back
+ama auth status                        # flavor, plan, masked email, token lifetime; codex also shows quota
+ama --model chatgpt/<model>            # models available to the account: ama models discover chatgpt
+ama auth logout chatgpt                # siwc revokes the refresh token first, then deletes it locally
+```
+
+**Two paths** (`--flavor` or the user-level config `auth.chatgpt.flavor`; siwc by default):
+
+|                    | `siwc` (default, official)                                                                                                                                                                                              | `codex` (opt-in fallback)                                                                                                                                                       |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Login              | OpenAI's official dynamic registration: registers as `dynamic_agent_client` the first time and stores the issued client id in the entry; `agent_name_hint=ama`; the install id is kept in `<dataDir>/chatgpt-host.json` | Borrows the Codex CLI's public client; the first time it asks in the terminal to confirm "unofficial use, personal only, may change at any time" (non-TTY needs `--yes`)        |
+| Verification       | id_token signature checked against JWKS plus iss / aud / nonce / exp; the granted scope must include `chatgpt.tokens.use.direct`                                                                                        | Only decodes the id_token for the account id and plan                                                                                                                           |
+| Callback           | `http://127.0.0.1:1455/auth/callback`, any free port when 1455 is taken                                                                                                                                                 | 1455 → 1457, never takes over a busy port (suggests `--paste` / `--device`)                                                                                                     |
+| Device code        | none (use `--paste`)                                                                                                                                                                                                    | `--device` (may need enabling under ChatGPT → Settings → Security)                                                                                                              |
+| Inference endpoint | channel `siwc`: `https://api.openai.com/v1`                                                                                                                                                                             | channel `codex`: `https://chatgpt.com/backend-api/codex`, also sending `ChatGPT-Account-ID` and `originator` (default `codex_cli_rs`, changeable via `auth.chatgpt.originator`) |
+| Quota              | only known when exceeded (429); set a weekly cap for ama under ChatGPT → Settings → Usage → App limits                                                                                                                  | response headers, `codex.rate_limits` events, `ama auth status` queries `wham/usage`                                                                                            |
+| Logout             | calls `revocation_endpoint`, then deletes locally                                                                                                                                                                       | deletes locally only                                                                                                                                                            |
+
+The default channel of `chatgpt` is chosen at assembly time from the flavor of the auth.json entry; `provider/model@siwc|codex` can name it explicitly but must match the signed-in flavor (otherwise `chatgpt_flavor_mismatch`).
+
+**Credentials**: a `{ "type": "oauth", … }` entry in auth.json (file mode 0600); `ama auth list` only shows `oauth · <flavor> · <plan>`. The access token is refreshed automatically when less than 5 minutes remain or a request returns 401; several ama processes (several nodes on the canvas) share one auth.json, and refreshes are serialized through `auth.json.lock` (re-read after taking the lock; if another process already refreshed, its token is used), so refresh-token rotation never knocks another process out. When refreshing fails permanently the entry is marked `needsLogin` (tokens are not deleted), requests report `auth_expired`, and you sign in again with `ama auth login chatgpt` as prompted. Raw tokens, codes and id_tokens never reach logs, sessions, events or errors. Logins of other applications (Codex CLI and others) are never read or imported.
+
+**Request body**: both backends force `store:false`, `stream:true` and an `input` array, and drop unsupported fields (siwc: 15 including `max_output_tokens`, `temperature`, `top_p`, `metadata`, `user`, `truncation`, `prompt_cache_retention`; codex: `max_output_tokens`, `temperature`, `top_p`, `prompt_cache_retention`, `prompt_cache_options`). Both send `prompt_cache_key = session id`, and `cacheRetention: "long"` is lowered to short automatically. If siwc rejects a field with `subscription_sharing_unsupported_capability`, it is dropped and the request retried once (remembered for the process); if codex reports `Instructions are not valid`, this session moves the system prompt into a leading developer message (the prefix stays stable). With compat `toolsInNamespace: true` tools go into an `additional_tools` input item (shape still to be verified with a real account).
+
+**Error codes** (error messages start with the code; hosts decide by code):
+
+| Code             | Source                                                                                                       | Handling                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------- |
+| `quota_exceeded` | siwc 429 `subscription_sharing_usage_limit_exceeded`; codex 429 `usage_limit_reached` / `usage_not_included` | no retry; carries the reset time and emits `quota_update` |
+| `auth_expired`   | a 401 still failing after one refresh, a permanently failed refresh, an entry marked `needsLogin`            | no retry; run `ama auth login chatgpt` again              |
+| `not_eligible`   | siwc 403 `subscription_sharing_user_not_eligible`                                                            | no retry, no re-login                                     |
+| (as is)          | 503 and similar                                                                                              | the session layer's existing backoff retries              |
+
+**Usage**: subscription requests record `usage.cost = 0` with `billing: "subscription"`; `/session` lists "subscription usage" separately (requests, tokens, cache hit rate, no USD conversion) together with the latest quota; the `quota_update` event is forwarded as is over RPC and has the same name among host events.
+
+**Overrides** (for tests or a future own client): `auth.chatgpt.clientId` / `issuer` / `originator` / `redirectPorts` (user level and profile only), environment variables `AMA_CHATGPT_CLIENT_ID`, `AMA_CHATGPT_ISSUER`, `AMA_CHATGPT_BASE_URL` (changes the address of the current flavor's channel).
+
+**Embedding hosts**: with a profile ama never starts an interactive login; when `chatgpt` is used and the login has expired the request reports `auth_expired`, and the host guides the user to run `ama auth login chatgpt --paste` in a terminal. Hosts never read, store or forward tokens; they only consume `quota_update` and `auth_expired` / `quota_exceeded`.
+
+**Real-account check** (not run in CI): sign in first, then `AMA_E2E_CHATGPT=1 pnpm vitest run src/auth/chatgpt/chatgpt.e2e.test.ts` (optionally `AMA_E2E_CHATGPT_MODEL=<slug>`); it prints the flavor, the model list, the stop reason and the quota, never tokens.
 
 ## Model references
 

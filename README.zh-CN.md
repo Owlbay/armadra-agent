@@ -22,6 +22,7 @@ ama
 - [快速开始](#快速开始)
 - [配置](#配置)
 - [接入中转站](#接入中转站)
+- [ChatGPT 登录](#chatgpt-登录)
 - [工具与预设](#工具与预设)
 - [缓存](#缓存)
 - [安全](#安全)
@@ -30,6 +31,8 @@ ama
 - [子 Agent](#子-agent)
 - [外部 Agent](#外部-agent)
 - [回滚](#回滚)
+- [记忆](#记忆)
+- [轨迹](#轨迹)
 - [界面与入口](#界面与入口)
 - [嵌入 Armadra](#嵌入-armadra)
 - [文档](#文档)
@@ -46,23 +49,25 @@ ama
 
 ## 特性一览
 
-| 方面            | 内容                                                                                                                                                                                                                                                   |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 多协议与供应商  | 4 条协议线、17 家内置供应商（Anthropic、OpenAI、Google、DeepSeek、Moonshot、智谱、通义、OpenRouter、Groq、xAI、Mistral、MiniMax、阶跃、火山方舟、腾讯、Ollama、LM Studio）、内置渠道（Messages / Responses 优先、Chat 回落）、自定义供应商、模型级协议 |
-| 零配置与中转站  | 有 key 就选第一个可用的供应商（中转站按价格规则挑缺省模型）；识别 `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`；`ama providers add` 只给 baseUrl 与 key 一键接入：列模型、探测渠道、写回配置                                                               |
-| 模型元数据      | 上下文、输出上限、图像输入、推理、价格来自随包的 models.dev 内置快照（启动与运行都不联网，`ama models refresh` 显式刷新）；一个供应商可挂多个渠道（Chat / Responses / Messages），`provider/model@渠道`                                                |
-| 图像输入        | `-p --image`、界面里 `@图片路径`、`Ctrl+V` / `/paste` 粘贴剪贴板图片；按端点分档的单图上限、超限自动缩放；模型不收图片时直接拒绝并提示换模型                                                                                                           |
-| 工具与预设      | read / edit / write / bash / grep / glob，另有 ls、todo、task / task_ctl（子 Agent）、codemode；四个预设 `default` / `minimal` / `codemode-only` / `coordinator`                                                                                       |
-| Plan 与子 Agent | Plan 模式只读调研、出计划后审批执行；`task` 委派子 Agent（内置 general / explore / plan，可自定义类型，前台 / 后台 / 续聊 / worktree 隔离）                                                                                                            |
-| 外部 Agent      | `task(agent="claude" \| "codex" \| "acp:<程序>")` 以各 CLI 自己的登录驱动外部编码 Agent，审批只交给人；`ama --mode acp` 把 ama 暴露为 ACP Agent                                                                                                        |
-| 回滚与沙箱      | 每回合检查点，`/rewind` / 双击 Esc 回到任一条消息之前（代码、对话或两者）；macOS / Linux 的操作系统沙箱隔离 codemode 与（可选）bash                                                                                                                    |
-| codemode        | 模型写一段 JS，在受 Node 权限模型约束的子进程里编排多次工具调用，只有输出回到模型                                                                                                                                                                      |
-| Skill           | `SKILL.md` 目录，模型按索引自行读取，用户用 `/skill:<名字>` 调用；另有提示模板                                                                                                                                                                         |
-| 两层 Hook       | 命令式 Hook（`hooks.json`，11 个事件，用户策略）与进程内宿主适配器 HostApi（嵌入方）                                                                                                                                                                   |
-| 权限            | 四种模式、allow / deny 规则、危险命令识别（穿透 `sh -c` / `eval` / `xargs` / `find -exec`）、项目信任、审批时的执行前预览                                                                                                                              |
-| 缓存            | 前缀稳定、缓存字段与兼容开关、未命中归因、「报 / 不报缓存」三态、长工具运行时保温、压缩摘要按会话前缀续写                                                                                                                                              |
-| 会话            | JSONL 条目树，分叉与 `/tree` 回溯；两档压缩（裁剪大工具结果 → 摘要）与熔断；预算上限（`--max-turns` / `--max-cost`）、重复调用检测、模型回退                                                                                                           |
-| 入口            | 差分渲染终端界面、`--no-tui` 行式、`-p`（text / json / stream-json）、`--mode rpc`、`--mode acp`、SDK                                                                                                                                                  |
+| 方面            | 内容                                                                                                                                                                                                                                                                     |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 多协议与供应商  | 4 条协议线、18 家内置供应商（Anthropic、OpenAI、Google、DeepSeek、Moonshot、智谱、通义、OpenRouter、Groq、xAI、Mistral、MiniMax、阶跃、火山方舟、腾讯、ChatGPT 套餐登录、Ollama、LM Studio）、内置渠道（Messages / Responses 优先、Chat 回落）、自定义供应商、模型级协议 |
+| 零配置与中转站  | 有 key 就选第一个可用的供应商（中转站按价格规则挑缺省模型）；识别 `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`；`ama providers add` 只给 baseUrl 与 key 一键接入：列模型、探测渠道、写回配置                                                                                 |
+| 模型元数据      | 上下文、输出上限、图像输入、推理、价格来自随包的 models.dev 内置快照（启动与运行都不联网，`ama models refresh` 显式刷新）；一个供应商可挂多个渠道（Chat / Responses / Messages），`provider/model@渠道`                                                                  |
+| 图像输入        | `-p --image`、界面里 `@图片路径`、`Ctrl+V` / `/paste` 粘贴剪贴板图片；按端点分档的单图上限、超限自动缩放；模型不收图片时直接拒绝并提示换模型                                                                                                                             |
+| 工具与预设      | read / edit / write / bash / grep / glob，另有 ls、todo、task / task_ctl（子 Agent）、codemode；四个预设 `default` / `minimal` / `codemode-only` / `coordinator`                                                                                                         |
+| Plan 与子 Agent | Plan 模式只读调研、出计划后审批执行；`task` 委派子 Agent（内置 general / explore / plan，可自定义类型，前台 / 后台 / 续聊 / worktree 隔离）；Agent 栏与可直接对话的子 Agent 实时视图                                                                                     |
+| 外部 Agent      | `task(agent="claude" \| "codex" \| "acp:<程序>")` 以各 CLI 自己的登录驱动外部编码 Agent，审批只交给人；`ama --mode acp` 把 ama 暴露为 ACP Agent                                                                                                                          |
+| 回滚与沙箱      | 每回合检查点，`/rewind` / 双击 Esc 回到任一条消息之前（代码、对话或两者）；macOS / Linux 的操作系统沙箱隔离 codemode 与（可选）bash                                                                                                                                      |
+| codemode        | 模型写一段 JS，在受 Node 权限模型约束的子进程里编排多次工具调用，只有输出回到模型                                                                                                                                                                                        |
+| Skill           | `SKILL.md` 目录，模型按索引自行读取，用户用 `/skill:<名字>` 调用；另有提示模板                                                                                                                                                                                           |
+| 两层 Hook       | 命令式 Hook（`hooks.json`，11 个事件，用户策略）与进程内宿主适配器 HostApi（嵌入方）                                                                                                                                                                                     |
+| 权限            | 四种模式、allow / deny 规则、危险命令识别（穿透 `sh -c` / `eval` / `xargs` / `find -exec`）、项目信任、审批时的执行前预览                                                                                                                                                |
+| 缓存            | 前缀稳定、缓存字段与兼容开关、未命中归因、「报 / 不报缓存」三态、长工具运行时保温、压缩摘要按会话前缀续写                                                                                                                                                                |
+| 会话            | JSONL 条目树，分叉与 `/tree` 回溯；两档压缩（裁剪大工具结果 → 摘要）与熔断；预算上限（`--max-turns` / `--max-cost`）、重复调用检测、模型回退                                                                                                                             |
+| 记忆与轨迹      | 可选的跨会话记忆（Markdown 文件，索引进系统提示）；每个回合、请求、工具的轨迹（首 token / 解码 / 工具耗时），在 TUI（`/trace`）、单文件 HTML 或 RPC 查看                                                                                                                 |
+| 设置与语言      | `/config` 设置面板与 `ama config get / set`；中英双语界面（`--lang`、`ui.language`、`AMA_LANG`）                                                                                                                                                                         |
+| 入口            | 差分渲染终端界面、`--no-tui` 行式、`-p`（text / json / stream-json）、`--mode rpc`、`--mode acp`、SDK                                                                                                                                                                    |
 
 ## 安装
 
@@ -145,9 +150,10 @@ ama -p "列出 TODO" --model deepseek/deepseek-v4-pro --output-format json
 | `--max-turns N` / `--max-cost USD`                      | 一次运行的轮数 / 美元上限（`-p` 到限退出 8）                 |
 | `--agent-dir <目录>`                                    | 追加子 Agent 定义目录，可重复                                |
 | `--lang zh\|en`                                         | 界面语言（也可用 `AMA_LANG`、`ui.language`）                 |
+| `--memory` / `--no-memory`                              | 本次启动开 / 关记忆                                          |
 | `--mode rpc` / `--mode acp`                             | stdio 上说 RPC（JSONL）/ ACP（JSON-RPC），供宿主与编辑器驱动 |
 
-**内置供应商**（17 家）：Anthropic、OpenAI、Google、DeepSeek、Moonshot（Kimi）、智谱、通义（DashScope）、OpenRouter、Groq、xAI、Mistral、MiniMax、阶跃、火山方舟、腾讯 TokenHub、Ollama、LM Studio。多协议的供应商带内置渠道，缺省协议 Messages / Responses 优先、Chat 回落：OpenAI、xAI、火山方舟走 Responses，通义、MiniMax、阶跃、腾讯走 Messages，DeepSeek、智谱、Kimi 暂走 Chat（`@messages` 可选），`provider/model@渠道` 指定渠道。完整表见 [docs/providers.md](docs/providers.md)「内置供应商」。
+**内置供应商**（18 家）：Anthropic、OpenAI、Google、DeepSeek、Moonshot（Kimi）、智谱、通义（DashScope）、OpenRouter、Groq、xAI、Mistral、MiniMax、阶跃、火山方舟、腾讯 TokenHub、ChatGPT（用自己的套餐登录，见「ChatGPT 登录」）、Ollama、LM Studio。多协议的供应商带内置渠道，缺省协议 Messages / Responses 优先、Chat 回落：OpenAI、xAI、火山方舟走 Responses，通义、MiniMax、阶跃、腾讯走 Messages，DeepSeek、智谱、Kimi 暂走 Chat（`@messages` 可选），`provider/model@渠道` 指定渠道。完整表见 [docs/providers.md](docs/providers.md)「内置供应商」。
 
 本地 Ollama / LM Studio 不需要 key：`ama --model ollama/<模型名>`。`ama --help` 列出全部参数与子命令；测试或排查时可用不花钱的 `--model fake/echo`（回显最后一条用户消息；模型选择器、`models list`、`doctor` 缺省不列这个测试供应商，`AMA_SHOW_FAKE=1` 时列出）。
 
@@ -178,7 +184,7 @@ ama -p "列出 TODO" --model deepseek/deepseek-v4-pro --output-format json
 `AMA_IDLE_TIMEOUT_MS` 调整，0 关闭。
 
 **界面语言**：`ui.language`（`auto` / `zh` / `en`，缺省 `auto`）、`--lang zh|en` 或环境变量 `AMA_LANG` 选界面语言；`auto` 按
-`LC_ALL` / `LC_MESSAGES` / `LANG` 判断，`zh*` 为中文、其余英文。只影响界面与配置说明（`config.schema.json` 按当前语言写，
+`LC_ALL` / `LC_MESSAGES` / `LANG` 判断，`zh*` 为中文、其余英文（想固定中文：`ama config set ui.language zh`）。只影响界面与配置说明（`config.schema.json` 按当前语言写，
 切换后再跑 `ama init` 重写），发给模型的文本固定英文；想让模型用中文回复设 `ui.replyLanguage`。见 [docs/i18n.md](docs/i18n.md)。
 
 **代理**：设了 `HTTPS_PROXY` / `HTTP_PROXY`（`NO_PROXY` 排除）时，ama 启动时调用 Node 内置的环境变量代理（等价于
@@ -187,17 +193,31 @@ ama -p "列出 TODO" --model deepseek/deepseek-v4-pro --output-format json
 
 ### 文件位置与层级
 
-| 位置                  | 内容                                                                                                                                                 |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `~/.config/ama/`      | 用户级：`config.json`、`config.schema.json`（ama 生成）、`auth.json`（0600）、`hooks.json`、`keybindings.json`、`trust.json`、`AGENTS.md`、`skills/` |
-| `~/.local/share/ama/` | 数据：`sessions/`（会话 JSONL）、`plans/`（计划文件）、`file-history/`（检查点备份）、`models-dev.json`（`ama models refresh` 的覆盖）、输入历史     |
-| `<项目>/.ama/`        | 项目级：`config.json`（只能收紧）、`hooks.json` / `skills/` / `prompts/`（需信任）                                                                   |
-| `<项目>/AGENTS.md`    | 项目约定，从 cwd 向上查找，自动进系统提示                                                                                                            |
-| `--profile <文件>`    | 宿主 profile（嵌入方用，见「嵌入 Armadra」）                                                                                                         |
+| 位置                  | 内容                                                                                                                                                                        |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `~/.config/ama/`      | 用户级：`config.json`、`config.schema.json`（ama 生成）、`auth.json`（0600）、`hooks.json`、`keybindings.json`、`trust.json`、`AGENTS.md`、`skills/`                        |
+| `~/.local/share/ama/` | 数据：`sessions/`（会话 JSONL）、`plans/`（计划文件）、`file-history/`（检查点备份）、`memory/`（记忆，开启后）、`models-dev.json`（`ama models refresh` 的覆盖）、输入历史 |
+| `<项目>/.ama/`        | 项目级：`config.json`（只能收紧）、`hooks.json` / `skills/` / `prompts/`（需信任）                                                                                          |
+| `<项目>/AGENTS.md`    | 项目约定，从 cwd 向上查找，自动进系统提示                                                                                                                                   |
+| `--profile <文件>`    | 宿主 profile（嵌入方用，见「嵌入 Armadra」）                                                                                                                                |
 
 `AMA_CONFIG_DIR` / `AMA_DATA_DIR` 可改两个目录；也遵循 `XDG_CONFIG_HOME` / `XDG_DATA_HOME`，Windows 下是 `%APPDATA%\ama` 与 `%LOCALAPPDATA%\ama`。
 
 合并顺序是 **内置缺省 ← 用户级 ← profile ← 项目级**，但项目级只能收紧：可以追加 deny、把权限模式改严、把工具预设改窄、关掉 codemode；`allow` 规则、放宽模式、`cache`、`tools.default` 等放宽项被忽略并给出 warning。这样克隆一个陌生仓库不会因为它的配置而放开权限。
+
+### `/config` 与 `ama config`
+
+终端界面里 `/config` 打开设置面板：分组列出标量设置的生效值、来源与生效时机；↑↓ Enter / 空格修改，`/` 搜索，Tab 在用户级与项目级之间切换（项目级只能收紧）。改动立即写盘（只改这一项，留 `.bak`）；`/config key=value` 不开面板直接改一项。命令行：
+
+```sh
+ama config get ui.language
+ama config set ui.language zh              # --project 写 .ama/config.json（只能收紧）
+ama config set tools.disabled '["bash"]' --json-value
+ama config unset ui.language
+ama config list ui                         # 值、来源、生效时机
+```
+
+未知键、非法值、项目级放宽退出码 3，文件不动。见 [docs/tui.md](docs/tui.md)「`/config` 设置面板与 `ama config`」。
 
 ### 检查
 
@@ -285,6 +305,20 @@ ama models cache-probe packy/grok-4.7                  # 这个端点报不报�
 ```
 
 `--probe` 对每个模型依次试几种协议，记第一个成功的；`--write` 合并进用户级 `config.json`（原文件备份为 `config.json.bak`，已有条目不覆盖）。`--probe` 与 `cache-probe` 都会发真实请求：执行前打印预估，401 / 403 / 429 即停，`cache-probe` 在非交互环境需要 `--yes`。细节见 [docs/providers.md](docs/providers.md)。
+
+## ChatGPT 登录
+
+用自己的 ChatGPT Plus / Pro 套餐代替 API Key（内置供应商 `chatgpt`，仅限本人个人使用）：
+
+```sh
+ama auth login chatgpt              # 官方 Sign in with ChatGPT，浏览器授权；SSH 下加 --paste
+ama auth status                     # flavor、计划、掩码邮箱、token 剩余
+ama models discover chatgpt         # 账户可用的模型
+ama --model chatgpt/<模型>
+ama auth logout chatgpt
+```
+
+凭据是 `auth.json`（0600）里的 OAuth 条目，自动刷新、多进程串行刷新；token 不进日志、会话与事件。套餐请求费用记 0，在 `/session` 与 `ama stats` 里单列「订阅」；配额耗尽报 `quota_exceeded`，登录失效报 `auth_expired`。`--flavor codex` 是显式开启的备用路径。见 [docs/providers.md](docs/providers.md)「ChatGPT 登录」。
 
 ## 工具与预设
 
@@ -402,7 +436,8 @@ line 模式用 `/plan approve [模式|fresh]` / `/plan reject`；RPC 声明 `pla
 
 - 内置类型 `general`（缺省）、`explore`、`plan`（后两者强制只读、不弹审批）；`~/.config/ama/agents/*.md`、`.ama/agents/*.md`（需信任）或 `--agent-dir` 定义自己的类型（工具白名单、模型、权限、轮数、worktree 隔离）。
 - 同一回复里的多个 task 并行（`subagents.maxConcurrent`，缺省 4）；`background: true` 立即返回 `taskId`，完成后父会话收到 `<task-notification>`；`task{taskId}` 续聊；`task_ctl` 列出 / 等待 / 停止 / 读输出；`isolation: "worktree"` 在独立 git worktree 里跑。
-- 子会话工具表与父逐字节相同，首个请求复用父的缓存前缀。界面里 task 工具行折叠显示进度，`/tasks` 看输出或停止，`/agents` 列出可用类型。
+- 子会话工具表与父逐字节相同，首个请求复用父的缓存前缀。界面里 task 工具行折叠显示进度，`/agents` 列出可用类型。
+- **Agent 栏与子 Agent 视图**：运行中的任务列在状态行上方；输入为空时按 `Ctrl+B`（或 `↓`，tmux 里用它）聚焦 Agent 栏，↑↓ 选、Enter 打开该子 Agent 的全屏实时视图，在视图里输入直接发给它（Esc 返回，不中断）。`/tasks` 聚焦 Agent 栏，`/tasks <id>` 打开视图，`/tasks stop <id>` 停止。见 [docs/tui.md](docs/tui.md)「Agent 栏」。
 
 见 [docs/agents.md](docs/agents.md)「子 Agent」。
 
@@ -427,6 +462,21 @@ line 模式用 `/plan approve [模式|fresh]` / `/plan reject`；RPC 声明 `pla
 
 见 [docs/tui.md](docs/tui.md)「回滚」、[docs/rewind-plan.md](docs/rewind-plan.md) 与 [docs/sessions.md](docs/sessions.md)。
 
+## 记忆
+
+跨会话的个人笔记，**缺省关闭**。`ama memory enable` 开启（`--memory` / `AMA_MEMORY=1` 只开这一次）；之后说「记住……」，模型用 `memory` 工具写一条 Markdown。条目在 `<数据目录>/memory/` 下，分用户作用域与项目作用域（项目需已受信任）；会话开始时索引进系统提示，正文按需读取。`default` 模式下写入先询问，像凭据的内容拒写，子 Agent 只读。用 `/memory` 或 `ama memory list | show | edit | rm | path | enable | disable` 管理。关闭时请求逐字节不变。见 [docs/memory.md](docs/memory.md)。
+
+## 轨迹
+
+每次模型请求都把计时（首 token、解码、工具、重试、压缩）记进会话文件，不含正文。`/trace` 打开回合 → 请求 → 工具 → 子 Agent 的树，带耗时条、token 与缓存命中；`/trace <任务 id>` 看单个任务。要在终端外分享或排查：
+
+```sh
+ama sessions trace 3f9a1c2e --html trace.html   # 自包含单文件，已脱敏，无外链
+ama sessions trace 3f9a1c2e --json              # 与 RPC get_trace 同形
+```
+
+RPC 客户端用 `get_trace`（尾部分页、收到 `entry_appended` 后增量取），SDK 用 `session.trace()`。见 [docs/tui.md](docs/tui.md)「轨迹」、[docs/sessions.md](docs/sessions.md) 与 [docs/rpc.md](docs/rpc.md)。
+
 ## 界面与入口
 
 ### 终端界面
@@ -445,10 +495,11 @@ line 模式用 `/plan approve [模式|fresh]` / `/plan reject`；RPC 声明 `pla
 | Ctrl+L / Ctrl+T      | 选择模型 / 思考级别                                            |
 | Ctrl+G               | 底部信息行 两行 ↔ 一行（同 `/statusline`）                     |
 | Ctrl+V               | 粘贴剪贴板里的图片，插入 `@<路径>`（同 `/paste`）              |
+| Ctrl+B / ↓（空输入） | 有子 Agent 任务时聚焦 Agent 栏（tmux 里用 ↓）                  |
 | Ctrl+C               | 清空输入；输入为空时 1.5 秒内再按一次退出                      |
 | Tab                  | 补全：`/` 命令、模板与 Skill，`@` 文件路径                     |
 
-常用命令：`/model`、`/thinking`、`/permission`、`/tools`、`/compact`、`/tree`（回到某条消息之前重新分支）、`/fork`、`/resume`、`/new`、`/session`、`/cache`、`/hooks`、`/skill:<名字>`、`/help`；第五波新增 `/plan`（计划面板与审批，`/plan <目标>` 进入 Plan）、`/tasks`（子 Agent 任务）、`/agents`（可用类型与外部 Agent）、`/paste`（剪贴板图片）、`/rewind`（回滚）、`/statusline [full|compact]`。输入里的 `@图片路径`（或粘贴 / 拖入的图片路径）作为图片附件发给模型；`/model` 按「供应商 · 渠道」分组，标出上下文与 `img`。按键可在 `~/.config/ama/keybindings.json` 覆盖。见 [docs/tui.md](docs/tui.md)。
+常用命令：`/model`、`/thinking`、`/permission`、`/tools`、`/compact`、`/tree`（回到某条消息之前重新分支）、`/fork`、`/resume`、`/new`、`/session`、`/cache`、`/hooks`、`/skill:<名字>`、`/help`；第五波新增 `/plan`（计划面板与审批，`/plan <目标>` 进入 Plan）、`/tasks`（子 Agent 任务）、`/agents`（可用类型与外部 Agent）、`/paste`（剪贴板图片）、`/rewind`（回滚）、`/statusline [full|compact]`；第六波新增 `/config`（设置面板）、`/trace`（轨迹）、`/memory`（记忆），`/tasks` 改为聚焦 Agent 栏（`/tasks <id>` 打开子 Agent 视图）。输入里的 `@图片路径`（或粘贴 / 拖入的图片路径）作为图片附件发给模型；`/model` 按「供应商 · 渠道」分组，标出上下文与 `img`。按键可在 `~/.config/ama/keybindings.json` 覆盖。见 [docs/tui.md](docs/tui.md)。
 
 `--no-tui`（或 stdin / stdout 不是 TTY、`TERM=dumb`）进入行式界面：readline + 括号粘贴，命令相同。
 
@@ -487,7 +538,7 @@ line 模式用 `/plan approve [模式|fresh]` / `/plan reject`；RPC 声明 `pla
 | 0      | 正常                                                         |
 | 1      | 运行期错误（模型最终失败等）                                 |
 | 2      | 用法错误；当前模型不收图片                                   |
-| 3      | 配置 / profile / 路径错误                                    |
+| 3      | 配置 / profile / 路径错误；`ama config set` 拒绝了键或值     |
 | 4      | 无可用模型或 key                                             |
 | 5      | 会话不存在 / 损坏                                            |
 | 6      | 宿主 / Hook 启动失败                                         |
@@ -507,6 +558,7 @@ ama sessions search "parser" --role user  # 跨会话全文检索，/正则/ 也
 ama sessions show 3f9a1c2e                # 末尾列出用户消息编号
 ama -p --from 3f9a1c2e#2 --model packy/kimi-k2.5   # 用那条消息（含图片）换个模型再问
 ama sessions export 3f9a1c2e --format md --output s.md   # md / json / jsonl，导出前脱敏
+ama sessions trace 3f9a1c2e --html t.html               # 轨迹导出为单个 HTML（见「轨迹」）
 ```
 
 统计口径（命中率只算报告缓存的端点、费用只加有价请求等）与导出格式见 [docs/sessions.md](docs/sessions.md)。
@@ -519,7 +571,7 @@ ama sessions export 3f9a1c2e --format md --output s.md   # md / json / jsonl，�
 printf '{"id":"1","type":"prompt","message":"hi"}\n' | ama --mode rpc --model fake/echo
 ```
 
-`hello.capabilities` 列出服务端能力（`approvals`、`images`、`hooks`、`plans`），客户端用 `set_client_capabilities` 声明要接管的审批与计划审批。第五波新增计划（`plan_response` / `get_plan` / `get_todos`）、任务（`get_tasks` / `get_agents`）、回滚（`get_rewind_points` / `rewind` / `summarize_*`）命令与 `subagent_*`、`plan_*`、`limit_reached`、`telemetry_tick` 等事件。协议见 [docs/rpc.md](docs/rpc.md)，类型从 `@armadra/agent/rpc` 导入。
+`hello.capabilities` 列出服务端能力（`approvals`、`images`、`hooks`、`plans`），客户端用 `set_client_capabilities` 声明要接管的审批与计划审批。第五波新增计划（`plan_response` / `get_plan` / `get_todos`）、任务（`get_tasks` / `get_agents`）、回滚（`get_rewind_points` / `rewind` / `summarize_*`）命令与 `subagent_*`、`plan_*`、`limit_reached`、`telemetry_tick` 等事件；第六波新增 `get_trace` 与 `quota_update` 事件。按 `code` 判断，不要解析人读的 `error`（随界面语言变化）。协议见 [docs/rpc.md](docs/rpc.md)，类型从 `@armadra/agent/rpc` 导入。
 
 `ama --mode acp` 说 ACP（JSON-RPC over NDJSON），见 [docs/acp.md](docs/acp.md)。
 
@@ -569,33 +621,34 @@ Armadra 以 `ama --profile <path>` 启动 ama。profile 是一个 JSON 文件，
 
 ## 文档
 
-| 文档                                                  | 内容                                                                                    |
-| ----------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| [docs/providers.md](docs/providers.md)                | 内置供应商与渠道、API Key、自定义供应商与中转站、模型元数据快照、图像输入、compat、缓存 |
-| [docs/tui.md](docs/tui.md)                            | 终端界面：布局、状态栏、按键、命令、回滚、审批、Plan 审批、子 Agent、剪贴板图片、组件库 |
-| [docs/permissions.md](docs/permissions.md)            | 权限模式、plan 只读命令、判定顺序、沙箱内免审批、auto 三层判定、审批来源标注            |
-| [docs/plan.md](docs/plan.md)                          | Plan 模式：流程、计划格式、审批、分模型、配置与持久化                                   |
-| [docs/agents.md](docs/agents.md)                      | 子 Agent（类型、定义文件、后台、续聊、worktree）与外部 Agent（驱动、权限、环境、预算）  |
-| [docs/acp.md](docs/acp.md)                            | ACP：`ama --mode acp` 与 ama 作为 ACP 客户端                                            |
-| [docs/sandbox.md](docs/sandbox.md)                    | 操作系统沙箱：codemode 与 bash、各平台实现、配置与已知绕过                              |
-| [docs/codemode.md](docs/codemode.md)                  | codemode 脚本、沙箱与权限                                                               |
-| [docs/hooks.md](docs/hooks.md)                        | 命令式 Hook（hooks.json）                                                               |
-| [docs/host-api.md](docs/host-api.md)                  | 宿主适配器 API                                                                          |
-| [docs/rpc.md](docs/rpc.md)                            | RPC 协议（stdio JSONL）                                                                 |
-| [docs/session-format.md](docs/session-format.md)      | 会话文件格式                                                                            |
-| [docs/sessions.md](docs/sessions.md)                  | 会话统计、检索、`--from` 复用、导出、检查点与影子 git                                   |
-| [docs/rewind-plan.md](docs/rewind-plan.md)            | 检查点与回滚的设计                                                                      |
-| [docs/tui-design.md](docs/tui-design.md)              | 终端界面视觉规格与逐屏样稿                                                              |
-| [docs/design.md][design]                              | 总体设计与决策记录（第五波增补指引在 §0 之后）                                          |
-| [docs/extensions.md][extensions]                      | 本地扩展（设计草案，未实现）                                                            |
-| [docs/benchmarks/][benchmarks]                        | 预设基准、D20 todo 复测与缓存验收实验（报告与原始数据）                                 |
-| [docs/wave6-plan.md][wave6]                           | 第六波设计：Agent 栏与子 Agent 视图、轨迹、Memory、ChatGPT 登录、中英双语、`/config`    |
-| [docs/i18n.md][i18n]                                  | 中英双语开发约定：语言选择、消息目录与键名规范、模型侧隔离、检查脚本                    |
-| [docs/wave5-plan.md][wave5]                           | 第五波设计：状态行、模型元数据、渠道、图像、外部 Agent、Plan、子 Agent、压缩与 harness  |
-| [docs/implementation-plan.md][impl]、[wave3-plan][w3] | 早期实施计划（追溯用）                                                                  |
-| [docs/research/][research]                            | 第五波与第六波调研报告（追溯用）                                                        |
+| 文档                                                  | 内容                                                                                                           |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| [docs/providers.md](docs/providers.md)                | 内置供应商与渠道、API Key、ChatGPT 登录、自定义供应商与中转站、模型元数据快照、图像输入、compat、缓存          |
+| [docs/tui.md](docs/tui.md)                            | 终端界面：布局、状态栏、按键、命令、回滚、审批、Plan 审批、子 Agent 与 Agent 栏、轨迹、记忆、`/config`、组件库 |
+| [docs/permissions.md](docs/permissions.md)            | 权限模式、plan 只读命令、判定顺序、沙箱内免审批、auto 三层判定、审批来源标注                                   |
+| [docs/memory.md](docs/memory.md)                      | 记忆：开启、存储、`memory` 工具与权限、系统提示与缓存、命令                                                    |
+| [docs/plan.md](docs/plan.md)                          | Plan 模式：流程、计划格式、审批、分模型、配置与持久化                                                          |
+| [docs/agents.md](docs/agents.md)                      | 子 Agent（类型、定义文件、后台、续聊、worktree）与外部 Agent（驱动、权限、环境、预算）                         |
+| [docs/acp.md](docs/acp.md)                            | ACP：`ama --mode acp` 与 ama 作为 ACP 客户端                                                                   |
+| [docs/sandbox.md](docs/sandbox.md)                    | 操作系统沙箱：codemode 与 bash、各平台实现、配置与已知绕过                                                     |
+| [docs/codemode.md](docs/codemode.md)                  | codemode 脚本、沙箱与权限                                                                                      |
+| [docs/hooks.md](docs/hooks.md)                        | 命令式 Hook（hooks.json）                                                                                      |
+| [docs/host-api.md](docs/host-api.md)                  | 宿主适配器 API                                                                                                 |
+| [docs/rpc.md](docs/rpc.md)                            | RPC 协议（stdio JSONL）                                                                                        |
+| [docs/session-format.md](docs/session-format.md)      | 会话文件格式                                                                                                   |
+| [docs/sessions.md](docs/sessions.md)                  | 会话统计、检索、`--from` 复用、导出、轨迹、检查点与影子 git                                                    |
+| [docs/rewind-plan.md](docs/rewind-plan.md)            | 检查点与回滚的设计                                                                                             |
+| [docs/tui-design.md](docs/tui-design.md)              | 终端界面视觉规格与逐屏样稿                                                                                     |
+| [docs/design.md][design]                              | 总体设计与决策记录（第五波增补指引在 §0 之后）                                                                 |
+| [docs/extensions.md][extensions]                      | 本地扩展（设计草案，未实现）                                                                                   |
+| [docs/benchmarks/][benchmarks]                        | 预设基准、D20 todo 复测与缓存验收实验（报告与原始数据）                                                        |
+| [docs/wave6-plan.md][wave6]                           | 第六波设计：Agent 栏与子 Agent 视图、轨迹、Memory、ChatGPT 登录、中英双语、`/config`                           |
+| [docs/i18n.md][i18n]                                  | 中英双语开发约定：语言选择、消息目录与键名规范、模型侧隔离、检查脚本                                           |
+| [docs/wave5-plan.md][wave5]                           | 第五波设计：状态行、模型元数据、渠道、图像、外部 Agent、Plan、子 Agent、压缩与 harness                         |
+| [docs/implementation-plan.md][impl]、[wave3-plan][w3] | 早期实施计划（追溯用）                                                                                         |
+| [docs/research/][research]                            | 第五波与第六波调研报告（追溯用）                                                                               |
 
-npm 包里带上表前十五份（用户文档）；其余是设计与追溯材料，链接指向 GitHub。英文版：`tui`、`permissions`、`providers`、`rpc`、
+npm 包里带上表前十六份（用户文档）；其余是设计与追溯材料，链接指向 GitHub。英文版：`tui`、`permissions`、`providers`、`rpc`、
 `host-api`、`sessions` 六篇在 [docs/en/](docs/en/tui.md)，其余只有中文。
 
 [design]: https://github.com/Owlbay/armadra-agent/blob/main/docs/design.md
@@ -614,6 +667,7 @@ npm 包里带上表前十五份（用户文档）；其余是设计与追溯材�
 - **外部 Agent 的真实 CLI 测试只在本地跑**：CI 只跑录制回放与 ama 驱动 ama；接 `claude` / `codex` 的端到端需要本机已登录，`AMA_E2E_AGENTS=1` 时运行（会用你的订阅额度），见 [docs/agents.md](docs/agents.md)「本地验证真实 CLI」。
 - **DeepSeek、智谱、Kimi 缺省仍走 Chat**：它们的 Messages 渠道（`@messages`）只在中转上测过，等官方直连过了实测门（`scripts/channel-probe.mjs`）再切缺省。
 - **models.dev 刷新 PR 不自动触发 CI**：仓库 secret `MODELS_DEV_PR_TOKEN` 没配时，每周的 workflow 用缺省 token 开 PR（先在 workflow 里自跑 `pnpm run ci` 并把结果写进描述）。
+- **ChatGPT 登录尚未用真账户验证**：两种 flavor 都只对本地模拟服务测过。待 Plus / Pro 真账户确认：官方（siwc）路径的工具 `namespace` 形状（`toolsInNamespace` 保持关闭）、codex 设备码是否需在 ChatGPT 安全设置里开启、codex `wham/usage` 配额返回体的字段。真账户检查本地用 `AMA_E2E_CHATGPT=1` 跑（见 [docs/providers.md](docs/providers.md)）。
 - 子 Agent 深度 1，不读 `.claude/agents`，不支持继承父对话的 fork 模式；Windows 没有操作系统沙箱。
 
 ## 开发
@@ -623,7 +677,7 @@ npm 包里带上表前十五份（用户文档）；其余是设计与追溯材�
 ```sh
 pnpm install
 pnpm run ci              # typecheck、fmt:check、check:deps、check:i18n、release:check、test、build，再跑 bundle --version
-AMA_E2E=1 pnpm test:e2e  # bundle 级端到端：print / rpc / acp / plan / 子 Agent / 回滚 / codemode / cache / host（fake 供应商，不花钱）
+AMA_E2E=1 pnpm test:e2e  # bundle 级端到端：print / rpc / acp / plan / 子 Agent / 回滚 / codemode / cache / host / auth / config / memory / trace / i18n（fake 供应商，不花钱）
 ```
 
 pnpm 10 起 `pnpm ci` 是内置的「清理后安装」，跑检查要写 `pnpm run ci`。常用单项：`pnpm test`、`pnpm typecheck`、`pnpm fmt`、`pnpm build`。测试一律用 fake 供应商：`AMA_FAKE_SCRIPT=<脚本.json>` 让它按脚本产出文本、工具调用、429、断流等，示例在 `test/fixtures/scripts/`。
