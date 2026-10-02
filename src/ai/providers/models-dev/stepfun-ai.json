@@ -1,0 +1,150 @@
+{
+  "api": "https://api.stepfun.ai/v1",
+  "id": "stepfun-ai",
+  "models": {
+    "step-1-32k": {
+      "cost": {
+        "cache_read": 0.41,
+        "input": 2.05,
+        "output": 9.59
+      },
+      "knowledge": "2024-06",
+      "limit": {
+        "context": 32768,
+        "input": 32768,
+        "output": 32768
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "Step 1 (32K)",
+      "reasoning": false,
+      "release_date": "2025-01-01"
+    },
+    "step-2-16k": {
+      "cost": {
+        "cache_read": 1.04,
+        "input": 5.21,
+        "output": 16.44
+      },
+      "knowledge": "2024-06",
+      "limit": {
+        "context": 16384,
+        "input": 16384,
+        "output": 8192
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "Step 2 (16K)",
+      "reasoning": false,
+      "release_date": "2025-01-01"
+    },
+    "step-3.5-flash": {
+      "cost": {
+        "cache_read": 0.02,
+        "input": 0.1,
+        "output": 0.3
+      },
+      "interleaved": {
+        "field": "reasoning_content"
+      },
+      "knowledge": "2025-01",
+      "limit": {
+        "context": 256000,
+        "input": 256000,
+        "output": 256000
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "Step 3.5 Flash",
+      "reasoning": true,
+      "release_date": "2026-01-29"
+    },
+    "step-3.5-flash-2603": {
+      "cost": {
+        "cache_read": 0.02,
+        "input": 0.1,
+        "output": 0.3
+      },
+      "interleaved": {
+        "field": "reasoning_content"
+      },
+      "knowledge": "2025-01",
+      "limit": {
+        "context": 256000,
+        "input": 256000,
+        "output": 256000
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "Step 3.5 Flash 2603",
+      "reasoning": true,
+      "release_date": "2026-04-02"
+    },
+    "step-3.7-flash": {
+      "canonical_model_id": "stepfun/step-3.7-flash",
+      "cost": {
+        "cache_read": 0.037,
+        "input": 0.185,
+        "output": 1.11
+      },
+      "interleaved": {
+        "field": "reasoning_content"
+      },
+      "knowledge": "2026-03-01",
+      "limit": {
+        "context": 256000,
+        "input": 256000,
+        "output": 256000
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ]
+      },
+      "name": "Step 3.7 Flash",
+      "reasoning": true,
+      "release_date": "2026-05-29"
+    },
+    "step-5-preview": {
+      "canonical_model_id": "stepfun/step-5-preview",
+      "cost": {
+        "cache_read": 0.05,
+        "input": 1,
+        "output": 2.7
+      },
+      "interleaved": {
+        "field": "reasoning_content"
+      },
+      "limit": {
+        "context": 1024000,
+        "input": 1024000,
+        "output": 65536
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ]
+      },
+      "name": "Step 5 Preview",
+      "reasoning": true,
+      "release_date": "2026-09-16"
+    }
+  },
+  "name": "StepFun (Global)"
+}

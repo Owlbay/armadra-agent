@@ -11,29 +11,53 @@
 
 import type { Model, ModelCost } from "../types.js";
 
-/** 用到的模型字段（name、推理、工具调用、输入模态、上下限、价格、canonical）；其余写缓存时丢掉。 */
+/** 价格（$/1M token）；input 与 output 都有才保留。 */
+export interface ModelsDevPrices {
+  input: number;
+  output: number;
+  cache_read?: number;
+  cache_write?: number;
+}
+
+/**
+ * 用到的模型字段（models.dev 原名）；其余裁剪时丢掉。快照只多存 family / knowledge /
+ * release_date / limit.input / 价格档位 / interleaved / status（docs/wave5-plan.md §2.1）。
+ */
 export interface ModelsDevModel {
   id: string;
   name?: string;
+  family?: string;
+  /** 知识截止（`YYYY-MM` / `YYYY-MM-DD`）。 */
+  knowledge?: string;
+  release_date?: string;
   reasoning?: boolean;
   tool_call?: boolean;
   modalities?: { input?: string[] };
-  limit?: { context?: number; output?: number };
-  cost?: { input?: number; output?: number; cache_read?: number; cache_write?: number };
+  limit?: { context?: number; input?: number; output?: number };
+  cost?: ModelsDevPrices & {
+    context_over_200k?: ModelsDevPrices;
+    tiers?: (ModelsDevPrices & { tier: { size: number; type: "context" } })[];
+  };
+  interleaved?: true | { field: string };
+  /** 只留 beta（deprecated 在快照里已过滤）。 */
+  status?: "beta";
   canonical_model_id?: string;
 }
 
 export interface ModelsDevProvider {
   id: string;
   name?: string;
+  /** 供应商级 OpenAI / Anthropic 兼容 baseUrl（协议线索，展示用）。 */
+  api?: string;
   models: Record<string, ModelsDevModel>;
 }
 
 export type ModelsDevData = Record<string, ModelsDevProvider>;
 
 /**
- * 原厂供应商（models.dev 的供应商 id，顺序即优先级）。通义在 `alibaba`、Llama 在 `llama`、
- * 智谱国际站在 `zai`；models.dev 没有 `qwen` / `meta` 这样的供应商 id。
+ * 原厂供应商（models.dev 的供应商 id，顺序即优先级）。通义在 `alibaba`、Meta 在 `meta`（Llama API
+ * 在 `llama`）、智谱国际站在 `zai`、豆包在 `volcengine`、混元在 `tencent-tokenhub`；models.dev 没有
+ * `qwen` 这样的供应商 id。
  */
 export const FIRST_PARTY_PROVIDERS: readonly string[] = [
   "anthropic",
@@ -50,10 +74,14 @@ export const FIRST_PARTY_PROVIDERS: readonly string[] = [
   "mistral",
   "minimax",
   "minimax-cn",
+  "meta",
   "llama",
   "cohere",
   "xiaomi",
   "stepfun",
+  "stepfun-ai",
+  "volcengine",
+  "tencent-tokenhub",
   "perplexity",
   "ai21",
   "upstage",
@@ -88,7 +116,19 @@ export interface ModelsDevFields {
   cost?: ModelCost;
   /** models.dev 的 tool_call；Model 上没有对应字段，只用于展示与写入过滤。 */
   toolCall?: boolean;
+  family?: string;
+  knowledge?: string;
+  releaseDate?: string;
+  inputLimit?: number;
+  status?: "beta";
 }
+
+/**
+ * 映射口径：`custom`（自定义模型补全，缺省）maxTokens 封顶 64k、缺的缓存价按输入价；
+ * `catalog`（内置目录继承）maxTokens 不封顶（目录模型的输出上限就是原厂值，有意调小的写在目录里）、
+ * 缺的缓存价记 0（与目录一贯写法一致：没有单独计价）。
+ */
+export type ModelsDevMapping = "custom" | "catalog";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -106,14 +146,51 @@ function strings(value: unknown): string[] | undefined {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : undefined;
 }
 
+function prices(value: unknown): ModelsDevPrices | undefined {
+  if (!isRecord(value)) return undefined;
+  const input = nonNegative(value["input"]);
+  const output = nonNegative(value["output"]);
+  if (input === undefined || output === undefined) return undefined;
+  const out: ModelsDevPrices = { input, output };
+  const read = nonNegative(value["cache_read"]);
+  if (read !== undefined) out.cache_read = read;
+  const write = nonNegative(value["cache_write"]);
+  if (write !== undefined) out.cache_write = write;
+  return out;
+}
+
+function trimCost(value: unknown): ModelsDevModel["cost"] {
+  const base = prices(value);
+  if (base === undefined || !isRecord(value)) return undefined;
+  const out: NonNullable<ModelsDevModel["cost"]> = base;
+  const over = prices(value["context_over_200k"]);
+  if (over !== undefined) out.context_over_200k = over;
+  const tiers: NonNullable<NonNullable<ModelsDevModel["cost"]>["tiers"]> = [];
+  for (const tier of Array.isArray(value["tiers"]) ? value["tiers"] : []) {
+    const p = prices(tier);
+    const spec = isRecord(tier) ? tier["tier"] : undefined;
+    const size = isRecord(spec) ? positive(spec["size"]) : undefined;
+    if (p !== undefined && size !== undefined && isRecord(spec) && spec["type"] === "context")
+      tiers.push({ ...p, tier: { size, type: "context" } });
+  }
+  if (tiers.length > 0) out.tiers = tiers;
+  return out;
+}
+
+/** 字段裁剪（不过滤）；与 scripts/update-models-dev.mjs 的 trimModel 同一口径，另多留 tool_call。 */
 function trimModel(id: string, raw: Record<string, unknown>): ModelsDevModel {
   const out: ModelsDevModel = { id };
-  if (typeof raw["name"] === "string") out.name = raw["name"];
+  for (const key of ["name", "family", "knowledge", "release_date"] as const) {
+    const v = raw[key];
+    if (typeof v === "string" && v !== "") out[key] = v;
+  }
   for (const key of ["reasoning", "tool_call"] as const) {
-    if (typeof raw[key] === "boolean") out[key] = raw[key];
+    const v = raw[key];
+    if (typeof v === "boolean") out[key] = v;
   }
   if (typeof raw["canonical_model_id"] === "string")
     out.canonical_model_id = raw["canonical_model_id"];
+  if (raw["status"] === "beta") out.status = "beta";
   const modalities = raw["modalities"];
   if (isRecord(modalities)) {
     const input = strings(modalities["input"]);
@@ -121,23 +198,52 @@ function trimModel(id: string, raw: Record<string, unknown>): ModelsDevModel {
   }
   const limit = raw["limit"];
   if (isRecord(limit)) {
-    const context = positive(limit["context"]);
-    const output = positive(limit["output"]);
-    out.limit = {
-      ...(context !== undefined ? { context } : {}),
-      ...(output !== undefined ? { output } : {}),
-    };
-  }
-  const cost = raw["cost"];
-  if (isRecord(cost)) {
-    const c: NonNullable<ModelsDevModel["cost"]> = {};
-    for (const key of ["input", "output", "cache_read", "cache_write"] as const) {
-      const v = nonNegative(cost[key]);
-      if (v !== undefined) c[key] = v;
+    const l: NonNullable<ModelsDevModel["limit"]> = {};
+    for (const key of ["context", "input", "output"] as const) {
+      const v = positive(limit[key]);
+      if (v !== undefined) l[key] = v;
     }
-    out.cost = c;
+    if (Object.keys(l).length > 0) out.limit = l;
   }
+  const cost = trimCost(raw["cost"]);
+  if (cost !== undefined) out.cost = cost;
+  const interleaved = raw["interleaved"];
+  if (interleaved === true) out.interleaved = true;
+  else if (isRecord(interleaved) && typeof interleaved["field"] === "string")
+    out.interleaved = { field: interleaved["field"] };
   return out;
+}
+
+/** 快照过滤：丢 deprecated、输出不含文本、上下文为 0 / 缺失、tool_call:false（docs/wave5-plan.md §2.1）。 */
+export function keepForSnapshot(raw: unknown): boolean {
+  if (!isRecord(raw)) return false;
+  if (raw["status"] === "deprecated" || raw["tool_call"] === false) return false;
+  const modalities = raw["modalities"];
+  const output = isRecord(modalities) ? strings(modalities["output"]) : undefined;
+  if (output !== undefined && !output.includes("text")) return false;
+  const limit = raw["limit"];
+  return isRecord(limit) && positive(limit["context"]) !== undefined;
+}
+
+/** 裁剪一家供应商；`keep` 给出时只留它放行的模型（模型 id 按字典序）。 */
+export function trimProvider(
+  providerId: string,
+  provider: Record<string, unknown>,
+  keep?: (modelId: string, raw: unknown) => boolean,
+): ModelsDevProvider {
+  const models: Record<string, ModelsDevModel> = {};
+  const rawModels = isRecord(provider["models"]) ? provider["models"] : {};
+  for (const modelId of Object.keys(rawModels).sort()) {
+    const model = rawModels[modelId];
+    if (!isRecord(model) || (keep !== undefined && !keep(modelId, model))) continue;
+    models[modelId] = trimModel(modelId, model);
+  }
+  return {
+    id: providerId,
+    ...(typeof provider["name"] === "string" ? { name: provider["name"] } : {}),
+    ...(typeof provider["api"] === "string" ? { api: provider["api"] } : {}),
+    models,
+  };
 }
 
 /** 校验并裁剪 api.json：只留用到的字段；形状不对的供应商 / 模型跳过。整体不是对象抛错。 */
@@ -146,15 +252,7 @@ export function trimModelsDev(raw: unknown): ModelsDevData {
   const out: ModelsDevData = {};
   for (const [providerId, provider] of Object.entries(raw)) {
     if (!isRecord(provider) || !isRecord(provider["models"])) continue;
-    const models: Record<string, ModelsDevModel> = {};
-    for (const [modelId, model] of Object.entries(provider["models"])) {
-      if (isRecord(model)) models[modelId] = trimModel(modelId, model);
-    }
-    out[providerId] = {
-      id: providerId,
-      ...(typeof provider["name"] === "string" ? { name: provider["name"] } : {}),
-      models,
-    };
+    out[providerId] = trimProvider(providerId, provider);
   }
   return out;
 }
@@ -321,29 +419,53 @@ export class ModelsDevIndex {
   }
 }
 
-/** models.dev 条目 → ama Model 字段（规则见 docs/providers.md）。 */
-export function modelsDevFields(model: ModelsDevModel): ModelsDevFields {
+function toCost(p: ModelsDevPrices, mapping: ModelsDevMapping): Omit<ModelCost, "tiers"> {
+  const missing = mapping === "catalog" ? 0 : p.input;
+  return {
+    input: p.input,
+    output: p.output,
+    cacheRead: p.cache_read ?? missing,
+    cacheWrite: p.cache_write ?? missing,
+  };
+}
+
+/** models.dev 条目 → ama Model 字段（规则见 docs/providers.md「模型元数据」）。 */
+export function modelsDevFields(
+  model: ModelsDevModel,
+  mapping: ModelsDevMapping = "custom",
+): ModelsDevFields {
   const out: ModelsDevFields = {};
   if (model.name !== undefined) out.name = model.name;
   const context = positive(model.limit?.context);
   if (context !== undefined) out.contextWindow = Math.floor(context);
   const output = positive(model.limit?.output);
   if (output !== undefined) {
-    out.maxTokens = Math.floor(Math.min(output, MODELS_DEV_MAX_OUTPUT, context ?? output));
+    const cap = mapping === "catalog" ? output : MODELS_DEV_MAX_OUTPUT;
+    out.maxTokens = Math.floor(Math.min(output, cap, context ?? output));
   }
+  const inputLimit = positive(model.limit?.input);
+  if (inputLimit !== undefined && inputLimit !== context) out.inputLimit = Math.floor(inputLimit);
   const input = model.modalities?.input;
   if (input !== undefined) out.input = input.includes("image") ? ["text", "image"] : ["text"];
   if (model.reasoning !== undefined) out.reasoning = model.reasoning;
   if (model.tool_call !== undefined) out.toolCall = model.tool_call;
   const cost = model.cost;
   if (cost?.input !== undefined && cost.output !== undefined) {
-    out.cost = {
-      input: cost.input,
-      output: cost.output,
-      cacheRead: cost.cache_read ?? cost.input,
-      cacheWrite: cost.cache_write ?? cost.input,
-    };
+    out.cost = toCost(cost, mapping);
+    // 档位：优先通用 tiers；只有 context_over_200k 时折成 200k 一档。
+    const tiers =
+      cost.tiers !== undefined && cost.tiers.length > 0
+        ? cost.tiers.map((t) => ({ inputTokensAbove: t.tier.size, ...toCost(t, mapping) }))
+        : cost.context_over_200k !== undefined
+          ? [{ inputTokensAbove: 200_000, ...toCost(cost.context_over_200k, mapping) }]
+          : [];
+    if (tiers.length > 0)
+      out.cost.tiers = tiers.sort((a, b) => a.inputTokensAbove - b.inputTokensAbove);
   }
+  if (model.family !== undefined) out.family = model.family;
+  if (model.knowledge !== undefined) out.knowledge = model.knowledge;
+  if (model.release_date !== undefined) out.releaseDate = model.release_date;
+  if (model.status === "beta") out.status = "beta";
   return out;
 }
 

@@ -139,7 +139,11 @@ describe("ama config show", () => {
       providers: {
         relay: {
           baseUrl: "https://relay.example/v1",
-          models: [{ id: "glm-5", api: "anthropic-messages" }, { id: "deepseek-v4-flash" }],
+          models: [
+            // modelsDev:false：本用例只看协议与 baseUrl 的来源，不要快照补字段（快照随包携带）
+            { id: "glm-5", api: "anthropic-messages", modelsDev: false },
+            { id: "deepseek-v4-flash", modelsDev: false },
+          ],
         },
       },
     });

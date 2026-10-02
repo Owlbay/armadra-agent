@@ -1,30 +1,39 @@
 /**
- * models.dev 缓存（docs/providers.md「模型元数据：models.dev」）。
+ * models.dev 索引 = 内置快照 ⊕ 用户级覆盖（docs/wave5-plan.md §2.2、docs/providers.md「模型元数据」）。
  *
- * - 缓存文件 `<dataDir>/models-dev.json`：`{ version, url, fetchedAt, etag?, providers }`，providers 是
- *   `trimModelsDev()` 裁剪后的数据（约 2.3 MB，原始约 5 MB）。写入走同目录临时文件 + rename。
- * - **启动不联网**：`loadModelsDevIndex()` 只读缓存（按路径 + mtime 记忆，同一进程只解析一次）。
- * - 联网只在 `ama providers add|refresh`、`ama models discover`、`ama models refresh-catalog` 调
- *   `refreshModelsDev()` 时发生：缓存 24 小时内不重拉（`force` 例外），带 `If-None-Match`；304 只刷新时间；
- *   失败时返回旧缓存与 warning。`AMA_MODELS_DEV_URL` 换数据源。
+ * - 内置快照随 bundle 携带（models-dev-snapshot.ts），**启动与运行都不联网**。
+ * - 覆盖文件 `<dataDir>/models-dev.json`：`{ version: 2, url, fetchedAt, providers }`，只有
+ *   `ama models refresh` 会写（`refreshModelsDev()`，显式联网，按快照同一清单裁剪）。存在且
+ *   fetchedAt 晚于快照才叠加；同 provider/model 以覆盖为准。旧版（version 1，全量 2 MB 缓存）忽略。
+ * - `loadModelsDevIndex()` 按覆盖文件路径 + mtime + 大小记忆，同一进程只解析一次。
+ * - `AMA_MODELS_DEV_URL` 换刷新的数据源。
  */
 
 import { mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { ModelsDevIndex, trimModelsDev, type ModelsDevData } from "./models-dev.js";
+import type { ModelsDevData, ModelsDevIndex } from "./models-dev.js";
+import { ModelsDevIndex as Index } from "./models-dev.js";
+import {
+  buildSnapshot,
+  builtinSnapshot,
+  builtinSnapshotIndex,
+  diffSnapshots,
+  mergeSnapshot,
+  snapshotList,
+  snapshotMeta,
+  type SnapshotDiff,
+} from "./models-dev-snapshot.js";
 
 export const MODELS_DEV_URL = "https://models.dev/api.json";
 export const MODELS_DEV_URL_ENV = "AMA_MODELS_DEV_URL";
 export const MODELS_DEV_FILE = "models-dev.json";
-export const MODELS_DEV_TTL_MS = 24 * 60 * 60 * 1000;
-export const MODELS_DEV_TIMEOUT_MS = 30_000;
+export const MODELS_DEV_TIMEOUT_MS = 60_000;
 
 export interface ModelsDevCacheFile {
-  version: 1;
+  version: 2;
   url: string;
   /** ISO 8601。 */
   fetchedAt: string;
-  etag?: string;
   providers: ModelsDevData;
 }
 
@@ -39,13 +48,14 @@ export function modelsDevUrl(
   return custom ? custom : MODELS_DEV_URL;
 }
 
-/** 读缓存；不存在或损坏返回 undefined（损坏不报错：下次拉取会覆盖）。 */
+/** 读覆盖文件；不存在、旧版或损坏返回 undefined（损坏不报错：下次 refresh 会覆盖）。 */
 export function readModelsDevCache(dataDir: string): ModelsDevCacheFile | undefined {
   try {
     const value = JSON.parse(readFileSync(modelsDevCachePath(dataDir), "utf8")) as unknown;
     if (typeof value !== "object" || value === null) return undefined;
     const file = value as Partial<ModelsDevCacheFile>;
-    if (file.version !== 1 || typeof file.fetchedAt !== "string") return undefined;
+    if (file.version !== 2 || typeof file.fetchedAt !== "string") return undefined;
+    if (Number.isNaN(Date.parse(file.fetchedAt))) return undefined;
     if (typeof file.providers !== "object" || file.providers === null) return undefined;
     return file as ModelsDevCacheFile;
   } catch {
@@ -62,122 +72,134 @@ export function writeModelsDevCache(dataDir: string, file: ModelsDevCacheFile): 
   memo = undefined;
 }
 
-let memo: { key: string; index: ModelsDevIndex | undefined } | undefined;
+/** 覆盖文件是否生效：fetchedAt 晚于内置快照。 */
+export function overrideApplies(file: ModelsDevCacheFile): boolean {
+  return Date.parse(file.fetchedAt) > Date.parse(snapshotMeta().fetchedAt);
+}
 
-/** 只读缓存构造索引（不联网）；没有缓存返回 undefined。 */
-export function loadModelsDevIndex(dataDir: string): ModelsDevIndex | undefined {
+let memo: { key: string; index: ModelsDevIndex } | undefined;
+
+/** 快照 ⊕ 覆盖（零网络；没有覆盖文件时只做一次 stat）。 */
+export function loadModelsDevIndex(dataDir: string): ModelsDevIndex {
   const path = modelsDevCachePath(dataDir);
   let key: string;
   try {
     const stat = statSync(path);
     key = `${path}\0${stat.mtimeMs}\0${stat.size}`;
   } catch {
-    return undefined;
+    return builtinSnapshotIndex();
   }
   if (memo?.key === key) return memo.index;
   const file = readModelsDevCache(dataDir);
-  const index = file !== undefined ? new ModelsDevIndex(file.providers) : undefined;
+  const index =
+    file !== undefined && overrideApplies(file)
+      ? new Index(mergeSnapshot(builtinSnapshot(), file.providers))
+      : builtinSnapshotIndex();
   memo = { key, index };
   return index;
 }
 
-export type RefreshStatus = "fresh" | "updated" | "not-modified" | "stale" | "unavailable";
+/** 当前索引的来源说明（`providers add` / `models discover` 输出用）。 */
+export function describeModelsDev(dataDir: string): string {
+  const index = loadModelsDevIndex(dataDir);
+  const file = readModelsDevCache(dataDir);
+  const size = `${index.providerCount} 家供应商、${index.modelCount} 个模型`;
+  const via =
+    file !== undefined && overrideApplies(file)
+      ? `快照 ${snapshotMeta().fetchedAt} ⊕ 刷新 ${file.fetchedAt}`
+      : `快照 ${snapshotMeta().fetchedAt}`;
+  return `models.dev：${via}（${size}）`;
+}
+
+export type RefreshStatus = "updated" | "unchanged" | "failed";
 
 export interface RefreshResult {
   status: RefreshStatus;
-  index?: ModelsDevIndex;
-  fetchedAt?: string;
   url: string;
+  fetchedAt?: string;
+  /** 与刷新前的索引（快照 ⊕ 旧覆盖）相比。 */
+  diff?: SnapshotDiff;
+  index: ModelsDevIndex;
   warning?: string;
 }
 
 export interface RefreshOptions {
   dataDir: string;
   env?: Readonly<Record<string, string | undefined>>;
-  /** 忽略 TTL（`ama models refresh-catalog`）。 */
-  force?: boolean;
-  ttlMs?: number;
+  /** 只刷新这几家（须在快照清单里）。 */
+  providers?: readonly string[];
   timeoutMs?: number;
   now?: () => number;
   fetch?: typeof fetch;
 }
 
-/** 按需拉取 models.dev 并更新缓存；失败时回落旧缓存（status `stale`）或无数据（`unavailable`）。 */
+/** 显式联网刷新（只被 `ama models refresh` 调用）：拉 api.json、按清单裁剪、写用户级覆盖。 */
 export async function refreshModelsDev(options: RefreshOptions): Promise<RefreshResult> {
   const url = modelsDevUrl(options.env);
   const now = options.now ?? Date.now;
-  const cached = readModelsDevCache(options.dataDir);
-  const cachedIndex = (): ModelsDevIndex | undefined =>
-    cached !== undefined ? new ModelsDevIndex(cached.providers) : undefined;
-  const age = cached !== undefined ? now() - Date.parse(cached.fetchedAt) : Infinity;
-  if (
-    cached !== undefined &&
-    cached.url === url &&
-    !options.force &&
-    age >= 0 &&
-    age < (options.ttlMs ?? MODELS_DEV_TTL_MS)
-  ) {
-    return {
-      status: "fresh",
-      index: cachedIndex() as ModelsDevIndex,
-      fetchedAt: cached.fetchedAt,
-      url,
-    };
-  }
-  const doFetch = options.fetch ?? fetch;
+  const before = loadModelsDevIndex(options.dataDir);
+  const fail = (reason: string): RefreshResult => ({
+    status: "failed",
+    url,
+    index: before,
+    warning: `models.dev 刷新失败（${reason}），沿用现有数据`,
+  });
+  const list = snapshotList();
+  const unknown = (options.providers ?? []).filter((p) => !list.providers.includes(p));
+  if (unknown.length > 0)
+    return fail(`不在收录清单里：${unknown.join(", ")}；可选 ${list.providers.join(", ")}`);
+  let fresh: ModelsDevData;
   try {
-    const headers: Record<string, string> = { accept: "application/json" };
-    if (cached?.etag !== undefined && cached.url === url) headers["if-none-match"] = cached.etag;
-    const response = await doFetch(url, {
-      headers,
+    const response = await (options.fetch ?? fetch)(url, {
+      headers: { accept: "application/json" },
       signal: AbortSignal.timeout(options.timeoutMs ?? MODELS_DEV_TIMEOUT_MS),
     });
-    const fetchedAt = new Date(now()).toISOString();
-    if (response.status === 304 && cached !== undefined) {
-      writeModelsDevCache(options.dataDir, { ...cached, fetchedAt });
-      return { status: "not-modified", index: cachedIndex() as ModelsDevIndex, fetchedAt, url };
-    }
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const providers = trimModelsDev(await response.json());
-    const etag = response.headers.get("etag") ?? undefined;
-    writeModelsDevCache(options.dataDir, {
-      version: 1,
-      url,
-      fetchedAt,
-      ...(etag !== undefined ? { etag } : {}),
-      providers,
-    });
-    return { status: "updated", index: new ModelsDevIndex(providers), fetchedAt, url };
+    fresh = buildSnapshot(await response.json(), list, options.providers);
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    if (cached !== undefined) {
-      return {
-        status: "stale",
-        index: cachedIndex() as ModelsDevIndex,
-        fetchedAt: cached.fetchedAt,
-        url,
-        warning: `models.dev 拉取失败（${reason}），沿用 ${cached.fetchedAt} 的缓存`,
-      };
-    }
-    return {
-      status: "unavailable",
-      url,
-      warning: `models.dev 拉取失败（${reason}），没有缓存可用`,
-    };
+    return fail(error instanceof Error ? error.message : String(error));
   }
+  const fetchedAt = new Date(now()).toISOString();
+  const previous = readModelsDevCache(options.dataDir);
+  const kept = previous !== undefined && overrideApplies(previous) ? previous.providers : {};
+  writeModelsDevCache(options.dataDir, {
+    version: 2,
+    url,
+    fetchedAt,
+    providers: { ...kept, ...fresh },
+  });
+  const diff = diffSnapshots(before.data, fresh);
+  const changed = diff.added.length + diff.removed.length + diff.changed.length > 0;
+  return {
+    status: changed ? "updated" : "unchanged",
+    url,
+    fetchedAt,
+    diff,
+    index: loadModelsDevIndex(options.dataDir),
+  };
 }
 
-/** 一行状态说明（命令输出用）。 */
-export function describeRefresh(result: RefreshResult): string {
-  const size = result.index
-    ? `${result.index.providerCount} 家供应商、${result.index.modelCount} 个模型`
-    : "无数据";
+/** 刷新结果的说明（命令输出用）：一行状态 + 新增 / 删除 / 变化清单。 */
+export function describeRefresh(result: RefreshResult, limit = 20): string {
+  const size = `${result.index.providerCount} 家供应商、${result.index.modelCount} 个模型`;
   const text: Record<RefreshStatus, string> = {
-    fresh: "缓存未过期",
-    updated: "已更新",
-    "not-modified": "未变化（304）",
-    stale: "拉取失败，用旧缓存",
-    unavailable: "不可用",
+    updated: "已刷新",
+    unchanged: "已刷新，无变化",
+    failed: "刷新失败",
   };
-  return `models.dev：${text[result.status]}（${size}${result.fetchedAt ? `，${result.fetchedAt}` : ""}）`;
+  const lines = [
+    `models.dev：${text[result.status]}（${size}${result.fetchedAt ? `，${result.fetchedAt}` : ""}）`,
+  ];
+  const section = (title: string, items: readonly string[]): void => {
+    if (items.length === 0) return;
+    lines.push(`${title}（${items.length}）：`);
+    for (const item of items.slice(0, limit)) lines.push(`  ${item}`);
+    if (items.length > limit) lines.push(`  …另 ${items.length - limit} 条`);
+  };
+  if (result.diff !== undefined) {
+    section("新增", result.diff.added);
+    section("上游删除（快照里的条目保留）", result.diff.removed);
+    section("变化", result.diff.changed);
+  }
+  return lines.join("\n");
 }

@@ -2,12 +2,13 @@
  * 用 models.dev 缓存给自定义模型补元数据（docs/providers.md「模型元数据：models.dev」）。
  *
  * 优先级：用户配置写了的字段 > models.dev > 自定义缺省（maxTokens 8192、input ["text"]、
- * reasoning false、不猜 contextWindow）。内置目录的模型不经过这里（目录本身就是人工校对的值）。
- * 只读传入的索引，不联网。
+ * reasoning false、不猜 contextWindow）。内置目录的模型不经过这里：目录在 catalog.ts 里已经
+ * 「快照 ⊕ 覆盖」合并好（[W5-M1]），这里只给它们标来源。只读传入的索引，不联网。
  */
 
 import type { ModelConfig } from "../../config/types.js";
 import type { Model } from "../types.js";
+import { catalogInherited } from "./catalog.js";
 import {
   ENRICHABLE_FIELDS,
   modelsDevFields,
@@ -48,6 +49,9 @@ export function lazyIndex(source: ModelsDevSource): () => ModelsDevIndex | undef
   };
 }
 
+/** 只作说明的元数据（不进来源表）：缺了就从 models.dev 补。 */
+const METADATA_FIELDS = ["family", "knowledge", "releaseDate", "inputLimit", "status"] as const;
+
 function needsLookup(entry: Partial<Model>): boolean {
   return ENRICHABLE_FIELDS.some((field) => entry[field] === undefined);
 }
@@ -86,14 +90,26 @@ export function enrichEntry(
     sources[field] = "models.dev";
   }
   if (out.name === undefined && fields.name !== undefined) out.name = fields.name;
+  for (const field of METADATA_FIELDS) {
+    if (out[field] === undefined && fields[field] !== undefined)
+      (out as Record<string, unknown>)[field] = fields[field];
+  }
   return { entry: out, metadata };
 }
 
-/** 内置目录模型的来源（全部 catalog；目录没写 contextWindow / cost 的为缺省）。 */
+/**
+ * 内置目录模型的来源：目录自己写的为 catalog，从入库快照继承的为 models.dev（catalog.ts），
+ * 都没有的为缺省。
+ */
 export function catalogMetadata(model: Model): ModelMetadata {
+  const inherited = catalogInherited(model.provider, model.id);
   const sources = {} as Record<EnrichableField, FieldSource>;
   for (const field of ENRICHABLE_FIELDS) {
-    sources[field] = model[field] !== undefined ? "catalog" : "default";
+    sources[field] = inherited.includes(field)
+      ? "models.dev"
+      : model[field] !== undefined
+        ? "catalog"
+        : "default";
   }
   return { sources, looked: false };
 }

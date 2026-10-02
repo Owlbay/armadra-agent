@@ -33,6 +33,20 @@
 - **`default` 预设加 `todo`**（第五波 D20）：会话开始时随工具表固定，不中途开启；系统提示 tools 节与工具表多约 150 token，
   升级后续接的旧会话会有一次缓存未命中。**这是待复测的决定**：W5-H2 的 `bench-presets default,default+todo` 若费用增幅
   超过 5% 或成功率下降，就撤回到「plan 交接时用 `[DONE:n]` 文本标记」。
+- **Plan 模式**（docs/plan.md，第五波 W5-F）：plan 下模式说明以 `custom_message{ama.plan_mode}` 追加在尾部（首个提示完整版、
+  每 5 个提示简版、每第 5 次与压缩后完整版），手动退出追加 `ama.plan_mode_exit`，前缀不变；`ama.plan_state` 让 resume 回到 plan。
+  模型输出 `<proposed_plan>` 块，ama 提取步骤、落 `ama.plan` 与 `<数据目录>/plans/<会话>-v<N>.md`（`plan.directory` 可指到项目内），
+  发 `plan_proposed`；审批四选项（批准执行 / 指定模式 / 新上下文执行 / 继续修改）与放弃，批准后步骤转 todo、切回进入前的模式、
+  以 `ama.plan_approved` 交接开新回合。无人值守缺省 `plan.unattended: stop`（落盘后停下，不替人批准）。交互模式暂以文本回复
+  `1` / `2` / `3` 审批（审批框随界面批次）。可选 `plan.model` / `plan.thinkingLevel`：plan 下首个提示切换、批准时切回。
+- **plan 权限细化**（docs/permissions.md）：plan 放行只读命令子集（`ls`、`cat`、`rg`、`git log / diff / show` 等，无重定向 /
+  命令替换 / 嵌套 shell，配置 `plan.bash`）与 `task`；`todo set / update` 在 plan 下拒绝；被拒说明带指引。`allowlist` 同步放行
+  同一只读子集与 `task`，严格度 `plan ⊆ allowlist ⊆ default` 不变。模式选择器里 Plan 的说明改为「只读调研，只跑只读命令，
+  出计划后审批执行」。
+- `todo` 新增 `update`（按 id 只改给出的字段）与条目字段 `planStep`；会话事件 `todo_updated`。
+- RPC 实现 `plan_response` / `get_plan` / `get_todos` / `get_tasks` / `get_agents`（后两者读注册表只读视图，未装配时回空表），
+  能力 `plans` 声明后计划审批交客户端；黄金记录 `test/fixtures/rpc/plan.out.jsonl`。SDK `createAgentSession({ plan })`
+  （`onProposed` 审批回调）与 `session.plan.current() / respond() / todos()`。
 - **自动压缩修订**（第五波 W5-H1，docs/design.md §9）：档一按工具结果新旧计边界（保留最近 `compaction.prune.keepResults`
   个与最近 min(40k, 0.2×预算) token 的工具输出），修好「只有一条用户消息的长任务永不裁剪」；可省不足
   `compaction.prune.clearAtLeast`（auto = max(20k, 0.1×预算)）不动，动就一次清到 0.5×预算；缓存已冷时提前裁；
@@ -50,6 +64,13 @@ get_todos / get_tasks / get_agents`（命令表 42 条，实现前回 `not_imple
   `HostApi.runners` 可选面；`@armadra/agent/acp` 子路径（驱动类型与 NDJSON 分帧）；第五波配置键的校验、说明与 JSON Schema
   （行为随各批次生效）。命令行新增 `--mode acp`、`--max-cost`、`--agent-dir`（实现前分别报「尚未实现」或提示不生效），
   退出码 8 = `-p` 到达预算上限（7 仍是工具被拒）。
+- **models.dev 快照入库**（docs/providers.md「模型元数据」，第五波 §2）：22 家主流厂商的裁剪快照随包携带（内联数据约 180 KB，
+  MIT 声明见 `THIRD_PARTY_NOTICES.md`），**启动与运行都不联网**；`ama providers add|refresh`、`ama models discover`
+  不再拉 models.dev。新命令 `ama models refresh [--provider <id>]` 显式联网刷新到数据目录（晚于快照才叠加，
+  `refresh-catalog` 为旧名）；旧版的全量缓存 `models-dev.json`（version 1）不再读取。内置目录 `catalog/*.json`
+  改为「快照 ⊕ 覆盖」：数值从快照继承，目录只写覆盖项与 ama 特有字段，与快照相同的值由测试报冗余；dashscope
+  补上了价格，gemini 2.5 / 3.1 pro、openrouter 部分模型补上了阶梯价；模型新增 `family` / `knowledge` /
+  `releaseDate` / `inputLimit` / `status` 元数据。每周的 `.github/workflows/models-dev.yml` 刷新快照并开 PR。
 
 ## 0.4.0（2026-10-02）
 

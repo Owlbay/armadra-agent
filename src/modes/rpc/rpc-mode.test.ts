@@ -347,8 +347,8 @@ describe("RPC 回滚", () => {
   });
 });
 
-describe("RPC 第五波命令（W5-C0）", () => {
-  it("plan_response / get_plan / get_todos / get_tasks / get_agents 已登记，实现前回 not_implemented；plans 能力可声明", async () => {
+describe("RPC 第五波命令（W5-C0 登记，W5-F 实现）", () => {
+  it("plan_response / get_plan / get_todos / get_tasks / get_agents 已实现；plans 能力可声明", async () => {
     const commands = [
       { type: "plan_response", planId: "p1", decision: "reject" },
       { type: "get_plan" },
@@ -361,14 +361,13 @@ describe("RPC 第五波命令（W5-C0）", () => {
       d.send({ id: "cap", type: "set_client_capabilities", capabilities: ["plans"] });
       await d.waitFor((l) => l["id"] === "cap");
     });
-    for (const [i, command] of commands.entries()) {
-      expect(lines.find((l) => l["id"] === `w${i}`)).toMatchObject({
-        success: false,
-        command: command.type,
-        code: "not_implemented",
-      });
-    }
-    expect(lines.find((l) => l["id"] === "cap")).toMatchObject({
+    const byId = (id: string) => lines.find((l) => l["id"] === id);
+    expect(byId("w0")).toMatchObject({ success: false, code: "plan_not_found" });
+    expect(byId("w1")).toMatchObject({ success: true, data: null });
+    expect(byId("w2")).toMatchObject({ success: true, data: { items: [] } });
+    expect(byId("w3")).toMatchObject({ success: true, data: { tasks: [] } });
+    expect(byId("w4")).toMatchObject({ success: true, data: { agents: [] } });
+    expect(byId("cap")).toMatchObject({
       success: true,
       data: { capabilities: ["plans"] },
     });

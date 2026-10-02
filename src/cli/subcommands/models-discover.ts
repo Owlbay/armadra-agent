@@ -21,7 +21,7 @@
 import { authHeaders, mergeHeaders } from "../../ai/http.js";
 import { discoverLocalModels, materializeModel } from "../../ai/providers/registry.js";
 import { withCustomDefaults } from "../../ai/providers/catalog.js";
-import { describeRefresh, refreshModelsDev } from "../../ai/providers/models-dev-cache.js";
+import { describeModelsDev, loadModelsDevIndex } from "../../ai/providers/models-dev-cache.js";
 import { matchLabel, modelsDevFields } from "../../ai/providers/models-dev.js";
 import type { Api, Model, ProviderData, ProviderRegistryApi } from "../../ai/types.js";
 import { existsSync } from "node:fs";
@@ -229,14 +229,14 @@ async function run(ctx: ModelsActionContext): Promise<number> {
   }
   const configured = new Map(provider.models.map((m) => [m.id, m]));
   io.stdout(`${provider.id}：发现 ${found.length} 个模型（${modelsUrl(provider)}）\n`);
-  const md = await refreshModelsDev({ dataDir: ctx.level.dataDir, env: io.env });
-  io.stdout(`${describeRefresh(md)}\n`);
-  if (md.warning !== undefined) io.stderr(`ama: 警告：${md.warning}\n`);
+  // models.dev 只读本地（快照 ⊕ `ama models refresh` 的覆盖），不联网。
+  const mdIndex = loadModelsDevIndex(ctx.level.dataDir);
+  io.stdout(`${describeModelsDev(ctx.level.dataDir)}\n`);
   const noTools = new Set<string>();
   const unmatched = new Set<string>();
   for (const model of found) {
     const known = configured.get(model.id);
-    const match = md.index?.match(model.id);
+    const match = mdIndex.match(model.id);
     const fields = match !== undefined ? modelsDevFields(match.model) : undefined;
     if (fields?.toolCall === false) noTools.add(model.id);
     if (match === undefined) unmatched.add(model.id);

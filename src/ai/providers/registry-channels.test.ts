@@ -285,7 +285,7 @@ describe("models.dev 补全", () => {
     });
   });
 
-  it("modelsDev: false 关闭；modelOverrides 写的字段来源记为 config；内置目录不补", () => {
+  it("modelsDev: false 关闭；modelOverrides 写的字段来源记为 config；内置目录从快照继承", () => {
     const r = registry(
       {
         version: 1,
@@ -309,7 +309,9 @@ describe("models.dev 补全", () => {
     const k2 = r.findModel("relay/k2");
     expect(k2.ok && k2.model).toMatchObject({ contextWindow: 1000, input: ["text", "image"] });
     expect(r.modelMetadata("relay", "k2")?.sources.contextWindow).toBe("config");
-    expect(r.modelMetadata("moonshot", "kimi-k3")?.sources.contextWindow).toBe("catalog");
+    // [W5-M1] 内置目录的数值从入库快照继承（catalog.ts），不经过这里的 models.dev 补全
+    expect(r.modelMetadata("moonshot", "kimi-k3")?.sources.contextWindow).toBe("models.dev");
+    expect(r.modelMetadata("moonshot", "kimi-k3")?.looked).toBe(false);
   });
 
   it("没有缓存时不补，也不报错；惰性加载只在需要时调用", () => {
