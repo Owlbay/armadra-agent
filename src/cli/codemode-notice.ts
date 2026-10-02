@@ -1,6 +1,7 @@
 /**
  * codemode 缺省关闭的一次性提示（设计 §5.5「默认开放」）：`default` 预设跟随预设时只在沙箱 strict
- * （Node ≥ 25）开 codemode；Node 22 / 24 下缺省关闭，启动时提示一次怎么显式开启。
+ * （Node ≥ 25，或有可用的操作系统沙箱，docs/sandbox.md）开 codemode；否则缺省关闭，启动时提示一次
+ * 怎么显式开启。
  *
  * - 只在「跟随预设」且预设是 `default`、运行时不是 strict 时提示；显式写了 `codemode.mode`（含 off）
  *   不提示；
@@ -40,14 +41,14 @@ function readNotices(path: string): NoticesFile {
 
 export function codemodeNoticeText(capability: Pick<SandboxCapability, "nodeMajor">): string {
   return (
-    `Node ${capability.nodeMajor} < 25：codemode 沙箱的网络未隔离，codemode 缺省关闭；` +
+    `Node ${capability.nodeMajor} < 25 且没有可用的操作系统沙箱：codemode 沙箱的网络未隔离，codemode 缺省关闭；` +
     "用 `--codemode on` 或 config 的 codemode.mode 开启（每个配置目录只提示一次）"
   );
 }
 
 /** 需要提示时返回文案并记下（之后同一配置目录不再提示）；不需要时 undefined。 */
 export function takeCodemodeNotice(input: {
-  config: Pick<AmaConfig, "tools" | "codemode">;
+  config: Pick<AmaConfig, "tools" | "codemode" | "sandbox">;
   capability: Pick<SandboxCapability, "strict" | "nodeMajor">;
   configDir: string;
   dataDir: string;

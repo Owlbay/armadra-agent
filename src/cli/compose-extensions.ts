@@ -22,6 +22,7 @@
 import type { SessionExtensionFactory } from "../agent/session-extensions.js";
 import { createImageBudgetExtension } from "../agent/session-images.js";
 import { planExtensionFor } from "../plan/compose.js";
+import { createSubagentsFactory } from "./compose-agents.js";
 import type { SessionAssembly } from "./deps.js";
 import { createExternalStatsExtension } from "../drivers/store.js";
 
@@ -44,5 +45,6 @@ export function composeExtensions(deps: ComposeExtensionDeps): SessionExtensionF
     // [W5-E] 外部 Agent 记账 → SessionStats.external（只主会话）
     ({ core }) =>
       core.depth > 0 ? undefined : createExternalStatsExtension(() => core.manager.branch()),
+    createSubagentsFactory(deps), // [W5-G] 子 Agent 任务注册表
   ];
 }

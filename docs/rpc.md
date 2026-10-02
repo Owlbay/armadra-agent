@@ -173,6 +173,24 @@
 
 `parentToolCallId` 只出现在 codemode 脚本里经 `tools.*` 发起的内层调用上，值是外层 `codemode` 调用的 id；客户端据此折叠显示。内层调用不进转录。
 
+### 子 Agent 事件（第五波）
+
+`task` / `task_ctl` 起的子 Agent（ama 子会话与外部 Agent 同一组事件，见 [agents.md](agents.md)「子 Agent」）：
+
+| 事件              | 字段                                                                                                                                                                                     |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `subagent_start`  | `taskId`、`parentToolCallId`、`agent`、`runner`（`ama` / `claude` / `codex` / `acp:<程序>`）、`description`、`background`、`model?`、`sessionFile?`、`cwd`；同一 `taskId` 续聊时再发一次 |
+| `subagent_update` | `taskId`、`kind: tool \| text \| turn`、`toolName?`、`textDelta?`（≥ 250 ms 合并）、`turn`、`usage?`                                                                                     |
+| `subagent_end`    | `taskId`、`status: completed \| failed \| aborted \| max_turns \| interrupted`、`usage?`、`cache?`、`outputFile?`、`worktree?: { branch, changed }`                                      |
+
+子会话的审批照常以 `permission_request` 发给本连接，`context.taskId` 标出来源任务。后台任务完成后父会话收到一条
+`origin: "task"` 的 user 消息（`<task-notification …>…</task-notification>`），随后照常开新回合。任务列表与类型列表由
+`get_tasks` / `get_agents` 返回（形状 `TaskInfo` / `AgentInfo`；没有 task 工具时为空表），数据来自当前会话的
+`taskRegistryView(sessionId)` / `sessionAgents(sessionId)`（`src/agent/subagent-registry.ts`）。
+`test/fixtures/rpc/subagent.out.jsonl` 是一次前台 `task(agent="explore")` 加 `get_tasks` / `get_agents` 的黄金记录（只保留
+响应、`tool_execution_*`、`subagent_*` 与 `agent_settled`），由
+`src/agent/subagent-rpc.test.ts` 用 `UPDATE_GOLDEN=1` 更新。
+
 ### `message_update` 与消息重建
 
 线上的 `message_update` 去掉了累计消息与 `partial`，只有增量：

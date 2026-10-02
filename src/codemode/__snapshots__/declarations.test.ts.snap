@@ -12,7 +12,7 @@ declare const tools: {
     /** What this does, briefly */
     description?: string;
   }): Promise<BashResult>;
-  /** Replace text in a file (read it first). Each oldText must be unique in the original (unless replaceAll); edits must not overlap. */
+  /** Replace text in a file (read it first). Give all changes to a file as edits[] in one call; each oldText matches the original file and must be unique (unless replaceAll), short and non-overlapping. */
   edit(args: {
     path: string;
     edits: {
@@ -61,26 +61,36 @@ declare const tools: {
     /** Max lines */
     limit?: number;
   }): Promise<string>;
-  /** Delegate to a fresh sub-agent. It cannot see this chat: give full instructions. Returns its final answer. */
+  /**
+   * Delegate to a sub-agent (fresh context; give full instructions). Returns its final report. Tasks in one reply run in parallel; writers should use isolation worktree. background: returns a taskId now (see task_ctl); taskId: continue that task.
+   * Agents:
+   * - general: General-purpose sub-agent (default): researches and changes code like you do.
+   * - explore: Read-only search: locates files, symbols and code paths; returns paths with line numbers.
+   * - plan: Read-only planner: returns a step-by-step plan with key files and trade-offs.
+   */
   task(args: {
     prompt: string;
-    /** Label */
+    /** Default general */
+    agent?: string;
     description?: string;
-    /** Default: all but task */
+    background?: boolean;
+    taskId?: string;
+    isolation?: "none" | "worktree";
+    budgetUsd?: number;
     tools?: string[];
-    /** provider/model */
     model?: string;
     thinkingLevel?: "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
-    /** Default 30 */
     maxTurns?: number;
   }): Promise<string>;
-  /** Manage background sub-agent tasks started by task: list, wait for one, stop it, or read its output. */
+  /** Manage sub-agent tasks started by task: list them, wait for one, stop it, read its output, or send it a follow-up message (runs in background). */
   task_ctl(args: {
-    action: "list" | "wait" | "stop" | "output";
+    action: "list" | "wait" | "stop" | "output" | "send";
     /** Required except for list */
     taskId?: string;
-    /** wait only */
+    /** wait only (default 30000) */
     timeoutMs?: number;
+    /** send only */
+    prompt?: string;
   }): Promise<string>;
   /** Session task list: \`set\` replaces all items, \`update\` changes items by id (only given fields), \`get\` reads. */
   todo(args: {

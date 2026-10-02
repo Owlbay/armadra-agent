@@ -220,7 +220,7 @@ describe("第五波装配（W5-C0）", () => {
     expect(session.options.maxTurns).toBeUndefined();
     const warnings = runtime.warnings.join("\n");
     expect(warnings).toContain("--max-cost 尚未实现");
-    expect(warnings).toContain("--agent-dir 尚未实现");
+    expect(warnings).not.toContain("--agent-dir 尚未实现"); // [W5-G] 已接入
     await runtime.dispose();
   });
 

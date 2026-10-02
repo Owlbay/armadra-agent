@@ -27,6 +27,8 @@ import type { ToolContext, ToolDefinition, ToolResult } from "../tools/types.js"
 import {
   codemodeAvailability,
   detectSandboxCapability,
+  sandboxCapabilityFor,
+  strictNeedsOsSandbox,
   type SandboxCapability,
 } from "./capability.js";
 import {
@@ -285,8 +287,8 @@ export function createCodemodeTool(options: CodemodeToolOptions): ToolDefinition
       },
       required: ["script"],
     },
-    // 网络隔离（Node ≥ 25）时脚本只能经 tools.* 做事，每次内层调用各自过权限：codemode 本身按 read
-    // 类（default 模式免审批）；不隔离网络时脚本逃出 vm 就能联网，仍按 execute。
+    // 网络隔离（Node ≥ 25，或 OS 沙箱）时脚本只能经 tools.* 做事，每次内层调用各自过权限：codemode
+    // 本身按 read 类（default 模式免审批）；不隔离网络时脚本逃出 vm 就能联网，仍按 execute。
     permission: capability.strict ? "read" : "execute",
     executionMode: "sequential",
     promptSnippet:
@@ -314,6 +316,8 @@ export function createCodemodeTool(options: CodemodeToolOptions): ToolDefinition
         tools,
         store: readStore(ctx.session),
         signal: ctx.signal,
+        os: capability.os,
+        requireOsSandbox: strictNeedsOsSandbox(capability),
         ...(options.entry !== undefined ? { entry: options.entry } : {}),
         ...(options.nodePath !== undefined ? { nodePath: options.nodePath } : {}),
         callTool: async (name, args, signal) => {
@@ -373,7 +377,7 @@ export function createCodemodeTool(options: CodemodeToolOptions): ToolDefinition
 
 /** 组装根用：从 ToolFactoryContext 的形状取所需（避免 codemode → cli 的依赖）。 */
 export interface CodemodeFactoryContext {
-  config: Pick<AmaConfig, "tools" | "codemode">;
+  config: Pick<AmaConfig, "tools" | "codemode" | "sandbox">;
   registry: {
     list(): readonly string[];
     get(name: string): ToolDefinition | undefined;
@@ -394,7 +398,7 @@ export function codemodeToolFactory(
   overrides: Partial<Pick<CodemodeToolOptions, "capability" | "entry" | "nodePath">> = {},
 ): (ctx: CodemodeFactoryContext) => ToolDefinition | undefined {
   return (ctx) => {
-    const capability = overrides.capability ?? detectSandboxCapability();
+    const capability = overrides.capability ?? sandboxCapabilityFor(ctx.config);
     const mode = resolveCodemodeMode(ctx.config, capability.strict).mode;
     if (mode === "off") return undefined;
     const availability = codemodeAvailability(ctx.config.codemode?.requireStrict, capability);

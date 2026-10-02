@@ -157,7 +157,7 @@ describe("system prompt", () => {
         hookContext: "hook ctx",
       }),
     );
-    expect(Object.keys(sections)).toEqual(["preamble", "tools", "hooks", "cwd", "host"]);
+    expect(Object.keys(sections)).toEqual(["preamble", "tools", "rules", "hooks", "cwd", "host"]);
     const full = diffSystem(undefined, sections, toolDecls([read, bash]));
     expect(full?.toolsAdded?.map((t) => t.name)).toEqual(["bash", "read"]);
     const state = replaySystem([full!]);

@@ -366,7 +366,9 @@ describe("RPC 第五波命令（W5-C0 登记，W5-F 实现）", () => {
     expect(byId("w1")).toMatchObject({ success: true, data: null });
     expect(byId("w2")).toMatchObject({ success: true, data: { items: [] } });
     expect(byId("w3")).toMatchObject({ success: true, data: { tasks: [] } });
-    expect(byId("w4")).toMatchObject({ success: true, data: { agents: [] } });
+    // [W5-G] task 已登记（default 预设下在 codemode 里可用）：列出内置类型
+    const agents = (byId("w4")?.["data"] as { agents: { name: string }[] }).agents;
+    expect(agents.map((a) => a.name)).toEqual(["general", "explore", "plan"]);
     expect(byId("cap")).toMatchObject({
       success: true,
       data: { capabilities: ["plans"] },

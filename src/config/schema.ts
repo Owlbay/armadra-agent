@@ -31,6 +31,7 @@ import {
   CACHE_RETENTIONS,
   CHANNEL_NAME_PATTERN,
   CHECKPOINT_MODES,
+  SANDBOX_ENABLED_MODES,
   CODEMODE_MODES,
   TOOLS_PRESET_INPUTS,
 } from "./types.js";
@@ -90,6 +91,7 @@ const CONFIG_KEYS = [
   "cache",
   "request",
   "checkpoints",
+  "sandbox",
   ...W5_CONFIG_KEYS,
   "$schema",
 ] as const;
@@ -340,6 +342,9 @@ export function validateConfig(value: unknown): Diagnostic[] {
     c.oneOf(s, "mode", p, CHECKPOINT_MODES);
     c.number(s, "maxFileBytes", p, 0);
     c.number(s, "keep", p, 1);
+  });
+  checkSection(c, value, "sandbox", ["enabled"], (s, p) => {
+    c.oneOf(s, "enabled", p, SANDBOX_ENABLED_MODES);
   });
   checkSection(
     c,

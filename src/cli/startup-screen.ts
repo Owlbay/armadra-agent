@@ -11,6 +11,7 @@
  * `buildStartupScreen` 的纯文本行保留给 line 模式与测试。
  */
 
+import { isBuiltinSkill } from "../skills/builtin.js";
 import { basename } from "node:path";
 import { formatModelRef } from "../ai/providers/channels.js";
 import type { PermissionMode } from "../permissions/types.js";
@@ -69,8 +70,9 @@ export function buildStartupScreen(
   if (resources.contextFiles.length > 0) {
     lines.push(`上下文：${resources.contextFiles.map((f) => f.path).join(", ")}`);
   }
-  if (resources.skills.length > 0) {
-    lines.push(`Skill：${resources.skills.map((s) => s.name).join(", ")}`);
+  const skills = resources.skills.filter((s) => !isBuiltinSkill(s));
+  if (skills.length > 0) {
+    lines.push(`Skill：${skills.map((s) => s.name).join(", ")}`);
   }
   if (resources.prompts.length > 0) {
     lines.push(`提示模板：${resources.prompts.map((p) => `/${p.name}`).join(" ")}`);
@@ -141,7 +143,7 @@ export function startupInfo(
     preset: runtime.config.tools?.preset ?? "default",
     codemode: effectiveCodemodeMode(runtime.config),
     contextFiles: resources.contextFiles.map((f) => basename(f.path)),
-    skills: resources.skills.length,
+    skills: resources.skills.filter((s) => !isBuiltinSkill(s)).length,
     prompts: resources.prompts.length,
     hooks: runtime.hooks.list().length,
     warnings: runtime.warnings.length,
