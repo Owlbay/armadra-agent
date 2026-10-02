@@ -84,9 +84,8 @@ export const DEFAULT_MODES: Readonly<Partial<Record<RuntimeMode, ModeRunner>>> =
   print: lazyMode(async () => (await import("../modes/print/print-mode.js")).runPrintMode),
   rpc: lazyMode(async () => (await import("../modes/rpc/rpc-mode.js")).runRpcMode),
   line: lazyMode(async () => (await import("../modes/interactive/line/line-mode.js")).runLineMode),
-  // B7 的终端界面合入前，交互模式用行式界面（raw 编辑器）。
   interactive: lazyMode(
-    async () => (await import("../modes/interactive/line/line-mode.js")).runLineMode,
+    async () => (await import("../modes/interactive/interactive-mode.js")).runInteractiveMode,
   ),
 };
 
