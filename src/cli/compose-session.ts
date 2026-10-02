@@ -17,6 +17,7 @@
  */
 
 import type { ProviderRegistryApi } from "../ai/types.js";
+import type { BashSandbox } from "../sandbox/bash.js";
 import { readFileSync } from "node:fs";
 import { resolveLimits } from "../agent/limits.js";
 import { AgentSessionImpl, type AgentSessionOptions } from "../agent/session.js";
@@ -57,6 +58,8 @@ export interface ComposeState {
   session: AgentSession | undefined;
   /** 第 11 步建好的供应商注册表（read 工具判断当前模型收不收图片）。 */
   providers?: ProviderRegistryApi;
+  /** [S2] tools.create 算出的 bash 沙箱设定，permissions.create 用同一份。 */
+  bashSandbox?: BashSandbox;
 }
 
 export function emptyComposeState(): ComposeState {

@@ -131,6 +131,27 @@ describe("ama config show", () => {
     expect(await ama(["doctor"], { DEEPSEEK_API_KEY: "k" })).toBe(0);
     expect(out.join("")).toMatch(/将使用的模型：deepseek\/\S+（零配置：deepseek 有 key/);
     expect(out.join("")).toMatch(/codemode：(on|off)（跟随预设 default（Node \d+/);
+    expect(out.join("")).toContain("bash 沙箱：关闭（sandbox.bash: off）");
+  });
+
+  it("[S2] config show / doctor 显示 bash 沙箱状态（文本与 --json）", async () => {
+    home.write("home/.config/ama/config.json", {
+      version: 1,
+      sandbox: { bash: "auto", network: "allow" },
+    });
+    expect(await ama(["config", "show"])).toBe(0);
+    let text = out.join("");
+    expect(text).toMatch(/sandbox\.bash = "auto"\s+user/);
+    expect(text).toMatch(/sandbox\.network = "allow"\s+user/);
+    expect(text).toMatch(/bash 沙箱：(sandbox-exec|bwrap)，网络 allow|bash 沙箱：不可用/);
+    out = [];
+    expect(await ama(["config", "show", "--json"])).toBe(0);
+    const json = JSON.parse(out.join("")) as { bashSandbox: { active: boolean; detail: string } };
+    expect(typeof json.bashSandbox.active).toBe("boolean");
+    out = [];
+    expect(await ama(["doctor"])).toBe(0);
+    text = out.join("");
+    expect(text).toMatch(/bash 沙箱：/);
   });
 
   it("供应商节：模型级协议与 baseUrl 来自环境变量（文本与 --json）；doctor 标出变量", async () => {
