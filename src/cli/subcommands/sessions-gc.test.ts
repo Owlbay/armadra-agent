@@ -53,6 +53,14 @@ describe("doctor 显示 file-history 占用", () => {
   it("备份数与大小", async () => {
     await putBlob(join(root, "data"), Buffer.from("abc"));
     await runDoctor([], io, undefined);
-    expect(out.join("")).toMatch(/file-history：1 个备份，3 B/);
+    expect(out.join("")).toMatch(/file-history：1 个备份，3 B（/);
+  });
+
+  it("有影子仓库时追加占用", async () => {
+    const repo = join(root, "data", "file-history", "shadow", "0123456789abcdef");
+    mkdirSync(repo, { recursive: true });
+    writeFileSync(join(repo, "HEAD"), "ref: refs/heads/main\n");
+    await runDoctor([], io, undefined);
+    expect(out.join("")).toMatch(/file-history：0 个备份，0 B；影子仓库 1 个，21 B/);
   });
 });
