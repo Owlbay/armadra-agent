@@ -3,7 +3,8 @@
  *
  * - 阈值检查（新提示前、`prepareNextTurn` 里）：估算 > 0.7 ×（窗口 − 预留）→ 档一裁剪（[W5-H1] 按工具
  *   结果新旧计边界，可省 ≥ clearAtLeast 才动，一次清到 0.5 ×）；仍 > 窗口 − 预留且熔断允许 → 档二摘要
- *   （trigger `threshold`）。
+ *   （trigger `threshold`）。缓存已冷（上次请求距今超过 TTL，只认 reported 端点）时未到 0.7 也裁，
+ *   且一次换掉全部候选。
  * - 溢出恢复（会话 run 结束后，失败尝试已用 context_edit 剔除）：PreCompact Hook → 档二摘要（trigger
  *   `overflow`，不受「每 run 一次」限制但受跳闸限制）→ 压缩后估算 ≤ 0.8 × 窗口才重试。
  * - 手动 `/compact`：PreCompact（trigger `manual`）→ 摘要；成功清零熔断。
@@ -154,8 +155,12 @@ export class CompactionController {
     const budget = this.budget();
     if (policy === undefined || budget === undefined) return;
     let tokens = this.estimate().tokens;
-    if (tokens > policy.triggerTokens && this.prune(policy, tokens - policy.targetTokens) > 0)
-      tokens = this.estimate().tokens;
+    // 缓存已冷（C3）：前缀反正要重写，未到阈值也把候选一次换掉（仍要可省 ≥ clearAtLeast）
+    const cold = this.core.cache?.isCold() ?? false;
+    if (tokens > policy.triggerTokens || cold) {
+      const need = cold ? undefined : tokens - policy.targetTokens;
+      if (this.prune(policy, need) > 0) tokens = this.estimate().tokens;
+    }
     if (tokens <= budget || !this.breaker.canSummarize()) return;
     await this.summarize("threshold", signal);
   }
