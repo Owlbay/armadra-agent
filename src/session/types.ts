@@ -14,6 +14,7 @@
  *   `append()` 同步：返回带 id 的条目并把叶子移到它（落盘可延迟到首条提示，§11.1 第 16 步）。
  * - （W3-C0）第三波 §1.7 / A7：新增 `usage` 条目（保温等不进上下文的请求用量，计入统计）与
  *   非条目的 `leaf` 行（`/tree` 位置落盘）；都是 v1 可选行，格式版本不升。
+ * - （W5-C0）`context_edit.reason` 加 `image_budget`（第五波 §4）；格式版本不升。
  */
 
 import type { ContentBlock, Message, ModelThinkingLevel, Usage } from "../ai/types.js";
@@ -66,7 +67,9 @@ export interface BranchSummaryEntry extends EntryBase {
   details?: FileOpsDetails;
 }
 
-export type ContextEditReason = "prune" | "abort" | "retry" | "overflow" | "manual";
+/** [W5-C0] `image_budget`：单请求图片总量超预算时把旧图换成占位文本（wave5-plan §4）。 */
+export type ContextEditReason =
+  "prune" | "abort" | "retry" | "overflow" | "manual" | "image_budget";
 
 /** 同一目标最新一条赢；replacement 为 null 表示从上下文剔除。 */
 export interface ContextEditEntry extends EntryBase {
