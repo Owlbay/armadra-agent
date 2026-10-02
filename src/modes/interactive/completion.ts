@@ -8,6 +8,7 @@
  *   文件名子串 → 路径子串」排序。目录以 `/` 结尾，可继续补全。文件表按 cwd 缓存 15 秒、最多 20 000 项。
  */
 
+import { msg } from "../../i18n/index.js";
 import { GlobMatcher } from "../../tools/glob.js";
 import { walk } from "../../tools/ignore.js";
 import type {
@@ -113,7 +114,8 @@ export class InteractiveCompletion implements AutocompleteProvider {
         command.name,
       );
     }
-    for (const prompt of this.source.prompts()) push(prompt.name, "提示模板", prompt.name);
+    for (const prompt of this.source.prompts())
+      push(prompt.name, msg().interactive.completion.promptTemplate, prompt.name);
     for (const skill of this.source.skills()) {
       push(`skill:${skill.name}`, skill.description, `skill:${skill.name}`);
     }

@@ -10,6 +10,7 @@
  * - `telemetry_tick`（流式中 ≤ 2 Hz）只重取统计并重画（速率行），状态栏的内容这时不变。
  */
 
+import { msg } from "../../i18n/index.js";
 import { basename } from "node:path";
 import type { AgentSession, SessionEvent } from "../../agent/types.js";
 import { sandboxCapabilityFor } from "../../codemode/capability.js";
@@ -217,7 +218,7 @@ export function statusLineSlash(
   if (value === "") area.toggle();
   else if (value === "full" || value === "compact") area.setLayout(value);
   else {
-    notice("error", "用法：/statusline [full|compact]");
+    notice("error", msg().interactive.statusLine.usage);
     return true;
   }
   notice("info", statusLineText(area.layout()));
@@ -225,5 +226,6 @@ export function statusLineSlash(
 }
 
 export function statusLineText(mode: StatusLineMode): string {
-  return mode === "full" ? "状态栏：完整（两行）" : "状态栏：精简（一行）";
+  const m = msg().interactive.statusLine;
+  return mode === "full" ? m.full : m.compact;
 }

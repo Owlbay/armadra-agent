@@ -6,6 +6,7 @@
  * - W5-H1：`compaction_end.error` 的「compaction did not shrink」换成中文说明（其余错误原样）。
  */
 
+import { msg } from "../../i18n/index.js";
 import type { SessionEvent } from "../../agent/types.js";
 import {
   IMAGE_OMITTED_FOR_BUDGET,
@@ -15,7 +16,7 @@ import {
 /** `compaction_end.error` 的显示文本。 */
 export function compactionErrorText(error: string): string {
   if (/compaction did not shrink/i.test(error)) {
-    return "压缩后上下文没有变小，已保留原对话（不写摘要）";
+    return msg().interactive.events.compactionNoShrink;
   }
   return error;
 }
@@ -46,7 +47,7 @@ export class ImageBudgetNotices {
       const n = this.pending;
       this.pending = 0;
       this.scheduled = false;
-      this.notify(`已省略 ${n} 张早期图片以符合请求上限`);
+      this.notify(msg().interactive.events.imagesOmitted(n));
     });
   }
 }
@@ -60,10 +61,9 @@ export const LIMIT_WARNING = "limit_reached";
 
 /** `limit_reached`：回合 / 费用到限（每次运行每类一次）。 */
 export function limitReachedText(event: Extract<SessionEvent, { type: "limit_reached" }>): string {
-  if (event.kind === "turns")
-    return `已到回合上限（${event.limit} 回合），本次运行停止；发新消息继续（--max-turns / limits.maxTurns）`;
-  const spent = `$${event.value.toFixed(2)}`;
-  return `已到费用上限 $${event.limit.toFixed(2)}（本次运行已用 ${spent}），本次运行停止；发新消息继续（--max-cost / limits.maxCostUsd）`;
+  const m = msg().interactive.events;
+  if (event.kind === "turns") return m.limitTurns(event.limit);
+  return m.limitCost(`$${event.limit.toFixed(2)}`, `$${event.value.toFixed(2)}`);
 }
 
 /** `model_fallback`：主模型失败后改用回退模型重试一次。 */
@@ -71,7 +71,7 @@ export function modelFallbackText(
   event: Extract<SessionEvent, { type: "model_fallback" }>,
 ): string {
   const ref = (m: { provider: string; id: string }): string => `${m.provider}/${m.id}`;
-  return `${ref(event.from)} 不可用（${event.reason}），本次请求改用 ${ref(event.to)}，回复后切回`;
+  return msg().interactive.events.modelFallback(ref(event.from), event.reason, ref(event.to));
 }
 
 /** `background_job`：后台命令启动 / 退出 / 停止。 */
@@ -80,12 +80,13 @@ export function backgroundJobText(
 ): string {
   const command = event.command.replace(/\s+/g, " ").trim();
   const short = command.length > 60 ? `${command.slice(0, 59)}…` : command;
+  const m = msg().interactive.events;
   switch (event.phase) {
     case "started":
-      return `后台命令 ${event.jobId} 已启动：${short}`;
+      return m.backgroundStarted(event.jobId, short);
     case "exited":
-      return `后台命令 ${event.jobId} 已退出（码 ${event.exitCode ?? "?"}）：${short}`;
+      return m.backgroundExited(event.jobId, String(event.exitCode ?? "?"), short);
     case "stopped":
-      return `后台命令 ${event.jobId} 已停止：${short}`;
+      return m.backgroundStopped(event.jobId, short);
   }
 }

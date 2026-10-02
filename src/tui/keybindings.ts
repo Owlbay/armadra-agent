@@ -6,6 +6,7 @@
  * - 文件位置由调用方决定（配置目录归 B5），这里只负责解析与合并。
  */
 
+import { msg } from "../i18n/index.js";
 import { readFileSync } from "node:fs";
 import { normalizeKeyId, parseKey } from "./keys.js";
 
@@ -74,16 +75,16 @@ export function parseKeybindings(value: unknown): ParsedKeybindings {
   const overrides: Record<string, readonly string[]> = {};
   const warnings: string[] = [];
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return { overrides: {}, warnings: ["keybindings 必须是对象"] };
+    return { overrides: {}, warnings: [msg().interactive.keybindings.notObject] };
   }
   for (const [action, keys] of Object.entries(value as Record<string, unknown>)) {
     if (!isActionId(action)) {
-      warnings.push(`未知动作：${action}`);
+      warnings.push(msg().interactive.keybindings.unknownAction(action));
       continue;
     }
     const list = typeof keys === "string" ? [keys] : keys;
     if (!Array.isArray(list) || !list.every((k) => typeof k === "string")) {
-      warnings.push(`${action}：键必须是字符串或字符串数组`);
+      warnings.push(msg().interactive.keybindings.badKeys(action));
       continue;
     }
     overrides[action] = list.map((k) => normalizeKeyId(k));
@@ -98,12 +99,18 @@ export function loadKeybindingsFile(path: string): ParsedKeybindings {
     text = readFileSync(path, "utf8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return { overrides: {}, warnings: [] };
-    return { overrides: {}, warnings: [`读取 ${path} 失败：${(error as Error).message}`] };
+    return {
+      overrides: {},
+      warnings: [msg().interactive.keybindings.readFailed(path, (error as Error).message)],
+    };
   }
   try {
     return parseKeybindings(JSON.parse(text));
   } catch (error) {
-    return { overrides: {}, warnings: [`${path} 不是合法 JSON：${(error as Error).message}`] };
+    return {
+      overrides: {},
+      warnings: [msg().interactive.keybindings.badJson(path, (error as Error).message)],
+    };
   }
 }
 

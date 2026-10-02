@@ -14,6 +14,7 @@
  * - 历史：会话内 + 可选历史文件（JSONL，每行一个 JSON 字符串，保留最近 500 条）。
  */
 
+import { msg } from "../../i18n/index.js";
 import { CURSOR_MARKER, type Component, type Focusable, type Theme } from "../component.js";
 import { truncateToWidth, visibleWidth } from "../ansi.js";
 import { defaultKeybindings, type Keybindings } from "../keybindings.js";
@@ -85,7 +86,6 @@ const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
 /** 提示符 `› ` / 续行缩进的宽度。 */
 const PROMPT_WIDTH = 2;
-const COMPLETION_FOOTER = "Tab 接受 · Esc 关闭";
 
 export class Editor implements Component, Focusable {
   focused = false;
@@ -395,7 +395,7 @@ export class Editor implements Component, Focusable {
         maxVisible: 8,
         theme: this.theme,
         keybindings: this.keys,
-        footer: COMPLETION_FOOTER,
+        footer: msg().interactive.editor.completionFooter,
         showCount: true,
       }),
       from: result.from,

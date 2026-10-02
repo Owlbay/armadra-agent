@@ -278,7 +278,7 @@ export class AgentUi {
     const session = this.deps.session();
     const controller = planController(session);
     if (controller === undefined) {
-      this.deps.notice("info", "当前会话没有 Plan 能力");
+      this.deps.notice("info", msg().plan.command.unavailable);
       return;
     }
     this.deps.panel(planPanel(controller, session, this.deps.theme, this.deps.displayPath));
@@ -387,33 +387,33 @@ export class AgentUi {
     const sessionId = this.deps.session().state.sessionId;
     const tasks = listTasks(sessionId);
     if (tasks.length === 0) {
-      this.deps.notice("info", "还没有子 Agent 任务");
+      this.deps.notice("info", msg().panels.tasks.none);
       return;
     }
     const now = this.deps.now();
     const picked = await this.deps.pick({
-      title: "子 Agent 任务",
+      title: msg().interactive.agentUi.tasksTitle,
       items: [...tasks]
         .reverse()
         .map((task) => ({ value: task.taskId, label: taskLine(task, now) })),
-      footer: "↑↓ 选择 · Enter 查看 · Esc 取消",
+      footer: msg().interactive.agentUi.tasksFooter("↑↓"),
     });
     if (picked === undefined) return;
     const task = taskRegistryView(sessionId)?.get(picked.value);
     if (task === undefined) return;
     if (task.status === "running") {
       const action = await this.deps.pick({
-        title: `任务 ${task.taskId}`,
+        title: msg().panels.tasks.title(task.taskId),
         items: [
-          { value: "output", label: "查看已有输出" },
-          { value: "stop", label: "停止任务" },
+          { value: "output", label: msg().interactive.agentUi.viewOutput },
+          { value: "stop", label: msg().interactive.agentUi.stop },
         ],
         numberKeys: true,
       });
       if (action === undefined) return;
       if (action.value === "stop") {
         await stopTask(sessionId, task.taskId);
-        this.deps.notice("info", `已停止 ${task.taskId}`);
+        this.deps.notice("info", msg().interactive.agentUi.stopped(task.taskId));
         return;
       }
     }
@@ -425,7 +425,7 @@ export class AgentUi {
 
   /** `Ctrl+V` / `/paste`：光标处插入 `@<路径>`。 */
   async paste(): Promise<void> {
-    this.deps.hint("读取剪贴板…");
+    this.deps.hint(msg().interactive.clipboard.reading);
     const pasted = await pasteImage(this.deps.dataDir, this.deps.clipboard);
     if (!pasted.ok) {
       this.deps.hint("");
@@ -436,7 +436,7 @@ export class AgentUi {
     const before = editor.getText();
     const lead = before === "" || /\s$/.test(before) ? "" : " ";
     editor.insertText(`${lead}${pasted.ref} `);
-    this.deps.hint("已插入剪贴板图片");
+    this.deps.hint(msg().interactive.clipboard.inserted);
     this.deps.render();
   }
 }

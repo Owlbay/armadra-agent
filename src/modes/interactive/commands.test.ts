@@ -4,7 +4,7 @@ import type { AgentSession } from "../../agent/types.js";
 import { currentSession, switchSession } from "../../cli/compose-session.js";
 import type { Runtime } from "../../cli/runtime.js";
 import type { SelectItem } from "../../tui.js";
-import { ALL_COMMANDS, KEY_HINTS, runInteractiveCommand, type CommandUi } from "./commands.js";
+import { ALL_COMMANDS, keyHints, runInteractiveCommand, type CommandUi } from "./commands.js";
 import type { PickerSpec } from "./pickers.js";
 
 let h: ComposeHarness;
@@ -65,7 +65,7 @@ describe("交互命令", () => {
     expect(await runInteractiveCommand("/help", ui)).toBe(true);
     expect(notices[0]).toContain("/model");
     expect(notices[0]).toContain("/tree  浏览会话树");
-    expect(notices[0]).toContain(KEY_HINTS.split("\n")[0]);
+    expect(notices[0]).toContain(keyHints().split("\n")[0]);
     expect(ALL_COMMANDS.map((c) => c.name)).toEqual(
       expect.arrayContaining(["tree", "permissions"]),
     );

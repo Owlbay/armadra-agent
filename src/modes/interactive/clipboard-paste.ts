@@ -3,13 +3,18 @@
  * 附件读取）。[W5-U] 读取本身在 tools/clipboard-image.ts（W5-I）。
  */
 
+import { msg } from "../../i18n/index.js";
 import { readClipboardImage, type ClipboardDeps } from "../../tools/clipboard-image.js";
 
 export type PasteOutcome = { ok: true; ref: string; path: string } | { ok: false; message: string };
 
-export const NO_CLIPBOARD_TOOL =
-  "读不了剪贴板图片：没有可用的系统命令（macOS osascript / pngpaste，Linux wl-paste / xclip，Windows PowerShell）";
-export const NO_CLIPBOARD_IMAGE = "剪贴板里没有图片";
+export function noClipboardTool(): string {
+  return msg().interactive.clipboard.noTool;
+}
+
+export function noClipboardImage(): string {
+  return msg().interactive.clipboard.noImage;
+}
 
 /** `@路径`；路径带空白时加引号。 */
 export function imageRef(path: string): string {
@@ -22,12 +27,14 @@ export async function pasteImage(dataDir: string, deps?: ClipboardDeps): Promise
     if (result.ok) return { ok: true, ref: imageRef(result.path), path: result.path };
     return {
       ok: false,
-      message: result.reason === "no_tool" ? NO_CLIPBOARD_TOOL : NO_CLIPBOARD_IMAGE,
+      message: result.reason === "no_tool" ? noClipboardTool() : noClipboardImage(),
     };
   } catch (error) {
     return {
       ok: false,
-      message: `读取剪贴板失败：${error instanceof Error ? error.message : String(error)}`,
+      message: msg().interactive.clipboard.failed(
+        error instanceof Error ? error.message : String(error),
+      ),
     };
   }
 }

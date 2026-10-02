@@ -14,6 +14,7 @@
  * `app.agents.focus`（缺省 `Ctrl+B` / `↓`）先问它要不要进栏，不要就照常交给编辑器（光标左移、历史下一条）。
  */
 
+import { msg } from "../../i18n/index.js";
 import type { AgentSession } from "../../agent/types.js";
 import { ExitCode } from "../../cli/exit-codes.js";
 import { nextCycleMode, permissionModeLabel } from "../../permissions/modes.js";
@@ -78,10 +79,10 @@ export function createKeyDispatch(deps: KeyDispatchDeps): (data: string) => bool
   const doubleEscape = (): void => {
     switch (esc.press(deps.now(), editor.isEmpty())) {
       case "arm-rewind":
-        deps.showHint("再按 Esc 回滚", DOUBLE_ESC_HINT_MS);
+        deps.showHint(msg().interactive.keys.escRewind, DOUBLE_ESC_HINT_MS);
         return;
       case "arm-clear":
-        deps.showHint("再按 Esc 清空", DOUBLE_ESC_HINT_MS);
+        deps.showHint(msg().interactive.keys.escClear, DOUBLE_ESC_HINT_MS);
         return;
       case "rewind":
         deps.showHint("");
@@ -92,7 +93,7 @@ export function createKeyDispatch(deps: KeyDispatchDeps): (data: string) => bool
         const text = editor.getExpandedText();
         if (text.trim() !== "") editor.addToHistory(text);
         editor.clear();
-        deps.showHint("已清空输入 · ↑ 取回");
+        deps.showHint(msg().interactive.keys.cleared);
         return;
       }
     }
@@ -125,8 +126,8 @@ export function createKeyDispatch(deps: KeyDispatchDeps): (data: string) => bool
   const applyMode = (mode: PermissionMode, skipped: boolean): void => {
     deps.session().setPermissionMode(mode);
     status.refresh();
-    const label = `权限模式：${permissionModeLabel(mode)}`;
-    deps.showHint(skipped ? `未进入 Bypass · ${label}` : label);
+    const label = msg().interactive.commands.modeSet(permissionModeLabel(mode));
+    deps.showHint(skipped ? msg().interactive.keys.bypassSkipped(label) : label);
   };
 
   const cyclePermission = (): void => {
@@ -161,12 +162,12 @@ export function createKeyDispatch(deps: KeyDispatchDeps): (data: string) => bool
       if (!editor.isEmpty()) {
         editor.clear();
         ctrlCArmedAt = deps.now();
-        deps.showHint("已清空输入 · 再按 Ctrl+C 退出");
+        deps.showHint(msg().interactive.keys.clearedCtrlC);
       } else if (deps.now() - ctrlCArmedAt < DOUBLE_CTRL_C_MS) {
         deps.exit(ExitCode.Sigint);
       } else {
         ctrlCArmedAt = deps.now();
-        deps.showHint("再按一次 Ctrl+C 退出");
+        deps.showHint(msg().interactive.keys.ctrlCAgain);
       }
       return true;
     }
@@ -174,7 +175,7 @@ export function createKeyDispatch(deps: KeyDispatchDeps): (data: string) => bool
     if (is("app.interrupt") && !editor.isCompletionOpen && deps.busy()) {
       esc.reset();
       interrupt();
-      deps.showHint("已中断");
+      deps.showHint(msg().interactive.keys.interrupted);
       deps.onInterrupted?.(editor.isEmpty());
       return true;
     }
@@ -206,7 +207,9 @@ export function createKeyDispatch(deps: KeyDispatchDeps): (data: string) => bool
     if (is("app.tools.expand")) {
       const expanded = tools.toggleExpanded();
       deps.onExpandToggle?.(expanded);
-      deps.showHint(expanded ? "工具输出：展开" : "工具输出：折叠");
+      deps.showHint(
+        expanded ? msg().interactive.keys.toolsExpanded : msg().interactive.keys.toolsCollapsed,
+      );
       return true;
     }
     if (is("app.model.select")) {
