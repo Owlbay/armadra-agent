@@ -1,5 +1,26 @@
 # 更新记录
 
+## 未发布
+
+第六波（docs/wave6-plan.md）的契约与基础设施（W6-C0）：
+
+- **界面语言**：新增 `AMA_LANG`、`--lang zh|en`、配置 `ui.language`（`auto` / `zh` / `en`）、profile 与 SDK 的 `language`；
+  `auto` 按 `LC_ALL` / `LC_MESSAGES` / `LANG` 判断，判断不出用英文。消息目录在 `src/i18n/`，界面文案由后续批次迁入，本版界面仍是中文。
+  开发约定见 [docs/i18n.md](docs/i18n.md)；`pnpm check:i18n` 进 CI（只许减少的中文行基线）。
+- **发给模型的文本固定英文**（与界面语言无关，两种语言下请求逐字节相同）：工具结果截断标记 `[… N chars omitted …]`、
+  压缩裁剪占位 `[pruned: …]`、摘要序列化截断、外部 Agent 报告的 `Tool calls:` / `Files changed:` 与失败说明、Hook 阻止理由、
+  allowlist 拒绝说明。只影响新会话之后的工具结果，不碰缓存前缀；按旧中文标记解析工具结果的脚本需要更新。
+- **轨迹落盘**：会话文件新增 `custom{customType:"ama.trace"}` 条目（每次模型请求一条 `step`，另有重试等待、回退、压缩、辅助请求、
+  外部 Agent 回合骨架），只有 id、时间与计数，不含正文；不进上下文、不改请求。RPC 客户端会多看到这些条目的 `entry_appended`。
+  子会话也测量首 token 延迟与速率。
+- **RPC**：`permission_request.context` 可带 `toolCallId`（本会话工具调用的审批现在也有 `context`）；`keySource` 可为 `oauth`；
+  新命令 `get_trace` 先登记（返回 `not_implemented`，轨迹批次实现）。
+- **配置**：新键 `ui.replyLanguage`、`ui.agentBar`、`memory.*`、`auth.chatgpt.*` 已能校验并写进 `config.schema.json`（功能随后续批次生效）；
+  项目级只能把 `memory.enabled` 设为 `false`，`ui.replyLanguage` 与 `auth` 只认用户级；嵌入宿主 Agent 栏缺省关。
+  命令行 `--memory` / `--no-memory`；`auth.json` 可存 OAuth 条目（`type: "oauth"`）。
+- `ama memory`、`/config`、`/trace`、`/memory` 已登记，当前回「尚未提供」。
+- bundle 改用 UTF-8 输出（中文不再转成 `\uXXXX`），体积约减 40 KB。
+
 ## 0.5.1（2026-10-03）
 
 - **Tab 切换权限模式**：输入为空、补全未打开时按 Tab 与 Shift+Tab 一样循环权限模式；有输入时 Tab 仍是补全。可在 `keybindings.json` 的 `app.permission.cycle` 改回只用 `shift+tab`。

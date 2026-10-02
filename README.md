@@ -583,6 +583,7 @@ Armadra 以 `ama --profile <path>` 启动 ama。profile 是一个 JSON 文件，
 | [docs/extensions.md][extensions]                      | 本地扩展（设计草案，未实现）                                                            |
 | [docs/benchmarks/][benchmarks]                        | 预设基准、D20 todo 复测与缓存验收实验（报告与原始数据）                                 |
 | [docs/wave6-plan.md][wave6]                           | 第六波设计：Agent 栏与子 Agent 视图、轨迹、Memory、ChatGPT 登录、中英双语、`/config`    |
+| [docs/i18n.md][i18n]                                  | 中英双语开发约定：语言选择、消息目录与键名规范、模型侧隔离、检查脚本                    |
 | [docs/wave5-plan.md][wave5]                           | 第五波设计：状态行、模型元数据、渠道、图像、外部 Agent、Plan、子 Agent、压缩与 harness  |
 | [docs/implementation-plan.md][impl]、[wave3-plan][w3] | 早期实施计划（追溯用）                                                                  |
 | [docs/research/][research]                            | 第五波与第六波调研报告（追溯用）                                                        |
@@ -593,6 +594,7 @@ npm 包里带上表前十五份（用户文档）；其余是设计与追溯材�
 [extensions]: https://github.com/Owlbay/armadra-agent/blob/main/docs/extensions.md
 [benchmarks]: https://github.com/Owlbay/armadra-agent/tree/main/docs/benchmarks
 [wave6]: https://github.com/Owlbay/armadra-agent/blob/main/docs/wave6-plan.md
+[i18n]: https://github.com/Owlbay/armadra-agent/blob/main/docs/i18n.md
 [wave5]: https://github.com/Owlbay/armadra-agent/blob/main/docs/wave5-plan.md
 [impl]: https://github.com/Owlbay/armadra-agent/blob/main/docs/implementation-plan.md
 [w3]: https://github.com/Owlbay/armadra-agent/blob/main/docs/wave3-plan.md

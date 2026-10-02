@@ -128,6 +128,7 @@ Accept edits     claude-opus-5-5 medium | Ctx 3.0% | proj ⎇ main 5ae9e54 (+12,
 | Ctrl+D               | 输入为空时退出                                                                                                                                                   |
 | Tab                  | 补全                                                                                                                                                             |
 | ↑ / ↓                | 单行时浏览历史（`<数据目录>/history`，500 条）                                                                                                                   |
+| Ctrl+B / ↓（空输入） | 进入 Agent 栏（有子 Agent 任务时；有字时 Ctrl+B 仍是光标左移，tmux 里用 ↓），见「子 Agent」（第六波 W6-A 起）                                                    |
 
 按键可在 `~/.config/ama/keybindings.json` 覆盖，键是动作 id（`app.interrupt`、`app.rewind`、`app.message.followUp`、`app.statusLine.toggle`、`app.paste.image`、`tui.editor.newLine` ……），值是按键或按键数组，空数组表示禁用。`app.rewind` 是空闲时双击的那个键（缺省 Esc，两次间隔 ≤ 800 ms）。
 
@@ -318,6 +319,14 @@ Plan 模式（Shift+Tab、`/permission plan`、`/plan <目标>`、`--permission-
 | 外部 Agent 本会话首次运行                  | 标题「首次运行外部 Agent」                | 说明（以你在该 CLI 的登录运行）与模式         |
 
 三种都只有「允许 / 本会话允许同类 / 拒绝」三项（外部 Agent 的「本会话允许」由它自己记住）。Manual 模式下 `task(agent="claude")` 本来要问两次（task 调用一次、首次运行一次）：task 调用的审批框里已写明「以你在 claude CLI 的登录运行（含本会话首次运行确认）」，允许之后紧接着的首次运行确认自动通过，消息区一行「已允许 task（随上一次确认）」；中间夹了别的审批、拒绝、超过 60 秒，或不是这次调用建立的任务，首次运行确认照常弹出。
+
+## 轨迹
+
+（第六波 W6-T1：`/trace` 覆盖层。）
+
+## Memory
+
+（第六波 W6-M：`/memory` 与记忆面板。）
 
 ## 剪贴板图片
 
