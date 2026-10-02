@@ -8,11 +8,10 @@
  * - list / channels：供应商 → 渠道 → 模型数与 key 来源（从不显示 key）。remove：删配置与 auth.json 条目。
  *
  * 计费：`--probe` 每模型每渠道一次最小请求（并发执行，见到首个流事件即判可用并断开，见
- * probe-runner.ts）；执行前打印预估，TTY 问 y/N，非 TTY 必须 `--yes`。
+ * probe-runner.ts）；执行前打印预估，TTY 下方向键选「继续 / 取消」（choice-prompt.ts，y / n 直选），非 TTY 必须 `--yes`。
  */
 
 import { existsSync } from "node:fs";
-import { createInterface } from "node:readline/promises";
 import { describeModelsDev, loadModelsDevIndex } from "../../ai/providers/models-dev-cache.js";
 import { modelsDevFields, type ModelsDevIndex } from "../../ai/providers/models-dev.js";
 import type { ProviderRegistryApi } from "../../ai/types.js";
@@ -22,6 +21,7 @@ import type { AmaConfig, ProviderConfig } from "../../config/types.js";
 import { CONFIG_FILE_VERSION } from "../../config/types.js";
 import { writeConfigFile } from "../../config/write.js";
 import { parseSubArgs, UsageError } from "../args.js";
+import { confirmContinue } from "../choice-prompt.js";
 import { pickByPrice } from "../default-model.js";
 import type { CliIo, RuntimeDeps } from "../deps.js";
 import { ExitCode } from "../exit-codes.js";
@@ -111,12 +111,7 @@ export function userConfig(level: UserLevel): AmaConfig {
 
 async function confirm(io: CliIo, question: string): Promise<boolean> {
   io.stderr(question);
-  const rl = createInterface({ input: process.stdin, output: process.stderr });
-  try {
-    return /^y(es)?$/i.test((await rl.question("继续？[y/N] ")).trim());
-  } finally {
-    rl.close();
-  }
+  return confirmContinue({ env: io.env });
 }
 
 /** --yes / TTY 确认；非 TTY 且没有 --yes 返回 false 并提示（调用方退出 2）。 */

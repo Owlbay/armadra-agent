@@ -3,6 +3,12 @@
 ## 未发布
 
 - **Tab 切换权限模式**：输入为空、补全未打开时按 Tab 与 Shift+Tab 一样循环权限模式；有输入时 Tab 仍是补全。可在 `keybindings.json` 的 `app.permission.cycle` 改回只用 `shift+tab`。
+- **进入 Bypass 前确认**：Tab / Shift+Tab 循环到 Bypass permissions、`/permission` 选择器选它或 `/permission full-auto` 时，先弹确认框
+  （说明所有工具调用免审批，缺省选中「取消」，↑↓ Enter / 1 2 / y n / Esc）。循环时取消会跳过 Bypass 回到 Manual，选择器与命令取消
+  保持原模式；本次运行确认过一次后不再问。`--permission-mode full-auto`、配置与 profile 指定的不弹；line 模式问 `确认进入 Bypass？[y/N]`。
+- **选择统一用 ↑↓ / Enter**：`ama providers add` / `refresh`（含 `--probe`）、`ama models cache-probe` 的计费 / 写入确认在 TTY 下
+  改为方向键选择「继续 / 取消」（缺省取消，y / n、数字直选，Esc / Ctrl+C 取消，结束后恢复终端）；stdin 非 TTY 时仍是文本
+  `[y/N]`，`--yes` 照旧跳过。启动时的信任目录确认与 `/thinking` 选择器加数字直选。
 
 ## 0.5.0（2026-10-03）
 

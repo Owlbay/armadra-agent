@@ -25,6 +25,7 @@ import {
   parsePermissionMode,
   permissionModeLabel,
 } from "../permissions/modes.js";
+import type { PermissionMode } from "../permissions/types.js";
 import { pasteImage } from "./interactive/clipboard-paste.js";
 import { planCommand } from "./interactive/plan-command.js";
 import { rewindCommand } from "./interactive/rewind-command.js";
@@ -56,6 +57,11 @@ export interface CommandContext {
   /** 当前会话（切换后是新的那个）。 */
   session(): AgentSession;
   switchSession(request: SwitchRequest): Promise<AgentSession>;
+  /**
+   * `/permission <模式>` 切换前的确认（进入 Bypass 前问一次，见 permissions/bypass.ts）；返回 false
+   * 保持原模式。没有时直接切换（管道、RPC 等无人值守入口）。
+   */
+  confirmPermissionMode?(mode: PermissionMode): boolean | Promise<boolean>;
 }
 
 export interface CommandInfo {
@@ -217,6 +223,15 @@ export async function runSlashCommand(
           "invalid_arguments",
           `权限模式应为 ${PERMISSION_MODE_ORDER.join(" | ")}（也可写显示名，如 "Accept edits"）`,
         );
+      }
+      const current = session.state.permissionMode;
+      if (mode !== current && ctx.confirmPermissionMode !== undefined) {
+        if (!(await ctx.confirmPermissionMode(mode))) {
+          return {
+            kind: "handled",
+            message: `已取消，权限模式仍为 ${permissionModeLabel(current)}`,
+          };
+        }
       }
       session.setPermissionMode(mode);
       return { kind: "handled", message: `权限模式：${permissionModeLabel(mode)}` };

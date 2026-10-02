@@ -111,23 +111,23 @@ Accept edits     claude-opus-5-5 medium | Ctx 3.0% | proj ⎇ main 5ae9e54 (+12,
 
 ## 按键
 
-| 按键                 | 作用                                                                                                                  |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Enter                | 发送；运行中 = steer（插到当前轮）                                                                                    |
-| Alt+Enter            | 运行中排到本轮之后（followUp）；空闲时等同 Enter                                                                      |
-| Shift+Enter / Ctrl+J | 换行                                                                                                                  |
-| Esc                  | 中断：排队的消息回填到输入框，然后停止当前运行；补全打开时先关补全                                                    |
-| Esc Esc（空闲）      | 输入框为空：打开回滚列表（同 `/rewind`）；有字：清空并存进输入历史                                                    |
-| Alt+↑                | 取回最后一条排队消息                                                                                                  |
-| Shift+Tab / Tab      | 循环权限模式 Manual → Accept edits → Plan → Auto → Bypass permissions（Tab 只在输入为空、补全未打开时，否则仍是补全） |
-| Ctrl+O               | 展开 / 折叠工具输出与思考块                                                                                           |
-| Ctrl+L / Ctrl+T      | 选择模型 / 思考级别                                                                                                   |
-| Ctrl+G               | 底部信息行 两行（full）↔ 一行（compact），只影响本会话                                                                |
-| Ctrl+V               | 粘贴剪贴板里的图片：存进数据目录，光标处插入 `@<路径>`（同 `/paste`）                                                 |
-| Ctrl+C               | 清空输入；输入为空时 1.5 秒内再按一次退出（退出码 130）                                                               |
-| Ctrl+D               | 输入为空时退出                                                                                                        |
-| Tab                  | 补全                                                                                                                  |
-| ↑ / ↓                | 单行时浏览历史（`<数据目录>/history`，500 条）                                                                        |
+| 按键                 | 作用                                                                                                                                                             |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Enter                | 发送；运行中 = steer（插到当前轮）                                                                                                                               |
+| Alt+Enter            | 运行中排到本轮之后（followUp）；空闲时等同 Enter                                                                                                                 |
+| Shift+Enter / Ctrl+J | 换行                                                                                                                                                             |
+| Esc                  | 中断：排队的消息回填到输入框，然后停止当前运行；补全打开时先关补全                                                                                               |
+| Esc Esc（空闲）      | 输入框为空：打开回滚列表（同 `/rewind`）；有字：清空并存进输入历史                                                                                               |
+| Alt+↑                | 取回最后一条排队消息                                                                                                                                             |
+| Shift+Tab / Tab      | 循环权限模式 Manual → Accept edits → Plan → Auto → Bypass permissions（Tab 只在输入为空、补全未打开时，否则仍是补全；进入 Bypass 前确认，见下文「进入 Bypass」） |
+| Ctrl+O               | 展开 / 折叠工具输出与思考块                                                                                                                                      |
+| Ctrl+L / Ctrl+T      | 选择模型 / 思考级别                                                                                                                                              |
+| Ctrl+G               | 底部信息行 两行（full）↔ 一行（compact），只影响本会话                                                                                                           |
+| Ctrl+V               | 粘贴剪贴板里的图片：存进数据目录，光标处插入 `@<路径>`（同 `/paste`）                                                                                            |
+| Ctrl+C               | 清空输入；输入为空时 1.5 秒内再按一次退出（退出码 130）                                                                                                          |
+| Ctrl+D               | 输入为空时退出                                                                                                                                                   |
+| Tab                  | 补全                                                                                                                                                             |
+| ↑ / ↓                | 单行时浏览历史（`<数据目录>/history`，500 条）                                                                                                                   |
 
 按键可在 `~/.config/ama/keybindings.json` 覆盖，键是动作 id（`app.interrupt`、`app.rewind`、`app.message.followUp`、`app.statusLine.toggle`、`app.paste.image`、`tui.editor.newLine` ……），值是按键或按键数组，空数组表示禁用。`app.rewind` 是空闲时双击的那个键（缺省 Esc，两次间隔 ≤ 800 ms）。
 
@@ -188,6 +188,45 @@ Accept edits     claude-opus-5-5 medium | Ctx 3.0% | proj ⎇ main 5ae9e54 (+12,
 - `/plan`：当前计划面板（见下文「Plan 审批」）；`/plan <目标>` 进入 Plan 模式并发出目标；`/plan approve [模式|fresh]`、`/plan reject` 不开对话框直接批准 / 放弃。
 - `/tasks`：子 Agent 任务列表；`/agents`：可用的子 Agent 类型（见下文「子 Agent」）。
 - `/paste`：同 `Ctrl+V`。
+
+## 进入 Bypass
+
+切到 Bypass permissions（`full-auto`）之前底部弹一个确认框，样式同审批对话框（边框黄）：
+
+```
+╭─ 进入 Bypass permissions？ ──────────────────────────────────────────────────╮
+│ 所有工具调用都不再询问：写文件、执行命令、联网直接放行                       │
+│ 只有危险命令仍会询问，deny 规则照常生效；只建议在一次性沙箱、容器里用        │
+│                                                                              │
+│   1. 进入 Bypass                                                       y     │
+│ › 2. 取消                                                              n Esc │
+│                                                                              │
+│ ↑↓ 选择 · Enter 确认 · 1-2 直接选 · Esc 取消                                 │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
+- 触发：Tab / Shift+Tab 循环到 Bypass、`/permission` 选择器选 Bypass、`/permission full-auto`。缺省选中「取消」：↑↓ 移动、Enter 确认、`1` / `2` 或 `y` / `n` 直选，Esc / Ctrl+C 取消（Ctrl+C 在这里不算退出的第一下）。
+- 取消：循环时**跳过 Bypass 回到循环起点 Manual**（底部提示「未进入 Bypass · 权限模式：Manual」），这样不进 Bypass 也能一路 Tab 绕回去，且落点总比 Auto 更严；选择器与命令取消时保持原模式（消息区「已取消，权限模式仍为 …」）。
+- 本次运行确认过一次后，再切到 Bypass 不再问；启动时已是 Bypass（`--permission-mode full-auto`、配置、profile）视为已确认，不弹。
+- 宽 < 56 列时去掉空行、按键提示缩短；ASCII 模式边框 `+ - |`、选中符 `>`、箭头 `^v`。帧黄金 `test/fixtures/tui/bypass-confirm-*.txt`。
+- line 模式（`--no-tui`）：`/permission full-auto` 先打印上面两行说明，再问 `确认进入 Bypass？[y/N]`（单键，Enter = N）；管道输入没有这一步。
+
+## 选择与确认的按键
+
+所有让人做选择的地方都支持 ↑↓ 移动 + Enter 确认，原有快捷键保留：
+
+| 位置                                    | 按键                                                     |
+| --------------------------------------- | -------------------------------------------------------- |
+| 审批对话框（含外部 Agent 首次运行确认） | ↑↓ Enter · 1–3 · y / a / n · Esc 拒绝 · v 完整输入       |
+| 计划审批框（主选项、执行模式）          | ↑↓ Enter · 1–4 / 1–3 · e 编辑计划 · Esc 留在 Plan / 返回 |
+| 回滚确认面板、冲突覆盖二次确认          | ↑↓ Enter · 数字直接执行 · Esc 取消 / 返回                |
+| 进入 Bypass 确认                        | ↑↓ Enter · 1–2 · y / n · Esc 取消                        |
+| 权限模式、思考级别选择器                | ↑↓ Enter · 数字直接选 · Esc 取消                         |
+| 模型、会话、树、任务选择器              | ↑↓ Enter · 输入过滤 · Esc 取消（可过滤的列表不用数字键） |
+| 启动时信任目录                          | ↑↓ Enter · 1–4 直接选 · Esc / Ctrl+C = 本次不信任        |
+| CLI 子命令计费 / 写入确认（TTY）        | ↑↓ Enter · 1–2 · y / n · Esc / Ctrl+C 取消（缺省取消）   |
+
+CLI 子命令（`ama providers add` / `refresh` 的写入与 `--probe` 计费确认、`ama models cache-probe`）在 TTY 下用同一套方向键选择，结束后收成一行「? 继续？ 继续」并恢复终端；stdin 不是 TTY（管道、CI）时仍是文本 `继续？[y/N]`（这些命令非交互时本就要求 `--yes`），`--yes` 跳过确认。
 
 ## 补全
 

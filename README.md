@@ -433,7 +433,7 @@ line 模式用 `/plan approve [模式|fresh]` / `/plan reject`；RPC 声明 `pla
 | Shift+Enter / Ctrl+J | 换行                                                           |
 | Esc                  | 中断当前运行                                                   |
 | Esc Esc（空闲）      | 输入框为空：打开回滚列表（同 `/rewind`）；有字：清空并存进历史 |
-| Shift+Tab / Tab      | 循环权限模式（Tab 只在输入为空时；有输入时是补全）             |
+| Shift+Tab / Tab      | 循环权限模式（Tab 只在输入为空时；进入 Bypass 前确认）         |
 | Ctrl+O               | 展开 / 折叠工具输出                                            |
 | Ctrl+L / Ctrl+T      | 选择模型 / 思考级别                                            |
 | Ctrl+G               | 底部信息行 两行 ↔ 一行（同 `/statusline`）                     |

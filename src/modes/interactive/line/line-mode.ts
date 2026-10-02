@@ -6,6 +6,8 @@
  *   问句之前逐行打印执行前预览（`request.preview`，W3-B9a-2）。
  * - 否则（管道）：逐行读 stdin，每行依次执行（等上一条运行结束）；没有审批 UI，ask → deny。
  *   模型错误在运行结束时只打印一次（重试中只显示 ↻）；有运行最终失败时退出码 1。
+ * - raw 终端里 `/permission full-auto` 进入 Bypass 前文本确认（`确认进入 Bypass？[y/N]`，本次运行确认过
+ *   一次后不再问；启动时已是 Bypass 视为已确认）。
  * - 斜杠命令走 commands-core（与 B7 同一语义），`pick` 退化为列出候选；`/rewind` 列编号、
  *   `/rewind <n> …` 执行，回到的单行原消息放回编辑行。
  */
@@ -16,6 +18,12 @@ import type { AgentSession } from "../../../agent/types.js";
 import { currentSession, switchSession } from "../../../cli/compose-session.js";
 import type { ModeContext } from "../../../cli/deps.js";
 import { ExitCode } from "../../../cli/exit-codes.js";
+import {
+  BYPASS_LINE_QUESTION,
+  BYPASS_MODE,
+  BYPASS_RISK_LINES,
+  createBypassGate,
+} from "../../../permissions/bypass.js";
 import { previewDisplayLines } from "../../../permissions/preview.js";
 import type { Runtime } from "../../../cli/runtime.js";
 import { AMA_VERSION } from "../../../version.js";
@@ -132,6 +140,12 @@ export async function runLineMode(
       `ama ${AMA_VERSION} · ${model?.provider}/${model?.id} · /help 查看命令，Ctrl+D 退出\n`,
     );
   }
+  // /permission full-auto：进入 Bypass 前文本确认一次（管道里没有这一步，命令本身就是显式选择）
+  commands.confirmPermissionMode = createBypassGate(() => {
+    ed.hide();
+    io.stdout(`\n${BYPASS_RISK_LINES.map((l) => `  ${l}\n`).join("")}`);
+    return ed.ask(BYPASS_LINE_QUESTION, "n").then((answer) => answer === "y");
+  }, session.state.permissionMode === BYPASS_MODE);
   runtime.approvals.setUiBroker({
     ask: (request, signal) =>
       new Promise((resolve) => {

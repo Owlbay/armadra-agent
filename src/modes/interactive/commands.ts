@@ -15,6 +15,7 @@
 import { formatModelRef } from "../../ai/providers/channels.js";
 import { AgentSessionImpl } from "../../agent/session.js";
 import type { AgentSession, RewindDraftText } from "../../agent/types.js";
+import { THINKING_LEVELS } from "../../ai/thinking.js";
 import type { ModelThinkingLevel } from "../../ai/types.js";
 import type { SwitchRequest } from "../../cli/compose-session.js";
 import { listSessions } from "../../cli/compose-store.js";
@@ -54,7 +55,7 @@ export const KEY_HINTS = [
   "Enter 发送（运行中 = 插话）  Alt+Enter 排到本轮之后  Shift+Enter / Ctrl+J 换行",
   "Esc 中断（排队消息回填编辑器）  Alt+↑ 取回最后一条排队消息",
   "空闲时 Esc Esc：输入框为空 = 回滚（/rewind），有字 = 清空（↑ 取回）",
-  "Shift+Tab / Tab（输入为空时）切换权限模式  Ctrl+L 模型  Ctrl+T 思考级别  Ctrl+O 展开工具输出与思考",
+  "Shift+Tab / Tab（输入为空时）切换权限模式（进入 Bypass 前确认）  Ctrl+L 模型  Ctrl+T 思考级别  Ctrl+O 展开工具输出与思考",
   "审批：1–3 或 ↑↓ Enter 选择，y 允许  a 本会话允许同类  n / Esc 拒绝  v 完整输入",
   "计划审批：1 批准  2 新上下文执行  3 继续修改  4 放弃并退出 Plan  e 编辑计划  Esc 留在 Plan",
   "Ctrl+V 粘贴剪贴板图片（插入 @路径）  Ctrl+G 底部信息行两行 / 一行",
@@ -87,6 +88,8 @@ export interface CommandUi {
   home?: string;
   /** 进程环境：给出时 /model 选择器按 fake-visibility 规则藏起测试供应商 fake。 */
   env?: Readonly<Record<string, string | undefined>>;
+  /** 切换权限模式前的确认（进入 Bypass 前弹确认框）；返回 false 保持原模式。 */
+  confirmMode?(mode: PermissionMode): boolean | Promise<boolean>;
   /** [W5-U] 界面自己处理的第五波命令（agent-ui.ts）；处理了返回 true。 */
   extra?(name: string, args: string): Promise<boolean>;
 }
@@ -234,6 +237,11 @@ async function handlePick(
       );
       if (picked === undefined) return;
       const mode = picked.value as PermissionMode;
+      const current = session.state.permissionMode;
+      if (mode !== current && ui.confirmMode !== undefined && !(await ui.confirmMode(mode))) {
+        ui.notice("info", `已取消，权限模式仍为 ${permissionModeLabel(current)}`);
+        return;
+      }
       session.setPermissionMode(mode);
       ui.notice("info", `权限模式：${permissionModeLabel(mode)}`);
       return;
@@ -247,6 +255,10 @@ async function handlePick(
         title: "思考级别",
         items: thinkingItems(reasoning),
         selected: session.state.thinkingLevel,
+        currentValue: session.state.thinkingLevel,
+        filterable: false,
+        numberKeys: true,
+        footer: `↑↓ 选择 · 1-${THINKING_LEVELS.length} 直接选 · Enter 确认 · Esc 取消`,
       });
       if (picked !== undefined) session.setThinkingLevel(picked.value as ModelThinkingLevel);
       return;
@@ -293,6 +305,7 @@ export async function runInteractiveCommand(line: string, ui: CommandUi): Promis
       runtime: ui.runtime,
       session: () => ui.session(),
       switchSession: (request) => ui.switchSession(request),
+      ...(ui.confirmMode !== undefined ? { confirmPermissionMode: ui.confirmMode } : {}),
     });
     if (result === undefined) return false;
     switch (result.kind) {

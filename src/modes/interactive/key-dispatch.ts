@@ -14,6 +14,7 @@
 import type { AgentSession } from "../../agent/types.js";
 import { ExitCode } from "../../cli/exit-codes.js";
 import { nextCycleMode, permissionModeLabel } from "../../permissions/modes.js";
+import type { PermissionMode } from "../../permissions/types.js";
 import type { Editor, Keybindings } from "../../tui.js";
 import { DOUBLE_ESC_HINT_MS, DoubleEscape } from "./double-esc.js";
 import { statusLineText } from "./status-area.js";
@@ -39,6 +40,11 @@ export interface KeyDispatchDeps {
   onExpandToggle?(expanded: boolean): void;
   /** Ctrl+G：切换底部信息行，返回切换后的布局。 */
   onStatusLineToggle?(): "full" | "compact";
+  /**
+   * 循环到某模式前的确认（进入 Bypass 前弹确认框，permissions/bypass.ts）；返回 false 时跳过该模式，
+   * 落到循环里的下一个。没有时直接切换。
+   */
+  confirmMode?(mode: PermissionMode): boolean | Promise<boolean>;
   /** Ctrl+V：粘贴剪贴板图片（W5-U）。 */
   onPasteImage?(): void;
   submit(text: string, via: "followUp"): void;
@@ -103,12 +109,21 @@ export function createKeyDispatch(deps: KeyDispatchDeps): (data: string) => bool
     editor.setText(current.trim() === "" ? last : `${last}\n${current}`);
   };
 
-  const cyclePermission = (): void => {
-    const session = deps.session();
-    const next = nextCycleMode(session.state.permissionMode);
-    session.setPermissionMode(next);
+  const applyMode = (mode: PermissionMode, skipped: boolean): void => {
+    deps.session().setPermissionMode(mode);
     status.refresh();
-    deps.showHint(`权限模式：${permissionModeLabel(next)}`);
+    const label = `权限模式：${permissionModeLabel(mode)}`;
+    deps.showHint(skipped ? `未进入 Bypass · ${label}` : label);
+  };
+
+  const cyclePermission = (): void => {
+    const next = nextCycleMode(deps.session().state.permissionMode);
+    // 取消进入 Bypass：跳过它继续循环（回到起点 Manual），而不是停在原模式——否则不进 Bypass 就绕不回去
+    const settle = (ok: boolean): void =>
+      ok ? applyMode(next, false) : applyMode(nextCycleMode(next), true);
+    const answer = deps.confirmMode?.(next) ?? true;
+    if (typeof answer === "boolean") settle(answer);
+    else void answer.then(settle);
   };
 
   return (data) => {

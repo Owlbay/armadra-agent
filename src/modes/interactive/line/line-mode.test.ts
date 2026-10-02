@@ -163,6 +163,40 @@ describe("行式界面：执行前预览", () => {
   });
 });
 
+describe("行式界面：进入 Bypass 前确认", () => {
+  it("/permission full-auto 文本确认：Enter / n 取消保持原模式，y 进入；确认过后不再问", async () => {
+    h = composeHarness([]);
+    const runtime = await h.boot(["--model", "fake/echo"]);
+    const stdin = Object.assign(new PassThrough(), { setRawMode: () => undefined, isTTY: true });
+    const done = runLineMode(
+      runtime,
+      { args: emptyArgs(), prompt: undefined, io: h.io },
+      { stdin, raw: true },
+    );
+    const count = (text: string): number => h.stdout().split(text).length - 1;
+    const mode = (): string => runtime.session.state.permissionMode;
+    stdin.write("/permission full-auto\r");
+    await until(() => count("确认进入 Bypass？[y/N]") === 1, "question 1");
+    expect(h.stdout()).toContain("所有工具调用都不再询问");
+    stdin.write("\r");
+    await until(() => h.stdout().includes("已取消，权限模式仍为 Manual"), "cancel");
+    expect(mode()).toBe("default");
+    stdin.write("/permission full-auto\r");
+    await until(() => count("确认进入 Bypass？[y/N]") === 2, "question 2");
+    stdin.write("y");
+    await until(() => h.stdout().includes("权限模式：Bypass permissions"), "bypass");
+    expect(mode()).toBe("full-auto");
+    stdin.write("/permission default\r");
+    await until(() => mode() === "default", "default");
+    stdin.write("/permission full-auto\r");
+    await until(() => mode() === "full-auto", "bypass again");
+    expect(count("确认进入 Bypass？[y/N]")).toBe(2);
+    stdin.write("\x04");
+    expect(await done).toBe(0);
+    await runtime.dispose();
+  });
+});
+
 describe("LineEditor", () => {
   it("光标移动、删除词、历史、Ctrl+C / Ctrl+D", () => {
     const writes: string[] = [];
