@@ -1,6 +1,6 @@
 /** [S2] bash 沙箱设定与策略（纯函数部分；真机见 src/tools/bash-sandbox.test.ts）。 */
 
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   bashSandboxPolicy,
@@ -53,7 +53,7 @@ describe("resolveBashSandbox", () => {
       { status: SEATBELT, home, hidden: ["/cfg/ama/auth.json"] },
     );
     expect(s.network).toBe("deny");
-    expect(s.writable).toEqual([join(home, ".npm"), "/opt/cache", home]);
+    expect(s.writable).toEqual([join(home, ".npm"), resolve("/opt/cache"), home]);
     expect(s.hidden).toContain(join(home, ".ssh"));
     expect(s.hidden).toContain("/cfg/ama/auth.json");
     expect(s.detail).toContain("网络 deny");
@@ -69,7 +69,8 @@ describe("resolveBashSandbox", () => {
   });
 });
 
-describe("bashSandboxPolicy / 包装", () => {
+// Windows 上没有 OS 沙箱（bash 不包装），路径形状按 POSIX 断言
+describe.skipIf(process.platform === "win32")("bashSandboxPolicy / 包装", () => {
   const s = resolveBashSandbox(
     { bash: "auto", writable: ["/opt/cache"] },
     { status: SEATBELT, home },
