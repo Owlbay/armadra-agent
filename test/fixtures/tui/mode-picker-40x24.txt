@@ -6,7 +6,7 @@
 | │ › ✓ Accept edits                 2 │
 | │       自动接受文件编辑，执行命令…  │
 | │     Plan                         3 │
-| │       只读，不改文件、不跑命令     │
+| │       只读调研，只跑只读命令，出…  │
 | │     Auto            Recommended  4 │
 | │       由 ama 判断每一步：安全的自… │
 | │     Bypass permissions           5 │
