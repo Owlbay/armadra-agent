@@ -9,7 +9,8 @@
 
 import type { ModelThinkingLevel } from "../../ai/types.js";
 import { THINKING_LEVELS } from "../../ai/thinking.js";
-import { PERMISSION_MODES_STRICT_FIRST, type PermissionMode } from "../../permissions/types.js";
+import { PERMISSION_MODE_INFO } from "../../permissions/modes.js";
+import { PERMISSION_MODES_STRICT_FIRST } from "../../permissions/types.js";
 import type { SessionEntry } from "../../session/types.js";
 import {
   Box,
@@ -69,18 +70,11 @@ export function openPicker(host: PickerHost, spec: PickerSpec): Promise<SelectIt
   });
 }
 
-const PERMISSION_TEXT: Readonly<Record<PermissionMode, string>> = {
-  plan: "只读，不改文件不跑命令",
-  default: "写入与命令逐次确认",
-  "auto-edit": "文件编辑自动放行，命令确认",
-  "full-auto": "全部放行（危险命令仍确认）",
-};
-
 export function permissionItems(): SelectItem[] {
   return PERMISSION_MODES_STRICT_FIRST.map((mode) => ({
     value: mode,
     label: mode,
-    description: PERMISSION_TEXT[mode],
+    description: PERMISSION_MODE_INFO[mode].description,
   }));
 }
 

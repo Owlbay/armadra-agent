@@ -74,9 +74,9 @@ describe("选择器", () => {
     const shown = screen();
     expect(shown).toContain("╭─ 权限模式");
     expect(shown).toContain("› auto-edit");
-    expect(shown).toContain("文件编辑自动放行，命令确认");
+    expect(shown).toContain("自动接受文件编辑，执行命令仍询问");
     terminal.sendInput("\x1b[B\r");
-    expect((await picked)?.value).toBe("full-auto");
+    expect((await picked)?.value).toBe("auto");
     expect(tui.getFocus()).toBe(editor);
     expect(screen()).not.toContain("权限模式");
   });

@@ -6,7 +6,8 @@ import { PermissionPipeline, UNATTENDED_MESSAGE, modeDecision } from "./pipeline
 import { BUILTIN_DENY_RULES, parseRule } from "./rules.js";
 
 const cwd = resolve("/work/proj");
-const MODES: PermissionMode[] = ["plan", "default", "auto-edit", "full-auto"];
+type ClassicMode = Exclude<PermissionMode, "auto" | "allowlist">;
+const MODES: ClassicMode[] = ["plan", "default", "auto-edit", "full-auto"];
 const PERMS: ToolPermission[] = ["read", "write", "execute"];
 const HOOKS: (Decision | undefined)[] = [undefined, "allow", "ask", "deny"];
 
@@ -14,7 +15,7 @@ const HOOKS: (Decision | undefined)[] = [undefined, "allow", "ask", "deny"];
  * 真值表：4 模式 × 3 类 × Hook（无 / allow / ask / deny），有人值守。
  * 每格 4 个字母对应 HOOKS 顺序：A = allow，Q = ask，D = deny。
  */
-const TABLE: Record<PermissionMode, Record<ToolPermission, string>> = {
+const TABLE: Record<ClassicMode, Record<ToolPermission, string>> = {
   plan: { read: "AAQD", write: "DDDD", execute: "DDDD" },
   default: { read: "AAQD", write: "QAQD", execute: "QAQD" },
   "auto-edit": { read: "AAQD", write: "AAQD", execute: "QAQD" },
