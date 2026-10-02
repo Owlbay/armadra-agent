@@ -37,6 +37,7 @@ import type {
 } from "../../rpc.js";
 import { BUILTIN_COMMANDS } from "../commands-core.js";
 import { msg } from "../../i18n/index.js";
+import { sessionTrace } from "../../trace/query-session.js";
 
 /** 审批 broker：等客户端 `permission_response`。 */
 export class RpcApprovals implements ApprovalBroker {
@@ -366,10 +367,8 @@ export const handlers: RpcHandlers = {
   get_todos: async (_p, ctx) => ({ items: currentTodos(impl(ctx.session()).manager.branch()) }),
   get_tasks: async (_p, ctx) => ({ tasks: [...(ctx.tasks?.()?.list() ?? [])] }),
   get_agents: async (_p, ctx) => ({ agents: [...(ctx.agents?.() ?? [])] }),
-  // [W6-C0] W6-T2 换成实现（docs/wave6-plan.md §2.6）
-  get_trace: async () => {
-    throw new AmaError("not_implemented", "get_trace is not available in this build yet");
-  },
+  // [W6-T2] 轨迹（docs/wave6-plan.md §2.6；分页 / 增量 / 脱敏见 trace/query.ts）
+  get_trace: async (p, ctx) => sessionTrace(ctx.session(), p ?? {}),
 };
 
 export const RPC_COMMAND_TYPES = Object.keys(handlers) as RpcCommandType[];

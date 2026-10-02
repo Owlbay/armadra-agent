@@ -49,6 +49,7 @@ import {
   type ToolsPresetInput,
 } from "./config/types.js";
 import type { Trace, TraceOptions } from "./trace/types.js";
+import { sdkSessionTrace } from "./trace/query-session.js";
 import { AmaError } from "./errors.js";
 import { resolveLocale, setLocale, type Locale } from "./i18n/index.js";
 import { hooksFromConfig } from "./hooks/config.js";
@@ -156,7 +157,7 @@ export interface SessionPlanApi {
 
 export type SdkAgentSession = AgentSessionImpl & {
   readonly plan: SessionPlanApi;
-  /** [W6-C0] 本会话的轨迹（W6-T2 实现；之前不存在）。 */
+  /** [W6-C0] 本会话的轨迹（[W6-T2] 实现，见 trace/query-session.ts）。 */
   trace?(options?: TraceOptions): Trace;
 };
 
@@ -390,5 +391,5 @@ function withPlanApi(
     respond: (response) => (controller ?? missing()).respond(response),
     todos: () => controller?.todos() ?? [],
   };
-  return Object.assign(session, { plan });
+  return Object.assign(session, { plan, trace: (o?: TraceOptions) => sdkSessionTrace(session, o) }); // [W6-T2]
 }

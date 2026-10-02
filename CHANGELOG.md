@@ -87,6 +87,15 @@ Wave 6 (docs/wave6-plan.md) contracts and infrastructure (W6-C0):
   miss on the first request.** `/memory` (panel, show, edit, rm, on|off, reload) and
   `ama memory list|show|edit|rm|path|enable|disable`; post-compaction notes list memory paths read or written. Disabled by
   default for embedding hosts and the SDK; enable with `memory: { enabled, dir }` (workspace scope only, no user scope).
+- **Trace HTML, `ama sessions trace` and RPC `get_trace`** (W6-T2): `ama sessions trace <id|file>` exports a self-contained
+  single-file HTML page (tree + waterfall, TTFT / decode / tool colors, nested subagents and external agents, search, jump to
+  turn, zoom, details, a virtual list for long sessions, light and dark; inline styles and script with a CSP that blocks all
+  external loads; data and content redacted twice and the data block escaped against injection). `--json` prints the same shape
+  as `get_trace`, `--no-content` keeps only structure and numbers, `--children` embeds child-session previews, `--open` opens a
+  browser and `--now` pins the generation time (deterministic output). RPC `get_trace` is implemented: tail-first paging
+  (`turnLimit` / `before`), increments by `since` (driven by `entry_appended`), `taskId` sub-traces and redacted previews with
+  `content: "preview"` (the result gains the optional fields `task` and `previews`). SDK `session.trace()`. See
+  [docs/en/sessions.md](docs/en/sessions.md) "Trace" and [docs/en/rpc.md](docs/en/rpc.md) "Trace".
 
 ## Earlier releases
 
