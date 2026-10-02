@@ -198,7 +198,8 @@ export function detailLines(
   traceStart: number,
 ): string[] {
   const rows = summaryRows(node, theme, traceStart);
-  const labelWidth = Math.min(16, Math.max(0, ...rows.map(([label]) => visibleWidth(label))));
+  // 键列宽取最长的键（en 的 Waiting for approval 比 16 列宽，封顶会让这一行错位）
+  const labelWidth = Math.max(0, ...rows.map(([label]) => visibleWidth(label)));
   const out: string[] = [];
   const valueWidth = Math.max(8, width - labelWidth - 2);
   for (const [label, value] of rows) {
