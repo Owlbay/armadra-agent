@@ -35,6 +35,7 @@ import { formatUsd } from "../../agent/limits.js";
 import type { LimitReachedEvent, PlanProposedEvent, SessionEvent } from "../../agent/types.js";
 import type { ImageBlock } from "../../ai/types.js";
 import { promptImages, sessionModel } from "../image-input.js";
+import { msg } from "../../i18n/index.js";
 
 export function joinPrompt(argument: string | undefined, piped: string): string {
   const parts = [argument ?? "", piped.replace(/\s+$/, "")].filter((p) => p.trim() !== "");
@@ -90,17 +91,14 @@ export async function readPromptStdin(
     if (waitMs === 0) return "";
     const text = await readWithin(io, waitMs);
     if (text === undefined) {
-      io.stderr(`ama: 未在 ${formatSeconds(waitMs)}内收到管道输入，已忽略；需要等待请在末尾加 -\n`);
+      io.stderr(msg().print.print.stdinIgnored(formatSeconds(waitMs)));
       return "";
     }
     return text;
   }
   const timer = safe
     ? undefined
-    : setTimeout(
-        () => io.stderr("ama: 正在等待 stdin 输入结束（Ctrl+D 结束；提示也可以直接写成参数）…\n"),
-        hintMs,
-      );
+    : setTimeout(() => io.stderr(msg().print.print.stdinWaiting), hintMs);
   try {
     return await io.readStdin();
   } finally {
@@ -109,7 +107,8 @@ export async function readPromptStdin(
 }
 
 function formatSeconds(ms: number): string {
-  return ms % 1000 === 0 ? `${ms / 1000} 秒` : `${ms} 毫秒`;
+  const m = msg().print.print;
+  return ms % 1000 === 0 ? m.seconds(ms / 1000) : m.millis(ms);
 }
 
 export async function runPrintMode(runtime: Runtime, context: ModeContext): Promise<number> {
@@ -119,7 +118,7 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
   const piped = await readPromptStdin(io, context.prompt, stdinMode);
   const prompt = joinPrompt(context.prompt, piped);
   if (prompt === "") {
-    io.stderr("ama: -p 需要提示（位置参数或 stdin 管道）\n");
+    io.stderr(msg().print.print.needsPrompt);
     return ExitCode.Usage;
   }
   const session = currentSession(runtime);
@@ -153,7 +152,12 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
     if (format === "stream-json") io.stdout(`${toJsonLine(toWireEvent(event))}\n`);
     else if (event.type === "auto_retry_start")
       io.stderr(
-        `ama: ↻ 重试 ${event.attempt}/${event.maxAttempts}（${Math.round(event.delayMs / 1000)}s 后）：${event.errorMessage}\n`,
+        msg().print.print.retry(
+          event.attempt,
+          event.maxAttempts,
+          Math.round(event.delayMs / 1000),
+          event.errorMessage,
+        ),
       );
   });
   let signalled: number | undefined;
@@ -233,7 +237,7 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
     return ExitCode.LimitReached;
   }
   if (last?.stopReason === "error" || last?.stopReason === "aborted") {
-    io.stderr(`ama: ${last.errorMessage ?? "模型调用失败"}\n`);
+    io.stderr(`ama: ${last.errorMessage ?? msg().print.print.modelFailed}\n`);
     return ExitCode.RuntimeError;
   }
   if (denied.length > 0) io.stderr(`${describeDenied(denied)}\n`);
@@ -248,18 +252,15 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
 /** stderr 一行：计划已落盘待审批（-p 不替人批准）。 */
 export function describePlanPending(plan: PlanProposedEvent): string {
   const where = plan.filePath ?? plan.planId;
-  return (
-    `ama: 计划 v${plan.version} 已落盘、待审批（未执行）：${where}；-p 不替人批准——` +
-    "在交互界面或 RPC plan_response 里审批，或设 plan.unattended: approve 让 -p 批准后接着执行"
-  );
+  return msg().print.print.planPending(plan.version, where);
 }
 
 /** stderr 一行：哪个预算到限。 */
 export function describeLimit(event: LimitReachedEvent): string {
+  const m = msg().print.print;
   return event.kind === "turns"
-    ? `ama: 已达到回合上限 ${event.limit}（--max-turns / limits.maxTurns），运行在完成前结束`
-    : `ama: 已达到费用上限 ${formatUsd(event.limit)}（累计 ${formatUsd(event.value)}；` +
-        "--max-cost / limits.maxCostUsd），运行在完成前结束";
+    ? m.limitTurns(event.limit)
+    : m.limitCost(formatUsd(event.limit), formatUsd(event.value));
 }
 
 /** 被拒的一次工具调用（json 结果的 `deniedTools` 元素）。 */
@@ -282,10 +283,6 @@ function textOf(event: Extract<SessionEvent, { type: "tool_execution_end" }>): s
 export function describeDenied(denied: readonly DeniedTool[]): string {
   const counts = new Map<string, number>();
   for (const item of denied) counts.set(item.toolName, (counts.get(item.toolName) ?? 0) + 1);
-  const tools = [...counts].map(([name, n]) => `${name} ×${n}`).join("、");
-  const reason = denied[0]?.reason ?? "";
-  return (
-    `ama: ${denied.length} 次工具调用被拒：${tools}${reason !== "" ? `（${reason}）` : ""}；` +
-    "-p 没有人审批，需要放行时用 --permission-mode auto-edit|auto 或 --allow <规则>"
-  );
+  const tools = [...counts].map(([name, n]) => `${name} ×${n}`);
+  return msg().print.print.denied(denied.length, tools, denied[0]?.reason ?? "");
 }
