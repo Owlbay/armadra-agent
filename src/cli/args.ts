@@ -137,7 +137,12 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
   ama auth list                列出已保存 key 的供应商（不显示 key）
   ama auth remove <provider>   删除已保存的 key
   ama sessions list|show|prune 会话管理
-  ama models list [--provider <id>] | ama models check <provider/id>
+  ama models list [--provider <id>]  列出模型（含来源与 key 状态）
+  ama models check <provider/id>     发一次最小请求检查可用性
+  ama models discover <provider> [--probe] [--write] [--limit N]
+                               从中转 /v1/models 列出模型，探测协议并写入配置
+  ama models cache-probe <provider/id> [--tokens N] [--gap-ms MS] [--yes] [--json]
+                               判断端点是否报告缓存命中
   ama doctor                   配置层级、信任、key 来源、Hook、终端能力
   ama config show [--json]     生效配置与每项来源、将使用的模型
 

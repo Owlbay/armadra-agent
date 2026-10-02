@@ -1,6 +1,6 @@
 # 供应商与模型
 
-B1 草稿（B9 统稿）。设计依据见 [design.md](design.md) §3。
+内置供应商、模型引用、API Key、自定义供应商与中转站、各协议的 compat 开关，以及缓存。设计依据见 [design.md](design.md) §3、§9.1。
 
 ## 内置供应商
 
@@ -69,7 +69,7 @@ B1 草稿（B9 统稿）。设计依据见 [design.md](design.md) §3。
 Responses）。一个供应商就够：协议写在模型上。
 
 ```sh
-export PACKY_API_KEY=…
+export PACKY_API_KEY=sk-...
 ```
 
 ```json
@@ -112,6 +112,8 @@ Claude Code 的通行约定），优先级低于 config 与 auth.json 的 `baseU
 OPENAI_BASE_URL=https://proxy.example/v1 OPENAI_API_KEY=$PACKY_API_KEY ama -p "hi" --model openai/qwen3.8-flash
 ```
 
+接好之后：`ama models check packy/<id>` 发一次最小请求确认连通；`ama models cache-probe packy/<id>` 看这个端点报不报缓存（见下节「缓存」），中转上不报缓存的模型按建议设 `compat.cacheReporting: "silent"`，状态栏就显示「未报告」而不是 0%。
+
 ## OpenAI 兼容线的 compat
 
 推断顺序：保守缺省 ← 推断表（provider id，其次 baseUrl 子串）← `provider.compat` ← `model.compat`。
@@ -152,7 +154,9 @@ compat 只记录**已验证**的差异；新增条目请附文档链接或真实
 
 ## 缓存
 
-> 草稿（第三波 W3-C1a，协议层）。会话层的未命中检测、三态与保温见第三波设计 §1.5–§1.7。
+长任务的主要用量是缓存读取：前缀一旦变化，此后每次请求都要按全价重读。ama 分三层处理缓存：**协议层**按各家写法打断点、发缓存键与保留层级，并标记响应里有没有缓存字段；**会话层**记录每次请求的前缀指纹，检测未命中、判定端点报不报缓存、在长工具运行期间保温；**展示层**是状态栏、`/session`、RPC 统计与 `ama models cache-probe`（界面怎么读见 [tui.md](tui.md)「缓存与上下文」）。
+
+前缀稳定由组装保证：系统提示节顺序固定、不含时间戳，工具按名排序，会话中途的变化只以 system 补丁追加在末尾（[session-format.md](session-format.md)「消息」）。
 
 ### 请求字段
 
@@ -204,6 +208,75 @@ Anthropic 的 `baseUrl` 以 `/v1` 结尾时请求 `{baseUrl}/messages`，不会�
 全部 `short 300 / long 86400 / minTokens 1024`；Kimi 全部 `short 300`。DeepSeek、智谱、通义、Groq、xAI、Mistral、
 OpenRouter、Google 没有承诺的 TTL，留空（不保温，归因按隐式缓存 10 分钟估）。可在 `models[]` /
 `modelOverrides[]` 里自填。
+
+### 会话层：指纹、未命中与三态
+
+每次真实请求在内存里记一条记录：前缀指纹（system 与工具表各取 sha256 前 16 位 hex，加 `provider/model`）、`promptTokens`（input + cacheRead + cacheWrite）、用量与发出时刻。下一次请求与上一条比对：
+
+- **未命中**：`missed = min(上次前缀, 本次前缀) − 本次 cacheRead`，低于噪声下限（`max(1024, promptCache.minTokens)`）不计；相对比例超过随规模自适应的门槛（约 `0.10 × √(100k / 前缀)`，夹在 2%–30%），或绝对值 ≥ 20 000 才记一次。重计费金额按本条实付单价与读价之差估算，模型无价格时只有 token。
+- **原因**（按顺序判定）：system / 工具表指纹变了 → `prefix_changed`（`detail` 说明哪段，多半是宿主中途注册工具或 Hook 上下文变化）；模型变了 → `model_changed`；间隔超过 TTL → `idle`（目录没有 TTL 的隐式缓存按 10 分钟估）；两次请求之间 `task` 子任务占了间隔的 80% 以上 → `subtask`；其余 → `evicted`（服务端淘汰）。
+- **不算未命中**：压缩、分支摘要、档一裁剪之后的首个请求（上下文合法地变了）；前缀低于最小可缓存长度。切换模型**不**豁免。
+- **三态**：按 `(provider, baseUrl 主机名, model)` 在进程内维护。`unknown`：还没有足够长的可比请求；`reported`：出现过 cacheRead 或 cacheWrite > 0；`silent`：连续 3 个可比请求（前缀 ≥ minTokens、指纹未变、间隔 < TTL）读写都是 0，或 `compat.cacheReporting: "silent"`。只有 `reported` 时显示命中率、检测未命中并保温；`unknown` / `silent` 的请求不进命中率分母，界面显示 `—` / `未报告` 而不是 0%。
+
+`task` 子会话有自己的记录链与统计，`/session` 的「子任务」行汇总；fork 出的会话沿用根会话 id 作 `prompt_cache_key`（只是路由提示）。
+
+### 保温
+
+工具长时间运行（长测试、`task` 子任务、codemode 脚本）时，前缀可能在下一次请求前过期。保温在 TTL 到期前重放上一次真实请求（同模型、同上下文，`maxTokens: 1`），只买一次读价，把缓存续上。
+
+| 项     | 规则                                                                                                                                                                                       |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 模式   | `off`；`streaming`（缺省，只在运行中、也就是工具执行期间）；`idle`（运行结束后的空闲期也保温，适合贵模型）                                                                                 |
+| 前提   | 端点为 `reported`；模型目录有 `promptCache.short`（TTL > 10 秒）；请求的 `cacheRetention` 不是 `none`；请求体没被 `onPayload` 替换；Anthropic 开思考且思考预算随 `max_tokens` 推导的不保温 |
+| 时机   | 从上一次请求**发出**时刻起算，`max(1s, min(0.9·TTL, TTL − 10s))` 后发；计时器迟到超过截止（睡眠、事件循环阻塞）直接停                                                                      |
+| 经济性 | `p · missCost − warmCost ≥ cache.minSavingsUsd`（缺省 $0.05）才发，`p` 在 streaming 为 1、idle 为 0.15；缺价格不发                                                                         |
+| 上限   | streaming 60 分钟、idle 30 分钟；连续 2 次保温零命中即停                                                                                                                                   |
+| 取消   | 换模型、换思考级别、压缩、`/tree`、退出时取消，下一次真实请求再开始                                                                                                                        |
+| 记账   | 成功的保温追加 `usage{kind:"cache_warm"}` 条目（不进上下文），计入 `/session` 费用与 RPC 统计；事件 `cache_warm{scheduled｜sent｜stopped}`                                                 |
+
+宿主可以经 `api.cache.onWarmingDecision` 否决或强制每一次保温（[host-api.md](host-api.md)「缓存保温」）。子会话缺省不保温（`cache.warmSubagents: true` 打开）。按目录价格估算，长工具运行期间几乎总是划算；空闲保温只对贵模型、长前缀划算。
+
+### 压缩摘要续写
+
+档二压缩的摘要请求不再另起一段新对话，而是在与上一次真实请求逐字节相同的前缀后面追加一条摘要指令（`toolChoice: "none"`、`cacheRetention: "short"`），所以整段历史按读价计费。响应为空、被截断、含工具调用或请求出错时，回落为独立的摘要请求（`cacheRetention: "none"`）并记 warning。
+
+### 配置
+
+```json
+{
+  "cache": {
+    "warming": "streaming",
+    "retention": "short",
+    "minSavingsUsd": 0.05,
+    "missNotices": true,
+    "warmSubagents": false
+  }
+}
+```
+
+| 键              | 缺省        | 说明                                                                                          |
+| --------------- | ----------- | --------------------------------------------------------------------------------------------- |
+| `warming`       | `streaming` | `off` / `streaming` / `idle`；环境变量 `AMA_CACHE_WARMING` 覆盖；`/cache warm …` 本会话内切换 |
+| `retention`     | `short`     | `none` / `short` / `long`；环境变量 `AMA_CACHE_RETENTION` 覆盖                                |
+| `minSavingsUsd` | `0.05`      | 保温的最低期望节省（美元）                                                                    |
+| `missNotices`   | `true`      | 消息区的未命中与上下文余量提示（统计不受影响）                                                |
+| `warmSubagents` | `false`     | `task` 子会话也保温                                                                           |
+
+整段只认用户级与 profile 的 `config.json`，项目级忽略并 warning。供应商级开关在 `providers.<id>.compat`（上文「兼容开关」），TTL 在模型的 `promptCache`。
+
+### `ama models cache-probe`
+
+```sh
+ama models cache-probe <provider/id> [--tokens 2048] [--gap-ms 3000] [--json] [--yes]
+```
+
+用一个确定性的固定前缀（约 `--tokens` token）+ `Reply with: ok`，`maxTokens: 16`，相隔 `--gap-ms` 发两次，判定：
+
+- `reported`：第二次 cacheRead ≥ 前缀的 50%；目录没有 `promptCache` 时建议自填 `promptCache.short` 以启用保温；
+- `silent`：两次读写都是 0；建议设 `compat.cacheReporting: "silent"`。响应里有缓存字段但恒为 0 时另提示可能是写入延迟（同一中转的 kimi-k2.5 间隔 3 秒两次都是 0、间隔 8 秒第二次读满前缀），可加大 `--gap-ms` 重试；
+- `inconclusive`：读到一点或只有写入，多半是缓存粒度或 TTL 问题。
+
+输出两次请求的 input / cacheRead / cacheWrite 与该协议读取的 usage 字段名。这是计费动作：执行前打印预估（无价格显示 `$?`），交互终端问一次 y/N，非交互环境必须带 `--yes`（否则退出 2）；`--json` 时预估写 stderr，stdout 只有结果对象。
 
 ### 中转实测（2026-10-02）
 

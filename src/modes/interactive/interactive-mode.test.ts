@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { composeHarness, type ComposeHarness } from "../../../test/helpers/compose-harness.js";
 import type { SessionEvent } from "../../agent/types.js";
+import { sharedCacheReporting } from "../../ai/cache/reporting.js";
 import type { FakeResponse } from "../../ai/fake/fake-script.js";
 import { parseArgs } from "../../cli/args.js";
 import { currentSession } from "../../cli/compose-session.js";
@@ -74,9 +75,12 @@ async function start(
     rows?: number;
     argv?: string[];
     files?: Record<string, string>;
+    /** 沿用调用方已建好的 harness（先写配置）。 */
+    keepHarness?: boolean;
   } = {},
 ): Promise<Started> {
-  h = composeHarness(script, { stdinIsTTY: true, stdoutIsTTY: true });
+  if (options.keepHarness !== true || h === undefined)
+    h = composeHarness(script, { stdinIsTTY: true, stdoutIsTTY: true });
   for (const [path, body] of Object.entries(options.files ?? {}))
     h.home.write(`work/${path}`, body);
   const argv = ["--model", "fake/echo", "--quiet-startup", "header", ...(options.argv ?? [])];
@@ -375,4 +379,53 @@ describe("交互模式", () => {
     }
     expect(isAmaError(error) && error.code === "terminal_init_failed").toBe(true);
   });
+
+  it("[W3-C2] 缓存提示：跨 70% / 90% 各提示一次，超过门槛的未命中提示一行；状态栏最近一次命中率与着色（帧黄金）", async () => {
+    sharedCacheReporting.clear();
+    const s = await start(CACHE_SCRIPT, { argv: ["--thinking", "off"] });
+    for (const text of ["第一轮", "第二轮", "第三轮", "第四轮"]) {
+      const settled = s.until((e) => e.type === "agent_settled");
+      s.type(text);
+      s.terminal.sendInput("\r");
+      await settled;
+    }
+    const notices = s.handle.view
+      .render(200)
+      .map((l) => l.trim())
+      .filter((l) => /上下文已用|缓存未命中/.test(l));
+    expect(notices).toEqual([
+      expect.stringContaining("上下文已用 71%，余量 58k token"),
+      expect.stringContaining("缓存未命中（服务端已淘汰）：重计费 142k token（约 $0.13）"),
+      expect.stringContaining("上下文已用 91%，约剩 1 回合（按最近 5 回合均值）"),
+    ]);
+    golden("cache-80x24", snapshot(s.terminal, "after 4 turns"));
+    s.handle.exit(0);
+    await s.done;
+  });
+
+  it("[W3-C2] cache.missNotices 为 false：不进消息区，状态栏照常", async () => {
+    sharedCacheReporting.clear();
+    h = composeHarness(CACHE_SCRIPT, { stdinIsTTY: true, stdoutIsTTY: true });
+    h.home.write("home/.config/ama/config.json", { version: 1, cache: { missNotices: false } });
+    const s = await start(CACHE_SCRIPT, { keepHarness: true });
+    for (const text of ["一", "二"]) {
+      const settled = s.until((e) => e.type === "agent_settled");
+      s.type(text);
+      s.terminal.sendInput("\r");
+      await settled;
+    }
+    const view = s.handle.view.render(200).join("\n");
+    expect(view).not.toContain("上下文已用");
+    expect(view).not.toContain("缓存未命中");
+    expect(s.terminal.viewport().join("\n")).toContain("cache 0%");
+    s.handle.exit(0);
+    await s.done;
+  });
 });
+
+const CACHE_SCRIPT: FakeResponse[] = [
+  { text: "一", usage: { input: 2_000, output: 10, cacheRead: 140_000 } },
+  { text: "二", usage: { input: 150_000, output: 10 } },
+  { text: "三", usage: { input: 1_000, output: 10, cacheRead: 150_000 } },
+  { text: "四", usage: { input: 2_000, output: 10, cacheRead: 180_000 } },
+];

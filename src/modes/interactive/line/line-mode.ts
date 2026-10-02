@@ -19,7 +19,8 @@ import { runSlashCommand, type CommandContext } from "../../commands-core.js";
 import { createLineReader } from "../../rpc/jsonl.js";
 import { errorText, onTerminationSignals } from "../../shared.js";
 import { LineEditor } from "./line-editor.js";
-import { EventPrinter, approvalQuestion, pickHint } from "./line-render.js";
+import { cacheNoticesEnabled } from "../../session-report.js";
+import { EventPrinter, approvalQuestion, logsInfo, pickHint } from "./line-render.js";
 
 export interface LineModeOptions {
   stdin?: NodeJS.ReadableStream & { setRawMode?(raw: boolean): unknown; isTTY?: boolean };
@@ -46,8 +47,11 @@ export async function runLineMode(
     editor?.hide();
     io.stderr(text);
   };
-  const printer = new EventPrinter(out, err);
   let session = currentSession(runtime);
+  const printer = new EventPrinter(out, err, {
+    missNotices: () => cacheNoticesEnabled(session),
+    info: logsInfo(io.env),
+  });
   let unsubscribe = session.subscribe((event) => printer.handle(event));
   const commands: CommandContext = {
     runtime,

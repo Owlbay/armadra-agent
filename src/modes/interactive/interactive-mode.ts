@@ -10,9 +10,7 @@
  *   重新订阅、重画消息区并 `announceStart`。
  * - 晚绑定：`runtime.approvals.setUiBroker`（审批对话框）与 `runtime.notifier.set`（宿主通知进消息区），
  *   退出时撤下。
- * - 键位（`keybindings.json` 可覆盖）：Enter 发送（运行中 = steer）、Alt+Enter followUp、
- *   Esc 中断（clearQueue 回填编辑器后 abort）、Alt+↑ 取回最后一条排队消息、Shift+Tab 循环权限模式、
- *   Ctrl+O 展开工具输出、Ctrl+L 模型、Ctrl+T 思考级别、Ctrl+C 清空输入 / 再按退出、Ctrl+D 空输入退出。
+ * - 键位：Enter 发送（运行中 = steer），其余应用级键位见 `key-dispatch.ts`。
  * - 启动画面按 `ui.quietStartup`：normal 标题 + 模型 / 信任 / 资源清单，header 只有标题，silent 不输出。
  */
 
@@ -21,12 +19,12 @@ import { AgentSessionImpl } from "../../agent/session.js";
 import type { AgentSession, SessionEvent } from "../../agent/types.js";
 import { currentSession, switchSession, type SwitchRequest } from "../../cli/compose-session.js";
 import type { ModeContext } from "../../cli/deps.js";
-import { ExitCode } from "../../cli/exit-codes.js";
 import type { Runtime } from "../../cli/runtime.js";
 import { buildStartupScreen } from "../../cli/startup-screen.js";
 import { KEYBINDINGS_FILE } from "../../config/paths.js";
 import { AmaError, isAmaError } from "../../errors.js";
-import { PERMISSION_MODES_STRICT_FIRST } from "../../permissions/types.js";
+import { detectSandboxCapability } from "../../codemode/capability.js";
+import { effectiveCodemodeMode } from "../../tools/presets.js";
 import {
   Container,
   Editor,
@@ -44,16 +42,17 @@ import {
   type Terminal,
   type Theme,
 } from "../../tui.js";
+import { cacheEventNotice, cacheNoticesEnabled } from "../session-report.js";
 import { onTerminationSignals } from "../shared.js";
 import { ApprovalDialogBroker, approvalOutcomeText } from "./approval-dialog.js";
 import { ALL_COMMANDS, runInteractiveCommand, type CommandUi } from "./commands.js";
 import { InteractiveCompletion } from "./completion.js";
+import { createKeyDispatch } from "./key-dispatch.js";
 import { MessageView, type NoticeLevel } from "./message-view.js";
 import { openPicker } from "./pickers.js";
 import { StatusBar } from "./status-bar.js";
 import { ToolTracker } from "./tool-view.js";
 
-const DOUBLE_CTRL_C_MS = 1500;
 const HINT_MS = 2500;
 const QUEUE_PREVIEW = 3;
 
@@ -152,11 +151,18 @@ export function runInteractiveMode(
     ...(options.spinnerIntervalMs !== undefined ? { intervalMs: options.spinnerIntervalMs } : {}),
   });
   const hint = new HintLine();
+  let sandboxStrict: boolean | undefined;
   const status = new StatusBar(
     {
       session: () => session,
       preset: () => runtime.config.tools?.preset ?? "default",
       hostStatus: () => runtime.host?.status(),
+      codemode: () => {
+        const mode = effectiveCodemodeMode(runtime.config);
+        const active = session.getTools().some((tool) => tool.name === "codemode");
+        return mode === "off" || !active ? undefined : mode;
+      },
+      sandboxStrict: () => (sandboxStrict ??= detectSandboxCapability().strict),
     },
     theme,
   );
@@ -194,7 +200,6 @@ export function runInteractiveMode(
   let finished = false;
   let running = false;
   let compacting = false;
-  let ctrlCArmedAt = Number.NEGATIVE_INFINITY;
   let hintTimer: ReturnType<typeof setTimeout> | undefined;
   let resolveExit: (code: number) => void = () => undefined;
 
@@ -315,6 +320,15 @@ export function runInteractiveMode(
         if (!event.success) view.addRetryFailed(event.finalError);
         render();
         return;
+      case "cache_miss":
+      case "context_pressure": {
+        const shown = cacheEventNotice(event, cacheNoticesEnabled(session));
+        if (shown !== undefined) view.addNotice(shown.level, shown.text);
+        status.refresh();
+        render();
+        return;
+      }
+      case "cache_warm":
       case "permission_mode_changed":
       case "model_changed":
       case "thinking_level_changed":
@@ -452,92 +466,22 @@ export function runInteractiveMode(
 
   // ---- 键位 -----------------------------------------------------------------
 
-  const interrupt = (): void => {
-    const queued = session.clearQueue();
-    const restore = [...queued.steering, ...queued.followUp];
-    if (restore.length > 0) {
-      const current = editor.getText();
-      editor.setText([...restore, ...(current.trim() !== "" ? [current] : [])].join("\n"));
-    }
-    void session.abort().catch(() => undefined);
-  };
-
-  const dequeue = (): void => {
-    const queued = session.clearQueue();
-    const steering = [...queued.steering];
-    const followUp = [...queued.followUp];
-    const last = followUp.length > 0 ? followUp.pop() : steering.pop();
-    if (last === undefined) return;
-    for (const text of steering) void session.steer(text).catch(() => undefined);
-    for (const text of followUp) void session.followUp(text).catch(() => undefined);
-    const current = editor.getText();
-    editor.setText(current.trim() === "" ? last : `${last}\n${current}`);
-  };
-
-  const cyclePermission = (): void => {
-    const modes = PERMISSION_MODES_STRICT_FIRST;
-    const index = modes.indexOf(session.state.permissionMode);
-    const next = modes[(index + 1) % modes.length]!;
-    session.setPermissionMode(next);
-    status.refresh();
-    showHint(`权限模式：${next}`);
-  };
-
-  tui.addInputListener((data) => {
-    if (finished || tui.hasOverlay) return false;
-    const is = (action: Parameters<Keybindings["matches"]>[1]): boolean =>
-      keys.matches(data, action);
-    if (is("app.clear")) {
-      if (!editor.isEmpty()) {
-        editor.clear();
-        ctrlCArmedAt = now();
-        showHint("已清空输入 · 再按 Ctrl+C 退出");
-      } else if (now() - ctrlCArmedAt < DOUBLE_CTRL_C_MS) {
-        exit(ExitCode.Sigint);
-      } else {
-        ctrlCArmedAt = now();
-        showHint("再按一次 Ctrl+C 退出");
-      }
-      return true;
-    }
-    ctrlCArmedAt = Number.NEGATIVE_INFINITY;
-    if (is("app.interrupt") && !editor.isCompletionOpen && (running || compacting)) {
-      interrupt();
-      showHint("已中断");
-      return true;
-    }
-    if (is("app.exit") && editor.isEmpty()) {
-      exit(ExitCode.Ok);
-      return true;
-    }
-    if (is("app.message.followUp")) {
-      const text = editor.takeSubmission();
-      if (text !== null) submit(text, "followUp");
-      return true;
-    }
-    if (is("app.message.dequeue")) {
-      dequeue();
-      return true;
-    }
-    if (is("app.permission.cycle")) {
-      cyclePermission();
-      return true;
-    }
-    if (is("app.tools.expand")) {
-      const expanded = tools.toggleExpanded();
-      showHint(expanded ? "工具输出：展开" : "工具输出：折叠");
-      return true;
-    }
-    if (is("app.model.select")) {
-      void runCommand("/model");
-      return true;
-    }
-    if (is("app.thinking.select")) {
-      void runCommand("/thinking");
-      return true;
-    }
-    return false;
-  });
+  tui.addInputListener(
+    createKeyDispatch({
+      keys,
+      editor,
+      tools,
+      status,
+      session: () => session,
+      inactive: () => finished || tui.hasOverlay,
+      busy: () => running || compacting,
+      now,
+      showHint,
+      submit: (text, via) => submit(text, via),
+      runCommand: (line) => void runCommand(line),
+      exit: (code) => exit(code),
+    }),
+  );
 
   // ---- 晚绑定 ---------------------------------------------------------------
 

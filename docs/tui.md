@@ -1,6 +1,6 @@
 # 终端界面
 
-> 草稿（B7）：交互模式的使用说明。组件库（`@armadra/agent/tui`）的 API 说明由 B9 统稿时补入；设计依据见 [design.md](design.md) §12。
+交互模式的使用说明，以及终端组件库 `@armadra/agent/tui` 的 API。设计依据见 [design.md](design.md) §12。
 
 `ama` 在终端里直接运行（stdin / stdout 都是 TTY、`TERM` 不是 `dumb`、没有 `--no-tui`）时进入交互模式。界面只用**主屏**：对话历史滚进终端回滚，不切备用屏，所以在 tmux 里 `capture-pane` 能读到完整对话，退出后对话也留在屏幕上。
 
@@ -18,14 +18,55 @@ ama 0.1.0 · Enter 发送 · Esc 中断 · Ctrl+C 两次退出 · /help 命令  
 ──────────────────────────────────
 输入框
 ──────────────────────────────────
-anthropic/claude-sonnet · think:medium · ↑12k ↓1.2k · cache 80% · $0.12 · ctx 34% · mode:default · preset:default
+anthropic/claude-sonnet · think:medium · ↑12k ↓1.2k · cache 80% ♨ · $0.12 · rebill $0.11 · ctx 34% · mode:default · preset:default
 ```
 
 - **用户消息**：`›` 开头；运行中插话标 `↳ steer`，排到本轮之后的标 `↳ followUp`，宿主（Armadra 画布）注入的标 `↳ host`。
 - **思考块**：`ui.showThinking` = `collapsed`（缺省，一行计数）/ `full`（全文）/ `hidden`。
 - **工具调用**：一行标题，圆点运行中为强调色、成功绿、失败红；折叠显示结果前 3 行，`edit` 显示 diff（前 12 行），`bash` 运行中滚动显示最后 8 行。`Ctrl+O` 展开 / 折叠全部。codemode 脚本里的内层调用挂在外层调用下面。
 - **提示**：压缩摘要卡、`↻ 重试 n/m`、`⛔ Hook 阻止`、宿主通知、审批被拒或超时的说明都进消息区。
-- **状态栏**：模型 · 思考级别 · `↑` 输入（含缓存读写）`↓` 输出 · 缓存命中率 · 费用 · 上下文占用（`ctx ?` 表示模型没有窗口信息）· 排队数 · 权限模式 · 工具预设 · 宿主状态。终端太窄时按重要性丢弃靠后的项。
+- **状态栏**：模型 · 思考级别 · `↑` 输入（含缓存读写）`↓` 输出 · 缓存 · 费用 · 重计费 · 上下文占用 · 排队数 · 权限模式 · codemode · 工具预设 · 宿主状态。终端太窄时依次丢弃宿主状态、预设、重计费、费用、缓存、token、思考级别、排队数、codemode，模型、上下文与权限模式最后丢。
+
+## 缓存与上下文
+
+状态栏各项：
+
+| 项              | 含义                                                                                                                |
+| --------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `cache 83%`     | **最近一次**请求的命中率（读缓存 /（输入 + 缓存读 + 缓存写））；会话累计在 `/session`                               |
+| `cache —`       | 端点还没报过缓存（`unknown`：还没有足够长的可比请求）                                                               |
+| `cache 未报告`  | 端点不报缓存（`silent`：连续 3 个可比请求读写都是 0，或 `compat.cacheReporting: "silent"`）；这类请求不进命中率分母 |
+| `♨`             | 保温计时中（工具长时间运行时按 TTL 重放前缀，`/cache warm` 可切换）                                                 |
+| `rebill $0.11`  | 本会话缓存未命中导致的重计费金额；模型没有价格时显示 token 数；为 0 不显示                                          |
+| `ctx 72%`       | 上下文占用，≥ 70% 黄色、≥ 90% 红色；`ctx ?` 表示模型没有窗口信息                                                    |
+| `codemode:only` | codemode 生效（`on` / `only`）；运行时 Node 的权限模型不隔离网络（Node 22 / 24）时追加红色 `net!`                   |
+
+消息区（line 模式写 stderr，前缀 `ama: `）只在两种情况下提示一行，`cache.missNotices: false` 可关：
+
+- 一次未命中重计费 ≥ 20k token 或 ≥ $0.10：`缓存未命中（空闲 7 分钟后）：重计费 38.2k token（约 $0.11）`。原因有空闲超时、子任务运行、切换模型、系统提示 / 工具表变化、服务端淘汰；更小的未命中只进统计。
+- 上下文占用跨过 70% / 90%（各一次）：`上下文已用 72%，约剩 9 回合（按最近 5 回合均值）`；回合数估不出时给余量 token。
+- line 模式在 `AMA_LOG=info` 时另写保温成功：`缓存保温已刷新（读 12k token，$0.001）`。
+
+`/session` 在会话信息之后有「缓存」段，`/cache` 只显示这一段：
+
+```
+缓存
+  输入      3.4k = 缓存读 2.2k（65%）+ 未缓存 1.2k
+  报告状态  reported
+  命中率    最近 84% · 会话 65%
+  未命中    0 次
+  保温      streaming · 已停止：模型目录没有缓存 TTL
+  上下文    1%，余量 ≈ 127k token ≈ 2443 回合
+```
+
+未命中行按原因分列（`3 次，重计费 61k token ≈ $0.18（空闲超时 2 · 前缀变化 1）`）；保温行在计时中显示 `streaming · 下次 2m 10s · 期望节省 $0.18 ≥ $0.05`，停止时给原因；有 task 子会话时另有「子任务」行。
+
+- `/cache warm off|streaming|idle`：本会话内切换保温（不写配置；`idle` 在空闲时也保温，适合贵模型）。
+- `/cache fingerprint`：最近一次真实请求的前缀指纹——system 与工具表各一个 16 位哈希加模型名。两次之间哈希变了，就是宿主或 Hook 中途改了系统提示 / 工具表。
+
+取舍：状态栏显示最近一次命中率（会话累计放 `/session`）；`cache.missNotices` 缺省开（门槛下很少触发）；`Meter` 组件不进缺省状态栏。命中率、未命中与保温的判定规则见 [providers.md](providers.md)「缓存」。
+
+`ama models cache-probe <provider/model>` 用一个固定前缀相隔几秒发两次最小请求，判定端点 `reported` / `silent` / `inconclusive` 并给出配置建议（会计费：先打印预估，非交互环境需 `--yes`）。
 
 ## 按键
 
@@ -53,6 +94,7 @@ anthropic/claude-sonnet · think:medium · ↑12k ↓1.2k · cache 80% · $0.12 
 - `/tree`：列出会话里的全部用户消息（分叉处缩进，`●` 是当前分支）；选中一条后回到它之前，原文回填输入框，修改后发送就形成新分支。
 - `/fork`（无参数）：同样选一条用户消息，从它之前复制出新会话。
 - `/model`、`/resume`、`/permission`、`/thinking` 不带参数时打开选择器；`/permissions` 显示权限判定顺序与已加载规则。
+- `/session`、`/cache`：会话用量与缓存统计（见下文「缓存与上下文」）。
 
 ## 补全
 
@@ -62,6 +104,14 @@ anthropic/claude-sonnet · think:medium · ↑12k ↓1.2k · cache 80% · $0.12 
 ## 审批
 
 工具调用需要确认时，底部弹出对话框：bash 显示完整命令，write 显示路径与行数，edit 显示每处修改的 −/+ 摘要；子 Agent 发起的请求标 `[task]`。`y` 允许、`n` / Esc 拒绝、`a` 本会话内同类不再询问、`v` 查看完整输入。10 分钟不作答按拒绝处理（`AMA_APPROVAL_TIMEOUT_MS` 可改）。
+
+输入摘要之后是**执行前预览**：这一步会碰到什么。
+
+- bash：识别每段命令（含 `sh -c`、`eval`、`xargs`、`find -exec` 里嵌套的命令）中的 `rm` / `rmdir` / `unlink`、`mv`、`git clean`、`git checkout -- <路径>`、`git reset --hard` 与 `>` / `>>` 重定向目标，列出路径是否存在、大小、目录里的文件数；通配符与变量不展开，原样显示并提示实际范围可能更大。
+- write：目标是否存在、现有行数与大小 → 新内容；覆盖本会话没读过的文件标黄。
+- edit：对原文干跑一遍，列出每处 −n/+m 行与总变化；匹配不到或不唯一时提前说明。
+
+预览按严重度着色（危险红、警告黄、其余暗色），只读、有上限：每个目录最多计 2000 项，整次预览 200 ms 预算，超出只给提示、不降低严重度；超过 2 MiB 的文件只报大小。预览失败不影响审批。line 模式在问句之前逐行打印同样的预览；RPC 客户端从 `permission_request.preview` 拿到它（[rpc.md](rpc.md)「审批」）。
 
 ## 启动画面
 
@@ -73,6 +123,45 @@ anthropic/claude-sonnet · think:medium · ↑12k ↓1.2k · cache 80% · $0.12 
 - 不查询终端能力、不开鼠标与 Kitty 键盘协议，避免回包混进输入；tmux ≥ 3.4 透传同步输出，旧版本也能正常显示。
 - 窗口尺寸变化时整屏重画最后一屏，回滚里的历史不受影响。
 - 自动降级：非 TTY、`TERM=dumb`、`--no-tui` 或终端初始化失败时使用行式界面，命令与审批问答相同。
+
+## 组件库（`@armadra/agent/tui`）
+
+交互模式用的终端组件单独导出，零依赖，宿主或其它 Node 程序可以直接用来画主屏界面。
+
+```ts
+import { TUI, ProcessTerminal, Text, Editor, createTheme } from "@armadra/agent/tui";
+
+const tui = new TUI(new ProcessTerminal());
+const theme = createTheme("dark");
+const log = new Text("");
+const editor = new Editor({
+  theme,
+  requestRender: () => tui.requestRender(),
+  onSubmit: (text) => {
+    log.setText(`you said: ${text}`);
+    tui.requestRender();
+  },
+});
+tui.addChild(log);
+tui.addChild(editor);
+tui.setFocus(editor);
+tui.start();
+```
+
+| 导出                                                                        | 作用                                                                                                                                 |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `Component`、`Focusable`、`CURSOR_MARKER`                                   | 组件契约：`render(width)` 返回各行（每行可见宽 ≤ width）、`handleInput?(data)`、`invalidate()`；获焦组件在光标处输出 `CURSOR_MARKER` |
+| `TUI`                                                                       | 根容器与差分渲染（主屏、同步输出）：`addChild`、`start` / `stop`、`requestRender`、`setFocus`、`addInputListener`、`showOverlay`     |
+| `ProcessTerminal`、`MemoryTerminal`、`VirtualScreen`                        | 真实终端（raw 模式、括号粘贴）；内存终端与 VT 屏幕（测试、帧黄金）                                                                   |
+| `Container`、`Text`、`TruncatedText`、`Markdown`、`Box`、`Spacer`、`Loader` | 基础组件                                                                                                                             |
+| `Editor`、`EditorBuffer`、`PasteStore`                                      | 多行编辑器（历史、补全接口 `AutocompleteProvider`、粘贴折叠）                                                                        |
+| `SelectList`                                                                | 可过滤的选择列表                                                                                                                     |
+| `KeyValue`、`Meter`                                                         | 两列对齐的键值表；进度条                                                                                                             |
+| `compositeOverlays`、`OverlayOptions`                                       | 覆盖层合成（居中 / 底部锚定）                                                                                                        |
+| `createTheme`、`plainTheme`、`detectCapabilities`、`Theme`                  | 主题与颜色能力探测（`NO_COLOR`、16 / 256 / truecolor）；11 个语义色                                                                  |
+| `Keybindings`、`DEFAULT_KEYBINDINGS`、`loadKeybindingsFile`                 | 动作 id → 按键，`keybindings.json` 覆盖                                                                                              |
+| `parseKey`、`matchesKey`、`StdinBuffer`                                     | 键序列解析与 Esc 超时切分（`AMA_TUI_ESC_TIMEOUT`）                                                                                   |
+| `visibleWidth`、`truncateToWidth`、`wrapTextWithAnsi`、`sliceByColumn` 等   | 带 ANSI 与宽字符的宽度计算与截断                                                                                                     |
 
 ## 测试
 

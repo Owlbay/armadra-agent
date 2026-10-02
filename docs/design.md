@@ -68,7 +68,8 @@ src/
       doctor.ts             `ama doctor`：配置层级、信任状态、key 来源、hook 列表、终端能力                           160 [B5]
   modes/
     interactive/
-      interactive-mode.ts   装配 TUI 根布局；会话事件 → 组件更新；键位分派                                          450 [B7]
+      interactive-mode.ts   装配 TUI 根布局；会话事件 → 组件更新                                                    450 [B7]
+      key-dispatch.ts       应用级键位分派（Ctrl+C / Esc 中断回填 / Alt+↑ 取回 / Shift+Tab / Ctrl+O / Ctrl+L / Ctrl+T）  130 [B7]
       message-view.ts       消息区：助手 Markdown、用户、steer、工具调用折叠、压缩摘要卡                              400 [B7]
       tool-view.ts          单个工具调用组件：标题行、折叠 / 展开、流式尾部、diff 高亮（edit）                        300 [B7]
       status-bar.ts         模型 / 思考级别 / token / 成本 / 上下文 % / 队列 / 权限模式 / 宿主状态                    200 [B7]
@@ -563,6 +564,7 @@ ama 不知道画布；Armadra 适配器经 `HostApi.tools.register` 注册 `canv
 - 预设在会话开始时确定并写进首条 system 消息；会话中途改预设按工具表补丁处理（§9.1）。
 - 描述精简：每个工具的描述 + 参数控制在 150 token 内（现 task 250、grep 230 需压缩）。
 - 最终缺省值以实测为准：B9 的基准任务比较 `default` / `minimal` / `codemode` 三种预设的往返次数、累计输入 + 缓存读取、费用与成功率，结果写进本节。
+- 基准结论（待 `docs/benchmarks/presets-2026-10-02.md`）：
 
 ## §6 两层 Hook
 
@@ -755,6 +757,11 @@ tool_call（模型产出）
 | 摘要请求不写缓存 | 档二摘要 `cacheRetention: "none"` | 请求体快照 |
 | 压缩少而一次到位 | 档一只在 70% 阈值触发；档二一次压到 keepRecentTokens | 压缩次数断言 |
 | 可观测 | 状态栏与 `get_session_stats` 显示缓存命中率 = cacheRead /（input + cacheRead + cacheWrite） | 统计单测 |
+| 指纹 | 每次真实请求记前缀指纹（system、工具表各取 sha256 前 16 位 hex + `provider/model`），只在内存；未命中时据此说出「变了什么」，`/cache fingerprint` 可查 | `src/ai/cache/fingerprint.test.ts` |
+| 未命中 | `missed = min(上次前缀, 本次前缀) − cacheRead`，噪声下限 `max(1024, minTokens)`，规模自适应比例或 ≥ 20k 才计；原因按 `prefix_changed → model_changed → idle → subtask → evicted` 归因；压缩 / 分支摘要 / 档一裁剪后的首个请求是重置点；界面只提示 ≥ 20k token 或 ≥ $0.10 的那次 | `src/ai/cache/miss.test.ts` |
+| 三态 | 按 `(provider, baseUrl 主机, model)` 维护 `unknown / reported / silent`（连续 3 个可比请求读写都为 0 判 silent，`compat.cacheReporting` 可强制）；只有 `reported` 计命中率、检测未命中与保温，其余显示 `—` / `未报告` 而不是 0% | `src/ai/cache/reporting.test.ts` |
+| 保温 | `cache.warming`：`off` / `streaming`（缺省，工具运行期间）/ `idle`；TTL 到期前重放上一次请求（`maxTokens: 1`），从请求发出时刻计时；`p·missCost − warmCost ≥ minSavingsUsd` 才发；streaming 60 min、idle 30 min 上限，连续 2 次零命中即停；成功记 `usage{kind:"cache_warm"}` 条目；宿主 `cache.onWarmingDecision` 可否决 | `src/ai/cache/warmer.test.ts`、`economics.test.ts` |
+| 摘要续写 | 档二摘要在与上一次真实请求逐字节相同的前缀后追加摘要指令（`toolChoice: "none"`、`cacheRetention: "short"`），按读价计；空回复 / 截断 / 含工具调用 / 出错回落独立请求 | `src/compaction/continuation.test.ts` |
 
 ## §10 配置、密钥、profile
 
@@ -796,9 +803,12 @@ tool_call（模型产出）
   "tools": { "maxToolResultChars": 30000, "bashTimeoutMs": 120000, "disabled": [] },
   "hooks": { "timeoutMs": 60000 },
   "ui": { "theme": "dark", "markdown": true, "showThinking": "collapsed" },
-  "skills": { "dirs": [] }
+  "skills": { "dirs": [] },
+  "cache": { "warming": "streaming", "retention": "short", "minSavingsUsd": 0.05, "missNotices": true, "warmSubagents": false }
 }
 ```
+
+`cache` 段（第三波）：`warming` 为 `off | streaming | idle`（`AMA_CACHE_WARMING` 覆盖），`retention` 为 `none | short | long`（`AMA_CACHE_RETENTION` 覆盖），`minSavingsUsd` 是保温的最低期望节省，`missNotices` 控制消息区的未命中与上下文余量提示，`warmSubagents` 让 task 子会话也保温。整段只认用户级 / profile，项目级忽略并 warning。供应商级开关在 `providers.<id>.compat`（`sendPromptCacheKey`、`sendSessionAffinityHeaders`、`supportsLongCacheRetention`、`supportsExplicitPromptCacheMode`、`cacheReporting`），TTL 在模型的 `promptCache{short,long,minTokens}`；见 `docs/providers.md`「缓存」。
 
 合并顺序：内置缺省 ← 用户级 ← profile.config ← 项目级（只接受 `permission.deny`、`permission.mode` 收紧、`compaction`、`tools.disabled`、`ui`）← 命令行。
 
@@ -1048,4 +1058,11 @@ B0 契约与骨架（1 人，先行 1–2 天）
 | R8  | 两层 Hook 与权限管线的组合语义用户难以理解                                                              | `doctor` 与 `/permissions` 命令显示「这条工具调用会经过哪些步骤」的解释；文档 §6.3 的顺序图进 `docs/hooks.md`                       |
 | R9  | 不发布 npm 时 Armadra 的依赖方式（Git 依赖需在 install 时构建）                                          | Release 附 `pnpm pack` 的 tgz，Armadra 用 tgz URL 作 devDependency；`tools/release/compatibility.json` 锁 SHA                        |
 | R10 | `task` 子 Agent 与父共享 broker 时的审批排队体验                                                        | 子的 ask 串到父对话框并标 `[task]`；文档 B 下适配器禁用 task，不受影响                                                               |
-| 待定 | Gemini 第一期是否先经 OpenRouter 过渡；`xhigh` 级别是否在 UI 暴露；`todo` 是否进系统提示；Windows PowerShell 回退时的 Hook 命令解释器 | B1 / B7 / B3 / B5 开工前各自决定并写进对应 docs 章节                                                                                   |
+| R11 | 保温重放在中转上可能按全价而不是读价计费（中转改写请求或缓存按连接亲和） | 只在 `reported` 端点保温；连续 2 次保温零命中即停；`/session` 显示保温次数与花费；`cache.warming: "off"` 一键关闭 |
+| R12 | 压缩摘要的前缀续写在 Anthropic 上能否命中到上一轮断点 | 请求体快照保证前缀逐字节一致；回落为独立请求并记 warning；命中占比以真实中转实验为准 |
+| R13 | 24h / 30m 长保留、亲和头、中转上的 `prompt_cache_key` 未见收益或被 400 拒收 | 只对官方端点缺省开；400 自动剥离并提示开关；`ama models cache-probe` 让用户自测 |
+| R14 | `usage` 条目与 `leaf` 行是会话格式的追加，旧版本读取会遇到未知行 | 都是 v1 可选行，投影跳过未知类型；格式版本不升 |
+| R15 | `ama models discover --probe` 对每个模型发请求，中转按次计费或限流 | 缺省 `--limit 30`，执行前打印预估，401 / 403 / 429 即停 |
+| R16 | `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` 指向中转后 compat 推断按主机名，缓存字段可能不被接受 | 非官方主机按保守缺省；400 剥离兜底；`ama config show` / `doctor` 标出 baseUrl 来源 |
+| R17 | 审批前预览递归统计大目录（如 `rm -rf` 的目标）耗时 | 每个目标最多 2000 项、整次 200 ms 预算，超出只提示且不降低严重度；预览失败不影响审批 |
+`xhigh` 级别是否在 UI 暴露；`todo` 是否进系统提示；Windows PowerShell 回退时的 Hook 命令解释器 | B1 / B7 / B3 / B5 开工前各自决定并写进对应 docs 章节                                                                                   |
