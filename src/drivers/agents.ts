@@ -14,12 +14,12 @@ import { join } from "node:path";
 import type { AgentInfo } from "../agents/types.js";
 import type { AgentsConfig } from "../config/types-w5.js";
 import { AmaError } from "../errors.js";
-import type { HostRunner } from "../host/types.js";
 import type { PermissionMode } from "../permissions/types.js";
 import type { SubagentRunner } from "../tools/types.js";
 import { AcpDriver } from "./acp/driver.js";
 import type { DriverDeps } from "./base.js";
 import { DRIVER_CATALOG, candidatesFor, type CatalogCandidate } from "./catalog.js";
+import { HostRunnerRegistry } from "./host-runners.js";
 import { ClaudeStreamDriver } from "./native/claude-stream.js";
 import { CodexAppServerDriver } from "./native/codex-app-server.js";
 import { OneshotDriver } from "./native/oneshot.js";
@@ -51,27 +51,7 @@ export function createDriver(
   }
 }
 
-/** 宿主注入的 runner（`HostApi.runners.provide` 的实现底座）。 */
-export class HostRunnerRegistry {
-  private readonly runners = new Map<string, HostRunner>();
-
-  provide(runner: HostRunner): () => void {
-    if (typeof runner?.id !== "string" || runner.id === "" || typeof runner.start !== "function")
-      throw new AmaError("invalid_arguments", "runners.provide：需要带 id 与 start 的 runner");
-    this.runners.set(runner.id, runner);
-    return () => {
-      if (this.runners.get(runner.id) === runner) this.runners.delete(runner.id);
-    };
-  }
-
-  get(id: string): HostRunner | undefined {
-    return this.runners.get(id);
-  }
-
-  list(): HostRunner[] {
-    return [...this.runners.values()];
-  }
-}
+export { HostRunnerRegistry };
 
 export interface ExternalAgentsOptions {
   config?: AgentsConfig;
@@ -82,6 +62,8 @@ export interface ExternalAgentsOptions {
   dataDir?: string;
   /** 有宿主（profile.host）：只认宿主注入的 runner。 */
   hosted: boolean;
+  /** 宿主注入的 runner（宿主适配器一份，跨会话共享）；不给则本实例自建一份。 */
+  hostRunners?: HostRunnerRegistry;
   /** 审批只交给人：接到会话的 requestApproval。 */
   approve: ApproveFn;
   store?: AgentStore;
@@ -96,12 +78,13 @@ export interface ExternalAgentsOptions {
 let reaped = false;
 
 export class ExternalAgents {
-  readonly hostRunners = new HostRunnerRegistry();
+  readonly hostRunners: HostRunnerRegistry;
   readonly pool: DriverPool;
   private readonly runners = new Map<string, ProcessRunner>();
   private readonly driverDeps: DriverDeps;
 
   constructor(private readonly options: ExternalAgentsOptions) {
+    this.hostRunners = options.hostRunners ?? new HostRunnerRegistry();
     this.pool = poolFromConfig(options.config);
     const registry =
       options.dataDir !== undefined ? new PidRegistry(pidsFile(options.dataDir)) : undefined;

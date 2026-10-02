@@ -62,10 +62,9 @@ export function decideMode(
   args: ParsedArgs,
   io: Pick<CliIo, "stdinIsTTY" | "stdoutIsTTY" | "env">,
 ): RuntimeMode {
-  if (args.mode === "rpc") return "rpc";
-  // [W5-C0] 只解析；ACP 服务端由 W5-E 实现
-  if (args.mode === "acp")
-    throw new UsageError("--mode acp 尚未实现（第五波 W5-E 提供 ACP 服务端）");
+  // [W5-EG] --mode acp 与 rpc 同一装配（宿主看到的 mode 也是 rpc）；ACP 服务端由调用方
+  // （runCli 或 SDK 自己的 runAcpMode）接在 Runtime 上
+  if (args.mode === "rpc" || args.mode === "acp") return "rpc";
   if (args.print) return "print";
   if (args.noTui || !io.stdinIsTTY || !io.stdoutIsTTY || io.env["TERM"] === "dumb") return "line";
   return "interactive";
