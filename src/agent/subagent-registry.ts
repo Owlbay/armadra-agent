@@ -321,7 +321,9 @@ export class SubagentRegistry implements TaskControl {
     }
     try {
       if (record.isolation === "worktree" && record.worktree === undefined) {
-        record.worktree = await createWorktree(this.host.cwd, record.info.taskId);
+        // 名字带会话 id 前缀：不同会话的 t1 不会撞到同一个 worktree / 分支
+        const name = `${this.host.manager.id.slice(0, 8)}-${record.info.taskId}`;
+        record.worktree = await createWorktree(this.host.cwd, name);
         record.cwd = record.worktree.cwd;
       }
       const handle = await this.handleFor(record, request, ama, signal);

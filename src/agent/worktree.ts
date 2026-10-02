@@ -11,7 +11,7 @@
  */
 
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
 export interface Worktree {
@@ -75,7 +75,14 @@ export async function createWorktree(
   const path = join(root, taskId);
   const branch = worktreeBranch(taskId);
   if (!existsSync(path)) await git(["worktree", "add", "-b", branch, path, base], repo);
-  const sub = relative(repo, cwd);
+  // git 给的是真实路径（macOS 的 /var → /private/var），cwd 也取真实路径再比
+  let real = cwd;
+  try {
+    real = realpathSync(cwd);
+  } catch {
+    // 保持原样
+  }
+  const sub = relative(repo, real);
   const childCwd = sub === "" || sub.startsWith("..") ? path : join(path, sub);
   mkdirSync(childCwd, { recursive: true });
   return { path, cwd: childCwd, branch, base, repo };
