@@ -20,7 +20,7 @@ import { AMA_VERSION } from "../../version.js";
 import { parseSubArgs } from "../args.js";
 import type { CliIo, RuntimeDeps } from "../deps.js";
 import { ExitCode } from "../exit-codes.js";
-import { describeModel } from "./config.js";
+import { describeCodemode, describeModel } from "./config.js";
 import { buildRegistry, loadUserLevel, type UserLevel } from "./context.js";
 
 export const DOCTOR_USAGE = `用法：ama doctor [--profile <文件>] [--auth-file <文件>] [--trust | --no-trust]
@@ -245,6 +245,9 @@ export async function runDoctor(
     const merged = mergeProjectAndCli(level.merged, project?.value, undefined);
     for (const warning of merged.warnings) report.item(`  收紧：${warning}`);
     report.item(`有效权限模式：${merged.config.permission?.mode ?? "default"}`);
+    const codemode = describeCodemode(merged.config);
+    report.item(`codemode：${codemode.mode}（${codemode.reason}）`);
+    if (codemode.unavailable !== undefined) report.item(`  ${codemode.unavailable}`);
   } catch {
     // probeLine 已报告
   }

@@ -3,6 +3,10 @@
  * 每一项标出来自哪一层（default / user / profile / project），并给出将使用的模型与原因
  * （`config.defaultModel` 或零配置选择）。只读；config 里的字面量 apiKey 只显示种类。[B6]
  *
+ * 缺省值来自 config/key-docs.ts 的 DISPLAY_DEFAULTS（含 DEFAULT_CONFIG 不写的 cache / codemode 等段），
+ * `codemode.mode` 不写时显示跟随预设的结果与原因；`--tools-preset` / `--codemode` 作为 cli 层叠加；
+ * 预设写的是旧名（codemode）时显示规范名并提示。
+ *
  * [W3-B12] 「供应商」节：config 里出现的供应商与 baseUrl 来自环境变量（`OPENAI_BASE_URL` /
  * `ANTHROPIC_BASE_URL`）的内置供应商，列出协议、生效 baseUrl 与来源、config 里每个模型的协议
  * （模型级 `api` 生效后的值）。
@@ -10,7 +14,14 @@
 
 import { metadataOf, modelFlags, sourcesLine } from "./model-meta.js";
 import { loadConfigFile } from "../../config/load.js";
-import { DEFAULT_CONFIG, PROFILE_DEFAULTS, mergeProjectAndCli } from "../../config/merge.js";
+import {
+  PROFILE_DEFAULTS,
+  cliOverridesToConfig,
+  mergeConfig,
+  mergeProjectAndCli,
+  type CliConfigOverrides,
+} from "../../config/merge.js";
+import { DISPLAY_DEFAULTS } from "../../config/key-docs.js";
 import {
   AUTH_FILE,
   CONFIG_FILE,
@@ -25,11 +36,20 @@ import { join } from "node:path";
 import { modelsDevCachePath } from "../../ai/providers/models-dev-cache.js";
 import { initConfigDir } from "../../config/init.js";
 import { CONFIG_SCHEMA_FILE } from "../../config/json-schema.js";
-import type { AmaConfig } from "../../config/types.js";
+import {
+  CODEMODE_MODES,
+  TOOLS_PRESET_ALIASES,
+  TOOLS_PRESET_INPUTS,
+  canonicalPreset,
+  type AmaConfig,
+  type CodemodeMode,
+  type ToolsPresetInput,
+} from "../../config/types.js";
+import { codemodeAvailability, detectSandboxCapability } from "../../codemode/capability.js";
 import { baseUrlEnvOf } from "../../ai/providers/registry.js";
 import type { Api, ProviderRegistryApi } from "../../ai/types.js";
 import { classifyKeyValue } from "../../config/auth-file.js";
-import { effectiveCodemodeMode, resolvePreset } from "../../tools/presets.js";
+import { CODEMODE_TOOL, resolveCodemodeMode, resolvePreset } from "../../tools/presets.js";
 import { builtinTools } from "../../tools/registry.js";
 import { parseSubArgs, UsageError } from "../args.js";
 import { pickDefaultModel } from "../default-model.js";
@@ -38,6 +58,7 @@ import { ExitCode } from "../exit-codes.js";
 import { buildRegistry, loadUserLevel, type UserLevel } from "./context.js";
 
 export const CONFIG_USAGE = `用法：ama config show [--json] [--profile <文件>] [--auth-file <文件>]
+                        [--tools-preset <名>] [--codemode off|on|only]
       ama config path    配置目录、数据目录与各文件路径
       ama config edit    用 $VISUAL / $EDITOR 打开 config.json（没有编辑器时打印路径）
 `;
@@ -81,7 +102,11 @@ function editConfig(io: CliIo): number {
   return ExitCode.Ok;
 }
 
-type Layer = { name: "default" | "user" | "profile" | "project"; label: string; value: unknown };
+type Layer = {
+  name: "default" | "user" | "profile" | "project" | "cli";
+  label: string;
+  value: unknown;
+};
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -218,8 +243,13 @@ function providerLines(providers: readonly ProviderDescription[]): string[] {
   return lines;
 }
 
-function layersOf(level: UserLevel, project: AmaConfig | undefined, effective: AmaConfig): Layer[] {
-  const layers: Layer[] = [{ name: "default", label: "内置缺省", value: DEFAULT_CONFIG }];
+function layersOf(
+  level: UserLevel,
+  project: AmaConfig | undefined,
+  effective: AmaConfig,
+  cli: Partial<AmaConfig> | undefined,
+): Layer[] {
+  const layers: Layer[] = [{ name: "default", label: "内置缺省", value: DISPLAY_DEFAULTS }];
   const user = loadConfigFile("config", level.userConfigPath)?.value;
   if (user !== undefined) layers.push({ name: "user", label: level.userConfigPath, value: user });
   if (level.profile !== undefined) {
@@ -241,6 +271,8 @@ function layersOf(level: UserLevel, project: AmaConfig | undefined, effective: A
     }
     layers.push({ name: "project", label: ".ama/config.json", value: unflatten(accepted) });
   }
+  if (cli !== undefined && Object.keys(cli).length > 0)
+    layers.push({ name: "cli", label: "命令行", value: cli });
   return layers;
 }
 
@@ -269,12 +301,70 @@ export function sourcesOf(effective: AmaConfig, layers: readonly Layer[]): Map<s
   return sources;
 }
 
+export interface CodemodeDescription {
+  mode: CodemodeMode;
+  /** config：显式 codemode.mode；preset：跟随预设。 */
+  source: "config" | "preset";
+  /** 人读原因。 */
+  reason: string;
+  strict: boolean;
+  /** 生效模式不是 off 但 codemode 工具不可用（requireStrict）时的说明。 */
+  unavailable?: string;
+}
+
+/** codemode 生效模式与原因（跟随预设时写明预设与运行时 Node 是否隔离网络）。 */
+export function describeCodemode(config: AmaConfig, nodeVersion?: string): CodemodeDescription {
+  const capability = detectSandboxCapability(nodeVersion);
+  const resolved = resolveCodemodeMode(config, capability.strict);
+  const sandbox = capability.strict
+    ? `Node ${capability.nodeMajor} 网络已隔离`
+    : `Node ${capability.nodeMajor} < 25 网络未隔离`;
+  const reason =
+    resolved.source === "config"
+      ? `codemode.mode 显式设置（${sandbox}）`
+      : `跟随预设 ${resolved.preset}（${sandbox}）`;
+  const out: CodemodeDescription = {
+    mode: resolved.mode,
+    source: resolved.source,
+    reason,
+    strict: capability.strict,
+  };
+  if (resolved.mode !== "off") {
+    const availability = codemodeAvailability(config.codemode?.requireStrict, capability);
+    if (!availability.available) out.unavailable = availability.warning;
+  }
+  return out;
+}
+
+/** 各层里把 tools.preset 写成旧名（别名）的：`user（写的是旧名 codemode）`。 */
+function presetAliasNotes(layers: readonly Layer[]): string[] {
+  const notes: string[] = [];
+  for (const layer of layers) {
+    const preset = (layer.value as AmaConfig | undefined)?.tools?.preset;
+    if (preset !== undefined && Object.hasOwn(TOOLS_PRESET_ALIASES, preset))
+      notes.push(
+        `${layer.name}（${layer.label}）的 tools.preset 写的是旧名 ${preset}，规范名 ${canonicalPreset(preset)}`,
+      );
+  }
+  return notes;
+}
+
+function choice<T extends string>(name: string, value: string | undefined, all: readonly T[]) {
+  if (value === undefined) return undefined;
+  if ((all as readonly string[]).includes(value)) return value as T;
+  throw new UsageError(`--${name} 的取值应为 ${all.join(" | ")}（收到 ${value}）`);
+}
+
 export async function runConfig(
   argv: readonly string[],
   io: CliIo,
   deps: Pick<RuntimeDeps, "providers"> | undefined,
 ): Promise<number> {
-  const { positionals, values, flags } = parseSubArgs(argv, ["profile", "auth-file"], ["json"]);
+  const { positionals, values, flags } = parseSubArgs(
+    argv,
+    ["profile", "auth-file", "tools-preset", "codemode"],
+    ["json"],
+  );
   const action = positionals[0] ?? "show";
   if (flags.has("help")) {
     io.stdout(CONFIG_USAGE);
@@ -283,47 +373,77 @@ export async function runConfig(
   if (action === "path") return showPaths(io);
   if (action === "edit") return editConfig(io);
   if (action !== "show") throw new UsageError(`未知的 config 子命令：${action}`);
+  const cli: CliConfigOverrides = {};
+  const presetFlag = choice<ToolsPresetInput>(
+    "tools-preset",
+    values.get("tools-preset"),
+    TOOLS_PRESET_INPUTS,
+  );
+  if (presetFlag !== undefined) cli.toolsPreset = presetFlag;
+  const codemodeFlag = choice("codemode", values.get("codemode"), CODEMODE_MODES);
+  if (codemodeFlag !== undefined) cli.codemode = codemodeFlag;
   const level = loadUserLevel(io, {
     profile: values.get("profile"),
     authFile: values.get("auth-file"),
   });
   const project = loadConfigFile("config", projectFile(io.cwd, CONFIG_FILE))?.value;
-  const merged = mergeProjectAndCli(level.merged, project, undefined);
+  const merged = mergeProjectAndCli(level.merged, project, cli);
   const config = merged.config;
-  const layers = layersOf(level, project, config);
-  const sources = sourcesOf(config, layers);
+  const layers = layersOf(level, project, config, cliOverridesToConfig(cli));
+  // 展示：生效配置补上 DEFAULT_CONFIG 不写的缺省（cache、codemode.inlineBudget 等），来源 default
+  const shown = mergeConfig(DISPLAY_DEFAULTS as AmaConfig, config);
+  const sources = sourcesOf(shown, layers);
   const registry = deps === undefined ? undefined : await buildRegistry(level, io, deps);
   const model = await describeModel(config, registry);
   const providers = describeProviders(config, registry);
+  const codemode = describeCodemode(config);
   const builtin = new Set(builtinTools().map((tool) => tool.name));
-  const preset = resolvePreset({ config, available: (name) => builtin.has(name) });
+  if (codemode.mode !== "off" && codemode.unavailable === undefined) builtin.add(CODEMODE_TOOL);
+  const preset = resolvePreset({
+    config,
+    available: (name) => builtin.has(name),
+    strict: codemode.strict,
+  });
+  const notes = presetAliasNotes(layers);
   const warnings = [...level.warnings, ...merged.warnings];
+  const rows = [...flatten(shown)].map(([path, value]) => ({
+    path,
+    value,
+    source: sources.get(path) ?? "default",
+  }));
+  if (config.codemode?.mode === undefined)
+    rows.push({
+      path: "codemode.mode",
+      value: codemode.mode,
+      source: `default（${codemode.reason}）`,
+    });
+  rows.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   if (flags.has("json")) {
-    const entries = [...flatten(config)].map(([path, value]) => ({
+    const entries = rows.map(({ path, value, source }) => ({
       path,
       value: path.endsWith(".apiKey") ? display(path, value) : value,
-      source: sources.get(path),
+      source,
     }));
     io.stdout(
-      `${JSON.stringify({ model, providers, tools: preset.builtin, codemode: effectiveCodemodeMode(config), entries, layers: layers.map((l) => ({ name: l.name, file: l.label })), warnings }, null, 2)}\n`,
+      `${JSON.stringify({ model, providers, tools: preset.builtin, preset: preset.preset, codemode, entries, layers: layers.map((l) => ({ name: l.name, file: l.label })), notes, warnings }, null, 2)}\n`,
     );
     return ExitCode.Ok;
   }
-  const lines = ["生效配置（来源：default 内置 ← user ← profile ← project 只能收紧）"];
+  const lines = ["生效配置（来源：default 内置 ← user ← profile ← project 只能收紧 ← cli）"];
   for (const layer of layers.slice(1)) lines.push(`  ${layer.name}：${layer.label}`);
   lines.push("");
-  const rows = [...flatten(config)].map(
-    ([path, value]) =>
-      [`${path} = ${display(path, value)}`, sources.get(path) ?? "default"] as const,
-  );
-  const width = Math.min(60, Math.max(...rows.map(([text]) => text.length)));
-  for (const [text, source] of rows) lines.push(`  ${text.padEnd(width)}  ${source}`);
+  const texts = rows.map((row) => [`${row.path} = ${display(row.path, row.value)}`, row.source]);
+  const width = Math.min(60, Math.max(...texts.map(([text]) => (text ?? "").length)));
+  for (const [text, source] of texts) lines.push(`  ${(text ?? "").padEnd(width)}  ${source}`);
   lines.push(...providerLines(providers));
   lines.push("");
   lines.push(`模型：${model.ref ?? "（无）"}  ${model.reason}`);
   lines.push(
     `工具：${preset.builtin.join(", ")}（预设 ${preset.preset}，codemode ${preset.codemode}）`,
   );
+  lines.push(`codemode：${codemode.mode}  ${codemode.reason}`);
+  if (codemode.unavailable !== undefined) lines.push(`  ${codemode.unavailable}`);
+  for (const note of notes) lines.push(`提示：${note}`);
   for (const warning of [...warnings, ...preset.warnings]) lines.push(`警告：${warning}`);
   io.stdout(`${lines.join("\n")}\n`);
   return ExitCode.Ok;
