@@ -23,6 +23,7 @@ import {
   snapshotMeta,
   type SnapshotDiff,
 } from "./models-dev-snapshot.js";
+import { msg } from "../../i18n/index.js";
 
 export const MODELS_DEV_URL = "https://models.dev/api.json";
 export const MODELS_DEV_URL_ENV = "AMA_MODELS_DEV_URL";
@@ -103,12 +104,12 @@ export function loadModelsDevIndex(dataDir: string): ModelsDevIndex {
 export function describeModelsDev(dataDir: string): string {
   const index = loadModelsDevIndex(dataDir);
   const file = readModelsDevCache(dataDir);
-  const size = `${index.providerCount} 家供应商、${index.modelCount} 个模型`;
+  const m = msg().errors.models;
   const via =
     file !== undefined && overrideApplies(file)
-      ? `快照 ${snapshotMeta().fetchedAt} ⊕ 刷新 ${file.fetchedAt}`
-      : `快照 ${snapshotMeta().fetchedAt}`;
-  return `models.dev：${via}（${size}）`;
+      ? m.viaRefresh(snapshotMeta().fetchedAt, file.fetchedAt)
+      : m.viaSnapshot(snapshotMeta().fetchedAt);
+  return m.describe(via, index.providerCount, index.modelCount);
 }
 
 export type RefreshStatus = "updated" | "unchanged" | "failed";
@@ -142,12 +143,12 @@ export async function refreshModelsDev(options: RefreshOptions): Promise<Refresh
     status: "failed",
     url,
     index: before,
-    warning: `models.dev 刷新失败（${reason}），沿用现有数据`,
+    warning: msg().errors.models.refreshFailed(reason),
   });
   const list = snapshotList();
   const unknown = (options.providers ?? []).filter((p) => !list.providers.includes(p));
   if (unknown.length > 0)
-    return fail(`不在收录清单里：${unknown.join(", ")}；可选 ${list.providers.join(", ")}`);
+    return fail(msg().errors.models.notListed(unknown.join(", "), list.providers.join(", ")));
   let fresh: ModelsDevData;
   try {
     const response = await (options.fetch ?? fetch)(url, {
@@ -181,25 +182,25 @@ export async function refreshModelsDev(options: RefreshOptions): Promise<Refresh
 
 /** 刷新结果的说明（命令输出用）：一行状态 + 新增 / 删除 / 变化清单。 */
 export function describeRefresh(result: RefreshResult, limit = 20): string {
-  const size = `${result.index.providerCount} 家供应商、${result.index.modelCount} 个模型`;
-  const text: Record<RefreshStatus, string> = {
-    updated: "已刷新",
-    unchanged: "已刷新，无变化",
-    failed: "刷新失败",
-  };
+  const m = msg().errors.models;
   const lines = [
-    `models.dev：${text[result.status]}（${size}${result.fetchedAt ? `，${result.fetchedAt}` : ""}）`,
+    m.refreshStatus(
+      result.status,
+      result.index.providerCount,
+      result.index.modelCount,
+      result.fetchedAt,
+    ),
   ];
-  const section = (title: string, items: readonly string[]): void => {
+  const section = (kind: "added" | "removed" | "changed", items: readonly string[]): void => {
     if (items.length === 0) return;
-    lines.push(`${title}（${items.length}）：`);
+    lines.push(m.section(kind, items.length));
     for (const item of items.slice(0, limit)) lines.push(`  ${item}`);
-    if (items.length > limit) lines.push(`  …另 ${items.length - limit} 条`);
+    if (items.length > limit) lines.push(m.more(items.length - limit));
   };
   if (result.diff !== undefined) {
-    section("新增", result.diff.added);
-    section("上游删除（快照里的条目保留）", result.diff.removed);
-    section("变化", result.diff.changed);
+    section("added", result.diff.added);
+    section("removed", result.diff.removed);
+    section("changed", result.diff.changed);
   }
   return lines.join("\n");
 }

@@ -16,6 +16,7 @@ import {
   type ModelsDevIndex,
   type ModelsDevMatch,
 } from "./models-dev.js";
+import { msg } from "../../i18n/index.js";
 
 export type FieldSource = "config" | "catalog" | "models.dev" | "default";
 
@@ -114,13 +115,6 @@ export function catalogMetadata(model: Model): ModelMetadata {
   return { sources, looked: false };
 }
 
-const SOURCE_TEXT: Record<FieldSource, string> = {
-  config: "config",
-  catalog: "目录",
-  "models.dev": "models.dev",
-  default: "缺省",
-};
-
 export function sourceText(source: FieldSource): string {
-  return SOURCE_TEXT[source];
+  return msg().errors.models.source(source);
 }

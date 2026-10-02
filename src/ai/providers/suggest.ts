@@ -6,6 +6,7 @@
  */
 
 import type { ModelLookup } from "../types.js";
+import { msg } from "../../i18n/index.js";
 
 /** Levenshtein 距离（插入 / 删除 / 替换各计 1）。 */
 export function editDistance(a: string, b: string): number {
@@ -60,20 +61,10 @@ export function describeLookupFailure(
   failure: Extract<ModelLookup, { ok: false }>,
 ): string {
   const list = failure.candidates.slice(0, 20).join(", ");
-  switch (failure.reason) {
-    case "channel_not_found":
-      return failure.candidates.length > 0
-        ? `渠道不存在：${ref}；该模型可用渠道：${list}`
-        : `渠道不存在：${ref}；该模型没有可选渠道（去掉 @ 后缀）`;
-    case "provider_not_found":
-      return failure.candidates.length > 0
-        ? `供应商不存在：${ref}；最接近的供应商：${list}`
-        : `供应商不存在：${ref}（ama providers list 查看已配置的供应商）`;
-    case "ambiguous":
-      return `模型名有歧义：${ref}；候选：${list}`;
-    default:
-      return failure.candidates.length > 0
-        ? `模型不存在：${ref}；最接近的模型：${list}`
-        : `模型不存在：${ref}（ama models list 查看可用模型）`;
-  }
+  return msg().errors.models.lookupFailure(
+    ref,
+    failure.reason,
+    list,
+    failure.candidates.length > 0,
+  );
 }
