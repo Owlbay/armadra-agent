@@ -164,7 +164,8 @@ export PACKY_API_KEY=sk-...
   Messages 在 baseUrl 以 `/v1` 结尾时拼 `/messages`，否则 `/v1/messages`。
 - 不想手写 `models`：`ama models discover packy` 列出中转站的模型（`GET {baseUrl}/models`）；
   `--probe` 对每个模型依次试供应商协议、completions、responses、messages 的最小请求，记第一个成功
-  的（每模型最多 3 次，`--limit` 限制探测的模型数，缺省 30，执行前打印预估，401 / 403 / 429 即停）；
+  的（每模型最多 3 次，`--limit` 限制探测的模型数，缺省 30，执行前打印预估；模型之间并发，探测规则同下文
+  `providers add --probe`）；
   `--write` 把结果合并进用户级 `config.json`（已有同 id 不覆盖，只写 `id` 与和供应商不同的 `api`，
   原文件备份为 `config.json.bak`）。上下文等元数据在运行时从 models.dev 缓存补（见下文「模型元数据」），
   匹配不到的条目没有 `contextWindow`，自动压缩随之关闭，需要时手动补。
@@ -239,7 +240,8 @@ ama providers add packy --base-url https://www.packyapi.com/v1 --key-env PACKY_A
 ```
 ama providers add <id> --base-url <url> [--channel <name>=<api>@<baseUrl> …] [--api <api>|auto]
                        [--key-env <VAR>] [--probe] [--limit N] [--probe-models a,b,…]
-                       [--max-requests N] [--prefer chat,responses,messages] [--include-no-tools] [--yes]
+                       [--max-requests N] [--concurrency N] [--probe-timeout ms]
+                       [--prefer chat,responses,messages] [--include-no-tools] [--yes]
 ama providers list
 ama providers channels <id>
 ama providers remove <id>
@@ -258,7 +260,13 @@ ama providers refresh <id> [--probe …]
 - **`--probe`**：对选中的模型（`--probe-models` 列出的，缺省按 id 字母序不分大小写取前 `--limit` 个，缺省 30）
   逐个渠道发一次最小请求（有提示时只试提示里的渠道），**探测成功的渠道全部写进模型的 `channels`**，顺序按
   `--prefer`（缺省 chat、responses、messages）；全部失败的模型不写入；未探测的按提示写入并在表格里标「未探测」。
-  执行前打印请求数预估，超过 `--max-requests`（缺省 60）时截断模型数；401 / 403 / 429 立即停止。
+  执行前打印请求数与耗时预估，超过 `--max-requests`（缺省 60）时截断模型数。
+  - **判定**：HTTP 成功且流里出现第一个内容事件（文本 / 思考 / 工具调用）即判可用并立刻断开，不等推理模型
+    想完；只收到流开头、还没有内容时再等 1 s，期间没有报错也判可用（防止中转先回 200 再在流里报错被误判）。
+    HTTP 错误、流里的错误、超时（`--probe-timeout`，缺省 15000 ms）判不可用并记原因。
+  - **并发**：「模型 × 渠道」同时在途最多 `--concurrency` 个（1–16，缺省 6）；结果按模型、渠道顺序打印，
+    终端里单行刷新「探测 18/60」，最后打印总用时。
+  - **限流**：401 / 403 立即停止；429 时并发减半、2 s 后重试该请求一次，重试仍 429 则停止。
 - **渠道收敛**：写入前删掉没有任何模型挂载的候选渠道；`defaultChannel` 取剩下的第一个（按 `--prefer`）。
 - **写入**：用户级 `config.json` 的 `providers.<id>`（先备份为 `config.json.bak`）。模型条目只写 `id` 与
   `channels`；上下文、输出、图像、推理、价格**不写进配置**，运行时从 models.dev 缓存补（见下节），所以
