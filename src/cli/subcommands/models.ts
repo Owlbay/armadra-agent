@@ -145,11 +145,10 @@ export const MODELS_ACTIONS: Readonly<Record<string, ModelsAction>> = Object.fre
       const result = await refreshModelsDev({
         dataDir: ctx.level.dataDir,
         env: ctx.io.env,
-        force: true,
       });
       ctx.io.stdout(`${describeRefresh(result)}\n${modelsDevCachePath(ctx.level.dataDir)}\n`);
       if (result.warning !== undefined) ctx.io.stderr(`ama: 警告：${result.warning}\n`);
-      return result.status === "unavailable" ? ExitCode.RuntimeError : ExitCode.Ok;
+      return result.status === "failed" ? ExitCode.RuntimeError : ExitCode.Ok;
     },
   },
 });

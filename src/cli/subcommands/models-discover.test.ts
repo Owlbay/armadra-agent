@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTmpHome, type TmpHome } from "../../../test/helpers/tmp-home.js";
 import { ApiRegistry } from "../../ai/apis/api.js";
+import { writeModelsDevCache } from "../../ai/providers/models-dev-cache.js";
+import { trimModelsDev } from "../../ai/providers/models-dev.js";
 import type { Api, ApiImplementation, Model } from "../../ai/types.js";
 import { buildProviderRegistry } from "../compose-providers.js";
 import type { CliIo, RuntimeDeps } from "../deps.js";
@@ -172,7 +174,9 @@ describe("ama models discover", () => {
     const text = out.join("");
     expect(text).toContain("relay：发现 3 个模型（https://relay.example/v1/models）");
     expect(text).toContain("  glm-5  已配置（anthropic-messages）");
-    expect(text).toContain("  grok-4.7  models.dev 未匹配\n");
+    // 快照随包携带，不联网也能匹配
+    expect(text).toMatch(/ {2}grok-4\.7 {2}ctx .* · \S+ xai\/grok-4\.7\n/);
+    expect(requests.every((r) => !r.url.includes("models.dev"))).toBe(true);
     expect(await runModels(["discover", "nope"], io(), deps())).toBe(4);
     expect(await runModels(["discover"], io(), deps()).catch((e: Error) => e.message)).toMatch(
       /需要 <provider>/,
@@ -256,13 +260,17 @@ describe("ama models discover", () => {
       providers: { relay: RELAY },
     });
     expect(out.join("")).toContain("relay 新增 2 个模型，1 个已存在未覆盖");
-    expect(err.join("")).toContain("在 models.dev 未匹配，没有 contextWindow，自动压缩关闭");
+    // 写入的三个都在快照里匹配得到，不警告
+    expect(err.join("")).not.toContain("未匹配");
     out = [];
     expect(await runModels(["discover", "relay", "--write"], io(), deps())).toBe(0);
     expect(JSON.parse(readFileSync(path, "utf8")).providers.relay.models).toContainEqual({
       id: "unknown-a",
     });
     expect(out.join("")).toContain("relay 新增 1 个模型，3 个已存在未覆盖");
+    expect(err.join("")).toContain(
+      "unknown-a 在 models.dev 未匹配，没有 contextWindow，自动压缩关闭",
+    );
   });
 
   it("--write：供应商不在用户级配置且非内置 → 不写", async () => {
@@ -294,15 +302,19 @@ describe("ama models discover", () => {
         },
       },
     };
-    vi.stubGlobal("fetch", async (input: string | URL | Request) => {
-      const url = String(input instanceof Request ? input.url : input);
-      if (url === "http://md.test/api.json") return Response.json(md);
-      return Response.json({ data: [{ id: "kimi-k2.5" }, { id: "embed-x" }, { id: "odd" }] });
+    // `ama models refresh` 写下的用户级覆盖（晚于内置快照才叠加）
+    writeModelsDevCache(home.dataDir, {
+      version: 2,
+      url: "https://models.dev/api.json",
+      fetchedAt: "2999-01-01T00:00:00.000Z",
+      providers: trimModelsDev(md),
     });
-    const withMd = { ...io(), env: { ...io().env, AMA_MODELS_DEV_URL: "http://md.test/api.json" } };
-    expect(await runModels(["discover", "relay", "--write"], withMd, deps())).toBe(0);
+    vi.stubGlobal("fetch", async () =>
+      Response.json({ data: [{ id: "kimi-k2.5" }, { id: "embed-x" }, { id: "odd" }] }),
+    );
+    expect(await runModels(["discover", "relay", "--write"], io(), deps())).toBe(0);
     const text = out.join("");
-    expect(text).toContain("models.dev：已更新");
+    expect(text).toContain("⊕ 刷新 2999-01-01");
     expect(text).toContain("  kimi-k2.5  ctx 262k · out 33k · 图片 · 原厂 moonshotai/kimi-k2.5\n");
     expect(text).toContain(
       "  embed-x  ctx 8k · out ? · 不支持工具调用 · 原厂 moonshotai/embed-x\n",
