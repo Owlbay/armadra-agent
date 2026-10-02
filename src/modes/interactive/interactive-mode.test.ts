@@ -156,7 +156,7 @@ describe("交互模式", () => {
   });
 
   it("Shift+Tab 循环权限模式；括号粘贴后的 \\r 提交；/model 选择器切换模型", async () => {
-    const s = await start([{ text: "收到粘贴" }]);
+    const s = await start([{ text: "收到粘贴" }], { env: { AMA_SHOW_FAKE: "1" } });
     s.type("\x1b[Z");
     expect(currentSession(s.rt).state.permissionMode).toBe("auto-edit");
     expect(s.terminal.viewport().join("\n")).toContain("权限模式：Accept edits");

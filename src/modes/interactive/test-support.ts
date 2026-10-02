@@ -115,10 +115,16 @@ export async function start(
     /** 启动头档位，缺省 header。 */
     quietStartup?: "normal" | "header" | "silent";
     theme?: Theme;
+    /** 追加到临时 HOME 环境上的变量。 */
+    env?: Record<string, string>;
   } = {},
 ): Promise<Started> {
   if (options.keepHarness !== true || started.h === undefined)
-    started.h = composeHarness(script, { stdinIsTTY: true, stdoutIsTTY: true });
+    started.h = composeHarness(script, {
+      stdinIsTTY: true,
+      stdoutIsTTY: true,
+      ...(options.env !== undefined ? { env: options.env } : {}),
+    });
   const h = started.h;
   for (const [path, body] of Object.entries(options.files ?? {}))
     h.home.write(`work/${path}`, body);

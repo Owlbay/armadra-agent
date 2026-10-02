@@ -412,6 +412,7 @@ export function runInteractiveMode(
       render();
     },
     theme: () => theme,
+    env,
     ...(home !== undefined ? { home } : {}),
     setEditorText: (text) => {
       editor.setText(text);

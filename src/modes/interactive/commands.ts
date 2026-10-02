@@ -2,7 +2,7 @@
  * 交互模式的斜杠命令：把 commands-core 的 `CommandResult` 变成界面动作。[B7]
  *
  * - `handled` → 消息区显示文本；`prompt` → 发提示；`exit` → 退出；
- * - `pick` → 打开对应选择器：模型（setModel）、会话（resume）、树（/fork 无参数：从选中的用户消息
+ * - `pick` → 打开对应选择器：模型（setModel；不列测试供应商 fake，`AMA_SHOW_FAKE=1` 或 `AMA_FAKE_SCRIPT` 时照列）、会话（resume）、树（/fork 无参数：从选中的用户消息
  *   之前分叉，消息文本回填编辑器）、权限模式、思考级别；
  * - 交互模式自有命令：`/tree`（同一文件内换叶子到选中消息之前，文本回填编辑器，可改后重发形成新分支）、
  *   `/permissions`（当前模式、判定顺序与已加载规则）；`/help` 追加这两条与按键说明。
@@ -16,6 +16,7 @@ import type { AgentSession } from "../../agent/types.js";
 import type { ModelThinkingLevel } from "../../ai/types.js";
 import type { SwitchRequest } from "../../cli/compose-session.js";
 import { listSessions } from "../../cli/compose-store.js";
+import { hideFakeProvider } from "../../cli/fake-visibility.js";
 import type { Runtime } from "../../cli/runtime.js";
 import { AUTO_LAYER_TEXT, permissionModeLabel } from "../../permissions/modes.js";
 import type { PermissionMode } from "../../permissions/types.js";
@@ -75,6 +76,8 @@ export interface CommandUi {
   theme?(): Theme;
   /** 家目录（面板里路径缩写为 ~）。 */
   home?: string;
+  /** 进程环境：给出时 /model 选择器按 fake-visibility 规则藏起测试供应商 fake。 */
+  env?: Readonly<Record<string, string | undefined>>;
 }
 
 function homeOf(ui: CommandUi): { home?: string } {
@@ -167,7 +170,11 @@ async function handlePick(
       const ref = current === undefined ? undefined : `${current.provider}/${current.id}`;
       const picked = await ui.pick({
         title: "选择模型",
-        items: await modelItems(ui.runtime.providers),
+        items: await modelItems(
+          ui.env === undefined
+            ? ui.runtime.providers
+            : hideFakeProvider(ui.runtime.providers, ui.env),
+        ),
         filterable: true,
         showCount: true,
         ...(ref !== undefined ? { selected: ref, currentValue: ref } : {}),

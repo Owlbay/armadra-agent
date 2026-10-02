@@ -71,6 +71,17 @@ describe("交互命令", () => {
     );
   });
 
+  it("/model 选择器不列测试供应商 fake（AMA_SHOW_FAKE=1 或 AMA_FAKE_SCRIPT 时照列）", async () => {
+    const rt = await boot();
+    const hidden = recordingUi(rt);
+    await runInteractiveCommand("/model", { ...hidden.ui, env: {} });
+    expect(hidden.picks[0]?.items.some((i) => i.value.startsWith("fake/"))).toBe(false);
+    const shown = recordingUi(rt);
+    await runInteractiveCommand("/model", { ...shown.ui, env: { AMA_SHOW_FAKE: "1" } });
+    expect(shown.picks[0]?.items.some((i) => i.value === "fake/echo")).toBe(true);
+    expect(shown.picks[0]?.currentValue).toBe("fake/echo");
+  });
+
   it("/model 无参数：选择器按供应商分组、预选当前模型，选中后切换", async () => {
     const rt = await boot();
     const { ui, picks, notices } = recordingUi(rt, [byValue("fake/reasoning")]);
