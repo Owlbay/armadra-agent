@@ -48,6 +48,9 @@ export function lazyIndex(source: ModelsDevSource): () => ModelsDevIndex | undef
   };
 }
 
+/** 只作说明的元数据（不进来源表）：缺了就从 models.dev 补。 */
+const METADATA_FIELDS = ["family", "knowledge", "releaseDate", "inputLimit", "status"] as const;
+
 function needsLookup(entry: Partial<Model>): boolean {
   return ENRICHABLE_FIELDS.some((field) => entry[field] === undefined);
 }
@@ -86,6 +89,10 @@ export function enrichEntry(
     sources[field] = "models.dev";
   }
   if (out.name === undefined && fields.name !== undefined) out.name = fields.name;
+  for (const field of METADATA_FIELDS) {
+    if (out[field] === undefined && fields[field] !== undefined)
+      (out as Record<string, unknown>)[field] = fields[field];
+  }
   return { entry: out, metadata };
 }
 
