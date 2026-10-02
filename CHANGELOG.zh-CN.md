@@ -37,6 +37,15 @@
   `CHANGELOG.zh-CN.md`（0.1–0.5.1 的记录整体在此）；`docs/en/` 新增 `tui`、`permissions`、`providers`、`rpc`、`host-api`、`sessions`
   六篇英文版，中文原路径不动。配置键说明、校验诊断与 `ama init` 输出跟随界面语言；`config.schema.json` 的说明按当前界面语言写，
   切换语言后再跑 `ama init`（或任何会自动初始化的命令）会重写。`pnpm release:check` 认新的 CHANGELOG 结构。
+- **`/trace` 轨迹**（W6-T1）：交互模式打开轨迹覆盖层——回合 → 请求 → 工具 → 子调用 / 子 Agent，每行耗时、TTFT / 解码 / 工具条形、
+  token 与缓存命中，Enter 看详情，子 Agent 可展开到子会话，长会话尾部先加载、运行中自动跟随；`/trace <任务 id>` 看单个任务；
+  line 模式打印文本树。老会话没有计时记录时按条目时间推算并标 `≈`，不改会话文件。SDK 导出纯函数 `buildTrace()`。见 [docs/tui.md](docs/tui.md)「轨迹」。
+- **Agent 栏**（W6-A，[docs/tui.md](docs/tui.md)「子 Agent」）：状态行上方列出子 Agent 任务（排队 / 运行中 · 用时 · 轮数 · 最近工具 / 等待审批 / 完成 / 失败 / 已停止），
+  最多 3 行 +「另 N 个」；结束后保留到在视图里看过为止，最多 10 分钟。输入为空时 `Ctrl+B` 或 `↓` 进入（`app.agents.focus`；有字时 `Ctrl+B` 仍是光标左移，
+  tmux 里用 `↓`），↑↓ 选、Enter 打开。嵌入宿主缺省不显示（`ui.agentBar: "off"`）。
+- **子 Agent 视图**（W6-A）：主屏上的全屏覆盖层（行数 − 1），实时跟随子会话的消息与工具调用；外部 Agent 显示内存里的实时输出（≤ 2000 条 / 1 MB，不落盘）。
+  输入框直接发给子 Agent：运行中排到本轮结束、外部 Agent 等本次运行结束、已结束则后台续聊；子会话里记为 `origin: "direct"`。Esc 返回（不中断），
+  子 Agent 的审批在视图上弹出并标来源。`/tasks` 改为聚焦 Agent 栏，`/tasks <id>` 直接打开视图（`ui.agentBar: "off"` 时仍是原来的选择器）。
 
 ## 0.5.1（2026-10-03）
 

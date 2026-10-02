@@ -1,0 +1,172 @@
+{
+  "version": 1,
+  "sessionId": "sess-parallel",
+  "cwd": "/work/proj",
+  "startedAt": 1791014400000,
+  "totals": {
+    "requests": 2,
+    "input": 2400,
+    "output": 240,
+    "cacheRead": 5700,
+    "cacheWrite": 0,
+    "toolCalls": 3,
+    "cost": 0.011300000000000001,
+    "durationMs": 12000,
+    "ttftP50": 800,
+    "ttftP90": 950,
+    "avgTps": 120,
+    "cacheHitRatio": 0.7037037037037037
+  },
+  "turns": [
+    {
+      "id": "pa004",
+      "kind": "turn",
+      "status": "ok",
+      "entryIds": [
+        "pa004",
+        "pa010"
+      ],
+      "steps": [
+        {
+          "id": "pa005",
+          "kind": "step",
+          "status": "ok",
+          "entryIds": [
+            "pa005",
+            "pa009"
+          ],
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "attempt": 1,
+          "usage": {
+            "input": 2100,
+            "output": 150,
+            "cacheRead": 1800,
+            "cacheWrite": 0,
+            "totalTokens": 4050,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0082
+            }
+          },
+          "stopReason": "toolUse",
+          "tools": [
+            {
+              "id": "c_bash",
+              "kind": "tool",
+              "name": "bash",
+              "status": "ok",
+              "isError": false,
+              "entryIds": [
+                "pa005",
+                "pa006"
+              ],
+              "children": [],
+              "startedAt": 1791014402810,
+              "endedAt": 1791014410790,
+              "approvalMs": 3200
+            },
+            {
+              "id": "c_grep",
+              "kind": "tool",
+              "name": "grep",
+              "status": "ok",
+              "isError": false,
+              "entryIds": [
+                "pa005",
+                "pa007"
+              ],
+              "children": [],
+              "startedAt": 1791014402812,
+              "endedAt": 1791014403100
+            },
+            {
+              "id": "c_write",
+              "kind": "tool",
+              "name": "write",
+              "status": "denied",
+              "isError": true,
+              "entryIds": [
+                "pa005",
+                "pa008"
+              ],
+              "children": [],
+              "startedAt": 1791014402815,
+              "endedAt": 1791014405000,
+              "approvalMs": 2100,
+              "denied": true
+            }
+          ],
+          "thinkingLevel": "medium",
+          "cacheHitRatio": 0.46153846153846156,
+          "requestAt": 1791014401100,
+          "startedAt": 1791014401100,
+          "firstTokenAt": 1791014401900,
+          "ttftMs": 800,
+          "doneAt": 1791014402800,
+          "endedAt": 1791014402800,
+          "tps": 166.7
+        },
+        {
+          "id": "pa011",
+          "kind": "step",
+          "status": "ok",
+          "entryIds": [
+            "pa011",
+            "pa012"
+          ],
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "attempt": 1,
+          "usage": {
+            "input": 300,
+            "output": 90,
+            "cacheRead": 3900,
+            "cacheWrite": 0,
+            "totalTokens": 4290,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0031
+            }
+          },
+          "stopReason": "stop",
+          "tools": [],
+          "thinkingLevel": "medium",
+          "cacheHitRatio": 0.9285714285714286,
+          "requestAt": 1791014410950,
+          "startedAt": 1791014410950,
+          "firstTokenAt": 1791014411900,
+          "ttftMs": 950,
+          "doneAt": 1791014413000,
+          "endedAt": 1791014413000,
+          "tps": 81.8
+        }
+      ],
+      "usage": {
+        "requests": 2,
+        "input": 2400,
+        "output": 240,
+        "cacheRead": 5700,
+        "cacheWrite": 0,
+        "toolCalls": 3,
+        "cost": 0.011300000000000001,
+        "durationMs": 12000,
+        "ttftP50": 800,
+        "ttftP90": 950,
+        "avgTps": 120,
+        "cacheHitRatio": 0.7037037037037037
+      },
+      "startedAt": 1791014401000,
+      "endedAt": 1791014413000
+    }
+  ],
+  "aux": [],
+  "partial": false,
+  "endedAt": 1791014413000
+}

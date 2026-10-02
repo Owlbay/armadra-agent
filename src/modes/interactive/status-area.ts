@@ -114,6 +114,11 @@ export class StatusArea {
     return this.mode;
   }
 
+  /** [W6-A] 界面配置（Agent 栏开关、子 Agent 视图的消息显示选项）。 */
+  ui(): NonNullable<Runtime["config"]["ui"]> {
+    return this.deps.runtime.config.ui ?? {};
+  }
+
   setLayout(mode: StatusLineMode): void {
     if (mode === this.mode) return;
     this.mode = mode;

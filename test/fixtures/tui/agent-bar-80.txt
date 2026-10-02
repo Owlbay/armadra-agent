@@ -1,0 +1,21 @@
+# agent bar · 80 列
+## 未聚焦：最多 3 行 + 另 N 个
+|⏺ t1 explore · 运行中 1m05s · 3 轮 · grep  找出 src/tui 的测试缺口
+|⏺ t2 codex · 等待审批 1m05s  review the diff
+|⏺ t3 explore · 排队  排队中的任务
+|另 2 个
+## 聚焦：第 1 项
+|› ⏺ t1 explore · 运行中 1m05s · 3 轮 · grep  找出 src/tui 的测试缺口
+|  ⏺ t2 codex · 等待审批 1m05s  review the diff
+|  ⏺ t3 explore · 排队  排队中的任务
+|另 2 个 · ↑↓ 选择 · Enter 打开 · Esc 返回
+## 聚焦：第 4 项（窗口滚动）
+|  ⏺ t2 codex · 等待审批 1m05s  review the diff
+|  ⏺ t3 explore · 排队  排队中的任务
+|› ⏺ t4 general · 完成 12s · 2 轮
+|另 2 个 · ↑↓ 选择 · Enter 打开 · Esc 返回
+## t4 查看过、t2 审批完
+|⏺ t1 explore · 运行中 1m05s · 3 轮 · grep  找出 src/tui 的测试缺口
+|⏺ t2 codex · 运行中 1m05s  review the diff
+|⏺ t3 explore · 排队  排队中的任务
+|另 1 个

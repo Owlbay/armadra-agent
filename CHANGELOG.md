@@ -51,6 +51,21 @@ Wave 6 (docs/wave6-plan.md) contracts and infrastructure (W6-C0):
   their paths. Config key descriptions, validation diagnostics and `ama init` output follow the interface language;
   `config.schema.json` descriptions are written in the current interface language and rewritten by the next `ama init` (or any
   command that auto-initializes) after switching. `pnpm release:check` understands the new CHANGELOG layout.
+- **`/trace`** (W6-T1): interactive mode opens a trace overlay — turn → request → tool → sub-call / subagent, each row with
+  duration, TTFT / decode / tool bars, tokens and cache hits; Enter shows details, subagents expand into their child sessions,
+  long sessions load from the tail and follow while running; `/trace <task id>` shows one task; line mode prints a text tree.
+  Old sessions without timing records are estimated from entry timestamps and marked `≈` (session files are not changed).
+  The SDK exports the pure function `buildTrace()`. See [docs/tui.md](docs/tui.md) "Trace".
+- **Agent bar** (W6-A): above the status line, lists subagent tasks (queued / running · elapsed · turns · last tool / awaiting
+  approval / done / failed / stopped), up to 3 rows + "N more"; finished tasks stay until viewed, at most 10 minutes. With an
+  empty input, `Ctrl+B` or `↓` focuses it (`app.agents.focus`; with text `Ctrl+B` still moves the cursor left; use `↓` in tmux),
+  ↑↓ selects, Enter opens. Hidden by default when embedded in a host (`ui.agentBar: "off"`).
+- **Subagent view** (W6-A): a full-screen overlay on the main screen (rows − 1) that follows the child session's messages and
+  tool calls live; external agents show in-memory live output (≤ 2000 events / 1 MB, not persisted). The input box talks to the
+  subagent directly: queued until the end of its current turn while running, until the end of the run for external agents, or
+  resumed in the background when finished; recorded as `origin: "direct"` in the child session. Esc returns without
+  interrupting; the subagent's approvals pop up in the view with their origin. `/tasks` now focuses the agent bar and
+  `/tasks <id>` opens the view directly (the old picker remains when `ui.agentBar` is `"off"`).
 
 ## Earlier releases
 
