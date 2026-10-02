@@ -11,6 +11,7 @@
  *   停止原因、用量、缓存命中率、[W3-C2] `cache` 统计（同 `get_session_stats.cache`）、全部条目）；
  *   `stream-json`：每个会话事件一行（线上形状同 RPC，含 `cache_miss` / `cache_warm` /
  *   `context_pressure`）。
+ * - 重试：text / json 格式在 stderr 打一行 `↻ 重试 n/m`（stream-json 里本来就有事件），等待期间不再无声。
  * - 无人值守：ask → deny（bootstrap 已按 print 设 unattended）。被拒的调用（`tool_execution_end`
  *   带 `denied`）在 stderr 汇总一行（工具 ×次数、首个原因、放行办法），json 结果带 `deniedTools`。
  * - `--max-turns N`：到达上限时若最后一条助手消息停在 toolUse（还有活没做完）→ stderr 一行、
@@ -98,6 +99,10 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
         reason: textOf(event),
       });
     if (format === "stream-json") io.stdout(`${toJsonLine(toWireEvent(event))}\n`);
+    else if (event.type === "auto_retry_start")
+      io.stderr(
+        `ama: ↻ 重试 ${event.attempt}/${event.maxAttempts}（${Math.round(event.delayMs / 1000)}s 后）：${event.errorMessage}\n`,
+      );
   });
   let signalled: number | undefined;
   const offSignals = onTerminationSignals((code) => {

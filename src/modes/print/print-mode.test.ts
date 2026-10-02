@@ -138,10 +138,22 @@ describe("print 模式", () => {
       await h.run(["-p", "hi", "--model", "fake/echo", "--output-format", "stream-json"]),
     ).toBe(0);
     const types = lines().map((e) => e["type"]);
+    expect(h.stderr()).not.toContain("↻");
     expect(types).toContain("auto_retry_start");
     expect(types).toContain("auto_retry_end");
     expect(types.at(-1)).toBe("agent_settled");
     expect(h.stdout()).not.toContain('"partial"');
+  });
+
+  it("text：重试期间 stderr 每次一行 ↻，stdout 只有最终回答", async () => {
+    h = composeHarness([{ error: { kind: "overloaded" } }, { text: "ok" }]);
+    h.home.write("home/.config/ama/config.json", {
+      version: 1,
+      retry: { baseDelayMs: 1, maxDelayMs: 2 },
+    });
+    expect(await h.run(["-p", "hi", "--model", "fake/echo"])).toBe(0);
+    expect(h.stdout()).toBe("ok\n");
+    expect(h.stderr()).toMatch(/^ama: ↻ 重试 1\/3（0s 后）：.+\n$/);
   });
 
   it("最终错误 → 退出 1，stderr 给原因；工具 ask 在 print 下被拒", async () => {
