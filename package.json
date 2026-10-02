@@ -3,10 +3,31 @@
   "version": "0.2.0",
   "description": "可独立使用、可嵌入 Armadra 的编码 / 协调 Agent",
   "type": "module",
+  "keywords": [
+    "coding-agent",
+    "agent",
+    "ai",
+    "llm",
+    "cli",
+    "tui",
+    "anthropic",
+    "openai",
+    "claude",
+    "deepseek",
+    "codemode",
+    "prompt-cache",
+    "sdk",
+    "armadra"
+  ],
+  "homepage": "https://github.com/Owlbay/armadra-agent#readme",
+  "bugs": {
+    "url": "https://github.com/Owlbay/armadra-agent/issues"
+  },
+  "author": "YoVinchen",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yovinchen/armadra-agent.git"
+    "url": "git+https://github.com/Owlbay/armadra-agent.git"
   },
   "bin": {
     "ama": "dist/cli/main.js"
@@ -35,14 +56,24 @@
     "dist",
     "docs/rpc.md",
     "docs/host-api.md",
-    "docs/hooks.md"
+    "docs/hooks.md",
+    "docs/providers.md",
+    "docs/codemode.md",
+    "docs/tui.md",
+    "docs/session-format.md",
+    "CHANGELOG.md"
+  ],
+  "sideEffects": [
+    "./dist/cli/main.js",
+    "./dist/codemode/sandbox-entry.js",
+    "./dist/bundle/*.cjs"
   ],
   "engines": {
     "node": ">=22"
   },
-  "private": false,
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "build": "pnpm build:lib && pnpm build:bundle",
