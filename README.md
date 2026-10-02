@@ -466,7 +466,7 @@ pnpm 10 起 `pnpm ci` 是内置的「清理后安装」，跑检查要写 `pnpm 
 
 **约束**：运行时依赖必须为零，`src/` 只允许 `node:` 内置模块与相对路径（`pnpm check:deps` 守住）。`src/` 按层分目录（`ai` 模型接入、`agent` 循环、`session` 会话树、`tools`、`codemode`、`permissions`、`hooks`、`host` 宿主契约、`tui` 组件库、`modes` 各入口、`cli` 启动），各目录的 `types.ts` 是模块之间的契约。
 
-**发布**：改 `package.json` 版本与 [CHANGELOG.md](CHANGELOG.md)，合入 main 后打 `v<版本>` tag。CI 全绿后 release job 生成 GitHub Release（`ama.cjs`、`ama-sandbox.cjs`、`package.tgz`、`SHA256SUMS`），再以 provenance 发布到 npm（需要仓库 secret `NPM_TOKEN`，没有时跳过）。`pnpm release:check` 检查 tag 与版本一致，协议常量变化要求破坏性版本升级。
+**发布**：改 `package.json` 版本与 [CHANGELOG.md](CHANGELOG.md)，合入 main 后打 `v<版本>` tag。CI 全绿后 release job 生成 GitHub Release（`ama.cjs`、`ama-sandbox.cjs`、`package.tgz`、`SHA256SUMS`），再以 provenance 发布到 npm：优先用 OIDC 可信发布（trusted publishing，npm ≥ 11.5.1，job 内自动升级），在 npmjs.com 的 `@armadra/agent` 包设置 → Trusted Publisher 添加 GitHub Actions（组织 `Owlbay`、仓库 `armadra-agent`、工作流 `ci.yml`、环境留空）即可，不需要长期 token；仓库 secret `NPM_TOKEN` 保留为回退，两者都没有时 job 失败并提示。`pnpm release:check` 检查 tag 与版本一致，协议常量变化要求破坏性版本升级。
 
 ## 更新记录
 
