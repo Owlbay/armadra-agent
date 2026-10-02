@@ -2,7 +2,7 @@
  * 档一裁剪（设计 §9「档一」）：无模型调用。[B2]
  *
  * 触发：`contextTokens > 0.7 × (contextWindow − reserveTokens)`。
- * 范围：最近两个用户回合之前、内容 > 2 KiB 的 toolResult。
+ * 范围：最近两个用户回合之前、估算 > 512 token 的 toolResult（[W5-H1] C10：与阈值同一 token 口径）。
  * 动作：返回 `context_edit{reason:"prune", replacement:"[已裁剪 …全文 path]"}` 计划；有 outputDir 时
  * 把全文写到 `<outputDir>/<toolCallId>.txt`（已存在则不覆盖），模型可用 read 取回。
  */
@@ -11,9 +11,11 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ContentBlock } from "../ai/types.js";
 import type { ContextItem } from "../session/projection.js";
+import { estimateTextTokens } from "./estimate.js";
 
 export const PRUNE_THRESHOLD_RATIO = 0.7;
-export const PRUNE_MIN_BYTES = 2048;
+/** 小于等于此估算 token 的结果不裁（占位本身也要几十 token）。 */
+export const PRUNE_MIN_TOKENS = 512;
 export const PRUNE_KEEP_USER_TURNS = 2;
 
 export interface PrunePlanItem {
@@ -26,7 +28,7 @@ export interface PrunePlanItem {
 
 export interface PruneOptions {
   keepUserTurns?: number;
-  minBytes?: number;
+  minTokens?: number;
   /** 全文落盘目录；undefined 时不落盘（内存会话）。 */
   outputDir?: string | undefined;
 }
@@ -56,7 +58,7 @@ export function planPrune(
   options: PruneOptions = {},
 ): PrunePlanItem[] {
   const keepTurns = options.keepUserTurns ?? PRUNE_KEEP_USER_TURNS;
-  const minBytes = options.minBytes ?? PRUNE_MIN_BYTES;
+  const minTokens = options.minTokens ?? PRUNE_MIN_TOKENS;
 
   let boundary = items.length;
   let seen = 0;
@@ -75,8 +77,8 @@ export function planPrune(
     const { message, entry } = item;
     if (message.role !== "toolResult" || entry.type !== "message") continue;
     const text = contentToText(message.content);
+    if (estimateTextTokens(text) <= minTokens) continue;
     const bytes = Buffer.byteLength(text, "utf8");
-    if (bytes <= minBytes) continue;
     let fullTextPath: string | undefined;
     if (options.outputDir !== undefined) {
       fullTextPath = join(options.outputDir, `${safeFileStem(message.toolCallId)}.txt`);
