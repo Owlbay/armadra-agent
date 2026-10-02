@@ -6,7 +6,8 @@
  *   问句之前逐行打印执行前预览（`request.preview`，W3-B9a-2）。
  * - 否则（管道）：逐行读 stdin，每行依次执行（等上一条运行结束）；没有审批 UI，ask → deny。
  *   模型错误在运行结束时只打印一次（重试中只显示 ↻）；有运行最终失败时退出码 1。
- * - 斜杠命令走 commands-core（与 B7 同一语义），`pick` 退化为列出候选。
+ * - 斜杠命令走 commands-core（与 B7 同一语义），`pick` 退化为列出候选；`/rewind` 列编号、
+ *   `/rewind <n> …` 执行，回到的单行原消息放回编辑行。
  */
 
 import { promptImages, sessionModel } from "../../image-input.js";
@@ -76,7 +77,15 @@ export async function runLineMode(
       else if (result.kind === "exit") return "exit";
       else if (result.kind === "prompt") await prompt(session, result.text);
       else if (result.kind === "pick") out(`${await pickHint(result.what, runtime, session)}\n`);
-      else if (result.message !== undefined) out(`${result.message}\n`);
+      else {
+        if (result.message !== undefined) out(`${result.message}\n`);
+        // /rewind 回到某条消息之前：单行原消息放回编辑行（多行只在输出里给出）
+        const draft = result.draft?.text;
+        if (editor !== undefined && draft !== undefined && !draft.includes("\n")) {
+          editor.buffer = draft;
+          editor.cursor = draft.length;
+        }
+      }
     } catch (error) {
       printer.endLine();
       printer.failures++;

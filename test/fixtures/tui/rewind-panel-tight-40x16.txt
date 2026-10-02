@@ -1,0 +1,35 @@
+# panel · viewport 40x16
+|▎ 回滚到这条消息之前  3 分钟前
+|▎ › 把 src/tui/tui.ts 的差分渲染改成按…
+|▎ › 1. 恢复代码和对话
+|▎      将恢复 3 个文件 +12 −48，冲突 1
+|▎      个 · 对话将分叉
+|▎   2. 恢复对话
+|▎   3. 恢复代码
+|▎   4. 从这里摘要
+|▎   5. 摘要到这里
+|▎   6. 取消
+|▎ 冲突 1 个：README.md
+|▎ 无法恢复 1 个：assets/big.bin
+|▎ git HEAD 已变化：3f2a9c1 → 9e8d7c6
+|▎   git log --oneline 3f2a9c1e0b7d..HEAD
+|▎   git reset --soft 3f2a9c1e0b7d
+|▎ ↑↓ Enter · 1-6 · Esc 取消
+
+# panel · after "\r" · viewport 40x16
+|▎ 回滚到这条消息之前  3 分钟前
+|▎ › 把 src/tui/tui.ts 的差分渲染改成按…
+|▎   顺便补上测试
+|▎   再更新文档
+|▎   … 另 1 行
+|▎ 1 个文件在回合外被改过：
+|▎   README.md
+|▎ › 1. 跳过冲突文件，恢复其余
+|▎   2. 覆盖冲突文件
+|▎   3. 返回
+|▎ ↑↓ Enter · Esc 返回
+|
+|
+|
+|
+|

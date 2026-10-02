@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
@@ -183,5 +183,32 @@ describe("LineEditor", () => {
     const second = editor.ask("? ", "n");
     editor.feed("\r");
     expect(await second).toBe("n");
+  });
+});
+
+describe("行式界面：/rewind", () => {
+  it("列编号、按编号回滚对话与代码；编号越界给中文错误", async () => {
+    h = composeHarness([
+      { text: "first" },
+      { steps: [{ toolCall: { name: "write", arguments: { path: "new.txt", content: "x\n" } } }] },
+      { text: "written" },
+    ]);
+    const runtime = await h.boot(["--model", "fake/echo", "--permission-mode", "auto-edit"]);
+    const stdin = new PassThrough();
+    const done = runLineMode(
+      runtime,
+      { args: emptyArgs(), prompt: undefined, io: h.io },
+      { stdin },
+    );
+    stdin.end("第一条\n写个文件\n/rewind\n/rewind 2 code\n/rewind 2 conversation\n/rewind 9\n");
+    expect(await done).toBe(1);
+    const out = h.stdout();
+    expect(out).toContain("回滚点（/rewind <n> [both|conversation|code] [overwrite]");
+    expect(out).toMatch(/ {2}1\. 刚刚 {2}第一条\n {2}2\. 刚刚 {2}写个文件\n/);
+    expect(out).toContain("已恢复 1 个文件");
+    expect(out).toContain("对话已回到这条消息之前；原消息：写个文件");
+    expect(h.stderr()).toContain("没有第 9 个回滚点（共 1 个，/rewind 查看）");
+    expect(existsSync(join(h.home.cwd, "new.txt"))).toBe(false);
+    await runtime.dispose();
   });
 });

@@ -106,7 +106,7 @@ export const CONFIG_KEY_DOCS: Readonly<Record<string, string>> = Object.freeze({
   "cache.warmSubagents": "子会话（task）也保温",
   checkpoints: "检查点：回滚代码用的文件备份（docs/sessions.md「检查点与文件备份」）",
   "checkpoints.mode":
-    "tools：跟踪 edit / write 改过的文件；shadow-git：影子 git（未实现前同 tools）；off：关闭；AMA_CHECKPOINTS 覆盖；项目级只接受 off",
+    "tools：跟踪 edit / write 改过的文件；shadow-git：另用影子 git 快照整个工作目录，bash 等直接改动也能回滚（需要 git，大目录自动降级为 tools）；off：关闭；AMA_CHECKPOINTS 覆盖；项目级只接受 off",
   "checkpoints.maxFileBytes":
     "单个文件的备份上限（字节），超出不备份、回滚时报告无法恢复；项目级只能调小",
   "checkpoints.keep": "可回滚的最近检查点数，更早的不再列为回滚点；只认用户级 / profile",

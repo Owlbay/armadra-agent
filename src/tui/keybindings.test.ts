@@ -13,7 +13,7 @@ describe("键位表", () => {
     expect(keys.matches("\x1b\r", "app.message.followUp")).toBe(true);
     expect(keys.matches("\x1b[Z", "app.permission.cycle")).toBe(true);
     expect(keys.matches("\x0f", "app.tools.expand")).toBe(true);
-    expect(keys.actionsFor("\x1b")).toEqual(["tui.select.cancel", "app.interrupt"]);
+    expect(keys.actionsFor("\x1b")).toEqual(["tui.select.cancel", "app.interrupt", "app.rewind"]);
   });
 
   it("覆盖整组替换，空数组禁用", () => {
