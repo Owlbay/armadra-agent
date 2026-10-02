@@ -7,6 +7,8 @@
  * - `--version` / `--help` 短路；子命令 `auth / sessions / models / providers / doctor / config /
  *   init` 分派后返回；其余命令启动前若配置目录不存在则静默初始化（`AMA_NO_INIT=1` 关闭）；
  *   其余交给 `runCli()`（bootstrap → 模式）。
+ * - 设了 HTTPS_PROXY / HTTP_PROXY 时启用 Node 内置的环境变量代理（cli/proxy.ts）；不支持的 Node
+ *   版本在会联网的命令里提示一次。
  * - 运行时实现（RuntimeDeps）：`MainOptions.deps` > `registerRuntimeDeps()` > 组装根
  *   `createRuntimeDeps()`（cli/compose.ts，动态 import）。
  * - 签名 `main(argv): Promise<number>` 与「直接执行才自动运行」判定保持不变：
@@ -29,6 +31,7 @@ import { runInit } from "./subcommands/init.js";
 import { autoInitConfigDir } from "../config/init.js";
 import { resolveConfigDir } from "../config/paths.js";
 import { runSessions } from "./subcommands/sessions.js";
+import { enableEnvProxy, proxyHint } from "./proxy.js";
 
 declare const __AMA_BUNDLED__: boolean | undefined;
 
@@ -153,6 +156,14 @@ export async function main(argv: readonly string[], options: MainOptions = {}): 
     const informational =
       parsed.kind === "run" ? parsed.args.help || parsed.args.version : parsed.name === "init";
     if (!informational) autoInitConfigDir(resolveConfigDir({ env: io.env }), io.env);
+    // 进程级副作用（全局 dispatcher）：只在真正的进程入口做，测试里调 main() 不碰
+    if (!informational && options.processHooks !== false) {
+      const proxy = enableEnvProxy(io.env);
+      const online =
+        parsed.kind === "run" || parsed.name === "models" || parsed.name === "providers";
+      const hint = online ? proxyHint(proxy) : undefined;
+      if (hint !== undefined) io.stderr(hint);
+    }
     if (parsed.kind === "subcommand") {
       switch (parsed.name) {
         case "auth":

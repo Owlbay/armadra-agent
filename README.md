@@ -157,6 +157,10 @@ ama -p "列出 TODO" --model deepseek/deepseek-v4-pro --output-format json
 走 `retry` 的退避重试（收到任何字节即重新计时，长回答不受影响）。用 `request.idleTimeoutMs`（只认用户级）或环境变量
 `AMA_IDLE_TIMEOUT_MS` 调整，0 关闭。
 
+**代理**：设了 `HTTPS_PROXY` / `HTTP_PROXY`（`NO_PROXY` 排除）时，ama 启动时调用 Node 内置的环境变量代理（等价于
+`NODE_USE_ENV_PROXY=1`，零依赖）。Node 24+ 直接可用；Node 22 只有 22.21+ 设 `NODE_USE_ENV_PROXY=1` 才行，更早的版本会提示一次
+并直连。`ama doctor` 的「代理」一节显示当前状态（代理地址里的账号密码打码）。
+
 ### 文件位置与层级
 
 | 位置                  | 内容                                                                                                                                                 |

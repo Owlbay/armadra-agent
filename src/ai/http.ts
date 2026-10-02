@@ -1,9 +1,9 @@
 /**
  * fetch 包装（设计 §1.2 ai/http.ts）：超时、头合并（值为 null 删除）、错误体读取。
  *
- * 代理：Node 的全局 fetch 缺省不读 HTTP(S)_PROXY。Node ≥ 24 设 `NODE_USE_ENV_PROXY=1`
- * 即可让 fetch 走环境变量代理；Node 22 需在启动参数里加 `--use-env-proxy`（22.21+）。
- * 本模块不自行实现代理，env 原样透传给运行时处理。
+ * 代理：Node 的全局 fetch 缺省不读 HTTP(S)_PROXY。CLI 启动时由 cli/proxy.ts 调 Node 内置的
+ * `http.setGlobalProxyFromEnv()`（等价于 `NODE_USE_ENV_PROXY=1`）；SDK 嵌入方自行决定。
+ * 本模块不自行实现代理。
  *
  * 超时：`timeoutMs` 只管到拿到响应头为止；`idleTimeoutMs`（缺省 300 s，0 关闭）既管等响应头，
  * 也管流式读取期间两次收到数据之间的间隔（每收到一块字节即重新计时，见 sse.ts）。空闲超时抛
