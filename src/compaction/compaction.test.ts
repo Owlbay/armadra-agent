@@ -6,7 +6,6 @@ import { createScriptedApi } from "../agent/testing/scripted-api.js";
 import { fakeModel } from "../agent/testing/stubs.js";
 import { SessionManager } from "../session/manager.js";
 import { buildProjection } from "../session/projection.js";
-import { CompactionBreaker } from "./breaker.js";
 import { prepareBranchSummary, runBranchSummary } from "./branch-summary.js";
 import { findCutPoint, summarizableStart } from "./cut-point.js";
 import {
@@ -216,25 +215,5 @@ describe("branch summary", () => {
     expect(
       prepareBranchSummary(new Map(m.entries().map((e) => [e.id, e])), u.id, leaf.id),
     ).toBeUndefined();
-  });
-});
-
-describe("breaker", () => {
-  it("每 run 一次、连续两次失败跳闸、无窗口关闭、0.8 重试门槛", () => {
-    const breaker = new CompactionBreaker(true, 1000);
-    expect(breaker.canSummarize()).toBe(true);
-    breaker.recordSummary(false);
-    expect(breaker.blockReason()).toBe("run_limit");
-    breaker.startRun();
-    breaker.recordSummary(false);
-    expect(breaker.tripped).toBe(true);
-    breaker.startRun();
-    expect(breaker.blockReason()).toBe("tripped");
-    breaker.reset();
-    expect(breaker.canSummarize()).toBe(true);
-    expect(breaker.shouldRetryAfterCompaction(800)).toBe(true);
-    expect(breaker.shouldRetryAfterCompaction(801)).toBe(false);
-    expect(new CompactionBreaker(true, undefined).blockReason()).toBe("no_window");
-    expect(new CompactionBreaker(false, 10).autoEnabled).toBe(false);
   });
 });

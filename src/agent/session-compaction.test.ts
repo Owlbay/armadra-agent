@@ -142,3 +142,47 @@ describe("缓存冷时提前裁（C3）", () => {
     expect(edits.length).toBeLessThanOrEqual(15);
   });
 });
+
+describe("熔断在会话里（C5）", () => {
+  it("每回合都重新填满：连续 3 次快速回填后停止自动摘要并告警一次", async () => {
+    const logs: string[] = [];
+    const bigRead = stubTool({
+      name: "read",
+      properties: { path: { type: "string" } },
+      run: () => ({ content: "y".repeat(12_000) }), // ≈ 3 000 token
+    });
+    const h = createHarness({
+      model: fakeModel({ contextWindow: 8000 }),
+      tools: [bigRead],
+      compaction: { reserveTokens: 1000, pruneExclude: ["read"] } as never,
+      script: toolLoop(30),
+      log: (level, message) => {
+        if (level === "warn") logs.push(message);
+      },
+    });
+    await h.session.prompt("一直读");
+    const compactions = h.manager.branch().filter((e) => e.type === "compaction");
+    expect(compactions.length).toBeGreaterThanOrEqual(4);
+    expect(compactions.length).toBeLessThanOrEqual(5);
+    expect(logs.filter((m) => m.includes("refilled"))).toHaveLength(1);
+    // 跳闸后仍跑完（不循环摘要）
+    expect(h.scripted.calls.filter((c) => !isSummaryRequest(c.context))).toHaveLength(31);
+  });
+
+  it("固定前缀超预算：不尝试摘要，告警一次", async () => {
+    const logs: string[] = [];
+    const h = createHarness({
+      model: fakeModel({ contextWindow: 3000 }),
+      tools: [readTool],
+      system: { preamble: "规".repeat(2600) },
+      compaction: { reserveTokens: 500 } as never,
+      script: toolLoop(3),
+      log: (level, message) => {
+        if (level === "warn") logs.push(message);
+      },
+    });
+    await h.session.prompt("读三个文件");
+    expect(h.events.some((e) => e.type === "compaction_start")).toBe(false);
+    expect(logs.filter((m) => m.includes("system prompt"))).toHaveLength(1);
+  });
+});

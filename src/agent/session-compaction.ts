@@ -5,8 +5,9 @@
  *   结果新旧计边界，可省 ≥ clearAtLeast 才动，一次清到 0.5 ×）；仍 > 窗口 − 预留且熔断允许 → 档二摘要
  *   （trigger `threshold`）。缓存已冷（上次请求距今超过 TTL，只认 reported 端点）时未到 0.7 也裁，
  *   且一次换掉全部候选。
+ * - 熔断（[W5-H1] C5）：连续 3 次失败或连续 3 次快速回填跳闸；固定前缀超预算不再尝试；都只告警一次。
  * - 溢出恢复（会话 run 结束后，失败尝试已用 context_edit 剔除）：PreCompact Hook → 档二摘要（trigger
- *   `overflow`，不受「每 run 一次」限制但受跳闸限制）→ 压缩后估算 ≤ 0.8 × 窗口才重试。
+ *   `overflow`，受跳闸限制）→ 压缩后估算 ≤ 0.8 × 窗口才重试。
  * - 手动 `/compact`：PreCompact（trigger `manual`）→ 摘要；成功清零熔断。
  * PreCompact 的 `decision: "block"` 取消本次压缩；`customInstructions` 追加到摘要提示。
  * [W3-C1b] 阈值 / 手动压缩与分支摘要优先走会话前缀续写（缓存控制器给前缀），溢出恢复不走
@@ -14,8 +15,12 @@
  */
 
 import { AmaError } from "../errors.js";
-import { CompactionBreaker } from "../compaction/breaker.js";
-import { estimateProjectedTokens, type ContextEstimate } from "../compaction/estimate.js";
+import { CompactionBreaker, type BreakerBlockReason } from "../compaction/breaker.js";
+import {
+  estimateMessageTokens,
+  estimateProjectedTokens,
+  type ContextEstimate,
+} from "../compaction/estimate.js";
 import { planPrune, prunePolicy, type PrunePolicy } from "../compaction/prune-tier.js";
 import { createProtection, skillLocations } from "../compaction/protect.js";
 import type { CompactionConfig } from "../config/types.js";
@@ -52,6 +57,7 @@ export class CompactionController {
   settings: CompactionSettings;
   private readonly core: SessionCore;
   private compacting = false;
+  private warnedReason: BreakerBlockReason | undefined;
   /** [W5-H1] config `compaction.prune / pruneExclude`（组装根把整段 config.compaction 展开传入）。 */
   private readonly pruneConfig: Pick<CompactionConfig, "prune" | "pruneExclude">;
 
@@ -155,6 +161,7 @@ export class CompactionController {
   /** 阈值检查（档一 → 档二）。失败只记录，不打断 run。 */
   async checkThreshold(signal: AbortSignal): Promise<void> {
     if (!this.breaker.autoEnabled || this.compacting || signal.aborted) return;
+    this.breaker.tick();
     const policy = this.prunePolicy();
     const budget = this.budget();
     if (policy === undefined || budget === undefined) return;
@@ -165,8 +172,34 @@ export class CompactionController {
       const need = cold ? undefined : tokens - policy.targetTokens;
       if (this.prune(policy, need) > 0) tokens = this.estimate().tokens;
     }
-    if (tokens <= budget || !this.breaker.canSummarize()) return;
+    if (tokens <= budget) return;
+    this.breaker.setPrefixOverflow(this.fixedPrefixTokens() > budget);
+    if (!this.breaker.canSummarize()) return this.warnBlocked();
     await this.summarize("threshold", signal);
+  }
+
+  /** 固定前缀（system 节 + 工具表）的估算：摘要压不掉这部分。 */
+  private fixedPrefixTokens(): number {
+    let tokens = 0;
+    for (const { message } of buildProjection(this.core.manager.branch()).items)
+      if (message.role === "system") tokens += estimateMessageTokens(message);
+    return tokens;
+  }
+
+  /** 熔断挡住自动摘要时告警（同一原因只报一次）。 */
+  private warnBlocked(): void {
+    const reason = this.breaker.blockReason();
+    if (reason === undefined || reason === this.warnedReason) return;
+    this.warnedReason = reason;
+    const text: Partial<Record<BreakerBlockReason, string>> = {
+      tripped: "auto-compaction disabled after repeated summary failures",
+      rapid_refill:
+        "auto-compaction disabled: the context refilled within 3 turns after each of the last 3 compactions",
+      prefix_overflow:
+        "auto-compaction skipped: the system prompt and tool definitions alone exceed the context budget",
+    };
+    const message = text[reason];
+    if (message !== undefined) this.core.log("warn", message);
   }
 
   /** 溢出恢复：返回是否应以新 run 重试。 */
@@ -214,6 +247,7 @@ export class CompactionController {
       throw new AmaError("compaction_failed", outcome.error ?? "compaction failed");
     }
     this.breaker.reset();
+    this.warnedReason = undefined;
     return outcome.result;
   }
 
@@ -293,10 +327,8 @@ export class CompactionController {
         if (plan !== undefined) break;
       }
     }
-    if (plan === undefined) {
-      if (trigger !== "manual") this.breaker.recordSummary(false);
-      return fail("nothing to compact");
-    }
+    // 「nothing to compact」不计失败（C5）
+    if (plan === undefined) return fail("nothing to compact");
     try {
       const options = await this.summarizer(signal, customInstructions, trigger !== "overflow");
       const draft = await runCompaction(plan, options);
@@ -312,6 +344,7 @@ export class CompactionController {
       core.appendEntry(entry);
       core.reloadMessages();
       this.breaker.recordSummary(true);
+      if (this.breaker.tripped) this.warnBlocked();
       const tokensAfter = this.estimate().tokens;
       const result: CompactionResult = {
         summary: draft.summary,
@@ -326,6 +359,7 @@ export class CompactionController {
     } catch (error) {
       const aborted = signal.aborted || (error instanceof AmaError && error.code === "aborted");
       if (!aborted) this.breaker.recordSummary(false);
+      if (this.breaker.tripped) this.warnBlocked();
       return fail(error instanceof Error ? error.message : String(error), aborted);
     }
   }
