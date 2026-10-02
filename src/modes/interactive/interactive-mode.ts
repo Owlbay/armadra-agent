@@ -52,12 +52,14 @@ import {
   type Terminal,
   type Theme,
 } from "../../tui.js";
+import { BYPASS_MODE, createBypassGate } from "../../permissions/bypass.js";
 import { onTerminationSignals } from "../shared.js";
 import { AgentUi } from "./agent-ui.js";
 import { ApprovalDialogBroker, approvalOutcomeText } from "./approval-dialog.js";
 import { mergingBroker } from "./approval-merge.js";
 import { ALL_COMMANDS, runInteractiveCommand, type CommandUi } from "./commands.js";
 import { InteractiveCompletion } from "./completion.js";
+import { confirmBypass } from "./confirm-dialog.js";
 import { createKeyDispatch } from "./key-dispatch.js";
 import { MessageView, exitSummaryLines, type NoticeLevel } from "./message-view.js";
 import { openPicker } from "./pickers.js";
@@ -357,6 +359,11 @@ export function runInteractiveMode(
     columns: () => terminal.columns,
     rows: () => terminal.rows,
   };
+  // 进入 Bypass 前确认一次；启动时已是 Bypass（命令行 / 配置指定）视为已确认
+  const confirmMode = createBypassGate(
+    () => confirmBypass(pickerHost),
+    session.state.permissionMode === BYPASS_MODE,
+  );
   const rewind = createRewindFlow({
     ...pickerHost,
     session: () => session,
@@ -378,6 +385,7 @@ export function runInteractiveMode(
       return next;
     },
     pick: (spec) => openPicker(pickerHost, spec),
+    confirmMode,
     rewind: () => rewind.open(),
     setDraft,
     notice,
@@ -441,6 +449,7 @@ export function runInteractiveMode(
       onExpandToggle: (expanded) => view.setThinkingExpanded(expanded),
       onStatusLineToggle: () => area.toggle(),
       onPasteImage: () => void agentUi.paste(),
+      confirmMode,
       submit: (text, via) => submit(text, via),
       runCommand: (line) => void runCommand(line),
       exit: (code) => exit(code),
