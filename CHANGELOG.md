@@ -2,6 +2,13 @@
 
 ## 未发布
 
+- **底部信息行**（第五波 W5-A，docs/tui.md「状态栏」）：独立终端缺省两行——上方速率行显示本次输出速率（流式中为
+  2 s 窗口瞬时值）、输出 token / 耗时、会话均速与首 token 延迟，`↑ ↓`、缓存、重计费等用量项移到这一行，行尾 `[-]`；
+  下方状态栏为 `模型 思考 · ctx 3.0% · 目录 ⎇ 分支 短提交 +a −b · $费用 · 会话时长`（git 直接读 `.git/HEAD`，增删行在回合
+  边界后台跑 `git diff --numstat`，≥ 10 s 一次、2 s 超时即停用，`AMA_STATUS_GIT=0` 关闭）。有 profile 的嵌入宿主缺省
+  一行（`ui.statusLine: "compact"`，即原状态栏加 git 与时长，最后一行、模式最左、`·` 分隔不变）；`Ctrl+G` 或
+  `/statusline [full|compact]` 本会话内切换。费用计入外部 Agent 的美元用量。RPC 新增 `telemetry_tick` 事件（流式中
+  ≤ 2 Hz）与 `get_session_stats` 的 `telemetry`。图片因请求上限被省略时提示一次，「compaction did not shrink」显示中文说明。
 - **操作系统级沙箱**（docs/sandbox.md）：新模块 `src/sandbox/` 探测 macOS `sandbox-exec`、Linux bubblewrap（退而
   `unshare -r -n`），用目标配置跑一次最小探针确认真能用（嵌套沙箱、无用户命名空间会降级），结果进程内缓存。codemode
   子进程经它启动，内核拒绝网络（含 DNS）与一切写入：**Node 22 / 24 在有操作系统沙箱时与 Node ≥ 25 一样网络隔离**——

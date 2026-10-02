@@ -159,6 +159,7 @@ export function runInteractiveMode(
     session: () => session,
     now,
     render: () => tui.requestRender(),
+    redraw: () => tui.forceFullRedraw(),
     env,
     ...(options.statusLine !== undefined ? { layout: options.statusLine } : {}),
   });

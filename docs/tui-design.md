@@ -394,43 +394,57 @@ resize    一屏
 
 ### 3.10 底部状态栏
 
-80 列：
+> 第五波 W5-A（wave5-plan §1）起分两种布局：`ui.statusLine: "full"`（独立终端缺省，两行）与 `"compact"`（有 profile 的嵌入宿主缺省，一行）；`Ctrl+G`（`app.statusLine.toggle`）或 `/statusline [full|compact]` 切换，只影响本会话。实现：`status-line.ts`（速率行）、`status-bar.ts`（状态栏）、`status-area.ts`（装配）。
+
+`full`，宽屏：
 
 ```
-Accept edits · shift+tab 切换        claude-sonnet-4-5 · medium · ↑12.3k ↓1.2k · cache 80% ♨ · $0.12 · ctx 34%
+tps 100 tok/s · 546 tok / 5.5s · avg 100 · ttft 1.4s                  ↑12k ↓1.2k · cache 83% ♨ · [-]
+Manual · shift+tab 切换        claude-opus-5-5 medium · ctx 3.0% · vitaweave ⎇ main 5ae9e54 +12 −3 · $0.26 · 2h24m
+```
+
+`compact`，80 列（原单行状态栏 + git 与时长）：
+
+```
+Manual        claude-opus-5-5 · ctx 3% · vitaweave ⎇ main 5ae9e54 +12 −3 · 2h24m
 ```
 
 超宽（≥ 110 列）时 ctx 换成小表：`ctx ▮▮▮▯▯▯▯▯▯▯ 34%`。
 
-- 两区：左区「模式 + 切换提示」（Claude Code 的 `shift+tab to cycle`），右区用量，中间用空格撑开；装不下时退回单区 `·` 连接。
-- 整行基色 `dim`；模式名 `text`（Bypass permissions → `warning`，Plan → `accent`，Auto 带分类器判定计数时不变色）；模型 `accent`；`think` 级别只显示值；`ctx` 按阈值 `success`/`warning`/`error`；`rebill $x` `warning`；`queue 1` `warning`；`codemode:only` 后的 `net!` `error`；宿主状态 `[…]` `dim`。
+- 两区：左区「模式 + 切换提示」，右区信息，中间用空格撑开；装不下时退回单区 `·` 连接。同组项以空格相连：`full` 下行的「模型 思考级别」，以及「目录 ⎇ 分支 短提交 +a −b」。
+- **速率行**（只在 `full`）：`tps` 流式中取最近 2 s 窗口的瞬时值、前缀 `accent`，结束后是该请求的平均值（生成不足 0.25 s 的整块回复记 `—`）；`N tok / T`（从首 token 起）；`avg` 会话均速；`ttft` 首 token 延迟。右区是从状态栏迁来的用量类项，行尾 `[-]`。流式中由 `telemetry_tick`（≤ 2 Hz）刷新，只有这一行随流变化；状态栏仍只在事件时刷新。
+- 整行基色 `dim`；模式名 `text`（Bypass permissions → `warning`，Plan → `accent`）；模型 `accent`；`think` 级别只显示值；`ctx` 按阈值 `success`/`warning`/`error`（`full` 保留一位小数）；`rebill $x` `warning`；`queue 1` `warning`；codemode 后的 `net!` `error`（Node 权限模型与 OS 沙箱都不隔离网络时）；宿主状态 `[…]` `dim`。
 - 模型名缩写：`width < 100` 去掉供应商前缀；`< 60` 再去掉 `@渠道`；`< 48` 去掉 `-4-5` 之类版本后缀（按 `-\d` 截）。
+- ASCII：`⎇` → `git`、`−` → `-`、`♨` → `~`；无色时信息不丢。
+- 会变的数字（tps、输出量 / 耗时、avg、ttft、`full` 的 ctx、时长）在判断放不放得下时按最宽形状占位，数值变化不会让某项时有时无（40 列不抖动）。
 
-丢弃顺序（宽度不够时先丢优先级大的；与现有一致，补上新项）：
+丢弃顺序（宽度不够时先丢优先级数字大的）：
 
-| 优先级 | 项                    | 说明                                        |
-| ------ | --------------------- | ------------------------------------------- |
-| 0      | 模型                  | 最后丢                                      |
-| 1      | `ctx`                 |                                             |
-| 2      | 模式                  | 永不丢；`< 40` 时丢掉 `shift+tab 切换` 提示 |
-| 3      | `codemode`            |                                             |
-| 4      | `queue`               |                                             |
-| 5      | `think`               |                                             |
-| 6      | `↑ ↓` token           |                                             |
-| 7      | `cache`               |                                             |
-| 8      | `$`                   |                                             |
-| 9      | `rebill`              |                                             |
-| 10     | `preset`              | 只在非 `default` 时显示                     |
-| 11     | 宿主状态              |                                             |
-| 12     | `shift+tab 切换` 提示 | 新增，最先丢                                |
+| 速率行（`full`） | 优先级 | `full` 下行      | 优先级 | `compact`                     | 优先级 |
+| ---------------- | ------ | ---------------- | ------ | ----------------------------- | ------ |
+| `tps`、`[-]`     | 永不丢 | 模式             | 永不丢 | 模式                          | 永不丢 |
+| `ttft`           | 1      | 模型             | 0      | 模型                          | 0      |
+| `avg`            | 2      | `ctx`            | 1      | `ctx`                         | 1      |
+| 宿主状态         | 3      | `$` 费用         | 2      | 会话时长                      | 3      |
+| `preset`         | 4      | 会话时长         | 3      | git 分支与提交                | 4      |
+| `rebill`         | 5      | git 分支与提交   | 4      | 目录名                        | 5      |
+| `cache`          | 6      | 目录名           | 5      | git `+a −b`                   | 6      |
+| `↑ ↓` token      | 7      | git `+a −b`      | 6      | `codemode`                    | 7      |
+| `queue`          | 8      | 思考级别         | 7      | `queue`                       | 8      |
+| `codemode`       | 9      | `shift+tab 切换` | 12     | 思考级别                      | 9      |
+| `N tok / T`      | 10     |                  |        | `↑ ↓` token / cache / `$`     | 10–12  |
+|                  |        |                  |        | rebill / preset / 宿主 / 提示 | 13–16  |
 
-40 列结果：
+`< 40` 列时不显示 `shift+tab 切换`。
+
+40 列（`full`）：
 
 ```
-Accept edits · sonnet-4-5 · ctx 34%
+tps 99 tok/s · ttft 1.4s             [-]
+Manual            claude-opus · ctx 3.0%
 ```
 
-tmux 节点里宿主要解析这行：字段顺序固定、分隔符固定为 `·`，模式永远在最左。
+tmux 节点里宿主要解析最后一行：字段顺序固定、分隔符固定为 `·`，模式永远在最左；嵌入缺省 `compact`，布局与第五波之前相同（输入框在倒数第 3 行）；`full` 时输入框在倒数第 4 行。
 
 ### 3.11 审批对话框
 

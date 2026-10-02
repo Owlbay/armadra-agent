@@ -44,6 +44,11 @@ export interface StatusAreaDeps {
   session(): AgentSession;
   now(): number;
   render(): void;
+  /**
+   * 布局切换后整屏重画（行数变了，差分渲染会在屏底留一空行，宿主按「最后一行 = 状态栏」锚定会错位）；
+   * 缺省 render。
+   */
+  redraw?(): void;
   /** 初始布局（缺省按配置）。 */
   layout?: StatusLineMode;
   env?: NodeJS.ProcessEnv;
@@ -93,8 +98,9 @@ export class StatusArea {
   }
 
   setLayout(mode: StatusLineMode): void {
+    if (mode === this.mode) return;
     this.mode = mode;
-    this.deps.render();
+    (this.deps.redraw ?? this.deps.render)();
   }
 
   toggle(): StatusLineMode {

@@ -191,6 +191,17 @@
 响应、`tool_execution_*`、`subagent_*` 与 `agent_settled`），由
 `src/agent/subagent-rpc.test.ts` 用 `UPDATE_GOLDEN=1` 更新。
 
+### 速率遥测（第五波）
+
+主会话装有遥测扩展（`src/agent/session-telemetry.ts`），只统计对话请求（`purpose: "turn"`；压缩摘要、保温、探测、分类器不计）：
+
+- 事件 `{"type":"telemetry_tick"}`：流式中首 token 之后约每 500 ms 一次（≤ 2 Hz，由增量驱动；瞬时完成的短回复不发），
+  `ui.animation: false` 时不发；没有载荷，数据从 `get_session_stats` 的 `telemetry` 取。
+- `SessionStats.telemetry`：`{ sessionStartedAt, last?, live?, avgTps? }`。`last` 是最近一次请求（`requestAt`、`firstTokenAt?`、
+  `ttftMs?`、`doneAt?`、`outputTokens?`、`tps?`；进行中的请求出首 token 后即为 `last`，结束后补齐 `doneAt` 等）；
+  `live` 只在流式中（`tps` 为最近 2 s 窗口的估算、`outputTokens` 按增量字符估算、`elapsedMs` 自首 token 起）；
+  `avgTps` = Σ输出 / Σ(结束 − 首 token)，生成不足 250 ms 的请求不计（`tps` 也留空）。时间都是毫秒时间戳。
+
 ### `message_update` 与消息重建
 
 线上的 `message_update` 去掉了累计消息与 `partial`，只有增量：
