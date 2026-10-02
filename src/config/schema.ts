@@ -6,6 +6,7 @@
  * （未知字段等）。`path` 是 JSON 指针风格的字段路径（`permission.mode`、`hooks.PreToolUse[0]`）。
  */
 
+import { isAbsolute } from "node:path";
 import type { AmaConfig, AuthFile, ProfileFile, TrustFile } from "./types.js";
 import {
   Checker,
@@ -33,6 +34,7 @@ import {
   CHANNEL_NAME_PATTERN,
   CHECKPOINT_MODES,
   SANDBOX_ENABLED_MODES,
+  SANDBOX_NETWORK_MODES,
   CODEMODE_MODES,
   TOOLS_PRESET_INPUTS,
 } from "./types.js";
@@ -360,8 +362,17 @@ export function validateConfig(value: unknown): Diagnostic[] {
     c.number(s, "maxFileBytes", p, 0);
     c.number(s, "keep", p, 1);
   });
-  checkSection(c, value, "sandbox", ["enabled"], (s, p) => {
+  checkSection(c, value, "sandbox", ["enabled", "bash", "network", "writable"], (s, p) => {
     c.oneOf(s, "enabled", p, SANDBOX_ENABLED_MODES);
+    c.oneOf(s, "bash", p, SANDBOX_ENABLED_MODES);
+    c.oneOf(s, "network", p, SANDBOX_NETWORK_MODES);
+    c.stringArray(s, "writable", p);
+    const writable = s["writable"];
+    if (Array.isArray(writable))
+      writable.forEach((item, i) => {
+        if (typeof item === "string" && !isAbsolute(item) && item !== "~" && !item.startsWith("~/"))
+          c.warn(`${p}.writable[${i}]`, "应为绝对路径或 ~/…，已忽略");
+      });
   });
   checkSection(
     c,

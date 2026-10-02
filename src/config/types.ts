@@ -264,14 +264,22 @@ export const DEFAULT_CHECKPOINTS_CONFIG: Readonly<Required<CheckpointsConfig>> =
 });
 
 export const SANDBOX_ENABLED_MODES: readonly ("auto" | "off")[] = ["auto", "off"];
+/** [S2] `sandbox.network` 的取值。 */
+export const SANDBOX_NETWORK_MODES: readonly ("deny" | "allow")[] = ["deny", "allow"];
 
 /**
- * 操作系统级沙箱（docs/sandbox.md）。整段只认用户级 / profile（项目级忽略并 warning）；环境变量
- * `AMA_SANDBOX=off` 覆盖 `enabled`。
+ * 操作系统级沙箱（docs/sandbox.md）。只认用户级 / profile；项目级只接受收紧的 `network: "deny"`，其余忽略
+ * 并 warning。环境变量 `AMA_SANDBOX=off` 覆盖 `enabled`。
  */
 export interface SandboxConfig {
   /** auto（缺省）：探测到可用的 sandbox-exec / bwrap / unshare 就用；off：不用。 */
   enabled?: "auto" | "off";
+  /** [S2] bash 经 OS 沙箱运行：auto 有 sandbox-exec / bwrap 就用；off（缺省）不用。 */
+  bash?: "auto" | "off";
+  /** [S2] bash 沙箱里的网络：deny（缺省，满足 default 模式免审批的条件）/ allow。 */
+  network?: "deny" | "allow";
+  /** [S2] bash 沙箱追加的可写目录（绝对路径或 `~/…`）。 */
+  writable?: string[];
 }
 
 /** config.json（用户级 / 项目级 / profile.config 同形状；项目级只接受受限字段，§10.2）。 */
