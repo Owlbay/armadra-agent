@@ -106,7 +106,11 @@ describe("ama config（en）", () => {
     const path: string[] = [];
     await main(["config", "path"], { io: io(path), processHooks: false });
     const lines = path.join("").split("\n");
-    const at = (label: string) => lines.find((l) => l.startsWith(label))?.indexOf("/") ?? -1;
+    // 路径起始列（Windows 路径不以 / 开头）：标签之后第一个非空格
+    const at = (label: string): number => {
+      const line = lines.find((l) => l.startsWith(label)) ?? "";
+      return line.length - line.slice(label.length).trimStart().length;
+    };
     expect(at("Config directory")).toBeGreaterThan(0);
     expect(at("Data directory")).toBe(at("Config directory"));
     expect(at("Project")).toBe(at("Config directory"));
