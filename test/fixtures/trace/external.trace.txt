@@ -1,0 +1,7 @@
+轨迹 · 1 回合 · 2 请求 · 1 次工具 · 31s · ↑6.8k ↓130 · 缓存 33% · ttft p50 0.5s / p90 0.5s · 118 tok/s
+#1 让 codex 改一下 lint 报错  31s  ↑6.8k ↓130  33%
+  请求 claude-sonnet-4-5 · ttft 0.5s · 150 tok/s  1.1s  ↑4.3k ↓90  0%
+    task 修 lint  28s
+      任务 t1 codex  28s
+        回合 1 · 3 个工具 · 2 个文件  28s
+  请求 claude-sonnet-4-5 · ttft 0.5s · 80 tok/s  0.9s  ↑2.5k ↓40  90%

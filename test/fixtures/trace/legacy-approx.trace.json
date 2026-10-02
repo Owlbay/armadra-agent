@@ -1,0 +1,256 @@
+{
+  "version": 1,
+  "sessionId": "sess-legacy",
+  "cwd": "/work/proj",
+  "startedAt": 1791014400000,
+  "totals": {
+    "requests": 5,
+    "input": 8000,
+    "output": 460,
+    "cacheRead": 1700,
+    "cacheWrite": 0,
+    "toolCalls": 3,
+    "cost": 0.0317,
+    "durationMs": 12000,
+    "cacheHitRatio": 0.17525773195876287
+  },
+  "turns": [
+    {
+      "id": "le004",
+      "kind": "turn",
+      "status": "ok",
+      "entryIds": [
+        "le004"
+      ],
+      "steps": [
+        {
+          "id": "le005",
+          "kind": "step",
+          "status": "ok",
+          "entryIds": [
+            "le005"
+          ],
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "attempt": 1,
+          "usage": {
+            "input": 1800,
+            "output": 70,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 1870,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0065
+            }
+          },
+          "stopReason": "toolUse",
+          "tools": [
+            {
+              "id": "l_ls",
+              "kind": "tool",
+              "name": "bash",
+              "status": "ok",
+              "isError": false,
+              "entryIds": [
+                "le005",
+                "le006"
+              ],
+              "children": [],
+              "startedAt": 1791014403000,
+              "approx": true,
+              "endedAt": 1791014404000
+            },
+            {
+              "id": "l_read",
+              "kind": "tool",
+              "name": "read",
+              "status": "ok",
+              "isError": false,
+              "entryIds": [
+                "le005",
+                "le007"
+              ],
+              "children": [],
+              "startedAt": 1791014403000,
+              "approx": true,
+              "endedAt": 1791014404000
+            }
+          ],
+          "thinkingLevel": "medium",
+          "cacheHitRatio": 0,
+          "requestAt": 1791014401100,
+          "startedAt": 1791014401100,
+          "doneAt": 1791014403000,
+          "endedAt": 1791014403000,
+          "approx": true
+        },
+        {
+          "id": "le008",
+          "kind": "step",
+          "status": "retried",
+          "entryIds": [
+            "le008"
+          ],
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "attempt": 1,
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0
+          },
+          "stopReason": "error",
+          "tools": [],
+          "errorMessage": "500 internal error",
+          "thinkingLevel": "medium",
+          "requestAt": 1791014404050,
+          "startedAt": 1791014404050,
+          "doneAt": 1791014404300,
+          "endedAt": 1791014404300,
+          "approx": true
+        },
+        {
+          "id": "le010",
+          "kind": "step",
+          "status": "ok",
+          "entryIds": [
+            "le010"
+          ],
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "attempt": 2,
+          "usage": {
+            "input": 300,
+            "output": 50,
+            "cacheRead": 1700,
+            "cacheWrite": 0,
+            "totalTokens": 2050,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0024
+            }
+          },
+          "stopReason": "stop",
+          "tools": [],
+          "thinkingLevel": "medium",
+          "cacheHitRatio": 0.85,
+          "requestAt": 1791014406400,
+          "startedAt": 1791014406400,
+          "doneAt": 1791014408000,
+          "endedAt": 1791014408000,
+          "approx": true
+        }
+      ],
+      "usage": {
+        "requests": 3,
+        "input": 2100,
+        "output": 120,
+        "cacheRead": 1700,
+        "cacheWrite": 0,
+        "toolCalls": 2,
+        "cost": 0.0089,
+        "durationMs": 7000,
+        "cacheHitRatio": 0.4473684210526316
+      },
+      "startedAt": 1791014401000,
+      "approx": true,
+      "endedAt": 1791014408000
+    },
+    {
+      "id": "le011",
+      "kind": "turn",
+      "status": "interrupted",
+      "entryIds": [
+        "le011"
+      ],
+      "steps": [
+        {
+          "id": "le012",
+          "kind": "compaction",
+          "status": "ok",
+          "entryIds": [
+            "le012"
+          ],
+          "startedAt": 1791014494000,
+          "endedAt": 1791014494000,
+          "approx": true,
+          "tokensBefore": 5200
+        },
+        {
+          "id": "le013",
+          "kind": "step",
+          "status": "ok",
+          "entryIds": [
+            "le013"
+          ],
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "attempt": 1,
+          "usage": {
+            "input": 900,
+            "output": 40,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 940,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0033
+            }
+          },
+          "stopReason": "toolUse",
+          "tools": [
+            {
+              "id": "l_edit",
+              "kind": "tool",
+              "name": "edit",
+              "status": "interrupted",
+              "isError": false,
+              "entryIds": [
+                "le013"
+              ],
+              "children": [],
+              "startedAt": 1791014495000,
+              "approx": true
+            }
+          ],
+          "thinkingLevel": "medium",
+          "cacheHitRatio": 0,
+          "requestAt": 1791014494100,
+          "startedAt": 1791014494100,
+          "doneAt": 1791014495000,
+          "endedAt": 1791014495000,
+          "approx": true
+        }
+      ],
+      "usage": {
+        "requests": 2,
+        "input": 5900,
+        "output": 340,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "toolCalls": 1,
+        "cost": 0.0228,
+        "durationMs": 5000,
+        "cacheHitRatio": 0
+      },
+      "startedAt": 1791014490000,
+      "approx": true,
+      "endedAt": 1791014495000
+    }
+  ],
+  "aux": [],
+  "partial": false,
+  "endedAt": 1791014495000
+}

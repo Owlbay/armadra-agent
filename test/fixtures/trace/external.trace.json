@@ -1,0 +1,195 @@
+{
+  "version": 1,
+  "sessionId": "sess-ext",
+  "cwd": "/work/proj",
+  "startedAt": 1791014400000,
+  "totals": {
+    "requests": 2,
+    "input": 2450,
+    "output": 130,
+    "cacheRead": 2200,
+    "cacheWrite": 2100,
+    "toolCalls": 1,
+    "cost": 0.0126,
+    "durationMs": 31000,
+    "ttftP50": 450,
+    "ttftP90": 500,
+    "avgTps": 118.2,
+    "cacheHitRatio": 0.32592592592592595
+  },
+  "turns": [
+    {
+      "id": "ex004",
+      "kind": "turn",
+      "status": "ok",
+      "entryIds": [
+        "ex004"
+      ],
+      "steps": [
+        {
+          "id": "ex005",
+          "kind": "step",
+          "status": "ok",
+          "entryIds": [
+            "ex005",
+            "ex012"
+          ],
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "attempt": 1,
+          "usage": {
+            "input": 2200,
+            "output": 90,
+            "cacheRead": 0,
+            "cacheWrite": 2100,
+            "totalTokens": 4390,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0108
+            }
+          },
+          "stopReason": "toolUse",
+          "tools": [
+            {
+              "id": "c_codex",
+              "kind": "tool",
+              "name": "task",
+              "status": "ok",
+              "isError": false,
+              "entryIds": [
+                "ex005",
+                "ex011"
+              ],
+              "children": [
+                {
+                  "id": "t1",
+                  "kind": "subagent",
+                  "taskId": "t1",
+                  "agent": "codex",
+                  "runner": "codex",
+                  "background": false,
+                  "status": "ok",
+                  "entryIds": [
+                    "ex010"
+                  ],
+                  "startedAt": 1791014402210,
+                  "endedAt": 1791014431010,
+                  "turns": 1,
+                  "childRef": {
+                    "sessionId": "019a-codex-thread"
+                  },
+                  "external": [
+                    {
+                      "id": "t1#1",
+                      "kind": "external_turn",
+                      "status": "ok",
+                      "entryIds": [
+                        "ex008"
+                      ],
+                      "turn": 1,
+                      "stopReason": "end_turn",
+                      "tools": [
+                        {
+                          "kind": "execute",
+                          "status": "completed",
+                          "startedAt": 1791014403000,
+                          "endedAt": 1791014410000
+                        },
+                        {
+                          "kind": "edit",
+                          "status": "completed",
+                          "startedAt": 1791014410500,
+                          "endedAt": 1791014410800
+                        },
+                        {
+                          "kind": "execute",
+                          "status": "failed",
+                          "startedAt": 1791014411000,
+                          "endedAt": 1791014426000
+                        }
+                      ],
+                      "toolCount": 3,
+                      "filesTouched": 2,
+                      "startedAt": 1791014402300,
+                      "endedAt": 1791014431000
+                    }
+                  ]
+                }
+              ],
+              "startedAt": 1791014402205,
+              "endedAt": 1791014431015
+            }
+          ],
+          "thinkingLevel": "medium",
+          "cacheHitRatio": 0,
+          "requestAt": 1791014401100,
+          "startedAt": 1791014401100,
+          "firstTokenAt": 1791014401600,
+          "ttftMs": 500,
+          "doneAt": 1791014402200,
+          "endedAt": 1791014402200,
+          "tps": 150
+        },
+        {
+          "id": "ex013",
+          "kind": "step",
+          "status": "ok",
+          "entryIds": [
+            "ex013",
+            "ex014"
+          ],
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "attempt": 1,
+          "usage": {
+            "input": 250,
+            "output": 40,
+            "cacheRead": 2200,
+            "cacheWrite": 0,
+            "totalTokens": 2490,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0018
+            }
+          },
+          "stopReason": "stop",
+          "tools": [],
+          "thinkingLevel": "medium",
+          "cacheHitRatio": 0.8979591836734694,
+          "requestAt": 1791014431050,
+          "startedAt": 1791014431050,
+          "firstTokenAt": 1791014431500,
+          "ttftMs": 450,
+          "doneAt": 1791014432000,
+          "endedAt": 1791014432000,
+          "tps": 80
+        }
+      ],
+      "usage": {
+        "requests": 2,
+        "input": 2450,
+        "output": 130,
+        "cacheRead": 2200,
+        "cacheWrite": 2100,
+        "toolCalls": 1,
+        "cost": 0.0126,
+        "durationMs": 31000,
+        "ttftP50": 450,
+        "ttftP90": 500,
+        "avgTps": 118.2,
+        "cacheHitRatio": 0.32592592592592595
+      },
+      "startedAt": 1791014401000,
+      "endedAt": 1791014432000
+    }
+  ],
+  "aux": [],
+  "partial": false,
+  "endedAt": 1791014432000
+}

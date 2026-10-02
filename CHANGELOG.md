@@ -29,6 +29,9 @@
 - **CLI 英文界面**（W6-I1）：`ama --help`、启动画面与启动报错、退出码说明、`ama providers` / `models` / `stats` /
   `sessions export` · `search` / `init` 的输出与报错随界面语言（`AMA_LANG=en` / `--lang en`）；中文输出逐字不变。
   `ama models cache-probe --json` 的 `advice` 是人读文本，也随界面语言。
+- **`/trace` 轨迹**（W6-T1）：交互模式打开轨迹覆盖层——回合 → 请求 → 工具 → 子调用 / 子 Agent，每行耗时、TTFT / 解码 / 工具条形、
+  token 与缓存命中，Enter 看详情，子 Agent 可展开到子会话，长会话尾部先加载、运行中自动跟随；`/trace <任务 id>` 看单个任务；
+  line 模式打印文本树。老会话没有计时记录时按条目时间推算并标 `≈`，不改会话文件。SDK 导出纯函数 `buildTrace()`。见 [docs/tui.md](docs/tui.md)「轨迹」。
 
 Agent 栏与子 Agent 视图（W6-A，[docs/tui.md](docs/tui.md)「子 Agent」）：
 
