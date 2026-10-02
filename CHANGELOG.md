@@ -7,6 +7,10 @@
   （符号链接、硬链接、非普通文件、父目录移动；非 Windows 用 `O_NOFOLLOW`），可预览行级增删。
   `ama sessions prune` 结束后清理未引用的备份，`ama doctor` 显示占用。新配置 `checkpoints.mode`
   （`AMA_CHECKPOINTS` 覆盖）、`checkpoints.maxFileBytes`、`checkpoints.keep`。
+- **影子 git 检查点**（`checkpoints.mode: "shadow-git"`，docs/sessions.md「影子 git 模式」）：每个新回合把工作目录快照进
+  `<数据目录>/file-history/shadow/` 下的独立仓库，bash 与手动的新增、修改、删除、重命名也能回滚；尊重 `.gitignore`，
+  不碰用户仓库。git 不在 PATH、文件数超过 20 000 或快照超过 3 秒时本会话降级为 `tools`；家目录与根目录不启用。
+  `ama doctor` 显示影子仓库占用。
 
 ## 0.4.0（2026-10-02）
 

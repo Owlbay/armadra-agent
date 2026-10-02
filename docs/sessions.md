@@ -115,13 +115,27 @@ ama sessions export <id> [--format md|json|jsonl] [--output <文件>] [--branch 
 - **存储位置**：备份按内容 sha256 存在 `<数据目录>/file-history/blobs/<前 2 位>/<sha256>`，原字节、不压缩；多个会话、多个检查点共用，同内容只存一份。会话文件里只有 `ama.checkpoint` / `ama.checkpoint-track` 两类 `custom` 条目（记哈希，不进上下文）。会话目录不在缺省位置时（`--session-dir`、宿主 profile 的 `sessionDir`），目录登记在 `file-history/roots.json`，清理时一并扫描。
 - **跟踪范围**：edit / write（含 codemode 内层调用与 task 子会话）第一次写某文件之前备份它；之后每个新回合按当前磁盘内容重拍已跟踪的文件，所以 bash 或手动对这些文件的改动也会进下一个检查点。bash 新建或改动的其它文件不跟踪。
 - **清理**：`ama sessions prune` 结束后扫描全部会话文件（含 `.trash/` 里还能找回的）里的检查点引用，删除未被引用且超过 1 天的备份；`--dry-run` 只报告。`ama doctor` 的「目录」一节显示备份数与占用。
-- **配置**：`checkpoints.mode`（`tools` 缺省 / `shadow-git` / `off`，环境变量 `AMA_CHECKPOINTS` 覆盖；`shadow-git` 未实现前按 `tools` 处理）、`checkpoints.maxFileBytes`（缺省 5 MiB）、`checkpoints.keep`（缺省 100，更早的检查点不再列为回滚点）。项目级 `.ama/config.json` 只能把 `mode` 设为 `off`、把 `maxFileBytes` 调小。
+- **配置**：`checkpoints.mode`（`tools` 缺省 / `shadow-git` / `off`，环境变量 `AMA_CHECKPOINTS` 覆盖；`shadow-git` 见下）、`checkpoints.maxFileBytes`（缺省 5 MiB）、`checkpoints.keep`（缺省 100，更早的检查点不再列为回滚点）。项目级 `.ama/config.json` 只能把 `mode` 设为 `off`、把 `maxFileBytes` 调小。
 - **限制**：
   - 超过 `maxFileBytes` 的文件、符号链接与非普通文件不备份，回滚时报告无法恢复。
   - 恢复时目标是符号链接、硬链接（链接数 > 1）、非普通文件，或父目录已被移动 / 换成链接，都跳过并列出原因；备份已被清理时报告 `backup_missing`。
   - 冲突检测：文件当前内容既不是 ama 最后写入的、也不是最近检查点记录的，视为回合外的手动修改，缺省跳过。「ama 最后写入」只在进程内存里；恢复会话后以最近检查点为准，上一回合 ama 写过、之后未再建检查点的文件会被当作冲突（可选择覆盖）。
   - git 状态不动：只记 HEAD，回滚时 HEAD 变了给出提示。
   - 内存会话（不落盘）没有检查点。
+
+### 影子 git 模式（`checkpoints.mode: "shadow-git"`）
+
+`tools` 模式只看 edit / write 碰过的文件；影子 git 在此之外，每个新回合把整个工作目录快照进一个独立的 git 仓库，bash 或手动的新增、修改、删除、重命名也能回滚。
+
+- **仓库**：`<数据目录>/file-history/shadow/<sha256(工作目录) 前 16 位>/`，以 `--git-dir` / `--work-tree` 指向工作目录，不碰你自己仓库的对象、索引、引用与 HEAD。同一工作目录的会话共用一个影子仓库（每个进程用自己的索引文件）；`ama sessions prune` 不清理影子仓库，不再需要时可整个删掉对应目录（删掉后这些检查点按 `tools` 记录恢复）。`ama doctor` 在 file-history 一行里显示影子仓库个数与占用。
+- **快照**：新回合开始时 `git add -A` + `write-tree` + `commit-tree`（父为上一个影子提交），提交 id 记进检查点的 `shadowCommit`。影子仓库用固定身份、空的全局 / 系统配置（不读你的签名、钩子、过滤器与模板），`core.autocrlf=false` 且关掉换行转换，存的是磁盘原字节；`gc.auto=0`。
+- **忽略**：工作目录里的 `.gitignore` 生效；工作目录在 git 仓库里时，你的仓库判定为忽略的路径（上级目录的 `.gitignore`、`info/exclude`、全局忽略文件）同样不进影子仓库；`.git` 一律排除。
+- **恢复**：把当前工作目录写成树，与目标提交比较，只处理有差异的文件；冲突与安全检查与 `tools` 相同（符号链接、硬链接、非普通文件、路径上的目录被换成链接都跳过）。「已知」的当前内容 = 最近一个影子快照里的、ama 最后写入的或最近检查点记录的，其余视为回合外的改动，缺省跳过。被忽略的文件不碰；edit / write 改过、但不在影子仓库里的文件（工作目录外、被忽略）按 `tools` 记录恢复。目标检查点没有影子提交（降级之后、或影子仓库已删）时整次按 `tools` 恢复。
+- **护栏**：以下情况本会话降级为 `tools` 并提示一次——PATH 里找不到 `git`；工作目录（不含忽略的）超过 20 000 个文件（第一次快照前检查）；单次快照超过 3 秒（这次的提交保留）。工作目录是家目录或文件系统根目录时不启用。
+- **限制**：
+  - 最近一个回合里 bash 的改动要到下一个回合开始才进快照；在那之前回滚，这些改动与手动修改分不开，算冲突（可选择覆盖）。
+  - git 只记可执行位：恢复时只调整可执行位，其它权限位保留；符号链接与子模块不恢复。
+  - 影子仓库收录全部未忽略的文件，大文件也会存进去（不受 `maxFileBytes` 限制，恢复时超过它的报告无法恢复）；没有 `.gitignore` 的大目录建议用 `tools`。
 
 ## 请求明细（设计，未实现）
 
