@@ -25,7 +25,7 @@
 | D15 | 分发：仓库 `pnpm build` 产出 npm 包形状（ESM + d.ts）与 `dist/bundle/ama.cjs`；GitHub Release 附 `ama.cjs` + `ama-sandbox.cjs` + `package.tgz` + `SHA256SUMS`；0.2.1 起 `v*` tag 由 CI `npm publish --provenance` 发布 `@armadra/agent`（缺 `NPM_TOKEN` 时跳过）；Armadra 从 npm、Git 依赖或 Release 产物拉取 | 0.2.0 先只发 Release；包形状一直保持可发布，0.2.1 起在 release job 末尾加一步 npm 发布，provenance 把包与仓库 / 提交绑定 | 修订（0.2.1） |
 | D16 | 测试不依赖真 key：脚本化 `fake` 供应商 + 录制的 SSE 样本黄金文件；TUI 用 `MemoryTerminal` 断言帧内容                                                                                                                 | CI 三平台可跑；供应商差异收敛在样本里                                                                                                                                 | 新 |
 | D17 | 单文件 ≤ 600 行（源码），超出即拆；每个批次有明确文件所有权，跨批次只改自己拥有的文件，契约文件由 B0 所有                                                                                                             | 并行代理不互相覆盖；评审粒度可控                                                                                                                                      | 新 |
-| D18 | 加入 **codemode**（§5.5）：一个 `codemode` 工具让模型写一段 JS 脚本编排多次工具调用，只有脚本输出回到模型；脚本跑在 `node --permission` 子进程的 `vm` 上下文里，零依赖；`codemode.mode: off \| on \| only`，缺省 `off`（由工具预设 `codemode` 打开，§5.6） | 长流程任务的主要成本是「每次工具结果都带着整段历史回到模型」；把多步调用合进一次往返，实测可把累计 token 降到四分之一 | 新 |
+| D18 | 加入 **codemode**（§5.5）：一个 `codemode` 工具让模型写一段 JS 脚本编排多次工具调用，只有脚本输出回到模型；脚本跑在 `node --permission` 子进程的 `vm` 上下文里，零依赖；`codemode.mode: off \| on \| only`，缺省 `off`（由工具预设 `codemode` 打开，§5.6；2026-10 改为跟随预设：`default` 预设在 Node ≥ 25 时 `on`，预设 `codemode` 更名 `codemode-only`，见 §5.5） | 长流程任务的主要成本是「每次工具结果都带着整段历史回到模型」；把多步调用合进一次往返，实测可把累计 token 降到四分之一 | 新 |
 | D19 | **工具预设**（§5.6）：默认 `default` 预设只给模型 6 个工具（read / edit / write / bash / grep / glob），`ls`、`todo`、`task`、`codemode` 默认关；删除 `skill` 工具（`read` 即可读 SKILL.md）；预设 `minimal` / `codemode` / `coordinator` 按场景切换 | 成本主要来自往返次数而非工具定义大小（10 个工具约 1650 token、在缓存前缀里）；ama 默认要审批 bash，保留只读的 grep / glob 才能让搜索免审批、跨平台 | 新 |
 | D20 | **精简配置**：零配置可用——检测到任一供应商的标准环境变量即选其缺省模型直接运行；用户只需一个 `config.json`，常用键不超过 5 个（`defaultModel`、`tools.preset`、`permission.mode`、`providers`、`thinkingLevel`）；其余全部有缺省 | 配置越少，出错与文档成本越低；与 Pi「开箱即用」的思路一致 | 新 |
 | D21 | **缓存保证**（§9.1）：系统提示与工具表构成字节稳定的前缀，跨回合不变；预设在会话开始时固定；工具表变化只以补丁追加；测试断言前缀逐字节稳定；状态栏显示缓存命中率 | 长任务的主要用量是缓存读取，前缀一旦抖动，缓存全部失效，成本成倍上升 | 新 |
@@ -539,12 +539,12 @@ ama 不知道画布；Armadra 适配器经 `HostApi.tools.register` 注册 `canv
 | 模式   | 模型看到的工具                                                                       | 适用                                     |
 | ------ | ------------------------------------------------------------------------------------ | ---------------------------------------- |
 | `off`  | 不注册 `codemode`                                                                    | 短任务、需要最大透明度                   |
-| `on`   | 全部工具 + `codemode`；其它工具描述末尾加一行「也可在 codemode 脚本里调用」           | 随预设（显式 `codemode.mode` 开启）      |
+| `on`   | 预设的工具 + `codemode`；其它工具描述不变，`codemode` 描述一行列出可在脚本里调用的直接工具（参数相同）与仅脚本可调的工具名 | `default` 预设在 strict 运行时的缺省 |
 | `only` | 只有 `codemode`；其它工具只能在脚本里调用，声明列在 `codemode` 描述里 | 长流程、工具密集任务；嵌入 Armadra 的协调者可选 |
 
-缺省值随预设（§5.6）：`codemode` 预设为 `only`，`default` / `minimal` / `coordinator` 为 `off`；显式 `codemode.mode` / `--codemode` 覆盖。
+**缺省开放（2026-10，审计 `docs/gap-audit-2026-10.md`）**：缺省值随预设（§5.6）——`default` 预设为 `on`，**但只在沙箱 strict（Node ≥ 25）时**；Node 22 / 24（含嵌入的 Electron 主版本为 22 / 24 时）为 `off`，CLI 启动时提示一次（每个配置目录一次，记在数据目录 `notices.json`），用户显式写 `on` 才开（此时 `codemode` 仍是 `execute` 类，状态栏 `net!`）。`codemode-only` 预设为 `only`，`minimal` / `coordinator` 为 `off`。显式 `codemode.mode` / `--codemode` 覆盖；缺省配置（`DEFAULT_CONFIG` 与 `ama init` 生成的文件）都不写这个键，映射调整对老用户同样生效。`coordinator` 预设即使显式 `on`，脚本里可调用的工具也限于它的活动集（read 与宿主工具）：父进程只把活动集交给沙箱，脚本拼出别的名字也被拒，协调者「不写文件、不跑 bash」的约定不能经 codemode 绕过。
 
-`codemode` 描述里的工具声明由 JSON Schema 生成 TypeScript 声明，总预算 `config.codemode.inlineBudget`（缺省 3 000 估算 token），超出部分只列名字，脚本用 `describeTool()` 取。
+`only` 模式下，`codemode` 描述里的工具声明由 JSON Schema 生成 TypeScript 声明，总预算 `config.codemode.inlineBudget`（缺省 3 000 估算 token），超出部分只列名字，脚本用 `describeTool()` 取。`on` 模式不内联声明：已直接暴露的工具 schema 已在工具表里，再内联一遍是重复（去重前系统提示 + 工具表比 `off` 多约 1 356 token，去重后约 390 token，测试锁定 ≤ 500）；仅脚本可调用的工具（ls、todo、task 等）只列名字，`describeTool()` 取签名。
 
 **Hook 与事件**：`codemode` 本身作为一次工具调用经过 PreToolUse / 权限（权限类 `execute`）；脚本里的每次 `tools.*` 再各自经过完整流程，Hook 输入带 `viaCodemode: true` 与父 `toolCallId`。事件：`tool_execution_update` 透传脚本输出；内层调用发 `tool_execution_start/end`，带 `parentToolCallId`，TUI 把它们折叠在 codemode 调用下面。
 
@@ -558,10 +558,12 @@ ama 不知道画布；Armadra 适配器经 `HostApi.tools.register` 注册 `canv
 
 | 预设          | 模型直接看到                                         | 脚本内可调用（codemode）              | 用途                                         |
 | ------------- | ---------------------------------------------------- | ------------------------------------- | -------------------------------------------- |
-| `default`     | read、edit、write、bash、grep、glob                  | —                                     | 独立编码，缺省                               |
-| `minimal`     | read、edit、write、bash                              | —                                     | 与 Pi 一致；适合 `full-auto`                 |
-| `codemode`    | codemode                                             | 全部内置工具（含 ls、todo、task）      | 长流程、工具密集任务                         |
-| `coordinator` | read、宿主注册的 canvas_* / context_*（codemode 可选） | canvas_* 等                           | 嵌入 Armadra 的协调者：不写文件、不跑 bash   |
+| `default`     | read、edit、write、bash、grep、glob；Node ≥ 25 另加 codemode | 全部内置工具（含 ls、todo、task）      | 独立编码，缺省                               |
+| `minimal`     | read、edit、write、bash                              | —（显式 `on` 时全部内置工具）          | 与 Pi 一致；适合 `full-auto`                 |
+| `codemode-only` | codemode                                           | 全部内置工具（含 ls、todo、task）      | 长流程、工具密集任务                         |
+| `coordinator` | read、宿主注册的 canvas_* / context_*（codemode 可选） | 只有活动集：read 与 canvas_* 等       | 嵌入 Armadra 的协调者：不写文件、不跑 bash   |
+
+- 预设名：`codemode-only` 是 2026-10 起的规范名，0.3.0 的 `codemode` 作别名保留（配置、命令行、RPC 的 argv、SDK、schema 都接受；配置合并与命令行解析后只见规范名，`ama config show` 显示规范名并提示）。项目级「只能更严」按规范名比较。
 
 - 逐个工具：`ls` 默认关（glob 已覆盖，且诱导逐层翻目录）；`todo` 默认关（每次更新多一次往返；长任务在脚本里用）；`task` 默认关（`+task` 打开；嵌入 Armadra 时禁用）；**删除 `skill` 工具**（Skill 正文用 `read` 读，`/skill:` 命令保留）；Windows 上若没有 bash，`default` 预设自动退化为 PowerShell 版 bash，grep / glob 照常可用。
 - 配置：`tools.preset`（缺省 `default`）+ `tools.default` 的 `+name` / `-name` 微调；命令行 `--tools-preset <名>`、`--tools a,b,c`（整组替换）。
@@ -572,6 +574,7 @@ ama 不知道画布；Armadra 适配器经 `HostApi.tools.register` 注册 `canv
   - 三个预设都能完成这三类小任务，差别只在成本；平均每组估价 default $0.0076、minimal $0.0076、codemode $0.0087。
   - codemode 在小任务上不划算：平均输入 token 比 default 多约 45%（工具声明每轮都在前缀里），顶层轮数没有减少（5.3 对 5.0）；只在检索类、一次脚本能并行多次调用的场景省一轮（DeepSeek search-summarize）。
   - 结论：缺省保持 `default`；工具调用密集的长流程任务再用 `codemode`；`minimal` 适合工具描述占比大的小模型 / 小上下文。
+  - 2026-10 修订：基准里 codemode 多出的输入主要是 `on` / `only` 描述内联的工具声明。`on` 模式去重后前缀只多约 390 token，`default` 预设在 strict 运行时缺省带上 codemode（模型照常直接调用工具，批量场景再写脚本）；`codemode-only` 仍是显式选择。
 
 ## §6 两层 Hook
 

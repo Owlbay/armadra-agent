@@ -31,14 +31,13 @@
   {
     "$schema": "./config.schema.json",
     "version": 1,
-    "thinkingLevel": "medium",
-    "permission": { "mode": "default" },
-    "tools": { "preset": "default" },
     "providers": {}
   }
   ```
 
-  不写 `defaultModel`（零配置按「第一个有 key / 本地可达的供应商」挑选）。
+  不写任何缺省值（缺省值调整时老配置同样生效，`ama config show` 里来源也显示 default），也不写
+  `defaultModel`（见下文「缺省模型」）。`ama init` 结束时打印下一步（`ama auth set` / `ama providers add` /
+  `ama doctor`）。`config.schema.json` 里每个键都带说明与缺省值（运行时决定的键只写规则），编辑器悬停可见。
 
 - `ama config path`：打印配置目录、数据目录与各文件路径（标出是否存在）；`ama config edit`：用
   `$VISUAL` / `$EDITOR` 打开 `config.json`（不存在先 `init`），没有编辑器时打印路径。
@@ -180,6 +179,19 @@ Claude Code 的通行约定），优先级低于 config 与 auth.json 的 `baseU
 不读。baseUrl 不在官方主机时，目录外的 model id 也接受，compat 按保守缺省（不发
 `prompt_cache_key`）。`ama config show` 的「供应商」节与 `ama doctor` 标出 baseUrl 来自哪个变量；
 零配置挑的缺省模型来自官方目录，中转站未必有，用 `--model` 或 `defaultModel` 指定。
+
+### 缺省模型
+
+没有 `--model`、续会话的模型与 `defaultModel` 时，按供应商顺序（内置在前，config 里的自定义供应商在后）取第一个
+有 key（或本地服务可达）的供应商，再在它的模型里挑：
+
+- **内置供应商**：目录首条（目录按推荐顺序整理）；
+- **自定义供应商**（中转站，模型表是上游 `/models` 的顺序）：在 models.dev 有价格（输入价 > 0）、支持工具调用、
+  上下文 ≥ 64k 的模型里取**输入价最低**的；同价取上下文大的，再同取列表靠前的；一个都不满足才退回列表首条。
+
+`ama providers add` 在还没有 `defaultModel` 时按同一规则挑一个写进 `defaultModel`（探测过只在探测通过的模型里
+挑），摘要里写明选了谁、为什么；已有 `defaultModel` 不改。`ama config show` 与 `ama doctor` 的「模型」一行同样
+说明原因。没有任何可用模型时，启动提示列出 key 的环境变量名、`ama auth set` 与 `ama providers add`。
 
 ```sh
 OPENAI_BASE_URL=https://proxy.example/v1 OPENAI_API_KEY=$PACKY_API_KEY ama -p "hi" --model openai/qwen3.8-flash
@@ -534,6 +546,8 @@ ama models cache-probe <provider/id> [--tokens 2048] [--gap-ms 3000] [--json] [-
 
 ## 测试用 fake 供应商
 
-`--provider fake --model fake/echo`：回显最后一条用户消息。设 `AMA_FAKE_SCRIPT=<file.json>` 后
+`--model fake/echo`：回显最后一条用户消息。零配置的模型选择器、`ama doctor`、`ama models list`、
+`ama providers list`、`ama config show` 缺省不列 fake；`AMA_SHOW_FAKE=1` 或设了 `AMA_FAKE_SCRIPT` 时照列，
+显式 `--model fake/…` 任何时候都可用。设 `AMA_FAKE_SCRIPT=<file.json>` 后
 按脚本第 n 次调用产出文本、思考、工具调用、429、溢出、断流、延迟，脚本格式见
 `src/ai/fake/fake-script.ts`，示例在 `test/fixtures/scripts/`。

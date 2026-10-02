@@ -2,23 +2,37 @@
 
 设计依据见 [design.md](design.md) §5.5、§5.6、§9.1。
 
-`codemode` 工具让模型写一段 JavaScript，在脚本里经 `tools.*` 编排多次工具调用，只有脚本输出回到模型。长流程、工具密集的任务里，它把多次往返合成一次，减少往返次数与缓存读取；短任务收益不明显，因此是可选的调用方式。
+`codemode` 工具让模型写一段 JavaScript，在脚本里经 `tools.*` 编排多次工具调用，只有脚本输出回到模型。长流程、工具密集的任务里，它把多次往返合成一次，减少往返次数与缓存读取；短任务里模型照常直接调用工具，codemode 只多占约 400 token 前缀，所以 `default` 预设在网络隔离的运行时上缺省开着它。
 
 ## 打开
 
-| 写法                                        | 模型看到的工具                                                                      |
-| ------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `--tools-preset codemode`（`only`）         | 只有 `codemode`；全部内置工具与宿主工具只能在脚本里调用，声明列在 `codemode` 描述里 |
-| `--codemode on` / `codemode.mode: "on"`     | 预设的工具 + `codemode`；其它工具描述末尾加一行提示                                 |
-| `--codemode off` / 缺省（非 codemode 预设） | 不注册 `codemode`                                                                   |
+| 写法                                                             | 模型看到的工具                                                                                                             |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `--tools-preset codemode-only`（`only`；旧名 `codemode` 仍可用） | 只有 `codemode`；全部内置工具与宿主工具只能在脚本里调用，声明列在 `codemode` 描述里                                        |
+| `--codemode on` / `codemode.mode: "on"`                          | 预设的工具 + `codemode`；其它工具描述不变，`codemode` 描述一行列出可在脚本里调用的直接工具（参数相同）与仅脚本可调的工具名 |
+| `--codemode off` / `codemode.mode: "off"`                        | 不注册 `codemode`                                                                                                          |
+
+`codemode.mode` 不写时**跟随预设**：
+
+| 预设                      | Node ≥ 25（沙箱隔离网络） | Node 22 / 24                                                           |
+| ------------------------- | ------------------------- | ---------------------------------------------------------------------- |
+| `default`                 | `on`                      | `off`，启动时提示一次（每个配置目录一次，记在数据目录 `notices.json`） |
+| `codemode-only`           | `only`                    | `only`（`execute` 类，见下）                                           |
+| `minimal` / `coordinator` | `off`                     | `off`                                                                  |
+
+缺省配置里不写 `codemode.mode`（`ama init` 生成的 `config.json` 也不写），所以这张映射以后调整时老用户同样生效。`ama config show` / `ama doctor` 显示生效模式与原因（跟随哪个预设、Node 是否隔离网络）。
+
+`coordinator` 预设即使显式 `on`，脚本里能调用的工具也只限它的活动集（read 与宿主工具）：`tools.bash`、`tools.write` 在脚本里同样不存在，协调者「不写文件、不跑 bash」的约定不能经 codemode 绕过。
 
 `codemode` 本身的权限类随沙箱能力：网络隔离（Node ≥ 25，见下文沙箱）时是 `read` 类，`default` 权限模式下免审批——脚本只能经 `tools.*` 做事，每次内层调用仍逐个经过权限管线；网络未隔离（Node 22 / 24）时是 `execute` 类，`default` 模式下每次都要审批，`-p` 等无人值守场景直接拒绝，此时常用做法是在配置里放行它：
 
 ```json
-{ "version": 1, "tools": { "preset": "codemode" }, "permission": { "allow": ["codemode"] } }
+{ "version": 1, "tools": { "preset": "codemode-only" }, "permission": { "allow": ["codemode"] } }
 ```
 
-其它配置：`codemode.inlineBudget`（描述里内联声明的预算，估算 token，缺省 3000，超出只列名字）、`codemode.requireStrict`（见下文沙箱）。项目级配置只能把 `codemode.mode` 设为 `off`。
+其它配置：`codemode.inlineBudget`（`only` 模式在描述里内联声明的预算，估算 token，缺省 3000，超出只列名字；`on` 模式不内联）、`codemode.requireStrict`（见下文沙箱）。项目级配置只能把 `codemode.mode` 设为 `off`。
+
+`on` 模式的前缀开销：去重前 `codemode` 描述把已直接暴露的六个工具的声明又内联一遍，其它工具各追加一行提示，系统提示 + 工具表比 `off` 多约 1356 token；现在只多约 390 token（字符 / 4 估算，测试锁定 ≤ 500）。升级后续接的旧会话因为描述字节变化会有一次缓存未命中。
 
 ## 脚本
 
@@ -82,7 +96,7 @@
 - 空环境启动，拿不到密钥、会话文件与环境变量（Windows 上 libuv 会从父进程补入 PATH、SYSTEMROOT、USERPROFILE 等系统变量，不含密钥）；不授予文件写、子进程、worker、addon、inspector 权限；Node 22.0–22.12 用 `--experimental-permission`；嵌入 Electron 时设 `ELECTRON_RUN_AS_NODE=1`。
 - 子进程里用 `node:vm` 建只含 ECMAScript 内建对象的上下文（`codeGeneration: { strings: false, wasm: false }`，沙箱对象空原型）；全局函数都在上下文内定义，只经一个宿主函数交换 JSON 字符串；子进程主 realm 也禁止字符串生成代码，经构造器链逃逸拿不到 `Function("return process")`。
 - `tools.*` 经 stdin / stdout 的 JSON 行协议回调父进程执行。
-- 网络：Node ≥ 25 的权限模型同时拒绝网络（strict）；Node 22 / 24 不管网络，脚本若逃出 `vm` 就能联网——此时工具描述标注 `network not isolated`，`codemode.requireStrict: true` 时直接不注册 `codemode` 并给出 warning（codemode 预设随之回退到 default）。
+- 网络：Node ≥ 25 的权限模型同时拒绝网络（strict）；Node 22 / 24 不管网络，脚本若逃出 `vm` 就能联网——此时工具描述标注 `network not isolated`，`codemode.requireStrict: true` 时直接不注册 `codemode` 并给出 warning（codemode-only 预设随之回退到 default）。
 
 | 实测（`--permission` + 只读入口） | Node 22.19 | Node 24.21 | Node 26.10 |
 | --------------------------------- | ---------- | ---------- | ---------- |
