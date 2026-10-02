@@ -35,12 +35,18 @@ const ACCEPTED: Readonly<Record<HookEvent, readonly HookDecision[]>> = {
   Notification: [],
   SessionEnd: [],
   PostRewind: [],
+  PostCompact: [],
 };
 
 /** 退出码 2 映射的阻止决策；undefined = 该事件忽略退出码 2。 */
 export function blockingDecision(event: HookEvent): HookDecision | undefined {
   if (event === "PreToolUse") return "deny";
-  if (event === "Notification" || event === "SessionEnd" || event === "PostRewind")
+  if (
+    event === "Notification" ||
+    event === "SessionEnd" ||
+    event === "PostRewind" ||
+    event === "PostCompact"
+  )
     return undefined;
   return "block";
 }

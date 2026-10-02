@@ -41,6 +41,10 @@ export interface RunCycleDeps {
   lastAssistantText(): string | null;
   /** [RW-B] 开启新回合的用户消息已构造、尚未落盘（建检查点、追加回滚提示）。 */
   beginTurn?(message: UserMessage): void;
+  /** [W5-C0] 扩展点 beforePrompts：返回追加在 prompts 之后的消息（session-extensions.ts）。 */
+  beforePrompts?(prompts: readonly AgentMessage[]): Promise<AgentMessage[]>;
+  /** [W5-C0] 扩展点 onAgentSettled：agent_settled 之后、周期结束之前。 */
+  afterSettled?(): Promise<void>;
 }
 
 export function decideAfterRun(
@@ -238,6 +242,7 @@ export async function runCycle(
   void core.runHook("Notification", {
     notification: { kind: "settled", message: warning ?? "run finished" },
   });
+  await deps.afterSettled?.();
 }
 
 /** `"user"` = 普通用户输入，不写 origin。 */
@@ -303,6 +308,7 @@ export async function runPrompt(
   if (signal.aborted) return "handled";
   deps.syncSystem();
   deps.beginTurn?.(message);
+  if (deps.beforePrompts !== undefined) prompts.push(...(await deps.beforePrompts(prompts)));
   core.emit({ type: "before_agent_start", prompt });
   await runCycle(deps, prompts, signal);
   return "started";

@@ -117,6 +117,8 @@ export interface SessionAssembly {
 export interface SessionOverrides {
   /** 一次运行（prompt）的回合上限。 */
   maxTurns?: number;
+  /** [W5-C0] `--max-cost`：并入会话 `limits.maxCostUsd`（W5-H2 实现）。 */
+  maxCostUsd?: number;
   /** `--system-prompt`：追加进 rules 节，或替换 preamble。 */
   systemPrompt?: SystemPromptOverride;
   /** `--no-session`：`/new` 等切换出的新会话也只在内存里。 */

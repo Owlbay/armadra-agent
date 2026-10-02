@@ -205,3 +205,52 @@ describe("请求空闲超时（W4-C）", () => {
     await runtime.dispose();
   });
 });
+
+describe("第五波装配（W5-C0）", () => {
+  it("--max-cost 与 config limits / fallbackModel 只透传到会话选项，并提示尚未生效", async () => {
+    h = composeHarness([{ text: "ok" }]);
+    h.home.write(
+      "home/.config/ama/config.json",
+      JSON.stringify({ version: 1, limits: { maxTurns: 9 }, fallbackModel: "fake/reasoning" }),
+    );
+    const runtime = await h.boot(["--model", "fake/echo", "--max-cost", "2", "--agent-dir", "/a"]);
+    const session = runtime.session as AgentSessionImpl;
+    expect(session.options.limits).toEqual({ maxTurns: 9, maxCostUsd: 2 });
+    expect(session.options.fallbackModel).toBe("fake/reasoning");
+    expect(session.options.maxTurns).toBeUndefined();
+    const warnings = runtime.warnings.join("\n");
+    expect(warnings).toContain("--max-cost 尚未实现");
+    expect(warnings).toContain("--agent-dir 尚未实现");
+    await runtime.dispose();
+  });
+
+  it("--mode acp 退出码 2 并说明尚未实现", async () => {
+    h = composeHarness([{ text: "ok" }]);
+    expect(await h.run(["--mode", "acp", "--model", "fake/echo"])).toBe(2);
+    expect(h.stderr()).toContain("--mode acp 尚未实现");
+  });
+
+  it("会话带组装表的扩展工厂；subagent_* / plan_* 桥接到宿主总线", async () => {
+    h = composeHarness([{ text: "ok" }]);
+    const host = recordingHost(h.home);
+    const runtime = await h.boot(["--model", "fake/echo", "--host", host.path]);
+    const session = runtime.session as AgentSessionImpl;
+    expect(Array.isArray(session.options.extensions)).toBe(true);
+    const seen: string[] = [];
+    for (const name of [
+      "subagent_start",
+      "subagent_end",
+      "plan_proposed",
+      "plan_resolved",
+    ] as const)
+      hostApi().events.on(name, (event) => void seen.push(`${name}:${JSON.stringify(event)}`));
+    session.emit({ type: "subagent_end", taskId: "t1", status: "completed" });
+    session.emit({ type: "plan_resolved", planId: "p1", decision: "reject" });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(seen).toEqual([
+      'subagent_end:{"taskId":"t1","status":"completed"}',
+      'plan_resolved:{"planId":"p1","decision":"reject"}',
+    ]);
+    await runtime.dispose();
+  });
+});

@@ -25,6 +25,19 @@
   `<数据目录>/file-history/shadow/` 下的独立仓库，bash 与手动的新增、修改、删除、重命名也能回滚；尊重 `.gitignore`，
   不碰用户仓库。git 不在 PATH、文件数超过 20 000 或快照超过 3 秒时本会话降级为 `tools`；家目录与根目录不启用。
   `ama doctor` 显示影子仓库占用。
+- **`default` 预设加 `todo`**（第五波 D20）：会话开始时随工具表固定，不中途开启；系统提示 tools 节与工具表多约 150 token，
+  升级后续接的旧会话会有一次缓存未命中。**这是待复测的决定**：W5-H2 的 `bench-presets default,default+todo` 若费用增幅
+  超过 5% 或成功率下降，就撤回到「plan 交接时用 `[DONE:n]` 文本标记」。
+- 新工具 `task_ctl`（列出 / 等待 / 停止 / 读取后台子 Agent 任务）与 `task` 同进退：`+task`、`--tools …,task` 一起暴露，
+  `-task`、宿主 `disable("task")` 一起去掉；本版本执行时返回「尚未实现」（第五波 W5-G 实现）。
+
+- 第五波契约与扩展点（docs/wave5-plan.md §9–§10，全部可选、向后兼容；`RPC_PROTOCOL_VERSION` / `HOST_API_VERSION` /
+  会话格式版本不变）：会话扩展点 `SessionExtension`（`cli/compose-extensions.ts` 组装表）；新事件 `subagent_*`、`plan_*`、
+  `todo_updated`、`limit_reached`、`model_fallback`、`background_job`、`telemetry_tick`；RPC 命令 `plan_response / get_plan /
+get_todos / get_tasks / get_agents`（命令表 42 条，实现前回 `not_implemented`）与能力 `plans`；Hook 事件 `PostCompact`；
+  `HostApi.runners` 可选面；`@armadra/agent/acp` 子路径（驱动类型与 NDJSON 分帧）；第五波配置键的校验、说明与 JSON Schema
+  （行为随各批次生效）。命令行新增 `--mode acp`、`--max-cost`、`--agent-dir`（实现前分别报「尚未实现」或提示不生效），
+  退出码 8 = `-p` 到达预算上限（7 仍是工具被拒）。
 
 ## 0.4.0（2026-10-02）
 

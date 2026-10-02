@@ -28,7 +28,7 @@ import type {
   SessionStats,
 } from "./agent/types.js";
 import type { MessageOrigin } from "./ai/types.js";
-import type { AutoDecision } from "./permissions/types.js";
+import type { ApprovalRequestContext, AutoDecision } from "./permissions/types.js";
 import type {
   CacheMiss,
   RequestRecord,
@@ -235,6 +235,7 @@ describe("Hook 契约", () => {
       | "Notification"
       | "SessionEnd"
       | "PostRewind"
+      | "PostCompact"
     >();
     expectTypeOf<HookOutput["decision"]>().toEqualTypeOf<
       "allow" | "deny" | "ask" | "block" | undefined
@@ -303,9 +304,8 @@ describe("宿主契约", () => {
   });
 
   it("ApprovalRequest.context（契约 A3）", () => {
-    expectTypeOf<ApprovalRequest["context"]>().toEqualTypeOf<
-      { depth: number; parentToolCallId?: string; readFiles?: ReadonlySet<string> } | undefined
-    >();
+    // 字段逐项断言见 contracts-w5.test.ts（W5-C0 加 taskId / origin）
+    expectTypeOf<ApprovalRequest["context"]>().toEqualTypeOf<ApprovalRequestContext | undefined>();
     const request: ApprovalRequest = {
       requestId: "r1",
       toolName: "bash",

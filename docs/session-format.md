@@ -31,19 +31,19 @@
 
 全部条目都有 `id`、`parentId`（根条目为 `null`）、`timestamp`（ISO 8601）。
 
-| `type`                  | 字段                                                                                                 | 进上下文                     |
-| ----------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------- |
-| `message`               | `message`：`system` / `user` / `assistant` / `toolResult` 四种 LLM 消息                              | 是                           |
-| `compaction`            | `summary`、`firstKeptEntryId`、`tokensBefore`、`usage?`、`details?`（`readFiles` / `modifiedFiles`） | 是，作为摘要消息             |
-| `branch_summary`        | `fromId`、`summary`、`usage?`、`details?`                                                            | 是，作为分支摘要消息         |
-| `context_edit`          | `targetId`、`replacement: string \| null`、`reason: prune \| abort \| retry \| overflow \| manual`   | 改写目标条目                 |
-| `model_change`          | `provider`、`modelId`、可选 `channel`（多渠道供应商的渠道名）                                        | 否（决定续会话时的模型）     |
-| `thinking_level_change` | `thinkingLevel`                                                                                      | 否（决定续会话时的思考级别） |
-| `custom`                | `customType`、`data`                                                                                 | 否                           |
-| `custom_message`        | `customType`、`content`（字符串或内容块）、`display`、`details?`                                     | 是，作为 custom 消息         |
-| `label`                 | `targetId`、`label?`（缺省 = 清除标签）                                                              | 否                           |
-| `session_info`          | `name?`                                                                                              | 否                           |
-| `usage`                 | `kind`、`provider`、`model`（不含 provider 的模型 id）、`usage`                                      | 否                           |
+| `type`                  | 字段                                                                                                               | 进上下文                     |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------- |
+| `message`               | `message`：`system` / `user` / `assistant` / `toolResult` 四种 LLM 消息                                            | 是                           |
+| `compaction`            | `summary`、`firstKeptEntryId`、`tokensBefore`、`usage?`、`details?`（`readFiles` / `modifiedFiles`）               | 是，作为摘要消息             |
+| `branch_summary`        | `fromId`、`summary`、`usage?`、`details?`                                                                          | 是，作为分支摘要消息         |
+| `context_edit`          | `targetId`、`replacement: string \| null`、`reason: prune \| abort \| retry \| overflow \| manual \| image_budget` | 改写目标条目                 |
+| `model_change`          | `provider`、`modelId`、可选 `channel`（多渠道供应商的渠道名）                                                      | 否（决定续会话时的模型）     |
+| `thinking_level_change` | `thinkingLevel`                                                                                                    | 否（决定续会话时的思考级别） |
+| `custom`                | `customType`、`data`                                                                                               | 否                           |
+| `custom_message`        | `customType`、`content`（字符串或内容块）、`display`、`details?`                                                   | 是，作为 custom 消息         |
+| `label`                 | `targetId`、`label?`（缺省 = 清除标签）                                                                            | 否                           |
+| `session_info`          | `name?`                                                                                                            | 否                           |
+| `usage`                 | `kind`、`provider`、`model`（不含 provider 的模型 id）、`usage`                                                    | 否                           |
 
 ### 消息
 
@@ -87,7 +87,7 @@
 当前分支 → 上下文消息（`src/session/projection.ts`）：
 
 1. **压缩**：分支上若有 `compaction`，取最新一条。上下文 = 该 compaction（作为摘要消息）+ `firstKeptEntryId` 到它之间的非 system 条目 + 它之后的全部条目。compaction 之前的 system 消息依次重放后折成一条完整的 system **检查点**放在最前（文件里不另存检查点）。
-2. **改写**：对分支上每个目标取最新一条 `context_edit`：`replacement` 为 `null` → 从上下文剔除；字符串 → 只换内容，保留角色与元数据（assistant 换成一个文本块，摘要类换 `summary`，system 不改）。用途：档一裁剪旧工具结果（`prune`）、中断（`abort`）、失败重试的尝试（`retry`）、溢出恢复（`overflow`）、手动（`manual`）。
+2. **改写**：对分支上每个目标取最新一条 `context_edit`：`replacement` 为 `null` → 从上下文剔除；字符串 → 只换内容，保留角色与元数据（assistant 换成一个文本块，摘要类换 `summary`，system 不改）。用途：档一裁剪旧工具结果（`prune`）、中断（`abort`）、失败重试的尝试（`retry`）、溢出恢复（`overflow`）、手动（`manual`）、单请求图片总量超预算时把最旧的图换成占位文本（`image_budget`，第五波 W5-I）。
 3. **映射**：`message` → 原消息；`custom_message` → `{ role: "custom", customType, content, display, details? }`；`compaction` → `{ role: "compactionSummary", summary, tokensBefore }`；`branch_summary` → `{ role: "branchSummary", summary, fromId }`；其余类型（含 `usage` 与未知类型）不进上下文。
 4. **模型与思考级别**：分支上最近的 `model_change` / `thinking_level_change`，续会话时据此恢复。
 
@@ -111,6 +111,20 @@
 | `ama.aborted`        | `custom_message` | `content`：告诉模型上一条回复被用户中断；`display: false`                           | 用户中断运行                                            |
 | `ama.hook_context`   | `custom_message` | `content`：UserPromptSubmit Hook 的 `additionalContext`；`display: false`           | 随用户提示进上下文                                      |
 | `ama.rewind-note`    | `custom_message` | `content`：回滚后哪些文件与对话不一致（最多列 20 个）；`display: false`             | 仅对话 / 仅代码回滚后，下一次提示之前追加在末尾         |
+
+第五波登记的类型（docs/wave5-plan.md；括号里是开始写入的批次，之前的版本不会产生，读到未知 `customType` 一律忽略）。`custom_message` 类都是 `display: false`，经扩展点 `beforePrompts` 追加在末尾，不改缓存前缀：
+
+| `customType`         | 条目类型         | 内容                                                                                                                                     | 写入时机                                                                            |
+| -------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `ama.plan`           | `custom`         | `data: PlanData`：`{ id, version, status: proposed \| approved \| rejected \| superseded, markdown, steps[], sourceEntryId, filePath? }` | 根会话 `agent_settled` 时从回复里提取到 `<proposed_plan>`；审批结果另记一条（W5-F） |
+| `ama.plan_state`     | `custom`         | `data: { active, prePlanMode, planId? }`                                                                                                 | 进入 / 退出 plan 模式；resume 时据此回到 plan（W5-F）                               |
+| `ama.plan_mode`      | `custom_message` | `content`：plan 模式说明（完整版或简版）                                                                                                 | 进入 plan 后的首个提示前，之后每 5 回合简版、压缩后补完整版（W5-F）                 |
+| `ama.plan_mode_exit` | `custom_message` | `content`：已退出 plan 模式                                                                                                              | 计划获批或手动退出后的下一次提示前（W5-F）                                          |
+| `ama.plan_approved`  | `custom_message` | `content`：获批计划全文、文件路径与「按 todo 推进」的说明                                                                                | 计划获批交接时（W5-F）                                                              |
+| `ama.post_compact`   | `custom_message` | `content`：压缩后回注的清单与指针（todo 快照、最近修改 / 读取的文件路径、已加载 Skill、当前计划、转录与 outputs 路径），不含文件正文     | 紧跟压缩摘要（W5-H1）                                                               |
+| `ama.reminder`       | `custom_message` | `content`：提醒（todo 复述、外部文件改动、上下文用量、预算余量）                                                                         | 新提示之前按 `reminders.*` 追加（W5-H2）                                            |
+| `ama.agent-session`  | `custom`         | `data: { agent, runner, sessionId, cwd?, taskId? }`：外部 Agent 自己的会话引用（不含原始事件与转录）                                     | 外部 Agent 会话建立 / 续聊时（W5-E）                                                |
+| `ama.agent-usage`    | `custom`         | `data: { agent, sessionId, unit: usd \| tokens \| requests, amount, tokens? }`                                                           | 外部 Agent 每个回合结束（W5-E）；`SessionStats.external` 据此汇总                   |
 
 其它程序（宿主、SDK 工具经 `ToolContext.session.appendCustom`）可以写自己的 `customType`；建议加前缀避免冲突，`ama.` 前缀保留给 ama。
 

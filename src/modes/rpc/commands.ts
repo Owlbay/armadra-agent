@@ -92,6 +92,11 @@ function impl(session: AgentSession): AgentSessionImpl {
   throw new AmaError("not_implemented", "该会话不支持此命令");
 }
 
+/** [W5-C0] 尚未实现的第五波命令：明确报 not_implemented，而不是 unknown command。 */
+function notYet(command: string): () => Promise<never> {
+  return () => Promise.reject(new AmaError("not_implemented", `${command} 尚未实现（第五波）`));
+}
+
 /** 开始一次运行：开始 / 入队 / 被处理后即返回，不等运行结束。 */
 async function startRun(
   ctx: RpcContext,
@@ -323,6 +328,12 @@ export const handlers: RpcHandlers = {
   },
   get_commands: async (_p, ctx) => ({ commands: commands(ctx.runtime) }),
   get_skills: async (_p, ctx) => ({ skills: ctx.runtime.resources.skills }),
+  // [W5-C0] 计划 / 任务命令：类型已定，实现归 W5-F（get_tasks / get_agents 用 C0 的只读视图）
+  plan_response: notYet("plan_response"),
+  get_plan: notYet("get_plan"),
+  get_todos: notYet("get_todos"),
+  get_tasks: notYet("get_tasks"),
+  get_agents: notYet("get_agents"),
 };
 
 export const RPC_COMMAND_TYPES = Object.keys(handlers) as RpcCommandType[];

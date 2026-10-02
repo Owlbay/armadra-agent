@@ -564,7 +564,7 @@ ama 不知道画布；Armadra 适配器经 `HostApi.tools.register` 注册 `canv
 
 | 预设          | 模型直接看到                                         | 脚本内可调用（codemode）              | 用途                                         |
 | ------------- | ---------------------------------------------------- | ------------------------------------- | -------------------------------------------- |
-| `default`     | read、edit、write、bash、grep、glob；Node ≥ 25 另加 codemode | 全部内置工具（含 ls、todo、task）      | 独立编码，缺省                               |
+| `default`     | read、edit、write、bash、grep、glob、todo（第五波 D20，以基准复测为门）；Node ≥ 25 另加 codemode | 全部内置工具（含 ls、todo、task）      | 独立编码，缺省                               |
 | `minimal`     | read、edit、write、bash                              | —（显式 `on` 时全部内置工具）          | 与 Pi 一致；适合 `full-auto`                 |
 | `codemode-only` | codemode                                           | 全部内置工具（含 ls、todo、task）      | 长流程、工具密集任务                         |
 | `coordinator` | read、宿主注册的 canvas_* / context_*（codemode 可选） | 只有活动集：read 与 canvas_* 等       | 嵌入 Armadra 的协调者：不写文件、不跑 bash   |

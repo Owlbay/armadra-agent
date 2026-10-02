@@ -39,6 +39,7 @@ import { expandPromptCommand, type PromptTemplate } from "../skills/templates.js
 import { PresetToolRegistry } from "../tools/presets.js";
 import type { ToolDefinition } from "../tools/types.js";
 import { openSession } from "./compose-store.js";
+import { composeExtensions } from "./compose-extensions.js";
 import type { SessionAssembly } from "./deps.js";
 import { ExitCode } from "./exit-codes.js";
 import type { Runtime } from "./runtime.js";
@@ -278,6 +279,27 @@ export function bridgeEvent(event: SessionEvent, bus: AgentEventBus): void {
       void bus.emit("context_pressure", pressure);
       return;
     }
+    // [W5-C0] 子 Agent 与计划事件
+    case "subagent_start": {
+      const { type: _type, ...payload } = event;
+      void bus.emit("subagent_start", payload);
+      return;
+    }
+    case "subagent_end": {
+      const { type: _type, ...payload } = event;
+      void bus.emit("subagent_end", payload);
+      return;
+    }
+    case "plan_proposed": {
+      const { type: _type, ...payload } = event;
+      void bus.emit("plan_proposed", payload);
+      return;
+    }
+    case "plan_resolved": {
+      const { type: _type, ...payload } = event;
+      void bus.emit("plan_resolved", payload);
+      return;
+    }
     default:
       return;
   }
@@ -319,9 +341,17 @@ function buildSession(
     log: record.log,
     cache: cacheSettingsFrom(config, process.env, (message) => record.log("warn", message)),
     warmingDecider: () => assembly.host.warmingDecider?.(),
+    // [W5-C0] 会话扩展（组装表在 compose-extensions.ts）
+    extensions: composeExtensions({ assembly, env: process.env, log: record.log }),
   };
   const maxTurns = assembly.overrides?.maxTurns;
   if (maxTurns !== undefined) options.maxTurns = maxTurns;
+  // [W5-C0] 只透传：limits（config limits.* 与 --max-cost）与 fallbackModel 由 W5-H2 实现
+  const limits = { ...config.limits };
+  const maxCost = assembly.overrides?.maxCostUsd;
+  if (maxCost !== undefined) limits.maxCostUsd = maxCost;
+  if (Object.keys(limits).length > 0) options.limits = limits;
+  if (config.fallbackModel !== undefined) options.fallbackModel = config.fallbackModel;
   const idle = idleTimeoutFrom(config, process.env, (message) => record.log("warn", message));
   if (idle !== undefined) options.idleTimeoutMs = idle;
   const autoModel = config.permission?.autoModel;

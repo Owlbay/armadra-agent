@@ -74,6 +74,14 @@ declare const tools: {
     /** Default 30 */
     maxTurns?: number;
   }): Promise<string>;
+  /** Manage background sub-agent tasks started by task: list, wait for one, stop it, or read its output. */
+  task_ctl(args: {
+    action: "list" | "wait" | "stop" | "output";
+    /** Required except for list */
+    taskId?: string;
+    /** wait only */
+    timeoutMs?: number;
+  }): Promise<string>;
   /** Session task list for multi-step work: \`set\` replaces the whole list, \`get\` returns it. */
   todo(args: {
     action: "set" | "get";

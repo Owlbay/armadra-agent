@@ -234,8 +234,8 @@ describe("RPC 模式：stdin 结束", () => {
 });
 
 describe("RPC 命令表", () => {
-  it("37 条命令都有处理器；状态 / 模型 / 工具 / 会话类命令往返成功", async () => {
-    expect(RPC_COMMAND_TYPES).toHaveLength(37);
+  it("42 条命令都有处理器；状态 / 模型 / 工具 / 会话类命令往返成功", async () => {
+    expect(RPC_COMMAND_TYPES).toHaveLength(42);
     const { lines } = await drive([{ text: "one" }, { text: "two" }], async (d) => {
       d.send({ id: "p", type: "prompt", message: "hello" });
       await d.waitFor(settled);
@@ -344,6 +344,34 @@ describe("RPC 回滚", () => {
         .map((l) => normalize(l, h.home.root))
         .join("\n") + "\n",
     );
+  });
+});
+
+describe("RPC 第五波命令（W5-C0）", () => {
+  it("plan_response / get_plan / get_todos / get_tasks / get_agents 已登记，实现前回 not_implemented；plans 能力可声明", async () => {
+    const commands = [
+      { type: "plan_response", planId: "p1", decision: "reject" },
+      { type: "get_plan" },
+      { type: "get_todos" },
+      { type: "get_tasks" },
+      { type: "get_agents" },
+    ];
+    const { lines } = await drive([{ text: "one" }], async (d) => {
+      commands.forEach((command, i) => d.send({ id: `w${i}`, ...command }));
+      d.send({ id: "cap", type: "set_client_capabilities", capabilities: ["plans"] });
+      await d.waitFor((l) => l["id"] === "cap");
+    });
+    for (const [i, command] of commands.entries()) {
+      expect(lines.find((l) => l["id"] === `w${i}`)).toMatchObject({
+        success: false,
+        command: command.type,
+        code: "not_implemented",
+      });
+    }
+    expect(lines.find((l) => l["id"] === "cap")).toMatchObject({
+      success: true,
+      data: { capabilities: ["plans"] },
+    });
   });
 });
 

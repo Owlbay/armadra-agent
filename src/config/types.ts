@@ -7,6 +7,8 @@
  * hooks.json 的形状是 `HookConfig`（hooks/types.ts）。
  * （W3-C0）第三波：`cache` 段（§1.12，只认用户级 / profile）；`ModelConfig` / `ModelOverride`
  * 允许模型级 `api`（§2.3，同一中转的模型走不同协议），由 W3-B12 在注册表里生效。
+ * （W5-C0）第五波配置键（docs/wave5-plan.md §9）：新段的形状在 types-w5.ts（`AmaConfigW5` 并入
+ * `AmaConfig`），已有段加 `ui.statusLine`、`compaction.prune / pruneExclude`、profile `agentDirs`。
  */
 
 import type { WarmingMode } from "../ai/cache/types.js";
@@ -20,6 +22,17 @@ import type {
 } from "../ai/types.js";
 import type { PermissionMode } from "../permissions/types.js";
 import type { CheckpointMode } from "../checkpoints/types.js";
+import type { AmaConfigW5, PruneConfig, StatusLineMode } from "./types-w5.js";
+
+export type * from "./types-w5.js";
+export {
+  AGENTS_RESERVED_KEYS,
+  IMAGE_RESIZE_MODES,
+  PLAN_BASH_MODES_STRICT_FIRST,
+  PLAN_UNATTENDED_MODES,
+  STATUS_LINE_MODES,
+  agentEntry,
+} from "./types-w5.js";
 
 export const CONFIG_FILE_VERSION = 1 as const;
 
@@ -91,6 +104,10 @@ export interface CompactionConfig {
   enabled?: boolean;
   reserveTokens?: number;
   keepRecentTokens?: number;
+  /** [W5-C0] 档一裁剪参数（W5-H1）；只认用户级。 */
+  prune?: PruneConfig;
+  /** [W5-C0] 不被档一裁剪的工具名（W5-H1）；只认用户级。 */
+  pruneExclude?: string[];
 }
 
 export interface RetryConfig {
@@ -182,6 +199,8 @@ export interface UiConfig {
   animation?: boolean;
   /** 运行中 Esc 中断、本回合还没有任何输出时撤回该回合并回填原消息，缺省 true。 */
   restoreOnCancel?: boolean;
+  /** [W5-C0] 底部信息行（W5-A）：缺省独立终端 full、嵌入宿主（有 profile）compact。 */
+  statusLine?: StatusLineMode;
 }
 
 export interface SkillsConfig {
@@ -245,7 +264,7 @@ export const DEFAULT_CHECKPOINTS_CONFIG: Readonly<Required<CheckpointsConfig>> =
 });
 
 /** config.json（用户级 / 项目级 / profile.config 同形状；项目级只接受受限字段，§10.2）。 */
-export interface AmaConfig {
+export interface AmaConfig extends AmaConfigW5 {
   version: typeof CONFIG_FILE_VERSION;
   /** `provider/model-id`。 */
   defaultModel?: string;
@@ -277,6 +296,8 @@ export interface ProfileFile {
   instructions?: string[];
   skillDirs?: string[];
   promptDirs?: string[];
+  /** [W5-C0] 子 Agent 定义目录（发现顺序在 `--agent-dir` 之后、用户级之前，W5-G）。 */
+  agentDirs?: string[];
   hooksFile?: string;
   authFile?: string;
   /** false：key 只来自 authFile，不读环境变量（§11.2）。 */

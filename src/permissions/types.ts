@@ -91,6 +91,27 @@ export interface ApprovalRequestContext {
   parentToolCallId?: string;
   /** [W3-C0] 本会话已 read 过的路径（`ToolContext.readFiles`），由 `gateToolCall` 填入。 */
   readFiles?: ReadonlySet<string>;
+  /** [W5-C0] 子 Agent 任务 id（对话框标注 `[task:<agent>]`）。 */
+  taskId?: string;
+  /**
+   * [W5-C0] 来自外部 Agent 的权限请求（docs/wave5-plan.md §5.3）：只走 broker 链（宿主 → UI →
+   * 无人值守拒绝），auto 分类器与模型都不参与；RPC `permission_request` 原样带出。
+   */
+  origin?: ExternalPermissionOrigin;
+}
+
+/** [W5-C0] 外部 Agent 权限选项的种类（ACP 词汇）。 */
+export type ExternalPermissionOptionKind =
+  "allow_once" | "allow_always" | "reject_once" | "reject_always";
+
+/** [W5-C0] 外部 Agent 发来的权限请求（ACP `session/request_permission` 子集）。 */
+export interface ExternalPermissionOrigin {
+  /** 外部 Agent id（`claude` / `codex` / `acp:<program>`）。 */
+  agent: string;
+  /** 外部 CLI 自己的会话 id。 */
+  sessionId: string;
+  toolCall: { title: string; kind: string; locations?: string[]; inputSummary?: string };
+  options: { optionId: string; kind: ExternalPermissionOptionKind }[];
 }
 
 /** [W3-C0] 预览涉及的路径（bash 的 rm / mv / 重定向目标，write / edit 的目标文件）。 */

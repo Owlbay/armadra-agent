@@ -15,6 +15,11 @@
  * - [W3-C0] 第三波 §1.3 的五个缓存兼容开关单列为 `PromptCacheCompat`（各协议共用），只并入
  *   `ProviderCompat`（全部可选），不改各协议 compat 接口——`detectCompat` 的返回形状不变，
  *   缺省值由 C1a 在协议层按端点推断。
+ * - [W5-C0] 第五波（docs/wave5-plan.md §2.1、§3.1）：`Model` 加 models.dev 元数据字段
+ *   （`family / knowledge / releaseDate / inputLimit / status`）；`AnthropicMessagesCompat` 加
+ *   `sendInterleavedThinkingBeta / sendCacheControl`、`OpenAIResponsesCompat` 加
+ *   `explicitCacheField`，全部可选（缺省由 W5-M2 的主机推断表给出）；`ProviderData.channels /
+ *   defaultChannel` 已有，内置供应商（`BuiltinProvider`）同样可带。
  */
 
 // ---------------------------------------------------------------------------
@@ -247,6 +252,12 @@ export interface AnthropicMessagesCompat {
   /** true：新模型用 `effort` 参数；false：老模型用 `budget_tokens`。 */
   adaptiveThinking: boolean;
   maxCacheBreakpoints: number;
+  /**
+   * [W5-C0] 发 `interleaved-thinking` beta 头；缺省（W5-M2 主机表）：官方端点 true、其它主机 false。
+   */
+  sendInterleavedThinkingBeta?: boolean;
+  /** [W5-C0] 打 `cache_control`；缺省 true，忽略它的端点（DeepSeek 等）可关以减小请求体。 */
+  sendCacheControl?: boolean;
 }
 
 /** B8 补全。 */
@@ -259,6 +270,8 @@ export interface GoogleCompat {
 export interface OpenAIResponsesCompat {
   supportsReasoningSummary: boolean;
   supportsStore: boolean;
+  /** [W5-C0] 端点私有的显式缓存字段：`volcengine` = 火山方舟 `caching: { type: "enabled" }`。 */
+  explicitCacheField?: "volcengine";
 }
 
 /**
@@ -360,6 +373,17 @@ export interface Model {
   channel?: string;
   /** 该模型挂载的全部渠道，首个为首选（多渠道供应商才有）。 */
   channels?: string[];
+  // [W5-C0] models.dev 元数据（docs/wave5-plan.md §2.1；快照与目录物化时填入，缺省 = 未知）
+  /** 模型家族（如 `claude-sonnet`）。 */
+  family?: string;
+  /** 知识截止（`YYYY-MM` 或 `YYYY-MM-DD`）。 */
+  knowledge?: string;
+  /** 发布日期（`YYYY-MM-DD`）。 */
+  releaseDate?: string;
+  /** 输入上限（token），与 `contextWindow` 不同的模型才有。 */
+  inputLimit?: number;
+  /** 发布状态；正式版不填（deprecated 的模型在快照里已过滤）。 */
+  status?: "beta";
 }
 
 /** 物化后的渠道（docs/providers.md「渠道」）；key 不在这里，经 `resolveApiKey(provider, channel)` 取。 */
@@ -386,9 +410,12 @@ export interface ProviderData {
   /** 本地服务 false：无 key 也能用。 */
   requiresApiKey: boolean;
   builtin: boolean;
-  /** 显式配置的渠道（没有 `channels` 的供应商不填，按单渠道处理）。 */
+  /**
+   * 渠道（没有 `channels` 的供应商不填，按单渠道处理）。[W5-C0] 内置供应商也可带内置渠道，
+   * 用户配置同名字段级覆盖、新名追加（物化归 W5-M2）。
+   */
   channels?: ProviderChannel[];
-  /** 首选渠道名（有 `channels` 时）。 */
+  /** 首选渠道名（有 `channels` 时；用户配置优先）。 */
   defaultChannel?: string;
 }
 

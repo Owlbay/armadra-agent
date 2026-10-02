@@ -85,6 +85,18 @@ const ALL_EVENTS: { [K in AgentEventName]: AgentEvents[K] } = {
   session_shutdown: {},
   cache_miss: { missedTokens: 38_200, missedCost: 0.11, reason: "idle", idleMs: 420_000 },
   context_pressure: { percent: 72, threshold: 70, estimatedTurnsLeft: 9 },
+  subagent_start: {
+    taskId: "t1",
+    parentToolCallId: "c1",
+    agent: "explore",
+    runner: "ama",
+    description: "find",
+    background: false,
+    cwd: "/w",
+  },
+  subagent_end: { taskId: "t1", status: "completed" },
+  plan_proposed: { planId: "p1", version: 1, markdown: "# plan", steps: [] },
+  plan_resolved: { planId: "p1", decision: "approve" },
 };
 
 describe("HostApi 实现", () => {

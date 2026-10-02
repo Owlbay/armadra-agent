@@ -35,12 +35,14 @@ function cfg(tools: NonNullable<AmaConfig["tools"]>, codemode?: AmaConfig["codem
 
 describe("工具预设", () => {
   it("default / minimal / coordinator 的内置工具", () => {
+    // [W5-C0] D20：todo 进 default（以 bench-presets 复测为门）
     expect(resolvePreset({ config: cfg({}), available: available() }).builtin).toEqual([
       "bash",
       "edit",
       "glob",
       "grep",
       "read",
+      "todo",
       "write",
     ]);
     expect(
@@ -100,7 +102,7 @@ describe("工具预设", () => {
     );
     // 缺省配置不写 codemode.mode：映射调整能惠及老用户
     expect(mergeConfigLayers({}).config.codemode).toBeUndefined();
-    // default 预设：strict 且 codemode 可用 → 六个工具 + codemode；不可用 → 静默回退，无 warning
+    // default 预设：strict 且 codemode 可用 → 七个工具 + codemode；不可用 → 静默回退，无 warning
     const strictDefault = resolvePreset({
       config: cfg({}),
       available: available(["codemode"]),
@@ -114,6 +116,7 @@ describe("工具预设", () => {
       "glob",
       "grep",
       "read",
+      "todo",
       "write",
     ]);
     const missing = resolvePreset({ config: cfg({}), available: available(), strict: true });
@@ -143,8 +146,14 @@ describe("工具预设", () => {
       config: cfg({ preset: "minimal", default: ["+task", "+nope", "-bash"] }),
       available: available(),
     });
-    expect(r.builtin).toEqual(["edit", "read", "task", "write"]);
+    // [W5-C0] task_ctl 随 task 进出
+    expect(r.builtin).toEqual(["edit", "read", "task", "task_ctl", "write"]);
     expect(r.warnings).toEqual(["tools.default：未知工具 nope，已忽略"]);
+    const without = resolvePreset({
+      config: cfg({ default: ["read", "task_ctl"] }),
+      available: available(),
+    });
+    expect(without.builtin).toEqual(["read"]);
   });
 
   it("tools.default 进配置校验；项目级不能设", () => {

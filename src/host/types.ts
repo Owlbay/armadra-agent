@@ -10,12 +10,22 @@
  * - （W3-C0）第三波 §1.10 / §1.7：`AgentEvents` 加 `cache_miss`、`context_pressure`；
  *   `HostApi.cache.onWarmingDecision` 为可选面（HOST_API_VERSION 不变，旧宿主不受影响），
  *   多个处理器时最后注册的生效。
+ * - （W5-C0）第五波 §5.5 / §6.5 / §7.5：可选面 `HostApi.runners`（宿主注入的子 Agent runner，
+ *   以 `task(agent=…)` 入口出现；有宿主时内置外部 runner 一律不可用，实现归 W5-E / W5-G）；
+ *   `AgentEvents` 加 `subagent_start / subagent_end / plan_proposed / plan_resolved`。
+ *   HOST_API_VERSION 不变。
  */
 
 import type { CacheMiss, WarmingDecisionHandler } from "../ai/cache/types.js";
 import type { HookEvent } from "../hooks/types.js";
 import type { ApprovalBroker, ApprovalDecision } from "../permissions/types.js";
-import type { ToolDefinition } from "../tools/types.js";
+import type { SubagentRunner, ToolDefinition } from "../tools/types.js";
+import type {
+  PlanProposedEvent,
+  PlanResolvedEvent,
+  SubagentEndEvent,
+  SubagentStartEvent,
+} from "../agent/types-w5.js";
 
 export type {
   ActionPreview,
@@ -27,6 +37,10 @@ export type {
   ApprovalRequestContext,
 } from "../permissions/types.js";
 export type {
+  RunnerHandle,
+  SubagentEvent,
+  SubagentRunRequest,
+  SubagentRunner,
   ToolAnnotations,
   ToolContext,
   ToolDefinition,
@@ -89,7 +103,16 @@ export interface AgentEvents {
     remainingTokens?: number;
     estimatedTurnsLeft?: number;
   };
+  /** [W5-C0] 子 Agent 任务开始 / 结束（含宿主 runner 与外部 Agent）。 */
+  subagent_start: Omit<SubagentStartEvent, "type">;
+  subagent_end: Omit<SubagentEndEvent, "type">;
+  /** [W5-C0] 计划提出 / 审批结果。 */
+  plan_proposed: Omit<PlanProposedEvent, "type">;
+  plan_resolved: Omit<PlanResolvedEvent, "type">;
 }
+
+/** [W5-C0] 宿主注入的 runner：`id` 即 `task(agent=<id>)` 的名字，`description` 进 task 工具描述。 */
+export type HostRunner = SubagentRunner & { readonly description: string };
 
 export type AgentEventName = keyof AgentEvents;
 
@@ -138,6 +161,13 @@ export interface HostApi {
    */
   readonly cache?: {
     onWarmingDecision(handler: WarmingDecisionHandler): () => void;
+  };
+  /**
+   * [W5-C0] 宿主注入的子 Agent runner（画布节点等，docs/wave5-plan.md §5.5）：注入后同名的内置
+   * 外部 runner 被替换；返回值用于注销。可选面：旧版本运行时没有它（实现归 W5-E / W5-G）。
+   */
+  readonly runners?: {
+    provide(runner: HostRunner): () => void;
   };
 }
 

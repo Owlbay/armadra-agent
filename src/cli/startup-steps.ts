@@ -63,6 +63,9 @@ export function decideMode(
   io: Pick<CliIo, "stdinIsTTY" | "stdoutIsTTY" | "env">,
 ): RuntimeMode {
   if (args.mode === "rpc") return "rpc";
+  // [W5-C0] 只解析；ACP 服务端由 W5-E 实现
+  if (args.mode === "acp")
+    throw new UsageError("--mode acp 尚未实现（第五波 W5-E 提供 ACP 服务端）");
   if (args.print) return "print";
   if (args.noTui || !io.stdinIsTTY || !io.stdoutIsTTY || io.env["TERM"] === "dumb") return "line";
   return "interactive";
@@ -79,6 +82,9 @@ export function applyProfile(args: ParsedArgs, profile: ProfileOptions): ParsedA
   if (merged.trust === undefined && profile.trustProject) merged.trust = true;
   merged.instructions = [...profile.instructions, ...args.instructions];
   merged.skillDirs = [...args.skillDirs, ...profile.skillDirs];
+  // [W5-C0] 子 Agent 目录：--agent-dir 在前、profile agentDirs 在后（W5-G 接入发现）
+  const agentDirs = [...(args.agentDirs ?? []), ...(profile.agentDirs ?? [])];
+  if (agentDirs.length > 0) merged.agentDirs = agentDirs;
   return merged;
 }
 

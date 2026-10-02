@@ -4,6 +4,9 @@
  * 会话 = SessionManager（JSONL 树，事实来源）+ Agent（上下文、队列、run）+ 压缩 / 重试 / Hook / 回滚调度。
  * 每条 message_end 落盘；首次请求前落 system + 工具表并 flush。`prompt()` 运行中且无
  * streamingBehavior → busy；`steer / followUp` 运行中入队、空闲时直接开周期；`abort()` 不清队列。
+ * [W5-C0] 设置类方法在 session-settings.ts；扩展点（session-extensions.ts）的调用点：构造时
+ * wrapStream、emit 后 onEvent、runPrompt 的 beforePrompts、agent_settled 后 onAgentSettled、
+ * getStats 末尾 contributeStats、dispose。
  */
 
 import { join } from "node:path";
@@ -32,18 +35,12 @@ import { CompactionController } from "./session-compaction.js";
 import { makeUserMessage, normalizeOrigin, runPrompt, type RunCycleDeps } from "./session-run.js";
 import { buildSessionState, computeStats, lastAssistantText } from "./session-state.js";
 import { DEFAULT_SUBAGENT_CONCURRENCY, SubagentPool, runSubagent } from "./session-subagent.js";
-import {
-  appendModelChange,
-  findModelOrThrow,
-  persistMessage,
-  runHookWithEvents,
-  sessionStartEvent,
-  syncSystemMessage,
-} from "./session-sync.js";
+import { persistMessage, runHookWithEvents, syncSystemMessage } from "./session-sync.js";
+import { SessionExtensions } from "./session-extensions.js";
+import { SessionSettings, providerStream, type StaticSystemInput } from "./session-settings.js";
 import { createToolRunnerOptions } from "./session-tools.js";
 import { RewindController, type RewindDraft, type SummarizeFromResult } from "./session-rewind.js";
 import type * as CP from "../checkpoints/types.js";
-import type { SystemPromptInput } from "./system-prompt.js";
 import { convertToLlm } from "./transform.js";
 import type {
   AgentSession,
@@ -70,10 +67,8 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
   readonly readFiles = new Set<string>();
   readonly stream: StreamFn;
   readonly cache: SessionCacheController;
-  private currentModel: Model;
-  private currentThinking: ModelThinkingLevel;
-  private readonly allTools = new Map<string, ToolDefinition>();
-  private activeNames: string[];
+  private readonly settings: SessionSettings;
+  private readonly extensions: SessionExtensions;
   private readonly listeners = new Set<(event: SessionEvent) => void>();
   private readonly compaction: CompactionController;
   private retrySettings: RetrySettings;
@@ -82,7 +77,6 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
   private stopReason: string | undefined;
   private stopFlag = false;
   private turns = 0;
-  private systemInput: Omit<SystemPromptInput, "tools" | "cwd">;
   private readonly subagentPool: SubagentPool;
   private disposed = false;
   private classifier: PermissionClassifier | undefined;
@@ -95,34 +89,27 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
     this.manager = options.sessionManager;
     this.cwd = this.manager.cwd;
     this.depth = options.depth ?? 0;
-    this.currentModel = options.model;
-    this.currentThinking = options.thinkingLevel ?? "off";
-    for (const tool of options.tools ?? []) this.allTools.set(tool.name, tool);
-    this.activeNames = [...(options.activeTools ?? this.allTools.keys())].filter((name) =>
-      this.allTools.has(name),
-    );
-    this.systemInput = { ...(options.system ?? {}) };
+    this.settings = new SessionSettings(options, {
+      core: this,
+      assertUsable: () => this.assertUsable(),
+      onModelChanged: () => this.compaction.refresh(),
+    });
+    this.extensions = new SessionExtensions(this, options.extensions);
     this.retrySettings = resolveRetrySettings(options.retry);
     this.cache = new SessionCacheController(this, resolveCacheSettings(options.cache), {
       decider: () => options.warmingDecider?.(),
     });
-    this.stream = this.cache.wrapStream((model, context, streamOptions) => {
-      const api = options.providers.getApi(model.api);
-      if (api === undefined) {
-        throw new AmaError(
-          "provider_not_found",
-          `no implementation registered for api ${model.api}`,
-        );
-      }
-      return api.stream(model, context, streamOptions);
-    });
+    // 缓存控制器在最外层（看到扩展改写后的最终请求）
+    this.stream = this.cache.wrapStream(
+      this.extensions.wrapStream(providerStream(options.providers)),
+    );
     const runner = createToolRunnerOptions(this);
     const agentOptions: ConstructorParameters<typeof Agent>[0] = {
       hooks: {
         convertToLlm: (messages) =>
           convertToLlm(messages, {
-            provider: this.currentModel.provider,
-            model: this.currentModel.id,
+            provider: this.settings.model.provider,
+            model: this.settings.model.id,
           }),
         beforeToolCall: runner.beforeToolCall,
         prepareNextTurn: async () => {
@@ -137,8 +124,8 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
         },
       },
       stream: this.stream,
-      getModel: () => this.currentModel,
-      getThinkingLevel: () => this.currentThinking,
+      getModel: () => this.settings.model,
+      getThinkingLevel: () => this.settings.thinking,
       streamOptions: async () => {
         const apiKey = await this.resolveApiKey();
         const idle = options.idleTimeoutMs;
@@ -181,11 +168,11 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
   // -------------------------------------------------------------------------
 
   model(): Model {
-    return this.currentModel;
+    return this.settings.model;
   }
 
   thinkingLevel(): ModelThinkingLevel {
-    return this.currentThinking;
+    return this.settings.thinking;
   }
 
   outputDir(): string | undefined {
@@ -196,7 +183,7 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
 
   async resolveApiKey(): Promise<string | undefined> {
     try {
-      const { provider, channel } = this.currentModel;
+      const { provider, channel } = this.settings.model;
       return (await this.options.providers.resolveApiKey(provider, channel)).apiKey;
     } catch {
       return undefined;
@@ -212,6 +199,7 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
         this.log("warn", `session listener failed on ${event.type}: ${String(error)}`);
       }
     }
+    this.extensions.onEvent(event);
   }
 
   appendEntry(input: SessionEntryInput): SessionEntry {
@@ -225,15 +213,15 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
   }
 
   activeTool(name: string): ToolDefinition | undefined {
-    return this.activeNames.includes(name) ? this.allTools.get(name) : undefined;
+    return this.settings.activeTool(name);
   }
 
   tool(name: string): ToolDefinition | undefined {
-    return this.allTools.get(name);
+    return this.settings.tool(name);
   }
 
   activeToolNames(): string[] {
-    return [...this.activeNames];
+    return this.settings.activeToolNames();
   }
 
   runHook(
@@ -280,7 +268,7 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
   }
 
   private syncSystem(): void {
-    syncSystemMessage(this, this.systemInput, this.getTools());
+    syncSystemMessage(this, this.settings.systemInput, this.getTools());
   }
 
   // -------------------------------------------------------------------------
@@ -324,6 +312,8 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
       },
       lastAssistantText: () => this.getLastAssistantText(),
       beginTurn: (message) => this.rewinder.beginTurn(message),
+      beforePrompts: (prompts) => this.extensions.beforePrompts(prompts),
+      afterSettled: () => this.extensions.onAgentSettled(),
     };
   }
 
@@ -458,43 +448,21 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
     return entry;
   }
 
-  async setModel(ref: string): Promise<void> {
-    this.assertUsable();
-    this.currentModel = findModelOrThrow(this.options.providers, ref);
-    this.compaction.refresh();
-    this.emit({ type: "model_changed", model: appendModelChange(this, this.currentModel) });
-  }
-
-  setThinkingLevel(level: ModelThinkingLevel): void {
-    this.currentThinking = level;
-    this.appendEntry({ type: "thinking_level_change", thinkingLevel: level });
-    this.emit({ type: "thinking_level_changed", level });
-  }
-
-  setPermissionMode(mode: PermissionMode): void {
-    this.options.permission?.setMode(mode);
-    this.emit({ type: "permission_mode_changed", mode });
-  }
-
-  setActiveTools(names: string[]): void {
-    const unknown = names.filter((name) => !this.allTools.has(name));
-    if (unknown.length > 0)
-      throw new AmaError("tool_not_found", `unknown tools: ${unknown.join(", ")}`);
-    this.activeNames = [...new Set(names)];
-  }
-
+  // [W5-C0] 设置类（session-settings.ts）
+  readonly setModel = (ref: string): Promise<void> => this.settings.setModel(ref);
+  readonly setThinkingLevel = (level: ModelThinkingLevel): void =>
+    this.settings.setThinkingLevel(level);
+  readonly setPermissionMode = (mode: PermissionMode): void =>
+    this.settings.setPermissionMode(mode);
+  readonly setActiveTools = (names: string[]): void => this.settings.setActiveTools(names);
   /** 宿主 / SDK 在会话创建后追加工具（下次请求前以 system 补丁声明）。 */
-  addTool(tool: ToolDefinition, active = true): void {
-    if (this.allTools.has(tool.name))
-      throw new AmaError("tool_exists", `tool ${tool.name} already exists`);
-    this.allTools.set(tool.name, tool);
-    if (active) this.activeNames.push(tool.name);
-  }
-
-  /** 更新系统提示的静态部分（SessionStart Hook 的 hookContext、宿主 instructions 等）。 */
-  updateSystem(patch: Partial<Omit<SystemPromptInput, "tools" | "cwd">>): void {
-    this.systemInput = { ...this.systemInput, ...patch };
-  }
+  readonly addTool = (tool: ToolDefinition, active = true): void =>
+    this.settings.addTool(tool, active);
+  readonly updateSystem = (patch: Partial<StaticSystemInput>): void =>
+    this.settings.updateSystem(patch);
+  readonly getTools = (): readonly ToolDefinition[] => this.settings.getTools();
+  readonly announceStart = (reason: "startup" | "resume" | "new" | "fork"): void =>
+    this.settings.announceStart(reason);
 
   setAutoCompaction(enabled: boolean): void {
     this.compaction.setAuto(enabled);
@@ -504,24 +472,12 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
     this.retrySettings = { ...this.retrySettings, enabled };
   }
 
-  getTools(): readonly ToolDefinition[] {
-    return this.activeNames
-      .map((name) => this.allTools.get(name))
-      .filter((tool): tool is ToolDefinition => tool !== undefined)
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }
-
-  /** 发 session_start（bootstrap / SDK 在会话就绪后调用一次）。 */
-  announceStart(reason: "startup" | "resume" | "new" | "fork"): void {
-    this.emit(sessionStartEvent(this.manager, reason));
-  }
-
   get state(): SessionState {
     return buildSessionState({
       agent: this.agent,
       manager: this.manager,
-      model: this.currentModel,
-      thinkingLevel: this.currentThinking,
+      model: this.settings.model,
+      thinkingLevel: this.settings.thinking,
       permissionMode: this.options.permission?.mode ?? "default",
       isCompacting: this.compaction.isCompacting,
       isRetrying: this.retrying,
@@ -549,8 +505,8 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
 
   getStats(): SessionStats {
     const contextTokens = this.compaction.estimate().tokens;
-    const contextWindow = this.currentModel.contextWindow;
-    return computeStats({
+    const contextWindow = this.settings.model.contextWindow;
+    const stats = computeStats({
       sessionId: this.manager.id,
       sessionFile: this.manager.file(),
       branch: this.manager.branch(),
@@ -558,12 +514,14 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
       contextWindow,
       cache: this.cache.stats({ tokens: contextTokens, window: contextWindow }),
     });
+    return this.extensions.contributeStats(stats);
   }
 
   async dispose(): Promise<void> {
     if (this.disposed) return;
     await this.abort();
     this.cache.dispose();
+    this.extensions.dispose();
     this.disposed = true;
     this.manager.close();
     this.listeners.clear();
@@ -575,10 +533,10 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
 
   childBase(): Pick<AgentSessionOptions, "model" | "thinkingLevel" | "activeTools" | "system"> {
     return {
-      model: this.currentModel,
-      thinkingLevel: this.currentThinking,
-      activeTools: this.activeNames,
-      system: this.systemInput,
+      model: this.settings.model,
+      thinkingLevel: this.settings.thinking,
+      activeTools: this.settings.activeNamesRef(),
+      system: this.settings.systemInput,
     };
   }
 
