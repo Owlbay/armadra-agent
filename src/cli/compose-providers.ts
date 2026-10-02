@@ -9,12 +9,17 @@
  * - SDK 追加的供应商（`ProviderData[]`）折成 `config.providers` 条目，走同一条合并路径。
  * - 零配置（设计 §10.0）：没有 `defaultModel`、也没有任何需要 key 的供应商配了 key 时，探测本地
  *   ollama / lmstudio（短超时），把枚举到的模型加进注册表，供 `pickDefaultModel` 选用。
+ * - [W6-O] ChatGPT 登录（docs/wave6-plan.md D14）：`chatgpt` 的缺省渠道按 auth.json 条目的 flavor 定（用户写了
+ *   `defaultChannel` 时不动）；`AMA_CHATGPT_BASE_URL` 改该渠道地址；`auth.chatgpt.originator` 改 codex 渠道的
+ *   `originator` 头；OAuth 刷新拿到 `auth.chatgpt` 配置与同一份 env。
  */
 
 import type { ApiRegistry } from "../ai/apis/api.js";
 import { loadModelsDevIndex } from "../ai/providers/models-dev-cache.js";
 import { ProviderRegistry, discoverLocalModels } from "../ai/providers/registry.js";
 import type { ProviderData } from "../ai/types.js";
+import { readOAuthEntry } from "../auth/oauth/token-store.js";
+import { CHATGPT_BASE_URLS, CHATGPT_PROVIDER_ID } from "../auth/chatgpt/presets.js";
 import type { AmaConfig, ModelConfig, ProviderConfig } from "../config/types.js";
 import type { ProviderBuildInput } from "./deps.js";
 
@@ -66,11 +71,44 @@ export function withExtraProviders(
   return { ...config, providers: merged };
 }
 
+/** [W6-O] 按 auth.json 的 ChatGPT 条目与 `AMA_CHATGPT_BASE_URL` / `auth.chatgpt.originator` 补 chatgpt 的渠道配置。 */
+export function withChatGptChannels(
+  config: AmaConfig,
+  authFile: string,
+  env: Readonly<Record<string, string | undefined>>,
+): AmaConfig {
+  const entry = readOAuthEntry(authFile, CHATGPT_PROVIDER_ID);
+  const baseUrl = env["AMA_CHATGPT_BASE_URL"]?.trim();
+  const originator = config.auth?.chatgpt?.originator?.trim();
+  if (entry === undefined && !baseUrl && !originator) return config;
+  const current: ProviderConfig = { ...(config.providers?.[CHATGPT_PROVIDER_ID] ?? {}) };
+  if (current.defaultChannel === undefined && entry !== undefined)
+    current.defaultChannel = entry.flavor;
+  const channels = { ...(current.channels ?? {}) };
+  const channel = (name: "siwc" | "codex"): NonNullable<ProviderConfig["channels"]>[string] =>
+    (channels[name] ??= { api: "openai-responses", baseUrl: CHATGPT_BASE_URLS[name] });
+  if (baseUrl) {
+    const name = current.defaultChannel === "codex" ? "codex" : "siwc";
+    channels[name] = { ...channel(name), baseUrl };
+  }
+  if (originator) {
+    const codex = channel("codex");
+    channels.codex = { ...codex, headers: { ...codex.headers, originator } };
+  }
+  if (Object.keys(channels).length > 0) current.channels = channels;
+  return { ...config, providers: { ...(config.providers ?? {}), [CHATGPT_PROVIDER_ID]: current } };
+}
+
 export async function buildProviderRegistry(
   input: ProviderBuildInput,
   options: ProviderComposeOptions = {},
 ): Promise<ProviderRegistry> {
-  const config = withExtraProviders(input.config, options.providers);
+  const env = options.env ?? process.env;
+  const config = withChatGptChannels(
+    withExtraProviders(input.config, options.providers),
+    input.authFile,
+    input.authEnv ? env : {},
+  );
   const dataDir = input.dataDir;
   const make = (cliApiKey?: { provider: string; apiKey: string }): ProviderRegistry =>
     new ProviderRegistry({
@@ -83,6 +121,7 @@ export async function buildProviderRegistry(
         userAuthFile: null,
         useEnv: input.authEnv,
         env: options.env,
+        oauth: { env: input.authEnv ? env : {}, config: config.auth?.chatgpt },
       },
       onWarning: options.warn,
       ...(dataDir !== undefined ? { modelsDev: () => loadModelsDevIndex(dataDir) } : {}),
@@ -97,7 +136,6 @@ export async function buildProviderRegistry(
     }
     if (provider !== undefined) registry = make({ provider, apiKey: cli.apiKey });
   }
-  const env = options.env ?? process.env;
   const probe = options.probeLocal ?? env[NO_LOCAL_PROBE_ENV] !== "1";
   if (probe && config.defaultModel === undefined && !anyKeyConfigured(registry)) {
     await probeLocalProviders(registry, options.probeTimeoutMs ?? LOCAL_PROBE_TIMEOUT_MS);

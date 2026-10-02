@@ -105,11 +105,12 @@ describe("detectCompat 真值表", () => {
     expect(detectCompat(model(p, modelId), p)).toEqual({ ...CONSERVATIVE_COMPAT, ...diff });
   });
 
-  it("内置都有归宿：单渠道回落走 Chat 的都在推断表，anthropic / google 不走本协议", () => {
+  it("内置都有归宿：单渠道回落走 Chat 的都在推断表，anthropic / google / chatgpt 不走本协议", () => {
     const covered = new Set(TRUTH.map(([id]) => id));
     for (const p of BUILTIN_PROVIDERS) {
       if (p.api === "openai-completions") expect(covered.has(p.id), p.id).toBe(true);
-      else expect(["anthropic", "google"]).toContain(p.id);
+      // [W6-O] chatgpt 只走 openai-responses（订阅后端）
+      else expect(["anthropic", "google", "chatgpt"]).toContain(p.id);
     }
   });
 

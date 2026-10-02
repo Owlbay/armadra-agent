@@ -46,6 +46,13 @@
 - **子 Agent 视图**（W6-A）：主屏上的全屏覆盖层（行数 − 1），实时跟随子会话的消息与工具调用；外部 Agent 显示内存里的实时输出（≤ 2000 条 / 1 MB，不落盘）。
   输入框直接发给子 Agent：运行中排到本轮结束、外部 Agent 等本次运行结束、已结束则后台续聊；子会话里记为 `origin: "direct"`。Esc 返回（不中断），
   子 Agent 的审批在视图上弹出并标来源。`/tasks` 改为聚焦 Agent 栏，`/tasks <id>` 直接打开视图（`ui.agentBar: "off"` 时仍是原来的选择器）。
+- **ChatGPT 登录**（W6-O）：`ama auth login chatgpt` 用自己的 ChatGPT Plus / Pro 订阅驱动 ama。缺省走 OpenAI 官方 Sign in with ChatGPT
+  （动态注册、JWKS 验签 id_token）；`--flavor codex` 是显式开启的备用路径（借用 Codex CLI 公开客户端，首次确认「非官方、仅个人使用」）。
+  `--paste` 粘贴回调 URL（SSH / 宿主），`--device` 设备码（只 codex）；`ama auth status` / `logout chatgpt`；`ama auth list` 显示
+  `oauth · <flavor> · <计划>`。新内置供应商 `chatgpt`（渠道 `siwc` / `codex`，缺省按登录 flavor），模型用 `ama models discover chatgpt` 查看。
+  凭据存 auth.json 的 OAuth 条目（0600），自动刷新，多进程经 `auth.json.lock` 串行刷新，失效报 `auth_expired`；token 不进日志、会话、事件与错误。
+  订阅请求 `cost = 0` 并标 `billing: "subscription"`；`/session` 单列「订阅用量」与配额；新事件 `quota_update`；配额耗尽报 `quota_exceeded`、不重试。
+  详见 [docs/providers.md](docs/providers.md)「ChatGPT 登录」。
 
 ## 0.5.1（2026-10-03）
 

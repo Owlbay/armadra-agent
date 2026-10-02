@@ -66,6 +66,16 @@ Wave 6 (docs/wave6-plan.md) contracts and infrastructure (W6-C0):
   resumed in the background when finished; recorded as `origin: "direct"` in the child session. Esc returns without
   interrupting; the subagent's approvals pop up in the view with their origin. `/tasks` now focuses the agent bar and
   `/tasks <id>` opens the view directly (the old picker remains when `ui.agentBar` is `"off"`).
+- **ChatGPT login** (W6-O): `ama auth login chatgpt` drives ama with your own ChatGPT Plus / Pro subscription. The default is
+  OpenAI's official Sign in with ChatGPT (dynamic registration, JWKS-verified id_token); `--flavor codex` is an explicit
+  opt-in fallback that borrows the Codex CLI public client (first use asks you to confirm it is unofficial and for personal use
+  only). `--paste` pastes the callback URL (SSH / hosts), `--device` uses a device code (codex only); `ama auth status` /
+  `logout chatgpt`; `ama auth list` shows `oauth · <flavor> · <plan>`. New built-in provider `chatgpt` (channels `siwc` /
+  `codex`, defaulting to the login flavor); list models with `ama models discover chatgpt`. Credentials are stored as an OAuth
+  entry in auth.json (0600) and refreshed automatically, serialized across processes with `auth.json.lock`; failures report
+  `auth_expired`; tokens never reach logs, sessions, events or errors. Subscription requests record `cost = 0` with
+  `billing: "subscription"`; `/session` lists subscription usage and quota; new event `quota_update`; an exhausted quota
+  reports `quota_exceeded` without retrying. See [docs/providers.md](docs/providers.md) "ChatGPT login".
 
 ## Earlier releases
 

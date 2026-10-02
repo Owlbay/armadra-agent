@@ -53,6 +53,7 @@ import type {
   SessionState,
   SessionStats,
 } from "./types.js";
+import type { QuotaUpdateEvent } from "./types-w6.js";
 
 export type { AgentSessionOptions } from "./session-core.js";
 
@@ -79,6 +80,8 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
   private turns = 0;
   private readonly subagentPool: SubagentPool;
   private disposed = false;
+  /** [W6-O] 最近一次订阅配额（`quota_update`）。 */
+  private lastQuota: QuotaUpdateEvent | undefined;
   private classifier: PermissionClassifier | undefined;
   /** 已入队、尚未投递的消息（投递时发 queue_update）。 */
   private readonly queuedMessages = new WeakSet<object>();
@@ -131,6 +134,15 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
         const idle = options.idleTimeoutMs;
         return {
           sessionId: this.manager.id,
+          // [W6-O] ChatGPT 订阅配额 → quota_update 事件（/session 显示最近一次）
+          onQuota: (update) => {
+            this.lastQuota = {
+              type: "quota_update",
+              provider: this.settings.model.provider,
+              ...update,
+            };
+            this.emit(this.lastQuota);
+          },
           ...(apiKey === undefined ? {} : { apiKey }),
           ...(idle === undefined ? {} : { idleTimeoutMs: idle }),
         };
@@ -513,6 +525,7 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
       contextTokens,
       contextWindow,
       cache: this.cache.stats({ tokens: contextTokens, window: contextWindow }),
+      quota: this.lastQuota,
     });
     return this.extensions.contributeStats(stats);
   }

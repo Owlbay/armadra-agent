@@ -103,23 +103,24 @@ interface ToolResult {
 
 `events.on` 的处理器只观察：抛错只记日志，不影响运行；处理器依次调用并等待，`session_shutdown` 被 await（退出前可以做清理）。
 
-| 事件                                                              | 载荷                                                                           | 来源                                        |
-| ----------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------- |
-| `session_start`                                                   | `sessionId`、`sessionFile?`、`cwd`、`reason: startup \| resume \| new \| fork` | 启动与换会话                                |
-| `before_agent_start`                                              | `prompt`                                                                       | 用户提示展开后、运行开始前                  |
-| `agent_start` / `turn_start` / `turn_end` / `agent_before_settle` | `{}`                                                                           | 运行与回合                                  |
-| `agent_end`                                                       | `stopReason`、`willRetry`                                                      |                                             |
-| `agent_settled`                                                   | `warning?`                                                                     | 运行彻底结束                                |
-| `tool_call`                                                       | `toolCallId`、`toolName`、`input`                                              | 工具开始执行（已通过权限）                  |
-| `tool_result`                                                     | `toolCallId`、`toolName`、`isError`                                            | 工具执行结束                                |
-| `tool_approval_requested`                                         | `requestId`、`toolName`                                                        | 需要审批                                    |
-| `tool_approval_resolved`                                          | `requestId`、`decision`                                                        | 审批结论                                    |
-| `session_compact`                                                 | `tokensBefore`                                                                 | 压缩成功                                    |
-| `model_select`                                                    | `model: { provider, id }`                                                      | 切换模型                                    |
-| `hook_executed`                                                   | `event`、`command`、`exitCode`、`durationMs`                                   | 每条命令式 Hook 结束                        |
-| `cache_miss`                                                      | `missedTokens`、`missedCost?`、`reason`、`detail?`、`idleMs`                   | 一次缓存未命中（含低于界面门槛的）          |
-| `context_pressure`                                                | `percent`、`threshold: 70 \| 90`、`remainingTokens?`、`estimatedTurnsLeft?`    | 上下文占用跨过 70% / 90%                    |
-| `session_shutdown`                                                | `{}`                                                                           | 退出前（之后跑 SessionEnd Hook、`dispose`） |
+| 事件                                                              | 载荷                                                                                              | 来源                                                                                         |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `session_start`                                                   | `sessionId`、`sessionFile?`、`cwd`、`reason: startup \| resume \| new \| fork`                    | 启动与换会话                                                                                 |
+| `before_agent_start`                                              | `prompt`                                                                                          | 用户提示展开后、运行开始前                                                                   |
+| `agent_start` / `turn_start` / `turn_end` / `agent_before_settle` | `{}`                                                                                              | 运行与回合                                                                                   |
+| `agent_end`                                                       | `stopReason`、`willRetry`                                                                         |                                                                                              |
+| `agent_settled`                                                   | `warning?`                                                                                        | 运行彻底结束                                                                                 |
+| `tool_call`                                                       | `toolCallId`、`toolName`、`input`                                                                 | 工具开始执行（已通过权限）                                                                   |
+| `tool_result`                                                     | `toolCallId`、`toolName`、`isError`                                                               | 工具执行结束                                                                                 |
+| `tool_approval_requested`                                         | `requestId`、`toolName`                                                                           | 需要审批                                                                                     |
+| `tool_approval_resolved`                                          | `requestId`、`decision`                                                                           | 审批结论                                                                                     |
+| `session_compact`                                                 | `tokensBefore`                                                                                    | 压缩成功                                                                                     |
+| `model_select`                                                    | `model: { provider, id }`                                                                         | 切换模型                                                                                     |
+| `hook_executed`                                                   | `event`、`command`、`exitCode`、`durationMs`                                                      | 每条命令式 Hook 结束                                                                         |
+| `cache_miss`                                                      | `missedTokens`、`missedCost?`、`reason`、`detail?`、`idleMs`                                      | 一次缓存未命中（含低于界面门槛的）                                                           |
+| `context_pressure`                                                | `percent`、`threshold: 70 \| 90`、`remainingTokens?`、`estimatedTurnsLeft?`                       | 上下文占用跨过 70% / 90%                                                                     |
+| `quota_update`                                                    | `provider`、`planType?`、`primary?`、`secondary?`（`{ usedPercent, resetsAt?, windowMinutes? }`） | ChatGPT 订阅配额更新（[W6-O]；配额耗尽另有错误码 `quota_exceeded`，登录失效 `auth_expired`） |
+| `session_shutdown`                                                | `{}`                                                                                              | 退出前（之后跑 SessionEnd Hook、`dispose`）                                                  |
 
 需要逐 token 的流式内容或完整事件流时用 RPC 或 SDK 的 `subscribe`，宿主事件是精简过的。
 

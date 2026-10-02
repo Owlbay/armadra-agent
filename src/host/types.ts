@@ -20,6 +20,7 @@ import type { CacheMiss, WarmingDecisionHandler } from "../ai/cache/types.js";
 import type { HookEvent } from "../hooks/types.js";
 import type { ApprovalBroker, ApprovalDecision } from "../permissions/types.js";
 import type { SubagentRunner, ToolDefinition } from "../tools/types.js";
+import type { QuotaUpdateEvent } from "../agent/types-w6.js";
 import type {
   PlanProposedEvent,
   PlanResolvedEvent,
@@ -109,6 +110,8 @@ export interface AgentEvents {
   /** [W5-C0] 计划提出 / 审批结果。 */
   plan_proposed: Omit<PlanProposedEvent, "type">;
   plan_resolved: Omit<PlanResolvedEvent, "type">;
+  /** [W6-O] ChatGPT 订阅配额更新（docs/wave6-plan.md §4.5）。 */
+  quota_update: Omit<QuotaUpdateEvent, "type">;
 }
 
 /** [W5-C0] 宿主注入的 runner：`id` 即 `task(agent=<id>)` 的名字，`description` 进 task 工具描述。 */

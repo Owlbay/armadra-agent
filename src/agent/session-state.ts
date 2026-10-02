@@ -13,6 +13,7 @@ import type { SessionManager } from "../session/manager.js";
 import type { SessionEntry } from "../session/types.js";
 import type { Agent } from "./agent.js";
 import type { SessionCacheStats, SessionState, SessionStats } from "./types.js";
+import type { QuotaUpdateEvent, SubscriptionStats } from "./types-w6.js";
 
 export interface StateInput {
   agent: Agent;
@@ -56,6 +57,8 @@ export interface StatsInput {
   contextWindow: number | undefined;
   /** [W3-C1b] 会话层缓存控制器的统计（未接线时缺省）。 */
   cache?: SessionCacheStats;
+  /** [W6-O] 最近一次 `quota_update`。 */
+  quota?: QuotaUpdateEvent | undefined;
 }
 
 function addUsage(totals: SessionStats["tokens"], usage: Usage): void {
@@ -69,8 +72,25 @@ function addUsage(totals: SessionStats["tokens"], usage: Usage): void {
       : usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
 }
 
+/** [W6-O] 订阅计费（`billing: "subscription"`）的请求单列，不折算美元。 */
+function addSubscription(
+  stats: { subscription?: SubscriptionStats },
+  provider: string,
+  usage: Usage,
+): void {
+  if (usage.billing !== "subscription") return;
+  const sub = (stats.subscription ??= { requests: 0, byProvider: {} });
+  sub.requests++;
+  const row = (sub.byProvider[provider] ??= { requests: 0, input: 0, output: 0, cacheRead: 0 });
+  row.requests++;
+  row.input += usage.input;
+  row.output += usage.output;
+  row.cacheRead += usage.cacheRead;
+}
+
 export function computeStats(input: StatsInput): SessionStats {
   const tokens = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
+  const sub: { subscription?: SubscriptionStats } = {};
   let userMessages = 0;
   let assistantMessages = 0;
   let toolCalls = 0;
@@ -90,10 +110,12 @@ export function computeStats(input: StatsInput): SessionStats {
         toolCalls += message.content.filter((block) => block.type === "toolCall").length;
         addUsage(tokens, message.usage);
         addCost(message.usage);
+        addSubscription(sub, message.provider, message.usage);
       }
     } else if (entry.type === "usage") {
       addUsage(tokens, entry.usage);
       addCost(entry.usage);
+      addSubscription(sub, entry.provider, entry.usage);
     } else if ((entry.type === "compaction" || entry.type === "branch_summary") && entry.usage) {
       addUsage(tokens, entry.usage);
       addCost(entry.usage);
@@ -121,6 +143,10 @@ export function computeStats(input: StatsInput): SessionStats {
   const rate = cacheHitRate(tokens);
   if (rate !== undefined) stats.cacheHitRate = rate;
   if (input.cache !== undefined) stats.cache = input.cache;
+  if (sub.subscription !== undefined) {
+    stats.subscription = sub.subscription;
+    if (input.quota !== undefined) stats.subscription.quota = input.quota;
+  }
   return stats;
 }
 
