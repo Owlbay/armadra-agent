@@ -36,16 +36,18 @@ export function composeHarness(
   const fake = new FakeProvider(script);
   const out: string[] = [];
   const err: string[] = [];
-  const env = { ...home.env, AMA_NO_LOCAL_PROBE: "1" };
+  // ioOverrides.env 只能在临时 HOME 的环境上追加：整体替换会丢掉 AMA_DATA_DIR / HOME，
+  // 路径解析回落到真实的 ~/.local/share/ama（曾因此把测试会话写进用户数据目录）。
+  const env = { ...home.env, AMA_NO_LOCAL_PROBE: "1", ...ioOverrides.env };
   const io: CliIo = {
     stdout: (text) => void out.push(text),
     stderr: (text) => void err.push(text),
     stdinIsTTY: false,
     stdoutIsTTY: false,
-    env,
     cwd: home.cwd,
     readStdin: async () => "",
     ...ioOverrides,
+    env,
   };
   let last: RuntimeDeps | undefined;
   const make = (options: ComposeOptions = {}): RuntimeDeps => {
