@@ -131,6 +131,7 @@ interface CacheEntry {
 
 export class ProgramProbe {
   private readonly memo = new Map<string, Promise<LocatedProgram | undefined>>();
+  private readonly captured = new Map<string, Promise<string | undefined>>();
 
   constructor(private readonly deps: ProbeDeps) {}
 
@@ -144,6 +145,19 @@ export class ProgramProbe {
     if (hit === undefined) {
       hit = this.locateNow(program, versionArgs);
       this.memo.set(key, hit);
+    }
+    return hit;
+  }
+
+  /** 跑一次 `<path> <args>` 取输出（如 `--help`，不联网、不计费）；每进程每组参数一次。 */
+  capture(path: string, args: readonly string[]): Promise<string | undefined> {
+    const key = `capture\0${path}\0${args.join(" ")}`;
+    let hit = this.captured.get(key);
+    if (hit === undefined) {
+      const platform = this.deps.platform ?? process.platform;
+      const run = this.deps.runVersion ?? defaultRunVersion(this.deps.env, platform);
+      hit = run(path, args).catch(() => undefined);
+      this.captured.set(key, hit);
     }
     return hit;
   }

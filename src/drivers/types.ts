@@ -42,6 +42,13 @@ export interface DriverOpenOptions {
   /** 已按 D16 清理的子进程环境（drivers/env.ts）。 */
   env: NodeJS.ProcessEnv;
   signal: AbortSignal;
+  /**
+   * [W5-E] 美元预算：能透传的驱动透传（Claude `--max-budget-usd`）；其余由 ProcessRunner 按用量
+   * 累计、超限 cancel。
+   */
+  budgetUsd?: number;
+  /** [W5-E] 无人值守（没有人能回答审批）：Claude 以 `--permission-prompts none` 启动。 */
+  unattended?: boolean;
 }
 
 export interface AgentDriver {
