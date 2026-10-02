@@ -26,6 +26,9 @@
   持久化 `permission.mode full-auto` 在终端里先确认，非终端需 `--yes`。
 - **`ui.replyLanguage`**：设置后会话开始在系统提示 `rules` 节末尾追加 `Reply to the user in <语言>.`；不设时请求零字节变化。
 - bundle 改用 UTF-8 输出（中文不再转成 `\uXXXX`），体积约减 40 KB。
+- **CLI 英文界面**（W6-I1）：`ama --help`、启动画面与启动报错、退出码说明、`ama providers` / `models` / `stats` /
+  `sessions export` · `search` / `init` 的输出与报错随界面语言（`AMA_LANG=en` / `--lang en`）；中文输出逐字不变。
+  `ama models cache-probe --json` 的 `advice` 是人读文本，也随界面语言。
 
 ## 0.5.1（2026-10-03）
 

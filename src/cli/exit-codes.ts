@@ -2,6 +2,8 @@
  * 进程退出码（设计 §11.3）。[B0] 契约文件。
  */
 
+import { msg } from "../i18n/index.js";
+
 export const ExitCode = {
   /** 正常。 */
   Ok: 0,
@@ -40,22 +42,10 @@ export const ExitCode = {
 export type ExitCodeName = keyof typeof ExitCode;
 export type ExitCode = (typeof ExitCode)[ExitCodeName];
 
-export const EXIT_CODE_DESCRIPTIONS: Readonly<Record<ExitCode, string>> = {
-  0: "正常",
-  1: "运行期错误（模型最终失败等）",
-  2: "参数用法错误",
-  3: "配置 / profile / 路径错误",
-  4: "无可用模型或密钥",
-  5: "会话不存在 / 损坏 / cwd 不匹配",
-  6: "宿主 / Hook 加载或启动失败",
-  7: "-p 运行中有工具调用被拒（没有人审批）",
-  8: "-p 到达预算上限（--max-turns / --max-cost / limits）",
-  9: "-p 产出的计划已落盘、待审批（未执行）",
-  78: "HOST_API_VERSION 不匹配",
-  130: "SIGINT 退出（两次 Ctrl+C）",
-  143: "SIGTERM",
-};
-
+/** [W6-I1] 退出码说明按界面语言取（`msg().cli.exitCodes`，键是 `ExitCode` 名字的 camelCase）。 */
 export function describeExitCode(code: number): string {
-  return (EXIT_CODE_DESCRIPTIONS as Readonly<Record<number, string>>)[code] ?? "未知退出码";
+  const texts = msg().cli.exitCodes;
+  const name = (Object.keys(ExitCode) as ExitCodeName[]).find((key) => ExitCode[key] === code);
+  if (name === undefined) return texts.unknown;
+  return texts[`${name[0]!.toLowerCase()}${name.slice(1)}` as Uncapitalize<ExitCodeName>];
 }

@@ -11,6 +11,7 @@ import { writeConfigFile } from "../../config/write.js";
 import { ExitCode } from "../exit-codes.js";
 import { buildRegistry } from "./context.js";
 import { userConfig, type Ctx } from "./providers.js";
+import { msg } from "../../i18n/index.js";
 
 async function keySource(
   registry: ProviderRegistryApi,
@@ -18,20 +19,17 @@ async function keySource(
   id: string,
   channel?: string,
 ): Promise<string> {
+  const m = msg().subcommands.providersList;
   const raw = channel !== undefined ? config?.channels?.[channel]?.apiKey : config?.apiKey;
   if (raw !== undefined) {
     const kind = classifyKeyValue(raw);
-    return kind === "env-ref"
-      ? raw
-      : kind === "command"
-        ? "!命令（config.json）"
-        : "字面量（config.json）";
+    return kind === "env-ref" ? raw : kind === "command" ? m.keyCommand : m.keyLiteral;
   }
   const resolved = await registry.resolveApiKey(id, channel);
-  if (resolved.apiKey === undefined) return channel !== undefined ? "同供应商" : "无";
-  if (channel !== undefined && resolved.source !== "auth-file") return "同供应商";
+  if (resolved.apiKey === undefined) return channel !== undefined ? m.keySameProvider : m.keyNone;
+  if (channel !== undefined && resolved.source !== "auth-file") return m.keySameProvider;
   return resolved.source === "env"
-    ? `环境变量 ${resolved.origin ?? ""}`
+    ? m.keyEnv(resolved.origin ?? "")
     : resolved.source === "auth-file"
       ? "auth.json"
       : resolved.source;
@@ -53,20 +51,25 @@ export async function listProviders(ctx: Ctx): Promise<number> {
     )
       continue;
     shown++;
-    const kind = provider.builtin ? "内置" : "自定义";
     const channels = provider.channels ?? [];
+    const t = msg().subcommands.providersList;
     ctx.io.stdout(
-      `${provider.id}  ${kind} · ${channels.length > 0 ? `${channels.length} 渠道` : `${provider.api} ${provider.baseUrl}`} · ` +
-        `${provider.models.length} 模型 · key ${await keySource(registry, own, provider.id)}\n`,
+      t.providerLine({
+        id: provider.id,
+        builtin: provider.builtin,
+        channels: channels.length,
+        endpoint: `${provider.api} ${provider.baseUrl}`,
+        models: provider.models.length,
+        key: await keySource(registry, own, provider.id),
+      }),
     );
     for (const c of channels) {
       const count = provider.models.filter((m) => m.channels?.includes(c.name)).length;
-      ctx.io.stdout(
-        `  @${c.name}  ${c.api}  ${c.baseUrl}  ${count} 模型 · key ${await keySource(registry, own, provider.id, c.name)}\n`,
-      );
+      const key = await keySource(registry, own, provider.id, c.name);
+      ctx.io.stdout(t.channelLine(c.name, c.api, c.baseUrl, count, key));
     }
   }
-  if (shown === 0) ctx.io.stdout(`没有配置供应商（ama providers add <id> --base-url <url>）\n`);
+  if (shown === 0) ctx.io.stdout(msg().subcommands.providersList.noProviders);
   return ExitCode.Ok;
 }
 
@@ -74,22 +77,33 @@ export async function listChannels(ctx: Ctx, id: string): Promise<number> {
   const registry = await buildRegistry(ctx.level, ctx.io, ctx.deps);
   const provider = registry.get(id);
   if (provider === undefined) {
-    ctx.io.stderr(`ama: 供应商不存在：${id}\n`);
+    ctx.io.stderr(msg().subcommands.common.providerNotFound(id));
     return ExitCode.NoModel;
   }
   const own = userConfig(ctx.level).providers?.[id];
   if (provider.channels === undefined) {
     ctx.io.stdout(
-      `${id}：单渠道（${provider.api} ${provider.baseUrl}），${provider.models.length} 模型\n`,
+      msg().subcommands.providersList.singleChannel(
+        id,
+        provider.api,
+        provider.baseUrl,
+        provider.models.length,
+      ),
     );
     return ExitCode.Ok;
   }
   for (const c of provider.channels) {
     const models = provider.models.filter((m) => m.channels?.includes(c.name));
-    const mark = c.name === provider.defaultChannel ? "（缺省）" : "";
     ctx.io.stdout(
-      `@${c.name}${mark}  ${apiShortName(c.api)}  ${c.api}  ${c.baseUrl}  key ${await keySource(registry, own, id, c.name)}\n` +
-        `  ${models.length} 模型${models.length > 0 ? `：${models.map((m) => m.id).join(", ")}` : ""}\n`,
+      msg().subcommands.providersList.channelDetail({
+        name: c.name,
+        isDefault: c.name === provider.defaultChannel,
+        short: apiShortName(c.api),
+        api: c.api,
+        url: c.baseUrl,
+        key: await keySource(registry, own, id, c.name),
+        models: models.map((m) => m.id),
+      }),
     );
   }
   return ExitCode.Ok;
@@ -101,16 +115,17 @@ export function removeProvider(ctx: Ctx, id: string): number {
   if (had) {
     delete config.providers?.[id];
     writeConfigFile(ctx.level.userConfigPath, config, { backup: true });
-    ctx.io.stdout(`已从 ${ctx.level.userConfigPath} 删除 ${id}（原文件备份为 config.json.bak）\n`);
+    ctx.io.stdout(msg().subcommands.providersList.removed(ctx.level.userConfigPath, id));
   }
   const auth = readAuthFile(ctx.level.authFile).file;
   let keys = 0;
   for (const name of Object.keys(auth.providers))
     if (name === id || name.startsWith(`${id}@`))
       keys += removeAuthKey(ctx.level.authFile, name) ? 1 : 0;
-  if (keys > 0) ctx.io.stdout(`已删除 ${ctx.level.authFile} 里 ${id} 的 ${keys} 个 key\n`);
+  if (keys > 0)
+    ctx.io.stdout(msg().subcommands.providersList.keysRemoved(ctx.level.authFile, id, keys));
   if (!had && keys === 0) {
-    ctx.io.stderr(`ama: 没有供应商 ${id}\n`);
+    ctx.io.stderr(msg().subcommands.providersList.noSuchProvider(id));
     return ExitCode.RuntimeError;
   }
   return ExitCode.Ok;

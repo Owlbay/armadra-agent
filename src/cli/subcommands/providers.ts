@@ -47,21 +47,14 @@ import {
   type ListedModel,
   type ModelPlan,
 } from "./providers-plan.js";
+import { msg } from "../../i18n/index.js";
 
 export const DEFAULT_MAX_REQUESTS = 60;
 export const DEFAULT_LIMIT = 30;
 
-export const PROVIDERS_USAGE = `用法：ama providers add <id> --base-url <url> [--channel <名字>=<协议>@<地址> …]
-                         [--api openai-completions|openai-responses|anthropic-messages|auto]
-                         [--key-env <VAR>] [--probe] [--limit N] [--probe-models a,b,…]
-                         [--max-requests N] [--concurrency N] [--probe-timeout ms]
-                         [--prefer chat,responses,messages] [--include-no-tools] [--yes]
-      ama providers list
-      ama providers channels <id>
-      ama providers remove <id>
-      ama providers refresh <id> [--probe] [--limit N] [--probe-models a,b,…] [--max-requests N]
-                             [--concurrency N] [--probe-timeout ms] [--yes]
-`;
+export function providersUsage(): string {
+  return msg().subcommands.providers.usage;
+}
 
 const VALUE_OPTIONS = [
   "base-url",
@@ -92,7 +85,8 @@ function intValue(ctx: Ctx, name: string, fallback: number): number {
   const raw = ctx.values.get(name);
   if (raw === undefined) return fallback;
   const n = Number(raw);
-  if (!Number.isInteger(n) || n < 1) throw new UsageError(`--${name} 需要正整数：${raw}`);
+  if (!Number.isInteger(n) || n < 1)
+    throw new UsageError(msg().subcommands.providers.positiveInt(name, raw));
   return n;
 }
 
@@ -118,7 +112,7 @@ async function confirm(io: CliIo, question: string): Promise<boolean> {
 async function approved(ctx: Ctx, what: string): Promise<boolean | "usage"> {
   if (ctx.flags.has("yes")) return true;
   if (!ctx.io.stdinIsTTY) {
-    ctx.io.stderr(`ama: ${what}，非交互环境需加 --yes\n`);
+    ctx.io.stderr(msg().subcommands.providers.needsYes(what));
     return "usage";
   }
   return confirm(ctx.io, `${what}\n`);
@@ -200,13 +194,16 @@ async function plan(
     const capped = capRequests(selected, tryChannels, max);
     const tuning = parseProbeTuning(ctx.values);
     io.stdout(
-      `\n探测：${capped.ids.length} 个模型、${capped.requests} 次最小请求（每模型每渠道 1 次，上限 ${max}）` +
-        `${capped.dropped > 0 ? `；另有 ${capped.dropped} 个超出上限未探测` : ""}\n` +
-        `${describeProbePlan(capped.requests, tuning.concurrency, tuning.timeoutMs)}\n`,
+      msg().subcommands.providers.probePlan(
+        capped.ids.length,
+        capped.requests,
+        max,
+        capped.dropped,
+      ) + `${describeProbePlan(capped.requests, tuning.concurrency, tuning.timeoutMs)}\n`,
     );
     const ok = await approved(
       ctx,
-      `将发 ${capped.requests} 次计费请求并写入 ${ctx.level.userConfigPath}`,
+      msg().subcommands.providers.confirmProbe(capped.requests, ctx.level.userConfigPath),
     );
     if (ok === "usage") return { plans: [], cancelled: ExitCode.Usage };
     if (!ok) return { plans: [], cancelled: ExitCode.Ok };
@@ -267,30 +264,30 @@ async function obtainKey(
   const keyEnv = ctx.values.get("key-env");
   if (keyEnv !== undefined) {
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(keyEnv))
-      throw new UsageError(`--key-env 不是合法的变量名：${keyEnv}`);
+      throw new UsageError(msg().subcommands.providers.invalidKeyEnv(keyEnv));
     const value = ctx.io.env[keyEnv]?.trim();
-    if (!value) ctx.io.stderr(`ama: 警告：环境变量 ${keyEnv} 未设置，列模型与探测将不带 key\n`);
+    if (!value) ctx.io.stderr(msg().subcommands.providers.keyEnvUnset(keyEnv));
     return { apiKey: value || undefined, configValue: `$${keyEnv}` };
   }
   if (registry.get(id) !== undefined) {
     const existing = await registry.resolveApiKey(id);
     if (existing.apiKey !== undefined) return { apiKey: existing.apiKey };
   }
-  if (ctx.io.stdinIsTTY) ctx.io.stderr(`输入 ${id} 的 API key（不回显），回车结束：`);
+  if (ctx.io.stdinIsTTY) ctx.io.stderr(msg().subcommands.providers.keyPrompt(id));
   const key = extractKey(await ctx.io.readStdin());
   if (ctx.io.stdinIsTTY) ctx.io.stderr("\n");
-  if (key === "") throw new UsageError("没有从 stdin 读到 key（或用 --key-env <VAR>）");
+  if (key === "") throw new UsageError(msg().subcommands.providers.noKeyOnStdin);
   return { apiKey: key, store: key };
 }
 
 async function add(ctx: Ctx, id: string, refresh: boolean): Promise<number> {
   const { io, level } = ctx;
-  if (!PROVIDER_ID_PATTERN.test(id) || id.includes("@"))
-    throw new UsageError(`供应商 id 不合法：${id}`);
+  const m = msg().subcommands.providers;
+  if (!PROVIDER_ID_PATTERN.test(id) || id.includes("@")) throw new UsageError(m.invalidId(id));
   const config = userConfig(level);
   const existing = config.providers?.[id];
   if (refresh && existing === undefined) {
-    io.stderr(`ama: ${level.userConfigPath} 里没有供应商 ${id}（先 ama providers add）\n`);
+    io.stderr(m.missingInConfig(level.userConfigPath, id));
     return ExitCode.Usage;
   }
   const registry = await buildRegistry(level, io, ctx.deps);
@@ -299,29 +296,25 @@ async function add(ctx: Ctx, id: string, refresh: boolean): Promise<number> {
   else if (ctx.channelSpecs.length > 0) candidates = ctx.channelSpecs.map(parseChannelSpec);
   else {
     const baseUrl = ctx.values.get("base-url");
-    if (baseUrl === undefined)
-      throw new UsageError("ama providers add 需要 --base-url <url> 或 --channel");
-    if (!/^https?:\/\//.test(baseUrl))
-      throw new UsageError(`--base-url 应为 http(s) URL：${baseUrl}`);
+    if (baseUrl === undefined) throw new UsageError(m.needsBaseUrl);
+    if (!/^https?:\/\//.test(baseUrl)) throw new UsageError(m.baseUrlNotHttp(baseUrl));
     candidates = defaultChannels(baseUrl, ctx.values.get("api"));
   }
   const target = listingTarget(candidates);
-  if (target === undefined) throw new UsageError(`${id} 没有可用的渠道`);
+  if (target === undefined) throw new UsageError(m.noChannel(id));
   const key = await obtainKey(ctx, id, registry);
   let listed: ListedModel[];
   try {
     listed = await fetchModelList(target, key.apiKey);
   } catch (error) {
-    io.stderr(`ama: ${id} 模型列表获取失败：${(error as Error).message}\n`);
+    io.stderr(m.listFailed(id, (error as Error).message));
     return ExitCode.RuntimeError;
   }
-  io.stdout(`${id}：发现 ${listed.length} 个模型（${target.url}）\n`);
+  io.stdout(m.discovered(id, listed.length, target.url));
   // models.dev 只读本地（快照 ⊕ `ama models refresh` 的覆盖），不联网。
   const mdIndex = loadModelsDevIndex(level.dataDir);
   io.stdout(`${describeModelsDev(level.dataDir)}\n`);
-  io.stdout(
-    `候选渠道：${candidates.map((c) => `${c.name}（${c.api} ${c.baseUrl}）`).join(" · ")}\n`,
-  );
+  io.stdout(m.candidates(candidates));
   const existingIds = new Set((existing?.models ?? []).map((m) => m.id));
   const result = await plan(ctx, {
     id,
@@ -337,7 +330,7 @@ async function add(ctx: Ctx, id: string, refresh: boolean): Promise<number> {
   io.stdout(`\n${renderTable(result.plans)}`);
   if (refresh) {
     const gone = [...existingIds].filter((m) => !listed.some((l) => l.id === m));
-    if (gone.length > 0) io.stdout(`上游已不再列出（未删除）：${gone.join(", ")}\n`);
+    if (gone.length > 0) io.stdout(m.goneUpstream(gone));
   }
   const writable = result.plans.filter((p) => p.status === "ok" || p.status === "unprobed");
   const legacy = existing !== undefined && existing.channels === undefined;
@@ -356,7 +349,6 @@ async function add(ctx: Ctx, id: string, refresh: boolean): Promise<number> {
           models: writable,
           prefer: list(ctx.values.get("prefer")) ?? [...DEFAULT_PREFER],
         });
-  const keyNote = key.store !== undefined ? `；key → ${level.authFile}（0600）` : "";
   // 还没有缺省模型时按价格规则挑一个写进 defaultModel（default-model.ts 的 pickByPrice）；
   // 探测过时只在探测通过的模型里挑
   const verified = writable.filter((p) => p.status === "ok");
@@ -371,29 +363,32 @@ async function add(ctx: Ctx, id: string, refresh: boolean): Promise<number> {
           })),
         )
       : undefined;
-  const defaultNote = defaultPick !== undefined ? `；defaultModel → ${id}/${defaultPick.id}` : "";
-  const summary =
-    `\n将写入 ${level.userConfigPath}：${id} 新增渠道 ${merged.addedChannels.join(", ") || "无"}，` +
-    `新增模型 ${merged.addedModels.length} 个${keyNote}${defaultNote}`;
-  io.stdout(`${summary}\n`);
-  if (defaultPick !== undefined) io.stdout(`  选 ${defaultPick.id}：${defaultPick.reason}\n`);
+  io.stdout(
+    m.writeSummary({
+      path: level.userConfigPath,
+      id,
+      channels: merged.addedChannels,
+      models: merged.addedModels.length,
+      authFile: key.store !== undefined ? level.authFile : undefined,
+      defaultModel: defaultPick !== undefined ? `${id}/${defaultPick.id}` : undefined,
+    }),
+  );
+  if (defaultPick !== undefined) io.stdout(m.defaultPick(defaultPick.id, defaultPick.reason));
   else if (level.merged.config.defaultModel === undefined && writable.length > 0)
-    io.stdout(
-      "  未设置 defaultModel：没有同时支持工具调用、上下文 ≥ 64k 且有价格的模型；用 ama config edit 设置\n",
-    );
+    io.stdout(m.noDefaultPick);
   if (
     merged.addedModels.length === 0 &&
     merged.addedChannels.length === 0 &&
     key.store === undefined
   ) {
-    io.stdout("没有要写入的内容\n");
+    io.stdout(m.nothingToWrite);
     return result.stopped !== undefined ? ExitCode.RuntimeError : ExitCode.Ok;
   }
   if (!ctx.flags.has("probe")) {
-    const ok = await approved(ctx, "确认写入");
+    const ok = await approved(ctx, m.confirmWrite);
     if (ok === "usage") return ExitCode.Usage;
     if (!ok) {
-      io.stderr("ama: 已取消\n");
+      io.stderr(msg().subcommands.common.cancelled);
       return ExitCode.Ok;
     }
   }
@@ -403,14 +398,14 @@ async function add(ctx: Ctx, id: string, refresh: boolean): Promise<number> {
   const backup = existsSync(level.userConfigPath);
   writeConfigFile(level.userConfigPath, config, { backup: true });
   if (key.store !== undefined) setAuthKey(level.authFile, id, key.store);
-  io.stdout(`已写入 ${level.userConfigPath}${backup ? "（原文件备份为 config.json.bak）" : ""}\n`);
+  io.stdout(m.written(level.userConfigPath, backup));
   const sample =
     defaultPick?.id ??
     result.plans.find((p) => p.status === "ok" && merged.addedModels.includes(p.id))?.id ??
     merged.addedModels[0];
-  if (sample !== undefined) io.stdout(`试试：ama -p "hi" --model ${id}/${sample}\n`);
+  if (sample !== undefined) io.stdout(m.tryIt(`${id}/${sample}`));
   if (result.stopped !== undefined) {
-    io.stderr(`ama: 探测提前停止（${result.stopped}）\n`);
+    io.stderr(m.probeStopped(result.stopped));
     return ExitCode.RuntimeError;
   }
   return ExitCode.Ok;
@@ -448,7 +443,8 @@ function takeChannels(argv: readonly string[]): { rest: string[]; specs: string[
     const token = argv[i] ?? "";
     if (token === "--channel") {
       const value = argv[++i];
-      if (value === undefined || value === "") throw new UsageError("--channel 需要一个值");
+      if (value === undefined || value === "")
+        throw new UsageError(msg().subcommands.providers.channelNeedsValue);
       specs.push(value);
     } else if (token.startsWith("--channel=")) specs.push(token.slice("--channel=".length));
     else rest.push(token);
@@ -465,24 +461,25 @@ export async function runProviders(
   const { positionals, values, flags } = parseSubArgs(rest, VALUE_OPTIONS, FLAG_OPTIONS);
   const action = positionals[0];
   if (flags.has("help") || action === undefined) {
-    io.stdout(PROVIDERS_USAGE);
+    io.stdout(providersUsage());
     return flags.has("help") ? ExitCode.Ok : ExitCode.Usage;
   }
   if (deps === undefined) {
-    io.stderr("ama: providers 尚未装配（供应商注册表由集成批次注入）\n");
+    io.stderr(msg().subcommands.common.notAssembled("providers"));
     return ExitCode.RuntimeError;
   }
   const level = loadUserLevel(io, {
     profile: values.get("profile"),
     authFile: values.get("auth-file"),
   });
-  for (const warning of level.warnings) io.stderr(`ama: 警告：${warning}\n`);
+  for (const warning of level.warnings) io.stderr(msg().subcommands.common.warning(warning));
   const ctx: Ctx = { io, deps, level, values, flags, channelSpecs: specs };
   const target = positionals[1];
   const need = (): string => {
-    if (target === undefined) throw new UsageError(`ama providers ${action} 需要 <id>`);
+    if (target === undefined)
+      throw new UsageError(msg().subcommands.common.needsArg(`ama providers ${action}`, "<id>"));
     if (positionals.length > 2)
-      throw new UsageError(`多余的参数：${positionals.slice(2).join(" ")}`);
+      throw new UsageError(msg().subcommands.common.extraArgs(positionals.slice(2).join(" ")));
     return target;
   };
   switch (action) {
@@ -497,6 +494,6 @@ export async function runProviders(
     case "remove":
       return removeProvider(ctx, need());
     default:
-      throw new UsageError(`未知的 providers 子命令：${action}`);
+      throw new UsageError(msg().subcommands.common.unknownSubcommand("providers", action));
   }
 }

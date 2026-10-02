@@ -11,6 +11,7 @@
  */
 
 import * as http from "node:http";
+import { msg } from "../i18n/index.js";
 
 export interface ProxyEnv {
   httpsProxy?: string;
@@ -94,7 +95,11 @@ export function inspectProxy(
   if (runtime.setGlobalProxyFromEnv === undefined) return { env: proxy, state: "unsupported" };
   for (const value of [proxy.httpsProxy, proxy.httpProxy]) {
     if (value !== undefined && !URL.canParse(value))
-      return { env: proxy, state: "invalid", error: `无法解析 ${redactProxyUrl(value)}` };
+      return {
+        env: proxy,
+        state: "invalid",
+        error: msg().cli.proxy.unparsable(redactProxyUrl(value)),
+      };
   }
   return { env: proxy, state: "enabled" };
 }
@@ -145,14 +150,11 @@ export function proxyHint(
   if (hinted) return undefined;
   if (status.state === "unsupported") {
     hinted = true;
-    return (
-      `ama: 检测到 HTTPS_PROXY / HTTP_PROXY，但 Node ${nodeVersion} 的 fetch 不读代理变量，请求将直连；` +
-      "升级到 Node 24+，或在 Node 22.21+ 上设 NODE_USE_ENV_PROXY=1\n"
-    );
+    return msg().cli.proxy.unsupportedHint(nodeVersion);
   }
   if (status.state === "invalid") {
     hinted = true;
-    return `ama: 代理变量无法解析，请求将直连：${status.error ?? ""}\n`;
+    return msg().cli.proxy.invalidHint(status.error ?? "");
   }
   return undefined;
 }
@@ -164,12 +166,13 @@ export function describeProxy(status: ProxyStatus): string[] {
   if (env.httpsProxy !== undefined) lines.push(`HTTPS_PROXY=${redactProxyUrl(env.httpsProxy)}`);
   if (env.httpProxy !== undefined) lines.push(`HTTP_PROXY=${redactProxyUrl(env.httpProxy)}`);
   if (env.noProxy !== undefined) lines.push(`NO_PROXY=${env.noProxy}`);
+  const m = msg().cli.proxy.state;
   const state: Record<ProxyState, string> = {
-    none: "未设置代理变量：直连",
-    runtime: "已启用（Node 按 NODE_USE_ENV_PROXY / --use-env-proxy 接管）",
-    enabled: "已启用（ama 启动时调用 Node 内置的 setGlobalProxyFromEnv）",
-    unsupported: `✗ 当前 Node ${process.versions.node} 不支持内置代理，请求直连；升级到 Node 24+`,
-    invalid: `✗ 代理变量无法解析：${status.error ?? ""}`,
+    none: m.none,
+    runtime: m.runtime,
+    enabled: m.enabled,
+    unsupported: m.unsupported(process.versions.node),
+    invalid: m.invalid(status.error ?? ""),
   };
   lines.push(state[status.state]);
   return lines;
