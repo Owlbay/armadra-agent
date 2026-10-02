@@ -13,7 +13,7 @@
  * （缺省只在超出一屏时带）；过滤框提示符 `›`。字形取 `theme.glyphs`。
  */
 
-import type { Component, Focusable, Theme } from "../component.js";
+import type { Component, Focusable, SemanticColor, Theme } from "../component.js";
 import { padToWidth, truncateToWidth, visibleWidth } from "../ansi.js";
 import { UNICODE_GLYPHS, type Glyphs } from "../glyphs.js";
 import { defaultKeybindings, type Keybindings } from "../keybindings.js";
@@ -27,6 +27,8 @@ export interface SelectItem {
   group?: string;
   /** 靠右的徽标文字。 */
   badge?: string;
+  /** 徽标颜色，缺省 accent。 */
+  badgeColor?: SemanticColor;
 }
 
 export interface SelectListOptions {
@@ -211,7 +213,7 @@ export class SelectList implements Component, Focusable {
     const dim = (s: string): string => (theme ? theme.fg("dim", s) : s);
     const rightParts: string[] = [];
     if (item.badge !== undefined && item.badge !== "") {
-      rightParts.push(theme ? theme.fg("accent", item.badge) : item.badge);
+      rightParts.push(theme ? theme.fg(item.badgeColor ?? "accent", item.badge) : item.badge);
     }
     if (this.options.numberKeys === true && index < 9) rightParts.push(dim(String(index + 1)));
     let right = rightParts.join("  ");

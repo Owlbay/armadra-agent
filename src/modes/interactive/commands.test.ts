@@ -94,13 +94,18 @@ describe("交互命令", () => {
     expect(currentSession(rt).state.thinkingLevel).toBe("high");
   });
 
-  it("/permission 选择器：标题 Mode、当前打勾、配置缺省标 Default；选中后提示显示名；参数可写显示名", async () => {
+  it("/permission 选择器：标题权限模式、当前打勾、配置缺省标 Default；选中后提示显示名；参数可写显示名", async () => {
     const rt = await boot();
     const { ui, picks, notices } = recordingUi(rt, [byValue("auto")]);
     await runInteractiveCommand("/permission", ui);
-    expect(picks[0]).toMatchObject({ title: "Mode", selected: "default", numberKeys: true });
+    expect(picks[0]).toMatchObject({
+      title: "权限模式",
+      selected: "default",
+      currentValue: "default",
+      numberKeys: true,
+    });
     expect(picks[0]?.items.find((i) => i.value === "default")).toMatchObject({
-      label: "✔ Manual",
+      label: "Manual",
       badge: "Default",
     });
     expect(picks[0]?.items.find((i) => i.value === "auto")?.badge).toBe("Recommended");

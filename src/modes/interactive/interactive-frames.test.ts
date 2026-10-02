@@ -3,7 +3,7 @@
  * 更新：`AMA_UPDATE_GOLDEN=1 pnpm vitest run src/modes/interactive src/tui`，逐个审阅 diff。
  */
 
-import { afterEach, describe, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { composeHarness } from "../../../test/helpers/compose-harness.js";
 import type { SessionEvent } from "../../agent/types.js";
 import type { FakeResponse } from "../../ai/fake/fake-script.js";
@@ -193,6 +193,33 @@ describe("运行中动词", () => {
     await s.until((e) => e.type === "agent_settled");
     frames.push(snapshot(s.terminal, "settled"));
     golden("loader-verbs-80x24", frames.join("\n"));
+    s.handle.exit(0);
+    await s.done;
+  });
+});
+
+describe("面板", () => {
+  it("/session 卡片 80x24", async () => {
+    harnessWithTildeCwd([
+      { text: "好的。", usage: { input: 3_400, output: 940, cacheRead: 11_800, cacheWrite: 620 } },
+    ]);
+    const s = await start([], { keepHarness: true, quietStartup: "silent" });
+    const settled = s.until((e) => e.type === "agent_settled");
+    s.type("你好");
+    s.terminal.sendInput("\r");
+    await settled;
+    s.type("/session");
+    s.terminal.sendInput("\r");
+    await new Promise((r) => setTimeout(r, 10));
+    s.frame();
+    const state = s.handle.session().state;
+    let shot = snapshot(s.terminal, "/session");
+    shot = shot.replaceAll(state.sessionId.slice(0, 8), "<id>");
+    const file = state.sessionFile ?? "";
+    const shown = file.replace(started.h!.home.root, "~");
+    shot = shot.replace(/~\S*\.jsonl|~\S*…/, "<file>");
+    expect(shown.endsWith(".jsonl")).toBe(true);
+    golden("panel-session-80x24", shot);
     s.handle.exit(0);
     await s.done;
   });

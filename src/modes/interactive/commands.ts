@@ -6,6 +6,7 @@
  *   之前分叉，消息文本回填编辑器）、权限模式、思考级别；
  * - 交互模式自有命令：`/tree`（同一文件内换叶子到选中消息之前，文本回填编辑器，可改后重发形成新分支）、
  *   `/permissions`（当前模式、判定顺序与已加载规则）；`/help` 追加这两条与按键说明。
+ * - `/session`、`/cache`（无参数）与 `/permissions` 在消息区画左竖条面板（panels.ts），不再拍成文本。
  * - 不是命令（含模板与 `/skill:`）返回 false，调用方把整行当提示发出。
  */
 
@@ -19,7 +20,7 @@ import type { Runtime } from "../../cli/runtime.js";
 import { AUTO_LAYER_TEXT, permissionModeLabel } from "../../permissions/modes.js";
 import type { PermissionMode } from "../../permissions/types.js";
 import type { SessionEntry } from "../../session/types.js";
-import type { SelectItem } from "../../tui.js";
+import type { Component, SelectItem, Theme } from "../../tui.js";
 import {
   BUILTIN_COMMANDS,
   parseSlash,
@@ -28,6 +29,7 @@ import {
   type CommandResult,
 } from "../commands-core.js";
 import { contentText, type NoticeLevel } from "./message-view.js";
+import { cachePanel, permissionsPanel, sessionPanel } from "./panels.js";
 import {
   modelItems,
   permissionPickerSpec,
@@ -46,9 +48,10 @@ export const INTERACTIVE_COMMANDS: readonly CommandInfo[] = [
 export const ALL_COMMANDS: readonly CommandInfo[] = [...BUILTIN_COMMANDS, ...INTERACTIVE_COMMANDS];
 
 export const KEY_HINTS = [
-  "Enter 发送（运行中 = steer）  Alt+Enter 排到本轮之后  Shift+Enter / Ctrl+J 换行",
+  "Enter 发送（运行中 = 插话）  Alt+Enter 排到本轮之后  Shift+Enter / Ctrl+J 换行",
   "Esc 中断（排队消息回填编辑器）  Alt+↑ 取回最后一条排队消息",
-  "Shift+Tab 切换权限模式  Ctrl+L 模型  Ctrl+T 思考级别  Ctrl+O 展开工具输出",
+  "Shift+Tab 切换权限模式  Ctrl+L 模型  Ctrl+T 思考级别  Ctrl+O 展开工具输出与思考",
+  "审批：1–3 或 ↑↓ Enter 选择，y 允许  a 本会话允许同类  n / Esc 拒绝  v 完整输入",
   "Ctrl+C 清空输入（再按退出）  Ctrl+D 空输入时退出  Tab 补全  @ 引用文件",
 ].join("\n");
 
@@ -59,6 +62,8 @@ export interface CommandUi {
   switchSession(request: SwitchRequest): Promise<AgentSession>;
   pick(spec: PickerSpec): Promise<SelectItem | undefined>;
   notice(level: NoticeLevel, text: string): void;
+  /** 消息区面板（/session、/cache、/permissions）；缺省回落为文本通知。 */
+  panel?(component: Component): void;
   setEditorText(text: string): void;
   /** 发一条提示（不等运行结束）。 */
   prompt(text: string): void;
@@ -66,6 +71,14 @@ export interface CommandUi {
   reload(): void;
   exit(code: number): void;
   now(): number;
+  /** 面板用的主题（与 panel 一起提供）。 */
+  theme?(): Theme;
+  /** 家目录（面板里路径缩写为 ~）。 */
+  home?: string;
+}
+
+function homeOf(ui: CommandUi): { home?: string } {
+  return ui.home !== undefined ? { home: ui.home } : {};
 }
 
 function userEntryText(entry: SessionEntry | undefined): string | undefined {
@@ -151,11 +164,13 @@ async function handlePick(
   switch (what) {
     case "model": {
       const current = session.state.model;
+      const ref = current === undefined ? undefined : `${current.provider}/${current.id}`;
       const picked = await ui.pick({
         title: "选择模型",
         items: await modelItems(ui.runtime.providers),
         filterable: true,
-        ...(current !== undefined ? { selected: `${current.provider}/${current.id}` } : {}),
+        showCount: true,
+        ...(ref !== undefined ? { selected: ref, currentValue: ref } : {}),
       });
       if (picked === undefined) return;
       await session.setModel(picked.value);
@@ -230,8 +245,25 @@ export async function runInteractiveCommand(line: string, ui: CommandUi): Promis
       await treeCommand(ui);
       return true;
     }
+    const theme = ui.theme?.();
     if (parsed.name === "permissions") {
-      ui.notice("info", permissionsText(ui.runtime, ui.session()));
+      if (ui.panel !== undefined && theme !== undefined) {
+        ui.panel(permissionsPanel(ui.runtime, ui.session(), theme));
+      } else ui.notice("info", permissionsText(ui.runtime, ui.session()));
+      return true;
+    }
+    if (
+      (parsed.name === "session" || parsed.name === "cache") &&
+      parsed.args.trim() === "" &&
+      ui.panel !== undefined &&
+      theme !== undefined
+    ) {
+      const session = ui.session();
+      ui.panel(
+        parsed.name === "session"
+          ? sessionPanel(session, theme, { now: ui.now(), ...homeOf(ui) })
+          : cachePanel(session, theme, ui.now()),
+      );
       return true;
     }
     const result = await runSlashCommand(line, {

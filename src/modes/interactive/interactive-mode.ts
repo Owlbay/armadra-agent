@@ -313,7 +313,8 @@ export function runInteractiveMode(
   let unsubscribe = session.subscribe(onEvent);
 
   const startupLevel = startupScreenLevel(runtime);
-  const info = startupInfo(runtime, env["HOME"] ?? env["USERPROFILE"]);
+  const home = env["HOME"] ?? env["USERPROFILE"];
+  const info = startupInfo(runtime, home);
   const header = (level: "normal" | "header"): StartupHeader =>
     new StartupHeader(info, { theme, level, ...(ui.compact === true ? { compact: true } : {}) });
   /** 清空消息区（切换会话、/tree）：只留一行头。 */
@@ -404,6 +405,12 @@ export function runInteractiveMode(
         spec,
       ),
     notice,
+    panel: (component) => {
+      view.add(component);
+      render();
+    },
+    theme: () => theme,
+    ...(home !== undefined ? { home } : {}),
     setEditorText: (text) => {
       editor.setText(text);
       render();
