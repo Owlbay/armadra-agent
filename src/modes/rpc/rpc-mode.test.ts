@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
 import { composeHarness, type ComposeHarness } from "../../../test/helpers/compose-harness.js";
@@ -166,6 +167,32 @@ describe("RPC 模式", () => {
     expect(lines.find((l) => l["type"] === "permission_resolved")).toMatchObject({
       decision: "deny",
     });
+  });
+
+  it("permission_request 带执行前预览 preview（只读统计，拒绝后目录仍在）", async () => {
+    const { lines } = await drive(
+      [
+        { steps: [{ toolCall: { name: "bash", arguments: { command: "rm -rf build" } } }] },
+        { text: "k" },
+      ],
+      async (d) => {
+        mkdirSync(join(h.home.cwd, "build", "sub"), { recursive: true });
+        writeFileSync(join(h.home.cwd, "build", "a.o"), "abc");
+        writeFileSync(join(h.home.cwd, "build", "sub", "b.o"), "de");
+        d.send({ type: "set_client_capabilities", capabilities: ["approvals"] });
+        d.send({ type: "prompt", message: "go" });
+        const request = await d.waitFor(isRequest, "permission_request");
+        d.send({ type: "permission_response", requestId: request["requestId"], decision: "deny" });
+        await d.waitFor(settled);
+      },
+    );
+    expect(lines.find(isRequest)?.["preview"]).toEqual({
+      kind: "bash",
+      lines: ["删除 build/：目录，2 个文件，5 B"],
+      severity: "warn",
+      affected: [{ path: "build/", exists: true, files: 2, bytes: 5 }],
+    });
+    expect(existsSync(join(h.home.cwd, "build", "a.o"))).toBe(true);
   });
 
   it("解析失败、未知命令、busy 都回错误响应；abort 中断运行后关 stdin 退出 0", async () => {
