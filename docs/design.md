@@ -800,7 +800,7 @@ tool_call（模型产出）
 | 摘要请求不写缓存 | 档二摘要 `cacheRetention: "none"` | 请求体快照 |
 | 压缩少而一次到位 | 档一只在 70% 阈值触发；档二一次压到 keepRecentTokens | 压缩次数断言 |
 | 可观测 | 状态栏与 `get_session_stats` 显示缓存命中率 = cacheRead /（input + cacheRead + cacheWrite） | 统计单测 |
-| 前缀预算 | 按真实请求体估算「系统提示 + 工具定义」（字符 / 4，临时路径换成典型长度）：`default` ≤ 2 000、`minimal` ≤ 800、`codemode-only` ≤ 1 770 token（Node ≥ 25 的 strict 沙箱，`default` 含 codemode）；超出时打印每节与每个工具描述 / schema 的字符数。加长描述或规则前先权衡，确需放宽改上限并在 PR 写明 | `src/cli/prompt-budget.test.ts` |
+| 前缀预算 | 按真实请求体估算「系统提示 + 工具定义」（字符 / 4，临时路径换成典型长度）：`default` ≤ 2 000、`minimal` ≤ 800、`codemode-only` ≤ 1 775 token（Node ≥ 25 的 strict 沙箱，`default` 含 codemode）；超出时打印每节与每个工具描述 / schema 的字符数。加长描述或规则前先权衡，确需放宽改上限并在 PR 写明 | `src/cli/prompt-budget.test.ts` |
 | 指纹 | 每次真实请求记前缀指纹（system、工具表各取 sha256 前 16 位 hex + `provider/model`），只在内存；未命中时据此说出「变了什么」，`/cache fingerprint` 可查 | `src/ai/cache/fingerprint.test.ts` |
 | 未命中 | `missed = min(上次前缀, 本次前缀) − cacheRead`，噪声下限 `max(1024, minTokens, 端点推断的缓存读粒度)`（粒度 = 非零 cacheRead 的最大公约数，≥ 2 样本且在 128–8192 才采信），规模自适应比例或 ≥ 20k 才计；原因按 `prefix_changed → model_changed → idle → subtask → evicted` 归因；压缩 / 分支摘要 / 档一裁剪后的首个请求是重置点；界面只提示 ≥ 20k token 或 ≥ $0.10 的那次 | `src/ai/cache/miss.test.ts` |
 | 三态 | 按 `(provider, baseUrl 主机, model)` 维护 `unknown / reported / silent`（连续 3 个可比请求读写都为 0 判 silent，`compat.cacheReporting` 可强制）；只有 `reported` 计命中率、检测未命中与保温，其余显示 `—` / `未报告` 而不是 0% | `src/ai/cache/reporting.test.ts` |
