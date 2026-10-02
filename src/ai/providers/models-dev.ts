@@ -55,8 +55,9 @@ export interface ModelsDevProvider {
 export type ModelsDevData = Record<string, ModelsDevProvider>;
 
 /**
- * 原厂供应商（models.dev 的供应商 id，顺序即优先级）。通义在 `alibaba`、Llama 在 `llama`、
- * 智谱国际站在 `zai`；models.dev 没有 `qwen` / `meta` 这样的供应商 id。
+ * 原厂供应商（models.dev 的供应商 id，顺序即优先级）。通义在 `alibaba`、Meta 在 `meta`（Llama API
+ * 在 `llama`）、智谱国际站在 `zai`、豆包在 `volcengine`、混元在 `tencent-tokenhub`；models.dev 没有
+ * `qwen` 这样的供应商 id。
  */
 export const FIRST_PARTY_PROVIDERS: readonly string[] = [
   "anthropic",
@@ -73,10 +74,14 @@ export const FIRST_PARTY_PROVIDERS: readonly string[] = [
   "mistral",
   "minimax",
   "minimax-cn",
+  "meta",
   "llama",
   "cohere",
   "xiaomi",
   "stepfun",
+  "stepfun-ai",
+  "volcengine",
+  "tencent-tokenhub",
   "perplexity",
   "ai21",
   "upstage",
