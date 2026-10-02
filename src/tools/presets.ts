@@ -13,8 +13,10 @@
  * - `tools.default`：`+name` / `-name` 在预设上增减；不带前缀的名字整组替换预设的内置工具，
  *   之后再应用带前缀的项。未注册的名字记 warning 并忽略。
  * - codemode 开关跟随预设：`codemode` 预设 → `only`，其余 → `off`；`codemode.mode` 显式配置覆盖。
- * - codemode 工具由 B10 经组装根的 `toolFactories` 注册；尚未注册时 codemode 预设**回退到
- *   default 并 warning**（不报错：零配置用户不应因一个尚未落地的预设起不来），`on` 同样忽略。
+ * - codemode 工具由 B10 经组装根的 `toolFactories` 注册（`codemode.mode` 为 off 时不注册）；不可用
+ *   （例如 `codemode.requireStrict` 而运行时 Node 不隔离网络）时 codemode 预设**回退到 default 并
+ *   warning**（不报错：零配置用户不应因此起不来），`on` 同样忽略。
+ * - `only` 模式活动集独占：宿主 / SDK 工具也不直接暴露，只能在脚本里调用（`exclusive`）。
  */
 
 import type { AmaConfig, CodemodeMode, ToolsPreset } from "../config/types.js";
@@ -78,8 +80,8 @@ export function resolvePreset(input: {
   if (codemode !== "off" && !input.available(CODEMODE_TOOL)) {
     warnings.push(
       preset === "codemode"
-        ? "工具预设 codemode 需要 codemode 工具（尚未提供），已回退到 default"
-        : `codemode.mode ${codemode} 需要 codemode 工具（尚未提供），已忽略`,
+        ? "工具预设 codemode 需要 codemode 工具（不可用），已回退到 default"
+        : `codemode.mode ${codemode} 需要 codemode 工具（不可用），已忽略`,
     );
     if (preset === "codemode") preset = "default";
     codemode = "off";
@@ -106,12 +108,20 @@ type RegisterListener = (tool: ToolDefinition, source: ToolSource) => void;
  */
 export class PresetToolRegistry extends ToolRegistry {
   private presetNames: ReadonlySet<string> | undefined;
+  private exclusive = false;
   private explicit = false;
   private readonly listeners = new Set<RegisterListener>();
 
-  /** 设预设的内置工具；undefined = 全部内置工具。 */
-  setPresetTools(names: readonly string[] | undefined): void {
+  /**
+   * 设预设的内置工具；undefined = 全部内置工具。`exclusive`（codemode only）：活动集只有这些名字，
+   * 宿主 / SDK 工具也不进活动集。
+   */
+  setPresetTools(
+    names: readonly string[] | undefined,
+    options: { exclusive?: boolean } = {},
+  ): void {
     this.presetNames = names === undefined ? undefined : new Set(names);
+    this.exclusive = names !== undefined && options.exclusive === true;
   }
 
   /** 是否被 `setActive` 整组替换过。 */
@@ -128,7 +138,7 @@ export class PresetToolRegistry extends ToolRegistry {
     const preset = this.presetNames;
     if (this.explicit || preset === undefined) return super.active();
     return this.list()
-      .filter((name) => this.sourceOf(name) !== "builtin" || preset.has(name))
+      .filter((name) => preset.has(name) || (!this.exclusive && this.sourceOf(name) !== "builtin"))
       .map((name) => this.get(name))
       .filter((tool): tool is ToolDefinition => tool !== undefined);
   }

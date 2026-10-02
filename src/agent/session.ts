@@ -208,6 +208,10 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
     return this.activeNames.includes(name) ? this.allTools.get(name) : undefined;
   }
 
+  tool(name: string): ToolDefinition | undefined {
+    return this.allTools.get(name);
+  }
+
   activeToolNames(): string[] {
     return [...this.activeNames];
   }
