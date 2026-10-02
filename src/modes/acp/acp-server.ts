@@ -44,6 +44,7 @@ import {
   toolLocations,
   toolTitle,
 } from "./acp-events.js";
+import { msg } from "../../i18n/index.js";
 
 export const ACP_AGENT_CAPABILITIES = {
   loadSession: true,
@@ -66,13 +67,14 @@ function canonical(path: string): string {
 function str(params: Params, key: string): string {
   const value = params[key];
   if (typeof value !== "string" || value === "")
-    throw new RpcError(RPC_ERRORS.invalidParams, `缺少 ${key}`);
+    throw new RpcError(RPC_ERRORS.invalidParams, msg().print.acp.missingParam(key));
   return value;
 }
 
 /** ACP 提示 → ama 的文本与图片。 */
 export function promptOf(blocks: unknown): { text: string; images: ImageBlock[] } {
-  if (!Array.isArray(blocks)) throw new RpcError(RPC_ERRORS.invalidParams, "prompt 应为内容块数组");
+  if (!Array.isArray(blocks))
+    throw new RpcError(RPC_ERRORS.invalidParams, msg().print.acp.promptNotArray);
   const parts: string[] = [];
   const images: ImageBlock[] = [];
   for (const block of blocks as AcpContentBlock[]) {
@@ -110,7 +112,7 @@ export class AcpServer {
       onNotification: (method, params) => {
         if (method === ACP_METHODS.sessionCancel) void this.cancel((params ?? {}) as Params);
       },
-      onProtocolError: (_line, reason) => this.log(`ACP：无法解析的输入（${reason}）`),
+      onProtocolError: (_line, reason) => this.log(msg().print.acp.unparsable(reason)),
     });
     this.subscribe();
   }
@@ -172,7 +174,7 @@ export class AcpServer {
 
   private initialize(params: Params): AcpInitializeResult {
     if (typeof params["protocolVersion"] !== "number")
-      throw new RpcError(RPC_ERRORS.invalidParams, "缺少 protocolVersion");
+      throw new RpcError(RPC_ERRORS.invalidParams, msg().print.acp.missingProtocolVersion);
     return {
       protocolVersion: ACP_PROTOCOL_VERSION,
       agentCapabilities: ACP_AGENT_CAPABILITIES,
@@ -185,10 +187,7 @@ export class AcpServer {
     const cwd = params["cwd"];
     if (cwd === undefined) return;
     if (typeof cwd !== "string" || canonical(cwd) !== this.cwd)
-      throw new RpcError(
-        RPC_ERRORS.invalidParams,
-        `ama --mode acp 的会话目录固定为启动目录 ${this.cwd}（收到 ${String(cwd)}）`,
-      );
+      throw new RpcError(RPC_ERRORS.invalidParams, msg().print.acp.fixedCwd(this.cwd, String(cwd)));
   }
 
   private modes() {
@@ -223,7 +222,10 @@ export class AcpServer {
       try {
         await this.switchTo(switchSession(this.runtime, { kind: "resume", id }), "resume");
       } catch (error) {
-        throw new RpcError(RPC_ERRORS.resourceNotFound, `找不到会话 ${id}：${errorText(error)}`);
+        throw new RpcError(
+          RPC_ERRORS.resourceNotFound,
+          msg().print.acp.sessionNotFound(id, errorText(error)),
+        );
       }
     }
     this.freshUnclaimed = false;
@@ -262,7 +264,7 @@ export class AcpServer {
 
   private ensureIdle(): void {
     if (this.session().state.isStreaming)
-      throw new RpcError(RPC_ERRORS.invalidRequest, "当前会话正在运行，先 session/cancel");
+      throw new RpcError(RPC_ERRORS.invalidRequest, msg().print.acp.busy);
   }
 
   private async prompt(params: Params): Promise<AcpPromptResult> {
@@ -291,7 +293,7 @@ export class AcpServer {
     if (this.cancelRequested || reason === "aborted") return { stopReason: "cancelled", usage };
     if (reason === "error") {
       const message = last !== undefined && "errorMessage" in last ? last.errorMessage : undefined;
-      throw new RpcError(RPC_ERRORS.internalError, message ?? "模型请求失败");
+      throw new RpcError(RPC_ERRORS.internalError, message ?? msg().print.acp.modelFailed);
     }
     return { stopReason: reason === "length" ? "max_tokens" : "end_turn", usage };
   }
@@ -308,7 +310,7 @@ export class AcpServer {
     str(params, "sessionId");
     const mode = params["modeId"];
     if (!isPermissionMode(mode))
-      throw new RpcError(RPC_ERRORS.invalidParams, `未知模式：${String(mode)}`);
+      throw new RpcError(RPC_ERRORS.invalidParams, msg().print.acp.unknownMode(String(mode)));
     this.session().setPermissionMode(mode);
     return {};
   }
@@ -337,9 +339,9 @@ export class AcpServer {
             ...(locations !== undefined ? { locations } : {}),
           },
           options: [
-            { optionId: "allow_once", name: "允许", kind: "allow_once" },
-            { optionId: "allow_always", name: "本会话允许", kind: "allow_always" },
-            { optionId: "reject_once", name: "拒绝", kind: "reject_once" },
+            { optionId: "allow_once", name: msg().print.acp.allowOnce, kind: "allow_once" },
+            { optionId: "allow_always", name: msg().print.acp.allowAlways, kind: "allow_always" },
+            { optionId: "reject_once", name: msg().print.acp.rejectOnce, kind: "reject_once" },
           ],
         },
         signal,

@@ -36,6 +36,8 @@ import type {
   RpcModelInfo,
 } from "../../rpc.js";
 import { BUILTIN_COMMANDS } from "../commands-core.js";
+import { msg } from "../../i18n/index.js";
+import { sessionTrace } from "../../trace/query-session.js";
 
 /** 审批 broker：等客户端 `permission_response`。 */
 export class RpcApprovals implements ApprovalBroker {
@@ -100,13 +102,13 @@ export type RpcHandlers = {
 
 function impl(session: AgentSession): AgentSessionImpl {
   if (session instanceof AgentSessionImpl) return session;
-  throw new AmaError("not_implemented", "该会话不支持此命令");
+  throw new AmaError("not_implemented", msg().print.rpc.unsupported);
 }
 
 /** [W5-F] 当前会话的计划控制面；会话没有装配 plan 扩展时报 not_implemented。 */
 function plans(ctx: RpcContext): PlanController {
   const controller = planController(ctx.session());
-  if (controller === undefined) throw new AmaError("not_implemented", "该会话没有装配 plan 扩展");
+  if (controller === undefined) throw new AmaError("not_implemented", msg().print.rpc.noPlan);
   return controller;
 }
 
@@ -342,7 +344,7 @@ export const handlers: RpcHandlers = {
     if (!isPermissionMode(p.mode)) {
       throw new AmaError(
         "invalid_arguments",
-        `mode 应为 ${PERMISSION_MODES_STRICT_FIRST.join(" | ")}`,
+        msg().print.rpc.badMode(PERMISSION_MODES_STRICT_FIRST),
       );
     }
     ctx.session().setPermissionMode(p.mode);
@@ -365,10 +367,8 @@ export const handlers: RpcHandlers = {
   get_todos: async (_p, ctx) => ({ items: currentTodos(impl(ctx.session()).manager.branch()) }),
   get_tasks: async (_p, ctx) => ({ tasks: [...(ctx.tasks?.()?.list() ?? [])] }),
   get_agents: async (_p, ctx) => ({ agents: [...(ctx.agents?.() ?? [])] }),
-  // [W6-C0] W6-T2 换成实现（docs/wave6-plan.md §2.6）
-  get_trace: async () => {
-    throw new AmaError("not_implemented", "get_trace is not available in this build yet");
-  },
+  // [W6-T2] 轨迹（docs/wave6-plan.md §2.6；分页 / 增量 / 脱敏见 trace/query.ts）
+  get_trace: async (p, ctx) => sessionTrace(ctx.session(), p ?? {}),
 };
 
 export const RPC_COMMAND_TYPES = Object.keys(handlers) as RpcCommandType[];

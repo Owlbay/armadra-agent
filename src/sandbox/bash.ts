@@ -16,6 +16,7 @@ import { isAbsolute, join, resolve } from "node:path";
 import type { OsSandboxStatus } from "./detect.js";
 import type { OsSandboxPolicy } from "./profile.js";
 import { wrapCommand, type WrappedCommand } from "./wrap.js";
+import { msg } from "../i18n/index.js";
 
 export type BashSandboxMode = "auto" | "off";
 export type SandboxNetwork = "deny" | "allow";
@@ -49,12 +50,16 @@ export const NO_BASH_SANDBOX: BashSandbox = Object.freeze({
     kind: "none",
     isolatesNetwork: false,
     restrictsWrites: false,
-    detail: "未配置",
+    get detail() {
+      return msg().session.sandbox.notConfigured;
+    },
   }) as OsSandboxStatus,
   network: DEFAULT_SANDBOX_NETWORK,
   writable: [],
   hidden: [],
-  detail: "未配置",
+  get detail() {
+    return msg().session.sandbox.notConfigured;
+  },
 }) as BashSandbox;
 
 /** 用户主目录下的凭据路径（与 permissions/protected.ts 的机密路径同一批）。 */
@@ -104,16 +109,13 @@ export function resolveBashSandbox(
   const usable = status.kind === "sandbox-exec" || status.kind === "bwrap";
   const active = mode === "auto" && usable && status.restrictsWrites;
   let detail: string;
-  if (mode === "off") detail = "关闭（sandbox.bash: off）";
+  if (mode === "off") detail = msg().session.sandbox.bashOff;
   else if (!active)
     detail =
       status.kind === "unshare"
-        ? "不可用：unshare 只隔离网络、不能限制写入"
-        : `不可用：${status.detail}`;
-  else
-    detail =
-      `${status.kind}，网络 ${network}，可写：工作区、临时目录、输出目录` +
-      (writable.length > 0 ? `、${writable.join("、")}` : "");
+        ? msg().session.sandbox.bashUnshareOnly
+        : msg().session.sandbox.bashUnavailable(status.detail);
+  else detail = msg().session.sandbox.bashActive(status.kind, network, writable);
   return { active, status, network, writable, hidden, detail };
 }
 

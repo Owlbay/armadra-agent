@@ -20,6 +20,7 @@ import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises"
 import { homedir } from "node:os";
 import { join, parse, resolve } from "node:path";
 import { fileHistoryDir } from "./blobs.js";
+import { msg } from "../i18n/index.js";
 
 export const SHADOW_DIR = "shadow";
 /** cwd 下（不含忽略的）文件数上限，超出本会话降级为 tools。 */
@@ -46,8 +47,8 @@ export function shadowRepoDir(dataDir: string, cwd: string): string {
 /** cwd 是家目录或文件系统根时不启用影子 git，返回原因。 */
 export function unsafeShadowCwd(cwd: string, home: string = homedir()): string | undefined {
   const abs = resolve(cwd);
-  if (parse(abs).root === abs) return "工作目录是文件系统根目录";
-  if (home !== "" && sameDir(abs, resolve(home))) return "工作目录是家目录";
+  if (parse(abs).root === abs) return msg().session.checkpoints.cwdIsRoot;
+  if (home !== "" && sameDir(abs, resolve(home))) return msg().session.checkpoints.cwdIsHome;
   return undefined;
 }
 
@@ -58,7 +59,7 @@ function sameDir(a: string, b: string): boolean {
 /** git 不在 PATH（或指定的可执行文件不存在）。 */
 export class GitMissingError extends Error {
   constructor() {
-    super("找不到 git");
+    super(msg().session.checkpoints.gitNotFound);
   }
 }
 
@@ -278,7 +279,7 @@ export class ShadowRepo {
           return {
             degrade: {
               reason: "too_many_files",
-              message: `工作目录有 ${files} 个文件（上限 ${this.maxFiles}）`,
+              message: msg().session.checkpoints.tooManyFiles(files, this.maxFiles),
             },
           };
         }
@@ -293,7 +294,10 @@ export class ShadowRepo {
           commit,
           degrade: {
             reason: "too_slow",
-            message: `快照用了 ${(elapsed / 1000).toFixed(1)} 秒（上限 ${this.maxSnapshotMs / 1000} 秒）`,
+            message: msg().session.checkpoints.tooSlow(
+              (elapsed / 1000).toFixed(1),
+              this.maxSnapshotMs / 1000,
+            ),
           },
         };
       }
@@ -477,7 +481,11 @@ function runGit(
       const detail = errText.trim().split("\n").slice(-2).join("; ");
       reject(
         new Error(
-          `git ${args.find((a) => !a.startsWith("--")) ?? ""} 失败（${signal ?? code}）${detail === "" ? "" : `：${detail}`}`,
+          msg().session.checkpoints.gitFailed(
+            args.find((a) => !a.startsWith("--")) ?? "",
+            String(signal ?? code),
+            detail,
+          ),
         ),
       );
     });

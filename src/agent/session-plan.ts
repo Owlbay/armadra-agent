@@ -64,6 +64,7 @@ import type { AgentMessage } from "../session/types.js";
 import { TODO_CUSTOM_TYPE, type TodoItem } from "../tools/todo.js";
 import type { SessionCore } from "./session-core.js";
 import type { SessionExtension, SessionExtensionFactory } from "./session-extensions.js";
+import { msg } from "../i18n/index.js";
 import type {
   PlanData,
   PlanDecisionKind,
@@ -383,8 +384,7 @@ class PlanExtension implements SessionExtension, PlanController {
 
   private noticeText(plan: PlanData): string {
     const target = permissionModeLabel(executionMode(undefined, this.pre));
-    const where = plan.filePath === undefined ? "" : `（${plan.filePath}）`;
-    return `计划 v${plan.version} 待审批${where}：回复 1 批准并执行（${target}）· 2 以 Accept edits 执行 · 3 以 Auto 执行；回复其它内容作为修改意见，留在 Plan 模式。`;
+    return msg().session.plan.pendingNotice(plan.version, plan.filePath, target);
   }
 
   // -------------------------------------------------------------------------

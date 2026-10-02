@@ -54,35 +54,29 @@ export function formatDuration(ms: number): string {
 }
 
 export function reportingLabel(reporting: CacheReporting): string {
-  return reporting === "reported" ? "reported" : reporting === "silent" ? "未报告" : "未知";
+  const m = msg().report.cache;
+  return reporting === "reported" ? "reported" : reporting === "silent" ? m.unreported : m.unknown;
 }
-
-const REASON_LABELS: Readonly<Record<CacheMissReason, string>> = {
-  prefix_changed: "前缀变化",
-  model_changed: "切换模型",
-  idle: "空闲超时",
-  subtask: "子任务",
-  evicted: "服务端淘汰",
-};
 
 /** 未命中原因的短语（提示行括号里那段）。 */
 export function missReasonText(miss: Pick<CacheMiss, "reason" | "detail" | "idleMs">): string {
   const minutes = Math.max(1, Math.round(miss.idleMs / 60_000));
+  const m = msg().report.cache;
   switch (miss.reason) {
     case "idle":
-      return `空闲 ${minutes} 分钟后`;
+      return m.missIdle(minutes);
     case "subtask":
-      return `子任务运行 ${minutes} 分钟后`;
+      return m.missSubtask(minutes);
     case "model_changed":
-      return "切换模型后";
+      return m.missModel;
     case "prefix_changed":
       return miss.detail === "tools"
-        ? "工具表变化"
+        ? m.missTools
         : miss.detail === "system"
-          ? "系统提示变化"
-          : "前缀变化";
+          ? m.missSystem
+          : m.missPrefix;
     case "evicted":
-      return "服务端已淘汰";
+      return m.missEvicted;
   }
 }
 
@@ -95,20 +89,24 @@ export function shouldNotifyMiss(miss: Pick<CacheMiss, "missedTokens" | "missedC
 
 /** `缓存未命中（空闲 7 分钟后）：重计费 38.2k token（约 $0.11）`。 */
 export function cacheMissNotice(miss: CacheMiss): string {
-  const cost = miss.missedCost === undefined ? "" : `（约 ${formatUsd(miss.missedCost)}）`;
-  return `缓存未命中（${missReasonText(miss)}）：重计费 ${formatTokenCount(miss.missedTokens)} token${cost}`;
+  return msg().report.cache.missNotice(
+    missReasonText(miss),
+    formatTokenCount(miss.missedTokens),
+    miss.missedCost === undefined ? undefined : formatUsd(miss.missedCost),
+  );
 }
 
 /** `上下文已用 72%，约剩 9 回合（按最近 5 回合均值）`；估不出回合时给余量 token。 */
 export function contextPressureNotice(
   event: Extract<SessionEvent, { type: "context_pressure" }>,
 ): string {
-  const head = `上下文已用 ${Math.round(event.percent)}%`;
+  const m = msg().report.cache;
+  const percent = Math.round(event.percent);
   if (event.estimatedTurnsLeft !== undefined)
-    return `${head}，约剩 ${event.estimatedTurnsLeft} 回合（按最近 5 回合均值）`;
+    return m.pressureTurns(percent, event.estimatedTurnsLeft);
   if (event.remainingTokens !== undefined)
-    return `${head}，余量 ${formatTokenCount(event.remainingTokens)} token`;
-  return head;
+    return m.pressureTokens(percent, formatTokenCount(event.remainingTokens));
+  return m.pressure(percent);
 }
 
 /**
@@ -135,10 +133,10 @@ export function warmSentNotice(
   event: Extract<SessionEvent, { type: "cache_warm" }>,
 ): string | undefined {
   if (event.phase !== "sent") return undefined;
-  const read =
-    event.usage === undefined ? "" : `读 ${formatTokenCount(event.usage.cacheRead)} token`;
-  const cost = event.cost === undefined ? "" : `${read !== "" ? "，" : ""}${formatUsd(event.cost)}`;
-  return `缓存保温已刷新${read + cost !== "" ? `（${read}${cost}）` : ""}`;
+  return msg().report.cache.warmSent(
+    event.usage === undefined ? undefined : formatTokenCount(event.usage.cacheRead),
+    event.cost === undefined ? undefined : formatUsd(event.cost),
+  );
 }
 
 /** 消息区 / stderr 是否提示未命中与上下文余量（`cache.missNotices`，缺省 true）。 */
@@ -146,28 +144,10 @@ export function cacheNoticesEnabled(session: AgentSession): boolean {
   return session instanceof AgentSessionImpl ? session.cache.cacheSettings.missNotices : true;
 }
 
-const STOP_REASONS: Readonly<Record<string, string>> = {
-  retention_none: "缓存保留为 none",
-  payload_replaced: "请求体被 onPayload 替换",
-  thinking_budget: "思考预算随 max_tokens，不可重放",
-  reporting_unknown: "端点还没报过缓存",
-  reporting_silent: "端点不报缓存",
-  no_ttl: "模型目录没有缓存 TTL",
-  ttl_too_short: "缓存 TTL 太短",
-  max_duration: "已达保温时长上限",
-  late: "计时器迟到",
-  off: "已关闭",
-  stale: "上下文已变",
-  declined: "宿主否决",
-  error: "保温请求失败",
-  no_cache_hits: "连续保温零命中",
-  no_price: "缺价格，经济性不可算",
-  below_min_savings: "期望节省低于门槛",
-};
-
 export function warmStopText(reason: string | undefined): string {
-  if (reason === undefined) return "已停止";
-  return `已停止：${STOP_REASONS[reason] ?? reason}`;
+  const m = msg().report.cache;
+  if (reason === undefined) return m.stopped;
+  return m.stoppedWith(m.stopReason(reason));
 }
 
 /** `streaming · 下次 2m 10s · 期望节省 $0.18 ≥ $0.05 · 已发 2 次 $0.01`。 */
@@ -177,29 +157,31 @@ export function warmingText(
   minSavingsUsd: number | undefined,
 ): string {
   if (status.mode === "off") return "off";
+  const m = msg().report.cache;
   const parts: string[] = [status.mode];
   if (status.state === "scheduled") {
     if (status.nextWarmAt !== undefined)
-      parts.push(`下次 ${formatDuration(status.nextWarmAt - now)}`);
+      parts.push(m.next(formatDuration(status.nextWarmAt - now)));
     if (status.expectedSavingsUsd !== undefined) {
-      const floor = minSavingsUsd === undefined ? "" : ` ≥ ${formatUsd(minSavingsUsd)}`;
-      parts.push(`期望节省 ${formatUsd(status.expectedSavingsUsd)}${floor}`);
+      const floor = minSavingsUsd === undefined ? undefined : formatUsd(minSavingsUsd);
+      parts.push(m.savings(formatUsd(status.expectedSavingsUsd), floor));
     }
   } else if (status.state === "stopped") parts.push(warmStopText(status.reason));
-  else parts.push("待下一次请求");
+  else parts.push(m.pending);
   if (status.sent !== undefined && status.sent > 0)
-    parts.push(`已发 ${status.sent} 次 ${formatUsd(status.costUsd)}`);
+    parts.push(m.sent(status.sent, formatUsd(status.costUsd)));
   return parts.join(" · ");
 }
 
 function missesText(cache: SessionCacheStats): string {
-  if (cache.misses.count === 0) return "0 次";
+  const m = msg().report.cache;
+  if (cache.misses.count === 0) return m.missesNone;
   const by = Object.entries(cache.misses.byReason)
     .filter(([, n]) => n !== undefined && n > 0)
-    .map(([reason, n]) => `${REASON_LABELS[reason as CacheMissReason] ?? reason} ${n}`)
+    .map(([reason, n]) => `${m.reason(reason as CacheMissReason) ?? reason} ${n}`)
     .join(" · ");
   const cost = cache.reBilledUsd === undefined ? "$?" : formatUsd(cache.reBilledUsd);
-  return `${cache.misses.count} 次，重计费 ${formatTokenCount(cache.reBilledTokens)} token ≈ ${cost}${by !== "" ? `（${by}）` : ""}`;
+  return m.misses(cache.misses.count, formatTokenCount(cache.reBilledTokens), cost, by);
 }
 
 /** 缓存段的键值行（`/session` 与 `/cache` 共用）。 */
@@ -208,46 +190,56 @@ export function cacheRows(session: AgentSession, now: number = Date.now()): KeyV
   const t = stats.tokens;
   const prompt = t.input + t.cacheRead + t.cacheWrite;
   const uncached = t.input + t.cacheWrite;
-  const readShare = prompt > 0 ? `（${formatPercent(t.cacheRead / prompt)}）` : " ";
-  const write = t.cacheWrite > 0 ? `（其中写入 ${formatTokenCount(t.cacheWrite)}）` : "";
+  const m = msg().report.cache;
   const rows: KeyValueRow[] = [
     {
-      key: "输入",
-      value: `${formatTokenCount(prompt)} = 缓存读 ${formatTokenCount(t.cacheRead)}${readShare}+ 未缓存 ${formatTokenCount(uncached)}${write}`,
+      key: m.keyInput,
+      value: m.input(
+        formatTokenCount(prompt),
+        formatTokenCount(t.cacheRead),
+        prompt > 0 ? formatPercent(t.cacheRead / prompt) : undefined,
+        formatTokenCount(uncached),
+        t.cacheWrite > 0 ? formatTokenCount(t.cacheWrite) : undefined,
+      ),
     },
   ];
   const cache = stats.cache;
   if (cache === undefined) {
-    rows.push({ key: "命中率", value: `会话 ${formatPercent(stats.cacheHitRate)}` });
+    rows.push({ key: m.keyHitRate, value: m.sessionRate(formatPercent(stats.cacheHitRate)) });
     return rows;
   }
-  rows.push({ key: "报告状态", value: reportingLabel(cache.reporting) });
+  rows.push({ key: m.keyReporting, value: reportingLabel(cache.reporting) });
   if (cache.reporting === "reported") {
     rows.push({
-      key: "命中率",
-      value: `最近 ${formatPercent(cache.lastHitRate)} · 会话 ${formatPercent(cache.hitRate)}`,
+      key: m.keyHitRate,
+      value: m.rates(formatPercent(cache.lastHitRate), formatPercent(cache.hitRate)),
     });
   }
-  rows.push({ key: "未命中", value: missesText(cache) });
+  rows.push({ key: m.keyMisses, value: missesText(cache) });
   const minSavings =
     session instanceof AgentSessionImpl ? session.cache.cacheSettings.minSavingsUsd : undefined;
-  rows.push({ key: "保温", value: warmingText(cache.warming, now, minSavings) });
+  rows.push({ key: m.keyWarming, value: warmingText(cache.warming, now, minSavings) });
   if (stats.contextPercent !== undefined) {
-    const remaining =
-      cache.contextRemainingTokens === undefined
-        ? ""
-        : `，余量 ≈ ${formatTokenCount(cache.contextRemainingTokens)} token`;
-    const turns =
-      cache.estimatedTurnsLeft === undefined ? "" : ` ≈ ${cache.estimatedTurnsLeft} 回合`;
-    rows.push({ key: "上下文", value: `${Math.round(stats.contextPercent)}%${remaining}${turns}` });
+    rows.push({
+      key: m.keyContext,
+      value: m.context(
+        Math.round(stats.contextPercent),
+        cache.contextRemainingTokens === undefined
+          ? undefined
+          : formatTokenCount(cache.contextRemainingTokens),
+        cache.estimatedTurnsLeft,
+      ),
+    });
   }
   if (cache.subagents !== undefined) {
     const sub = cache.subagents;
-    const rebill =
-      sub.reBilledTokens > 0 ? `，重计费 ${formatTokenCount(sub.reBilledTokens)} token` : "";
     rows.push({
-      key: "子任务",
-      value: `${sub.count} 个会话，命中率 ${formatPercent(sub.hitRate)}${rebill}`,
+      key: m.keySubtasks,
+      value: m.subtasks(
+        sub.count,
+        formatPercent(sub.hitRate),
+        sub.reBilledTokens > 0 ? formatTokenCount(sub.reBilledTokens) : undefined,
+      ),
     });
   }
   return rows;
@@ -260,17 +252,18 @@ export function externalUsageText(usage: {
   amount: number;
   tokens?: number;
 }): string {
+  const m = msg().report.session;
   const amount =
     usage.unit === "usd"
       ? formatUsd(usage.amount)
       : usage.unit === "tokens"
-        ? `${formatTokenCount(usage.amount)} token`
-        : `${usage.amount} 次请求`;
+        ? m.externalTokens(formatTokenCount(usage.amount))
+        : m.externalRequests(usage.amount);
   const tokens =
     usage.unit !== "tokens" && usage.tokens !== undefined && usage.tokens > 0
-      ? ` · ${formatTokenCount(usage.tokens)} token`
-      : "";
-  return `${usage.runs} 次运行 · ${amount}${tokens}`;
+      ? formatTokenCount(usage.tokens)
+      : undefined;
+  return m.external(usage.runs, amount, tokens);
 }
 
 /** [W5-U] 「外部 Agent」段（`getStats().external.byAgent`）；没有外部运行时为空。 */
@@ -285,18 +278,12 @@ export function externalRows(session: AgentSession): KeyValueRow[] {
 export function taskStatsText(session: AgentSession): string | undefined {
   const tasks = session.getStats().tasks;
   if (tasks === undefined || tasks.total === 0) return undefined;
-  const parts = [`${tasks.total} 个任务`];
-  if (tasks.running > 0) parts.push(`运行中 ${tasks.running}`);
-  const labels: Record<string, string> = {
-    completed: "完成",
-    failed: "失败",
-    aborted: "已停止",
-    max_turns: "轮数耗尽",
-    interrupted: "已中断",
-  };
+  const m = msg().report.session;
+  const parts = [m.tasks(tasks.total)];
+  if (tasks.running > 0) parts.push(m.running(tasks.running));
   for (const [status, count] of Object.entries(tasks.byStatus))
-    if (count !== undefined && count > 0) parts.push(`${labels[status] ?? status} ${count}`);
-  return `${parts.join(" · ")}（/tasks）`;
+    if (count !== undefined && count > 0) parts.push(m.status(status, count));
+  return m.tasksLine(parts);
 }
 
 /** [W6-O] 「订阅用量」段（`getStats().subscription`）：按供应商列请求与 token、缓存只给命中率；附最近配额。 */
@@ -332,7 +319,7 @@ export function renderRows(rows: readonly KeyValueRow[], indent = ""): string[] 
 }
 
 export function describeCache(session: AgentSession, now: number = Date.now()): string {
-  return ["缓存", ...renderRows(cacheRows(session, now), "  ")].join("\n");
+  return [msg().report.cache.title, ...renderRows(cacheRows(session, now), "  ")].join("\n");
 }
 
 export function describeSession(session: AgentSession, now: number = Date.now()): string {
@@ -341,32 +328,38 @@ export function describeSession(session: AgentSession, now: number = Date.now())
   const model = state.model === undefined ? "?" : `${state.model.provider}/${state.model.id}`;
   const t = stats.tokens;
   const percent = stats.contextPercent === undefined ? "?" : `${Math.round(stats.contextPercent)}`;
+  const m = msg().report.session;
   const rows: KeyValueRow[] = [
+    { key: m.keySession, value: m.session(state.sessionId, state.sessionFile) },
     {
-      key: "会话",
-      value: `${state.sessionId}${state.sessionFile !== undefined ? `（${state.sessionFile}）` : "（未落盘）"}`,
+      key: m.keyModel,
+      value: m.model(model, state.thinkingLevel, state.permissionMode),
     },
     {
-      key: "模型",
-      value: `${model} · 思考 ${state.thinkingLevel} · 权限 ${state.permissionMode}`,
+      key: m.keyMessages,
+      value: m.messages(stats.userMessages, stats.assistantMessages, stats.toolCalls),
     },
     {
-      key: "消息",
-      value: `用户 ${stats.userMessages} · 助手 ${stats.assistantMessages} · 工具调用 ${stats.toolCalls}`,
+      key: m.keyUsage,
+      value: m.usage(
+        t.input,
+        t.output,
+        t.cacheRead,
+        t.cacheWrite,
+        stats.cost !== undefined ? `$${stats.cost.toFixed(4)}` : "$?",
+      ),
     },
     {
-      key: "用量",
-      value:
-        `输入 ${t.input} · 输出 ${t.output} · 缓存读 ${t.cacheRead} · 缓存写 ${t.cacheWrite}` +
-        (stats.cost !== undefined ? ` · $${stats.cost.toFixed(4)}` : " · $?"),
-    },
-    {
-      key: "上下文",
-      value: `${stats.contextTokens ?? "?"} / ${stats.contextWindow ?? "?"}（${percent}%）`,
+      key: m.keyContext,
+      value: m.context(
+        String(stats.contextTokens ?? "?"),
+        String(stats.contextWindow ?? "?"),
+        percent,
+      ),
     },
   ];
   const tasks = taskStatsText(session);
-  if (tasks !== undefined) rows.push({ key: "子 Agent", value: tasks });
+  if (tasks !== undefined) rows.push({ key: m.keyAgents, value: tasks });
   const external = externalRows(session);
   const subscription = subscriptionRows(session, now);
   return [
@@ -375,18 +368,19 @@ export function describeSession(session: AgentSession, now: number = Date.now())
     ...(subscription.length > 0
       ? [msg().auth.report.section, ...renderRows(subscription, "  ")]
       : []),
-    ...(external.length > 0 ? ["外部 Agent", ...renderRows(external, "  ")] : []),
+    ...(external.length > 0 ? [m.externalTitle, ...renderRows(external, "  ")] : []),
   ].join("\n");
 }
 
 /** `/cache fingerprint`：最近一次真实请求的前缀指纹（system / tools 哈希与模型）。 */
 export function describeFingerprint(session: AgentSession): string {
-  if (!(session instanceof AgentSessionImpl)) return "当前会话不提供前缀指纹";
+  const m = msg().report.session;
+  if (!(session instanceof AgentSessionImpl)) return m.noFingerprint;
   const record = session.cache.lastTurn;
-  if (record === undefined) return "还没有真实请求（指纹在第一次请求后记录）";
+  if (record === undefined) return m.noRequestYet;
   const f = record.fingerprint;
   return [
-    "前缀指纹（最近一次请求）",
+    m.fingerprintTitle,
     ...renderRows(
       [
         { key: "system", value: f.system },

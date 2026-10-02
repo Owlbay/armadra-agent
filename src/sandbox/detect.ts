@@ -20,6 +20,7 @@ import {
   type OsSandboxKind,
   type OsSandboxPolicy,
 } from "./profile.js";
+import { msg } from "../i18n/index.js";
 
 export type SandboxEnabled = "auto" | "off";
 
@@ -39,7 +40,9 @@ export const NO_OS_SANDBOX: OsSandboxStatus = Object.freeze({
   kind: "none",
   isolatesNetwork: false,
   restrictsWrites: false,
-  detail: "没有可用的操作系统沙箱",
+  get detail() {
+    return msg().session.sandbox.noOsSandbox;
+  },
 });
 
 export const SANDBOX_EXEC_PATH = "/usr/bin/sandbox-exec";
@@ -111,11 +114,10 @@ export function probeOsSandbox(
   enabled: SandboxEnabled,
   deps: ProbeDeps = REAL_PROBE_DEPS,
 ): OsSandboxStatus {
-  if (enabled === "off")
-    return { ...NO_OS_SANDBOX, detail: "已关闭（sandbox.enabled: off 或 AMA_SANDBOX=off）" };
+  if (enabled === "off") return { ...NO_OS_SANDBOX, detail: msg().session.sandbox.disabled };
   if (deps.platform === "darwin") {
     if (!deps.isExecutable(SANDBOX_EXEC_PATH))
-      return { ...NO_OS_SANDBOX, detail: `没有 ${SANDBOX_EXEC_PATH}` };
+      return { ...NO_OS_SANDBOX, detail: msg().session.sandbox.missing(SANDBOX_EXEC_PATH) };
     const code = deps.run(SANDBOX_EXEC_PATH, [
       "-p",
       buildSbplProfile(PROBE_POLICY),
@@ -131,7 +133,7 @@ export function probeOsSandbox(
       };
     return {
       ...NO_OS_SANDBOX,
-      detail: `sandbox-exec 探针失败（${code === null ? "无法启动" : `退出码 ${code}`}；可能已在别的沙箱里）`,
+      detail: msg().session.sandbox.sandboxExecFailed(code),
     };
   }
   if (deps.platform === "linux") {
@@ -147,8 +149,8 @@ export function probeOsSandbox(
           restrictsWrites: true,
           detail: "Linux bubblewrap",
         };
-      failures.push(`bwrap 探针失败（${code === null ? "无法启动" : `退出码 ${code}`}）`);
-    } else failures.push("没有 bwrap");
+      failures.push(msg().session.sandbox.bwrapFailed(code));
+    } else failures.push(msg().session.sandbox.noBwrap);
     const unshare = findExecutable("unshare", deps.env, deps.isExecutable, deps.platform);
     if (unshare !== undefined) {
       const code = deps.run(unshare, [...buildUnshareArgs(), "true"]);
@@ -158,15 +160,13 @@ export function probeOsSandbox(
           path: unshare,
           isolatesNetwork: true,
           restrictsWrites: false,
-          detail: `Linux unshare -r -n（只隔离网络；${failures.join("，")}）`,
+          detail: msg().session.sandbox.unshareOnly(failures),
         };
-      failures.push(
-        `unshare 探针失败（${code === null ? "无法启动" : `退出码 ${code}`}；可能不允许非特权用户命名空间）`,
-      );
-    } else failures.push("没有 unshare");
-    return { ...NO_OS_SANDBOX, detail: failures.join("，") };
+      failures.push(msg().session.sandbox.unshareFailed(code));
+    } else failures.push(msg().session.sandbox.noUnshare);
+    return { ...NO_OS_SANDBOX, detail: msg().session.sandbox.failures(failures) };
   }
-  return { ...NO_OS_SANDBOX, detail: `${deps.platform} 上没有操作系统沙箱实现` };
+  return { ...NO_OS_SANDBOX, detail: msg().session.sandbox.unsupportedPlatform(deps.platform) };
 }
 
 const cache = new Map<SandboxEnabled, OsSandboxStatus>();

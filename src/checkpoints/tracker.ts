@@ -32,6 +32,7 @@ import {
   type CheckpointTrackData,
   type FileRecord,
 } from "./types.js";
+import { msg } from "../i18n/index.js";
 
 /** mtime 粒度余量（FAT 2 s；其它文件系统更细）。 */
 export const MTIME_GRANULARITY_MS = 2_000;
@@ -128,7 +129,7 @@ export class CheckpointTracker implements CheckpointHooks {
       }
       this.recordedAt.set(key, at);
     } catch (error) {
-      this.warn(`检查点：备份 ${key} 失败（${describe(error)}），本次写入不可回滚`);
+      this.warn(msg().session.checkpoints.backupFailed(key, describe(error)));
     }
   }
 
@@ -136,7 +137,7 @@ export class CheckpointTracker implements CheckpointHooks {
     try {
       this.lastWritten.set(absolutePath, hashBytes(content));
     } catch (error) {
-      this.warn(`检查点：记录 ${absolutePath} 的写入失败（${describe(error)}）`);
+      this.warn(msg().session.checkpoints.recordFailed(absolutePath, describe(error)));
     }
   }
 
@@ -159,7 +160,7 @@ export class CheckpointTracker implements CheckpointHooks {
         files[key] = next.record;
         times.set(key, next.at);
       } catch (error) {
-        this.warn(`检查点：快照 ${key} 失败（${describe(error)}），该文件回滚到此处时用更早的记录`);
+        this.warn(msg().session.checkpoints.snapshotFailed(key, describe(error)));
       }
     }
     const data: CheckpointData = { v: 1, userEntryId, files };

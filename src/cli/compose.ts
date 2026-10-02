@@ -206,7 +206,7 @@ export function createTools(
   for (const tool of extra) registry.register(tool, "sdk");
   if (input.memory !== undefined && preset.codemode !== "only") preset.builtin.push(MEMORY_TOOL);
   applyCodemodeMode(registry, preset);
-  state.warnings.push(...preset.warnings);
+  state.warnings.push(...preset.warnings.map((w) => msg().session.codemode.presetWarning(w)));
   // 一次性提示只给有人看的界面（交互 / 行式）；-p 与 RPC 的 stderr 常被脚本解析，不打扰。
   if (input.paths !== undefined && (input.mode === "interactive" || input.mode === "line")) {
     const notice = takeCodemodeNotice({ config: input.config, capability, ...input.paths });

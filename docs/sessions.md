@@ -108,6 +108,34 @@ ama sessions export <id> [--format md|json|jsonl] [--output <文件>] [--branch 
 - `--output` 写文件（权限 0600），否则写 stdout。
 - **脱敏**：导出前把 key / token 形态的字符串换成 `[REDACTED]`——`sk-…`、`sk-ant-…`、`ghp_…`、`github_pat_…`、`xox?-…`、`AIza…`、`AKIA…`、`npm_…`、JWT、`Bearer` / `Basic` 凭据、PEM 私钥块，以及 `apiKey` / `secret` / `token` / `password` / `authorization` 之后紧跟 `:` 或 `=` 的值；json / jsonl 里键名像机密的字符串值整段遮掉。图片的 base64 保留。只认形态，不保证遮全，分享前仍请自己看一遍。
 
+## 轨迹：`ama sessions trace`
+
+```
+ama sessions trace <id|文件> [--html [文件]] [--json] [--output <文件>] [--open]
+                   [--branch leaf|all] [--no-content] [--children] [--now <毫秒>]
+```
+
+把会话的轨迹（与 `/trace` 同一棵树，见 [tui.md](tui.md)「轨迹」）导出成**单个 HTML 文件**，用来分享或排查「这次回答慢在哪里」。
+`<id>` 可以是 id 前缀，也可以直接给会话文件路径；只读，不加锁，正在运行的会话也能导。
+
+- **HTML**（缺省，`--html` / `--format html`）：顶部是汇总（回合、请求、工具次数、总耗时、token、缓存命中、ttft p50 / p90、平均吞吐、费用）；
+  中间左侧是树（回合 → 请求 → 工具 → 子调用 / 子 Agent / 外部 Agent 回合），右侧是瀑布图——横轴是会话时间，首 token 等待、解码、
+  工具、子 Agent、重试等待、压缩 / 辅助请求分色，进行中的节点只画起点；回合之间超过 2 秒的空闲压成 2 秒（刻度仍标原始时间）。
+  下方是详情（与 `/trace` 的详情卡片相同，含提示、回复、参数与结果预览）。可以搜索（`/`，Enter / Shift+Enter 在匹配间跳）、按回合跳转、
+  缩放（按钮或 Ctrl + 滚轮）、全部展开 / 折叠，`↑↓` 选择、`←→` 折叠 / 展开。深浅色跟随系统。行数再多也只建可见的一屏 DOM（虚拟列表）。
+- **自包含**：样式与脚本内联，没有任何外部资源，页面带 CSP（`default-src 'none'`），离线打开即可；页脚写 ama 版本与生成时间。
+- **脱敏**：整棵数据与正文都按 `sessions export` 的规则先脱敏，正文预览再脱敏一次；数据块里 `<`、`>`、`&` 一律转义，
+  提示或工具输出里的 `</script>`、HTML 标签只会原样显示成文字。只认形态，分享前仍请自己看一遍。
+- `--no-content`：只留结构、时间与数字（没有提示、参数、结果，也没有错误原文），适合只想分享性能问题时。
+- `--children`：内嵌 ama 子 Agent 子会话里节点的预览；缺省只嵌它们的结构与数字。外部 Agent 本来就只有骨架。
+- 预览按条截断（参数 500、其余 2000 字符），整份预览上限 4 MB 字符，超出后更早的预览置空并在详情里注明。
+- `--json`（或 `--format json`）：与 RPC `get_trace` 同形的 JSON（[rpc.md](rpc.md)「轨迹」），包含全部回合、已加载的子会话轨迹与本会话节点的 `previews`
+  （`--no-content` 时没有）。
+- 输出：`--html <文件>`（文件名以 `.html` / `.htm` 结尾时才当作值，否则用 `--output`）或 `--output <文件>` 写文件（0600），否则写 stdout。
+  `--open` 写好后用系统浏览器打开（没给文件时写到临时目录）。
+- `--now <毫秒>` 固定页脚的生成时间：同一会话、同样的参数，输出逐字节相同。
+- 0.6 之前的会话没有计时记录，时间按条目时间推算（详情里注明「推算」），不改会话文件。
+
 ## 检查点与文件备份
 
 回滚代码（`/rewind`，设计见 [rewind-plan.md](rewind-plan.md)）依赖检查点：每个新回合开始时，ama 记下 edit / write 改过的文件当时的内容。

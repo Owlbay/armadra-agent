@@ -227,7 +227,8 @@ describe("get_agents 与宿主 runner", () => {
       .filter((m) => "role" in m && m.role === "toolResult")
       .map((m) => JSON.stringify((m as { content: unknown }).content));
     expect(results[0]).toContain("drawn by host");
-    expect(results[1]).toMatch(/宿主/);
+    // [W6-I3] 进 task 结果（模型可见）的错误固定英文
+    expect(results[1]).toMatch(/come from the host/);
     expect(seen).toHaveLength(1);
     expect(seen[0]).toMatchObject({ prompt: "draw", taskId: "t1", mode: "full-auto" });
   });

@@ -133,7 +133,33 @@
 | `get_tasks`     | —                                                                                                                                                | `{ tasks: TaskInfo[] }`（子 Agent 任务注册表的只读视图；未装配时为空表）                                 |
 | `get_agents`    | —                                                                                                                                                | `{ agents: AgentInfo[] }`（可用的子 Agent 类型与外部 Agent；未装配时为空表）                             |
 
-合计 42 条命令，名字即 `RpcCommandMap` 的键。
+### 轨迹（第六波）
+
+`get_trace` 返回会话轨迹（与 TUI `/trace`、`ama sessions trace` 同一棵树，见 [tui.md](tui.md)「轨迹」）。不新增事件：客户端收到
+`entry_appended` 后用上次的 `cursor.since` 再取一次即可增量刷新。
+
+| 参数         | 说明                                                                                                                       |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `branch?`    | `leaf`（缺省，根到当前叶子）\| `all`（文件里全部条目）                                                                     |
+| `turnLimit?` | 尾部优先的回合数，缺省 50，范围 1–500                                                                                      |
+| `before?`    | 回合 id（= 该回合用户消息的条目 id），返回它之前的 `turnLimit` 个回合（向前翻页）                                          |
+| `since?`     | 条目 id（同 `get_entries.since`）：返回从「包含该条目的回合」起到末尾的全部回合（不受 `turnLimit` 限制）；与 `before` 互斥 |
+| `taskId?`    | 该任务的子轨迹：ama 子 Agent 返回子会话的轨迹（游标、`leafId` 按子会话）；外部 Agent 返回空回合，骨架在 `task.external`    |
+| `content?`   | `none`（缺省，只有结构、时间与 token）\| `preview`（附 `previews`）                                                        |
+
+`data`：`{ trace, hasMoreBefore, cursor: { before?, since }, leafId, task?, previews? }`
+
+- `trace` 是 `Trace`（`@armadra/agent` 导出的类型）：`turns` 是所请求的窗口，`totals` 与 `aux`（保温、权限分类等辅助请求）始终是整条分支的。
+- `cursor.before` 是窗口第一个回合的 id（还有更早的回合时才有），传给下一次 `before`；`cursor.since` 是分支上最后一条条目的 id，传给下一次 `since`。
+- **增量合并**：从返回的第一个回合 id 起替换本地列表的尾部；本地没有这个 id（rewind 换了分支）就整体替换；返回空表表示分支上没有回合。
+  `since` 所在的回合总会重发（它可能还在进行中）；后台任务晚到的结束条目改到更早的回合时，从那个回合起重发。`since` 不在所选分支上时从第一个回合起全量返回。
+- `task`：`taskId` 时的子 Agent 节点本身（不含 `child`）。
+- `previews`：`<kind>:<节点 id>` → `{ input?, output?, args?, result? }`（回合的提示、请求的回复文字、工具参数 JSON 与结果），
+  只含窗口内本会话的节点；先脱敏（同 `sessions export`）再截断——参数 500 字符、其余 2000 字符，截断处以 `…` 结尾。
+- 整个 `data` 都经过脱敏；节点里只有 id、时间、计数与用量，正文只在 `previews` 里。运行中没有结果的工具标 `running`。
+- 错误：`invalid_arguments`（参数越界、`before` 不是本分支的回合 id、`before` 与 `since` 同用）、`task_not_found`。
+
+合计 43 条命令，名字即 `RpcCommandMap` 的键。
 
 ## 事件
 

@@ -29,6 +29,7 @@ import type {
 import { PERMISSION_MODES_STRICT_FIRST } from "../../permissions/types.js";
 import { oneLine } from "../../drivers/turn.js";
 import type { ToolResult } from "../../tools/types.js";
+import { msg } from "../../i18n/index.js";
 
 export const TOOL_OUTPUT_LIMIT = 4 * 1024;
 
@@ -79,7 +80,7 @@ function resultText(result: ToolResult): string {
       ? result.content
       : result.content.map((b) => (b.type === "text" ? b.text : `[${b.type}]`)).join("");
   return text.length > TOOL_OUTPUT_LIMIT
-    ? `${text.slice(0, TOOL_OUTPUT_LIMIT)}\n…（已截断，共 ${text.length} 字符）`
+    ? `${text.slice(0, TOOL_OUTPUT_LIMIT)}\n${msg().print.acp.truncated(text.length)}`
     : text;
 }
 

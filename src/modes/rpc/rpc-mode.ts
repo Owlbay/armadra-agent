@@ -27,6 +27,7 @@ import { sessionAgents, taskRegistryView } from "../../agent/subagent-registry.j
 import { cachedAgentInfos } from "../../agents/external.js";
 import { RpcApprovals, handlers, type RpcContext } from "./commands.js";
 import { createLineReader, writeChunked } from "./jsonl.js";
+import { msg } from "../../i18n/index.js";
 
 export interface RpcModeOptions {
   stdin?: NodeJS.ReadableStream;
@@ -100,7 +101,7 @@ export async function runRpcMode(
         type: "response",
         command: type,
         success: false,
-        error: `未知命令：${String(type)}`,
+        error: msg().print.rpc.unknownCommand(String(type)),
         code: "invalid_arguments",
       });
       return;
@@ -136,12 +137,17 @@ export async function runRpcMode(
         type: "response",
         command: "parse",
         success: false,
-        error: `JSON 解析失败：${errorText(error)}`,
+        error: msg().print.rpc.parseFailed(errorText(error)),
       });
       return;
     }
     if (typeof command !== "object" || command === null || typeof command.type !== "string") {
-      void write({ type: "response", command: "parse", success: false, error: "缺少 type" });
+      void write({
+        type: "response",
+        command: "parse",
+        success: false,
+        error: msg().print.rpc.missingType,
+      });
       return;
     }
     const task = respond(command).finally(() => inflight.delete(task));

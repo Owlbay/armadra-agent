@@ -18,6 +18,7 @@ import { StartupError } from "../errors.js";
 import type { HostAdapter, HostAdapterHandle, HostApi, HostModule } from "./types.js";
 import { HOST_API_VERSION } from "./types.js";
 import type { HostApiBinding } from "./api-impl.js";
+import { msg } from "../i18n/index.js";
 
 const EXIT_HOST = 6;
 const EXIT_HOST_VERSION = 78;
@@ -78,28 +79,27 @@ export function extractHostModule(namespace: unknown, label: string): HostModule
     candidates.push(namespace);
   }
   const found = candidates.find((c) => isRecord(c) && ("hostApi" in c || "create" in c));
-  if (!isRecord(found))
-    throw loadFailure(`${label}: 不是宿主适配器模块（缺少 hostApi / create 导出）`);
+  if (!isRecord(found)) throw loadFailure(msg().drivers.host.notAdapter(label));
   if (found["hostApi"] !== HOST_API_VERSION) {
     throw new StartupError(
       "host_version_mismatch",
-      `${label}: 宿主适配器 hostApi=${String(found["hostApi"])}，ama 需要 ${HOST_API_VERSION}`,
+      msg().drivers.host.versionMismatch(label, String(found["hostApi"]), HOST_API_VERSION),
       EXIT_HOST_VERSION,
     );
   }
-  if (typeof found["create"] !== "function") throw loadFailure(`${label}: 缺少 create(api) 函数`);
+  if (typeof found["create"] !== "function") throw loadFailure(msg().drivers.host.noCreate(label));
   return found as unknown as HostModule;
 }
 
 /** 加载并校验适配器模块。 */
 export async function loadHostModule(spec: string, cwd = process.cwd()): Promise<HostModule> {
   const path = isAbsolute(spec) ? spec : resolve(cwd, spec);
-  if (!existsSync(path)) throw loadFailure(`宿主适配器不存在：${path}`);
+  if (!existsSync(path)) throw loadFailure(msg().drivers.host.notFound(path));
   let namespace: unknown;
   try {
     namespace = await importModule(path);
   } catch (error) {
-    throw loadFailure(`宿主适配器加载失败：${path}：${errorText(error)}`, error);
+    throw loadFailure(msg().drivers.host.loadFailed(path, errorText(error)), error);
   }
   return extractHostModule(namespace, path);
 }
@@ -114,7 +114,7 @@ export async function createAdapter(
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(
-      () => reject(loadFailure(`${label}: create() 超过 ${timeoutMs} ms 未返回`)),
+      () => reject(loadFailure(msg().drivers.host.createTimeout(label, timeoutMs))),
       timeoutMs,
     );
   });
@@ -123,13 +123,13 @@ export async function createAdapter(
     adapter = await Promise.race([Promise.resolve().then(() => module.create(api)), timeout]);
   } catch (error) {
     if (error instanceof StartupError) throw error;
-    throw loadFailure(`${label}: create() 失败：${errorText(error)}`, error);
+    throw loadFailure(msg().drivers.host.createFailed(label, errorText(error)), error);
   } finally {
     clearTimeout(timer);
   }
   if (adapter === undefined || adapter === null) return undefined;
   if (typeof adapter !== "object" || typeof adapter.id !== "string" || adapter.id === "") {
-    throw loadFailure(`${label}: create() 返回的适配器缺少 id`);
+    throw loadFailure(msg().drivers.host.noId(label));
   }
   return adapter;
 }

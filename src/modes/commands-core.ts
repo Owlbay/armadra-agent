@@ -38,7 +38,7 @@ import {
   stopTask,
 } from "./interactive/tasks-report.js";
 import { describeCache, describeFingerprint, describeSession } from "./session-report.js";
-import { msg } from "../i18n/index.js";
+import { msg, type Catalog } from "../i18n/index.js";
 
 export { describeSession } from "./session-report.js";
 
@@ -84,54 +84,52 @@ export interface CommandInfo {
   description: string;
 }
 
+type CommandKey = keyof Catalog["report"]["commands"];
+
+/**
+ * 说明与需要翻译的参数占位按界面语言取（getter，不在 import 时定死，docs/i18n.md）；
+ * `args` 是字符串时原样（不含要翻译的词），是 `{ key }` 时取目录里的占位。
+ */
+function command(name: string, key: CommandKey, args?: string | { key: CommandKey }): CommandInfo {
+  const info = {
+    name,
+    get description(): string {
+      return msg().report.commands[key];
+    },
+  } as CommandInfo;
+  if (typeof args === "string") info.args = args;
+  else if (args !== undefined)
+    Object.defineProperty(info, "args", {
+      enumerable: true,
+      get: () => msg().report.commands[args.key],
+    });
+  return info;
+}
+
 export const BUILTIN_COMMANDS: readonly CommandInfo[] = [
-  { name: "help", description: "列出命令" },
-  { name: "new", description: "新建会话" },
-  { name: "resume", args: "[id]", description: "恢复会话（无 id 时选择）" },
-  { name: "fork", args: "[条目 id]", description: "从某条目分叉出新会话" },
-  { name: "compact", args: "[说明]", description: "压缩上下文" },
-  {
-    name: "rewind",
-    args: "[n] [both|conversation|code|summarize-from|summarize-up-to]",
-    description: "回滚对话与代码到某条消息之前",
-  },
-  { name: "model", args: "[provider/id]", description: "切换模型" },
-  {
-    name: "thinking",
-    args: "[级别]",
-    description: "思考级别 off | minimal | low | medium | high | xhigh",
-  },
-  {
-    name: "permission",
-    args: "[模式]",
-    description: "权限模式 plan | default | auto-edit | full-auto",
-  },
-  { name: "tools", args: "[名字…]", description: "列出 / 设置活动工具" },
-  { name: "hooks", description: "列出已加载的 Hook" },
-  { name: "session", description: "会话信息、用量与缓存" },
-  {
-    name: "cache",
-    args: "[warm off|streaming|idle | fingerprint]",
-    description: "缓存统计；切换本会话保温；打印前缀指纹",
-  },
-  { name: "statusline", args: "[full|compact]", description: "底部信息行两行 / 一行（Ctrl+G）" },
-  {
-    name: "plan",
-    args: "[目标] | approve [模式|fresh] | reject",
-    description: "查看计划与状态；带目标进入 Plan 模式；批准 / 放弃待审批的计划",
-  },
-  { name: "tasks", args: "[id] | stop <id>", description: "子 Agent 任务：状态、输出、停止" },
-  { name: "agents", description: "子 Agent 类型与外部 Agent（安装状态、版本）" },
-  { name: "paste", description: "粘贴剪贴板里的图片（Ctrl+V）" },
-  { name: "exit", description: "退出" },
-  // [W6-C0] 第六波（W6-S / W6-T1 / W6-M 实现；说明随 W6-I3 迁入消息目录）
-  { name: "config", args: "[key=value]", description: "设置面板；key=value 直接设一项（用户级）" },
-  { name: "trace", args: "[任务 id]", description: "轨迹：回合、请求与工具的耗时和用量" },
-  {
-    name: "memory",
-    args: "[show|edit|rm <名字> | on|off | reload]",
-    description: "跨会话记忆（需开启 memory.enabled）",
-  },
+  command("help", "help"),
+  command("new", "new"),
+  command("resume", "resume", "[id]"),
+  command("fork", "fork", { key: "forkArgs" }),
+  command("compact", "compact", { key: "compactArgs" }),
+  command("rewind", "rewind", "[n] [both|conversation|code|summarize-from|summarize-up-to]"),
+  command("model", "model", "[provider/id]"),
+  command("thinking", "thinking", { key: "thinkingArgs" }),
+  command("permission", "permission", { key: "permissionArgs" }),
+  command("tools", "tools", { key: "toolsArgs" }),
+  command("hooks", "hooks"),
+  command("session", "session"),
+  command("cache", "cache", "[warm off|streaming|idle | fingerprint]"),
+  command("statusline", "statusline", "[full|compact]"),
+  command("plan", "plan", { key: "planArgs" }),
+  command("tasks", "tasks", "[id] | stop <id>"),
+  command("agents", "agents"),
+  command("paste", "paste"),
+  command("exit", "exit"),
+  // [W6-C0] 第六波（W6-S / W6-T1 / W6-M 实现）
+  command("config", "config", "[key=value]"),
+  command("trace", "trace", { key: "traceArgs" }),
+  command("memory", "memory", { key: "memoryArgs" }),
 ];
 
 const ALIASES: Readonly<Record<string, string>> = { quit: "exit", q: "exit", "?": "help" };
@@ -147,9 +145,8 @@ function helpText(): string {
   const lines = BUILTIN_COMMANDS.map(
     (c) => `/${c.name}${c.args !== undefined ? ` ${c.args}` : ""}  ${c.description}`,
   );
-  return [...lines, "/skill:<名字> [参数]  使用 Skill", "/<模板名> [参数]  展开提示模板"].join(
-    "\n",
-  );
+  const m = msg().report.commands;
+  return [...lines, m.skillLine, m.templateLine].join("\n");
 }
 
 function toolNames(args: string): string[] {
@@ -166,14 +163,14 @@ function cacheCommand(session: AgentSession, args: string): string {
   if (sub === "fingerprint" && value === undefined) return describeFingerprint(session);
   if (sub === "warm" && extra === undefined) {
     if (!(session instanceof AgentSessionImpl))
-      throw new AmaError("invalid_arguments", "当前会话不支持切换保温");
-    if (value === undefined) return `保温：${session.cache.mode()}`;
+      throw new AmaError("invalid_arguments", msg().report.command.warmingUnsupported);
+    if (value === undefined) return msg().report.command.warming(session.cache.mode());
     if (!(WARMING_MODES as readonly string[]).includes(value))
-      throw new AmaError("invalid_arguments", `保温模式应为 ${WARMING_MODES.join(" | ")}`);
+      throw new AmaError("invalid_arguments", msg().report.command.warmingInvalid(WARMING_MODES));
     session.cache.setWarming(value as WarmingMode);
-    return `保温：${session.cache.mode()}（本会话）`;
+    return msg().report.command.warmingSet(session.cache.mode());
   }
-  throw new AmaError("invalid_arguments", "用法：/cache [warm off|streaming|idle | fingerprint]");
+  throw new AmaError("invalid_arguments", msg().report.command.cacheUsage);
 }
 
 /** `/tasks`、`/tasks <id>`、`/tasks stop <id>`。 */
@@ -183,10 +180,10 @@ async function tasksCommand(sessionId: string, args: string): Promise<string> {
   if (first === undefined) return describeTasks(sessionId, now);
   if (first === "stop" && second !== undefined && extra === undefined) {
     await stopTask(sessionId, second);
-    return `已停止 ${second}`;
+    return msg().report.command.taskStopped(second);
   }
   if (second === undefined) return describeTaskOutput(sessionId, first, now);
-  throw new AmaError("invalid_arguments", "用法：/tasks [id] | /tasks stop <id>");
+  throw new AmaError("invalid_arguments", msg().report.command.tasksUsage);
 }
 
 export async function runSlashCommand(
@@ -206,38 +203,55 @@ export async function runSlashCommand(
       return { kind: "exit" };
     case "new": {
       const next = await ctx.switchSession({ kind: "new" });
-      return { kind: "handled", message: `已新建会话 ${next.state.sessionId.slice(0, 8)}` };
+      return {
+        kind: "handled",
+        message: msg().report.command.newSession(next.state.sessionId.slice(0, 8)),
+      };
     }
     case "resume": {
       if (args === "") return { kind: "pick", what: "session" };
       const next = await ctx.switchSession({ kind: "resume", id: args });
       return {
         kind: "handled",
-        message: `已恢复会话 ${next.state.sessionId.slice(0, 8)}（${next.messages.length} 条消息）`,
+        message: msg().report.command.resumed(
+          next.state.sessionId.slice(0, 8),
+          next.messages.length,
+        ),
       };
     }
     case "fork": {
       if (args === "") return { kind: "pick", what: "tree" };
       const next = await ctx.switchSession({ kind: "fork", entryId: args });
-      return { kind: "handled", message: `已分叉到新会话 ${next.state.sessionId.slice(0, 8)}` };
+      return {
+        kind: "handled",
+        message: msg().report.command.forked(next.state.sessionId.slice(0, 8)),
+      };
     }
     case "compact": {
       const result = await session.compact(args === "" ? undefined : args);
-      const after = result.tokensAfter !== undefined ? ` → ${result.tokensAfter}` : "";
-      return { kind: "handled", message: `已压缩：${result.tokensBefore}${after} token` };
+      return {
+        kind: "handled",
+        message: msg().report.command.compacted(result.tokensBefore, result.tokensAfter),
+      };
     }
     case "model": {
       if (args === "") return { kind: "pick", what: "model" };
       await session.setModel(args);
       const model = session.state.model;
-      return { kind: "handled", message: `模型：${model?.provider}/${model?.id}` };
+      return {
+        kind: "handled",
+        message: msg().report.command.model(`${model?.provider}/${model?.id}`),
+      };
     }
     case "thinking": {
       if (args === "") return { kind: "pick", what: "thinking" };
       if (!(THINKING_LEVELS as readonly string[]).includes(args))
-        throw new AmaError("invalid_arguments", `思考级别应为 ${THINKING_LEVELS.join(" | ")}`);
+        throw new AmaError(
+          "invalid_arguments",
+          msg().report.command.thinkingInvalid(THINKING_LEVELS),
+        );
       session.setThinkingLevel(args as ModelThinkingLevel);
-      return { kind: "handled", message: `思考级别：${args}` };
+      return { kind: "handled", message: msg().report.command.thinking(args) };
     }
     case "permission": {
       if (args === "") return { kind: "pick", what: "permission" };
@@ -245,7 +259,7 @@ export async function runSlashCommand(
       if (mode === undefined) {
         throw new AmaError(
           "invalid_arguments",
-          `权限模式应为 ${PERMISSION_MODE_ORDER.join(" | ")}（也可写显示名，如 "Accept edits"）`,
+          msg().report.command.permissionInvalid(PERMISSION_MODE_ORDER),
         );
       }
       const current = session.state.permissionMode;
@@ -253,12 +267,15 @@ export async function runSlashCommand(
         if (!(await ctx.confirmPermissionMode(mode))) {
           return {
             kind: "handled",
-            message: `已取消，权限模式仍为 ${permissionModeLabel(current)}`,
+            message: msg().report.command.permissionCancelled(permissionModeLabel(current)),
           };
         }
       }
       session.setPermissionMode(mode);
-      return { kind: "handled", message: `权限模式：${permissionModeLabel(mode)}` };
+      return {
+        kind: "handled",
+        message: msg().report.command.permission(permissionModeLabel(mode)),
+      };
     }
     case "tools": {
       if (args !== "") session.setActiveTools(toolNames(args));
@@ -267,12 +284,12 @@ export async function runSlashCommand(
       const inactive = all.filter((n) => !active.includes(n));
       return {
         kind: "handled",
-        message: `活动：${active.join(", ") || "（无）"}${inactive.length > 0 ? `\n可用：${inactive.join(", ")}` : ""}`,
+        message: msg().report.command.tools(active, inactive),
       };
     }
     case "hooks": {
       const hooks = ctx.runtime.hooks.list();
-      if (hooks.length === 0) return { kind: "handled", message: "没有已加载的 Hook" };
+      if (hooks.length === 0) return { kind: "handled", message: msg().report.command.noHooks };
       return {
         kind: "handled",
         message: hooks
@@ -300,14 +317,14 @@ export async function runSlashCommand(
       return pasted.ok
         ? {
             kind: "handled",
-            message: `已粘贴图片：${pasted.path}`,
+            message: msg().report.command.pasted(pasted.path),
             draft: { text: `${pasted.ref} ` },
           }
         : { kind: "handled", message: pasted.message };
     }
     case "statusline":
       // [W5-A] 交互界面在 commands-core 之前自己处理；line 模式没有底部信息行
-      return { kind: "handled", message: "/statusline 只在交互界面可用" };
+      return { kind: "handled", message: msg().report.command.statuslineOnly };
     case "config":
     case "trace":
     case "memory":

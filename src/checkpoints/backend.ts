@@ -22,6 +22,7 @@ import {
 import { latestShadowCommit, restoreFromShadow } from "./shadow-restore.js";
 import { CheckpointTracker } from "./tracker.js";
 import type { CheckpointHooks, CheckpointMode, CodeRestoreResult } from "./types.js";
+import { msg } from "../i18n/index.js";
 
 export interface CheckpointBackendContext {
   cwd: string;
@@ -89,7 +90,7 @@ export function createCheckpointBackendFactory(
       if (!registered && settings.sessionsRoot !== undefined) {
         registered = true;
         registerSessionRoot(settings.dataDir, settings.sessionsRoot).catch((error: unknown) =>
-          ctx.log("debug", `检查点：登记会话目录失败（${String(error)}）`),
+          ctx.log("debug", msg().session.checkpoints.registerFailed(String(error))),
         );
       }
       return tracker;
@@ -98,7 +99,7 @@ export function createCheckpointBackendFactory(
     let shadow: ShadowRepo | null | undefined = settings.mode === "shadow-git" ? undefined : null;
     const degrade = (message: string): void => {
       shadow = null;
-      warn(`检查点：影子 git 不可用（${message}），本会话改用 tools 模式`);
+      warn(msg().session.checkpoints.shadowUnavailable(message));
     };
     const getShadow = (): ShadowRepo | null => {
       if (shadow !== undefined) return shadow;
@@ -119,7 +120,9 @@ export function createCheckpointBackendFactory(
         if (snap.degrade !== undefined) degrade(snap.degrade.message);
         return snap.commit;
       } catch (error) {
-        degrade(error instanceof GitMissingError ? "PATH 里找不到 git" : describe(error));
+        degrade(
+          error instanceof GitMissingError ? msg().session.checkpoints.gitMissing : describe(error),
+        );
         return undefined;
       }
     };
@@ -134,7 +137,7 @@ export function createCheckpointBackendFactory(
           const shadowCommit = await shadowSnapshot(userEntryId);
           await get().snapshot(userEntryId, shadowCommit !== undefined ? { shadowCommit } : {});
         } catch (error) {
-          warn(`检查点：建立失败（${describe(error)}）`);
+          warn(msg().session.checkpoints.createFailed(describe(error)));
         }
       },
       hasCheckpoint: (userEntryId) => isRewindable(get().state, userEntryId, settings.keep),
@@ -168,7 +171,7 @@ export function createCheckpointBackendFactory(
                   : {}),
               });
             } catch (error) {
-              warn(`检查点：按影子提交恢复失败（${describe(error)}），改按 tools 记录恢复`);
+              warn(msg().session.checkpoints.shadowRestoreFailed(describe(error)));
             }
           }
         }

@@ -92,7 +92,7 @@ export class DriverPool {
 }
 
 function abortedError(): AmaError {
-  return new AmaError("aborted", "外部 Agent 排队时被中断");
+  return new AmaError("aborted", "external agent was interrupted while queued");
 }
 
 /** 按配置建池（`agents.maxConcurrent`、`agents.<id>.maxConcurrent`）。 */

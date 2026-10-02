@@ -15,6 +15,7 @@ import type {
   HookOutput,
   HookRunResult,
 } from "./types.js";
+import { msg } from "../i18n/index.js";
 
 export const DECISION_SEVERITY: Readonly<Record<HookDecision, number>> = {
   deny: 4,
@@ -75,7 +76,7 @@ export function parseHookOutput(stdout: string): ParsedOutput {
     if (decision === "allow" || decision === "deny" || decision === "ask" || decision === "block") {
       output.decision = decision;
     } else {
-      warnings.push(`未知 decision：${JSON.stringify(decision)}`);
+      warnings.push(msg().drivers.hooks.unknownDecision(JSON.stringify(decision)));
     }
   }
   for (const key of [
@@ -87,7 +88,7 @@ export function parseHookOutput(stdout: string): ParsedOutput {
     const v = raw[key];
     if (v === undefined) continue;
     if (typeof v === "string") output[key] = v;
-    else warnings.push(`${key} 应为字符串`);
+    else warnings.push(msg().drivers.hooks.notString(key));
   }
   if ("updatedInput" in raw) output.updatedInput = raw["updatedInput"];
   if (raw["continue"] === false) output.continue = false;
@@ -102,10 +103,6 @@ export interface Interpreted {
   warning?: string;
   /** 是否采用 stdout 的其它字段（只有退出码 0）。 */
   useOutput: boolean;
-}
-
-function describe(result: HookRunResult): string {
-  return `Hook ${result.event}「${result.command}」`;
 }
 
 /** [W6-C0] 回给模型的阻止理由固定英文（警告仍给人看）。 */
@@ -124,7 +121,7 @@ function normalizeDecision(event: HookEvent, decision: HookDecision): HookDecisi
 export function interpretResult(result: HookRunResult): Interpreted {
   const event = result.event;
   if (result.timedOut) {
-    const message = `${describe(result)} 超时（${result.durationMs} ms）`;
+    const message = msg().drivers.hooks.timedOut(event, result.command, result.durationMs);
     if (event === "PreToolUse")
       return {
         decision: "deny",
@@ -142,9 +139,8 @@ export function interpretResult(result: HookRunResult): Interpreted {
   }
   if (result.exitCode !== 0) {
     const tail = result.stderr.trim().split("\n").slice(-3).join(" | ");
-    const code = result.exitCode === null ? "被信号终止" : `退出码 ${result.exitCode}`;
     return {
-      warning: `${describe(result)} 失败（${code}）${tail === "" ? "" : `：${tail}`}`,
+      warning: msg().drivers.hooks.failed(event, result.command, result.exitCode, tail),
       useOutput: false,
     };
   }
@@ -154,7 +150,7 @@ export function interpretResult(result: HookRunResult): Interpreted {
   if (decision === undefined) {
     return {
       useOutput: true,
-      warning: `${describe(result)} 的 decision "${output.decision}" 对 ${event} 无效，已忽略`,
+      warning: msg().drivers.hooks.invalidDecision(event, result.command, output.decision),
     };
   }
   const interpreted: Interpreted = { decision, useOutput: true };
@@ -222,11 +218,10 @@ export function mergeResults(
     outcome.updatedInput = inputs[0];
     outcome.hasUpdatedInput = true;
   } else if (inputs.length > 1) {
-    warnings.push(`${inputs.length} 个 Hook 同时返回 updatedInput，全部忽略`);
+    warnings.push(msg().drivers.hooks.multipleInputs(inputs.length));
   }
   if (prompts.length === 1 && prompts[0] !== undefined) outcome.updatedPrompt = prompts[0];
-  else if (prompts.length > 1)
-    warnings.push(`${prompts.length} 个 Hook 同时返回 updatedPrompt，全部忽略`);
+  else if (prompts.length > 1) warnings.push(msg().drivers.hooks.multiplePrompts(prompts.length));
   const additionalContext = joinTexts(contexts);
   if (additionalContext !== undefined) outcome.additionalContext = additionalContext;
   const customInstructions = joinTexts(instructions);

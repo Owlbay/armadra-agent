@@ -49,8 +49,9 @@ import {
   type ToolsPresetInput,
 } from "./config/types.js";
 import type { Trace, TraceOptions } from "./trace/types.js";
+import { sdkSessionTrace } from "./trace/query-session.js";
 import { AmaError } from "./errors.js";
-import { resolveLocale, setLocale, type Locale } from "./i18n/index.js";
+import { msg, resolveLocale, setLocale, type Locale } from "./i18n/index.js";
 import { hooksFromConfig } from "./hooks/config.js";
 import { HookDispatcher } from "./hooks/dispatcher.js";
 import type { HookConfig } from "./hooks/types.js";
@@ -108,7 +109,7 @@ export interface RuntimeOptions {
 
 export async function createRuntime(options: RuntimeOptions = {}): Promise<Runtime> {
   const parsed = parseArgs(options.argv ?? []);
-  if (parsed.kind !== "run") throw new AmaError("invalid_arguments", "createRuntime 不接受子命令");
+  if (parsed.kind !== "run") throw new AmaError("invalid_arguments", msg().errors.sdk.noSubcommand);
   const args: ParsedArgs = parsed.args;
   if (options.model !== undefined) args.model = options.model;
   if (options.thinkingLevel !== undefined) args.thinking = options.thinkingLevel;
@@ -156,7 +157,7 @@ export interface SessionPlanApi {
 
 export type SdkAgentSession = AgentSessionImpl & {
   readonly plan: SessionPlanApi;
-  /** [W6-C0] 本会话的轨迹（W6-T2 实现；之前不存在）。 */
+  /** [W6-C0] 本会话的轨迹（[W6-T2] 实现，见 trace/query-session.ts）。 */
   trace?(options?: TraceOptions): Trace;
 };
 
@@ -259,12 +260,13 @@ export async function createAgentSession(
   if (ref !== undefined) {
     const found = providers.findModel(ref);
     if (!found.ok)
-      throw new AmaError("model_not_found", `模型不存在：${ref}`, { detail: found.candidates });
+      throw new AmaError("model_not_found", msg().errors.sdk.modelNotFound(ref), {
+        detail: found.candidates,
+      });
     choice = found;
   } else {
     choice = await pickDefaultModel(providers);
-    if (choice === undefined)
-      throw new AmaError("no_api_key", "没有可用模型：传 model，或配置任一供应商的 key");
+    if (choice === undefined) throw new AmaError("no_api_key", msg().errors.sdk.noModel);
   }
   const state = emptyComposeState();
   let tools: PresetToolRegistry;
@@ -383,12 +385,12 @@ function withPlanApi(
   const controller = planController(session);
   controller?.setAttendance(onProposed === undefined ? "unattended" : "callback", onProposed);
   const missing = (): never => {
-    throw new AmaError("not_implemented", "该会话没有装配 plan 扩展");
+    throw new AmaError("not_implemented", msg().errors.sdk.noPlan);
   };
   const plan: SessionPlanApi = {
     current: () => controller?.current() ?? null,
     respond: (response) => (controller ?? missing()).respond(response),
     todos: () => controller?.todos() ?? [],
   };
-  return Object.assign(session, { plan });
+  return Object.assign(session, { plan, trace: (o?: TraceOptions) => sdkSessionTrace(session, o) }); // [W6-T2]
 }
