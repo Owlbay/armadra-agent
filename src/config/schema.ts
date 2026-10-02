@@ -24,7 +24,14 @@ import {
   checkUiW5,
   validateConfigW5,
 } from "./schema-w5.js";
-import { W6_UI_KEYS, checkUiW6 } from "./schema-w6.js";
+import {
+  W6_CONFIG_KEYS,
+  W6_UI_KEYS,
+  checkOAuthEntry,
+  checkProfileMemory,
+  checkUiW6,
+  validateConfigW6,
+} from "./schema-w6.js";
 import type { HookConfig } from "../hooks/types.js";
 import { HOOK_EVENTS } from "../hooks/types.js";
 import { PERMISSION_MODES_STRICT_FIRST } from "../permissions/types.js";
@@ -97,6 +104,7 @@ const CONFIG_KEYS = [
   "checkpoints",
   "sandbox",
   ...W5_CONFIG_KEYS,
+  ...W6_CONFIG_KEYS,
   "$schema",
 ] as const;
 
@@ -391,6 +399,7 @@ export function validateConfig(value: unknown): Diagnostic[] {
     },
   );
   validateConfigW5(c, value);
+  validateConfigW6(c, value);
   return c.diagnostics;
 }
 
@@ -412,6 +421,10 @@ export function validateAuthFile(value: unknown): Diagnostic[] {
   for (const [id, entry] of Object.entries(providers)) {
     const p = join("providers", id);
     if (!c.object(entry, p)) continue;
+    if (entry["type"] === "oauth") {
+      checkOAuthEntry(c, entry, p);
+      continue;
+    }
     c.keys(entry, p, ["apiKey", "env", "baseUrl"]);
     c.string(entry, "apiKey", p, true);
     c.stringRecord(entry, "env", p);
@@ -445,6 +458,7 @@ export function validateProfile(value: unknown): Diagnostic[] {
     "authEnv",
     "trustProject",
     "language",
+    "memory",
     "$schema",
   ]);
   for (const key of PROFILE_PATH_FIELDS) c.string(value, key, "");
@@ -452,6 +466,7 @@ export function validateProfile(value: unknown): Diagnostic[] {
   c.boolean(value, "authEnv", "");
   c.boolean(value, "trustProject", "");
   c.oneOf(value, "language", "", ["zh", "en"]);
+  checkProfileMemory(c, value);
   return c.diagnostics;
 }
 

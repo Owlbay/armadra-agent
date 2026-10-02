@@ -28,6 +28,7 @@ import { ExitCode } from "../exit-codes.js";
 import { describeProxy, inspectProxy } from "../proxy.js";
 import { describeCodemode, describeModel } from "./config.js";
 import { buildRegistry, loadUserLevel, type UserLevel } from "./context.js";
+import { apiKeyEntry } from "../../config/types-w6.js";
 
 export const DOCTOR_USAGE = `用法：ama doctor [--profile <文件>] [--auth-file <文件>] [--trust | --no-trust]
 `;
@@ -148,7 +149,10 @@ async function keySection(
   // 未装配注册表：按文件与环境变量名列出能看到的来源。
   try {
     for (const [id, entry] of Object.entries(readAuthFile(level.authFile).file.providers)) {
-      report.item(`${id.padEnd(20)} auth-file（${classifyKeyValue(entry.apiKey)}）`);
+      const key = apiKeyEntry(entry)?.apiKey;
+      report.item(
+        `${id.padEnd(20)} auth-file（${key === undefined ? "oauth" : classifyKeyValue(key)}）`,
+      );
     }
   } catch {
     // 上面已报告

@@ -23,6 +23,10 @@ import {
   STATUS_LINE_MODES,
   TOOLS_PRESET_INPUTS,
   LANGUAGE_SETTINGS,
+  AGENT_BAR_MODES,
+  CHATGPT_FLAVORS,
+  MEMORY_SCOPES,
+  MEMORY_SUBAGENT_MODES,
 } from "./types.js";
 import { AGENT_ID_PATTERN } from "./schema-w5.js";
 import { AGENTS_RESERVED_KEYS } from "./types-w5.js";
@@ -192,6 +196,32 @@ function w5Sections(): Record<string, Schema> {
   };
 }
 
+// [W6-C0] 第六波的段（规则同 schema-w6.ts）
+function w6Sections(): Record<string, Schema> {
+  return {
+    memory: object({
+      enabled: bool(),
+      scopes: { type: "array", items: { enum: [...MEMORY_SCOPES] } },
+      indexMaxBytes: num(0, 1_048_576),
+      fileMaxBytes: num(1, 1_048_576),
+      maxFiles: num(1, 10_000),
+      subagents: oneOf(MEMORY_SUBAGENT_MODES),
+    }),
+    auth: object({
+      chatgpt: object({
+        flavor: oneOf(CHATGPT_FLAVORS),
+        clientId: str(),
+        issuer: str(),
+        originator: str(),
+        redirectPorts: {
+          type: "array",
+          items: { type: "integer", minimum: 0, maximum: 65535 },
+        },
+      }),
+    }),
+  };
+}
+
 /** 给顶层与各段的键写上 description 与 default（key-docs.ts）；供应商内部不动。 */
 function annotate(properties: Record<string, Schema>, prefix = ""): void {
   for (const [key, shared] of Object.entries(properties)) {
@@ -278,6 +308,8 @@ function buildBaseSchema(): Schema {
         restoreOnCancel: bool(),
         statusLine: oneOf(STATUS_LINE_MODES),
         language: oneOf(LANGUAGE_SETTINGS),
+        replyLanguage: str(),
+        agentBar: oneOf(AGENT_BAR_MODES),
       }),
       skills: object({ dirs: strings }),
       cache: object({
@@ -300,6 +332,7 @@ function buildBaseSchema(): Schema {
         writable: { ...strings, description: "bash 沙箱追加的可写目录（绝对路径或 ~/…）" },
       }),
       ...w5Sections(),
+      ...w6Sections(),
     }),
     required: ["version"],
   };

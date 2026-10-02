@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "total": 1620,
+  "total": 1641,
   "files": {
     "src/agent/session-plan.ts": 2,
     "src/agents/external.ts": 1,
@@ -33,7 +33,7 @@
     "src/cli/proxy.ts": 9,
     "src/cli/startup-screen.ts": 16,
     "src/cli/startup-steps.ts": 6,
-    "src/cli/subcommands/auth.ts": 16,
+    "src/cli/subcommands/auth.ts": 17,
     "src/cli/subcommands/config.ts": 34,
     "src/cli/subcommands/doctor.ts": 56,
     "src/cli/subcommands/init.ts": 3,
@@ -57,7 +57,7 @@
     "src/config/context-files.ts": 2,
     "src/config/init.ts": 11,
     "src/config/json-schema.ts": 21,
-    "src/config/key-docs.ts": 114,
+    "src/config/key-docs.ts": 134,
     "src/config/load.ts": 6,
     "src/config/merge.ts": 17,
     "src/config/paths.ts": 5,

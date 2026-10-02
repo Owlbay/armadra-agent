@@ -16,7 +16,8 @@ import { exec } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { AuthFile } from "../../config/types.js";
+import type { ApiKeyAuthEntry, AuthFile } from "../../config/types.js";
+import { apiKeyEntry } from "../../config/types-w6.js";
 import type { ApiKeyResolution, ProviderData } from "../types.js";
 
 export type KeyProvider = Pick<ProviderData, "id" | "envKeys" | "requiresApiKey">;
@@ -46,7 +47,8 @@ export function defaultConfigDir(env: NodeJS.ProcessEnv = process.env): string {
   return join(env["HOME"] ?? homedir(), ".config", "ama");
 }
 
-type AuthEntry = AuthFile["providers"][string];
+/** [W6-C0] 只看 API key 条目；OAuth 条目（`type: "oauth"`）由 W6-O 的 token 存储解析。 */
+type AuthEntry = ApiKeyAuthEntry;
 
 /** 读 auth.json；不存在返回 undefined；格式错误 / 权限过宽记 warning。 */
 export function readAuthFile(
@@ -142,7 +144,7 @@ export class ApiKeyResolver {
   /** auth.json 里该供应商的条目（按 ② ③ 顺序第一个）。 */
   authEntry(providerId: string): { entry: AuthEntry; path: string } | undefined {
     for (const path of this.authFiles()) {
-      const entry = this.loadFile(path)?.providers[providerId];
+      const entry = apiKeyEntry(this.loadFile(path)?.providers[providerId]);
       if (entry && typeof entry.apiKey === "string") return { entry, path };
     }
     return undefined;
@@ -176,7 +178,7 @@ export class ApiKeyResolver {
 
   private async fromAuthFiles(providerId: string): Promise<ApiKeyResolution | undefined> {
     for (const path of this.authFiles()) {
-      const entry = this.loadFile(path)?.providers[providerId];
+      const entry = apiKeyEntry(this.loadFile(path)?.providers[providerId]);
       if (!entry || typeof entry.apiKey !== "string" || entry.apiKey.length === 0) continue;
       const value = entry.apiKey.startsWith("!")
         ? await this.runCommand(entry.apiKey.slice(1), entry.env)

@@ -9,7 +9,7 @@ import { isAbsolute, resolve } from "node:path";
 import { StartupError } from "../errors.js";
 import { loadConfigFile } from "./load.js";
 import { PROFILE_PATH_FIELDS, PROFILE_PATH_LIST_FIELDS } from "./schema.js";
-import type { AmaConfig, ProfileFile } from "./types.js";
+import type { AmaConfig, ProfileFile, ProfileMemoryOptions } from "./types.js";
 
 const EXIT_CONFIG = 3;
 
@@ -34,6 +34,8 @@ export interface ProfileOptions {
   trustProject: boolean;
   /** [W6-C0] 宿主界面语言。 */
   language?: "zh" | "en";
+  /** [W6-C0] 记忆（W6-M）：按工作空间隔离的目录（已校验为绝对路径）。 */
+  memory?: ProfileMemoryOptions;
   warnings: string[];
 }
 
@@ -89,5 +91,6 @@ function profileToOptions(path: string, profile: ProfileFile, warnings: string[]
   if (profile.sessionDir !== undefined) options.sessionDir = profile.sessionDir;
   if (profile.config !== undefined) options.configFile = profile.config;
   if (profile.language !== undefined) options.language = profile.language;
+  if (profile.memory !== undefined) options.memory = { ...profile.memory };
   return options;
 }

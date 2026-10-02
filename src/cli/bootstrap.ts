@@ -138,6 +138,7 @@ export async function bootstrap(
       tuiMode: args.tuiMode,
       toolsPreset: args.toolsPreset,
       codemode: args.codemode,
+      memory: args.memory,
     });
   });
   warnings.push(...merged.warnings);

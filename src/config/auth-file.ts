@@ -12,7 +12,7 @@ import { dirname, join } from "node:path";
 import { loadConfigFile } from "./load.js";
 import { AUTH_FILE } from "./paths.js";
 import type { AuthFile } from "./types.js";
-import { CONFIG_FILE_VERSION } from "./types.js";
+import { CONFIG_FILE_VERSION, apiKeyEntry } from "./types.js";
 
 export function defaultAuthFilePath(configDir: string): string {
   return join(configDir, AUTH_FILE);
@@ -76,7 +76,8 @@ export function writeAuthFile(path: string, file: AuthFile): void {
 /** `ama auth set`：设置 / 替换一家的 key（保留该条目的 env / baseUrl）。 */
 export function setAuthKey(path: string, provider: string, apiKey: string): void {
   const { file } = readAuthFile(path);
-  const previous = file.providers[provider];
+  // [W6-C0] 覆盖 OAuth 条目时不带走它的字段
+  const previous = apiKeyEntry(file.providers[provider]);
   file.providers[provider] = { ...previous, apiKey };
   writeAuthFile(path, { version: CONFIG_FILE_VERSION, providers: file.providers });
 }
@@ -101,18 +102,23 @@ export function classifyKeyValue(value: string): AuthValueKind {
 
 export interface AuthEntrySummary {
   provider: string;
-  kind: AuthValueKind;
+  /** [W6-C0] `oauth`：OAuth 条目（W6-O 补 flavor / plan / expiresIn / needsLogin）。 */
+  kind: AuthValueKind | "oauth";
   hasBaseUrl: boolean;
   envNames: string[];
 }
 
 export function describeAuthFile(file: AuthFile): AuthEntrySummary[] {
   return Object.entries(file.providers)
-    .map(([provider, entry]) => ({
-      provider,
-      kind: classifyKeyValue(entry.apiKey),
-      hasBaseUrl: entry.baseUrl !== undefined,
-      envNames: Object.keys(entry.env ?? {}).sort(),
-    }))
+    .map(([provider, raw]): AuthEntrySummary => {
+      const entry = apiKeyEntry(raw);
+      if (entry === undefined) return { provider, kind: "oauth", hasBaseUrl: false, envNames: [] };
+      return {
+        provider,
+        kind: classifyKeyValue(entry.apiKey),
+        hasBaseUrl: entry.baseUrl !== undefined,
+        envNames: Object.keys(entry.env ?? {}).sort(),
+      };
+    })
     .sort((a, b) => a.provider.localeCompare(b.provider));
 }

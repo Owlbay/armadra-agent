@@ -8,7 +8,8 @@
  *   auto / full-auto）、
  *   `compaction`、`tools.disabled`、`tools.preset`（只能更严）、`codemode.mode: "off"`、`ui`、
  *   `checkpoints.mode: "off"`、`checkpoints.maxFileBytes`（只能调小）、（W5-C0）`plan.bash`（只能更严）、
- *   `reminders`；`compaction.prune / pruneExclude` 与第五波其余段只认用户级；
+ *   `reminders`；`compaction.prune / pruneExclude` 与第五波其余段只认用户级；（W6-C0）`ui.language` /
+ *   `ui.agentBar` 随 `ui` 段、`memory.enabled: false`；`ui.replyLanguage`、`memory` 其余键、`auth` 只认用户级；
  *   其它字段与放宽项（含 `permission.builtinDeny / autoModel / autoSafeCommands`）被忽略并记 warning。
  * - 同时产出带来源的权限规则清单（`ruleSpecs`），交给权限管线（B3 的 rules.ts 解析）。
  */
@@ -32,6 +33,7 @@ import {
 } from "./types.js";
 import type { PermissionMode, RuleSource } from "../permissions/types.js";
 import { isAtLeastAsStrict } from "../permissions/rules.js";
+import { msg } from "../i18n/index.js";
 import type { ModelThinkingLevel } from "../ai/types.js";
 
 export const DEFAULT_CONFIG: Readonly<AmaConfig> = Object.freeze({
@@ -54,8 +56,8 @@ export const DEFAULT_CONFIG: Readonly<AmaConfig> = Object.freeze({
 
 /** 嵌入宿主（有 profile）时的缺省覆盖（§12.10）。 */
 export const PROFILE_DEFAULTS: Readonly<Partial<AmaConfig>> = Object.freeze({
-  // [W5-A] 嵌入宿主以「最后一行 = 状态栏」锚定，底部信息行缺省单行
-  ui: { quietStartup: "header", statusLine: "compact" },
+  // [W5-A] 嵌入宿主以「最后一行 = 状态栏」锚定，底部信息行缺省单行；[W6-C0] 宿主自己展示节点，Agent 栏缺省关
+  ui: { quietStartup: "header", statusLine: "compact", agentBar: "off" },
 } satisfies Partial<AmaConfig>);
 
 export type ConfigLayerName = "default" | "user" | "profile" | "project" | "cli";
@@ -174,8 +176,22 @@ export function restrictProjectConfig(
         break;
       }
       case "ui":
-        if (project.ui !== undefined) accepted.ui = structuredClone(project.ui);
+        if (project.ui !== undefined) {
+          // [W6-C0] 回复语言改的是发给模型的规则，只认用户级 / profile
+          const { replyLanguage, ...rest } = structuredClone(project.ui);
+          if (replyLanguage !== undefined)
+            warnings.push(msg().config.merge.projectIgnored(label, "ui.replyLanguage"));
+          accepted.ui = rest;
+        }
         break;
+      case "memory": {
+        // [W6-C0] 记忆不由仓库决定：项目级只能关闭（D9）
+        const memory = project.memory ?? {};
+        if (Object.keys(memory).some((k) => k !== "enabled") || memory.enabled === true)
+          warnings.push(msg().config.merge.projectMemoryOnlyDisable(label));
+        if (memory.enabled === false) accepted.memory = { enabled: false };
+        break;
+      }
       case "tools": {
         const tools = project.tools ?? {};
         const result: ToolsConfig = {};
@@ -339,6 +355,8 @@ export interface CliConfigOverrides {
   toolsPreset?: ToolsPresetInput | undefined;
   /** `--codemode`。 */
   codemode?: CodemodeMode | undefined;
+  /** [W6-C0] `--memory` / `--no-memory`：覆盖 `memory.enabled`。 */
+  memory?: boolean | undefined;
 }
 
 export function cliOverridesToConfig(cli: CliConfigOverrides): Partial<AmaConfig> {
@@ -355,6 +373,7 @@ export function cliOverridesToConfig(cli: CliConfigOverrides): Partial<AmaConfig
   if (Object.keys(ui).length > 0) out.ui = ui;
   if (cli.toolsPreset !== undefined) out.tools = { preset: cli.toolsPreset };
   if (cli.codemode !== undefined) out.codemode = { mode: cli.codemode };
+  if (cli.memory !== undefined) out.memory = { enabled: cli.memory };
   return out;
 }
 

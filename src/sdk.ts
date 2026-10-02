@@ -41,7 +41,13 @@ import type { Runtime } from "./cli/runtime.js";
 import { findContextFiles } from "./config/context-files.js";
 import { DEFAULT_CONFIG, mergeConfig } from "./config/merge.js";
 import { resolveConfigDir, resolveDataDir } from "./config/paths.js";
-import { canonicalPreset, type AmaConfig, type ToolsPresetInput } from "./config/types.js";
+import {
+  canonicalPreset,
+  type AmaConfig,
+  type ProfileMemoryOptions,
+  type ToolsPresetInput,
+} from "./config/types.js";
+import type { Trace, TraceOptions } from "./trace/types.js";
 import { AmaError } from "./errors.js";
 import { resolveLocale, setLocale, type Locale } from "./i18n/index.js";
 import { hooksFromConfig } from "./hooks/config.js";
@@ -95,6 +101,8 @@ export interface RuntimeOptions {
   compose?: ComposeOptions;
   /** [W6-C0] 界面语言（等价 `--lang`）；进程级。 */
   language?: Locale;
+  /** [W6-C0] 记忆开关（等价 `--memory` / `--no-memory`；W6-M 实现）。 */
+  memory?: boolean;
 }
 
 export async function createRuntime(options: RuntimeOptions = {}): Promise<Runtime> {
@@ -110,6 +118,7 @@ export async function createRuntime(options: RuntimeOptions = {}): Promise<Runti
   if (options.profile !== undefined) args.profile = options.profile;
   if (options.unattended === true) args.print = true;
   if (options.language !== undefined) args.lang = options.language;
+  if (options.memory !== undefined) args.memory = options.memory;
   const env = options.env ?? process.env;
   if (args.lang !== undefined) setLocale(resolveLocale(env, undefined, args.lang));
   const io: CliIo = {
@@ -144,7 +153,11 @@ export interface SessionPlanApi {
   todos(): TodoItemView[];
 }
 
-export type SdkAgentSession = AgentSessionImpl & { readonly plan: SessionPlanApi };
+export type SdkAgentSession = AgentSessionImpl & {
+  readonly plan: SessionPlanApi;
+  /** [W6-C0] 本会话的轨迹（W6-T2 实现；之前不存在）。 */
+  trace?(options?: TraceOptions): Trace;
+};
 
 export type SessionAuth =
   | { kind: "file"; path: string }
@@ -196,6 +209,11 @@ export interface CreateSessionOptions {
   log?: LogFn;
   /** [W6-C0] 界面语言（跟随宿主界面）；进程级，`AMA_LANG` 仍优先。不影响发给模型的文本。 */
   language?: Locale;
+  /**
+   * [W6-C0] 记忆（W6-M 实现，D11）：缺省禁用；`enabled: true` 时 `dir` 必填（按工作空间隔离的绝对路径），
+   * 作用域只有 workspace，不读用户级记忆。
+   */
+  memory?: ProfileMemoryOptions;
 }
 
 function keyOptions(auth: SessionAuth | undefined): KeyResolverOptions {
