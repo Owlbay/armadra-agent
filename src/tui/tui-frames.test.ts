@@ -177,3 +177,41 @@ describe("帧黄金", () => {
     tui.stop();
   });
 });
+
+const MARKDOWN_SAMPLE = [
+  "## 差分渲染的规则",
+  "",
+  "我先看一下 `src/tui/tui.ts` 的 `diff()` 逻辑，然后**只改**必要的部分。",
+  "见 [差分渲染说明](docs/tui.md#差分渲染)。",
+  "",
+  "1. 首帧全量输出",
+  "2. 修改 `diff()`：首变化行在视口之上时全量重画",
+  "   - 已滚出终端顶部的历史行留在回滚里",
+  "3. 跑测试",
+  "",
+  "```ts",
+  "if (first < viewportTop) fullViewport();",
+  "for (let i = first; i <= last; i++) out.push(moveTo(i) + clear + lines[i]);",
+  "```",
+  "",
+  "> 注意：已滚出终端顶部的历史行不再重绘。",
+  "",
+  "| 情况 | 写入 |",
+  "| --- | --- |",
+  "| 改一行 | 1 行 |",
+  "| resize | 一屏 |",
+].join("\n");
+
+describe("Markdown 帧黄金", () => {
+  for (const columns of [80, 40]) {
+    it(`标题 / 列表 / 代码块 / 链接 / 引用 / 表格 ${columns}x24`, () => {
+      const terminal = new MemoryTerminal({ columns, rows: 24 });
+      const tui = new TUI(terminal);
+      tui.addChild(new Markdown(MARKDOWN_SAMPLE, { theme: plainTheme() }));
+      tui.start();
+      tui.renderNow();
+      golden(`markdown-${columns}x24`, snapshot(terminal, true));
+      tui.stop();
+    });
+  }
+});

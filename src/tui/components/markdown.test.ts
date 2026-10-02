@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { stripAnsi, visibleWidth } from "../ansi.js";
+import type { Theme } from "../component.js";
 import { createTheme, plainTheme } from "../theme.js";
 import { Markdown, parseMarkdown, renderInline } from "./markdown.js";
 
@@ -110,10 +111,46 @@ describe("Markdown 组件", () => {
       "│ export const answer = 42;            │",
       "╰──────────────────────────────────────╯",
       "",
-      "│ note: keep it small",
+      "▎ note: keep it small",
       "",
-      "name │ size",
-      "a.ts │ 12",
+      "name  size",
+      "──────────",
+      "a.ts  12",
+    ]);
+  });
+
+  it("配色：链接 link + 下划线、URL dim；列表符号 muted；代码块正文 text；引用 muted", () => {
+    const tagged = Object.assign(Object.create(plainTheme()) as Theme, {
+      fg: (c: string, t: string) => `<${c}>${t}</>`,
+      underline: (t: string) => `_${t}_`,
+    });
+    expect(renderInline("见 [说明](docs/tui.md)", tagged)).toBe(
+      "见 <link>_说明_</><dim> (docs/tui.md)</>",
+    );
+    expect(renderInline("[x](x)", tagged)).toBe("<link>_x_</>");
+    expect(renderInline("<https://a.b>", tagged)).toBe("<link>_https://a.b_</>");
+    const md = new Markdown("- a\n\n```\ncode\n```\n\n> q", { theme: tagged });
+    const out = md.render(30).join("\n");
+    expect(out).toContain("<muted>•</> a");
+    expect(out).toContain("<text>code</>");
+    expect(out).toContain("<border>▎</> <muted>q</>");
+    expect(out).not.toContain("<code>");
+  });
+
+  it("ASCII 主题：圆点、框线、竖条", () => {
+    const md = new Markdown("- a\n\n```\nx\n```\n\n> q\n\n---", {
+      theme: plainTheme({ ascii: true }),
+    });
+    expect(md.render(8)).toEqual([
+      "- a",
+      "",
+      "+------+",
+      "| x    |",
+      "+------+",
+      "",
+      "| q",
+      "",
+      "--------",
     ]);
   });
 

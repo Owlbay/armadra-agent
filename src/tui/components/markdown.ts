@@ -4,7 +4,11 @@
  * 支持：ATX 标题、段落（软换行合并为空格，行尾两个空格或 `\` 为硬换行）、无序 / 有序列表（缩进嵌套）、
  * 围栏代码块（边框 + 语言标签；流式时未闭合的围栏按代码块渲染）、引用、分隔线、
  * 行内 `code` / **粗体** / *斜体* / ~~删除线~~ / [链接](url) / <自动链接> / 反斜杠转义。
- * 表格降级为等宽对齐文本（不换行、超宽截断）；不做语法高亮（§12.9）。
+ * 表格降级为等宽对齐文本（列间两个空格、首行粗体其下一条规则线、不换行、超宽截断）；不做语法高亮（§12.9）。
+ *
+ * 配色（终端界面视觉设计 v1 §3.3）：h1 / h2 `accent` 粗体，h3+ 粗体；行内代码 `code`；链接文字 `link`
+ * 加下划线、URL 以 ` (url)` `dim` 追加；列表符号 `muted`；代码块全宽、边框 `border`、语言标签 `dim`、
+ * 正文 `text`；引用 `▎` + `muted` 斜体。字形（圆点、框线、竖条）取 `theme.glyphs`。
  *
  * 缓存：按块缓存渲染结果（键 = 宽度 + 块源文本），流式追加时只有末块重新渲染；解析也是增量的
  * （`Markdown.append` 只从尾部可能变化的块重新解析）。
@@ -238,8 +242,8 @@ export function renderInline(text: string, theme: Theme): string {
         const url = link[2]!;
         out +=
           link[1] === url || url === ""
-            ? theme.underline(label || url)
-            : theme.underline(label) + theme.fg("dim", ` (${url})`);
+            ? theme.fg("link", theme.underline(label || url))
+            : theme.fg("link", theme.underline(label)) + theme.fg("dim", ` (${url})`);
         i += link[0].length;
         continue;
       }
@@ -247,7 +251,7 @@ export function renderInline(text: string, theme: Theme): string {
     if (ch === "<") {
       const auto = /^<((?:https?|mailto):[^>\s]+)>/.exec(text.slice(i));
       if (auto) {
-        out += theme.underline(auto[1]!);
+        out += theme.fg("link", theme.underline(auto[1]!));
         i += auto[0].length;
         continue;
       }
@@ -295,17 +299,20 @@ export function renderBlock(block: MarkdownBlock, width: number, theme: Theme): 
   switch (block.kind) {
     case "heading": {
       const text = renderInline(block.text, theme);
-      const styled = block.level <= 2 ? theme.fg("accent", theme.bold(text)) : theme.bold(text);
+      const styled =
+        block.level <= 2
+          ? theme.fg("accent", theme.bold(text))
+          : theme.fg("text", theme.bold(text));
       return wrapTextWithAnsi(styled, width);
     }
     case "paragraph":
       return wrapTextWithAnsi(renderInline(block.text, theme), width);
     case "hr":
-      return [theme.fg("border", "─".repeat(Math.max(1, width)))];
+      return [theme.fg("border", theme.glyphs.rule.repeat(Math.max(1, width)))];
     case "quote": {
-      const bar = theme.fg("border", "│ ");
-      const inner = wrapTextWithAnsi(theme.italic(renderInline(block.text, theme)), width - 2);
-      return inner.map((line) => bar + line);
+      const bar = theme.fg("border", theme.glyphs.card) + " ";
+      const body = theme.fg("muted", theme.italic(renderInline(block.text, theme)));
+      return wrapTextWithAnsi(body, Math.max(1, width - 2)).map((line) => bar + line);
     }
     case "list":
       return renderList(block.items, width, theme);
@@ -316,16 +323,24 @@ export function renderBlock(block: MarkdownBlock, width: number, theme: Theme): 
   }
 }
 
-const BULLETS = ["•", "◦", "▪"];
-
 function renderList(items: readonly ListItem[], width: number, theme: Theme): string[] {
   const lines: string[] = [];
+  const bullets = theme.glyphs.bullets;
+  /** 各层的正文起始列与无序层数（嵌套项对齐父项正文，圆点按无序层数换）。 */
+  const columns: number[] = [];
+  const unordered: number[] = [];
   for (const item of items) {
-    const indent = "  ".repeat(item.depth);
+    const depth = Math.min(item.depth, columns.length);
+    const indent = depth === 0 ? 0 : columns[depth - 1]!;
     const ordered = /\d/.test(item.marker);
-    const bullet = ordered ? item.marker : BULLETS[item.depth % BULLETS.length]!;
-    const head = indent + theme.fg("accent", bullet) + " ";
+    const level = (depth === 0 ? 0 : unordered[depth - 1]!) + (ordered ? 0 : 1);
+    const bullet = ordered ? item.marker : bullets[(level - 1) % bullets.length]!;
+    const head = " ".repeat(indent) + theme.fg("muted", bullet) + " ";
     const headWidth = visibleWidth(head);
+    columns.length = depth;
+    unordered.length = depth;
+    columns.push(headWidth);
+    unordered.push(level);
     const body = wrapTextWithAnsi(renderInline(item.text, theme), Math.max(1, width - headWidth));
     body.forEach((line, index) => {
       lines.push((index === 0 ? head : " ".repeat(headWidth)) + line);
@@ -338,19 +353,24 @@ function renderCode(lang: string, body: readonly string[], width: number, theme:
   const code = body.map((line) => line.replace(/\t/g, "    "));
   if (width < 8) return code.map((line) => truncateToWidth(line, width));
   const inner = width - 4;
+  const g = theme.glyphs.box;
   const border = (s: string): string => theme.fg("border", s);
   const label = lang === "" ? "" : truncateToWidth(` ${lang} `, inner - 1);
   const top =
-    border("╭─") +
+    border(g.topLeft + g.horizontal) +
     theme.fg("dim", label) +
-    border("─".repeat(width - 3 - visibleWidth(label)) + "╮");
+    border(g.horizontal.repeat(width - 3 - visibleWidth(label)) + g.topRight);
   const lines = [top];
   for (const line of code) {
     for (const piece of wrapCode(line, inner)) {
-      lines.push(border("│ ") + padToWidth(theme.fg("code", piece), inner) + border(" │"));
+      lines.push(
+        border(g.vertical + " ") +
+          padToWidth(theme.fg("text", piece), inner) +
+          border(" " + g.vertical),
+      );
     }
   }
-  lines.push(border("╰" + "─".repeat(width - 2) + "╯"));
+  lines.push(border(g.bottomLeft + g.horizontal.repeat(width - 2) + g.bottomRight));
   return lines;
 }
 
@@ -381,12 +401,18 @@ function renderTable(rows: readonly string[][], width: number, theme: Theme): st
   for (const row of rendered) {
     row.forEach((cell, c) => (widths[c] = Math.max(widths[c]!, visibleWidth(cell))));
   }
-  const sep = theme.fg("border", " │ ");
-  return rendered.map((row, r) => {
+  const lines: string[] = [];
+  rendered.forEach((row, r) => {
     const cells = widths.map((w, c) => padToWidth(row[c] ?? "", w));
-    const line = cells.join(sep).replace(/\s+$/, "");
-    return truncateToWidth(r === 0 && rows.length > 1 ? theme.bold(line) : line, width);
+    const line = cells.join("  ").replace(/\s+$/, "");
+    const header = r === 0 && rows.length > 1;
+    lines.push(truncateToWidth(header ? theme.bold(line) : line, width));
+    if (header) {
+      const total = widths.reduce((sum, w) => sum + w, 0) + 2 * Math.max(0, cols - 1);
+      lines.push(theme.fg("border", theme.glyphs.rule.repeat(Math.max(1, Math.min(total, width)))));
+    }
   });
+  return lines;
 }
 
 export interface MarkdownOptions {
