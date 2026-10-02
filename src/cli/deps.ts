@@ -123,6 +123,8 @@ export interface SessionOverrides {
   systemPrompt?: SystemPromptOverride;
   /** `--no-session`：`/new` 等切换出的新会话也只在内存里。 */
   noSession?: boolean;
+  /** [W5-G] `--agent-dir`（可重复）与 profile `agentDirs`，按此顺序：子 Agent 定义目录。 */
+  agentDirs?: string[];
 }
 
 export interface SystemPromptOverride {

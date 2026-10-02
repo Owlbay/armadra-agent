@@ -1,58 +1,70 @@
 /**
- * 子 Agent（设计 §5.2 task、D14）：`ToolContext.spawnSubagent` 的实现，供 B3 的 task 工具调用。[B2]
+ * 子 Agent（设计 §5.2 task、D14；第五波 docs/wave5-plan.md §7，D22–D24）：`ToolContext.spawnSubagent`
+ * 的实现与 ama 自己的 runner（`AmaRunner`）。[B2 → W5-G]
  *
- * - 同进程新会话：独立 JSONL（头的 parentSession 指回父文件；父为内存会话则子也在内存），首条
- *   `custom{customType:"ama.task"}` 记父 toolCallId。
- * - 深度 ≤ 1（子会话 depth 1、无 spawnSubagent）；并发 ≤ 4（排队等待）。
- * - 工具子集缺省 = 父的活动集，总是去掉 task；继承父的权限管线、Hook 与系统提示静态部分；
- *   broker 包一层，请求带 `context{depth, parentToolCallId}`，审批事件转发到父会话。
- * - 父 abort 级联；结果 = 子的最后助手文本 + 用量 + 子会话文件。
- * - [W3-C1b] 子会话有自己的缓存控制器（统计独立、未命中不进父链，`warmSubagents` 为 false 时
- *   不保温）；结果带 `cache{hitRate, reBilledTokens}`，并汇总进父会话的「子任务」统计。
+ * - `runSubagent`：交给会话的任务注册表（subagent-registry.ts）——类型解析、并发池、前台 / 后台、
+ *   续聊、结果上限、事件都在那里；这里只提供「起一个 ama 子会话」的 runner。
+ * - 子会话：同进程新会话，独立 JSONL（头的 parentSession 指回父文件；父为内存会话则子也在内存），
+ *   首条 `custom{ama.task}` 记父 toolCallId 与 taskId；深度 ≤ 1（depth 1、无 spawnSubagent）。
+ * - **工具表与父字节一致**（D23）：活动集 = 父活动集，`task` / `task_ctl` 保留在表里、运行时按深度
+ *   拒绝，子会话首请求能命中父的 tools + system 前缀；角色说明进系统提示末位 `role` 节。只有类型
+ *   声明了 `tools` / `disallowed-tools`（或调用参数给了 `tools`）时工具表才不同。
+ * - 只读类型（`permission-mode: plan`）：子会话用一条 plan 模式的权限管线（规则同父），ask 一律转
+ *   deny——写类工具与识别不了的 bash 被拒且不弹审批；`inherit` 共用父的管线（不会比父宽）。
+ * - 轮数耗尽且最后停在工具结果上：以 `toolChoice:"none"` 再跑一轮要最终报告，状态 `max_turns`。
+ * - broker 包一层，请求带 `context{depth, parentToolCallId, taskId}`，审批事件转发到父会话；
+ *   [RW-B] 父的检查点钩子（worktree 里运行时不记）；[W3-C1b] 子会话命中与重计费汇总进父。
  */
 
 import type { CheckpointHooks } from "../checkpoints/types.js";
 import { AmaError } from "../errors.js";
-import type { ApprovalBroker, ApprovalRequestContext } from "../permissions/types.js";
+import { PermissionPipeline } from "../permissions/pipeline.js";
+import type {
+  ApprovalBroker,
+  ApprovalRequestContext,
+  PermissionPipelineApi,
+} from "../permissions/types.js";
 import { SessionManager } from "../session/manager.js";
-import type { SubagentRequest, SubagentResult } from "../tools/types.js";
+import type { AgentMessage } from "../session/types.js";
+import type {
+  RunnerHandle,
+  SubagentRequest,
+  SubagentResult,
+  SubagentRunRequest,
+  SubagentRunner,
+} from "../tools/types.js";
+import { agentRole } from "../agents/builtin.js";
 import { ZERO_USAGE } from "./loop.js";
 import type { AgentSessionOptions } from "./session-core.js";
+import type { SessionExtensionFactory } from "./session-extensions.js";
+import {
+  DEFAULT_SUBAGENT_CONCURRENCY,
+  SubagentPool,
+  TASK_CUSTOM_TYPE,
+  subagentRegistryFor,
+  type AmaRunnerSpec,
+  type RegistryHost,
+  type TaskHandle,
+} from "./subagent-registry.js";
 import type { SessionEvent, SessionStats } from "./types.js";
 
-export const DEFAULT_SUBAGENT_CONCURRENCY = 4;
+export { DEFAULT_SUBAGENT_CONCURRENCY, SubagentPool, TASK_CUSTOM_TYPE };
 export const DEFAULT_SUBAGENT_MAX_TURNS = 30;
-export const TASK_CUSTOM_TYPE = "ama.task";
+/** 子会话里保留在工具表、运行时拒绝的名字（深度 ≤ 1）。 */
+export const PARENT_ONLY_TOOLS: readonly string[] = ["task", "task_ctl"];
 
-/** 计数信号量。 */
-export class SubagentPool {
-  private running = 0;
-  private readonly waiters: (() => void)[] = [];
+export const FINAL_REPORT_PROMPT =
+  "You have reached the turn limit for this task. Do not call any tools. Reply now with your " +
+  "final report: what you did, key findings, and what is left unfinished.";
 
-  constructor(private readonly limit: number) {}
-
-  async acquire(signal: AbortSignal): Promise<void> {
-    while (this.running >= this.limit) {
-      if (signal.aborted) throw new AmaError("aborted", "aborted");
-      await new Promise<void>((resolve) => this.waiters.push(resolve));
-    }
-    this.running++;
-  }
-
-  release(): void {
-    this.running--;
-    this.waiters.shift()?.();
-  }
-}
-
-export interface SubagentParent {
+export interface SubagentParent extends RegistryHost {
   readonly options: AgentSessionOptions;
   readonly manager: SessionManager;
   readonly cwd: string;
   readonly depth: number;
   childBase(): Pick<AgentSessionOptions, "model" | "thinkingLevel" | "activeTools" | "system">;
   /** 子会话的审批事件转发给父会话的订阅者（RPC 客户端 / TUI 据此作答）。 */
-  emit?(event: SessionEvent): void;
+  emit(event: SessionEvent): void;
   /** [RW-B] 父会话的检查点钩子：子会话的编辑记到父会话当前回合。 */
   checkpointHooks?(): CheckpointHooks | undefined;
   /** [W3-C1b] 父会话的缓存控制器：汇总子会话的命中与重计费。 */
@@ -61,7 +73,7 @@ export interface SubagentParent {
   };
 }
 
-/** 子会话的 broker：请求带上发起方上下文（对话框标 `[task]`），其余原样交给父链。 */
+/** 子会话的 broker：请求带上发起方上下文（对话框标 `[task:<agent>]`），其余原样交给父链。 */
 function brokersForChild(
   brokers: AgentSessionOptions["brokers"],
   context: ApprovalRequestContext,
@@ -73,6 +85,7 @@ function brokersForChild(
 
 export interface ChildSession {
   readonly manager: SessionManager;
+  readonly messages: readonly AgentMessage[];
   prompt(text: string): Promise<unknown>;
   abort(): Promise<void>;
   subscribe(listener: (event: SessionEvent) => void): () => void;
@@ -81,121 +94,290 @@ export interface ChildSession {
   dispose(): Promise<void>;
 }
 
+/**
+ * 只读子会话的权限管线：plan 模式、规则同父；ask 一律转 deny（只读类型不弹审批）。
+ * 父管线不是 `PermissionPipeline`（宿主 / SDK 自带实现）时退化为「只放行 read 类」。
+ */
+export function readOnlyPermission(
+  parent: PermissionPipelineApi | undefined,
+  cwd: string,
+): PermissionPipelineApi {
+  const base = parent instanceof PermissionPipeline ? parent : undefined;
+  const inner = new PermissionPipeline({
+    mode: "plan",
+    rules: parent?.rules ?? [],
+    cwd: base?.cwd ?? cwd,
+    ...(parent?.projectRoot === undefined ? {} : { projectRoot: parent.projectRoot }),
+  });
+  const denied =
+    "Read-only sub-agent: this call is not allowed (it would modify files or run a non-read-only command).";
+  return {
+    get mode() {
+      return "plan" as const;
+    },
+    setMode: () => undefined,
+    get rules() {
+      return inner.rules;
+    },
+    check: (input) => {
+      const verdict = inner.check(input);
+      return verdict.decision === "ask"
+        ? { ...verdict, decision: "deny", message: verdict.message ?? denied }
+        : verdict;
+    },
+    rememberForSession: () => undefined,
+    ...(parent?.projectRoot === undefined ? {} : { projectRoot: parent.projectRoot }),
+  };
+}
+
 function failed(text: string): SubagentResult {
-  return { text, usage: { ...ZERO_USAGE }, stopReason: "error", isError: true };
+  return { text, usage: { ...ZERO_USAGE }, stopReason: "error", isError: true, status: "failed" };
 }
 
 export async function runSubagent(
   parent: SubagentParent,
   request: SubagentRequest,
-  pool: SubagentPool,
+  _pool: SubagentPool,
   createChild: (options: AgentSessionOptions) => ChildSession,
 ): Promise<SubagentResult> {
   if (parent.depth > 0) return failed("subagents cannot spawn subagents");
-  await pool.acquire(request.signal);
-  try {
-    const base = parent.childBase();
-    let model = base.model;
-    if (request.model !== undefined) {
-      const lookup = parent.options.providers.findModel(request.model);
-      if (!lookup.ok) return failed(`unknown model ${request.model}`);
-      model = lookup.model;
-    }
-    const parentFile = parent.manager.file();
-    const headerOptions = parentFile === undefined ? {} : { parentSession: parentFile };
-    const dir = parent.manager.directory();
-    const childManager =
-      dir === undefined
-        ? SessionManager.inMemory(parent.cwd, headerOptions)
-        : SessionManager.create(dir, parent.cwd, headerOptions);
-    childManager.append({
-      type: "custom",
-      customType: TASK_CUSTOM_TYPE,
-      data: {
-        parentToolCallId: request.parentToolCallId,
-        description: request.description,
-        parentSession: parentFile,
-      },
-    });
-    const checkpointHooks = parent.checkpointHooks?.();
-    const available = new Set((parent.options.tools ?? []).map((tool) => tool.name));
-    const names = (request.tools ?? base.activeTools ?? [...available]).filter(
-      (name) => name !== "task" && available.has(name),
-    );
-    const child = createChild({
-      ...parent.options,
-      ...base,
-      sessionManager: childManager,
-      model,
-      thinkingLevel: request.thinkingLevel ?? base.thinkingLevel ?? "off",
-      activeTools: names,
-      brokers: brokersForChild(parent.options.brokers, {
-        depth: parent.depth + 1,
-        parentToolCallId: request.parentToolCallId,
-      }),
+  const registry = subagentRegistryFor(parent);
+  return registry.run(request, (spec) => createAmaRunner(parent, spec, createChild));
+}
+
+/** 活动集：缺省 = 父活动集（含 task / task_ctl，工具表对齐）；白名单 / 黑名单时按名过滤。 */
+function childToolNames(
+  parent: SubagentParent,
+  spec: AmaRunnerSpec,
+  base: readonly string[] | undefined,
+): string[] {
+  const available = new Set((parent.options.tools ?? []).map((tool) => tool.name));
+  const all = [...(base ?? available)].filter((name) => available.has(name));
+  const allow = spec.request.tools ?? spec.agent.tools;
+  if (allow !== undefined)
+    return allow.filter((name) => available.has(name) && !PARENT_ONLY_TOOLS.includes(name));
+  const deny = spec.agent.disallowedTools;
+  if (deny !== undefined)
+    return all.filter((name) => !deny.includes(name) && !PARENT_ONLY_TOOLS.includes(name));
+  return all;
+}
+
+/** ama 自己的子会话 runner（同进程）。 */
+export function createAmaRunner(
+  parent: SubagentParent,
+  spec: AmaRunnerSpec,
+  createChild: (options: AgentSessionOptions) => ChildSession,
+): SubagentRunner {
+  return {
+    id: "ama",
+    start: (request) => startAmaChild(parent, spec, createChild, request),
+  };
+}
+
+function childManager(parent: SubagentParent, spec: AmaRunnerSpec): SessionManager {
+  if (spec.resumeFile !== undefined) return SessionManager.open(spec.resumeFile);
+  const parentFile = parent.manager.file();
+  const header = parentFile === undefined ? {} : { parentSession: parentFile };
+  const dir = parent.manager.directory();
+  const manager =
+    dir === undefined
+      ? SessionManager.inMemory(spec.cwd, header)
+      : SessionManager.create(dir, spec.cwd, header);
+  manager.append({
+    type: "custom",
+    customType: TASK_CUSTOM_TYPE,
+    data: {
+      taskId: spec.taskId,
+      agent: spec.agent.name,
+      parentToolCallId: spec.request.parentToolCallId,
+      description: spec.request.description,
+      parentSession: parentFile,
+    },
+  });
+  // 立即落盘：subagent_start 带上子会话文件，续聊 / resume 靠它重开
+  if (dir !== undefined) manager.flush();
+  return manager;
+}
+
+async function startAmaChild(
+  parent: SubagentParent,
+  spec: AmaRunnerSpec,
+  createChild: (options: AgentSessionOptions) => ChildSession,
+  run: SubagentRunRequest,
+): Promise<TaskHandle> {
+  const base = parent.childBase();
+  let model = base.model;
+  if (spec.modelRef !== undefined) {
+    const lookup = parent.options.providers.findModel(spec.modelRef);
+    if (!lookup.ok) throw new AmaError("model_not_found", `unknown model ${spec.modelRef}`);
+    model = lookup.model;
+  }
+  const manager = childManager(parent, spec);
+  const checkpointHooks = spec.isolated ? undefined : parent.checkpointHooks?.();
+  let finalRound = false;
+  const finalRoundExtension: SessionExtensionFactory = () => ({
+    id: "ama.subagent-final-round",
+    wrapStream: (stream) => (m, context, options) =>
+      stream(m, context, finalRound ? { ...options, toolChoice: "none" } : options),
+  });
+  const maxTurns = spec.request.maxTurns ?? spec.agent.maxTurns ?? DEFAULT_SUBAGENT_MAX_TURNS;
+  const options: AgentSessionOptions = {
+    ...parent.options,
+    ...base,
+    system: { ...base.system, role: agentRole(spec.agent) },
+    sessionManager: manager,
+    model,
+    thinkingLevel: spec.request.thinkingLevel ?? spec.agent.thinking ?? base.thinkingLevel ?? "off",
+    activeTools: childToolNames(parent, spec, base.activeTools),
+    brokers: brokersForChild(parent.options.brokers, {
       depth: parent.depth + 1,
-      maxTurns: request.maxTurns ?? DEFAULT_SUBAGENT_MAX_TURNS,
-      subagents: false,
-      ...(checkpointHooks === undefined ? {} : { checkpointHooks }),
-    });
-    const onAbort = (): void => void child.abort();
-    request.signal.addEventListener("abort", onAbort, { once: true });
-    const unsubscribe = child.subscribe((event) => {
-      if (event.type === "tool_execution_start") request.onUpdate?.(`[task] ${event.toolName}`);
-      else if (event.type === "permission_request" || event.type === "permission_resolved")
-        parent.emit?.(event);
-    });
+      parentToolCallId: spec.request.parentToolCallId,
+      taskId: spec.taskId,
+    }),
+    depth: parent.depth + 1,
+    maxTurns,
+    subagents: false,
+    extensions: [...(parent.options.extensions ?? []), finalRoundExtension],
+  };
+  delete options.checkpointHooks;
+  if (checkpointHooks !== undefined) options.checkpointHooks = checkpointHooks;
+  if (spec.agent.permissionMode === "plan")
+    options.permission = readOnlyPermission(parent.options.permission, spec.cwd);
+  const child = createChild(options);
+
+  let turns = 0;
+  let toolUse = false;
+  const unsubscribe = child.subscribe((event) => {
+    if (event.type === "tool_execution_start" && event.parentToolCallId === undefined)
+      run.onEvent({ type: "tool", toolName: event.toolName, status: "started" });
+    else if (event.type === "message_update" && event.assistantMessageEvent.type === "text_delta")
+      run.onEvent({ type: "text", delta: event.assistantMessageEvent.delta });
+    else if (event.type === "turn_end") {
+      turns++;
+      toolUse = event.toolResults.length > 0;
+      const tokens = child.getStats().tokens;
+      run.onEvent({
+        type: "usage",
+        usage: { ...tokens, totalTokens: tokens.total },
+      });
+      run.onEvent({ type: "turn", turn: turns });
+    } else if (event.type === "permission_request" || event.type === "permission_resolved")
+      parent.emit(event);
+  });
+  const onAbort = (): void => void child.abort();
+  run.signal.addEventListener("abort", onAbort, { once: true });
+  let billed = { cacheRead: 0, prompt: 0, reBilled: 0 };
+
+  const runOnce = async (prompt: string): Promise<SubagentResult> => {
+    const startTurns = turns;
     let error: string | undefined;
     try {
-      if (request.signal.aborted) throw new AmaError("aborted", "aborted");
-      await child.prompt(request.prompt);
+      if (run.signal.aborted) throw new AmaError("aborted", "aborted");
+      await child.prompt(prompt);
     } catch (caught) {
       error = caught instanceof Error ? caught.message : String(caught);
-    } finally {
-      request.signal.removeEventListener("abort", onAbort);
-      unsubscribe();
     }
-    const stats = child.getStats();
-    const last = child.manager
-      .branch()
-      .findLast((entry) => entry.type === "message" && entry.message.role === "assistant");
-    const stopReason =
-      error !== undefined
-        ? "error"
-        : last?.type === "message" && last.message.role === "assistant"
-          ? last.message.stopReason
-          : "stop";
-    const result: SubagentResult = {
-      text: child.getLastAssistantText() ?? error ?? "",
-      usage: {
-        input: stats.tokens.input,
-        output: stats.tokens.output,
-        cacheRead: stats.tokens.cacheRead,
-        cacheWrite: stats.tokens.cacheWrite,
-        totalTokens: stats.tokens.total,
-      },
-      stopReason,
-      isError: error !== undefined || stopReason === "error" || stopReason === "aborted",
-    };
-    const cache = stats.cache;
-    if (cache !== undefined) {
-      result.cache = { reBilledTokens: cache.reBilledTokens };
-      if (cache.hitRate !== undefined) result.cache.hitRate = cache.hitRate;
-      // 不报缓存的子会话不进命中率分母（同父会话口径）
-      const reported = cache.reporting === "reported";
-      const { input, cacheRead, cacheWrite } = stats.tokens;
-      parent.cache?.addSubagent(
-        reported
-          ? { cacheRead, prompt: input + cacheRead + cacheWrite }
-          : { cacheRead: 0, prompt: 0 },
-        cache.reBilledTokens,
-      );
+    const exhausted =
+      error === undefined && !run.signal.aborted && turns - startTurns >= maxTurns && toolUse;
+    if (exhausted) {
+      finalRound = true;
+      options.maxTurns = 1;
+      try {
+        await child.prompt(FINAL_REPORT_PROMPT);
+      } catch (caught) {
+        error = caught instanceof Error ? caught.message : String(caught);
+      } finally {
+        finalRound = false;
+        options.maxTurns = maxTurns;
+      }
     }
-    const childFile = childManager.file();
-    if (childFile !== undefined) result.sessionFile = childFile;
-    await child.dispose();
+    const result = collect(child, error, exhausted, run.signal.aborted);
+    billed = addCache(parent, child.getStats(), billed);
+    const file = manager.file();
+    if (file !== undefined) result.sessionFile = file;
     return result;
-  } finally {
-    pool.release();
+  };
+
+  let current = runOnce(run.prompt);
+  const handle: TaskHandle = {
+    id: manager.id,
+    model: `${model.provider}/${model.id}`,
+    ...(manager.file() === undefined ? {} : { sessionFile: manager.file() as string }),
+    send: async (text) => {
+      current = runOnce(text);
+    },
+    wait: () => current,
+    stop: () => child.abort(),
+    dispose: async () => {
+      run.signal.removeEventListener("abort", onAbort);
+      unsubscribe();
+      await child.dispose();
+    },
+  };
+  return handle satisfies RunnerHandle;
+}
+
+function collect(
+  child: ChildSession,
+  error: string | undefined,
+  exhausted: boolean,
+  aborted: boolean,
+): SubagentResult {
+  const stats = child.getStats();
+  const last = child.manager
+    .branch()
+    .findLast((entry) => entry.type === "message" && entry.message.role === "assistant");
+  const stopReason =
+    error !== undefined
+      ? "error"
+      : last?.type === "message" && last.message.role === "assistant"
+        ? last.message.stopReason
+        : "stop";
+  const isError = error !== undefined || stopReason === "error" || stopReason === "aborted";
+  const result: SubagentResult = {
+    text: child.getLastAssistantText() ?? error ?? "",
+    usage: {
+      input: stats.tokens.input,
+      output: stats.tokens.output,
+      cacheRead: stats.tokens.cacheRead,
+      cacheWrite: stats.tokens.cacheWrite,
+      totalTokens: stats.tokens.total,
+    },
+    stopReason,
+    isError,
+    status:
+      aborted || stopReason === "aborted"
+        ? "aborted"
+        : isError
+          ? "failed"
+          : exhausted
+            ? "max_turns"
+            : "completed",
+  };
+  if (stats.cache !== undefined) {
+    result.cache = { reBilledTokens: stats.cache.reBilledTokens };
+    if (stats.cache.hitRate !== undefined) result.cache.hitRate = stats.cache.hitRate;
   }
+  return result;
+}
+
+/** 子会话命中与重计费按增量汇总进父（续聊不重复计）。 */
+function addCache(
+  parent: SubagentParent,
+  stats: SessionStats,
+  before: { cacheRead: number; prompt: number; reBilled: number },
+): { cacheRead: number; prompt: number; reBilled: number } {
+  const cache = stats.cache;
+  if (cache === undefined) return before;
+  // 不报缓存的子会话不进命中率分母（同父会话口径）
+  const reported = cache.reporting === "reported";
+  const { input, cacheRead, cacheWrite } = stats.tokens;
+  const now = reported
+    ? { cacheRead, prompt: input + cacheRead + cacheWrite, reBilled: cache.reBilledTokens }
+    : { cacheRead: 0, prompt: 0, reBilled: cache.reBilledTokens };
+  parent.cache?.addSubagent(
+    { cacheRead: now.cacheRead - before.cacheRead, prompt: now.prompt - before.prompt },
+    now.reBilled - before.reBilled,
+  );
+  return now;
 }

@@ -47,7 +47,7 @@ describe("ToolRegistry", () => {
       grep: "parallel",
       ls: "parallel",
       read: "parallel",
-      task: "sequential",
+      task: "parallel", // [W5-G] 同轮多个 task 并行（D23）
       task_ctl: "parallel",
       todo: "parallel",
       write: "sequential",

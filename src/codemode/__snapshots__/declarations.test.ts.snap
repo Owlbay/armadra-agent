@@ -61,17 +61,25 @@ declare const tools: {
     /** Max lines */
     limit?: number;
   }): Promise<string>;
-  /** Delegate to a fresh sub-agent. It cannot see this chat: give full instructions. Returns its final answer. */
+  /**
+   * Delegate to a sub-agent (fresh context; give full instructions). Returns its final report. Tasks in one reply run in parallel; writers should use isolation worktree. background: returns a taskId now (see task_ctl); taskId: continue that task.
+   * Agents:
+   * - general: General-purpose sub-agent (default): researches and changes code like you do.
+   * - explore: Read-only search: locates files, symbols and code paths; returns paths with line numbers.
+   * - plan: Read-only planner: returns a step-by-step plan with key files and trade-offs.
+   */
   task(args: {
     prompt: string;
-    /** Label */
+    /** Default general */
+    agent?: string;
     description?: string;
-    /** Default: all but task */
+    background?: boolean;
+    taskId?: string;
+    isolation?: "none" | "worktree";
+    budgetUsd?: number;
     tools?: string[];
-    /** provider/model */
     model?: string;
     thinkingLevel?: "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
-    /** Default 30 */
     maxTurns?: number;
   }): Promise<string>;
   /** Manage background sub-agent tasks started by task: list, wait for one, stop it, or read its output. */
