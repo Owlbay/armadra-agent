@@ -4,6 +4,9 @@
  * 找新旧叶子的最深公共祖先 → 收集旧叶子到祖先之间（不含祖先）的上下文消息 → 从新到旧按预算截取 →
  * 用同一模板（止于 Next Steps）生成摘要。调用方把结果作为 `branch_summary` 追加在新位置
  * （parentId = 新叶子，fromId = 旧叶子）。
+ *
+ * [W3-C1b] 调用方给出续写前缀（离开前的完整转录）时同压缩一样走会话前缀续写：「只摘要最后 K 条」，
+ * 失败回落独立请求（第三波 §1.8）。
  */
 
 import type { Usage } from "../ai/types.js";
@@ -18,7 +21,11 @@ import {
   formatFileOps,
   serializeConversation,
 } from "./serialize.js";
-import { completeText, type SummarizerOptions } from "./summarize-tier.js";
+import {
+  countLlmMessages,
+  summarizeWithFallback,
+  type SummarizerOptions,
+} from "./summarize-tier.js";
 
 export const BRANCH_SUMMARY_BUDGET_TOKENS = 20_000;
 
@@ -80,12 +87,26 @@ export async function runBranchSummary(
   plan: BranchSummaryPlan,
   options: SummarizerOptions,
 ): Promise<BranchSummaryDraft> {
-  const parts = [`<conversation>\n${serializeConversation(plan.messages)}\n</conversation>`];
-  parts.push(BRANCH_SUMMARY_TEMPLATE);
-  if (options.customInstructions !== undefined && options.customInstructions.trim() !== "") {
-    parts.push(`Additional instructions:\n${options.customInstructions.trim()}`);
-  }
-  const { text, usage } = await completeText(options, parts.join("\n\n"));
+  const prefix = options.continuation?.prefix;
+  const total =
+    prefix === undefined ? 0 : prefix.messages.filter((m) => m.role !== "system").length;
+  const from = Math.max(0, total - countLlmMessages(plan.messages));
+  const { text, usage } = await summarizeWithFallback(
+    options,
+    {
+      from,
+      keepFrom: { index: total, excerpt: "" },
+      instruction: `Messages ${from + 1}–${total} are the branch being left.\n\n${BRANCH_SUMMARY_TEMPLATE}`,
+    },
+    () => {
+      const parts = [`<conversation>\n${serializeConversation(plan.messages)}\n</conversation>`];
+      parts.push(BRANCH_SUMMARY_TEMPLATE);
+      if (options.customInstructions !== undefined && options.customInstructions.trim() !== "") {
+        parts.push(`Additional instructions:\n${options.customInstructions.trim()}`);
+      }
+      return parts.join("\n\n");
+    },
+  );
   const details = fileOpsDetails(collectFileOps(plan.messages, createFileOps()));
   const files = formatFileOps(details);
   return {

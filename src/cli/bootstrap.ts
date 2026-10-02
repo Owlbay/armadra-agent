@@ -294,7 +294,12 @@ export async function bootstrap(
       permission,
       tools,
       events,
-      host: { handle: host, broker: binding.broker, instructions: binding.instructions },
+      host: {
+        handle: host,
+        broker: binding.broker,
+        instructions: binding.instructions,
+        warmingDecider: binding.warmingDecider,
+      },
       uiBroker: () => uiBroker,
       onSessionReplaced: (next) => {
         session = next;

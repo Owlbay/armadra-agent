@@ -16,6 +16,7 @@ import type { AmaConfig } from "../config/types.js";
 import type { PermissionRuleSpec } from "../config/merge.js";
 import type { TrustPromptAnswer } from "../config/trust.js";
 import type { HookDispatcherApi } from "../hooks/types.js";
+import type { WarmingDecisionHandler } from "../ai/cache/types.js";
 import type { AgentEventBus } from "../host/api-impl.js";
 import type { ApprovalBroker, HostAdapterHandle, InstructionSource } from "../host/types.js";
 import type { PermissionMode, PermissionPipelineApi } from "../permissions/types.js";
@@ -89,6 +90,8 @@ export interface SessionAssembly {
     broker(): ApprovalBroker | undefined;
     /** 系统提示 host 节。 */
     instructions: readonly InstructionSource[];
+    /** [W3-C1b] 宿主 `cache.onWarmingDecision` 的当前处理器（每次保温前现取）。 */
+    warmingDecider?(): WarmingDecisionHandler | undefined;
   };
   /** `Runtime.approvals.setUiBroker` 设置的 UI broker（链尾）；每次审批现取，未设置为 undefined。 */
   uiBroker(): ApprovalBroker | undefined;

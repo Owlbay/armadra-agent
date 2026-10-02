@@ -30,6 +30,7 @@ import type { StreamFn } from "./loop.js";
 import { queuedText } from "./queue.js";
 import { resolveRetrySettings } from "./retry.js";
 import type { AgentSessionOptions, SessionCore } from "./session-core.js";
+import { SessionCacheController, resolveCacheSettings } from "./session-cache.js";
 import { CompactionController } from "./session-compaction.js";
 import { makeUserMessage, runPrompt, type RunCycleDeps } from "./session-run.js";
 import { buildSessionState, computeStats, lastAssistantText } from "./session-state.js";
@@ -70,6 +71,7 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
   readonly depth: number;
   readonly readFiles = new Set<string>();
   readonly stream: StreamFn;
+  readonly cache: SessionCacheController;
   private currentModel: Model;
   private currentThinking: ModelThinkingLevel;
   private readonly allTools = new Map<string, ToolDefinition>();
@@ -101,7 +103,10 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
     );
     this.systemInput = { ...(options.system ?? {}) };
     this.retrySettings = resolveRetrySettings(options.retry);
-    this.stream = (model, context, streamOptions) => {
+    this.cache = new SessionCacheController(this, resolveCacheSettings(options.cache), {
+      decider: () => options.warmingDecider?.(),
+    });
+    this.stream = this.cache.wrapStream((model, context, streamOptions) => {
       const api = options.providers.getApi(model.api);
       if (api === undefined) {
         throw new AmaError(
@@ -110,7 +115,7 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
         );
       }
       return api.stream(model, context, streamOptions);
-    };
+    });
     const runner = createToolRunnerOptions(this);
     const agentOptions: ConstructorParameters<typeof Agent>[0] = {
       hooks: {
@@ -185,6 +190,7 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
   }
 
   emit(event: SessionEvent): void {
+    this.cache.onEvent(event);
     for (const listener of this.listeners) {
       try {
         listener(event);
@@ -421,6 +427,7 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
       );
     } else this.manager.setLeaf(targetId);
     this.reloadMessages();
+    this.cache.onContextChanged();
     return entry;
   }
 
@@ -536,18 +543,22 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
   }
 
   getStats(): SessionStats {
+    const contextTokens = this.compaction.estimate().tokens;
+    const contextWindow = this.currentModel.contextWindow;
     return computeStats({
       sessionId: this.manager.id,
       sessionFile: this.manager.file(),
       branch: this.manager.branch(),
-      contextTokens: this.compaction.estimate().tokens,
-      contextWindow: this.currentModel.contextWindow,
+      contextTokens,
+      contextWindow,
+      cache: this.cache.stats({ tokens: contextTokens, window: contextWindow }),
     });
   }
 
   async dispose(): Promise<void> {
     if (this.disposed) return;
     await this.abort();
+    this.cache.dispose();
     this.disposed = true;
     this.manager.close();
     this.listeners.clear();

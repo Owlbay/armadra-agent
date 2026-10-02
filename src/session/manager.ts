@@ -4,8 +4,11 @@
  * - `inMemory(cwd)`：从不落盘。
  * - `create(dir, cwd)`：**延迟落盘**——`append()` 先记在内存，直到 `flush()`（AgentSession 在
  *   首次模型请求前调用）才建文件、写头与已缓存条目、加锁；之后每次 `append()` 立即追加一行。
- * - `open(file)`：读文件（修复末尾半行）、校验版本、加锁；叶子 = 文件中最后一条条目。
- * - `fork(entryId)`：复制 root → entryId 的分支到新文件（头的 parentSession 指回本文件）。
+ * - `open(file)`：读文件（修复末尾半行）、校验版本、加锁；叶子 = 文件中最后一条条目，
+ *   若其后还有 `leaf` 行（`/tree` 换叶子落盘，第三波 A7）则取最后一条 leaf 行。
+ * - `setLeaf(id)`：已落盘时追加一行 `leaf{id, timestamp}`；延迟会话在 `flush()` 时补写。
+ * - `fork(entryId)`：复制 root → entryId 的分支到新文件（头的 parentSession 指回本文件），
+ *   不复制 leaf 行。
  * - `close()`：释放锁；之后的 append 抛错。
  */
 
@@ -28,6 +31,7 @@ import {
 import { buildTree, indexEntries, pathToRoot } from "./tree.js";
 import { SESSION_FORMAT_VERSION } from "./types.js";
 import type {
+  LeafLine,
   SessionEntry,
   SessionEntryInput,
   SessionHeader,
@@ -73,13 +77,16 @@ export class SessionManager implements SessionManagerApi {
     entries: SessionEntry[],
     storage: Storage,
     now: () => Date,
+    leafId?: string | null,
   ) {
     this._header = header;
     this.id = header.id;
     this.cwd = header.cwd;
     this._entries = entries;
     this.index = indexEntries(entries);
-    this.leaf = entries.at(-1)?.id ?? null;
+    const last = entries.at(-1)?.id ?? null;
+    this.leaf =
+      leafId === undefined || (leafId !== null && !this.index.has(leafId)) ? last : leafId;
     this.storage = storage;
     this.now = now;
   }
@@ -120,12 +127,13 @@ export class SessionManager implements SessionManagerApi {
     const lock = acquireLock(file);
     try {
       const { lines } = readSessionLines(file, { repair: true });
-      const { header, entries } = migrateSessionLines(lines, file);
+      const { header, entries, leafId } = migrateSessionLines(lines, file);
       return new SessionManager(
         header,
         entries,
         { kind: "file", file, lock },
         options.now ?? (() => new Date()),
+        leafId,
       );
     } catch (error) {
       lock.release();
@@ -222,6 +230,11 @@ export class SessionManager implements SessionManagerApi {
       throw new AmaError("invalid_arguments", `no such session entry: ${id}`);
     }
     this.leaf = id;
+    if (this.storage.kind === "file") appendLines(this.storage.file, [this.leafLine()]);
+  }
+
+  private leafLine(): LeafLine {
+    return { type: "leaf", id: this.leaf, timestamp: this.now().toISOString() };
   }
 
   branch(leafId?: string | null): SessionEntry[] {
@@ -279,7 +292,12 @@ export class SessionManager implements SessionManagerApi {
     if (this.storage.kind === "memory") return undefined;
     if (this.storage.kind === "file") return this.storage.file;
     const file = join(this.storage.dir, sessionFileName(new Date(this._header.timestamp), this.id));
-    writeNewSessionFile(file, [this._header, ...this._entries]);
+    const moved = this.leaf !== (this._entries.at(-1)?.id ?? null);
+    writeNewSessionFile(file, [
+      this._header,
+      ...this._entries,
+      ...(moved ? [this.leafLine()] : []),
+    ]);
     let lock: SessionLock | undefined;
     try {
       lock = acquireLock(file);

@@ -5,6 +5,7 @@
  * `SessionCore` 是 session.ts 交给 session-tools.ts / session-compaction.ts 的内部视图（避免循环 import）。
  */
 
+import type { WarmingDecisionHandler } from "../ai/cache/types.js";
 import type { Model, ModelThinkingLevel, ProviderRegistryApi } from "../ai/types.js";
 import type {
   HookDispatcherApi,
@@ -18,8 +19,15 @@ import type { SessionEntry, SessionEntryInput } from "../session/types.js";
 import type { SubagentRequest, SubagentResult, ToolDefinition } from "../tools/types.js";
 import type { Agent } from "./agent.js";
 import type { StreamFn } from "./loop.js";
+import type { SessionCacheController } from "./session-cache.js";
 import type { SystemPromptInput } from "./system-prompt.js";
-import type { CompactionSettings, QueueMode, RetrySettings, SessionEvent } from "./types.js";
+import type {
+  CacheSettings,
+  CompactionSettings,
+  QueueMode,
+  RetrySettings,
+  SessionEvent,
+} from "./types.js";
 
 export type PromptExpansion = { text: string } | { handled: true };
 
@@ -67,6 +75,10 @@ export interface AgentSessionOptions {
   subagents?: { maxConcurrent?: number } | false;
   /** 宿主适配器 id（写进 HookInput.host）。 */
   hostId?: string;
+  /** [W3-C1b] 会话层缓存设置（config `cache` 段 + 环境变量，组装根解析）；缺省见 DEFAULT_CACHE_SETTINGS。 */
+  cache?: Partial<CacheSettings>;
+  /** [W3-C1b] 宿主 `cache.onWarmingDecision` 的处理器（每次保温前现取）。 */
+  warmingDecider?(): WarmingDecisionHandler | undefined;
   log?(level: "debug" | "info" | "warn" | "error", message: string): void;
 }
 
@@ -77,6 +89,8 @@ export interface SessionCore {
   readonly cwd: string;
   readonly depth: number;
   readonly readFiles: Set<string>;
+  /** [W3-C1b] 会话层缓存控制器（摘要续写取前缀）。 */
+  readonly cache?: SessionCacheController;
   model(): Model;
   thinkingLevel(): ModelThinkingLevel;
   outputDir(): string | undefined;

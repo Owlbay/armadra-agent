@@ -7,6 +7,8 @@
  * - 工具子集缺省 = 父的活动集，总是去掉 task；继承父的权限管线、Hook 与系统提示静态部分；
  *   broker 包一层，请求带 `context{depth, parentToolCallId}`，审批事件转发到父会话。
  * - 父 abort 级联；结果 = 子的最后助手文本 + 用量 + 子会话文件。
+ * - [W3-C1b] 子会话有自己的缓存控制器（统计独立、未命中不进父链，`warmSubagents` 为 false 时
+ *   不保温）；结果带 `cache{hitRate, reBilledTokens}`，并汇总进父会话的「子任务」统计。
  */
 
 import { AmaError } from "../errors.js";
@@ -50,6 +52,10 @@ export interface SubagentParent {
   childBase(): Pick<AgentSessionOptions, "model" | "thinkingLevel" | "activeTools" | "system">;
   /** 子会话的审批事件转发给父会话的订阅者（RPC 客户端 / TUI 据此作答）。 */
   emit?(event: SessionEvent): void;
+  /** [W3-C1b] 父会话的缓存控制器：汇总子会话的命中与重计费。 */
+  readonly cache?: {
+    addSubagent(tokens: { cacheRead: number; prompt: number }, reBilledTokens: number): void;
+  };
 }
 
 /** 子会话的 broker：请求带上发起方上下文（对话框标 `[task]`），其余原样交给父链。 */
@@ -166,6 +172,20 @@ export async function runSubagent(
       stopReason,
       isError: error !== undefined || stopReason === "error" || stopReason === "aborted",
     };
+    const cache = stats.cache;
+    if (cache !== undefined) {
+      result.cache = { reBilledTokens: cache.reBilledTokens };
+      if (cache.hitRate !== undefined) result.cache.hitRate = cache.hitRate;
+      // 不报缓存的子会话不进命中率分母（同父会话口径）
+      const reported = cache.reporting === "reported";
+      const { input, cacheRead, cacheWrite } = stats.tokens;
+      parent.cache?.addSubagent(
+        reported
+          ? { cacheRead, prompt: input + cacheRead + cacheWrite }
+          : { cacheRead: 0, prompt: 0 },
+        cache.reBilledTokens,
+      );
+    }
     const childFile = childManager.file();
     if (childFile !== undefined) result.sessionFile = childFile;
     await child.dispose();

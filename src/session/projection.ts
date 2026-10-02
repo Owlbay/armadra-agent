@@ -44,7 +44,10 @@ function parseTime(iso: string): number {
   return Number.isFinite(value) ? value : 0;
 }
 
-/** 条目 → 上下文消息；不进上下文的条目返回 undefined。 */
+/**
+ * 条目 → 上下文消息；不进上下文的条目返回 undefined（model_change、label、custom、
+ * 第三波的 `usage` 条目等）。
+ */
 export function entryToMessage(entry: SessionEntry): AgentMessage | undefined {
   switch (entry.type) {
     case "message":
@@ -74,6 +77,7 @@ export function entryToMessage(entry: SessionEntry): AgentMessage | undefined {
         tokensBefore: entry.tokensBefore,
         timestamp: parseTime(entry.timestamp),
       };
+    case "usage":
     default:
       return undefined;
   }

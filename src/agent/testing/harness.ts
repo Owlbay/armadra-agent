@@ -4,7 +4,10 @@
 
 import { readFileSync } from "node:fs";
 import type { Model, TranscriptContext } from "../../ai/types.js";
-import { SUMMARIZATION_SYSTEM_PROMPT } from "../../compaction/summarize-tier.js";
+import {
+  SUMMARIZATION_SYSTEM_PROMPT,
+  SUMMARY_CONTINUATION_PREAMBLE,
+} from "../../compaction/summarize-tier.js";
 import { SessionManager } from "../../session/manager.js";
 import type { SessionEntry, SessionLine } from "../../session/types.js";
 import type { AgentSessionOptions } from "../session-core.js";
@@ -70,9 +73,17 @@ export function createHarness(options: HarnessOptions): Harness {
   };
 }
 
+/** 摘要请求：独立请求（摘要系统提示）或会话前缀续写（末条 user 是摘要指令）。 */
 export function isSummaryRequest(context: TranscriptContext): boolean {
   const first = context.messages[0];
-  return first?.role === "system" && first.sections["preamble"] === SUMMARIZATION_SYSTEM_PROMPT;
+  if (first?.role === "system" && first.sections["preamble"] === SUMMARIZATION_SYSTEM_PROMPT)
+    return true;
+  const last = context.messages.at(-1);
+  return (
+    last?.role === "user" &&
+    typeof last.content === "string" &&
+    last.content.startsWith(SUMMARY_CONTINUATION_PREAMBLE)
+  );
 }
 
 /** 请求里所有 user 消息的文本。 */

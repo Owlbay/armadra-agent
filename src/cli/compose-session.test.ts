@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   composeHarness,
   recordingHost,
@@ -6,7 +6,8 @@ import {
 } from "../../test/helpers/compose-harness.js";
 import type { HostApi } from "../host/types.js";
 import type { ApprovalRequest } from "../permissions/types.js";
-import { currentSession, switchSession } from "./compose-session.js";
+import type { AgentSessionImpl } from "../agent/session.js";
+import { cacheSettingsFrom, currentSession, switchSession } from "./compose-session.js";
 
 let h: ComposeHarness;
 afterEach(() => h?.cleanup());
@@ -111,5 +112,65 @@ describe("启动期预检", () => {
     });
     expect(await h.run(["-p", "--model", "future/m1", "hi"])).toBe(4);
     expect(h.stderr()).toContain("协议 future-api 尚未实现");
+  });
+});
+
+describe("缓存设置与事件桥接（第三波 §1.10 / §1.12）", () => {
+  it("cacheSettingsFrom：config cache 段 + AMA_CACHE_WARMING / AMA_CACHE_RETENTION 覆盖，非法值 warning", () => {
+    const warnings: string[] = [];
+    const config = { cache: { warming: "off" as const, minSavingsUsd: 0.2 } };
+    expect(cacheSettingsFrom(config, {})).toEqual({ warming: "off", minSavingsUsd: 0.2 });
+    expect(
+      cacheSettingsFrom(config, { AMA_CACHE_WARMING: "idle", AMA_CACHE_RETENTION: "long" }),
+    ).toEqual({ warming: "idle", retention: "long", minSavingsUsd: 0.2 });
+    expect(
+      cacheSettingsFrom({}, { AMA_CACHE_WARMING: "always", AMA_CACHE_RETENTION: "1h" }, (m) =>
+        warnings.push(m),
+      ),
+    ).toEqual({});
+    expect(warnings).toHaveLength(2);
+  });
+
+  it("组装的会话读 cache 配置与环境变量；宿主 onWarmingDecision 现取；cache_miss / context_pressure 桥接到宿主总线", async () => {
+    vi.stubEnv("AMA_CACHE_WARMING", "idle");
+    try {
+      h = composeHarness([{ text: "ok" }]);
+      h.home.write(
+        "home/.config/ama/config.json",
+        JSON.stringify({ version: 1, cache: { retention: "long", warmSubagents: true } }),
+      );
+      const host = recordingHost(h.home);
+      const runtime = await h.boot(["--model", "fake/echo", "--host", host.path]);
+      const session = runtime.session as AgentSessionImpl;
+      expect(session.cache.cacheSettings).toMatchObject({
+        warming: "idle",
+        retention: "long",
+        warmSubagents: true,
+      });
+      expect(session.options.warmingDecider?.()).toBeUndefined();
+      const handler = () => "stop" as const;
+      const off = hostApi().cache?.onWarmingDecision(handler);
+      expect(session.options.warmingDecider?.()).toBe(handler);
+      off?.();
+      expect(session.options.warmingDecider?.()).toBeUndefined();
+      const seen: { name: string; event: unknown }[] = [];
+      hostApi().events.on("cache_miss", (event) => void seen.push({ name: "cache_miss", event }));
+      hostApi().events.on(
+        "context_pressure",
+        (event) => void seen.push({ name: "context_pressure", event }),
+      );
+      session.emit({ type: "cache_miss", missedTokens: 5000, reason: "idle", idleMs: 400_000 });
+      session.emit({ type: "context_pressure", percent: 72, threshold: 70 });
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(seen).toEqual([
+        { name: "cache_miss", event: { missedTokens: 5000, reason: "idle", idleMs: 400_000 } },
+        { name: "context_pressure", event: { percent: 72, threshold: 70 } },
+      ]);
+      await runtime.session.prompt("hi");
+      expect(h.fake.calls[0]?.options).toMatchObject({ cacheRetention: "long" });
+      await runtime.dispose();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
