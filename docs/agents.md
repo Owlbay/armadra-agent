@@ -124,7 +124,7 @@ worktree 里的编辑不记进父会话的检查点。注意：worktree 不共�
 
 RPC / SDK 事件 `subagent_start` / `subagent_update` / `subagent_end` 见 [rpc.md](rpc.md)「子 Agent 事件」。
 `getStats().tasks` 给出任务总数、运行中数量与按状态的计数；子会话的缓存命中与重计费仍汇总在 `cache.subagents`。
-RPC `get_tasks` / `get_agents` 返回任务快照与可用类型（来源、定义文件路径）。
+RPC `get_tasks` / `get_agents` 返回任务快照与可用类型（来源、定义文件路径）。交互界面的 `/tasks`、`/agents` 与 task 工具行的折叠显示见 [tui.md](tui.md)「子 Agent」。
 
 ### 配置
 
@@ -172,17 +172,22 @@ ama 能以各 CLI 自己的账户、模型与权限策略驱动外部编码 Agen
 - **首次确认**：每个会话第一次以某个外部 Agent 运行时问一次「将以你在该 CLI 的现有登录运行，模式 Y」（`execute` 类）：
   allow 规则 `task` 或 `task(<id>)`（如 `task(claude)`、`task(acp:*)`）与 `full-auto` 直接放行；deny 规则 `task(<id>)` 拒绝；
   `allowlist` 与无人值守（`-p`）没有 allow 规则时拒绝；其余交给人（不经 auto 分类器）。同一 Agent 本会话只问一次。
-  宿主注入的 runner 不问（审批由宿主管）。
+  宿主注入的 runner 不问（审批由宿主管）。Manual 模式下 `task(agent="claude")` 本来要问两次（task 调用本身一次、首次运行一次），
+  交互界面合并为一次：task 调用的审批框写明「以你在该 CLI 的登录运行（含本会话首次运行确认）」，允许后紧接着的首次运行
+  确认自动通过；中间夹了别的审批、被拒、超过 60 秒或不是这次调用建立的任务时照常弹出（[tui.md](tui.md)「子 Agent」）。
 - **前台 / 后台 / 续聊**：与 ama 子会话相同——结果是外部 Agent 的最终文本加工具摘要与修改的文件（≤ 50 KB）；
   `background: true` 完成后收到 `<task-notification>`；`task{taskId}` / `task_ctl send` 在同一外部会话里续聊（进程还在就直接
   追加一轮；空闲关闭或被停止过的，以外部会话 id `resume` 重开）；`task_ctl stop` 发协议级中断，挂起的审批回「已取消」。
 - **模型**：`agents.<id>.model` 或 `task` 的 `model` 参数原样交给外部 CLI；`subagents.defaultModel`（ama 的模型）不传。
-- `/agents` 与 RPC `get_agents` 列出类型目录与外部 Agent（`installed` / `version`，会话建立时异步探测并缓存）。
+- `/agents` 与 RPC `get_agents` 列出类型目录与外部 Agent（`installed` / `version`，会话建立时异步探测并缓存）；`/tasks` 查看任务输出、
+  停止任务。界面见 [tui.md](tui.md)「子 Agent」。
+- 外部 Agent 自己报告的提示（预算用尽、超时、模式降级、拒答提问等）在交互界面的消息区显示为一行 `[claude · t3] …`，
+  其它入口只写进诊断日志（`[task tN] …`，没有对应事件）。
 
 ### 权限：只交给人
 
 - 外部 Agent 先按它自己的策略判断；它决定要问人的请求才到 ama，到了以后**只走审批通道**（宿主 → 界面 → 无人值守拒绝）。ama 的 auto 分类器与模型都不参与，模型没有回答审批的工具。
-- 对话框标出来源（`[claude · 会话 abc1]`）；RPC 的 `permission_request` 带 `context.origin`（Agent、会话、工具标题与种类、路径、选项）与 `context.taskId`（来源任务）。
+- 对话框标出来源（`[claude · 会话 abc12345]`，三种来源标注见 [permissions.md](permissions.md)「审批对话框的来源标注」）；RPC 的 `permission_request` 带 `context.origin`（Agent、会话、工具标题与种类、路径、选项）与 `context.taskId`（来源任务）。
 - 选项：「允许」→ 允许一次；「本会话允许」→ 交给外部 Agent 自己记住（Codex `acceptForSession`；Claude 只回传它给出的会话范围建议，会写配置文件的建议不替你接受）；「拒绝」→ 拒绝一次。会改外部 CLI 持久配置的选项（Codex execpolicy 修订、永久拒绝）不提供。
 - 无人值守（`-p`、RPC 未声明 approvals）：一律拒绝；Claude 以 `--permission-prompts none` 启动，Codex 用 `approval_policy = never`。
 - 中断、`task_ctl stop`、超时：挂起的请求回「已取消」。

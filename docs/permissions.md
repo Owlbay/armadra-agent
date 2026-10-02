@@ -31,6 +31,18 @@
 - `/permission` 不带参数打开选择器：标题 `Mode`，每项「显示名 + 一行说明」，右侧是数字快捷键 1–6，当前模式打勾，配置里的缺省模式标 `Default`，Auto 标 `Recommended`。line 模式 `/permission` 打印同样的列表。
 - `Shift+Tab` 循环：Manual → Accept edits → Plan → Auto → Bypass permissions → Manual。`Allowlist only` 不在循环里，只能显式选。
 
+### 审批对话框的来源标注
+
+审批不只来自主会话。对话框（以及 RPC `permission_request.context`）标出请求从哪来，选项都只有「允许 / 本会话允许同类 / 拒绝」：
+
+| 来源                                       | 标题前缀                                  | 正文                                          | 谁来判定                                                                   |
+| ------------------------------------------ | ----------------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------- |
+| `task` 子 Agent 的工具调用                 | `[task:explore]`（查不到类型时 `[task]`） | 同主会话                                      | 同一条权限管线；只读类型（`explore` / `plan`）按 plan 判定、不弹审批       |
+| 外部 Agent（claude / codex / ACP）请求权限 | `[claude · 会话 abc12345]`                | 外部 Agent 给的标题、种类、涉及路径与输入摘要 | 只交给人：宿主 → 界面 → 无人值守拒绝，auto 分类器与模型不参与              |
+| 外部 Agent 本会话首次运行                  | 标题「首次运行外部 Agent」                | 说明（以你在该 CLI 的登录运行）与模式         | allow / deny 规则 `task(<id>)`、`full-auto` 放行，其余交给人（不经分类器） |
+
+外部 Agent 的「本会话允许」由它自己记住。Manual 模式下 `task(agent=…)` 的 task 调用审批与首次运行确认合并为一次（见 [agents.md](agents.md)「在 task 里使用」）。RPC 的 `context` 是 `{ depth, taskId, origin }`（[rpc.md](rpc.md)「审批」）。
+
 ## plan 模式与只读命令
 
 plan 模式的第 ③ 步看输入（实现 `src/permissions/pipeline.ts` 的 `planDecision`），流程与计划审批见 [plan.md](plan.md)：

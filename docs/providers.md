@@ -435,7 +435,9 @@ src/ai/providers/catalog.test.ts` 自动删除并重新生成 `catalog-data.ts`�
 - 四条协议都把图片放进用户消息：Chat Completions `image_url`（data URL）、Responses `input_image`、
   Anthropic `image`（base64 source）、Gemini `inlineData`；工具结果里的图片同样映射。
 - 入口：`ama -p "描述这张图" --image a.png --image b.jpg`；交互界面与行式界面里写 `@图片路径`，或粘贴 /
-  拖入一个图片文件路径（整段输入里以 `.png` / `.jpg` / `.jpeg` / `.gif` / `.webp` 结尾且文件存在的词）。
+  拖入一个图片文件路径（整段输入里以 `.png` / `.jpg` / `.jpeg` / `.gif` / `.webp` 结尾且文件存在的词）；交互界面里
+  `Ctrl+V` 或 `/paste` 把剪贴板里的图片存成文件并在光标处插入 `@<路径>`（见下文「剪贴板图片」与 [tui.md](tui.md)「剪贴板图片」）。
+  `--image`、`@图片` 与粘贴的图片都按 `images.resize` 缩放。
 - 与 `read` 工具共用 MIME 检测（按文件头识别 PNG / JPEG / GIF / WebP，扩展名不符时以文件头为准）与大小上限。
   上限按 **base64 后**计算（`ceil(字节/3)*4`），按当前模型的端点分档：官方 Anthropic（`api.anthropic.com`）
   10 MB、官方 Gemini 与 OpenAI 20 MB，中转（内置供应商改了 baseUrl）与其它主机 5 MB；任一边超过 8000 px 拒绝。
@@ -446,7 +448,7 @@ src/ai/providers/catalog.test.ts` 自动删除并重新生成 `catalog-data.ts`�
   单图上限的旧图（换了模型 / 渠道之后）直接换成占位；单请求超过 20 张图且有长边 > 2000 px 的图时，继续从最旧的
   降到 20 张以内。最新一条带图的消息不降。降级写成会话里的 `context_edit{reason:"image_budget"}`，之后前缀稳定，
   缓存统计把这一次当重置点。
-- 剪贴板图片：`pasteClipboardImage` 依次调 `osascript` / `pngpaste`（macOS）、`wl-paste`（Wayland）/ `xclip`（X11）、
+- 剪贴板图片（交互界面 `Ctrl+V` / `/paste`）：`pasteClipboardImage` 依次调 `osascript` / `pngpaste`（macOS）、`wl-paste`（Wayland）/ `xclip`（X11）、
   PowerShell `Get-Clipboard -Format Image`（Windows），写到 `<数据目录>/clipboard/<时间戳>.png`；
   `ama sessions prune` 清理其中超过 7 天的文件。
 - 模型 `input` 不含 `image` 时直接拒绝并提示换模型（`-p` 退出 2，界面里给错误提示，不发请求）；`read`
