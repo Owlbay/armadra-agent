@@ -49,7 +49,14 @@ import type {
   AutoDecision,
   PermissionMode,
 } from "../permissions/types.js";
-import type { AgentMessage, SessionEntry } from "../session/types.js";
+import type { AgentMessage, BranchSummaryEntry, SessionEntry } from "../session/types.js";
+import type {
+  RewindMode,
+  RewindPoint,
+  RewindRequest,
+  RewindResult,
+  RewindSkipReason,
+} from "../checkpoints/types.js";
 import type { ToolDefinition, ToolResult } from "../tools/types.js";
 
 export type {
@@ -283,6 +290,16 @@ export type SessionEvent =
       durationMs: number;
     }
   | { type: "session_changed"; sessionId: string; sessionFile?: string }
+  /** [RW-B] 回滚完成（rewind-plan §5）：dryRun 不发；仅对话时文件清单为空。 */
+  | {
+      type: "session_rewound";
+      entryId: string;
+      mode: RewindMode;
+      restored: string[];
+      deleted: string[];
+      conflicts: string[];
+      skipped: { path: string; reason: RewindSkipReason }[];
+    }
   | { type: "model_changed"; model: ModelRef }
   | { type: "thinking_level_changed"; level: ModelThinkingLevel }
   /** [W3-C0] 一次缓存未命中（第三波 §1.5）；统计计入全部，界面只提示超过门槛的那次。 */
@@ -416,5 +433,19 @@ export interface AgentSession {
   readonly entries: readonly SessionEntry[];
   getLastAssistantText(): string | null;
   getStats(): SessionStats;
+  /** [RW-B] 活动路径上开启新回合的用户消息，从旧到新（rewind-plan §3.1）。 */
+  rewindPoints(): RewindPoint[];
+  /** [RW-B] 运行中 → busy；全部失败且无一恢复 → rewind_failed。 */
+  rewind(request: RewindRequest): Promise<RewindResult>;
+  /** [RW-B] 「从这里摘要」：回到该消息之前并为离开的分支写摘要，返回原消息草稿。 */
+  summarizeFrom(
+    entryId: string,
+    instructions?: string,
+  ): Promise<{ leafId: string | null; draft: RewindDraftText; summary?: BranchSummaryEntry }>;
+  /** [RW-B] 「摘要到这里」：以该消息为切点压缩之前的上下文，停在末尾。 */
+  summarizeUpTo(entryId: string, instructions?: string): Promise<CompactionResult>;
   dispose(): Promise<void>;
 }
+
+/** [RW-B] 回滚回填的原消息。 */
+export type RewindDraftText = { text: string; images?: ImageBlock[] };

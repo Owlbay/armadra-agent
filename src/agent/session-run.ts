@@ -39,6 +39,8 @@ export interface RunCycleDeps {
   stopRequested(): boolean;
   setRetrying(value: boolean): void;
   lastAssistantText(): string | null;
+  /** [RW-B] 开启新回合的用户消息已构造、尚未落盘（建检查点、追加回滚提示）。 */
+  beginTurn?(message: UserMessage): void;
 }
 
 export function decideAfterRun(
@@ -238,6 +240,11 @@ export async function runCycle(
   });
 }
 
+/** `"user"` = 普通用户输入，不写 origin。 */
+export function normalizeOrigin(origin: string | undefined): string | undefined {
+  return origin === undefined || origin === "user" ? undefined : origin;
+}
+
 export function makeUserMessage(
   text: string,
   images?: readonly ImageBlock[],
@@ -281,7 +288,8 @@ export async function runPrompt(
     }
     if (hook.updatedPrompt !== undefined) prompt = hook.updatedPrompt;
   }
-  const prompts: AgentMessage[] = [makeUserMessage(prompt, images, origin)];
+  const message = makeUserMessage(prompt, images, origin);
+  const prompts: AgentMessage[] = [message];
   if (hook?.additionalContext !== undefined && hook.additionalContext !== "") {
     prompts.push({
       role: "custom",
@@ -294,6 +302,7 @@ export async function runPrompt(
   await deps.compaction.checkThreshold(signal);
   if (signal.aborted) return "handled";
   deps.syncSystem();
+  deps.beginTurn?.(message);
   core.emit({ type: "before_agent_start", prompt });
   await runCycle(deps, prompts, signal);
   return "started";

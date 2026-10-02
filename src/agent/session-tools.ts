@@ -299,8 +299,13 @@ export function createToolContext(
   };
   const file = core.manager.file();
   const outputDir = core.outputDir();
-  const extra: Partial<Record<"sessionFile" | "outputDir" | "spawnSubagent", unknown>> = {};
+  const extra: Partial<
+    Record<"sessionFile" | "outputDir" | "spawnSubagent" | "checkpoint", unknown>
+  > = {};
   if (file !== undefined) extra.sessionFile = file;
+  // [RW-B] 检查点钩子：主会话有后端时为它，task 子会话为父会话的（记到父会话当前回合）
+  const checkpoint = core.checkpointHooks?.();
+  if (checkpoint !== undefined) extra.checkpoint = checkpoint;
   if (outputDir !== undefined) extra.outputDir = outputDir;
   if (core.depth === 0 && core.options.subagents !== false) {
     extra.spawnSubagent = (request: Parameters<NonNullable<ToolContext["spawnSubagent"]>>[0]) =>
