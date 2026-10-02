@@ -133,14 +133,14 @@ describe("交互模式", () => {
     await new Promise((r) => setTimeout(r, 0));
     s.frame();
     let screen = s.terminal.viewport().join("\n");
-    expect(screen).toContain("╭─ 审批");
+    expect(screen).toContain("╭─ 需要确认");
     expect(screen).toContain("$ echo approved-ok");
     expect(s.handle.editor.disableSubmit).toBe(true);
     let settled = s.until((e) => e.type === "agent_settled");
     s.terminal.sendInput("y");
     await settled;
     screen = s.terminal.viewport().join("\n");
-    expect(screen).not.toContain("╭─ 审批");
+    expect(screen).not.toContain("╭─ 需要确认");
     expect(screen).toContain("approved-ok");
     const askedAgain = s.until((e) => e.type === "permission_request");
     s.type("再跑");

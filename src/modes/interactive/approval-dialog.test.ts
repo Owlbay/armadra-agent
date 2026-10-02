@@ -90,16 +90,17 @@ describe("审批对话框", () => {
       expect(broker.isOpen).toBe(true);
       expect(editor.disableSubmit).toBe(true);
       const shown = screen();
-      expect(shown).toContain("╭─ 审批");
+      expect(shown).toContain("╭─ 需要确认");
       expect(shown).toContain("$ rm -rf build");
       expect(shown).toContain("权限模式 Manual 下需要确认");
-      expect(shown).toContain("[y] 允许");
+      expect(shown).toMatch(/› 1\. 允许 +y/);
+      expect(shown).toMatch(/  3\. 拒绝 +n Esc/);
       terminal.sendInput(key);
       expect(await answer).toBe(decision as ApprovalDecision);
       expect(broker.isOpen).toBe(false);
       expect(tui.getFocus()).toBe(editor);
       expect(editor.disableSubmit).toBe(false);
-      expect(screen()).not.toContain("审批");
+      expect(screen()).not.toContain("需要确认");
       expect(events[0]).toBe("open");
       expect(events[1]).toBe("close");
     });
@@ -109,13 +110,30 @@ describe("审批对话框", () => {
     const { terminal, broker } = setup();
     let answer = broker.ask(req(), new AbortController().signal);
     terminal.sendInput("x");
-    terminal.sendInput("\r");
     expect(broker.isOpen).toBe(true);
     terminal.sendInput("\x1b");
     terminal.flushInput();
     expect(await answer).toBe("deny");
     answer = broker.ask(req(), new AbortController().signal);
     terminal.sendInput("\x03");
+    expect(await answer).toBe("deny");
+  });
+
+  it("编号选项：数字直接选；↑↓ 移动、Enter 确认；危险命令缺省选中拒绝", async () => {
+    const { terminal, broker, screen } = setup();
+    let answer = broker.ask(req(), new AbortController().signal);
+    terminal.sendInput("2");
+    expect(await answer).toBe("allow_session");
+    answer = broker.ask(req(), new AbortController().signal);
+    terminal.sendInput("\x1b[B");
+    terminal.sendInput("\x1b[B");
+    expect(screen()).toMatch(/› 3\. 拒绝/);
+    terminal.sendInput("\x1b[B");
+    terminal.sendInput("\r");
+    expect(await answer).toBe("allow");
+    answer = broker.ask(req({ reason: "dangerous" }), new AbortController().signal);
+    expect(screen()).toMatch(/› 3\. 拒绝/);
+    terminal.sendInput("\r");
     expect(await answer).toBe("deny");
   });
 
@@ -135,7 +153,7 @@ describe("审批对话框", () => {
     const answer = broker.ask(req(), AbortSignal.timeout(20));
     expect(await answer).toBeUndefined();
     expect(broker.isOpen).toBe(false);
-    expect(screen()).not.toContain("审批");
+    expect(screen()).not.toContain("需要确认");
     expect(events).toContain("审批已取消（超时或中断）：bash");
     const aborted = new AbortController();
     aborted.abort();
@@ -149,8 +167,11 @@ describe("审批对话框", () => {
       new AbortController().signal,
     );
     const shown = screen();
-    expect(shown).toContain("子任务审批");
-    expect(shown).toContain("[task] bash  危险命令");
+    expect(shown).toContain("╭─ [task] 危险命令");
+    expect(shown).toContain("│ [task] bash");
+    expect(describeRequest(req({ reason: "dangerous", context: { depth: 1 } }), theme)[0]).toBe(
+      "[task] bash  危险命令",
+    );
     expect(shown).toContain("这条命令可能有破坏性");
     terminal.sendInput("n");
     await answer;

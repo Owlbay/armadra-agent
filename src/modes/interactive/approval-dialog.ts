@@ -7,7 +7,11 @@
  * - 执行前预览（W3-B9a-2，`request.preview`）：输入摘要之后列出会碰到的路径与规模，danger 红、
  *   warn 黄、info 暗色；`other` 类预览与输入摘要重复，不显示；
  * - 原因：mode（当前权限模式需要确认）/ dangerous / hook + Hook 给的文本；
- * - 按键：`y` 允许、`n` / Esc / Ctrl+C 拒绝、`a` 本会话允许同类；
+ * - 选项（终端界面视觉设计 v1 §3.11）：编号列表 `1. 允许  y` / `2. 本会话允许同类  a` / `3. 拒绝  n Esc`，
+ *   选中行 `›` + selection 底色；缺省选中：危险命令 → 拒绝，其余 → 允许。按键 `y / a / n / Esc / Ctrl+C /
+ *   1 2 3 / ↑↓ Enter / v` 都有效；
+ * - 标题按原因：需要确认 / 危险命令 / Hook 要求确认（子 Agent 发起前缀 `[task] `）；边框颜色随预览严重度
+ *   （danger error、warn warning）；宽 < 56 时紧凑：工具名单独一行、去掉空行、按键提示缩短；
  * - 超时与中断：broker 链在超时（缺省 10 分钟）或运行被中断时 abort `signal`，对话框关闭并返回
  *   undefined（链按 deny 处理），消息区留一行说明。
  *
@@ -19,11 +23,12 @@ import { previewDisplayLines } from "../../permissions/preview.js";
 import type { ApprovalBroker, ApprovalDecision, ApprovalRequest } from "../../permissions/types.js";
 import {
   Box,
-  Container,
-  Text,
   defaultKeybindings,
   matchesKey,
+  padToWidth,
   truncateToWidth,
+  visibleWidth,
+  wrapTextWithAnsi,
   type Component,
   type Focusable,
   type Keybindings,
@@ -61,11 +66,31 @@ function record(input: unknown): Record<string, unknown> {
   return typeof input === "object" && input !== null ? (input as Record<string, unknown>) : {};
 }
 
-/** 对话框正文（不含按键行）。 */
+export interface DescribeOptions {
+  cwd?: string;
+  permissionMode?: string;
+  expanded?: boolean;
+  /** 紧凑（窄屏）：首行只放工具名（原因已在标题上）。 */
+  compact?: boolean;
+}
+
+/** 原因 → 标题文字（子 Agent 发起加 `[task] `）。 */
+export function approvalTitle(request: ApprovalRequest): string {
+  const task = (request.context?.depth ?? 0) > 0 ? "[task] " : "";
+  const reason =
+    request.reason === "dangerous"
+      ? "危险命令"
+      : request.reason === "hook"
+        ? "Hook 要求确认"
+        : "需要确认";
+  return task + reason;
+}
+
+/** 对话框正文（不含选项与按键行）。 */
 export function describeRequest(
   request: ApprovalRequest,
   theme: Theme,
-  options: { cwd?: string; permissionMode?: string; expanded?: boolean } = {},
+  options: DescribeOptions = {},
 ): string[] {
   const out: string[] = [];
   const task = (request.context?.depth ?? 0) > 0 ? theme.fg("warning", "[task] ") : "";
@@ -75,7 +100,8 @@ export function describeRequest(
       : request.reason === "hook"
         ? theme.fg("warning", "Hook 要求确认")
         : theme.fg("dim", "需要确认");
-  out.push(`${task}${theme.bold(theme.fg("tool", request.toolName))}  ${tag}`);
+  const name = theme.bold(theme.fg("tool", request.toolName));
+  out.push(options.compact === true ? `${task}${name}` : `${task}${name}  ${tag}`);
   const input = record(request.input);
   const more = (n: number): string => theme.fg("dim", `… 另 ${n} 行（v 查看）`);
   if (options.expanded === true) {
@@ -129,31 +155,33 @@ export function describeRequest(
   return out;
 }
 
-export const APPROVAL_KEYS_HINT = "[y] 允许  [n] 拒绝  [a] 本会话允许同类  [v] 完整输入";
+interface ApprovalOption {
+  decision: ApprovalDecision;
+  label: string;
+  /** 右侧按键提示。 */
+  keys: string;
+}
+
+export const APPROVAL_OPTIONS: readonly ApprovalOption[] = [
+  { decision: "allow", label: "允许", keys: "y" },
+  { decision: "allow_session", label: "本会话允许同类", keys: "a" },
+  { decision: "deny", label: "拒绝", keys: "n Esc" },
+];
+
+/** 宽度低于它（Box 外宽）时用紧凑布局。 */
+const COMPACT_WIDTH = 56;
 
 class ApprovalDialog implements Component, Focusable {
   focused = false;
   private expanded = false;
-  private readonly body = new Container();
+  private selected: number;
 
   constructor(
     private readonly request: ApprovalRequest,
     private readonly host: ApprovalHost,
     private readonly decide: (decision: ApprovalDecision) => void,
   ) {
-    this.rebuild();
-  }
-
-  private rebuild(): void {
-    const { theme } = this.host;
-    this.body.clear();
-    const options: { cwd?: string; permissionMode?: string; expanded?: boolean } = {
-      permissionMode: this.host.permissionMode(),
-      expanded: this.expanded,
-    };
-    if (this.host.cwd !== undefined) options.cwd = this.host.cwd;
-    this.body.addChild(new Text(describeRequest(this.request, theme, options).join("\n")));
-    this.body.addChild(new Text(theme.fg("accent", APPROVAL_KEYS_HINT)));
+    this.selected = request.reason === "dangerous" ? 2 : 0;
   }
 
   handleInput(data: string): void {
@@ -168,19 +196,64 @@ class ApprovalDialog implements Component, Focusable {
       keys.matches(data, "tui.select.cancel")
     ) {
       this.decide("deny");
-    } else if (key === "v") {
-      this.expanded = !this.expanded;
-      this.rebuild();
-    }
+    } else if (/^[1-3]$/.test(data)) this.decide(APPROVAL_OPTIONS[Number(data) - 1]!.decision);
+    else if (keys.matches(data, "tui.select.up")) {
+      this.selected = (this.selected + APPROVAL_OPTIONS.length - 1) % APPROVAL_OPTIONS.length;
+    } else if (keys.matches(data, "tui.select.down")) {
+      this.selected = (this.selected + 1) % APPROVAL_OPTIONS.length;
+    } else if (matchesKey(data, "enter")) this.decide(APPROVAL_OPTIONS[this.selected]!.decision);
+    else if (key === "v") this.expanded = !this.expanded;
   }
 
+  /** `width` 是 Box 内宽；紧凑与否按外宽（+ 4）判断。 */
   render(width: number): string[] {
-    return this.body.render(width).map((l) => truncateToWidth(l, width));
+    const { theme } = this.host;
+    const compact = width + 4 < COMPACT_WIDTH;
+    const options: DescribeOptions = {
+      permissionMode: this.host.permissionMode(),
+      expanded: this.expanded,
+      compact,
+    };
+    if (this.host.cwd !== undefined) options.cwd = this.host.cwd;
+    const body = describeRequest(this.request, theme, options);
+    const lines: string[] = [];
+    // 输入摘要（标题 + 命令）与预览 / 原因之间空一行
+    const head = this.inputLines(body);
+    for (const line of body.slice(0, head)) lines.push(...wrapTextWithAnsi(line, width));
+    if (!compact && head < body.length) lines.push("");
+    for (const line of body.slice(head)) lines.push(...wrapTextWithAnsi(line, width));
+    if (!compact) lines.push("");
+    lines.push(...this.optionLines(width, compact));
+    if (!compact) lines.push("");
+    const hint = compact ? "↑↓ Enter · v 完整输入" : "↑↓ 选择 · Enter 确认 · v 完整输入";
+    lines.push(theme.fg("dim", hint));
+    return lines.map((l) => truncateToWidth(l, width));
   }
 
-  invalidate(): void {
-    this.body.invalidate();
+  /** 正文里属于「输入摘要」的行数（首行 + 命令 / 路径 / 修改摘要，止于预览或原因行）。 */
+  private inputLines(body: readonly string[]): number {
+    const preview = previewDisplayLines(this.request.preview).length;
+    const reasonLines = body.length > 0 ? 1 : 0;
+    return Math.max(1, body.length - preview - reasonLines);
   }
+
+  private optionLines(width: number, compact: boolean): string[] {
+    const { theme } = this.host;
+    const g = theme.glyphs;
+    const keyWidth = compact ? 1 : Math.max(...APPROVAL_OPTIONS.map((o) => o.keys.length));
+    return APPROVAL_OPTIONS.map((option, i) => {
+      const selected = i === this.selected;
+      const keys = compact ? option.keys.slice(0, 1) : option.keys;
+      const left = `${selected ? g.prompt : " "} ${i + 1}. ${option.label}`;
+      const right = keys.padEnd(keyWidth);
+      const room = Math.max(1, width - visibleWidth(right) - 1);
+      const label = selected ? theme.fg("accent", theme.bold(left)) : left;
+      const line = padToWidth(truncateToWidth(label, room), room) + " " + theme.fg("dim", right);
+      return selected ? theme.bg("selection", line) : line;
+    });
+  }
+
+  invalidate(): void {}
 }
 
 /** UI broker：每个请求开一个底部覆盖层，等用户按键或 signal abort。 */
@@ -212,10 +285,16 @@ export class ApprovalDialogBroker implements ApprovalBroker {
       const dialog = new ApprovalDialog(request, this.host, settle);
       this.open++;
       this.host.onOpen?.();
+      const severity = request.preview?.severity;
       handle = this.host.showOverlay(
         new Box(dialog, {
-          title: (request.context?.depth ?? 0) > 0 ? "子任务审批" : "审批",
+          title: approvalTitle(request),
           theme: this.host.theme,
+          ...(severity === "danger"
+            ? { borderColor: "error" as const }
+            : severity === "warn"
+              ? { borderColor: "warning" as const }
+              : {}),
         }),
       );
       signal.addEventListener("abort", onAbort, { once: true });
