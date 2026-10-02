@@ -1,5 +1,5 @@
 /**
- * 大粘贴折叠（设计 §12.4）：超过 10 行或超过 1 000 字符的粘贴折叠为 `[paste #N +M lines]`，
+ * 大粘贴折叠（设计 §12.4）：超过 10 行或超过 1 000 字符的粘贴折叠为 `[粘贴 #N · M 行]`，
  * 在编辑器里是不可分割段；提交时展开为原文。[B4]
  *
  * - 换行规范化：`\r\n` / 单独的 `\r` → `\n`（括号粘贴里终端常把换行发成 `\r`）。
@@ -10,7 +10,7 @@
 export const PASTE_LINE_THRESHOLD = 10;
 export const PASTE_CHAR_THRESHOLD = 1000;
 
-const MARKER_RE = /\[paste #(\d+) \+(\d+) lines\]/g;
+const MARKER_RE = /\[粘贴 #(\d+) · (\d+) 行\]/g;
 
 export function normalizePastedText(text: string): string {
   return text.replace(/\r\n?/g, "\n");
@@ -26,7 +26,7 @@ export function shouldCollapse(text: string): boolean {
 }
 
 export function formatMarker(id: number, lines: number): string {
-  return `[paste #${id} +${lines} lines]`;
+  return `[粘贴 #${id} · ${lines} 行]`;
 }
 
 export class PasteStore {
@@ -58,7 +58,7 @@ export class PasteStore {
 
   /** 一行内已登记标记的区间（编辑器的不可分割段）。 */
   ranges(line: string): Array<readonly [number, number]> {
-    if (this.entries.size === 0 || !line.includes("[paste #")) return [];
+    if (this.entries.size === 0 || !line.includes("[粘贴 #")) return [];
     const out: Array<readonly [number, number]> = [];
     for (const m of line.matchAll(MARKER_RE)) {
       if (this.entries.has(Number(m[1]))) out.push([m.index, m.index + m[0].length]);

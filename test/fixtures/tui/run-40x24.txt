@@ -1,9 +1,9 @@
-# startup · viewport 40x24 cursor=4,0
+# startup · viewport 40x24 cursor=4,2
 |ama <version> · Enter 发送 · Esc 中断 ·
 |Ctrl+C 两次退出 · /help 命令
 |
 |────────────────────────────────────────
-|
+|› 输入消息，/ 命令，@ 文件，Shift+Enter…
 |────────────────────────────────────────
 |fake/echo · ctx 0% · mode:Manual
 |
@@ -24,12 +24,12 @@
 |
 |
 
-# typed · viewport 40x24 cursor=4,25
+# typed · viewport 40x24 cursor=4,27
 |ama <version> · Enter 发送 · Esc 中断 ·
 |Ctrl+C 两次退出 · /help 命令
 |
 |────────────────────────────────────────
-|读一下 README，说说是什么
+|› 读一下 README，说说是什么
 |────────────────────────────────────────
 |fake/echo · ctx 0% · mode:Manual
 |
@@ -50,7 +50,7 @@
 |
 |
 
-# tool running · viewport 40x24 cursor=13,0
+# tool running · viewport 40x24 cursor=13,2
 |ama <version> · Enter 发送 · Esc 中断 ·
 |Ctrl+C 两次退出 · /help 命令
 |
@@ -64,7 +64,7 @@
 |
 |⠋ 工作中 · 0s · Esc 中断
 |────────────────────────────────────────
-|
+|› 输入消息，/ 命令，@ 文件，Shift+Enter…
 |────────────────────────────────────────
 |fake/echo · ctx 1% · mode:Manual
 |
@@ -76,7 +76,7 @@
 |
 |
 
-# settled · viewport 40x24 cursor=19,0
+# settled · viewport 40x24 cursor=19,2
 |ama <version> · Enter 发送 · Esc 中断 ·
 |Ctrl+C 两次退出 · /help 命令
 |
@@ -96,13 +96,13 @@
 |project.
 |
 |────────────────────────────────────────
-|
+|› 输入消息，/ 命令，@ 文件，Shift+Enter…
 |────────────────────────────────────────
 |fake/echo · ctx 1% · mode:Manual
 |
 |
 
-# ctrl+o expanded · viewport 40x24 cursor=20,0
+# ctrl+o expanded · viewport 40x24 cursor=20,2
 |ama <version> · Enter 发送 · Esc 中断 ·
 |Ctrl+C 两次退出 · /help 命令
 |
@@ -123,7 +123,7 @@
 |project.
 |
 |────────────────────────────────────────
-|
+|› 输入消息，/ 命令，@ 文件，Shift+Enter…
 |────────────────────────────────────────
 |工具输出：展开
 |fake/echo · ctx 1% · mode:Manual
@@ -149,7 +149,7 @@
 |project.
 |
 |────────────────────────────────────────
-|
+|› 输入消息，/ 命令，@ 文件，Shift+Enter…
 |────────────────────────────────────────
 |fake/echo · ctx 1% · mode:Manual
 |

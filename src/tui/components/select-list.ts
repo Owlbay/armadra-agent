@@ -176,7 +176,7 @@ export class SelectList implements Component, Focusable {
     if (this.filtered.length === 0) {
       lines.push(truncateToWidth(dim(`  ${this.options.emptyText ?? "(no matches)"}`), width));
       if (this.options.footer !== undefined) {
-        lines.push(truncateToWidth(dim(`  ${this.options.footer}`), width));
+        lines.push(truncateToWidth(dim(this.options.footer), width));
       }
       return lines;
     }
@@ -196,7 +196,7 @@ export class SelectList implements Component, Focusable {
     const footer = this.options.footer;
     if (footer !== undefined) {
       const withCount = this.options.showCount ?? overflow;
-      lines.push(truncateToWidth(dim(`  ${withCount ? `${count} ` : ""}${footer}`), width));
+      lines.push(truncateToWidth(dim(`${withCount ? `${count} ` : ""}${footer}`), width));
     } else if (overflow) {
       lines.push(truncateToWidth(dim(`  ${count}`), width));
     }

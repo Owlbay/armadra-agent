@@ -1,8 +1,8 @@
-# startup · viewport 80x24 cursor=3,0
+# startup · viewport 80x24 cursor=3,2
 |ama <version> · Enter 发送 · Esc 中断 · Ctrl+C 两次退出 · /help 命令
 |
 |────────────────────────────────────────────────────────────────────────────────
-|
+|› 输入消息，/ 命令，@ 文件，Shift+Enter 换行
 |────────────────────────────────────────────────────────────────────────────────
 |fake/echo · think:medium · ctx 0% · mode:Manual · preset:default
 |
@@ -24,11 +24,11 @@
 |
 |
 
-# typed · viewport 80x24 cursor=3,25
+# typed · viewport 80x24 cursor=3,27
 |ama <version> · Enter 发送 · Esc 中断 · Ctrl+C 两次退出 · /help 命令
 |
 |────────────────────────────────────────────────────────────────────────────────
-|读一下 README，说说是什么
+|› 读一下 README，说说是什么
 |────────────────────────────────────────────────────────────────────────────────
 |fake/echo · think:medium · ctx 0% · mode:Manual · preset:default
 |
@@ -50,7 +50,7 @@
 |
 |
 
-# tool running · viewport 80x24 cursor=12,0
+# tool running · viewport 80x24 cursor=12,2
 |ama <version> · Enter 发送 · Esc 中断 · Ctrl+C 两次退出 · /help 命令
 |
 |› 读一下 README，说说是什么
@@ -63,7 +63,7 @@
 |
 |⠋ 工作中 · 0s · Esc 中断
 |────────────────────────────────────────────────────────────────────────────────
-|
+|› 输入消息，/ 命令，@ 文件，Shift+Enter 换行
 |────────────────────────────────────────────────────────────────────────────────
 |fake/echo · think:medium · ↑1.2k ↓40 · cache — · $0.001 · ctx 1% · mode:Manual
 |
@@ -76,7 +76,7 @@
 |
 |
 
-# settled · viewport 80x24 cursor=17,0
+# settled · viewport 80x24 cursor=17,2
 |ama <version> · Enter 发送 · Esc 中断 · Ctrl+C 两次退出 · /help 命令
 |
 |› 读一下 README，说说是什么
@@ -94,7 +94,7 @@
 |The README describes Demo, a tiny project.
 |
 |────────────────────────────────────────────────────────────────────────────────
-|
+|› 输入消息，/ 命令，@ 文件，Shift+Enter 换行
 |────────────────────────────────────────────────────────────────────────────────
 |fake/echo · think:medium · ↑2.7k ↓52 · cache 80% · $0.002 · ctx 1% · mode:Manual
 |
@@ -102,7 +102,7 @@
 |
 |
 
-# ctrl+o expanded · viewport 80x24 cursor=18,0
+# ctrl+o expanded · viewport 80x24 cursor=18,2
 |ama <version> · Enter 发送 · Esc 中断 · Ctrl+C 两次退出 · /help 命令
 |
 |› 读一下 README，说说是什么
@@ -121,7 +121,7 @@
 |The README describes Demo, a tiny project.
 |
 |────────────────────────────────────────────────────────────────────────────────
-|
+|› 输入消息，/ 命令，@ 文件，Shift+Enter 换行
 |────────────────────────────────────────────────────────────────────────────────
 |工具输出：展开
 |fake/echo · think:medium · ↑2.7k ↓52 · cache 80% · $0.002 · ctx 1% · mode:Manual
@@ -147,7 +147,7 @@
 |The README describes Demo, a tiny project.
 |
 |────────────────────────────────────────────────────────────────────────────────
-|
+|› 输入消息，/ 命令，@ 文件，Shift+Enter 换行
 |────────────────────────────────────────────────────────────────────────────────
 |fake/echo · think:medium · ↑2.7k ↓52 · cache 80% · $0.002 · ctx 1% · mode:Manual
 |

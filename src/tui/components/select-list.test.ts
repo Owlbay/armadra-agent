@@ -131,10 +131,10 @@ describe("SelectList：徽标、数字快捷键、说明换行", () => {
       "      second one",
       "    Gamma            Recommended",
       "      third one",
-      "  ↑↓ 选择 · Enter 确认",
+      "↑↓ 选择 · Enter 确认",
     ]);
     const counted = new SelectList(modes, { footer: "Tab 接受", showCount: true });
-    expect(stripAnsi(counted.render(32).at(-1) ?? "")).toBe("  (1/3) Tab 接受");
+    expect(stripAnsi(counted.render(32).at(-1) ?? "")).toBe("(1/3) Tab 接受");
   });
 
   it("选中行上 selection 底色（≥ 256 色），stacked 时两行都上；< 256 色退化为 accent 粗体", () => {

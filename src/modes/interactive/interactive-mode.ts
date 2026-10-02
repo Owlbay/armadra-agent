@@ -58,6 +58,7 @@ import { ToolTracker } from "./tool-view.js";
 
 const HINT_MS = 2500;
 const QUEUE_PREVIEW = 3;
+const EDITOR_PLACEHOLDER = "输入消息，/ 命令，@ 文件，Shift+Enter 换行";
 
 export interface InteractiveModeOptions {
   /** 缺省 `ProcessTerminal`（测试注入 MemoryTerminal）。 */
@@ -186,6 +187,7 @@ export function runInteractiveMode(
     theme,
     keybindings: keys,
     maxVisibleLines: 8,
+    placeholder: EDITOR_PLACEHOLDER,
     autocomplete: completion,
     requestRender: () => tui.requestRender(),
     ...(historyFile !== undefined ? { historyFile } : {}),
