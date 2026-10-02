@@ -166,6 +166,19 @@ describe("ama models cache-probe [W3-C2]", () => {
     expect(result["estimatedCostUsd"]).toBeCloseTo(0.002176, 6);
   });
 
+  it("silent 但字段存在（恒 0）：建议里提示写入延迟的可能", async () => {
+    writeConfig();
+    script = [
+      { input: 1_700, cacheReported: true },
+      { input: 1_700, cacheReported: true },
+    ];
+    expect(await probe("--yes")).toBe(0);
+    expect(out.join("")).toContain("判定：silent（第二次读到前缀的 0%）");
+    expect(out.join("")).toContain(
+      "响应里有缓存字段但恒为 0；也可能是缓存写入有延迟，可加大 --gap-ms 再测一次",
+    );
+  });
+
   it("inconclusive：只有写入或读到不足一半；reported 且目录有 promptCache 时无建议", async () => {
     const s = (p: Partial<Usage>) =>
       sampleOf({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, ...p });

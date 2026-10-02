@@ -74,9 +74,18 @@ export function judgeProbe(first: ProbeSample, second: ProbeSample): ProbeVerdic
   return any === 0 ? "silent" : "inconclusive";
 }
 
-export function probeAdvice(verdict: ProbeVerdict, model: Model): string | undefined {
-  if (verdict === "silent")
-    return `可在 config 里设 providers.${model.provider}.compat.cacheReporting: "silent"，状态栏将显示未报告`;
+export function probeAdvice(
+  verdict: ProbeVerdict,
+  model: Model,
+  samples: readonly ProbeSample[] = [],
+): string | undefined {
+  if (verdict === "silent") {
+    // 实测：同一中转的 Kimi 间隔 3 s 两次都是 0、间隔更久才命中——字段存在时提示写入延迟的可能
+    const present = samples.some((s) => s.cacheReported === true)
+      ? "（响应里有缓存字段但恒为 0；也可能是缓存写入有延迟，可加大 --gap-ms 再测一次）"
+      : "";
+    return `可在 config 里设 providers.${model.provider}.compat.cacheReporting: "silent"，状态栏将显示未报告${present}`;
+  }
   if (verdict === "inconclusive")
     return "第二次只读到少量缓存或只有写入：可能是缓存粒度或 TTL 问题，可加大 --tokens 或缩短 --gap-ms 重试";
   if (model.promptCache === undefined)
@@ -171,7 +180,7 @@ async function run(ctx: ModelsActionContext): Promise<number> {
   }
   const [first, second] = samples as [ProbeSample, ProbeSample];
   const verdict = judgeProbe(first, second);
-  const advice = probeAdvice(verdict, model);
+  const advice = probeAdvice(verdict, model, samples);
   const fields = USAGE_FIELDS[model.api] ?? [];
   if (json) {
     const result = {
