@@ -113,6 +113,46 @@ ama sessions export <id> [--format md|json|jsonl] [--output <file>] [--branch le
 - `--output` writes a file (permission 0600); otherwise stdout.
 - **Redaction**: before export, key / token-shaped strings are replaced with `[REDACTED]`: `sk-…`, `sk-ant-…`, `ghp_…`, `github_pat_…`, `xox?-…`, `AIza…`, `AKIA…`, `npm_…`, JWTs, `Bearer` / `Basic` credentials, PEM private key blocks, and values directly after `apiKey` / `secret` / `token` / `password` / `authorization` followed by `:` or `=`; in json / jsonl, string values under secret-looking key names are masked whole. Image base64 is kept. Detection is by shape only and cannot guarantee completeness, so review before sharing.
 
+## Traces: `ama sessions trace`
+
+```
+ama sessions trace <id|file> [--html [file]] [--json] [--output <file>] [--open]
+                   [--branch leaf|all] [--no-content] [--children] [--now <ms>]
+```
+
+Exports a session's trace (the same tree as `/trace`, see [tui.md](tui.md) "Traces") as a **single HTML file**, for sharing or
+for finding out where a reply spent its time. `<id>` may be an id prefix or the path of a session file. Read-only and lock-free;
+running sessions can be exported too.
+
+- **HTML** (default, `--html` / `--format html`): a summary at the top (turns, requests, tool calls, total time, tokens, cache
+  hits, ttft p50 / p90, average throughput, cost); a tree on the left (turn → request → tool → sub-call / subagent / external
+  agent turn) and a waterfall on the right — the horizontal axis is session time, with separate colors for waiting for the first
+  token, decoding, tools, subagents, retry waits and compaction / auxiliary requests; running nodes only get a start mark. Idle
+  time longer than 2 seconds between turns is compressed to 2 seconds (the ticks still show real time). Details below (the same
+  as the `/trace` detail card, including prompt, reply, argument and result previews). Search with `/` (Enter / Shift+Enter to
+  move between matches), jump to a turn, zoom (buttons or Ctrl + wheel), expand / collapse all, `↑↓` to select and `←→` to
+  collapse / expand. Light and dark follow the system. However many rows there are, only one screen of DOM is built (a virtual
+  list).
+- **Self-contained**: styles and script are inline, nothing external is loaded, and the page carries a CSP
+  (`default-src 'none'`), so it opens offline; the footer records the ama version and the generation time.
+- **Redaction**: the whole data set and the content are redacted with the `sessions export` rules, and content previews are
+  redacted once more; `<`, `>` and `&` in the data block are always escaped, so `</script>` or HTML tags in prompts or tool
+  output only ever show as text. Matching is by shape only — check before sharing.
+- `--no-content`: keeps only structure, times and numbers (no prompts, arguments, results or error text) for sharing a
+  performance problem.
+- `--children`: embeds previews of nodes inside ama subagent child sessions; by default only their structure and numbers are
+  embedded. External agents only have skeletons anyway.
+- Previews are truncated per item (arguments 500, others 2000 characters) with a 4 M-character budget for the whole file; past
+  the budget, earlier previews are dropped and the details say so.
+- `--json` (or `--format json`): JSON in the same shape as RPC `get_trace` ([rpc.md](rpc.md) "Traces"), with every turn, the
+  loaded child-session traces and `previews` for this session's nodes (none with `--no-content`).
+- Output: `--html <file>` (taken as the value only when the name ends in `.html` / `.htm`; otherwise use `--output`) or
+  `--output <file>` writes a file (mode 0600), otherwise stdout. `--open` opens the written file in the system browser (a
+  temporary file when no file is given).
+- `--now <ms>` pins the generation time in the footer: the same session with the same options gives byte-identical output.
+- Sessions from before 0.6 have no timing records; times are estimated from entry timestamps (the details say "estimated") and
+  session files are not changed.
+
 ## Checkpoints and file backups
 
 Rolling back code (`/rewind`, design in [rewind-plan.md](../rewind-plan.md), Chinese) relies on checkpoints: at the start of each new turn, ama records the contents of the files changed by edit / write at that moment.
