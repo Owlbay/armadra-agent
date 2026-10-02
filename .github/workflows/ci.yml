@@ -24,6 +24,9 @@ jobs:
         node: [22, 24]
     steps:
       - uses: actions/checkout@v4
+        with:
+          # release:check 与上一个 v* tag 比较，需要完整历史与 tag
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -59,25 +62,31 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # tag 名必须等于 v<package.json version>；协议常量变化要求破坏性版本升级
+      - run: pnpm run release:check
       - run: pnpm run build
+      # 双 bundle：ama.cjs 运行时在同目录找 ama-sandbox.cjs（codemode 沙箱入口）
       - name: pack
         run: |
           mkdir -p release
           cp dist/bundle/ama.cjs release/ama.cjs
+          cp dist/bundle/ama-sandbox.cjs release/ama-sandbox.cjs
           pnpm pack --pack-destination release
           mv release/*.tgz release/package.tgz
-          cd release && sha256sum ama.cjs package.tgz > SHA256SUMS
+          cd release && sha256sum ama.cjs ama-sandbox.cjs package.tgz > SHA256SUMS
       # 只上传 Release 附件；不执行 npm publish（设计 D15 / §14）
       - name: github release
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
           gh release create "$GITHUB_REF_NAME"
-          release/ama.cjs release/package.tgz release/SHA256SUMS
+          release/ama.cjs release/ama-sandbox.cjs release/package.tgz release/SHA256SUMS
           --title "$GITHUB_REF_NAME" --generate-notes
