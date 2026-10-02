@@ -74,6 +74,13 @@
   `ama sessions list / show / prune`（用法补上 `ama sessions trace`）、会话 Markdown 导出、检查点 / 沙箱 / Hook / 宿主适配器 / 外部 Agent 的提示、
   模型查找失败与 models.dev 说明随界面语言；中文输出逐字不变，RPC 与 `-p --output-format json` 的 JSON 字段不变。进 `task` 工具结果的错误
   （未知外部 Agent、宿主独占、排队时中断）与「… N more tool calls」摘要行改为固定英文（与其它发给模型的文本一致）。
+- **i18n 收尾**（W6-I5）：迁完最后的中文——命令行参数错误、`ama config show | path | edit`（含 `ama doctor` 的 codemode 一行）、
+  `ama models discover`、项目级配置收紧告警、profile 与 `auth.json` 权限报错、缓存参数自动去掉的告警。`pnpm check:i18n` 改为严格模式：
+  `src/**` 出现中文行即失败（基线删除），保留的几处（输入别名、粘贴标记、价格数据的 `_reason`）逐条写明理由。`ama --help` 补上
+  `--lang`、`--memory` / `--no-memory`、`ama auth login | logout | status`、`ama config get | set | unset | list`、`ama memory`、
+  `ama sessions trace`（中文帮助随之变化）。`ama stats` 把走 ChatGPT 套餐的请求单列为「订阅」一行（不进费用、不算无价；统计索引重建一次）。
+  `/trace` 详情的键列宽按最长的键对齐；`/config` 面板英文底部提示在 80 列不再截断。`release-check` 在中文文档比 `docs/en/` 译本
+  的基准提交多改了 5 次以上时提示（不失败）。
 
 ## 0.5.1（2026-10-03）
 

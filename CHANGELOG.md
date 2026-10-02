@@ -109,6 +109,16 @@ Wave 6 (docs/wave6-plan.md) contracts and infrastructure (W6-C0):
   descriptions follow the interface language. Chinese output is unchanged word for word; JSON fields of RPC and
   `-p --output-format json` do not change. Errors that land in `task` tool results (unknown external agent, host-only agent,
   queued interrupt) and the "… N more tool calls" summary line are now always English, like other model-facing text.
+- **i18n wrap-up** (W6-I5): the last Chinese strings are migrated — command-line argument errors, `ama config show | path |
+edit` (and the codemode line of `ama doctor`), `ama models discover`, project-level config warnings, profile and `auth.json`
+  permission errors, and the cache-parameter fallback notice. `pnpm check:i18n` is now strict: any Chinese line in `src/**`
+  fails (the baseline is gone); the few allowed lines — input aliases, paste markers, `_reason` in price data — each carry a
+  reason. `ama --help` now lists `--lang`, `--memory` / `--no-memory`, `ama auth login | logout | status`, `ama config get |
+set | unset | list`, `ama memory` and `ama sessions trace` (the Chinese help changes accordingly). `ama stats` shows requests
+  billed to a ChatGPT plan in their own "Subscription" row (not in the cost, not counted as unpriced; the stats index is
+  rebuilt once). The `/trace` detail key column fits the longest key, and the `/config` footer no longer truncates at 80
+  columns in English. `release-check` notes (without failing) when a Chinese doc changed more than 5 times since the commit
+  its `docs/en/` translation is based on.
 
 ## Earlier releases
 
