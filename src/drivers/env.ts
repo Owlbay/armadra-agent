@@ -4,6 +4,9 @@
  * ama 分不清「用户 shell 本来就有」与「为 ama 设的」变量，所以缺省全剥、显式放回：
  * - 删：`BUILTIN_PROVIDERS[].envKeys`（各家 API key）、`*_BASE_URL`、`AMA_*`、`CODEX_API_KEY`、
  *   `ANTHROPIC_AUTH_TOKEN`——它们漏进 Claude / Codex 会把订阅登录切成 API 计费（R2 K4）；
+ * - 删：`ARMADRA_*`（`ARMADRA_ASKPASS_*` 除外）——在 Armadra 画布终端里直接运行 ama 时，这些是该终端节点的
+ *   身份（节点 / 会话 / Hook 端点 / 画布控制）；子进程继承后，Armadra 装在 Claude / Codex 上的 Hook 会把
+ *   子 Agent 的事件记到这个节点名下（状态、审批等待、投递确认都会串）。askpass 留给 git 凭据提示；
  * - 留：其余全部（PATH / HOME / LANG / TERM / SSH_* / 代理变量 / CLI 自己的 OAuth 令牌等）；
  * - 放回：`agents.<id>.env.passthrough` 列出的变量（从原环境取值）。
  *
@@ -30,6 +33,7 @@ function strippedKeys(): ReadonlySet<string> {
 /** 该变量是否缺省剥离。 */
 export function isStrippedEnvKey(name: string): boolean {
   const upper = name.toUpperCase();
+  if (upper.startsWith("ARMADRA_")) return !upper.startsWith("ARMADRA_ASKPASS_");
   return upper.startsWith("AMA_") || upper.endsWith("_BASE_URL") || strippedKeys().has(upper);
 }
 
