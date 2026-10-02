@@ -1,6 +1,6 @@
 # ama 设计 v2：可独立使用、可嵌入 Armadra 的调用型编码 / 协调 Agent
 
-> 状态：目标设计 v2（2026-10-02），未开始实施；替代 v1 全文。仓库 `github.com/yovinchen/armadra-agent`（MIT），npm 包名 `@armadra/agent`（**暂不发布到 npm**，先以 Git 仓库 + Release 附件分发），可执行名 `ama`。
+> 状态：目标设计 v2（2026-10-02），未开始实施；替代 v1 全文。仓库 `github.com/Owlbay/armadra-agent`（MIT），npm 包名 `@armadra/agent`（0.2.1 起发布到 npm，打 `v*` tag 时由 CI 发布；Release 附件照常提供），可执行名 `ama`。
 > 两种用法都是一等公民：① 任意目录下的独立 CLI；② 嵌入 Armadra 画布作为协调者（Armadra 仓库 `docs/design/coordinator-agent.md`，下称「文档 B」；其 `HostApi`、`profile.json`、事件词汇、内置 id `ama` 的契约以本文 §6.2 / §10.3 / §13 为准）。
 > 参考版本 Pi 1.0（2026-10-01）。设计只借鉴 Pi 的分层、流事件契约、会话树、压缩与 TUI 组件模型；运行时不依赖它，也不出现其它任何第三方项目名。本文面向一个多代理并行实施团队：§1 给到文件级的目录树与所有权，§16 给批次与验收。
 
@@ -22,7 +22,7 @@
 | D12 | 交互界面是**差分渲染的终端 UI**（主屏模式、非备用屏），组件模型「给定宽度返回行」；范围是 Pi 的子集（砍掉清单 §12.9）；`--no-tui` 行式降级保留；`TERM=dumb` / 非 TTY 自动降级                                           | Armadra 终端节点在 tmux 里跑，需要终端自己的回滚、括号粘贴 + `\r` 提交；备用屏与鼠标在那里是负担                                                                      | 修订 |
 | D13 | 入口：`ama`（TUI）、`ama --no-tui`、`-p`（text / json / stream-json）、`--mode rpc`（stdio JSONL，Pi 形状）、SDK                                                                                                       | RPC 与 SDK 服务嵌入与测试；`-p` 服务脚本                                                                                                                              | 保留 |
 | D14 | 独立模式的协调能力 = 同进程 `task` 子 Agent（深度 ≤ 1，并发 ≤ 4）；多 CLI 编排只在宿主下由宿主工具提供                                                                                                               | 终端、连线、worktree 是宿主领域                                                                                                                                       | 保留 |
-| D15 | 分发：仓库 `pnpm build` 产出 npm 包形状（ESM + d.ts）与 `dist/bundle/ama.cjs`；GitHub Release 附 `ama.cjs` + `SHA256SUMS`；**不执行 `npm publish`**；Armadra 以 Git 依赖或 Release 产物拉取                            | 先不占作用域、不背发布节奏；包形状保持可发布，决定发布时只需加一条 CI 步骤                                                                                             | 修订 |
+| D15 | 分发：仓库 `pnpm build` 产出 npm 包形状（ESM + d.ts）与 `dist/bundle/ama.cjs`；GitHub Release 附 `ama.cjs` + `ama-sandbox.cjs` + `package.tgz` + `SHA256SUMS`；0.2.1 起 `v*` tag 由 CI `npm publish --provenance` 发布 `@armadra/agent`（缺 `NPM_TOKEN` 时跳过）；Armadra 从 npm、Git 依赖或 Release 产物拉取 | 0.2.0 先只发 Release；包形状一直保持可发布，0.2.1 起在 release job 末尾加一步 npm 发布，provenance 把包与仓库 / 提交绑定 | 修订（0.2.1） |
 | D16 | 测试不依赖真 key：脚本化 `fake` 供应商 + 录制的 SSE 样本黄金文件；TUI 用 `MemoryTerminal` 断言帧内容                                                                                                                 | CI 三平台可跑；供应商差异收敛在样本里                                                                                                                                 | 新 |
 | D17 | 单文件 ≤ 600 行（源码），超出即拆；每个批次有明确文件所有权，跨批次只改自己拥有的文件，契约文件由 B0 所有                                                                                                             | 并行代理不互相覆盖；评审粒度可控                                                                                                                                      | 新 |
 | D18 | 加入 **codemode**（§5.5）：一个 `codemode` 工具让模型写一段 JS 脚本编排多次工具调用，只有脚本输出回到模型；脚本跑在 `node --permission` 子进程的 `vm` 上下文里，零依赖；`codemode.mode: off \| on \| only`，缺省 `off`（由工具预设 `codemode` 打开，§5.6） | 长流程任务的主要成本是「每次工具结果都带着整段历史回到模型」；把多步调用合进一次往返，实测可把累计 token 降到四分之一 | 新 |
@@ -279,7 +279,7 @@ test/
 
 `vitest.config.ts`：`test.pool = "forks"`、`testTimeout = 20000`、`include = ["src/**/*.test.ts", "test/**/*.test.ts"]`、`exclude e2e unless AMA_E2E`、`setupFiles = ["test/helpers/setup.ts"]`（设 `AMA_CONFIG_DIR` / `AMA_DATA_DIR` 到临时目录、清空各家 `*_API_KEY`）。
 
-`.github/workflows/ci.yml`：矩阵 `os: [ubuntu-latest, macos-latest, windows-latest]`、`node: [22, 24]`；步骤 checkout → pnpm setup → `pnpm install --frozen-lockfile` → `pnpm ci`；Windows 行额外 `node dist/bundle/ama.cjs -p "hi" --provider fake --model fake/echo`；`v*` 标签触发 release job：构建、`sha256sum dist/bundle/ama.cjs > SHA256SUMS`、上传 Release 附件（**无 npm publish 步骤**）。
+`.github/workflows/ci.yml`：矩阵 `os: [ubuntu-latest, macos-latest, windows-latest]`、`node: [22, 24]`；步骤 checkout → pnpm setup → `pnpm install --frozen-lockfile` → `pnpm ci`；Windows 行额外 `node dist/bundle/ama.cjs -p "hi" --provider fake --model fake/echo`；`v*` 标签触发 release job：构建、`sha256sum dist/bundle/ama.cjs > SHA256SUMS`、上传 Release 附件，随后 `npm publish --provenance --access public`（`NPM_TOKEN` 未配置或该版本已发布时跳过，见 §14）。
 
 ## §3 模型接入
 
@@ -990,10 +990,10 @@ export type { ToolDefinition, ToolContext, ToolResult, Model, ProviderData, Sess
 
 | 产物                        | 构建                                                              | 用途                                                                       |
 | --------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `dist/`（ESM + d.ts）        | `tsc -p tsconfig.build.json`                                      | SDK；宿主拿类型（Armadra 以 Git 依赖 `github:yovinchen/armadra-agent#v0.x` 或 Release tarball 安装） |
+| `dist/`（ESM + d.ts）        | `tsc -p tsconfig.build.json`                                      | SDK；宿主拿类型（Armadra 以 Git 依赖 `github:Owlbay/armadra-agent#v0.x` 或 Release tarball 安装） |
 | `dist/bundle/ama.cjs`       | esbuild，全部内联，无原生模块，`target node22`                    | 宿主随包携带；`node ama.cjs` 或 `ELECTRON_RUN_AS_NODE=1 <Electron> ama.cjs` |
-| GitHub Release              | `v*` 标签 → CI 全绿 → 附 `ama.cjs` + `SHA256SUMS` + `package.tgz`（`pnpm pack`） | 独立用户 `npm i -g ./package.tgz` 或直接跑 `ama.cjs`                       |
-| npm publish                 | **不执行**（保留 `publishConfig`，日后一条 CI 步骤）              | —                                                                          |
+| GitHub Release              | `v*` 标签 → CI 全绿 → 附 `ama.cjs` + `ama-sandbox.cjs` + `SHA256SUMS` + `package.tgz`（`pnpm pack`） | 不走 npm 的用户直接跑 `ama.cjs`（与 `ama-sandbox.cjs` 同目录），或 `npm i -g ./package.tgz` |
+| npm publish                 | 0.2.1 起：`v*` 标签 → release job 在 GitHub Release 之后 `npm publish --provenance --access public`（`NODE_AUTH_TOKEN` = 仓库 secret `NPM_TOKEN`；缺 secret 或版本已在 npm 上则跳过） | `npm i -g @armadra/agent`；SDK `import … from "@armadra/agent"`；包内只有 `dist/`（无源映射、无测试辅助）、README、LICENSE、CHANGELOG 与用户文档 |
 
 版本语义：`HOST_API_VERSION` 或 RPC `protocolVersion` 变 → 主版本；其余 semver。Windows：CI 跑单测 + `-p` 冒烟 + line 模式括号粘贴测试；TUI 在 Windows Terminal 手测。
 

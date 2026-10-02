@@ -60,6 +60,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # npm publish --provenance 需要 OIDC 令牌
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -69,6 +71,8 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+          # 写入指向 npmjs 的 .npmrc，认证读 NODE_AUTH_TOKEN
+          registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
       # tag 名必须等于 v<package.json version>；协议常量变化要求破坏性版本升级
       - run: pnpm run release:check
@@ -82,7 +86,7 @@ jobs:
           pnpm pack --pack-destination release
           mv release/*.tgz release/package.tgz
           cd release && sha256sum ama.cjs ama-sandbox.cjs package.tgz > SHA256SUMS
-      # 只上传 Release 附件；不执行 npm publish（设计 D15 / §14）
+      # 先发 GitHub Release 附件，再发 npm（设计 D15 / §14）
       - name: github release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -90,3 +94,20 @@ jobs:
           gh release create "$GITHUB_REF_NAME"
           release/ama.cjs release/ama-sandbox.cjs release/package.tgz release/SHA256SUMS
           --title "$GITHUB_REF_NAME" --generate-notes
+      # 发布到 npm：版本已由 release:check 对齐 tag；仓库没配 NPM_TOKEN 时跳过并提示，不让 job 失败；
+      # 同一版本已在 npm 上（重跑 job）时也跳过。dist 已由上面的 build 产出。
+      - name: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::warning::未配置 NPM_TOKEN secret，跳过 npm publish"
+            exit 0
+          fi
+          name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "::notice::$name@$version 已在 npm 上，跳过"
+            exit 0
+          fi
+          npm publish --provenance --access public

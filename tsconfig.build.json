@@ -5,10 +5,10 @@
     "rootDir": "src",
     "outDir": "dist",
     "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
+    "declarationMap": false,
+    "sourceMap": false,
     "removeComments": false
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.test.ts", "src/agent/testing/**"]
+  "exclude": ["src/**/*.test.ts", "src/**/test-support.ts", "src/agent/testing/**"]
 }

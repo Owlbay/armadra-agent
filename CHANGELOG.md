@@ -1,5 +1,13 @@
 # 更新记录
 
+## 0.2.1（2026-10-02）
+
+npm 首发：`npm i -g @armadra/agent`。功能与 0.2.0 相同。
+
+- **npm 发布**：包名 `@armadra/agent`；打 `v*` tag 时 CI 在生成 GitHub Release 之后执行 `npm publish --provenance`（仓库未配置 `NPM_TOKEN` 时跳过）。
+- **包元数据**：仓库地址改为 `Owlbay/armadra-agent`，补 keywords、homepage、bugs、author、`sideEffects`；包里带用户文档（providers / tui / codemode / hooks / host-api / rpc / session-format）与 CHANGELOG，不再带源映射与测试辅助，解包体积约 2.9 MB。
+- **README**：重写为完整介绍——定位、特性、安装、配置、中转站、工具预设、缓存、安全、各入口与 SDK、嵌入 Armadra。
+
 ## 0.2.0（2026-10-02）
 
 首个可用版本。
