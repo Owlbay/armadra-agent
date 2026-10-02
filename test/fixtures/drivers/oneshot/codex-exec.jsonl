@@ -1,0 +1,8 @@
+// codex-cli 0.160.0 exec --json（手写）
+{"dir":"out","msg":{"type":"thread.started","thread_id":"019a0000-0000-7000-8000-0000000000aa"}}
+{"dir":"out","msg":{"type":"turn.started"}}
+{"dir":"out","msg":{"type":"item.completed","item":{"id":"item_0","type":"reasoning","text":"look around"}}}
+{"dir":"out","msg":{"type":"item.started","item":{"id":"item_1","type":"command_execution","command":"rg foo","status":"in_progress"}}}
+{"dir":"out","msg":{"type":"item.completed","item":{"id":"item_1","type":"command_execution","command":"rg foo","aggregated_output":"a.ts:1","exit_code":0,"status":"completed"}}}
+{"dir":"out","msg":{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"foo is in a.ts"}}}
+{"dir":"out","msg":{"type":"turn.completed","usage":{"input_tokens":500,"cached_input_tokens":100,"output_tokens":20}}}

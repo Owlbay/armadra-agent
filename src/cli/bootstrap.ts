@@ -157,6 +157,7 @@ export async function bootstrap(
               trusted: trust.trusted,
               extraSkillDirs: [...args.skillDirs, ...(config.skills?.dirs ?? [])],
               promptDirs: profile?.promptDirs ?? [],
+              dataDir: paths.dataDir,
             }) ?? { skills: [], prompts: [], warnings: [] },
         );
   warnings.push(...discovered.warnings);
@@ -320,12 +321,12 @@ export async function bootstrap(
     };
     const overrides: NonNullable<SessionAssembly["overrides"]> = {};
     if (args.maxTurns !== undefined) overrides.maxTurns = args.maxTurns;
-    // [W5-C0] 只解析与透传：实现前明确提示不生效（W5-H2 / W5-G 去掉这两行提示）
+    // [W5-C0] 只解析与透传：实现前明确提示不生效（W5-H2 去掉 --max-cost 的提示；--agent-dir 已由 W5-G 接入）
     if (args.maxCostUsd !== undefined) {
       overrides.maxCostUsd = args.maxCostUsd;
       warn("--max-cost 尚未实现（第五波 W5-H2），本次不生效");
     }
-    if (args.agentDirs !== undefined) warn("--agent-dir 尚未实现（第五波 W5-G），本次不生效");
+    if (args.agentDirs !== undefined) overrides.agentDirs = [...args.agentDirs];
     if (args.noSession) overrides.noSession = true;
     const systemPrompt = await step(ExitCode.Config, "--system-prompt", () =>
       resolveSystemPromptArg(args.systemPrompt, args.systemPromptMode, io.cwd),
@@ -425,6 +426,9 @@ export async function runCli(
     io.stdout(HELP_TEXT);
     return ExitCode.Ok;
   }
+  // [W5-E] --mode acp：装配同 rpc（宿主看到的 mode 也是 rpc），分派到 ACP 服务端
+  const acp = args.mode === "acp";
+  if (acp) args = { ...args, mode: "rpc" };
   if (deps === undefined) {
     io.stderr("ama: 运行时尚未装配（集成批次通过 registerRuntimeDeps 注入实现）\n");
     return ExitCode.RuntimeError;
@@ -445,7 +449,9 @@ export async function runCli(
     const from = applyFromOption(args, runtime, io);
     cleanupFrom = from.cleanup;
     const context = from.context;
-    const runner = deps.modes[runtime.mode];
+    const runner = acp
+      ? (await import("../modes/acp/acp-mode.js")).runAcpMode
+      : deps.modes[runtime.mode];
     if (runner === undefined)
       throw new AmaError("not_implemented", `模式 ${runtime.mode} 尚未装配`, { exitCode: 1 });
     try {

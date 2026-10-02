@@ -220,14 +220,8 @@ describe("第五波装配（W5-C0）", () => {
     expect(session.options.maxTurns).toBeUndefined();
     const warnings = runtime.warnings.join("\n");
     expect(warnings).toContain("--max-cost 尚未实现");
-    expect(warnings).toContain("--agent-dir 尚未实现");
+    expect(warnings).not.toContain("--agent-dir 尚未实现"); // [W5-G] 已接入
     await runtime.dispose();
-  });
-
-  it("--mode acp 退出码 2 并说明尚未实现", async () => {
-    h = composeHarness([{ text: "ok" }]);
-    expect(await h.run(["--mode", "acp", "--model", "fake/echo"])).toBe(2);
-    expect(h.stderr()).toContain("--mode acp 尚未实现");
   });
 
   it("会话带组装表的扩展工厂；subagent_* / plan_* 桥接到宿主总线", async () => {

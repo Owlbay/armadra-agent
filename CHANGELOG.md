@@ -2,11 +2,31 @@
 
 ## 未发布
 
+- **操作系统级沙箱**（docs/sandbox.md）：新模块 `src/sandbox/` 探测 macOS `sandbox-exec`、Linux bubblewrap（退而
+  `unshare -r -n`），用目标配置跑一次最小探针确认真能用（嵌套沙箱、无用户命名空间会降级），结果进程内缓存。codemode
+  子进程经它启动，内核拒绝网络（含 DNS）与一切写入：**Node 22 / 24 在有操作系统沙箱时与 Node ≥ 25 一样网络隔离**——
+  `codemode` 按只读类、`default` 预设缺省开启、状态栏不再标 `net!`；没有时（Windows 等）保持原样。Node ≥ 25 叠加作纵深
+  防御。新配置 `sandbox.enabled`（`auto` | `off`，只认用户级 / profile，`AMA_SANDBOX=off` 覆盖）；`ama doctor` 显示沙箱
+  能力，`ama config show` 写明网络由谁隔离。bash 沙箱与「沙箱内命令免审批」是第二阶段。
+- **系统提示维护**：规则节加两条通用规则——破坏性命令（`rm -rf`、`git reset --hard`、强推、删分支）除非用户要求否则先问；
+  独立的只读工具调用放在同一轮（只在 read 可直接调用时出现）。edit 描述写明多处修改用一次调用的 `edits[]`、`oldText` 按原文件
+  匹配、唯一、尽量短、不重叠。新增内置 Skill `ama-docs`（配置速查，按需读取，同名时用户的优先）；Skill 索引改为每条一行、
+  说明压到一行。新增提示长度预算测试（`default` ≤ 2 000、`minimal` ≤ 800、`codemode-only` ≤ 1 775 token）。
+  系统提示前缀因此变化，**升级后每个会话的首个请求缓存未命中一次**（恢复的旧会话追加一条 system 补丁）。
+
 - **图像能力**（第五波 W5-I，docs/providers.md「图像输入」）：单图上限改按 base64 后计算并按端点分档（官方 Anthropic
   10 MB、Gemini / OpenAI 20 MB、中转与未知 5 MB，原来按原始字节 5 MB），任一边超 8000 px 拒绝；超限时按
   `images.resize`（缺省 `auto`）用 `sips` / ImageMagick 缩放。请求图片总量超预算（Anthropic 32 MB、其它 20 MB）时把
   最旧的图换成占位文本，写成 `context_edit{reason:"image_budget"}`。新增剪贴板图片读取（`pasteClipboardImage`，
   界面接线在后续批次），`ama sessions prune` 清理超过 7 天的剪贴板文件。
+- **子 Agent**（第五波 W5-G，docs/agents.md「子 Agent」）：定义文件 `.ama/agents/*.md`（项目级需信任）与
+  `~/.config/ama/agents/*.md`，`--agent-dir` / profile `agentDirs` / config `agents.dirs` 追加目录；内置 `general`、
+  `explore`、`plan`（后两者以 plan 模式强制只读，不弹审批）。`task` 新增 `agent`、`background`、`taskId`（续聊）、
+  `isolation: "worktree"`、`budgetUsd`；同一回复里的多个 task 并行（池 `subagents.maxConcurrent`，排队上限
+  `subagents.maxPending`）；结果超过 50 KB 保留头尾并全文落 `outputs/`；轮数用尽以 `toolChoice:"none"` 收尾一轮要报告。
+  后台任务完成后以 `<task-notification>` 通知父会话；`task_ctl` 支持 list / wait / stop / output / send。子会话工具表
+  与父逐字节相同（`task` 保留、运行时拒绝），首个请求可复用父的缓存前缀；角色说明是系统提示末位的 `role` 节。
+  事件 `subagent_start / update / end`，`getStats().tasks`，父会话 `custom{ama.task}` 记任务快照、resume 时重建。
 - **检查点核心**（docs/rewind-plan.md，回滚的会话接线与界面在后续批次）：edit / write 第一次写文件前备份，
   每个新回合重拍已跟踪文件；备份按内容 sha256 存 `<数据目录>/file-history/blobs/`。恢复做冲突检测与安全检查
   （符号链接、硬链接、非普通文件、父目录移动；非 Windows 用 `O_NOFOLLOW`），可预览行级增删。
@@ -64,6 +84,17 @@ get_todos / get_tasks / get_agents`（命令表 42 条，实现前回 `not_imple
   `HostApi.runners` 可选面；`@armadra/agent/acp` 子路径（驱动类型与 NDJSON 分帧）；第五波配置键的校验、说明与 JSON Schema
   （行为随各批次生效）。命令行新增 `--mode acp`、`--max-cost`、`--agent-dir`（实现前分别报「尚未实现」或提示不生效），
   退出码 8 = `-p` 到达预算上限（7 仍是工具被拒）。
+- **外部 Agent 驱动与 ACP**（docs/agents.md「外部 Agent」、docs/acp.md）：`src/drivers/` 以 ACP 词汇统一驱动 Claude Code
+  （stream-json 原生协议，`can_use_tool` 交人、中断看门狗、续聊与成本）、Codex（`app-server` 的 thread / turn 与服务端审批）、
+  任意 ACP Agent（零依赖 ACP 客户端）与一次性打印模式（只读兜底）。`ProcessRunner` 把它们接成子 Agent runner，供
+  `task(agent=…)` 使用（接线在 W5-G）。外部 Agent 的审批**只交给人**（宿主 → 界面 → 无人值守拒绝，分类器与模型不参与；
+  提问类请求不代答），模式不得比 ama 当前模式宽（plan / allowlist 下只读），子进程缺省剥离供应商 key、`*_BASE_URL`、
+  `AMA_*`（防订阅被切成 API 计费，`agents.<id>.env.passthrough` 放回），只在已信任目录里启动；并发池、美元预算、
+  看门狗、空闲关闭与孤儿进程清理；每回合写 `custom{ama.agent-usage}`，`get_session_stats` 新增 `external`。
+  有宿主时不自己启动外部 CLI，只用 `HostApi.runners` 注入的 runner。
+- **`ama --mode acp`**：ama 作为 ACP Agent（会话新开 / 回放 / 续接 / 列表 / 关闭、prompt 事件映射、审批经
+  `session/request_permission` 交给客户端、`session/cancel`、`session/set_mode`）。`@armadra/agent/acp` 导出 ACP 类型、
+  JSON-RPC 对等端、`AcpClient`、`AcpDriver` 与假 ACP Agent（`runFakeAcpAgent` / `fakeAcpAgentPath()`）。
 - **models.dev 快照入库**（docs/providers.md「模型元数据」，第五波 §2）：22 家主流厂商的裁剪快照随包携带（内联数据约 180 KB，
   MIT 声明见 `THIRD_PARTY_NOTICES.md`），**启动与运行都不联网**；`ama providers add|refresh`、`ama models discover`
   不再拉 models.dev。新命令 `ama models refresh [--provider <id>]` 显式联网刷新到数据目录（晚于快照才叠加，

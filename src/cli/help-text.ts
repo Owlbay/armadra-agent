@@ -18,7 +18,7 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
   --image <文件>               -p 随提示发送图片（可重复；png / jpg / gif / webp，单张 ≤ 5 MB）；
                                交互界面里写 @图片路径 或粘贴图片路径
   --mode rpc                   stdio JSONL 协议（供嵌入）
-  --mode acp                   ACP 服务端（供 Zed / JetBrains / Armadra 驱动；尚未实现）
+  --mode acp                   ACP 服务端（供 Zed / JetBrains / Armadra 驱动）
   --max-cost <USD>             一次运行的美元上限（尚未生效）
   --tui-mode <模式>            显示模式，第一期只有 regular（主屏）
   --quiet-startup <档>         启动画面：normal | header | silent
@@ -53,7 +53,7 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
   --host <模块>                宿主适配器模块（CJS / ESM）
   --instructions <文件>        追加指令文件，可重复
   --skill-dir <目录>           追加 Skill 目录，可重复
-  --agent-dir <目录>           追加子 Agent 定义目录，可重复（尚未生效）
+  --agent-dir <目录>           追加子 Agent 定义目录，可重复
   --auth-file <文件>           auth.json 位置（缺省 ~/.config/ama/auth.json）
   --tools <a,b,…>              只启用这些工具
   --exclude-tools <a,b,…>      禁用这些工具

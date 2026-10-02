@@ -1,0 +1,12 @@
+{"dir":"in","msg":{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false},"clientInfo":{"name":"ama","version":"<version>"}}}}
+{"dir":"out","msg":{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1,"agentCapabilities":{"loadSession":true,"promptCapabilities":{"image":false,"embeddedContext":false},"sessionCapabilities":{"list":{},"resume":{},"close":{}}},"authMethods":[],"agentInfo":{"name":"fake-acp-agent","version":"<version>"}}}}
+{"dir":"in","msg":{"jsonrpc":"2.0","id":2,"method":"session/new","params":{"cwd":"/work","mcpServers":[]}}}
+{"dir":"out","msg":{"jsonrpc":"2.0","id":2,"result":{"sessionId":"fake-1","modes":{"currentModeId":"default","availableModes":[{"id":"default","name":"Default"},{"id":"plan","name":"Plan"}]}}}}
+{"dir":"in","msg":{"jsonrpc":"2.0","id":3,"method":"session/prompt","params":{"sessionId":"fake-1","prompt":[{"type":"text","text":"[permission] write it"}]}}}
+{"dir":"out","msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"fake-1","update":{"sessionUpdate":"tool_call","toolCallId":"call-1","title":"Write note.txt","kind":"edit","status":"pending","locations":[{"path":"/work/note.txt"}],"rawInput":{"path":"note.txt","content":"hi"}}}}}
+{"dir":"out","msg":{"jsonrpc":"2.0","id":1,"method":"session/request_permission","params":{"sessionId":"fake-1","toolCall":{"toolCallId":"call-1","title":"Write note.txt","kind":"edit","status":"pending"},"options":[{"optionId":"allow","name":"Allow","kind":"allow_once"},{"optionId":"always","name":"Always allow","kind":"allow_always"},{"optionId":"reject","name":"Reject","kind":"reject_once"},{"optionId":"never","name":"Never","kind":"reject_always"}]}}}
+{"dir":"in","msg":{"jsonrpc":"2.0","id":1,"result":{"outcome":{"outcome":"selected","optionId":"allow"}}}}
+{"dir":"out","msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"fake-1","update":{"sessionUpdate":"tool_call_update","toolCallId":"call-1","status":"completed"}}}}
+{"dir":"out","msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"fake-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"wrote note.txt"}}}}}
+{"dir":"out","msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"fake-1","update":{"sessionUpdate":"usage_update","used":15,"size":1000}}}}
+{"dir":"out","msg":{"jsonrpc":"2.0","id":3,"result":{"stopReason":"end_turn","usage":{"inputTokens":10,"outputTokens":5,"totalTokens":15}}}}

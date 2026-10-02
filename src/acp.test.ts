@@ -25,4 +25,24 @@ describe("@armadra/agent/acp 子路径（W5-C0）", () => {
     await done;
     expect(lines).toEqual(['{"jsonrpc":"2.0","id":1}', '{"jsonrpc":"2.0","id":2}']);
   });
+
+  it("[W5-E] 导出 AcpClient、AcpDriver、JSON-RPC 对等端与假 Agent", async () => {
+    expect(typeof acp.AcpClient).toBe("function");
+    expect(typeof acp.AcpDriver).toBe("function");
+    expect(typeof acp.JsonRpcPeer).toBe("function");
+    expect(typeof acp.runFakeAcpAgent).toBe("function");
+    expect(acp.ACP_PROTOCOL_VERSION).toBe(1);
+    expect(acp.fakeAcpAgentPath()).toMatch(/fake-agent-main\.js$/);
+    const toAgent = new PassThrough();
+    const fromAgent = new PassThrough();
+    const done = acp.runFakeAcpAgent(toAgent, fromAgent);
+    const client = new acp.AcpClient({ input: fromAgent, output: toAgent });
+    await client.initialize();
+    const { sessionId } = await client.newSession("/w");
+    expect(await client.prompt(sessionId, [{ type: "text", text: "x" }])).toMatchObject({
+      stopReason: "end_turn",
+    });
+    toAgent.end();
+    await done;
+  });
 });

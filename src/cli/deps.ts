@@ -61,6 +61,8 @@ export interface ResourceDiscoveryInput {
   /** 按 §5.3 顺序：`--skill-dir` → profile.skillDirs → config.skills.dirs。 */
   extraSkillDirs: readonly string[];
   promptDirs: readonly string[];
+  /** 数据目录：内置 Skill 的正文写在 `<dataDir>/builtin/`；缺省不加内置 Skill。 */
+  dataDir?: string;
 }
 
 export interface ResourceDiscoveryResult {
@@ -123,6 +125,8 @@ export interface SessionOverrides {
   systemPrompt?: SystemPromptOverride;
   /** `--no-session`：`/new` 等切换出的新会话也只在内存里。 */
   noSession?: boolean;
+  /** [W5-G] `--agent-dir`（可重复）与 profile `agentDirs`，按此顺序：子 Agent 定义目录。 */
+  agentDirs?: string[];
 }
 
 export interface SystemPromptOverride {

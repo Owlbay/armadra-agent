@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 import { sandboxEntryForTests } from "../../test/helpers/codemode-sandbox.js";
+import { NO_OS_SANDBOX } from "../sandbox/detect.js";
 import { isGroupAlive } from "../tools/process-tree.js";
 import { detectSandboxCapability } from "./capability.js";
 import {
@@ -114,8 +115,8 @@ describe("--permission 子进程（与 codemode 相同参数）", () => {
   });
 
   describe.skipIf(nodeMajor >= 25)("Node 22 / 24", () => {
-    it("权限模型不管网络：标注为非 strict", async () => {
-      expect(detectSandboxCapability().strict).toBe(false);
+    it("权限模型不管网络：没有 OS 沙箱时标注为非 strict（OS 沙箱见 os-sandbox.test.ts）", async () => {
+      expect(detectSandboxCapability(undefined, undefined, NO_OS_SANDBOX).strict).toBe(false);
       const out = await probe();
       expect(out["net"]).not.toBe("ERR_ACCESS_DENIED");
     });

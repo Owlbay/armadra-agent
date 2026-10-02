@@ -28,7 +28,7 @@
  * - `only` 模式活动集独占：宿主 / SDK 工具也不直接暴露，只能在脚本里调用（`exclusive`）。
  */
 
-import { detectSandboxCapability } from "../codemode/capability.js";
+import { sandboxCapabilityFor } from "../codemode/capability.js";
 import {
   canonicalPreset,
   type AmaConfig,
@@ -75,8 +75,8 @@ export interface CodemodeModeResolution {
 
 /** 生效的 codemode 模式及其来源；`strict` 缺省按运行时探测（测试与组装根可注入）。 */
 export function resolveCodemodeMode(
-  config: Pick<AmaConfig, "tools" | "codemode">,
-  strict: boolean = detectSandboxCapability().strict,
+  config: Pick<AmaConfig, "tools" | "codemode" | "sandbox">,
+  strict: boolean = sandboxCapabilityFor(config).strict,
 ): CodemodeModeResolution {
   const preset = canonicalPreset(config.tools?.preset) ?? "default";
   const explicit = config.codemode?.mode;
@@ -86,7 +86,7 @@ export function resolveCodemodeMode(
 
 /** 生效的 codemode 模式：显式配置优先，否则跟随预设。 */
 export function effectiveCodemodeMode(
-  config: Pick<AmaConfig, "tools" | "codemode">,
+  config: Pick<AmaConfig, "tools" | "codemode" | "sandbox">,
   strict?: boolean,
 ): CodemodeMode {
   return resolveCodemodeMode(config, strict).mode;

@@ -1,0 +1,2 @@
+// claude 2.1.287 -p --output-format json（手写）
+{"dir":"out","msg":{"type":"result","subtype":"success","is_error":false,"result":"Found 3 call sites.","session_id":"66666666-6666-4666-8666-666666666666","total_cost_usd":0.05,"usage":{"input_tokens":20,"output_tokens":8,"cache_read_input_tokens":9000}}}

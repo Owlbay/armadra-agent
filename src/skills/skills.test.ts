@@ -125,7 +125,7 @@ describe("Skill 发现", () => {
       { name: "a", description: "d", location: "/x/SKILL.md", disableModelInvocation: false },
     ];
     expect(formatSkillIndex(skills, { hasSkillTool: false, hasReadTool: true })).toContain(
-      "Use the read tool",
+      "read its file",
     );
     expect(formatSkillIndex(skills, { hasSkillTool: false, hasReadTool: false })).toBe("");
     expect(formatSkillIndex([], { hasSkillTool: true, hasReadTool: true })).toBe("");

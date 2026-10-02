@@ -1,0 +1,13 @@
+// codex-cli 0.160.0（手写）：审批挂起时中断 → 审批回 cancel → turn/interrupt → turn/completed interrupted
+{"dir":"in","msg":{"id":"$init","method":"initialize","params":{"clientInfo":{"name":"ama","title":"ama"},"capabilities":{"experimentalApi":false,"requestAttestation":false}}}}
+{"dir":"out","msg":{"id":"$init","result":{"userAgent":"codex_cli_rs/0.160.0","codexHome":"/home/u/.codex","platformFamily":"unix","platformOs":"linux"}}}
+{"dir":"in","msg":{"method":"initialized"}}
+{"dir":"in","msg":{"id":"$thread","method":"thread/start","params":{"cwd":"/work"}}}
+{"dir":"out","msg":{"id":"$thread","result":{"thread":{"id":"t-4"}}}}
+{"dir":"in","msg":{"id":"$turn","method":"turn/start","params":{"threadId":"t-4"}}}
+{"dir":"out","msg":{"id":"$turn","result":{"turn":{"id":"turn-4","items":[],"status":"inProgress","error":null}}}}
+{"dir":"out","msg":{"id":3,"method":"item/commandExecution/requestApproval","params":{"kind":"command","threadId":"t-4","turnId":"turn-4","itemId":"c9","startedAtMs":0,"environmentId":null,"command":"sleep 100"}}}
+{"dir":"in","msg":{"id":"$int","method":"turn/interrupt","params":{"threadId":"t-4","turnId":"turn-4"}}}
+{"dir":"in","msg":{"id":3,"result":{"decision":"cancel"}}}
+{"dir":"out","msg":{"id":"$int","result":{}}}
+{"dir":"out","msg":{"method":"turn/completed","params":{"threadId":"t-4","turn":{"id":"turn-4","items":[],"status":"interrupted","error":null}}}}

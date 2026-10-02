@@ -1,0 +1,11 @@
+// Claude Code 2.1.287（手写）：Write 需要审批 → can_use_tool（带 session 与 localSettings 两条建议）→ 本会话允许（只回传 session 建议）→ 工具完成
+{"dir":"in","msg":{"type":"control_request","request_id":"$init","request":{"subtype":"initialize"}}}
+{"dir":"out","msg":{"type":"control_response","response":{"subtype":"success","request_id":"$init","response":{}}}}
+{"dir":"in","msg":{"type":"user","message":{"role":"user","content":[{"type":"text","text":"write note.txt"}]}}}
+{"dir":"out","msg":{"type":"system","subtype":"init","session_id":"22222222-2222-4222-8222-222222222222","permissionMode":"manual"}}
+{"dir":"out","msg":{"type":"assistant","message":{"id":"msg_1","role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"Write","input":{"file_path":"/work/note.txt","content":"hi"}}]},"parent_tool_use_id":null}}
+{"dir":"out","msg":{"type":"control_request","request_id":"perm-1","request":{"subtype":"can_use_tool","tool_name":"Write","input":{"file_path":"/work/note.txt","content":"hi"},"tool_use_id":"toolu_1","permission_suggestions":[{"type":"setMode","mode":"acceptEdits","destination":"session"},{"type":"addRules","rules":[{"toolName":"Write"}],"behavior":"allow","destination":"localSettings"}]}}}
+{"dir":"in","msg":{"type":"control_response","response":{"subtype":"success","request_id":"perm-1","response":{"behavior":"allow","updatedInput":{"file_path":"/work/note.txt","content":"hi"},"updatedPermissions":[{"type":"setMode","mode":"acceptEdits","destination":"session"}]}}}}
+{"dir":"out","msg":{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"File created","is_error":false}]},"parent_tool_use_id":null}}
+{"dir":"out","msg":{"type":"assistant","message":{"id":"msg_2","role":"assistant","content":[{"type":"text","text":"Wrote note.txt"}]},"parent_tool_use_id":null}}
+{"dir":"out","msg":{"type":"result","subtype":"success","is_error":false,"num_turns":2,"result":"Wrote note.txt","session_id":"22222222-2222-4222-8222-222222222222","total_cost_usd":0.03,"usage":{"input_tokens":10,"output_tokens":20}}}

@@ -12,12 +12,18 @@
  *   （完整门禁）；名字是 `codemode` 直接拒绝。脚本结束时 abort 仍在跑的调用。
  * - 超时：父进程计时，到点杀子进程树（POSIX 进程组 / Windows taskkill）；外层 abort：先发
  *   `abort`，宽限后杀树。
+ * - OS 沙箱（docs/sandbox.md）：有可用的 sandbox-exec / bwrap / unshare 时，整条命令行经它启动，拒绝
+ *   网络与一切写入（`CODEMODE_OS_POLICY`；子进程本来就没有写权限）。Node 22 / 24 的 strict 依赖这一层
+ *   （`requireOsSandbox`），包装不了就报错，不裸跑；Node ≥ 25 是叠加的纵深防御。
  */
 
 import { spawn } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { osSandboxStatus, type OsSandboxStatus } from "../sandbox/detect.js";
+import type { OsSandboxPolicy } from "../sandbox/profile.js";
+import { wrapCommand, type WrappedCommand } from "../sandbox/wrap.js";
 import { killProcessTree, trackProcessGroup, untrackProcessGroup } from "../tools/process-tree.js";
 import { detectSandboxCapability, type SandboxCapability } from "./capability.js";
 import {
@@ -67,6 +73,21 @@ export function sandboxArgs(
   ];
 }
 
+/** codemode 子进程的 OS 沙箱策略：拒绝网络，任何位置都不可写。 */
+export const CODEMODE_OS_POLICY: OsSandboxPolicy = Object.freeze({
+  network: "deny",
+  writable: Object.freeze([]) as readonly string[],
+});
+
+/** 完整命令行：`<node> <sandboxArgs>`，有 OS 沙箱时再经它包装。 */
+export function sandboxCommand(
+  nodePath: string,
+  args: readonly string[],
+  os: Pick<OsSandboxStatus, "kind" | "path">,
+): WrappedCommand {
+  return wrapCommand(os, nodePath, args, CODEMODE_OS_POLICY);
+}
+
 /** 子进程环境：空；Electron 下以 Node 方式运行同一可执行文件；Windows 保留 SystemRoot。 */
 export function sandboxEnv(
   versions: NodeJS.ProcessVersions = process.versions,
@@ -96,6 +117,10 @@ export interface SandboxRunRequest {
   /** 缺省 process.execPath。 */
   nodePath?: string;
   capability?: Pick<SandboxCapability, "permissionFlag">;
+  /** 缺省 osSandboxStatus()（进程内缓存的探测结果）。 */
+  os?: Pick<OsSandboxStatus, "kind" | "path">;
+  /** true：必须经 OS 沙箱启动（Node 22 / 24 的 strict 依赖它），包装不了直接失败。 */
+  requireOsSandbox?: boolean;
 }
 
 export interface SandboxRunResult {
@@ -136,17 +161,26 @@ export async function runSandbox(request: SandboxRunRequest): Promise<SandboxRun
   if (request.signal.aborted) {
     return { ...base, ok: false, error: "Script aborted", aborted: true, elapsedMs: 0 };
   }
-  const isWindows = process.platform === "win32";
-  const child = spawn(
+  const command = sandboxCommand(
     request.nodePath ?? process.execPath,
     sandboxArgs(entry, request.capability),
-    {
-      env: sandboxEnv(),
-      stdio: ["pipe", "pipe", "pipe"],
-      detached: !isWindows,
-      windowsHide: true,
-    },
+    request.os ?? osSandboxStatus(),
   );
+  if (request.requireOsSandbox === true && !command.networkDenied) {
+    return {
+      ...base,
+      ok: false,
+      error: "codemode sandbox requires an OS sandbox to isolate network, but none is available",
+      elapsedMs: 0,
+    };
+  }
+  const isWindows = process.platform === "win32";
+  const child = spawn(command.command, command.args, {
+    env: sandboxEnv(),
+    stdio: ["pipe", "pipe", "pipe"],
+    detached: !isWindows,
+    windowsHide: true,
+  });
   const pid = child.pid;
   if (pid !== undefined && !isWindows) trackProcessGroup(pid);
 
