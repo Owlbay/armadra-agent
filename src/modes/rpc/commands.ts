@@ -8,10 +8,17 @@
  * - 审批：`RpcApprovals` 是 UI broker（`set_client_capabilities` 声明 approvals 后挂上），
  *   `permission_response` 按 requestId 作答；先到的回答暂存，等 broker 被问到时取用。
  * - 密钥不离开进程：`get_available_models` 只回 `hasKey` 与 `keySource`。
+ * - [W5-F] 计划：声明 `plans` 能力后计划审批交客户端（`plan_proposed` → `plan_response`），未声明按
+ *   `plan.unattended`；`approve_fresh` 在这里新建会话并以计划全文开新回合。`get_tasks / get_agents`
+ *   读 `RpcContext.tasks / agents`（W5-G 的注册表与发现结果；未装配时回空表）。
  */
 
 import { formatModelRef } from "../../ai/providers/channels.js";
 import { AgentSessionImpl } from "../../agent/session.js";
+import { planController, type PlanController } from "../../agent/session-plan.js";
+import type { AgentInfo } from "../../agents/types.js";
+import { currentTodos } from "../../plan/store.js";
+import type { TaskRegistryView } from "../../tools/types.js";
 import type { AgentSession, PromptDisposition } from "../../agent/types.js";
 import { getSupportedLevels } from "../../ai/thinking.js";
 import { switchSession } from "../../cli/compose-session.js";
@@ -81,6 +88,10 @@ export interface RpcContext {
   onSessionChanged(next: AgentSession): void;
   /** 运行开始后提示命令自身的失败（应答已发出）。 */
   onBackgroundError(error: unknown): void;
+  /** [W5-F] `get_tasks`：子 Agent 任务注册表的只读视图（W5-G 装配；缺省回空表）。 */
+  tasks?(): TaskRegistryView | undefined;
+  /** [W5-F] `get_agents`：可用的子 Agent 类型与外部 Agent（W5-G / W5-E 装配；缺省回空表）。 */
+  agents?(): readonly AgentInfo[];
 }
 
 export type RpcHandlers = {
@@ -92,9 +103,18 @@ function impl(session: AgentSession): AgentSessionImpl {
   throw new AmaError("not_implemented", "该会话不支持此命令");
 }
 
-/** [W5-C0] 尚未实现的第五波命令：明确报 not_implemented，而不是 unknown command。 */
-function notYet(command: string): () => Promise<never> {
-  return () => Promise.reject(new AmaError("not_implemented", `${command} 尚未实现（第五波）`));
+/** [W5-F] 当前会话的计划控制面；会话没有装配 plan 扩展时报 not_implemented。 */
+function plans(ctx: RpcContext): PlanController {
+  const controller = planController(ctx.session());
+  if (controller === undefined) throw new AmaError("not_implemented", "该会话没有装配 plan 扩展");
+  return controller;
+}
+
+/** 声明了 `plans` 能力 → 客户端作答；否则按 `plan.unattended`。换会话后重新应用。 */
+function applyPlanAttendance(ctx: RpcContext): void {
+  planController(ctx.session())?.setAttendance(
+    ctx.capabilities.has("plans") ? "client" : "unattended",
+  );
 }
 
 /** 开始一次运行：开始 / 入队 / 被处理后即返回，不等运行结束。 */
@@ -129,6 +149,7 @@ async function switched(
 ): Promise<unknown> {
   const session = await next;
   ctx.onSessionChanged(session);
+  applyPlanAttendance(ctx);
   if (session instanceof AgentSessionImpl) session.announceStart(reason);
   return { sessionId: session.state.sessionId, sessionFile: session.state.sessionFile };
 }
@@ -278,6 +299,7 @@ export const handlers: RpcHandlers = {
     const approvals = ctx.capabilities.has("approvals");
     ctx.runtime.approvals.setUiBroker(approvals ? ctx.approvals : undefined);
     if (!approvals) ctx.approvals.cancelAll();
+    applyPlanAttendance(ctx);
     return { capabilities: [...ctx.capabilities] };
   },
   permission_response: async (p, ctx) => ({
@@ -328,12 +350,21 @@ export const handlers: RpcHandlers = {
   },
   get_commands: async (_p, ctx) => ({ commands: commands(ctx.runtime) }),
   get_skills: async (_p, ctx) => ({ skills: ctx.runtime.resources.skills }),
-  // [W5-C0] 计划 / 任务命令：类型已定，实现归 W5-F（get_tasks / get_agents 用 C0 的只读视图）
-  plan_response: notYet("plan_response"),
-  get_plan: notYet("get_plan"),
-  get_todos: notYet("get_todos"),
-  get_tasks: notYet("get_tasks"),
-  get_agents: notYet("get_agents"),
+  // [W5-F] 计划 / 任务命令（docs/wave5-plan.md §6.5、§7.5）
+  plan_response: async (p, ctx) => {
+    const result = await plans(ctx).respond(p);
+    if (result.freshPrompt !== undefined) {
+      const prompt = result.freshPrompt;
+      await switched(ctx, switchSession(ctx.runtime, { kind: "new" }), "new");
+      planController(ctx.session())?.adopt(result.plan);
+      await startRun(ctx, () => ctx.session().prompt(prompt, { origin: "plan" }));
+    }
+    return { planId: result.planId, decision: result.decision };
+  },
+  get_plan: async (p, ctx) => plans(ctx).get(p.planId),
+  get_todos: async (_p, ctx) => ({ items: currentTodos(impl(ctx.session()).manager.branch()) }),
+  get_tasks: async (_p, ctx) => ({ tasks: [...(ctx.tasks?.()?.list() ?? [])] }),
+  get_agents: async (_p, ctx) => ({ agents: [...(ctx.agents?.() ?? [])] }),
 };
 
 export const RPC_COMMAND_TYPES = Object.keys(handlers) as RpcCommandType[];

@@ -20,6 +20,8 @@
  */
 
 import type { SessionExtensionFactory } from "../agent/session-extensions.js";
+import { createImageBudgetExtension } from "../agent/session-images.js";
+import { planExtensionFor } from "../plan/compose.js";
 import type { SessionAssembly } from "./deps.js";
 import { createExternalStatsExtension } from "../drivers/store.js";
 
@@ -30,12 +32,14 @@ export interface ComposeExtensionDeps {
   log(level: "debug" | "info" | "warn" | "error", message: string): void;
 }
 
-export function composeExtensions(_deps: ComposeExtensionDeps): SessionExtensionFactory[] {
+export function composeExtensions(deps: ComposeExtensionDeps): SessionExtensionFactory[] {
   return [
     // 各批次在下面约定的位置各加一行（顺序有意义，见文件头）：
     // [W5-F]  createPlanExtension(...)
+    planExtensionFor(deps),
     // [W5-H2] createRemindersExtension(...), createLimitsExtension(...)
     // [W5-I]  createImageBudgetExtension(...)
+    ({ core }) => createImageBudgetExtension(core),
     // [W5-A]  createTelemetryExtension(...)
     // [W5-E] 外部 Agent 记账 → SessionStats.external（只主会话）
     ({ core }) =>

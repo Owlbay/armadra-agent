@@ -6,7 +6,8 @@
  * - show <id>：头信息 + 条目类型统计 + 首条提示 + 用户消息编号（`--from <id>#<编号>` 复用）。
  * - search / export：见 sessions-search.ts、sessions-export.ts（只读扫描，不经会话存储）。
  * - prune [--older-than <天>] [--dry-run]：缺省 30 天，移到 trash（不删除）；之后清理检查点备份
- *   （未被任何会话引用且超过 1 天的 blob，docs/rewind-plan.md §1.4），`--dry-run` 时只报告。
+ *   （未被任何会话引用且超过 1 天的 blob，docs/rewind-plan.md §1.4）与超过 7 天的剪贴板图片
+ *   （`<数据目录>/clipboard/`，W5-I），`--dry-run` 时只报告。
  */
 
 import { join, resolve } from "node:path";
@@ -16,6 +17,7 @@ import { parseSubArgs, UsageError } from "../args.js";
 import type { CliIo, RuntimeDeps } from "../deps.js";
 import { ExitCode } from "../exit-codes.js";
 import { numberUserMessages } from "../../session/reuse.js";
+import { gcClipboardImages } from "../../tools/clipboard-image.js";
 import { runSessionsExport } from "./sessions-export.js";
 import { runSessionsSearch } from "./sessions-search.js";
 
@@ -124,6 +126,7 @@ export async function runSessions(
       for (const file of moved) io.stdout(`${dryRun ? "将移到 trash" : "已移到 trash"}：${file}\n`);
       io.stdout(`${moved.length} 个会话${dryRun ? "（演练，未改动）" : ""}\n`);
       await pruneFileHistory(io, sessionDir, dryRun);
+      await pruneClipboard(io, dryRun);
       return ExitCode.Ok;
     }
     default:
@@ -147,6 +150,21 @@ async function pruneFileHistory(io: CliIo, sessionDir: string, dryRun: boolean):
   } catch (error) {
     io.stderr(
       `ama: file-history 清理跳过（${error instanceof Error ? error.message : String(error)}）\n`,
+    );
+  }
+}
+
+/** [W5-I] `<数据目录>/clipboard/` 超过 7 天的剪贴板图片。失败只提示。 */
+async function pruneClipboard(io: CliIo, dryRun: boolean): Promise<void> {
+  try {
+    const removed = await gcClipboardImages(resolveDataDir({ env: io.env }), { dryRun });
+    if (removed.length > 0)
+      io.stdout(
+        `clipboard：${dryRun ? "将清除" : "已清除"} ${removed.length} 个超过 7 天的剪贴板图片\n`,
+      );
+  } catch (error) {
+    io.stderr(
+      `ama: clipboard 清理跳过（${error instanceof Error ? error.message : String(error)}）\n`,
     );
   }
 }
