@@ -1,0 +1,12 @@
+// codex-cli 0.160.0（手写）：requestUserInput 不代答（JSON-RPC 错误）；thread/resume 带 excludeTurns
+{"dir":"in","msg":{"id":"$init","method":"initialize","params":{"clientInfo":{"name":"ama","title":"ama"},"capabilities":{"experimentalApi":false,"requestAttestation":false}}}}
+{"dir":"out","msg":{"id":"$init","result":{"userAgent":"codex_cli_rs/0.160.0","codexHome":"/home/u/.codex","platformFamily":"unix","platformOs":"linux"}}}
+{"dir":"in","msg":{"method":"initialized"}}
+{"dir":"in","msg":{"id":"$thread","method":"thread/resume","params":{"threadId":"t-old","excludeTurns":true,"cwd":"/work","approvalPolicy":"never","sandbox":"read-only"}}}
+{"dir":"out","msg":{"id":"$thread","result":{"thread":{"id":"t-old"}}}}
+{"dir":"in","msg":{"id":"$turn","method":"turn/start","params":{"threadId":"t-old"}}}
+{"dir":"out","msg":{"id":"$turn","result":{"turn":{"id":"turn-5","items":[],"status":"inProgress","error":null}}}}
+{"dir":"out","msg":{"id":11,"method":"item/tool/requestUserInput","params":{"threadId":"t-old","turnId":"turn-5","itemId":"q1","questions":[{"id":"q","header":"Pick","question":"Which?","isOther":false,"isSecret":false,"options":null}],"isBlocking":true,"autoResolutionMs":null}}}
+{"dir":"in","msg":{"id":11,"error":{"code":-32601}}}
+{"dir":"out","msg":{"method":"item/completed","params":{"item":{"type":"agentMessage","id":"m5","text":"Which option do you want?"},"threadId":"t-old","turnId":"turn-5","completedAtMs":0}}}
+{"dir":"out","msg":{"method":"turn/completed","params":{"threadId":"t-old","turn":{"id":"turn-5","items":[],"status":"completed","error":null}}}}

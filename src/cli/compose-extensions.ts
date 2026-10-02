@@ -24,6 +24,7 @@ import { createImageBudgetExtension } from "../agent/session-images.js";
 import { planExtensionFor } from "../plan/compose.js";
 import { createSubagentsFactory } from "./compose-agents.js";
 import type { SessionAssembly } from "./deps.js";
+import { createExternalStatsExtension } from "../drivers/store.js";
 
 export interface ComposeExtensionDeps {
   /** 第 14 步的装配材料：config、paths、mode、unattended、host、overrides 等。 */
@@ -41,6 +42,9 @@ export function composeExtensions(deps: ComposeExtensionDeps): SessionExtensionF
     // [W5-I]  createImageBudgetExtension(...)
     ({ core }) => createImageBudgetExtension(core),
     // [W5-A]  createTelemetryExtension(...)
+    // [W5-E] 外部 Agent 记账 → SessionStats.external（只主会话）
+    ({ core }) =>
+      core.depth > 0 ? undefined : createExternalStatsExtension(() => core.manager.branch()),
     createSubagentsFactory(deps), // [W5-G] 子 Agent 任务注册表
   ];
 }

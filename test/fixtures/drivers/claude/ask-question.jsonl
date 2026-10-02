@@ -1,0 +1,10 @@
+// Claude Code 2.1.287（手写）：AskUserQuestion 走 can_use_tool → ama 不代答，拒绝并请它写进最终回复
+{"dir":"in","msg":{"type":"control_request","request_id":"$init","request":{"subtype":"initialize"}}}
+{"dir":"out","msg":{"type":"control_response","response":{"subtype":"success","request_id":"$init","response":{}}}}
+{"dir":"in","msg":{"type":"user","message":{"role":"user","content":[{"type":"text","text":"pick a lib"}]}}}
+{"dir":"out","msg":{"type":"assistant","message":{"id":"msg_1","role":"assistant","content":[{"type":"tool_use","id":"toolu_q","name":"AskUserQuestion","input":{"questions":[{"question":"Which library?","options":[{"label":"a"},{"label":"b"}]}]}}]},"parent_tool_use_id":null}}
+{"dir":"out","msg":{"type":"control_request","request_id":"ask-1","request":{"subtype":"can_use_tool","tool_name":"AskUserQuestion","input":{"questions":[{"question":"Which library?"}]},"tool_use_id":"toolu_q"}}}
+{"dir":"in","msg":{"type":"control_response","response":{"subtype":"success","request_id":"ask-1","response":{"behavior":"deny"}}}}
+{"dir":"out","msg":{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_q","content":"denied","is_error":true}]},"parent_tool_use_id":null}}
+{"dir":"out","msg":{"type":"assistant","message":{"id":"msg_2","role":"assistant","content":[{"type":"text","text":"Question: which library, a or b?"}]},"parent_tool_use_id":null}}
+{"dir":"out","msg":{"type":"result","subtype":"success","is_error":false,"result":"Question: which library, a or b?","session_id":"55555555-5555-4555-8555-555555555555","total_cost_usd":0.002,"usage":{"input_tokens":1,"output_tokens":1}}}

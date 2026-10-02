@@ -1,0 +1,16 @@
+// codex-cli 0.160.0（手写）：initialize → thread/start（default → read-only + on-request）→ 两段文本 → 用量 → turn/completed
+{"dir":"in","msg":{"id":"$init","method":"initialize","params":{"clientInfo":{"name":"ama","title":"ama"},"capabilities":{"experimentalApi":false,"requestAttestation":false}}}}
+{"dir":"out","msg":{"id":"$init","result":{"userAgent":"codex_cli_rs/0.160.0","codexHome":"/home/u/.codex","platformFamily":"unix","platformOs":"linux"}}}
+{"dir":"in","msg":{"method":"initialized"}}
+{"dir":"in","msg":{"id":"$thread","method":"thread/start","params":{"cwd":"/work","approvalPolicy":"on-request","sandbox":"read-only"}}}
+{"dir":"out","msg":{"id":"$thread","result":{"thread":{"id":"019a0000-0000-7000-8000-000000000001","sessionId":"019a0000-0000-7000-8000-000000000001","preview":"","ephemeral":false},"model":"gpt-6","modelProvider":"openai","cwd":"/work","approvalPolicy":"on-request","sandbox":{"type":"readOnly"}}}}
+{"dir":"in","msg":{"id":"$turn","method":"turn/start","params":{"threadId":"019a0000-0000-7000-8000-000000000001","input":[{"type":"text","text":"say OK","text_elements":[]}]}}}
+{"dir":"out","msg":{"id":"$turn","result":{"turn":{"id":"turn-1","items":[],"status":"inProgress","error":null}}}}
+{"dir":"out","msg":{"method":"turn/started","params":{"threadId":"019a0000-0000-7000-8000-000000000001","turn":{"id":"turn-1","items":[],"status":"inProgress","error":null}}}}
+{"dir":"out","msg":{"method":"item/reasoning/summaryTextDelta","params":{"threadId":"019a0000-0000-7000-8000-000000000001","turnId":"turn-1","itemId":"r1","delta":"easy","summaryIndex":0}}}
+{"dir":"out","msg":{"method":"item/started","params":{"item":{"type":"agentMessage","id":"m1","text":""},"threadId":"019a0000-0000-7000-8000-000000000001","turnId":"turn-1","startedAtMs":0}}}
+{"dir":"out","msg":{"method":"item/agentMessage/delta","params":{"threadId":"019a0000-0000-7000-8000-000000000001","turnId":"turn-1","itemId":"m1","delta":"O"}}}
+{"dir":"out","msg":{"method":"item/agentMessage/delta","params":{"threadId":"019a0000-0000-7000-8000-000000000001","turnId":"turn-1","itemId":"m1","delta":"K"}}}
+{"dir":"out","msg":{"method":"item/completed","params":{"item":{"type":"agentMessage","id":"m1","text":"OK"},"threadId":"019a0000-0000-7000-8000-000000000001","turnId":"turn-1","completedAtMs":0}}}
+{"dir":"out","msg":{"method":"thread/tokenUsage/updated","params":{"threadId":"019a0000-0000-7000-8000-000000000001","turnId":"turn-1","tokenUsage":{"total":{"totalTokens":1210,"inputTokens":1200,"cachedInputTokens":1000,"cacheWriteInputTokens":0,"outputTokens":10,"reasoningOutputTokens":4},"last":{"totalTokens":1210,"inputTokens":1200,"cachedInputTokens":1000,"cacheWriteInputTokens":0,"outputTokens":10,"reasoningOutputTokens":4},"modelContextWindow":272000}}}}
+{"dir":"out","msg":{"method":"turn/completed","params":{"threadId":"019a0000-0000-7000-8000-000000000001","turn":{"id":"turn-1","items":[],"status":"completed","error":null}}}}

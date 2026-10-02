@@ -1,0 +1,14 @@
+// codex-cli 0.160.0（手写）：文件修改审批 → 拒绝（decline）→ 条目 declined
+{"dir":"in","msg":{"id":"$init","method":"initialize","params":{"clientInfo":{"name":"ama","title":"ama"},"capabilities":{"experimentalApi":false,"requestAttestation":false}}}}
+{"dir":"out","msg":{"id":"$init","result":{"userAgent":"codex_cli_rs/0.160.0","codexHome":"/home/u/.codex","platformFamily":"unix","platformOs":"linux"}}}
+{"dir":"in","msg":{"method":"initialized"}}
+{"dir":"in","msg":{"id":"$thread","method":"thread/start","params":{"cwd":"/work"}}}
+{"dir":"out","msg":{"id":"$thread","result":{"thread":{"id":"t-3"}}}}
+{"dir":"in","msg":{"id":"$turn","method":"turn/start","params":{"threadId":"t-3"}}}
+{"dir":"out","msg":{"id":"$turn","result":{"turn":{"id":"turn-3","items":[],"status":"inProgress","error":null}}}}
+{"dir":"out","msg":{"method":"item/started","params":{"item":{"type":"fileChange","id":"f1","changes":[{"path":"/work/a.ts","kind":{"type":"update","move_path":null},"diff":"@@"}],"status":"inProgress"},"threadId":"t-3","turnId":"turn-3","startedAtMs":0}}}
+{"dir":"out","msg":{"id":7,"method":"item/fileChange/requestApproval","params":{"threadId":"t-3","turnId":"turn-3","itemId":"f1","startedAtMs":0,"reason":null}}}
+{"dir":"in","msg":{"id":7,"result":{"decision":"decline"}}}
+{"dir":"out","msg":{"method":"item/completed","params":{"item":{"type":"fileChange","id":"f1","changes":[{"path":"/work/a.ts","kind":{"type":"update","move_path":null},"diff":"@@"}],"status":"declined"},"threadId":"t-3","turnId":"turn-3","completedAtMs":0}}}
+{"dir":"out","msg":{"method":"item/completed","params":{"item":{"type":"agentMessage","id":"m3","text":"Skipped the edit."},"threadId":"t-3","turnId":"turn-3","completedAtMs":0}}}
+{"dir":"out","msg":{"method":"turn/completed","params":{"threadId":"t-3","turn":{"id":"turn-3","items":[],"status":"completed","error":null}}}}
