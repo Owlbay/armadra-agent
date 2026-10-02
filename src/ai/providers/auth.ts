@@ -10,14 +10,22 @@
  * auth.json 的 `apiKey` 以 `!` 开头 = 执行命令取值（stdout 去首尾空白；超时 10 s；空输出或
  * 非零退出视为未配置，继续找下一来源）；同一命令进程内只执行一次。
  * 密钥只出现在 `resolve()` 的返回值里：warning 文案不含密钥与命令输出。
+ *
+ * [W6-O] auth.json 的 OAuth 条目（`type: "oauth"`，ChatGPT 登录）在 ②③ 的位置解析：每次从磁盘重读（绕过
+ * `fileCache`），临近过期经 `auth/oauth/refresh.ts` 刷新（跨进程锁），返回 `{ source: "oauth" }`，并把 token 的
+ * 上下文登记进 `auth/oauth/live.ts` 供协议层取账户 id、401 时强制刷新。永久失效（needsLogin）时仍返回旧 token
+ * 并在登记里标 needsLogin，协议层据此直接报 `auth_expired`（不发请求）。
  */
 
 import { exec } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { registerLiveToken } from "../../auth/oauth/live.js";
+import { authExpiredError, freshOAuthEntry, type RefreshDeps } from "../../auth/oauth/refresh.js";
+import { readOAuthEntry } from "../../auth/oauth/token-store.js";
 import type { ApiKeyAuthEntry, AuthFile } from "../../config/types.js";
-import { apiKeyEntry } from "../../config/types-w6.js";
+import { apiKeyEntry, isOAuthEntry, type OAuthAuthEntry } from "../../config/types-w6.js";
 import type { ApiKeyResolution, ProviderData } from "../types.js";
 
 export type KeyProvider = Pick<ProviderData, "id" | "envKeys" | "requiresApiKey">;
@@ -37,6 +45,8 @@ export interface KeyResolverOptions {
   onWarning?: ((message: string) => void) | undefined;
   /** `!command` 超时，缺省 10 000。 */
   commandTimeoutMs?: number | undefined;
+  /** [W6-O] OAuth 刷新的依赖（fetch、配置 `auth.chatgpt`、测试注入）。 */
+  oauth?: RefreshDeps | undefined;
 }
 
 /** 用户级配置目录：AMA_CONFIG_DIR > %APPDATA%\ama > $XDG_CONFIG_HOME/ama > ~/.config/ama。 */
@@ -47,7 +57,7 @@ export function defaultConfigDir(env: NodeJS.ProcessEnv = process.env): string {
   return join(env["HOME"] ?? homedir(), ".config", "ama");
 }
 
-/** [W6-C0] 只看 API key 条目；OAuth 条目（`type: "oauth"`）由 W6-O 的 token 存储解析。 */
+/** API key 条目；OAuth 条目（`type: "oauth"`）走 `oauthPath()` + token 存储。 */
 type AuthEntry = ApiKeyAuthEntry;
 
 /** 读 auth.json；不存在返回 undefined；格式错误 / 权限过宽记 warning。 */
@@ -150,6 +160,52 @@ export class ApiKeyResolver {
     return undefined;
   }
 
+  /** [W6-O] 第一个给该供应商写了条目的 auth.json 若是 OAuth 条目，返回其路径。 */
+  oauthPath(providerId: string): string | undefined {
+    for (const path of this.authFiles()) {
+      const raw = this.loadFile(path)?.providers[providerId];
+      if (raw === undefined) continue;
+      return isOAuthEntry(raw) ? path : undefined;
+    }
+    return undefined;
+  }
+
+  private register(path: string, providerId: string, entry: OAuthAuthEntry): void {
+    const deps = this.options.oauth ?? {};
+    registerLiveToken(entry.accessToken, {
+      provider: providerId,
+      flavor: entry.flavor,
+      accountId: entry.accountId,
+      planType: entry.planType,
+      ...(entry.needsLogin === true ? { needsLogin: true } : {}),
+      refresh: async () => {
+        const next = await freshOAuthEntry(path, providerId, deps, {
+          force: true,
+          staleToken: entry.accessToken,
+        });
+        if (next === undefined) throw authExpiredError(providerId);
+        this.register(path, providerId, next);
+        return next.accessToken;
+      },
+    });
+  }
+
+  private async fromOAuth(providerId: string, path: string): Promise<ApiKeyResolution | undefined> {
+    let entry: OAuthAuthEntry | undefined;
+    try {
+      entry = await freshOAuthEntry(path, providerId, this.options.oauth ?? {});
+    } catch (error) {
+      // 失效：用旧 token 登记 needsLogin，协议层报 auth_expired；暂时失败：先用现有 token
+      entry = readOAuthEntry(path, providerId);
+      const code = (error as { code?: unknown }).code;
+      if (entry !== undefined && code === "auth_expired") entry = { ...entry, needsLogin: true };
+      else this.warn(`${providerId}: OAuth token refresh failed (${String(code ?? "error")})`);
+    }
+    if (entry === undefined) return undefined;
+    this.register(path, providerId, entry);
+    return { apiKey: entry.accessToken, source: "oauth", origin: path };
+  }
+
   private runCommand(
     command: string,
     extraEnv?: Record<string, string>,
@@ -178,7 +234,13 @@ export class ApiKeyResolver {
 
   private async fromAuthFiles(providerId: string): Promise<ApiKeyResolution | undefined> {
     for (const path of this.authFiles()) {
-      const entry = apiKeyEntry(this.loadFile(path)?.providers[providerId]);
+      const raw = this.loadFile(path)?.providers[providerId];
+      if (isOAuthEntry(raw)) {
+        const resolved = await this.fromOAuth(providerId, path);
+        if (resolved) return resolved;
+        continue;
+      }
+      const entry = apiKeyEntry(raw);
       if (!entry || typeof entry.apiKey !== "string" || entry.apiKey.length === 0) continue;
       const value = entry.apiKey.startsWith("!")
         ? await this.runCommand(entry.apiKey.slice(1), entry.env)
@@ -228,6 +290,7 @@ export class ApiKeyResolver {
     const cli = this.options.cliApiKey;
     if (cli && cli.provider === provider.id && cli.apiKey) return true;
     if (this.authEntry(provider.id)?.entry.apiKey) return true;
+    if (this.oauthPath(provider.id) !== undefined) return true;
     const raw = this.options.configKeys?.[provider.id];
     if (raw && (raw.startsWith("!") || expandEnvRefs(raw, this.env) !== undefined)) return true;
     return this.fromEnv(provider) !== undefined;
