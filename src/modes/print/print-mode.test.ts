@@ -153,9 +153,39 @@ describe("print 模式", () => {
       { steps: [{ toolCall: { name: "bash", arguments: { command: "echo x" } } }] },
       { text: "after" },
     ]);
-    expect(await h.run(["-p", "run", "--model", "fake/echo"])).toBe(0);
+    expect(await h.run(["-p", "run", "--model", "fake/echo"])).toBe(7);
     const result = h.fake.calls[1]?.context.messages.find((m) => m.role === "toolResult");
     expect(result).toMatchObject({ isError: true });
+    expect(h.stdout()).toBe("after\n");
+    expect(h.stderr()).toMatch(/ama: 1 次工具调用被拒：bash ×1（.*no one is available/);
+    expect(h.stderr()).toContain("--permission-mode auto-edit|auto 或 --allow");
+  });
+
+  it("被拒可见：json 带 deniedTools，stream-json 的 tool_execution_end 带 denied；放行后退出 0", async () => {
+    const writeCall = {
+      steps: [{ toolCall: { name: "write", arguments: { path: "out.txt", content: "x" } } }],
+    };
+    h = composeHarness([writeCall, { text: "done" }]);
+    expect(await h.run(["-p", "w", "--model", "fake/echo", "--output-format", "json"])).toBe(7);
+    const [result] = lines();
+    expect(result?.["deniedTools"]).toEqual([
+      { toolCallId: expect.any(String), toolName: "write", reason: expect.any(String) },
+    ]);
+    h.cleanup();
+    h = composeHarness([writeCall, { text: "done" }]);
+    expect(await h.run(["-p", "w", "--model", "fake/echo", "--output-format", "stream-json"])).toBe(
+      7,
+    );
+    expect(lines().find((e) => e["type"] === "tool_execution_end")).toMatchObject({
+      toolName: "write",
+      denied: true,
+    });
+    h.cleanup();
+    h = composeHarness([writeCall, { text: "done" }]);
+    expect(await h.run(["-p", "w", "--model", "fake/echo", "--permission-mode", "auto-edit"])).toBe(
+      0,
+    );
+    expect(h.stderr()).not.toContain("被拒");
   });
 
   it("[W3-C2] json 结果带 cache 统计；stream-json 含 cache_miss / cache_warm / context_pressure", async () => {

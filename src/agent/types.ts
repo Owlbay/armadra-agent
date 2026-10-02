@@ -238,6 +238,8 @@ export type SessionEvent =
       parentToolCallId?: string;
       /** auto 权限模式下这次调用的判定（层、结论、原因）；其它模式缺省。 */
       autoDecision?: AutoDecision;
+      /** 被拒（权限管线、PreToolUse Hook、审批或无人值守）而没有执行；原因是 `result` 的文本。 */
+      denied?: true;
     }
   | { type: "queue_update"; steering: string[]; followUp: string[] }
   | { type: "compaction_start"; trigger: CompactionTrigger }

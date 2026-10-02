@@ -11,8 +11,10 @@
  *   停止原因、用量、缓存命中率、[W3-C2] `cache` 统计（同 `get_session_stats.cache`）、全部条目）；
  *   `stream-json`：每个会话事件一行（线上形状同 RPC，含 `cache_miss` / `cache_warm` /
  *   `context_pressure`）。
- * - 无人值守：ask → deny（bootstrap 已按 print 设 unattended）。
- * - 退出码：最终助手消息 `error / aborted` 或提示被拒 → 1；SIGINT 130、SIGTERM 143（先 abort）。
+ * - 无人值守：ask → deny（bootstrap 已按 print 设 unattended）。被拒的调用（`tool_execution_end`
+ *   带 `denied`）在 stderr 汇总一行（工具 ×次数、首个原因、放行办法），json 结果带 `deniedTools`。
+ * - 退出码：最终助手消息 `error / aborted` 或提示被拒 → 1；有工具调用被拒 → 7；SIGINT 130、
+ *   SIGTERM 143（先 abort）。
  */
 
 import type { CliIo, ModeContext } from "../../cli/deps.js";
@@ -21,6 +23,7 @@ import { ExitCode } from "../../cli/exit-codes.js";
 import type { Runtime } from "../../cli/runtime.js";
 import { errorText, lastAssistant, onStdoutClosed, onTerminationSignals } from "../shared.js";
 import { toJsonLine, toWireEvent } from "./json-event.js";
+import type { SessionEvent } from "../../agent/types.js";
 import type { ImageBlock } from "../../ai/types.js";
 import { promptImages, sessionModel } from "../image-input.js";
 
@@ -84,10 +87,16 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
     io.stderr(`ama: ${errorText(error)}\n`);
     return ExitCode.Usage;
   }
-  const unsubscribe =
-    format === "stream-json"
-      ? session.subscribe((event) => io.stdout(`${toJsonLine(toWireEvent(event))}\n`))
-      : () => undefined;
+  const denied: DeniedTool[] = [];
+  const unsubscribe = session.subscribe((event) => {
+    if (event.type === "tool_execution_end" && event.denied === true)
+      denied.push({
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+        reason: textOf(event),
+      });
+    if (format === "stream-json") io.stdout(`${toJsonLine(toWireEvent(event))}\n`);
+  });
   let signalled: number | undefined;
   const offSignals = onTerminationSignals((code) => {
     signalled ??= code;
@@ -133,6 +142,7 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
         cost: stats.cost,
         cacheHitRate: stats.cacheHitRate,
         ...(stats.cache !== undefined ? { cache: stats.cache } : {}),
+        ...(denied.length > 0 ? { deniedTools: denied } : {}),
         entries: session.entries,
       })}\n`,
     );
@@ -147,5 +157,37 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
     io.stderr(`ama: ${last.errorMessage ?? "模型调用失败"}\n`);
     return ExitCode.RuntimeError;
   }
+  if (denied.length > 0) {
+    io.stderr(`${describeDenied(denied)}\n`);
+    return ExitCode.ToolDenied;
+  }
   return ExitCode.Ok;
+}
+
+/** 被拒的一次工具调用（json 结果的 `deniedTools` 元素）。 */
+export interface DeniedTool {
+  toolCallId: string;
+  toolName: string;
+  reason: string;
+}
+
+function textOf(event: Extract<SessionEvent, { type: "tool_execution_end" }>): string {
+  const content = event.result.content;
+  const text =
+    typeof content === "string"
+      ? content
+      : content.map((b) => (b.type === "text" ? b.text : "")).join("");
+  return text.split("\n")[0]?.trim().slice(0, 200) ?? "";
+}
+
+/** stderr 一行：被拒的工具 ×次数、首个原因、放行办法。 */
+export function describeDenied(denied: readonly DeniedTool[]): string {
+  const counts = new Map<string, number>();
+  for (const item of denied) counts.set(item.toolName, (counts.get(item.toolName) ?? 0) + 1);
+  const tools = [...counts].map(([name, n]) => `${name} ×${n}`).join("、");
+  const reason = denied[0]?.reason ?? "";
+  return (
+    `ama: ${denied.length} 次工具调用被拒：${tools}${reason !== "" ? `（${reason}）` : ""}；` +
+    "-p 没有人审批，需要放行时用 --permission-mode auto-edit|auto 或 --allow <规则>"
+  );
 }

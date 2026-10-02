@@ -378,7 +378,11 @@ anthropic/<model-id> · think:medium · ↑412k ↓8.1k · cache 83% ♨ · $0.8
 `--image <文件>` 可重复，随提示发送图片（PNG / JPEG / GIF / WebP，单张 ≤ 5 MB）；提示里的 `@图片路径` 同样作为附件。当前
 模型不收图片时直接退出 2，不发请求。
 
-退出码：0 正常 · 1 运行期错误 · 2 用法错误 · 3 配置错误 · 4 无可用模型或 key · 5 会话错误 · 6 宿主 / Hook 启动失败 · 78 宿主 API 版本不匹配 · 130 / 143 信号。
+**无人值守**：`-p` 没有人审批，缺省权限模式下需要询问的调用（写文件、跑命令）一律拒绝。被拒时 stderr 一行汇总被拒的
+工具与原因，`json` 结果带 `deniedTools`，`stream-json` 的 `tool_execution_end` 带 `denied: true`，退出码 7。需要放行时用
+`--permission-mode auto-edit`（放行写入）/ `auto`（ama 判断每一步），或 `--allow "bash(npm test*)"` 按规则放行。
+
+退出码：0 正常 · 1 运行期错误 · 2 用法错误 · 3 配置错误 · 4 无可用模型或 key · 5 会话错误 · 6 宿主 / Hook 启动失败 · 7 `-p` 有工具调用被拒 · 78 宿主 API 版本不匹配 · 130 / 143 信号。
 
 ### RPC
 
