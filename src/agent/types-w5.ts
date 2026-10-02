@@ -10,6 +10,9 @@
 
 import type { ModelRef, Usage } from "../ai/types.js";
 import type { PermissionMode } from "../permissions/types.js";
+import type { SubagentStatus } from "../tools/types.js";
+
+export type { SubagentStatus } from "../tools/types.js";
 
 // ---------------------------------------------------------------------------
 // 遥测（§1.3，W5-A）
@@ -42,8 +45,6 @@ export interface SessionTelemetry {
 // ---------------------------------------------------------------------------
 // 子 Agent（§7.5，W5-G / W5-E）
 // ---------------------------------------------------------------------------
-
-export type SubagentStatus = "completed" | "failed" | "aborted" | "max_turns" | "interrupted";
 
 /** 外部 Agent 的用量单位（Codex 订阅 token、Copilot premium request 等不换算美元）。 */
 export type ExternalUsageUnit = "usd" | "tokens" | "requests";

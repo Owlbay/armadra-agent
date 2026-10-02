@@ -12,10 +12,16 @@
  * - `defineTool()` 是恒等函数，只为推断 `I`；放在契约文件里供 SDK 再导出。
  * - `ToolRegistryApi` 是 Runtime 需要的最小接口，B3 的 `ToolRegistry` 实现它。
  * - （W3-C0）`SubagentResult.cache` 可选：子会话的命中率与重计费 token。
+ * - （W5-C0）第五波（docs/wave5-plan.md §7.3–§7.6、§8.2 C4、§8.3 H1）：`annotations.pollable /
+ *   keepInContext`；`SubagentRequest` 加 `agent / background / taskId / isolation / budgetUsd`；
+ *   `SubagentResult` 加 `taskId / status / outputFile / sessionRef`（契约要求向后兼容，全部可选）；
+ *   统一入口 `SubagentRunner / RunnerHandle / SubagentEvent`（ama 子会话、外部 CLI、宿主 runner）；
+ *   `ToolContext.tasks` 为任务注册表的只读视图（W5-G 提供）。
  */
 
 import type { ContentBlock, JsonSchema, ModelRef, ModelThinkingLevel, Usage } from "../ai/types.js";
 import type { CheckpointHooks } from "../checkpoints/types.js";
+import type { PermissionMode } from "../permissions/types.js";
 
 export type { JsonSchema } from "../ai/types.js";
 
@@ -27,6 +33,10 @@ export interface ToolAnnotations {
   readOnly?: boolean;
   destructive?: boolean;
   openWorld?: boolean;
+  /** [W5-C0] 轮询类调用（`task_ctl wait`、后台 bash 查询）：重复调用检测豁免（§8.3 H1）。 */
+  pollable?: boolean;
+  /** [W5-C0] 结果不被档一裁剪（压缩保护集，§8.2 C4）。 */
+  keepInContext?: boolean;
 }
 
 export interface ToolDefinition<I = unknown> {
@@ -74,6 +84,26 @@ export interface SubagentRequest {
   parentToolCallId: string;
   signal: AbortSignal;
   onUpdate?(partial: string): void;
+  /** [W5-C0] 子 Agent 类型或外部 Agent id；缺省 `general`。 */
+  agent?: string;
+  /** [W5-C0] 后台运行：立即返回 taskId，完成后以 `<task-notification>` 通知。 */
+  background?: boolean;
+  /** [W5-C0] 续聊：向已有子会话追加消息（忽略 agent / tools / model）。 */
+  taskId?: string;
+  /** [W5-C0] `worktree`：在 `<repo>/.ama/worktrees/<taskId>` 里运行；缺省 `none`。 */
+  isolation?: "none" | "worktree";
+  /** [W5-C0] 外部 Agent 的美元预算。 */
+  budgetUsd?: number;
+}
+
+/** [W5-C0] 子 Agent 任务的终态（`subagent_end.status`）。 */
+export type SubagentStatus = "completed" | "failed" | "aborted" | "max_turns" | "interrupted";
+
+/** [W5-C0] 会话引用：ama 子会话文件，或外部 CLI 自己的会话 id（`custom{ama.agent-session}`）。 */
+export interface SubagentSessionRef {
+  runner: string;
+  sessionId: string;
+  sessionFile?: string;
 }
 
 export interface SubagentResult {
@@ -88,6 +118,83 @@ export interface SubagentResult {
    * 「子任务」行；子会话未接缓存控制器时缺省。
    */
   cache?: { hitRate?: number; reBilledTokens: number };
+  /** [W5-C0] 注册表里的任务 id（W5-G 起总有）。 */
+  taskId?: string;
+  /** [W5-C0] 终态；后台启动时为 `running`。 */
+  status?: SubagentStatus | "running";
+  /** [W5-C0] 结果全文（> 50 KB 截断时、后台任务的输出文件）。 */
+  outputFile?: string;
+  sessionRef?: SubagentSessionRef;
+}
+
+// ---------------------------------------------------------------------------
+// [W5-C0] 统一的子 Agent 运行入口（docs/wave5-plan.md §7.6）
+// ---------------------------------------------------------------------------
+
+/** runner 上报的进度（由注册表转成 `subagent_update` 事件）。 */
+export type SubagentEvent =
+  | { type: "text"; delta: string }
+  | { type: "thought"; delta: string }
+  | { type: "tool"; toolName: string; status: "started" | "completed" | "failed" }
+  | { type: "turn"; turn: number }
+  | {
+      type: "usage";
+      usage?: Usage;
+      /** 无美元单位的外部 Agent 按各自单位记（不换算）。 */
+      unit?: "usd" | "tokens" | "requests";
+      amount?: number;
+    }
+  | { type: "notice"; level: "info" | "warn"; text: string };
+
+export interface SubagentRunRequest {
+  prompt: string;
+  cwd: string;
+  /** 不得比父会话当前模式宽（`isAtLeastAsStrict`）。 */
+  mode: PermissionMode;
+  model?: string;
+  /** 续聊的会话 id（runner 自己的）。 */
+  resume?: string;
+  budgetUsd?: number;
+  signal: AbortSignal;
+  onEvent(event: SubagentEvent): void;
+}
+
+export interface RunnerHandle {
+  /** 子会话 / 外部会话 id。 */
+  readonly id: string;
+  /** 续聊。 */
+  send(text: string): Promise<void>;
+  wait(): Promise<SubagentResult>;
+  stop(): Promise<void>;
+}
+
+/** `ama`（AmaRunner）| `claude` | `codex` | `acp:<program>`（ProcessRunner，W5-E）| 宿主 id。 */
+export interface SubagentRunner {
+  readonly id: string;
+  start(request: SubagentRunRequest): Promise<RunnerHandle>;
+}
+
+/** [W5-C0] 任务注册表里一条任务的快照（`task_ctl list`、RPC `get_tasks`、`/tasks`）。 */
+export interface TaskInfo {
+  taskId: string;
+  agent: string;
+  runner: string;
+  description: string;
+  background: boolean;
+  status: SubagentStatus | "running";
+  startedAt: number;
+  endedAt?: number;
+  turns?: number;
+  usage?: Usage;
+  costUsd?: number;
+  outputFile?: string;
+  sessionRef?: SubagentSessionRef;
+}
+
+/** [W5-C0] 任务注册表的只读视图（W5-G 的 `SubagentRegistry` 提供）。 */
+export interface TaskRegistryView {
+  list(): readonly TaskInfo[];
+  get(taskId: string): TaskInfo | undefined;
 }
 
 export interface ToolContext {
@@ -128,6 +235,8 @@ export interface ToolContext {
   readonly checkpoint?: CheckpointHooks;
   /** 仅 depth 0 且 task 可用时存在。 */
   readonly spawnSubagent?: (request: SubagentRequest) => Promise<SubagentResult>;
+  /** [W5-C0] 任务注册表只读视图（`task_ctl`）；注册表未装配时 undefined。 */
+  readonly tasks?: TaskRegistryView;
   log(level: "debug" | "info" | "warn", message: string): void;
 }
 

@@ -22,6 +22,26 @@ import type {
 } from "./agent/types.js";
 import type { AgentSessionOptions } from "./agent/session-core.js";
 import type { RpcEvent } from "./rpc.js";
+import type {
+  RunnerHandle,
+  SubagentRequest,
+  SubagentResult,
+  SubagentRunner,
+  ToolAnnotations,
+  ToolContext,
+} from "./tools/types.js";
+import type { ApprovalRequestContext } from "./permissions/types.js";
+import type { AgentEvents, HostApi, HostRunner } from "./host/types.js";
+import type { HookEvent, HookInput } from "./hooks/types.js";
+import { HOOK_EVENTS } from "./hooks/types.js";
+import { blockingDecision } from "./hooks/protocol.js";
+import type {
+  AgentDriver,
+  DriverPermissionOutcome,
+  DriverPermissionRequest,
+  DriverSession,
+} from "./drivers/types.js";
+import type { AgentDefinition, AgentRunnerSpec } from "./agents/types.js";
 
 describe("第五波 ①：模型元数据、内置渠道、Anthropic compat、image_budget", () => {
   it("Model 的 models.dev 元数据字段全部可选", () => {
@@ -169,5 +189,138 @@ describe("第五波 ②：SessionEvent 新事件与 SessionStats 扩展", () => 
       { maxTurns?: number; maxCostUsd?: number } | undefined
     >();
     expectTypeOf<AgentSessionOptions["fallbackModel"]>().toEqualTypeOf<string | undefined>();
+  });
+});
+
+describe("第五波 ④：runner / 驱动 / 定义文件、审批来源、宿主 runner、PostCompact", () => {
+  it("工具契约：annotations、SubagentRequest / Result 新字段全部可选，ToolContext.tasks 可选", () => {
+    expectTypeOf<ToolAnnotations["pollable"]>().toEqualTypeOf<boolean | undefined>();
+    expectTypeOf<ToolAnnotations["keepInContext"]>().toEqualTypeOf<boolean | undefined>();
+    expectTypeOf<SubagentRequest["isolation"]>().toEqualTypeOf<"none" | "worktree" | undefined>();
+    expectTypeOf<SubagentRequest["background"]>().toEqualTypeOf<boolean | undefined>();
+    expectTypeOf<SubagentResult["taskId"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<SubagentResult["status"]>().toEqualTypeOf<
+      SubagentStatus | "running" | undefined
+    >();
+    expectTypeOf<ToolContext["tasks"]>().not.toBeAny();
+    // 旧形状仍可赋值（向后兼容）
+    const legacy: SubagentResult = {
+      text: "x",
+      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 },
+      stopReason: "stop",
+      isError: false,
+    };
+    expect(legacy.status).toBeUndefined();
+  });
+
+  it("SubagentRunner 可实现：start → RunnerHandle（send / wait / stop）", async () => {
+    const runner: SubagentRunner = {
+      id: "claude",
+      async start(request) {
+        request.onEvent({ type: "text", delta: "hi" });
+        const handle: RunnerHandle = {
+          id: "ext-1",
+          send: async () => {},
+          wait: async () => ({
+            text: "done",
+            usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 },
+            stopReason: "stop",
+            isError: false,
+            status: "completed",
+            sessionRef: { runner: "claude", sessionId: "ext-1" },
+          }),
+          stop: async () => {},
+        };
+        return handle;
+      },
+    };
+    const deltas: string[] = [];
+    const handle = await runner.start({
+      prompt: "p",
+      cwd: "/w",
+      mode: "plan",
+      signal: new AbortController().signal,
+      onEvent: (event) => {
+        if (event.type === "text") deltas.push(event.delta);
+      },
+    });
+    expect((await handle.wait()).status).toBe("completed");
+    expect(deltas).toEqual(["hi"]);
+  });
+
+  it("驱动契约：权限请求只有选项或取消两种结果", () => {
+    expectTypeOf<DriverPermissionOutcome>().toEqualTypeOf<
+      { outcome: "selected"; optionId: string } | { outcome: "cancelled" }
+    >();
+    expectTypeOf<DriverPermissionRequest["options"][number]["kind"]>().toEqualTypeOf<
+      "allow_once" | "allow_always" | "reject_once" | "reject_always"
+    >();
+    expectTypeOf<ReturnType<AgentDriver["open"]>>().toEqualTypeOf<Promise<DriverSession>>();
+    expectTypeOf<AgentDriver["kind"]>().toEqualTypeOf<
+      "acp" | "acp-adapter" | "claude-stream" | "codex-app-server" | "oneshot" | "host"
+    >();
+  });
+
+  it("AgentDefinition 与 runner 规格", () => {
+    expectTypeOf<"acp:gemini">().toExtend<AgentRunnerSpec>();
+    expectTypeOf<AgentDefinition["permissionMode"]>().toEqualTypeOf<"plan" | "inherit">();
+    const reviewer: AgentDefinition = {
+      name: "reviewer",
+      description: "只读审查",
+      tools: ["read", "grep"],
+      permissionMode: "plan",
+      model: "inherit",
+      maxTurns: 20,
+      isolation: "none",
+      background: false,
+      runner: "ama",
+      prompt: "你是审查者。",
+      source: "project",
+      filePath: "/w/.ama/agents/reviewer.md",
+    };
+    expect(reviewer.runner).toBe("ama");
+  });
+
+  it("ApprovalRequestContext.taskId / origin 可选", () => {
+    expectTypeOf<ApprovalRequestContext["depth"]>().toEqualTypeOf<number>();
+    expectTypeOf<ApprovalRequestContext["parentToolCallId"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<ApprovalRequestContext["readFiles"]>().toEqualTypeOf<
+      ReadonlySet<string> | undefined
+    >();
+    expectTypeOf<ApprovalRequestContext["taskId"]>().toEqualTypeOf<string | undefined>();
+    const context: ApprovalRequestContext = {
+      depth: 1,
+      taskId: "t1",
+      origin: {
+        agent: "claude",
+        sessionId: "abc1",
+        toolCall: { title: "Write a.ts", kind: "edit", locations: ["a.ts"] },
+        options: [
+          { optionId: "1", kind: "allow_once" },
+          { optionId: "2", kind: "reject_once" },
+        ],
+      },
+    };
+    expect(context.origin?.options).toHaveLength(2);
+  });
+
+  it("HostApi.runners 为可选面；AgentEvents 加子 Agent 与计划事件", () => {
+    expectTypeOf<HostApi["runners"]>().toEqualTypeOf<
+      { provide(runner: HostRunner): () => void } | undefined
+    >();
+    expectTypeOf<HostRunner["description"]>().toEqualTypeOf<string>();
+    expectTypeOf<"subagent_start" | "subagent_end" | "plan_proposed" | "plan_resolved">().toExtend<
+      keyof AgentEvents
+    >();
+    expectTypeOf<AgentEvents["plan_resolved"]["decision"]>().toEqualTypeOf<
+      "approve" | "approve_fresh" | "revise" | "reject"
+    >();
+  });
+
+  it("Hook 事件 PostCompact（不可阻止）与 tokensAfter", () => {
+    expectTypeOf<"PostCompact">().toExtend<HookEvent>();
+    expectTypeOf<HookInput["tokensAfter"]>().toEqualTypeOf<number | undefined>();
+    expect(HOOK_EVENTS).toContain("PostCompact");
+    expect(blockingDecision("PostCompact")).toBeUndefined();
   });
 });

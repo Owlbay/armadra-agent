@@ -205,3 +205,29 @@ describe("请求空闲超时（W4-C）", () => {
     await runtime.dispose();
   });
 });
+
+describe("第五波装配（W5-C0）", () => {
+  it("会话带组装表的扩展工厂；subagent_* / plan_* 桥接到宿主总线", async () => {
+    h = composeHarness([{ text: "ok" }]);
+    const host = recordingHost(h.home);
+    const runtime = await h.boot(["--model", "fake/echo", "--host", host.path]);
+    const session = runtime.session as AgentSessionImpl;
+    expect(Array.isArray(session.options.extensions)).toBe(true);
+    const seen: string[] = [];
+    for (const name of [
+      "subagent_start",
+      "subagent_end",
+      "plan_proposed",
+      "plan_resolved",
+    ] as const)
+      hostApi().events.on(name, (event) => void seen.push(`${name}:${JSON.stringify(event)}`));
+    session.emit({ type: "subagent_end", taskId: "t1", status: "completed" });
+    session.emit({ type: "plan_resolved", planId: "p1", decision: "reject" });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(seen).toEqual([
+      'subagent_end:{"taskId":"t1","status":"completed"}',
+      'plan_resolved:{"planId":"p1","decision":"reject"}',
+    ]);
+    await runtime.dispose();
+  });
+});

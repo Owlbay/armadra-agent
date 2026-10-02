@@ -279,6 +279,27 @@ export function bridgeEvent(event: SessionEvent, bus: AgentEventBus): void {
       void bus.emit("context_pressure", pressure);
       return;
     }
+    // [W5-C0] 子 Agent 与计划事件
+    case "subagent_start": {
+      const { type: _type, ...payload } = event;
+      void bus.emit("subagent_start", payload);
+      return;
+    }
+    case "subagent_end": {
+      const { type: _type, ...payload } = event;
+      void bus.emit("subagent_end", payload);
+      return;
+    }
+    case "plan_proposed": {
+      const { type: _type, ...payload } = event;
+      void bus.emit("plan_proposed", payload);
+      return;
+    }
+    case "plan_resolved": {
+      const { type: _type, ...payload } = event;
+      void bus.emit("plan_resolved", payload);
+      return;
+    }
     default:
       return;
   }

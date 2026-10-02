@@ -20,7 +20,9 @@ export type HookEvent =
   | "PreCompact"
   | "Notification"
   | "SessionEnd"
-  | "PostRewind";
+  | "PostRewind"
+  /** [W5-C0] 压缩完成后（不可阻止；additionalContext 追加在 ama.post_compact 之后，W5-H1 触发）。 */
+  | "PostCompact";
 
 export const HOOK_EVENTS: readonly HookEvent[] = [
   "SessionStart",
@@ -33,6 +35,7 @@ export const HOOK_EVENTS: readonly HookEvent[] = [
   "Notification",
   "SessionEnd",
   "PostRewind",
+  "PostCompact",
 ];
 
 export type HookDecision = "allow" | "deny" | "ask" | "block";
@@ -91,9 +94,11 @@ export interface HookInput {
   lastAssistantText?: string;
   /** 已由 Stop Hook 续跑过 → 处理器应避免再 block。 */
   stopHookActive?: boolean;
-  // PreCompact
+  // PreCompact / PostCompact
   tokensBefore?: number;
   trigger?: "auto" | "manual";
+  /** [W5-C0] PostCompact：压缩后的估算 token。 */
+  tokensAfter?: number;
   // Notification
   notification?: HookNotification;
   // PostRewind（[RW-B]，不可阻止）
