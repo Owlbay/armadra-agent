@@ -22,6 +22,7 @@ ama
 - [Quick start](#quick-start)
 - [Configuration](#configuration)
 - [Relays and gateways](#relays-and-gateways)
+- [ChatGPT login](#chatgpt-login)
 - [Tools and presets](#tools-and-presets)
 - [Caching](#caching)
 - [Safety](#safety)
@@ -30,6 +31,8 @@ ama
 - [Sub-agents](#sub-agents)
 - [External agents](#external-agents)
 - [Rewind](#rewind)
+- [Memory](#memory)
+- [Traces](#traces)
 - [Interfaces and entry points](#interfaces-and-entry-points)
 - [Embedding in Armadra](#embedding-in-armadra)
 - [Documentation](#documentation)
@@ -46,23 +49,25 @@ ama
 
 ## Features
 
-| Area                    | What you get                                                                                                                                                                                                                                                                                                    |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Protocols and providers | 4 protocol lines, 17 built-in providers (Anthropic, OpenAI, Google, DeepSeek, Moonshot, Zhipu, Qwen, OpenRouter, Groq, xAI, Mistral, MiniMax, StepFun, Volcengine Ark, Tencent, Ollama, LM Studio), built-in channels (Messages / Responses preferred, Chat as fallback), custom providers, per-model protocols |
-| Zero config and relays  | With a key present, the first available provider is picked (relays pick a default model by price rules); `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` are recognized; `ama providers add` connects a relay from just a baseUrl and key: lists models, probes channels and writes the config back                    |
-| Model metadata          | Context window, output limit, image input, reasoning and prices come from a bundled models.dev snapshot (no network at startup or runtime; `ama models refresh` updates explicitly); one provider can mount several channels (Chat / Responses / Messages), `provider/model@channel`                            |
-| Image input             | `-p --image`, `@image-path` in the interface, `Ctrl+V` / `/paste` for clipboard images; per-endpoint size tiers with automatic resizing; models without image input refuse up front and suggest switching                                                                                                       |
-| Tools and presets       | read / edit / write / bash / grep / glob, plus ls, todo, task / task_ctl (sub-agents) and codemode; four presets `default` / `minimal` / `codemode-only` / `coordinator`                                                                                                                                        |
-| Plan and sub-agents     | Plan mode researches read-only, proposes a plan and executes after approval; `task` delegates to sub-agents (built-in general / explore / plan, custom types, foreground / background / follow-up / worktree isolation)                                                                                         |
-| External agents         | `task(agent="claude" \| "codex" \| "acp:<program>")` drives external coding agents with each CLI's own login, and approvals go to a human only; `ama --mode acp` exposes ama as an ACP agent                                                                                                                    |
-| Rewind and sandbox      | A checkpoint per turn; `/rewind` / double Esc returns to before any message (code, conversation or both); an OS sandbox on macOS / Linux isolates codemode and (optionally) bash                                                                                                                                |
-| codemode                | The model writes a piece of JS that orchestrates many tool calls in a child process constrained by the Node permission model; only the output goes back to the model                                                                                                                                            |
-| Skills                  | `SKILL.md` directories; the model reads them from an index, users invoke them with `/skill:<name>`; prompt templates too                                                                                                                                                                                        |
-| Two hook layers         | Command hooks (`hooks.json`, 11 events, user policy) and the in-process host adapter HostApi (for embedders)                                                                                                                                                                                                    |
-| Permissions             | Four modes, allow / deny rules, dangerous-command detection (sees through `sh -c` / `eval` / `xargs` / `find -exec`), project trust, a pre-execution preview in approvals                                                                                                                                       |
-| Caching                 | A stable prefix, cache fields and compat switches, miss attribution, a three-state "reports / does not report cache" model, warming during long tool runs, compaction summaries that continue the session prefix                                                                                                |
-| Sessions                | A JSONL entry tree with forks and `/tree` navigation; two-tier compaction (prune large tool results → summarize) with a circuit breaker; budgets (`--max-turns` / `--max-cost`), repeated-call detection, model fallback                                                                                        |
-| Entry points            | A differential-rendering terminal UI, `--no-tui` line mode, `-p` (text / json / stream-json), `--mode rpc`, `--mode acp`, the SDK                                                                                                                                                                               |
+| Area                    | What you get                                                                                                                                                                                                                                                                                                                        |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Protocols and providers | 4 protocol lines, 18 built-in providers (Anthropic, OpenAI, Google, DeepSeek, Moonshot, Zhipu, Qwen, OpenRouter, Groq, xAI, Mistral, MiniMax, StepFun, Volcengine Ark, Tencent, ChatGPT plan login, Ollama, LM Studio), built-in channels (Messages / Responses preferred, Chat as fallback), custom providers, per-model protocols |
+| Zero config and relays  | With a key present, the first available provider is picked (relays pick a default model by price rules); `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` are recognized; `ama providers add` connects a relay from just a baseUrl and key: lists models, probes channels and writes the config back                                        |
+| Model metadata          | Context window, output limit, image input, reasoning and prices come from a bundled models.dev snapshot (no network at startup or runtime; `ama models refresh` updates explicitly); one provider can mount several channels (Chat / Responses / Messages), `provider/model@channel`                                                |
+| Image input             | `-p --image`, `@image-path` in the interface, `Ctrl+V` / `/paste` for clipboard images; per-endpoint size tiers with automatic resizing; models without image input refuse up front and suggest switching                                                                                                                           |
+| Tools and presets       | read / edit / write / bash / grep / glob, plus ls, todo, task / task_ctl (sub-agents) and codemode; four presets `default` / `minimal` / `codemode-only` / `coordinator`                                                                                                                                                            |
+| Plan and sub-agents     | Plan mode researches read-only, proposes a plan and executes after approval; `task` delegates to sub-agents (built-in general / explore / plan, custom types, foreground / background / follow-up / worktree isolation); an agent bar and a live sub-agent view you can talk to directly                                            |
+| External agents         | `task(agent="claude" \| "codex" \| "acp:<program>")` drives external coding agents with each CLI's own login, and approvals go to a human only; `ama --mode acp` exposes ama as an ACP agent                                                                                                                                        |
+| Rewind and sandbox      | A checkpoint per turn; `/rewind` / double Esc returns to before any message (code, conversation or both); an OS sandbox on macOS / Linux isolates codemode and (optionally) bash                                                                                                                                                    |
+| codemode                | The model writes a piece of JS that orchestrates many tool calls in a child process constrained by the Node permission model; only the output goes back to the model                                                                                                                                                                |
+| Skills                  | `SKILL.md` directories; the model reads them from an index, users invoke them with `/skill:<name>`; prompt templates too                                                                                                                                                                                                            |
+| Two hook layers         | Command hooks (`hooks.json`, 11 events, user policy) and the in-process host adapter HostApi (for embedders)                                                                                                                                                                                                                        |
+| Permissions             | Four modes, allow / deny rules, dangerous-command detection (sees through `sh -c` / `eval` / `xargs` / `find -exec`), project trust, a pre-execution preview in approvals                                                                                                                                                           |
+| Caching                 | A stable prefix, cache fields and compat switches, miss attribution, a three-state "reports / does not report cache" model, warming during long tool runs, compaction summaries that continue the session prefix                                                                                                                    |
+| Sessions                | A JSONL entry tree with forks and `/tree` navigation; two-tier compaction (prune large tool results → summarize) with a circuit breaker; budgets (`--max-turns` / `--max-cost`), repeated-call detection, model fallback                                                                                                            |
+| Memory and traces       | Opt-in cross-session memory (Markdown files, an index in the system prompt); a trace of every turn, request and tool with TTFT / decode / tool timing, in the TUI (`/trace`), as a single-file HTML page or over RPC                                                                                                                |
+| Settings and language   | `/config` settings panel and `ama config get / set`; Chinese and English interface (`--lang`, `ui.language`, `AMA_LANG`)                                                                                                                                                                                                            |
+| Entry points            | A differential-rendering terminal UI, `--no-tui` line mode, `-p` (text / json / stream-json), `--mode rpc`, `--mode acp`, the SDK                                                                                                                                                                                                   |
 
 ## Install
 
@@ -145,9 +150,10 @@ ama -p "list the TODOs" --model deepseek/deepseek-v4-pro --output-format json
 | `--max-turns N` / `--max-cost USD`                      | Turn / USD limit per run (`-p` exits with 8 when reached)                   |
 | `--agent-dir <dir>`                                     | Extra sub-agent definition directory; repeatable                            |
 | `--lang zh\|en`                                         | Interface language (also `AMA_LANG` and `ui.language`)                      |
+| `--memory` / `--no-memory`                              | Turn memory on / off for this launch                                        |
 | `--mode rpc` / `--mode acp`                             | Speak RPC (JSONL) / ACP (JSON-RPC) on stdio, for hosts and editors to drive |
 
-**Built-in providers** (17): Anthropic, OpenAI, Google, DeepSeek, Moonshot (Kimi), Zhipu, Qwen (DashScope), OpenRouter, Groq, xAI, Mistral, MiniMax, StepFun, Volcengine Ark, Tencent TokenHub, Ollama, LM Studio. Multi-protocol providers ship built-in channels with Messages / Responses preferred and Chat as fallback: OpenAI, xAI and Volcengine Ark use Responses; Qwen, MiniMax, StepFun and Tencent use Messages; DeepSeek, Zhipu and Kimi use Chat for now (`@messages` is optional). `provider/model@channel` picks a channel. The full table is in [docs/en/providers.md](docs/en/providers.md) "Built-in providers".
+**Built-in providers** (18): Anthropic, OpenAI, Google, DeepSeek, Moonshot (Kimi), Zhipu, Qwen (DashScope), OpenRouter, Groq, xAI, Mistral, MiniMax, StepFun, Volcengine Ark, Tencent TokenHub, ChatGPT (sign in with your plan, see "ChatGPT login"), Ollama, LM Studio. Multi-protocol providers ship built-in channels with Messages / Responses preferred and Chat as fallback: OpenAI, xAI and Volcengine Ark use Responses; Qwen, MiniMax, StepFun and Tencent use Messages; DeepSeek, Zhipu and Kimi use Chat for now (`@messages` is optional). `provider/model@channel` picks a channel. The full table is in [docs/en/providers.md](docs/en/providers.md) "Built-in providers".
 
 Local Ollama / LM Studio need no key: `ama --model ollama/<model>`. `ama --help` lists every flag and subcommand; for tests and troubleshooting use the free `--model fake/echo` (echoes the last user message; the model picker, `models list` and `doctor` hide this test provider unless `AMA_SHOW_FAKE=1`).
 
@@ -171,23 +177,37 @@ Everything else (`compaction`, `retry`, `codemode`, `hooks`, `ui`, `skills`, `ca
 
 **Request timeout**: model requests have an idle timeout, 300 s by default. Waiting longer than that for response headers, or between two chunks of the stream, counts as stuck and is retried with `retry` backoff as a retryable error (any byte received resets the timer, so long answers are unaffected). Adjust with `request.idleTimeoutMs` (user level only) or the `AMA_IDLE_TIMEOUT_MS` environment variable; 0 disables it.
 
-**Interface language**: choose it with `ui.language` (`auto` / `zh` / `en`, default `auto`), `--lang zh|en` or the `AMA_LANG` environment variable. `auto` decides from `LC_ALL` / `LC_MESSAGES` / `LANG`: `zh*` is Chinese, anything else English. It affects the interface and config descriptions only (`config.schema.json` is written in the current language; run `ama init` again after switching to rewrite it); text sent to the model is always English. To have the model reply in a given language, set `ui.replyLanguage`. See [docs/i18n.md](docs/i18n.md) (Chinese).
+**Interface language**: choose it with `ui.language` (`auto` / `zh` / `en`, default `auto`), `--lang zh|en` or the `AMA_LANG` environment variable. `auto` decides from `LC_ALL` / `LC_MESSAGES` / `LANG`: `zh*` is Chinese, anything else English (to keep Chinese regardless: `ama config set ui.language zh`). It affects the interface and config descriptions only (`config.schema.json` is written in the current language; run `ama init` again after switching to rewrite it); text sent to the model is always English. To have the model reply in a given language, set `ui.replyLanguage`. See [docs/i18n.md](docs/i18n.md) (Chinese).
 
 **Proxy**: when `HTTPS_PROXY` / `HTTP_PROXY` is set (`NO_PROXY` excludes), ama enables Node's built-in environment proxy at startup (equivalent to `NODE_USE_ENV_PROXY=1`, zero dependencies). It works directly on Node 24+; on Node 22 only 22.21+ with `NODE_USE_ENV_PROXY=1` works, older versions print a one-time notice and connect directly. The "Proxy" section of `ama doctor` shows the current state (credentials in the proxy URL are masked).
 
 ### File locations and layers
 
-| Location              | Contents                                                                                                                                                              |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `~/.config/ama/`      | User level: `config.json`, `config.schema.json` (generated by ama), `auth.json` (0600), `hooks.json`, `keybindings.json`, `trust.json`, `AGENTS.md`, `skills/`        |
-| `~/.local/share/ama/` | Data: `sessions/` (session JSONL), `plans/` (plan files), `file-history/` (checkpoint backups), `models-dev.json` (override from `ama models refresh`), input history |
-| `<project>/.ama/`     | Project level: `config.json` (can only tighten), `hooks.json` / `skills/` / `prompts/` (require trust)                                                                |
-| `<project>/AGENTS.md` | Project conventions, looked up from cwd upwards and added to the system prompt automatically                                                                          |
-| `--profile <file>`    | Host profile (for embedders, see "Embedding in Armadra")                                                                                                              |
+| Location              | Contents                                                                                                                                                                                                  |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `~/.config/ama/`      | User level: `config.json`, `config.schema.json` (generated by ama), `auth.json` (0600), `hooks.json`, `keybindings.json`, `trust.json`, `AGENTS.md`, `skills/`                                            |
+| `~/.local/share/ama/` | Data: `sessions/` (session JSONL), `plans/` (plan files), `file-history/` (checkpoint backups), `memory/` (memories, when enabled), `models-dev.json` (override from `ama models refresh`), input history |
+| `<project>/.ama/`     | Project level: `config.json` (can only tighten), `hooks.json` / `skills/` / `prompts/` (require trust)                                                                                                    |
+| `<project>/AGENTS.md` | Project conventions, looked up from cwd upwards and added to the system prompt automatically                                                                                                              |
+| `--profile <file>`    | Host profile (for embedders, see "Embedding in Armadra")                                                                                                                                                  |
 
 `AMA_CONFIG_DIR` / `AMA_DATA_DIR` change the two directories; `XDG_CONFIG_HOME` / `XDG_DATA_HOME` are honored too, and on Windows they are `%APPDATA%\ama` and `%LOCALAPPDATA%\ama`.
 
 Layers merge as **built-in defaults ← user ← profile ← project**, but the project level can only tighten: it can add deny rules, make the permission mode stricter, narrow the tool preset and turn codemode off. Loosening items such as `allow` rules, laxer modes, `cache` and `tools.default` are ignored with a warning. Cloning an unfamiliar repository therefore never widens permissions through its config.
+
+### `/config` and `ama config`
+
+`/config` in the terminal UI opens a settings panel: scalar settings by group with their effective value, source and when a change takes effect; ↑↓ Enter / Space change a value, `/` searches, Tab switches between user and project level (project level may only tighten). Changes are written at once (one key only, `.bak` kept); `/config key=value` sets one key without the panel. From the shell:
+
+```sh
+ama config get ui.language
+ama config set ui.language en              # --project writes .ama/config.json (tighten-only)
+ama config set tools.disabled '["bash"]' --json-value
+ama config unset ui.language
+ama config list ui                         # value, source, when it applies
+```
+
+Unknown keys, invalid values and loosening at project level exit with 3 and leave the file alone. See [docs/en/tui.md](docs/en/tui.md) "The `/config` settings panel and `ama config`".
 
 ### Checking
 
@@ -272,6 +292,20 @@ ama models cache-probe packy/grok-4.7                  # does this endpoint repo
 ```
 
 `--probe` tries a few protocols per model and records the first that works; `--write` merges into the user-level `config.json` (the original is backed up as `config.json.bak`, existing entries are not overwritten). Both `--probe` and `cache-probe` send real requests: they print an estimate first and stop on 401 / 403 / 429; `cache-probe` needs `--yes` when not interactive. Details in [docs/en/providers.md](docs/en/providers.md).
+
+## ChatGPT login
+
+Use your own ChatGPT Plus / Pro plan instead of an API key (built-in provider `chatgpt`; for your own personal use only):
+
+```sh
+ama auth login chatgpt              # official Sign in with ChatGPT in the browser; --paste over SSH
+ama auth status                     # flavor, plan, masked email, token lifetime
+ama models discover chatgpt         # models available to the account
+ama --model chatgpt/<model>
+ama auth logout chatgpt
+```
+
+Credentials are an OAuth entry in `auth.json` (0600), refreshed automatically and serialized across processes; tokens never reach logs, sessions or events. Plan requests cost 0 and show as "subscription" in `/session` and `ama stats`; an exhausted quota reports `quota_exceeded`, an expired login `auth_expired`. `--flavor codex` is an opt-in fallback path. See [docs/en/providers.md](docs/en/providers.md) "ChatGPT login".
 
 ## Tools and presets
 
@@ -389,7 +423,8 @@ The `task` tool hands a sub-task to a sub-agent with a fresh context (same proce
 
 - Built-in types `general` (default), `explore` and `plan` (the last two are forced read-only and never prompt for approval); define your own types (tool allowlist, model, permissions, turns, worktree isolation) in `~/.config/ama/agents/*.md`, `.ama/agents/*.md` (requires trust) or `--agent-dir`.
 - Several tasks in one reply run in parallel (`subagents.maxConcurrent`, default 4); `background: true` returns a `taskId` immediately and the parent session receives a `<task-notification>` when done; `task{taskId}` continues the conversation; `task_ctl` lists / waits / stops / reads output; `isolation: "worktree"` runs in a separate git worktree.
-- The sub-session's tool table is byte-identical to the parent's, so its first request reuses the parent's cache prefix. In the interface the task tool line folds and shows progress; `/tasks` shows output or stops tasks, `/agents` lists the available types.
+- The sub-session's tool table is byte-identical to the parent's, so its first request reuses the parent's cache prefix. In the interface the task tool line folds and shows progress; `/agents` lists the available types.
+- **Agent bar and sub-agent view**: running tasks are listed above the status line; with an empty input press `Ctrl+B` (or `↓`, e.g. in tmux) to focus the bar, ↑↓ to pick and Enter to open a full-screen live view of that sub-agent, where your input goes straight to it (Esc goes back without interrupting). `/tasks` focuses the bar, `/tasks <id>` opens a view, `/tasks stop <id>` stops a task. See [docs/en/tui.md](docs/en/tui.md) "Agent bar".
 
 See [docs/agents.md](docs/agents.md) (Chinese) "Sub-agents".
 
@@ -414,28 +449,44 @@ Every user message that starts a new turn is a rewind point: edit / write back u
 
 See [docs/en/tui.md](docs/en/tui.md) "Rewind", [docs/rewind-plan.md](docs/rewind-plan.md) (Chinese) and [docs/en/sessions.md](docs/en/sessions.md).
 
+## Memory
+
+Cross-session personal notes, **off by default**. Turn it on with `ama memory enable` (or `--memory` / `AMA_MEMORY=1` for one launch); then saying "remember …" lets the model write a Markdown entry with the `memory` tool. Entries live under `<data dir>/memory/` in a user scope and a per-project scope (trusted projects only); an index goes into the system prompt at session start and bodies are read on demand. Writes ask in `default` mode, content that looks like a credential is refused, and sub-agents are read-only. Manage entries with `/memory` or `ama memory list | show | edit | rm | path | enable | disable`. When disabled, requests are byte-for-byte unchanged. See [docs/memory.md](docs/memory.md) (Chinese).
+
+## Traces
+
+Every model request records timing (time to first token, decode, tools, retries, compaction) in the session file, without content. `/trace` opens a tree of turns → requests → tools → sub-agents with timing bars, tokens and cache hits; `/trace <task id>` shows one task. To share or inspect outside the terminal:
+
+```sh
+ama sessions trace 3f9a1c2e --html trace.html   # self-contained single file, redacted, no external loads
+ama sessions trace 3f9a1c2e --json              # same shape as RPC get_trace
+```
+
+RPC clients use `get_trace` (tail-first paging, increments after `entry_appended`) and the SDK `session.trace()`. See [docs/en/tui.md](docs/en/tui.md) "Traces", [docs/en/sessions.md](docs/en/sessions.md) and [docs/en/rpc.md](docs/en/rpc.md).
+
 ## Interfaces and entry points
 
 ### Terminal UI
 
 Running `ama` (with stdin / stdout both TTYs) enters interactive mode. The interface uses the main screen only; the conversation history stays in the terminal scrollback, so tmux `capture-pane` can read the whole conversation.
 
-| Key                  | Effect                                                                                  |
-| -------------------- | --------------------------------------------------------------------------------------- |
-| Enter                | Send; while running, steer                                                              |
-| Alt+Enter            | While running, queue after this turn (followUp)                                         |
-| Shift+Enter / Ctrl+J | New line                                                                                |
-| Esc                  | Interrupt the current run                                                               |
-| Esc Esc (idle)       | Empty input: open the rewind list (same as `/rewind`); with text: clear it into history |
-| Shift+Tab / Tab      | Cycle permission modes (Tab only on an empty input; entering Bypass asks to confirm)    |
-| Ctrl+O               | Expand / collapse tool output                                                           |
-| Ctrl+L / Ctrl+T      | Pick model / thinking level                                                             |
-| Ctrl+G               | Bottom info line, two lines ↔ one (same as `/statusline`)                               |
-| Ctrl+V               | Paste an image from the clipboard and insert `@<path>` (same as `/paste`)               |
-| Ctrl+C               | Clear the input; on an empty input, press again within 1.5 s to quit                    |
-| Tab                  | Complete: `/` commands, templates and Skills, `@` file paths                            |
+| Key                      | Effect                                                                                  |
+| ------------------------ | --------------------------------------------------------------------------------------- |
+| Enter                    | Send; while running, steer                                                              |
+| Alt+Enter                | While running, queue after this turn (followUp)                                         |
+| Shift+Enter / Ctrl+J     | New line                                                                                |
+| Esc                      | Interrupt the current run                                                               |
+| Esc Esc (idle)           | Empty input: open the rewind list (same as `/rewind`); with text: clear it into history |
+| Shift+Tab / Tab          | Cycle permission modes (Tab only on an empty input; entering Bypass asks to confirm)    |
+| Ctrl+O                   | Expand / collapse tool output                                                           |
+| Ctrl+L / Ctrl+T          | Pick model / thinking level                                                             |
+| Ctrl+G                   | Bottom info line, two lines ↔ one (same as `/statusline`)                               |
+| Ctrl+V                   | Paste an image from the clipboard and insert `@<path>` (same as `/paste`)               |
+| Ctrl+B / ↓ (empty input) | Focus the agent bar when there are sub-agent tasks (↓ in tmux)                          |
+| Ctrl+C                   | Clear the input; on an empty input, press again within 1.5 s to quit                    |
+| Tab                      | Complete: `/` commands, templates and Skills, `@` file paths                            |
 
-Common commands: `/model`, `/thinking`, `/permission`, `/tools`, `/compact`, `/tree` (branch again from before a message), `/fork`, `/resume`, `/new`, `/session`, `/cache`, `/hooks`, `/skill:<name>`, `/help`; wave 5 added `/plan` (plan panel and approval; `/plan <goal>` enters Plan), `/tasks` (sub-agent tasks), `/agents` (available types and external agents), `/paste` (clipboard image), `/rewind` and `/statusline [full|compact]`. An `@image-path` in the input (or a pasted / dropped image path) is sent to the model as an image attachment; `/model` groups models by "provider · channel" and marks context size and `img`. Key bindings can be overridden in `~/.config/ama/keybindings.json`. See [docs/en/tui.md](docs/en/tui.md).
+Common commands: `/model`, `/thinking`, `/permission`, `/tools`, `/compact`, `/tree` (branch again from before a message), `/fork`, `/resume`, `/new`, `/session`, `/cache`, `/hooks`, `/skill:<name>`, `/help`; wave 5 added `/plan` (plan panel and approval; `/plan <goal>` enters Plan), `/tasks` (sub-agent tasks), `/agents` (available types and external agents), `/paste` (clipboard image), `/rewind` and `/statusline [full|compact]`; wave 6 added `/config` (settings panel), `/trace` (trace), `/memory` (memories), and `/tasks` now focuses the agent bar (`/tasks <id>` opens the sub-agent view). An `@image-path` in the input (or a pasted / dropped image path) is sent to the model as an image attachment; `/model` groups models by "provider · channel" and marks context size and `img`. Key bindings can be overridden in `~/.config/ama/keybindings.json`. See [docs/en/tui.md](docs/en/tui.md).
 
 `--no-tui` (or when stdin / stdout is not a TTY, or `TERM=dumb`) enters line mode: readline with bracketed paste and the same commands.
 
@@ -464,7 +515,7 @@ Common commands: `/model`, `/thinking`, `/permission`, `/tools`, `/compact`, `/t
 | 0         | Success                                                                           |
 | 1         | Runtime error (the model ultimately failed, etc.)                                 |
 | 2         | Usage error; the current model does not accept images                             |
-| 3         | Config / profile / path error                                                     |
+| 3         | Config / profile / path error; `ama config set` rejected a key or value           |
 | 4         | No usable model or key                                                            |
 | 5         | Session missing / corrupted                                                       |
 | 6         | Host / hook startup failure                                                       |
@@ -484,6 +535,7 @@ ama sessions search "parser" --role user  # full-text search across sessions; /r
 ama sessions show 3f9a1c2e                # lists user message numbers at the end
 ama -p --from 3f9a1c2e#2 --model packy/kimi-k2.5   # ask that message (images included) again with another model
 ama sessions export 3f9a1c2e --format md --output s.md   # md / json / jsonl, redacted before export
+ama sessions trace 3f9a1c2e --html t.html               # trace as a single HTML file (see "Traces")
 ```
 
 How the numbers are computed (hit rate only over endpoints that report cache usage, cost only over priced requests, …) and the export formats are in [docs/en/sessions.md](docs/en/sessions.md).
@@ -496,7 +548,7 @@ How the numbers are computed (hit rate only over endpoints that report cache usa
 printf '{"id":"1","type":"prompt","message":"hi"}\n' | ama --mode rpc --model fake/echo
 ```
 
-`hello.capabilities` lists server capabilities (`approvals`, `images`, `hooks`, `plans`); clients declare with `set_client_capabilities` which approvals and plan approvals they take over. Wave 5 added plan (`plan_response` / `get_plan` / `get_todos`), task (`get_tasks` / `get_agents`) and rewind (`get_rewind_points` / `rewind` / `summarize_*`) commands, plus events such as `subagent_*`, `plan_*`, `limit_reached` and `telemetry_tick`. The protocol is in [docs/en/rpc.md](docs/en/rpc.md); import the types from `@armadra/agent/rpc`.
+`hello.capabilities` lists server capabilities (`approvals`, `images`, `hooks`, `plans`); clients declare with `set_client_capabilities` which approvals and plan approvals they take over. Wave 5 added plan (`plan_response` / `get_plan` / `get_todos`), task (`get_tasks` / `get_agents`) and rewind (`get_rewind_points` / `rewind` / `summarize_*`) commands, plus events such as `subagent_*`, `plan_*`, `limit_reached` and `telemetry_tick`; wave 6 added `get_trace` and the `quota_update` event. Decide by `code`, never by the human-readable `error` text, which follows the interface language. The protocol is in [docs/en/rpc.md](docs/en/rpc.md); import the types from `@armadra/agent/rpc`.
 
 `ama --mode acp` speaks ACP (JSON-RPC over NDJSON); see [docs/acp.md](docs/acp.md) (Chinese).
 
@@ -548,33 +600,34 @@ The host adapter is a local JS module exporting `hostApi` and `create(api)`; thr
 
 English versions exist for six user docs; the rest are in Chinese.
 
-| Document                                                                       | Contents                                                                                                                                        |
-| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| [docs/en/providers.md](docs/en/providers.md) ([中文](docs/providers.md))       | Built-in providers and channels, API keys, custom providers and relays, model metadata snapshot, image input, compat, caching                   |
-| [docs/en/tui.md](docs/en/tui.md) ([中文](docs/tui.md))                         | Terminal UI: layout, status bar, keys, commands, rewind, approvals, Plan approval, sub-agents, clipboard images, component library              |
-| [docs/en/permissions.md](docs/en/permissions.md) ([中文](docs/permissions.md)) | Permission modes, read-only commands in plan, decision order, approval-free sandboxed commands, auto's three tiers, approval origin labels      |
-| [docs/en/host-api.md](docs/en/host-api.md) ([中文](docs/host-api.md))          | Host adapter API                                                                                                                                |
-| [docs/en/rpc.md](docs/en/rpc.md) ([中文](docs/rpc.md))                         | RPC protocol (stdio JSONL)                                                                                                                      |
-| [docs/en/sessions.md](docs/en/sessions.md) ([中文](docs/sessions.md))          | Session stats, search, `--from` reuse, export, checkpoints and shadow git                                                                       |
-| [docs/plan.md](docs/plan.md)                                                   | Plan mode: flow, plan format, approval, separate models, config and persistence (Chinese)                                                       |
-| [docs/agents.md](docs/agents.md)                                               | Sub-agents (types, definition files, background, follow-up, worktree) and external agents (drivers, permissions, environment, budget) (Chinese) |
-| [docs/acp.md](docs/acp.md)                                                     | ACP: `ama --mode acp` and ama as an ACP client (Chinese)                                                                                        |
-| [docs/sandbox.md](docs/sandbox.md)                                             | OS sandbox: codemode and bash, per-platform implementation, config and known bypasses (Chinese)                                                 |
-| [docs/codemode.md](docs/codemode.md)                                           | codemode scripts, sandbox and permissions (Chinese)                                                                                             |
-| [docs/hooks.md](docs/hooks.md)                                                 | Command hooks (hooks.json) (Chinese)                                                                                                            |
-| [docs/session-format.md](docs/session-format.md)                               | Session file format (Chinese)                                                                                                                   |
-| [docs/rewind-plan.md](docs/rewind-plan.md)                                     | Checkpoint and rewind design (Chinese)                                                                                                          |
-| [docs/tui-design.md](docs/tui-design.md)                                       | Terminal UI visual spec and screen-by-screen mockups (Chinese)                                                                                  |
-| [docs/design.md][design]                                                       | Overall design and decision log (Chinese)                                                                                                       |
-| [docs/extensions.md][extensions]                                               | Local extensions (draft design, not implemented) (Chinese)                                                                                      |
-| [docs/benchmarks/][benchmarks]                                                 | Preset benchmarks, the D20 todo retest and the cache acceptance experiment (reports and raw data)                                               |
-| [docs/wave6-plan.md][wave6]                                                    | Wave 6 design: agent bar and sub-agent view, traces, memory, ChatGPT login, bilingual UI, `/config` (Chinese)                                   |
-| [docs/i18n.md][i18n]                                                           | Bilingual development conventions: language selection, message catalogs and key naming, model-side isolation, check script (Chinese)            |
-| [docs/wave5-plan.md][wave5]                                                    | Wave 5 design (Chinese)                                                                                                                         |
-| [docs/implementation-plan.md][impl], [wave3-plan][w3]                          | Early implementation plans (for history) (Chinese)                                                                                              |
-| [docs/research/][research]                                                     | Wave 5 and wave 6 research reports (for history) (Chinese)                                                                                      |
+| Document                                                                       | Contents                                                                                                                                                      |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [docs/en/providers.md](docs/en/providers.md) ([中文](docs/providers.md))       | Built-in providers and channels, API keys, ChatGPT login, custom providers and relays, model metadata snapshot, image input, compat, caching                  |
+| [docs/en/tui.md](docs/en/tui.md) ([中文](docs/tui.md))                         | Terminal UI: layout, status bar, keys, commands, rewind, approvals, Plan approval, sub-agents and the agent bar, traces, memory, `/config`, component library |
+| [docs/en/permissions.md](docs/en/permissions.md) ([中文](docs/permissions.md)) | Permission modes, read-only commands in plan, decision order, approval-free sandboxed commands, auto's three tiers, approval origin labels                    |
+| [docs/en/host-api.md](docs/en/host-api.md) ([中文](docs/host-api.md))          | Host adapter API                                                                                                                                              |
+| [docs/en/rpc.md](docs/en/rpc.md) ([中文](docs/rpc.md))                         | RPC protocol (stdio JSONL)                                                                                                                                    |
+| [docs/en/sessions.md](docs/en/sessions.md) ([中文](docs/sessions.md))          | Session stats, search, `--from` reuse, export, traces, checkpoints and shadow git                                                                             |
+| [docs/memory.md](docs/memory.md)                                               | Memory: enabling, storage, the `memory` tool and permissions, system prompt and cache, commands (Chinese)                                                     |
+| [docs/plan.md](docs/plan.md)                                                   | Plan mode: flow, plan format, approval, separate models, config and persistence (Chinese)                                                                     |
+| [docs/agents.md](docs/agents.md)                                               | Sub-agents (types, definition files, background, follow-up, worktree) and external agents (drivers, permissions, environment, budget) (Chinese)               |
+| [docs/acp.md](docs/acp.md)                                                     | ACP: `ama --mode acp` and ama as an ACP client (Chinese)                                                                                                      |
+| [docs/sandbox.md](docs/sandbox.md)                                             | OS sandbox: codemode and bash, per-platform implementation, config and known bypasses (Chinese)                                                               |
+| [docs/codemode.md](docs/codemode.md)                                           | codemode scripts, sandbox and permissions (Chinese)                                                                                                           |
+| [docs/hooks.md](docs/hooks.md)                                                 | Command hooks (hooks.json) (Chinese)                                                                                                                          |
+| [docs/session-format.md](docs/session-format.md)                               | Session file format (Chinese)                                                                                                                                 |
+| [docs/rewind-plan.md](docs/rewind-plan.md)                                     | Checkpoint and rewind design (Chinese)                                                                                                                        |
+| [docs/tui-design.md](docs/tui-design.md)                                       | Terminal UI visual spec and screen-by-screen mockups (Chinese)                                                                                                |
+| [docs/design.md][design]                                                       | Overall design and decision log (Chinese)                                                                                                                     |
+| [docs/extensions.md][extensions]                                               | Local extensions (draft design, not implemented) (Chinese)                                                                                                    |
+| [docs/benchmarks/][benchmarks]                                                 | Preset benchmarks, the D20 todo retest and the cache acceptance experiment (reports and raw data)                                                             |
+| [docs/wave6-plan.md][wave6]                                                    | Wave 6 design: agent bar and sub-agent view, traces, memory, ChatGPT login, bilingual UI, `/config` (Chinese)                                                 |
+| [docs/i18n.md][i18n]                                                           | Bilingual development conventions: language selection, message catalogs and key naming, model-side isolation, check script (Chinese)                          |
+| [docs/wave5-plan.md][wave5]                                                    | Wave 5 design (Chinese)                                                                                                                                       |
+| [docs/implementation-plan.md][impl], [wave3-plan][w3]                          | Early implementation plans (for history) (Chinese)                                                                                                            |
+| [docs/research/][research]                                                     | Wave 5 and wave 6 research reports (for history) (Chinese)                                                                                                    |
 
-The npm package includes the first fifteen user docs above (both languages where available); the rest are design and history material linked on GitHub.
+The npm package includes the first sixteen user docs above (both languages where available); the rest are design and history material linked on GitHub.
 
 [design]: https://github.com/Owlbay/armadra-agent/blob/main/docs/design.md
 [extensions]: https://github.com/Owlbay/armadra-agent/blob/main/docs/extensions.md
@@ -592,6 +645,7 @@ The npm package includes the first fifteen user docs above (both languages where
 - **Real-CLI tests for external agents only run locally**: CI runs only recorded replays and ama driving ama; end-to-end tests against `claude` / `codex` need a logged-in machine and run with `AMA_E2E_AGENTS=1` (using your subscription quota); see [docs/agents.md](docs/agents.md) (Chinese).
 - **DeepSeek, Zhipu and Kimi still default to Chat**: their Messages channels (`@messages`) have only been tested through relays; the default switches once direct official endpoints pass the measurement gate (`scripts/channel-probe.mjs`).
 - **models.dev refresh PRs do not trigger CI automatically**: without the repository secret `MODELS_DEV_PR_TOKEN`, the weekly workflow opens the PR with the default token (after running `pnpm run ci` itself and putting the result in the description).
+- **ChatGPT login is not yet verified with a real account**: both flavors are tested against a local mock only. Still to be confirmed with a real Plus / Pro account: the tool `namespace` shape on the official (siwc) path (`toolsInNamespace` stays off), whether the codex device code needs enabling in ChatGPT security settings, and the fields of the codex `wham/usage` quota response. Real-account checks run locally with `AMA_E2E_CHATGPT=1` (see [docs/en/providers.md](docs/en/providers.md)).
 - Sub-agents have depth 1, do not read `.claude/agents` and have no fork mode that inherits the parent conversation; Windows has no OS sandbox.
 
 ## Development
@@ -601,7 +655,7 @@ Requires Node ≥ 22 and pnpm (version in `packageManager` of `package.json`; `c
 ```sh
 pnpm install
 pnpm run ci              # typecheck, fmt:check, check:deps, check:i18n, release:check, test, build, then bundle --version
-AMA_E2E=1 pnpm test:e2e  # bundle-level end-to-end: print / rpc / acp / plan / sub-agents / rewind / codemode / cache / host (fake provider, free)
+AMA_E2E=1 pnpm test:e2e  # bundle-level end-to-end: print / rpc / acp / plan / sub-agents / rewind / codemode / cache / host / auth / config / memory / trace / i18n (fake provider, free)
 ```
 
 Since pnpm 10, `pnpm ci` is the built-in "clean install", so run the checks with `pnpm run ci`. Common single steps: `pnpm test`, `pnpm typecheck`, `pnpm fmt`, `pnpm build`. Tests always use the fake provider: `AMA_FAKE_SCRIPT=<script.json>` makes it produce text, tool calls, 429s, dropped streams and so on from a script; examples are in `test/fixtures/scripts/`.
