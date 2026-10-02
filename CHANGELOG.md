@@ -31,6 +31,14 @@
 - 新工具 `task_ctl`（列出 / 等待 / 停止 / 读取后台子 Agent 任务）与 `task` 同进退：`+task`、`--tools …,task` 一起暴露，
   `-task`、宿主 `disable("task")` 一起去掉；本版本执行时返回「尚未实现」（第五波 W5-G 实现）。
 
+- 第五波契约与扩展点（docs/wave5-plan.md §9–§10，全部可选、向后兼容；`RPC_PROTOCOL_VERSION` / `HOST_API_VERSION` /
+  会话格式版本不变）：会话扩展点 `SessionExtension`（`cli/compose-extensions.ts` 组装表）；新事件 `subagent_*`、`plan_*`、
+  `todo_updated`、`limit_reached`、`model_fallback`、`background_job`、`telemetry_tick`；RPC 命令 `plan_response / get_plan /
+get_todos / get_tasks / get_agents`（命令表 42 条，实现前回 `not_implemented`）与能力 `plans`；Hook 事件 `PostCompact`；
+  `HostApi.runners` 可选面；`@armadra/agent/acp` 子路径（驱动类型与 NDJSON 分帧）；第五波配置键的校验、说明与 JSON Schema
+  （行为随各批次生效）。命令行新增 `--mode acp`、`--max-cost`、`--agent-dir`（实现前分别报「尚未实现」或提示不生效），
+  退出码 8 = `-p` 到达预算上限（7 仍是工具被拒）。
+
 ## 0.4.0（2026-10-02）
 
 - **终端界面重做**（视觉规格见 docs/tui-design.md）：带框启动头（模型 / 目录 / 模式 / 已加载资源，窄屏去框）；
