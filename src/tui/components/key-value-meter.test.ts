@@ -5,6 +5,7 @@ import { MemoryTerminal } from "../terminal.js";
 import { plainTheme } from "../theme.js";
 import { TUI } from "../tui.js";
 import { Box } from "./box.js";
+import { Card } from "./card.js";
 import { KeyValue } from "./key-value.js";
 import { Meter } from "./meter.js";
 
@@ -97,5 +98,74 @@ describe("Meter", () => {
     meter.setValue(0.9);
     expect(stripAnsi(meter.render(40)[0] ?? "")).toBe("ctx ▮▮▮▮▮▮▮▮▮▯ 90%");
     expect(meter.level()).toBe("error");
+  });
+});
+
+describe("KeyValue wrap", () => {
+  it("值折行，续行对齐值列；值里的换行也换行", () => {
+    const kv = new KeyValue(
+      [
+        { key: "判定顺序", value: "deny 规则 → Hook deny → 危险命令确认 → 权限模式" },
+        { key: "规则", value: "a\nb" },
+      ],
+      { wrap: true },
+    );
+    expect(kv.render(30).map((l) => l.replace(/\s+$/, ""))).toEqual([
+      "判定顺序  deny 规则 → Hook",
+      "          deny → 危险命令确认",
+      "          → 权限模式",
+      "规则      a",
+      "          b",
+    ]);
+  });
+});
+
+describe("Meter / Box 字形", () => {
+  it("ASCII 主题：Meter 用 # .，Box 用 + - |", () => {
+    const ascii = plainTheme({ ascii: true });
+    expect(new Meter(0.3, { theme: ascii, label: "ctx" }).render(30)).toEqual([
+      "ctx ###....... 30%",
+    ]);
+    expect(new Box(new KeyValue([{ key: "a", value: "b" }]), { theme: ascii }).render(8)).toEqual([
+      "+------+",
+      "| a  b |",
+      "+------+",
+    ]);
+  });
+
+  it("Box.borderColor 只给边框着色", () => {
+    const box = new Box(new KeyValue([{ key: "k", value: "v" }]), {
+      theme: tagged,
+      borderColor: "error",
+      title: "危险命令",
+    });
+    const lines = box.render(16);
+    expect(lines[0]).toContain("<error>╭─");
+    expect(lines[0]).toContain(" 危险命令 ");
+    expect(lines[1]!.startsWith("<error>│")).toBe(true);
+  });
+});
+
+describe("Card", () => {
+  it("左竖条 + 标题 / 副标题；空行只画竖条；按 width - 2 渲染子组件", () => {
+    const card = new Card(
+      new KeyValue([
+        { key: "会话", value: "3f2a9c1e" },
+        { key: "", value: "" },
+      ]),
+      {
+        title: "上下文已压缩",
+        subtitle: "128k → 24k token",
+      },
+    );
+    expect(card.render(40)).toEqual(["▎ 上下文已压缩  128k → 24k token", "▎ 会话  3f2a9c1e", "▎"]);
+    expect(
+      new Card(undefined, { title: "x", theme: plainTheme({ ascii: true }) }).render(10),
+    ).toEqual(["| x"]);
+  });
+
+  it("竖条着色、标题粗体、副标题 muted", () => {
+    const [head] = new Card(undefined, { theme: tagged, title: "T", subtitle: "s" }).render(40);
+    expect(head).toBe("<border>▎ T  <muted>s");
   });
 });

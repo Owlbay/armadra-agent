@@ -128,6 +128,7 @@ export {
   type SelectListOptions,
 } from "./tui/components/select-list.js";
 export { Box, type BoxOptions } from "./tui/components/box.js";
+export { Card, type CardOptions } from "./tui/components/card.js";
 export { Spacer } from "./tui/components/spacer.js";
 export {
   Loader,
