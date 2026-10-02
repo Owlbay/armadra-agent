@@ -14,11 +14,15 @@
  *   `RetrySettings`、`QueueMode`。
  * - （B2 追加）`PromptOptions.origin` 与 `steer / followUp` 的可选 `EnqueueOptions`：宿主
  *   `sendUser(text, origin)` 注入的消息要以 `origin` 落盘（§4.3）；`"user"` 等同不填。
+ * - （W3-C0）缓存可观测性（第三波 §1.10）：`SessionEvent` 加 `cache_miss` / `cache_warm` /
+ *   `context_pressure`，`SessionStats.cache`（可选，C1b 填）；`CacheSettings` 是
+ *   `SessionCacheController` 的解析后设置（来自 config `cache` 段与环境变量）。
  */
 
 import type {
   AssistantEvent,
   AssistantMessage,
+  CacheRetention,
   ImageBlock,
   Message,
   MessageOrigin,
@@ -30,6 +34,13 @@ import type {
   TranscriptContext,
   Usage,
 } from "../ai/types.js";
+import type {
+  CacheMiss,
+  CacheMissReason,
+  CacheReporting,
+  WarmerStatus,
+  WarmingMode,
+} from "../ai/cache/types.js";
 import type { HookEvent } from "../hooks/types.js";
 import type { ApprovalDecision, ApprovalReason, PermissionMode } from "../permissions/types.js";
 import type { AgentMessage, SessionEntry } from "../session/types.js";
@@ -139,6 +150,21 @@ export interface RetrySettings {
   maxDelayMs: number;
 }
 
+/**
+ * [W3-C0] 会话层缓存设置（第三波 §1.12），解析后的完整形状；缺省 streaming / short /
+ * 0.05 / true / false。
+ */
+export interface CacheSettings {
+  /** 子会话（depth > 0）在 `warmSubagents` 为 false 时按 off。 */
+  warming: WarmingMode;
+  retention: CacheRetention;
+  /** 保温的最低期望节省（美元），缺省 0.05。 */
+  minSavingsUsd: number;
+  /** 转录 / 消息区的未命中与上下文余量提示（统计不受影响）。 */
+  missNotices: boolean;
+  warmSubagents: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // 会话事件（进程内）
 // ---------------------------------------------------------------------------
@@ -242,7 +268,28 @@ export type SessionEvent =
     }
   | { type: "session_changed"; sessionId: string; sessionFile?: string }
   | { type: "model_changed"; model: ModelRef }
-  | { type: "thinking_level_changed"; level: ModelThinkingLevel };
+  | { type: "thinking_level_changed"; level: ModelThinkingLevel }
+  /** [W3-C0] 一次缓存未命中（第三波 §1.5）；统计计入全部，界面只提示超过门槛的那次。 */
+  | ({ type: "cache_miss" } & CacheMiss)
+  /** [W3-C0] 保温状态变化（第三波 §1.7）：排期、发出（带用量与花费）、停止（带原因）。 */
+  | {
+      type: "cache_warm";
+      phase: "scheduled" | "sent" | "stopped";
+      nextWarmAt?: number;
+      usage?: Usage;
+      /** 美元。 */
+      cost?: number;
+      reason?: string;
+    }
+  /** [W3-C0] 上下文占用跨越 70% / 90%（每个阈值每次跨越提示一次）。 */
+  | {
+      type: "context_pressure";
+      percent: number;
+      threshold: 70 | 90;
+      remainingTokens?: number;
+      /** 按最近 5 回合均值估算。 */
+      estimatedTurnsLeft?: number;
+    };
 
 export type SessionEventType = SessionEvent["type"];
 
@@ -304,6 +351,28 @@ export interface SessionStats {
    * 还没有任何输入用量时不给。
    */
   cacheHitRate?: number;
+  /** [W3-C0] 缓存可观测性（第三波 §1.10）；会话层缓存控制器（C1b）未接线时缺省。 */
+  cache?: SessionCacheStats;
+}
+
+/** [W3-C0] `SessionStats.cache`（`get_session_stats` / `/session` / `-p --output-format json`）。 */
+export interface SessionCacheStats {
+  /** 当前端点的三态。 */
+  reporting: CacheReporting;
+  /** 最近一次请求的命中率 0–1；`unknown` / `silent` 时不给。 */
+  lastHitRate?: number;
+  /** 会话累计命中率 0–1；不报缓存的请求不进分母。 */
+  hitRate?: number;
+  /** 未命中重计费的 token 合计。 */
+  reBilledTokens: number;
+  /** 重计费金额（美元）；有无价模型参与时 undefined。 */
+  reBilledUsd?: number;
+  misses: { count: number; byReason: Partial<Record<CacheMissReason, number>> };
+  warming: WarmerStatus;
+  contextRemainingTokens?: number;
+  estimatedTurnsLeft?: number;
+  /** task 子会话的汇总（各自独立统计）。 */
+  subagents?: { count: number; hitRate?: number; reBilledTokens: number };
 }
 
 export interface AgentSession {

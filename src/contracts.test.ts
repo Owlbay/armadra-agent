@@ -19,10 +19,13 @@ import type {
 } from "./ai/types.js";
 import type {
   AgentSession,
+  CacheSettings,
   EnqueueOptions,
   LoopHooks,
   PromptOptions,
+  SessionCacheStats,
   SessionEvent,
+  SessionStats,
 } from "./agent/types.js";
 import type { MessageOrigin } from "./ai/types.js";
 import type {
@@ -51,7 +54,7 @@ import type {
 } from "./host/types.js";
 import type { SessionEntry, SessionEntryInput, SessionHeader } from "./session/types.js";
 import type { Component, Focusable, Theme } from "./tui/component.js";
-import type { ToolContext, ToolDefinition, ToolResult } from "./tools/types.js";
+import type { SubagentResult, ToolContext, ToolDefinition, ToolResult } from "./tools/types.js";
 import type { Runtime } from "./cli/runtime.js";
 import type { RuntimeDeps, SessionAssembly } from "./cli/deps.js";
 import type { HostApiBinding } from "./host/api-impl.js";
@@ -415,6 +418,51 @@ describe("循环、SDK、RPC、Runtime 契约", () => {
       parentToolCallId: "c1",
     };
     expect(inner.type).toBe("tool_execution_start");
+  });
+
+  it("缓存事件、SessionStats.cache、SubagentResult.cache、CacheSettings（W3-C0 ②）", () => {
+    type Miss = Extract<SessionEvent, { type: "cache_miss" }>;
+    expectTypeOf<Miss["reason"]>().toEqualTypeOf<
+      "prefix_changed" | "model_changed" | "idle" | "subtask" | "evicted"
+    >();
+    expectTypeOf<Miss["missedCost"]>().toEqualTypeOf<number | undefined>();
+    type Warm = Extract<SessionEvent, { type: "cache_warm" }>;
+    expectTypeOf<Warm["phase"]>().toEqualTypeOf<"scheduled" | "sent" | "stopped">();
+    type Pressure = Extract<SessionEvent, { type: "context_pressure" }>;
+    expectTypeOf<Pressure["threshold"]>().toEqualTypeOf<70 | 90>();
+    // RpcEvent 由 SessionEvent 派生，三个事件自动上线
+    expectTypeOf<Extract<RpcEvent, { type: "cache_warm" }>>().toEqualTypeOf<Warm>();
+    expectTypeOf<Extract<RpcEvent, { type: "context_pressure" }>>().toEqualTypeOf<Pressure>();
+    expectTypeOf<SessionStats["cache"]>().toEqualTypeOf<SessionCacheStats | undefined>();
+    expectTypeOf<SessionCacheStats["reporting"]>().toEqualTypeOf<
+      "unknown" | "reported" | "silent"
+    >();
+    expectTypeOf<SessionCacheStats["warming"]["mode"]>().toEqualTypeOf<
+      "off" | "streaming" | "idle"
+    >();
+    expectTypeOf<SubagentResult["cache"]>().toEqualTypeOf<
+      { hitRate?: number; reBilledTokens: number } | undefined
+    >();
+    const settings: CacheSettings = {
+      warming: "streaming",
+      retention: "short",
+      minSavingsUsd: 0.05,
+      missNotices: true,
+      warmSubagents: false,
+    };
+    const miss: SessionEvent = {
+      type: "cache_miss",
+      missedTokens: 38_200,
+      reason: "idle",
+      idleMs: 420_000,
+    };
+    const stats: SessionCacheStats = {
+      reporting: "silent",
+      reBilledTokens: 0,
+      misses: { count: 0, byReason: {} },
+      warming: { mode: settings.warming, state: "inactive" },
+    };
+    expect([miss.type, stats.reporting]).toEqual(["cache_miss", "silent"]);
   });
 
   it("RPC 线上 message_update 是纯增量", () => {
