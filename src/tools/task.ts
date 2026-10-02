@@ -4,7 +4,8 @@
  * 子会话由 `ctx.spawnSubagent`（B2 的 AgentSession 提供）创建：独立 JSONL、继承权限模式与 broker、
  * 审批串到父。本工具负责：
  * - 深度 ≤ 1：`ctx.depth ≥ 1` 或无 `spawnSubagent` → 错误（子 Agent 里没有 task）；
- * - 并发 ≤ 4：每个工具实例一个信号量，超出排队；排队中父 abort → 立即返回 aborted；
+ * - 并发 ≤ 4：由会话的 `SubagentPool`（agent/session-subagent.ts，`subagents.maxConcurrent`）排队，
+ *   本工具不再自带一层信号量；排队中父 abort → 子会话抛 aborted，这里返回 aborted；
  * - 工具子集：`tools` 里去掉 `task`（缺省交给 spawnSubagent = 父活动集去掉 task）；
  * - 父 abort 级联：把 `ctx.signal` 传给子；
  * - 结果 = 子的最后助手文本 + `details{ sessionFile, usage, stopReason }`。
@@ -14,7 +15,6 @@ import type { ModelThinkingLevel } from "../ai/types.js";
 import type { SubagentRequest, ToolContext, ToolDefinition, ToolResult } from "./types.js";
 
 export const MAX_TASK_DEPTH = 1;
-export const MAX_TASK_CONCURRENCY = 4;
 export const DEFAULT_TASK_MAX_TURNS = 30;
 const THINKING: readonly ModelThinkingLevel[] = [
   "off",
@@ -34,58 +34,8 @@ export interface TaskInput {
   maxTurns?: number;
 }
 
-export interface TaskToolOptions {
-  maxConcurrency?: number;
-}
-
-/** 简单计数信号量；等待可被 abort。 */
-export class Semaphore {
-  private active = 0;
-  private readonly waiters: (() => void)[] = [];
-
-  constructor(private readonly limit: number) {}
-
-  get running(): number {
-    return this.active;
-  }
-
-  get queued(): number {
-    return this.waiters.length;
-  }
-
-  async acquire(signal: AbortSignal): Promise<() => void> {
-    if (signal.aborted) throw new Error("aborted");
-    if (this.active < this.limit) {
-      this.active++;
-      return this.releaser();
-    }
-    await new Promise<void>((resolve, reject) => {
-      const waiter = () => {
-        signal.removeEventListener("abort", onAbort);
-        resolve();
-      };
-      const onAbort = () => {
-        const i = this.waiters.indexOf(waiter);
-        if (i >= 0) this.waiters.splice(i, 1);
-        reject(new Error("aborted"));
-      };
-      this.waiters.push(waiter);
-      signal.addEventListener("abort", onAbort, { once: true });
-    });
-    this.active++;
-    return this.releaser();
-  }
-
-  private releaser(): () => void {
-    let released = false;
-    return () => {
-      if (released) return;
-      released = true;
-      this.active--;
-      this.waiters.shift()?.();
-    };
-  }
-}
+/** 预留（并发上限在会话的 SubagentPool，见文件头）。 */
+export interface TaskToolOptions {}
 
 function fail(message: string): ToolResult {
   return { content: message, isError: true };
@@ -114,8 +64,7 @@ export function buildSubagentRequest(input: TaskInput, ctx: ToolContext): Subage
   return request;
 }
 
-export function createTaskTool(options: TaskToolOptions = {}): ToolDefinition<TaskInput> {
-  const semaphore = new Semaphore(options.maxConcurrency ?? MAX_TASK_CONCURRENCY);
+export function createTaskTool(_options: TaskToolOptions = {}): ToolDefinition<TaskInput> {
   return {
     name: "task",
     label: "Task",
@@ -148,12 +97,7 @@ export function createTaskTool(options: TaskToolOptions = {}): ToolDefinition<Ta
       }
       const request = buildSubagentRequest(input, ctx);
       if (typeof request === "string") return fail(request);
-      let release: () => void;
-      try {
-        release = await semaphore.acquire(ctx.signal);
-      } catch {
-        return fail("aborted by user");
-      }
+      if (ctx.signal.aborted) return fail("aborted by user");
       try {
         const result = await ctx.spawnSubagent(request);
         const details = {
@@ -167,8 +111,6 @@ export function createTaskTool(options: TaskToolOptions = {}): ToolDefinition<Ta
       } catch (err) {
         if (ctx.signal.aborted) return fail("aborted by user");
         return fail(`Sub-agent failed: ${(err as Error).message}`);
-      } finally {
-        release();
       }
     },
   };
