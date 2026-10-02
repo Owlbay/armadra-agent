@@ -38,7 +38,7 @@ function repo(): string {
   git("init", "-q");
   git("add", ".");
   git("commit", "-q", "-m", "init");
-  return realpathSync(root);
+  return realpathSync.native(root);
 }
 
 describe.skipIf(!hasGit)("worktree 隔离（需要 git）", () => {

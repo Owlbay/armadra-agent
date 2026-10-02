@@ -51,6 +51,18 @@ export const runGit: GitRunner = (args, cwd) =>
     );
   });
 
+/**
+ * 两边都取系统的真实路径再比：git 给的是真实路径（macOS 的 /var → /private/var；Windows 是长文件名、
+ * 正斜杠），而 cwd 可能是 8.3 短名（RUNNER~1）或符号链接。
+ */
+function realPath(path: string): string {
+  try {
+    return realpathSync.native(path);
+  } catch {
+    return path;
+  }
+}
+
 export function worktreeBranch(taskId: string): string {
   return `ama/task-${taskId}`;
 }
@@ -63,7 +75,7 @@ export async function createWorktree(
 ): Promise<Worktree> {
   let repo: string;
   try {
-    repo = (await git(["rev-parse", "--show-toplevel"], cwd)).trim();
+    repo = realPath((await git(["rev-parse", "--show-toplevel"], cwd)).trim());
   } catch {
     throw new Error(`isolation "worktree" needs a git repository; ${cwd} is not inside one`);
   }
@@ -75,14 +87,7 @@ export async function createWorktree(
   const path = join(root, taskId);
   const branch = worktreeBranch(taskId);
   if (!existsSync(path)) await git(["worktree", "add", "-b", branch, path, base], repo);
-  // git 给的是真实路径（macOS 的 /var → /private/var），cwd 也取真实路径再比
-  let real = cwd;
-  try {
-    real = realpathSync(cwd);
-  } catch {
-    // 保持原样
-  }
-  const sub = relative(repo, real);
+  const sub = relative(repo, realPath(cwd));
   const childCwd = sub === "" || sub.startsWith("..") ? path : join(path, sub);
   mkdirSync(childCwd, { recursive: true });
   return { path, cwd: childCwd, branch, base, repo };
