@@ -1,0 +1,1 @@
+Rename the function `fetchUser` to `loadUser` everywhere in this project (definition, exports, imports and all call sites). Behaviour must not change: `node main.js` must print the same output as before.

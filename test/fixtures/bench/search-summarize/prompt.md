@@ -1,0 +1,1 @@
+Find every place in this project that reads an environment variable via `process.env`. Write SUMMARY.md listing each one on its own line as `<path relative to the project root>: <VARIABLE_NAME>`, sorted by path. Include nothing else in SUMMARY.md.
