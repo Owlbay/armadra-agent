@@ -25,6 +25,7 @@ import {
 } from "../session/store.js";
 import type { SessionListItem } from "../session/types.js";
 import type { RuntimeDeps, SessionRequest } from "./deps.js";
+import { msg } from "../i18n/index.js";
 
 /** 根目录下全部 cwd 子目录（不含 trash）。 */
 function cwdDirs(root: string): string[] {
@@ -57,7 +58,7 @@ export function findSessionFile(root: string, id: string, cwd?: string): string 
   }
   if (prefix.length > 1) {
     const ids = prefix.map((f) => sessionIdFromFileName(f) ?? f).slice(0, 10);
-    throw new AmaError("invalid_arguments", `会话 id 前缀 ${id} 不唯一，候选：${ids.join(", ")}`, {
+    throw new AmaError("invalid_arguments", msg().cli.composeStore.ambiguousId(id, ids), {
       exitCode: 5,
     });
   }
@@ -66,7 +67,8 @@ export function findSessionFile(root: string, id: string, cwd?: string): string 
 
 function requireFile(root: string, id: string, cwd?: string): string {
   const file = findSessionFile(root, id, cwd);
-  if (file === undefined) throw new AmaError("session_not_found", `会话不存在：${id}`);
+  if (file === undefined)
+    throw new AmaError("session_not_found", msg().cli.composeStore.sessionNotFound(id));
   return file;
 }
 
@@ -95,7 +97,8 @@ export function openSession(
       const source = SessionManager.open(requireFile(root, request.id, cwd));
       try {
         const leaf = source.leafId();
-        if (leaf === null) throw new AmaError("session_corrupt", `会话 ${request.id} 没有条目`);
+        if (leaf === null)
+          throw new AmaError("session_corrupt", msg().cli.composeStore.noEntries(request.id));
         return source.fork(leaf);
       } finally {
         source.close();
@@ -121,7 +124,8 @@ export function createSessionStore(): RuntimeDeps["sessions"] {
     show: async (id, context) => {
       const file = requireFile(context.sessionDir, id);
       const item = SessionManager.list(join(file, "..")).find((i) => i.file === file);
-      if (item === undefined) throw new AmaError("session_corrupt", `会话文件无法读取：${file}`);
+      if (item === undefined)
+        throw new AmaError("session_corrupt", msg().cli.composeStore.unreadable(file));
       const { entries } = migrateSessionLines(readSessionLines(file).lines, file);
       return { item, entries };
     },
