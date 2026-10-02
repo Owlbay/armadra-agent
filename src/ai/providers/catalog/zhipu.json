@@ -1,20 +1,10 @@
 {
   "version": 1,
   "provider": "zhipu",
+  "modelsDev": "zhipuai",
   "models": [
     {
       "id": "glm-5.3",
-      "name": "GLM-5.3",
-      "contextWindow": 1000000,
-      "maxTokens": 131072,
-      "reasoning": true,
-      "input": ["text"],
-      "cost": {
-        "input": 1.4,
-        "output": 4.4,
-        "cacheRead": 0.26,
-        "cacheWrite": 0
-      },
       "thinkingLevelMap": {
         "off": null,
         "minimal": null,
@@ -29,17 +19,6 @@
     },
     {
       "id": "glm-5.3-flash",
-      "name": "GLM-5.3-Flash",
-      "contextWindow": 1000000,
-      "maxTokens": 131072,
-      "reasoning": true,
-      "input": ["text", "image"],
-      "cost": {
-        "input": 0.15,
-        "output": 0.5,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
       "thinkingLevelMap": {
         "off": null,
         "minimal": null,
@@ -54,17 +33,6 @@
     },
     {
       "id": "glm-5.2",
-      "name": "GLM-5.2",
-      "contextWindow": 1000000,
-      "maxTokens": 131072,
-      "reasoning": true,
-      "input": ["text"],
-      "cost": {
-        "input": 1.4,
-        "output": 4.4,
-        "cacheRead": 0.26,
-        "cacheWrite": 0
-      },
       "thinkingLevelMap": {
         "off": "none",
         "minimal": null,
@@ -96,17 +64,6 @@
     },
     {
       "id": "glm-4.7",
-      "name": "GLM-4.7",
-      "contextWindow": 204800,
-      "maxTokens": 131072,
-      "reasoning": true,
-      "input": ["text"],
-      "cost": {
-        "input": 0.6,
-        "output": 2.2,
-        "cacheRead": 0.11,
-        "cacheWrite": 0
-      },
       "compat": {
         "supportsReasoningEffort": false
       }
