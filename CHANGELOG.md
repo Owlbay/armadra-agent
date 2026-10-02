@@ -2,6 +2,12 @@
 
 ## 未发布
 
+- **系统提示维护**：规则节加两条通用规则——破坏性命令（`rm -rf`、`git reset --hard`、强推、删分支）除非用户要求否则先问；
+  独立的只读工具调用放在同一轮（只在 read 可直接调用时出现）。edit 描述写明多处修改用一次调用的 `edits[]`、`oldText` 按原文件
+  匹配、唯一、尽量短、不重叠。新增内置 Skill `ama-docs`（配置速查，按需读取，同名时用户的优先）；Skill 索引改为每条一行、
+  说明压到一行。新增提示长度预算测试（`default` ≤ 2 000、`minimal` ≤ 800、`codemode-only` ≤ 1 775 token）。
+  系统提示前缀因此变化，**升级后每个会话的首个请求缓存未命中一次**（恢复的旧会话追加一条 system 补丁）。
+
 - **图像能力**（第五波 W5-I，docs/providers.md「图像输入」）：单图上限改按 base64 后计算并按端点分档（官方 Anthropic
   10 MB、Gemini / OpenAI 20 MB、中转与未知 5 MB，原来按原始字节 5 MB），任一边超 8000 px 拒绝；超限时按
   `images.resize`（缺省 `auto`）用 `sips` / ImageMagick 缩放。请求图片总量超预算（Anthropic 32 MB、其它 20 MB）时把

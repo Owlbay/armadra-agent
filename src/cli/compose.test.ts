@@ -135,8 +135,8 @@ describe("createRuntimeDeps + bootstrap", () => {
     const sections = firstSystem().sections;
     expect(sections["project_context"]).toContain("project rules");
     expect(sections["project_context"]).toContain("extra instructions");
-    expect(sections["skills"]).toContain("Use the read tool");
-    expect(sections["skills"]).toContain("<name>review</name>");
+    expect(sections["skills"]).toContain("read its file");
+    expect(sections["skills"]).toContain(`<skill name="review"`);
     expect(sections["hooks"]).toBe("from session start");
     await runtime.dispose();
   });
