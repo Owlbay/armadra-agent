@@ -16,6 +16,9 @@
  *   get_tasks / get_agents`（返回形状见 `RpcW5Results`），客户端能力 `plans`（声明后计划审批交客户端）；
  *   新事件由 `SessionEvent` 派生自动包含。命令实现归 W5-F（C0 时返回 `not_implemented`），
  *   `RPC_PROTOCOL_VERSION` 不变。
+ * - [W6-C0] 第六波（docs/wave6-plan.md §2.6、§4.4）：命令 `get_trace`（参数 `RpcGetTraceParams`、返回
+ *   `RpcW6Results`，W6-T2 实现，之前回 `not_implemented`）；事件 `quota_update`；`permission_request.context`
+ *   可带 `toolCallId`；`keySource` 可为 `oauth`。`RPC_PROTOCOL_VERSION` 不变。
  */
 
 import type { AssistantEvent, ImageBlock, ModelThinkingLevel, Usage } from "./ai/types.js";
@@ -30,6 +33,7 @@ import type { AgentInfo } from "./agents/types.js";
 import type { TaskInfo } from "./tools/types.js";
 import type { RewindRequest } from "./checkpoints/types.js";
 import type { ApprovalDecision, PermissionMode } from "./permissions/types.js";
+import type { Trace } from "./trace/types.js";
 
 export type { SessionEvent } from "./agent/types.js";
 
@@ -108,6 +112,34 @@ export interface RpcCommandMap {
   get_todos: NoParams;
   get_tasks: NoParams;
   get_agents: NoParams;
+  // [W6-C0] 轨迹（docs/wave6-plan.md §2.6；W6-T2 实现，之前回 not_implemented）
+  get_trace: RpcGetTraceParams;
+}
+
+/** [W6-C0] `get_trace` 的参数。 */
+export interface RpcGetTraceParams {
+  /** 缺省 leaf。 */
+  branch?: "leaf" | "all";
+  /** 尾部优先的回合数，缺省 50，上限 500。 */
+  turnLimit?: number;
+  /** 回合游标（turn id），向前翻页。 */
+  before?: string;
+  /** 条目游标（同 `get_entries.since`）：只返回从包含该条目的回合起的回合。 */
+  since?: string;
+  /** 该任务的子轨迹（ama 子会话或外部骨架）。 */
+  taskId?: string;
+  /** 缺省 none（只有结构与数字）。 */
+  content?: "none" | "preview";
+}
+
+/** [W6-C0] 第六波命令成功时的 `data` 形状；错误 `task_not_found` / `invalid_arguments`。 */
+export interface RpcW6Results {
+  get_trace: {
+    trace: Trace;
+    hasMoreBefore: boolean;
+    cursor: { before?: string; since: string };
+    leafId: string | null;
+  };
 }
 
 /** [W5-C0] 计划审批的回答（与 `permission_response` 同构）。 */

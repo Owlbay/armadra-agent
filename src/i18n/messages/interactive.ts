@@ -9,6 +9,10 @@ import { plural } from "../format.js";
 import type { Messages } from "../types.js";
 
 export const en = {
+  commands: {
+    /** [W6-C0] 第六波命令登记了但本构建还没有实现。 */
+    unavailable: (name: string) => `/${name} is not available in this build yet`,
+  },
   paste: {
     /** 编辑器里大粘贴的折叠标记（`tui/components/editor-paste.ts`；识别正则同时认两种语言）。 */
     marker: (id: number, lines: number) => `[paste #${id} · ${plural(lines, "line")}]`,
@@ -16,6 +20,9 @@ export const en = {
 };
 
 export const zh = {
+  commands: {
+    unavailable: (name) => `/${name} 当前版本尚未提供`,
+  },
   paste: {
     marker: (id, lines) => `[粘贴 #${id} · ${lines} 行]`,
   },

@@ -245,8 +245,8 @@ describe("RPC 模式：stdin 结束", () => {
 });
 
 describe("RPC 命令表", () => {
-  it("42 条命令都有处理器；状态 / 模型 / 工具 / 会话类命令往返成功", async () => {
-    expect(RPC_COMMAND_TYPES).toHaveLength(42);
+  it("43 条命令都有处理器（[W6-C0] 加 get_trace）；状态 / 模型 / 工具 / 会话类命令往返成功", async () => {
+    expect(RPC_COMMAND_TYPES).toHaveLength(43);
     const { lines } = await drive([{ text: "one" }, { text: "two" }], async (d) => {
       d.send({ id: "p", type: "prompt", message: "hello" });
       await d.waitFor(settled);

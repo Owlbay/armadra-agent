@@ -365,6 +365,10 @@ export const handlers: RpcHandlers = {
   get_todos: async (_p, ctx) => ({ items: currentTodos(impl(ctx.session()).manager.branch()) }),
   get_tasks: async (_p, ctx) => ({ tasks: [...(ctx.tasks?.()?.list() ?? [])] }),
   get_agents: async (_p, ctx) => ({ agents: [...(ctx.agents?.() ?? [])] }),
+  // [W6-C0] W6-T2 换成实现（docs/wave6-plan.md §2.6）
+  get_trace: async () => {
+    throw new AmaError("not_implemented", "get_trace is not available in this build yet");
+  },
 };
 
 export const RPC_COMMAND_TYPES = Object.keys(handlers) as RpcCommandType[];

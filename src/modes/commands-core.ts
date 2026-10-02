@@ -10,6 +10,8 @@
  * 会话切换（/new /resume /fork）经 `ctx.switchSession`，调用方据返回的新会话重新订阅事件。
  * `/rewind`（RW-C）：无参数列出回滚点，带参数执行（interactive/rewind-command.ts）；对话变了时
  * `handled` 带 `draft`（原消息）与 `reload`，界面据此回填输入框、重画消息区。
+ * [W6-C0] `/config`、`/trace`、`/memory` 登记在表里，由各功能批次经 `CommandContext.extra`（line 模式）或
+ * `CommandUi` 的面板钩子（交互模式，interactive/commands.ts）实现；没有实现时回「尚未提供」。
  */
 
 import { AgentSessionImpl } from "../agent/session.js";
@@ -36,6 +38,7 @@ import {
   stopTask,
 } from "./interactive/tasks-report.js";
 import { describeCache, describeFingerprint, describeSession } from "./session-report.js";
+import { msg } from "../i18n/index.js";
 
 export { describeSession } from "./session-report.js";
 
@@ -62,7 +65,18 @@ export interface CommandContext {
    * 保持原模式。没有时直接切换（管道、RPC 等无人值守入口）。
    */
   confirmPermissionMode?(mode: PermissionMode): boolean | Promise<boolean>;
+  /**
+   * [W6-C0] 第六波命令的处理器（命令名 → 处理器）：line 模式 `/config`（W6-S）、`/trace`（W6-T1）、
+   * `/memory`（W6-M）等在这里挂；命中时先于内置分派。交互模式走 `CommandUi` 的面板钩子。
+   */
+  extra?: Readonly<Record<string, CommandHandler>>;
 }
+
+/** [W6-C0] `CommandContext.extra` 的处理器。 */
+export type CommandHandler = (args: string, ctx: CommandContext) => Promise<CommandResult>;
+
+/** [W6-C0] 各功能批次实现的第六波命令（没有处理器时回「尚未提供」）。 */
+export const W6_COMMANDS = ["config", "trace", "memory"] as const;
 
 export interface CommandInfo {
   name: string;
@@ -110,6 +124,14 @@ export const BUILTIN_COMMANDS: readonly CommandInfo[] = [
   { name: "agents", description: "子 Agent 类型与外部 Agent（安装状态、版本）" },
   { name: "paste", description: "粘贴剪贴板里的图片（Ctrl+V）" },
   { name: "exit", description: "退出" },
+  // [W6-C0] 第六波（W6-S / W6-T1 / W6-M 实现；说明随 W6-I3 迁入消息目录）
+  { name: "config", args: "[key=value]", description: "设置面板；key=value 直接设一项（用户级）" },
+  { name: "trace", args: "[任务 id]", description: "轨迹：回合、请求与工具的耗时和用量" },
+  {
+    name: "memory",
+    args: "[show|edit|rm <名字> | on|off | reload]",
+    description: "跨会话记忆（需开启 memory.enabled）",
+  },
 ];
 
 const ALIASES: Readonly<Record<string, string>> = { quit: "exit", q: "exit", "?": "help" };
@@ -174,6 +196,8 @@ export async function runSlashCommand(
   const parsed = parseSlash(line);
   if (parsed === undefined) return undefined;
   const { name, args } = parsed;
+  const handler = ctx.extra?.[name];
+  if (handler !== undefined) return handler(args, ctx);
   const session = ctx.session();
   switch (name) {
     case "help":
@@ -284,6 +308,10 @@ export async function runSlashCommand(
     case "statusline":
       // [W5-A] 交互界面在 commands-core 之前自己处理；line 模式没有底部信息行
       return { kind: "handled", message: "/statusline 只在交互界面可用" };
+    case "config":
+    case "trace":
+    case "memory":
+      return { kind: "handled", message: msg().interactive.commands.unavailable(name) };
     default:
       return undefined;
   }

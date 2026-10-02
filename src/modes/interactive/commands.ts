@@ -10,6 +10,9 @@
  * - `/rewind`（无参数）打开回滚列表与确认面板（rewind-flow.ts）；带参数走 commands-core，对话变了时
  *   重画消息区并回填原消息。
  * - 不是命令（含模板与 `/skill:`）返回 false，调用方把整行当提示发出。
+ * - [W6-C0] 面板钩子：`/config`（W6-S）、`/trace`（W6-T1）、`/memory`（W6-M）按 `PANEL_COMMANDS` 表分派到
+ *   `CommandUi` 的可选钩子；`/tasks` 无参在有 `agentBar` 时聚焦 Agent 栏、`/tasks <id>` 在有 `agentView` 时
+ *   直接进子 Agent 视图（W6-A）。钩子没装时回落 commands-core（line 模式同一套文本）。
  */
 
 import { formatModelRef } from "../../ai/providers/channels.js";
@@ -92,7 +95,52 @@ export interface CommandUi {
   confirmMode?(mode: PermissionMode): boolean | Promise<boolean>;
   /** [W5-U] 界面自己处理的第五波命令（agent-ui.ts）；处理了返回 true。 */
   extra?(name: string, args: string): Promise<boolean>;
+  /** [W6-C0] 聚焦 Agent 栏（W6-A；`/tasks` 无参）。 */
+  agentBar?(): void | Promise<void>;
+  /** [W6-C0] 打开某任务的子 Agent 视图（W6-A；`/tasks <id>`）。 */
+  agentView?(taskId: string): void | Promise<void>;
+  /** [W6-C0] 轨迹覆盖层（W6-T1；`/trace [任务 id]`）。 */
+  traceView?(taskId?: string): void | Promise<void>;
+  /** [W6-C0] 记忆面板 / 子命令（W6-M；`/memory …`）。 */
+  memoryPanel?(args: string): void | Promise<void>;
+  /** [W6-C0] 设置面板（W6-S；`/config`，`/config key=value` 直接设一项）。 */
+  configPanel?(args: string): void | Promise<void>;
 }
+
+/**
+ * [W6-C0] 面板类命令 → `CommandUi` 钩子。钩子存在就调用并返回 true；不存在返回 false（回落 commands-core）。
+ */
+export const PANEL_COMMANDS: Readonly<
+  Record<string, (ui: CommandUi, args: string) => Promise<boolean>>
+> = {
+  config: async (ui, args) => {
+    if (ui.configPanel === undefined) return false;
+    await ui.configPanel(args);
+    return true;
+  },
+  trace: async (ui, args) => {
+    if (ui.traceView === undefined) return false;
+    await ui.traceView(args === "" ? undefined : args);
+    return true;
+  },
+  memory: async (ui, args) => {
+    if (ui.memoryPanel === undefined) return false;
+    await ui.memoryPanel(args);
+    return true;
+  },
+  tasks: async (ui, args) => {
+    const parts = args.split(/\s+/).filter((s) => s !== "");
+    if (parts.length === 0 && ui.agentBar !== undefined) {
+      await ui.agentBar();
+      return true;
+    }
+    if (parts.length === 1 && parts[0] !== "stop" && ui.agentView !== undefined) {
+      await ui.agentView(parts[0] as string);
+      return true;
+    }
+    return false;
+  },
+};
 
 function homeOf(ui: CommandUi): { home?: string } {
   return ui.home !== undefined ? { home: ui.home } : {};
@@ -272,6 +320,8 @@ export async function runInteractiveCommand(line: string, ui: CommandUi): Promis
   if (parsed === undefined) return false;
   try {
     if (ui.extra !== undefined && (await ui.extra(parsed.name, parsed.args))) return true;
+    const panel = PANEL_COMMANDS[parsed.name];
+    if (panel !== undefined && (await panel(ui, parsed.args))) return true;
     if (parsed.name === "tree") {
       await treeCommand(ui);
       return true;
