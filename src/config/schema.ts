@@ -14,6 +14,7 @@ import { WARMING_MODES } from "../ai/cache/types.js";
 import {
   CACHE_RETENTIONS,
   CHANNEL_NAME_PATTERN,
+  CHECKPOINT_MODES,
   CODEMODE_MODES,
   TOOLS_PRESET_INPUTS,
 } from "./types.js";
@@ -37,6 +38,7 @@ export type {
   UiConfig,
   SkillsConfig,
   CacheConfig,
+  CheckpointsConfig,
   ModelConfig,
   ModelOverride,
   ChannelConfig,
@@ -162,6 +164,7 @@ const CONFIG_KEYS = [
   "skills",
   "cache",
   "request",
+  "checkpoints",
   "$schema",
 ] as const;
 
@@ -416,6 +419,11 @@ export function validateConfig(value: unknown): Diagnostic[] {
   checkSection(c, value, "skills", ["dirs"], (s, p) => c.stringArray(s, "dirs", p));
   checkSection(c, value, "request", ["idleTimeoutMs"], (s, p) => {
     c.number(s, "idleTimeoutMs", p, 0);
+  });
+  checkSection(c, value, "checkpoints", ["mode", "maxFileBytes", "keep"], (s, p) => {
+    c.oneOf(s, "mode", p, CHECKPOINT_MODES);
+    c.number(s, "maxFileBytes", p, 0);
+    c.number(s, "keep", p, 1);
   });
   checkSection(
     c,

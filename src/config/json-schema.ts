@@ -13,6 +13,7 @@ import { HOOK_TIMEOUT_MAX_MS, THINKING_LEVELS } from "./schema.js";
 import {
   CACHE_RETENTIONS,
   CHANNEL_NAME_PATTERN,
+  CHECKPOINT_MODES,
   CODEMODE_MODES,
   TOOLS_PRESET_INPUTS,
 } from "./types.js";
@@ -226,6 +227,11 @@ function buildBaseSchema(): Schema {
         warmSubagents: bool(),
       }),
       request: object({ idleTimeoutMs: num(0) }),
+      checkpoints: object({
+        mode: oneOf(CHECKPOINT_MODES),
+        maxFileBytes: num(0),
+        keep: num(1),
+      }),
     }),
     required: ["version"],
   };

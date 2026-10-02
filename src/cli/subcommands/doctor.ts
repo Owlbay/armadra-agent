@@ -8,6 +8,8 @@
  */
 
 import { existsSync } from "node:fs";
+import { blobUsage, fileHistoryDir } from "../../checkpoints/blobs.js";
+import { formatBytes } from "../../checkpoints/gc.js";
 import { baseUrlEnvOf } from "../../ai/providers/registry.js";
 import { classifyKeyValue, isModeTooOpen, fileMode, readAuthFile } from "../../config/auth-file.js";
 import { findContextFiles } from "../../config/context-files.js";
@@ -208,6 +210,18 @@ function proxySection(report: Report, io: CliIo): void {
   for (const line of describeProxy(inspectProxy(io.env))) report.item(line);
 }
 
+/** 检查点备份占用（docs/rewind-plan.md §1.4）。 */
+async function fileHistoryLine(report: Report, dataDir: string): Promise<void> {
+  try {
+    const usage = await blobUsage(dataDir);
+    report.item(
+      `file-history：${usage.blobs} 个备份，${formatBytes(usage.bytes)}（${fileHistoryDir(dataDir)}；ama sessions prune 清理）`,
+    );
+  } catch (error) {
+    report.item(`file-history：读取失败（${(error as Error).message}）`);
+  }
+}
+
 export async function runDoctor(
   argv: readonly string[],
   io: CliIo,
@@ -236,6 +250,7 @@ export async function runDoctor(
   report.section("目录");
   report.item(`配置目录：${level.configDir}`);
   report.item(`数据目录：${level.dataDir}${existsSync(level.dataDir) ? "" : "（尚未创建）"}`);
+  await fileHistoryLine(report, level.dataDir);
   report.section("配置层级（缺省 ← 用户级 ← profile ← 项目级（只能收紧）← 命令行）");
   report.item("缺省：内置");
   probeLine(report, "用户级", "config", level.userConfigPath);

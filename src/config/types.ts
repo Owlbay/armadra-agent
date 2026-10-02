@@ -19,6 +19,7 @@ import type {
   ProviderCompat,
 } from "../ai/types.js";
 import type { PermissionMode } from "../permissions/types.js";
+import type { CheckpointMode } from "../checkpoints/types.js";
 
 export const CONFIG_FILE_VERSION = 1 as const;
 
@@ -222,6 +223,27 @@ export interface RequestConfig {
   idleTimeoutMs?: number;
 }
 
+export const CHECKPOINT_MODES: readonly CheckpointMode[] = ["tools", "shadow-git", "off"];
+
+/**
+ * 检查点（docs/rewind-plan.md §5）。环境变量 `AMA_CHECKPOINTS` 覆盖 `mode`；项目级只接受
+ * `mode: "off"` 与调小 `maxFileBytes`（只能收紧）。
+ */
+export interface CheckpointsConfig {
+  /** tools（缺省）：跟踪 edit / write 改过的文件；shadow-git：影子 git（RW-D）；off：关闭。 */
+  mode?: CheckpointMode;
+  /** 单个文件的备份上限（字节），超出不备份，回滚时报告无法恢复；缺省 5 242 880。 */
+  maxFileBytes?: number;
+  /** 可回滚的最近检查点数，缺省 100。 */
+  keep?: number;
+}
+
+export const DEFAULT_CHECKPOINTS_CONFIG: Readonly<Required<CheckpointsConfig>> = Object.freeze({
+  mode: "tools",
+  maxFileBytes: 5_242_880,
+  keep: 100,
+});
+
 /** config.json（用户级 / 项目级 / profile.config 同形状；项目级只接受受限字段，§10.2）。 */
 export interface AmaConfig {
   version: typeof CONFIG_FILE_VERSION;
@@ -239,6 +261,7 @@ export interface AmaConfig {
   skills?: SkillsConfig;
   cache?: CacheConfig;
   request?: RequestConfig;
+  checkpoints?: CheckpointsConfig;
 }
 
 /** auth.json（0600）。 */

@@ -213,6 +213,16 @@ function firstChangedLine(oldText: string, newText: string): number {
 // 工具
 // ---------------------------------------------------------------------------
 
+/** 检查点：写前备份（docs/rewind-plan.md §2）；钩子按约定不抛，这里再兜一层，不让编辑失败。 */
+export async function beforeWrite(ctx: ToolContext, abs: string): Promise<void> {
+  if (ctx.checkpoint === undefined) return;
+  try {
+    await ctx.checkpoint.beforeWrite(abs);
+  } catch (error) {
+    ctx.log("warn", `checkpoint: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 export async function executeEdit(input: EditInput, ctx: ToolContext): Promise<ToolResult> {
   const abs = resolvePath(input.path, ctx.cwd);
   const shown = displayPath(abs, ctx.cwd);
@@ -237,7 +247,10 @@ export async function executeEdit(input: EditInput, ctx: ToolContext): Promise<T
       if (err instanceof EditError) return { content: `${shown}: ${err.message}`, isError: true };
       throw err;
     }
-    await writeFile(abs, bom + restoreLineEndings(plan.result, ending), "utf8");
+    const output = bom + restoreLineEndings(plan.result, ending);
+    await beforeWrite(ctx, abs);
+    await writeFile(abs, output, "utf8");
+    ctx.checkpoint?.afterWrite(abs, output);
     const details: EditDetails = {
       path: abs,
       diff: unifiedDiff(content, plan.result, shown),

@@ -480,7 +480,7 @@ Armadra 以 `ama --profile <path>` 启动 ama。profile 是一个 JSON 文件，
 | [docs/host-api.md](docs/host-api.md)                                                                 | 宿主适配器 API                                          |
 | [docs/rpc.md](docs/rpc.md)                                                                           | RPC 协议（stdio JSONL）                                 |
 | [docs/session-format.md](docs/session-format.md)                                                     | 会话文件格式                                            |
-| [docs/sessions.md](docs/sessions.md)                                                                 | 会话统计、检索、`--from` 复用与导出                     |
+| [docs/sessions.md](docs/sessions.md)                                                                 | 会话统计、检索、`--from` 复用、导出与检查点备份         |
 | [docs/extensions.md](docs/extensions.md)                                                             | 本地扩展（设计草案，未实现）                            |
 | [docs/design.md](docs/design.md)                                                                     | 总体设计与决策记录                                      |
 | [docs/benchmarks/](docs/benchmarks/)                                                                 | 三预设基准与缓存验收实验（报告与原始数据）              |

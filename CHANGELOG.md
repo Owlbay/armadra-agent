@@ -2,6 +2,11 @@
 
 ## 未发布
 
+- **检查点核心**（docs/rewind-plan.md，回滚的会话接线与界面在后续批次）：edit / write 第一次写文件前备份，
+  每个新回合重拍已跟踪文件；备份按内容 sha256 存 `<数据目录>/file-history/blobs/`。恢复做冲突检测与安全检查
+  （符号链接、硬链接、非普通文件、父目录移动；非 Windows 用 `O_NOFOLLOW`），可预览行级增删。
+  `ama sessions prune` 结束后清理未引用的备份，`ama doctor` 显示占用。新配置 `checkpoints.mode`
+  （`AMA_CHECKPOINTS` 覆盖）、`checkpoints.maxFileBytes`、`checkpoints.keep`。
 - **会话回滚（接口层）**（设计见 docs/rewind-plan.md）：`AgentSession.rewindPoints()` 列出活动路径上开启新回合的用户消息；
   `rewind({ entryId, mode: both | conversation | code, dryRun?, onConflict? })` 回到该消息之前——对话复用 `/tree` 换叶子、
   代码经检查点后端恢复，返回原消息草稿、恢复结果与 git HEAD 变化提示；全部失败报 `rewind_failed`，运行中报 `busy`。
