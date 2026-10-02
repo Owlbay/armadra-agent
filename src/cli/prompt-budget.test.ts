@@ -6,6 +6,8 @@
  * 空工作目录、无 AGENTS.md、无用户 Skill（只有内置 `ama-docs` 一条索引），与 `ama -p hi` 实测口径一致。
  */
 
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { composeHarness, type ComposeHarness } from "../../test/helpers/compose-harness.js";
 import { buildAnthropicRequest } from "../ai/apis/anthropic-request.js";
@@ -27,6 +29,8 @@ const STRICT = detectSandboxCapability("25.0.0", new Set(["--permission"]));
 
 /** 上限（token，字符 / 4）。codemode-only 取实测当前值 +15%。 */
 const PROMPT_BUDGETS = { default: 2000, minimal: 800, "codemode-only": 1775 } as const;
+/** [W6-M] 记忆开启时 default 预设的上限（docs/wave6-plan.md §3.6、§10）。 */
+const MEMORY_BUDGET = 2350;
 
 interface PromptBreakdown {
   tokens: number;
@@ -65,9 +69,12 @@ function measurePrompt(
 async function measurePreset(
   preset: keyof typeof PROMPT_BUDGETS,
   extra: ComposeOptions = {},
-): Promise<PromptBreakdown & { tools: readonly ToolDecl[] }> {
+  argv: readonly string[] = [],
+): Promise<
+  PromptBreakdown & { tools: readonly ToolDecl[]; body: Record<string, unknown>; prefix: string }
+> {
   h = composeHarness();
-  const runtime = await h.boot(["--model", "fake/echo", "--tools-preset", preset], {
+  const runtime = await h.boot(["--model", "fake/echo", "--tools-preset", preset, ...argv], {
     sandboxCapability: STRICT,
     ...extra,
   });
@@ -90,7 +97,8 @@ async function measurePreset(
       .join("/home/user");
   const result = measurePrompt(sections, system.toolsAdded ?? [], body, normalize);
   await runtime.dispose();
-  return { ...result, tools: system.toolsAdded ?? [] };
+  const prefix = normalize(JSON.stringify({ system: body["system"], tools: body["tools"] }));
+  return { ...result, tools: system.toolsAdded ?? [], body, prefix };
 }
 
 describe("提示长度预算（字符 / 4 估算）", () => {
@@ -125,6 +133,32 @@ describe("提示长度预算（字符 / 4 估算）", () => {
     const bash = tools.find((t) => t.name === "bash");
     expect(JSON.stringify(bash?.parameters)).toContain('"sandbox"');
     expect(tokens, lines.join("\n")).toBeLessThanOrEqual(PROMPT_BUDGETS.default);
+  });
+
+  it(`[W6-M] default+memory（空索引，user + project）≤ ${MEMORY_BUDGET} tok`, async () => {
+    const { tokens, lines, tools, body } = await measurePreset("default", {}, [
+      "--memory",
+      "--trust",
+    ]);
+    const report = [`[default+memory] budget ${MEMORY_BUDGET} tok`, ...lines].join("\n");
+    if (process.env["AMA_PROMPT_BUDGET_REPORT"] === "1") console.log(report);
+    expect(tools.map((t) => t.name)).toContain("memory");
+    const system = JSON.stringify(body["system"]);
+    expect(system).toContain('<scope name=\\"user\\">(empty)</scope>');
+    expect(system).toContain('<scope name=\\"project\\">(empty)</scope>');
+    expect(tokens, report).toBeLessThanOrEqual(MEMORY_BUDGET);
+  });
+
+  it("[W6-M] 记忆关闭（缺省 / --no-memory）与 default 的 system + tools 逐字节相同，且不建记忆目录", async () => {
+    const noMemoryDir = (): boolean =>
+      !existsSync(join(h!.home.env["AMA_DATA_DIR"] ?? "", "memory"));
+    const base = await measurePreset("default", { sandboxCapability: STRICT });
+    expect(noMemoryDir()).toBe(true);
+    h?.cleanup();
+    const off = await measurePreset("default", { sandboxCapability: STRICT }, ["--no-memory"]);
+    expect(noMemoryDir()).toBe(true);
+    expect(off.prefix).toBe(base.prefix);
+    expect(off.tokens).toBe(base.tokens);
   });
 
   it("超出预算会失败并给出逐项明细", () => {

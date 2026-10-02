@@ -14,6 +14,7 @@ import { ProviderRegistry } from "../ai/providers/registry.js";
 import type { Model, SystemMessage, TranscriptContext } from "../ai/types.js";
 import type { AgentSession } from "../agent/types.js";
 import { MemoryStore } from "../memory/store.js";
+import { replaySystem } from "../session/projection.js";
 import {
   memoryEnvOverride,
   memoryOf,
@@ -253,6 +254,52 @@ describe("会话里的记忆", () => {
     );
     expect(JSON.stringify(result)).toContain("unknown memory scope");
     expect(existsSync(join(h.home.env["AMA_DATA_DIR"]!, "memory", "projects"))).toBe(false);
+    await runtime.dispose();
+  });
+
+  it("子会话：工具定义与 memory 节同父，写命令在执行层被拒（full-auto 也拒）", async () => {
+    h = composeHarness([
+      { steps: [{ toolCall: { name: "task", arguments: { prompt: "remember x" } } }] },
+      {
+        steps: [
+          {
+            toolCall: {
+              name: "memory",
+              arguments: { command: "create", path: "/memories/user/x.md", file_text: "x" },
+            },
+          },
+        ],
+      },
+      { text: "child done" },
+      { text: "parent done" },
+    ]);
+    h.home.write("home/.config/ama/config.json", { version: 1, tools: { default: ["+task"] } });
+    const runtime = await h.boot([
+      "--model",
+      "fake/echo",
+      "--memory",
+      "--permission-mode",
+      "full-auto",
+    ]);
+    await runtime.session.prompt("go");
+    expect(h.fake.calls).toHaveLength(4);
+    const parent = h.fake.calls[0]!.context;
+    const child = h.fake.calls[1]!.context;
+    const memoryDecl = (c: TranscriptContext) =>
+      JSON.stringify(replaySystem(c.messages)?.tools.find((t) => t.name === "memory"));
+    const sectionOf = (c: TranscriptContext) => replaySystem(c.messages)?.sections["memory"];
+    expect(sectionOf(parent)).toContain("<memory_index");
+    expect(memoryDecl(parent)).toContain('"name":"memory"');
+    expect(memoryDecl(child)).toBe(memoryDecl(parent));
+    expect(sectionOf(child)).toBe(sectionOf(parent));
+    const childResult = h.fake.calls[2]!.context.messages.at(-1);
+    expect(childResult).toMatchObject({
+      role: "toolResult",
+      toolName: "memory",
+      isError: true,
+      content: "subagents cannot modify memory",
+    });
+    expect(existsSync(join(h.home.env["AMA_DATA_DIR"]!, "memory", "user", "x.md"))).toBe(false);
     await runtime.dispose();
   });
 
