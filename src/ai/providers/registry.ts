@@ -5,13 +5,15 @@
  * 合并顺序：内置（builtin.ts + catalog）← config.json `providers.<id>`（字段覆盖；`headers` /
  * `compat` 合并；`models[]` 同 id 整条替换、新 id 追加；`modelOverrides[]` 只改元数据；两者都可带
  * 模型级 `api`，缺省沿用供应商的协议）←
- * auth.json 条目的 `baseUrl`。之后「物化」每个模型：补 baseUrl / headers / compat /
+ * auth.json 条目的 `baseUrl`。内置 openai / anthropic 的 baseUrl 还可来自 `OPENAI_BASE_URL` /
+ * `ANTHROPIC_BASE_URL`（第三波 §2.3，优先级最低，`baseUrlEnv(id)` 报告是否生效）。之后「物化」每个模型：补 baseUrl / headers / compat /
  * authHeader / requiresApiKey，让协议实现只看 Model 就能发请求。
  *
  * 模型引用：`provider/model-id`（model id 自身可含斜杠，如 `openrouter/anthropic/claude-…`）；
  * 前缀不是供应商 id 时整串当 model id。无供应商前缀时全局唯一匹配；多家同名时只留已配置 key
  * 的；仍不唯一 → ambiguous 并列出候选。模型表为空的供应商（ollama、lmstudio、未列模型的
- * 自定义供应商）接受任意 model id，按自定义缺省合成。
+ * 自定义供应商）与 baseUrl 被改到非官方主机的内置供应商（中转站）接受任意 model id，按自定义
+ * 缺省合成；后者 compat 未显式配置 `sendPromptCacheKey` 时置 false。
  */
 
 import type { AmaConfig, ProviderConfig } from "../../config/types.js";
@@ -28,7 +30,7 @@ import type {
   ProviderRegistryApi,
 } from "../types.js";
 import { ApiKeyResolver, type KeyResolverOptions } from "./auth.js";
-import { BUILTIN_PROVIDERS, fallbackEnvKey } from "./builtin.js";
+import { BUILTIN_PROVIDERS, fallbackEnvKey, isRelayedBaseUrl } from "./builtin.js";
 import { applyModelOverride, loadBuiltinCatalog, toModel, withCustomDefaults } from "./catalog.js";
 
 export type ModelSource = "builtin" | "config" | "discovered";
@@ -75,6 +77,10 @@ export class ProviderRegistry implements ProviderRegistryApi {
   readonly warnings: string[] = [];
   private readonly providers = new Map<string, ProviderData>();
   private readonly sources = new Map<string, ModelSource>();
+  /** baseUrl 来自环境变量的供应商 → 变量名（被 config / auth.json 覆盖后删除）。 */
+  private readonly envBaseUrls = new Map<string, string>();
+  /** baseUrl 指向非官方主机的内置供应商：接受目录外的 model id。 */
+  private readonly relayed = new Set<string>();
   private readonly apis: ApiRegistry;
   private readonly keys: ApiKeyResolver;
   private readonly onWarning: ((message: string) => void) | undefined;
@@ -88,20 +94,36 @@ export class ProviderRegistry implements ProviderRegistryApi {
       onWarning: (message) => this.warn(message),
     });
     const catalog = loadBuiltinCatalog();
-    for (const base of BUILTIN_PROVIDERS) {
+    const env = options.keys?.useEnv === false ? {} : (options.keys?.env ?? process.env);
+    for (const { baseUrlEnv, ...base } of BUILTIN_PROVIDERS) {
       const models = (catalog.get(base.id) ?? []).map((entry) => {
         const api = (entry as { api?: Api }).api ?? base.api;
         this.sources.set(`${base.id}/${entry.id}`, "builtin");
         return toModel(entry, base.id, api);
       });
-      this.providers.set(base.id, { ...base, models, builtin: true });
+      const fromEnv = baseUrlEnv !== undefined ? env[baseUrlEnv]?.trim() : undefined;
+      if (baseUrlEnv !== undefined && fromEnv) this.envBaseUrls.set(base.id, baseUrlEnv);
+      this.providers.set(base.id, {
+        ...base,
+        ...(fromEnv ? { baseUrl: fromEnv } : {}),
+        models,
+        builtin: true,
+      });
     }
     for (const [id, config] of Object.entries(options.config?.providers ?? {})) {
       this.applyConfig(id, config);
     }
     for (const provider of this.providers.values()) {
       const baseUrl = this.keys.authEntry(provider.id)?.entry.baseUrl;
-      if (baseUrl) provider.baseUrl = baseUrl;
+      if (baseUrl) {
+        provider.baseUrl = baseUrl;
+        this.envBaseUrls.delete(provider.id);
+      }
+      if (provider.builtin && isRelayedBaseUrl(provider.id, provider.baseUrl)) {
+        this.relayed.add(provider.id);
+        if (provider.compat?.sendPromptCacheKey === undefined)
+          provider.compat = { ...provider.compat, sendPromptCacheKey: false };
+      }
     }
     if (options.includeFake !== false && !this.providers.has("fake")) {
       const fake = fakeProviderData();
@@ -136,7 +158,10 @@ export class ProviderRegistry implements ProviderRegistryApi {
     };
     if (config.name !== undefined) provider.name = config.name;
     if (config.api !== undefined) provider.api = config.api;
-    if (config.baseUrl !== undefined) provider.baseUrl = config.baseUrl;
+    if (config.baseUrl !== undefined) {
+      provider.baseUrl = config.baseUrl;
+      this.envBaseUrls.delete(id);
+    }
     if (config.envKeys !== undefined) {
       provider.envKeys = [
         ...config.envKeys,
@@ -166,6 +191,16 @@ export class ProviderRegistry implements ProviderRegistryApi {
       provider.models[index] = override.api !== undefined ? { ...next, api: override.api } : next;
     }
     this.providers.set(id, provider);
+  }
+
+  /** baseUrl 来自哪个环境变量（未生效返回 undefined）。 */
+  baseUrlEnv(providerId: string): string | undefined {
+    return this.envBaseUrls.get(providerId);
+  }
+
+  /** 内置供应商的 baseUrl 指向非官方主机（中转站）。 */
+  isRelayed(providerId: string): boolean {
+    return this.relayed.has(providerId);
   }
 
   list(): readonly ProviderData[] {
@@ -223,7 +258,7 @@ export class ProviderRegistry implements ProviderRegistryApi {
         const id = trimmed.slice(slash + 1);
         const model = provider.models.find((m) => m.id === id);
         if (model) return { ok: true, model, provider };
-        if (provider.models.length === 0 && id.length > 0) {
+        if ((provider.models.length === 0 || this.relayed.has(provider.id)) && id.length > 0) {
           return { ok: true, model: this.synthesize(provider, id), provider };
         }
         return { ok: false, reason: "not_found", candidates: this.similar(id, provider.id) };

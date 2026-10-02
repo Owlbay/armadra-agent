@@ -178,6 +178,62 @@ describe("ProviderRegistry", () => {
     expect(minimax.ok && minimax.model.baseUrl).toBe("https://relay.example/v1");
   });
 
+  it("OPENAI_BASE_URL / ANTHROPIC_BASE_URL：零配置指向中转，目录外 id 也接受，不发 prompt_cache_key", () => {
+    const r = registry(undefined, {
+      OPENAI_BASE_URL: "https://relay.example/v1",
+      ANTHROPIC_BASE_URL: "https://relay.example",
+    });
+    expect(r.get("openai")?.baseUrl).toBe("https://relay.example/v1");
+    expect(r.baseUrlEnv("openai")).toBe("OPENAI_BASE_URL");
+    expect(r.baseUrlEnv("anthropic")).toBe("ANTHROPIC_BASE_URL");
+    expect(r.isRelayed("openai")).toBe(true);
+    const relayed = r.findModel("openai/deepseek-v4-flash");
+    expect(relayed.ok && relayed.model).toMatchObject({
+      api: "openai-completions",
+      baseUrl: "https://relay.example/v1",
+      compat: { sendPromptCacheKey: false },
+    });
+    const claude = r.findModel("anthropic/MiniMax-M2.7");
+    expect(claude.ok && claude.model).toMatchObject({
+      api: "anthropic-messages",
+      baseUrl: "https://relay.example",
+    });
+    // 官方主机：仍只认目录里的 id；未设变量时不报来源。
+    const plain = registry();
+    expect(plain.findModel("openai/deepseek-v4-flash")).toMatchObject({ ok: false });
+    expect(plain.baseUrlEnv("openai")).toBeUndefined();
+    expect(plain.isRelayed("openai")).toBe(false);
+    const official = registry(undefined, { OPENAI_BASE_URL: "https://api.openai.com/v1/" });
+    expect(official.isRelayed("openai")).toBe(false);
+    expect(official.baseUrlEnv("openai")).toBe("OPENAI_BASE_URL");
+  });
+
+  it("环境变量 baseUrl 的优先级低于 config 与 auth.json；compat 显式配置时不改；useEnv:false 不读", () => {
+    const env = { OPENAI_BASE_URL: "https://env.example/v1" };
+    const r = registry(
+      {
+        version: 1,
+        providers: {
+          openai: { baseUrl: "https://cfg.example/v1", compat: { sendPromptCacheKey: true } },
+        },
+      },
+      env,
+    );
+    expect(r.get("openai")?.baseUrl).toBe("https://cfg.example/v1");
+    expect(r.baseUrlEnv("openai")).toBeUndefined();
+    expect(r.isRelayed("openai")).toBe(true);
+    expect(r.get("openai")?.compat?.sendPromptCacheKey).toBe(true);
+    tmp.write("home/.config/ama/auth.json", {
+      version: 1,
+      providers: { openai: { apiKey: "sk-file", baseUrl: "https://auth.example/v1" } },
+    });
+    const fromAuth = registry(undefined, env);
+    expect(fromAuth.get("openai")?.baseUrl).toBe("https://auth.example/v1");
+    expect(fromAuth.baseUrlEnv("openai")).toBeUndefined();
+    const isolated = new ProviderRegistry({ keys: { env, useEnv: false, userAuthFile: null } });
+    expect(isolated.get("openai")?.baseUrl).toBe("https://api.openai.com/v1");
+  });
+
   it("resolveApiKey：config 的 $ENV 走 key 发现；auth.json 的 baseUrl 覆盖供应商", async () => {
     tmp.write(
       "home/.config/ama/auth.json",
