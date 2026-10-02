@@ -2,7 +2,7 @@
  * 状态栏（设计 §12.6）：编辑器下方一行。[B7]
  *
  * `provider/model · think:medium · ↑12.3k ↓1.2k · cache 80% ♨ · $0.12 · rebill $0.11 · ctx 34%
- *  · queue 1 · mode:default · codemode:only net! · preset:default · [宿主状态]`
+ *  · queue 1 · mode:Manual · codemode:only net! · preset:default · [宿主状态]`（模式用显示名）
  *
  * - 用量来自 `session.getStats()`（`↑` = 输入含缓存读写，`↓` = 输出），只在 `refresh()` 时读取
  *   （事件驱动），渲染只拼字符串；
@@ -18,6 +18,7 @@
  */
 
 import type { AgentSession, SessionCacheStats, SessionStats } from "../../agent/types.js";
+import { permissionModeLabel } from "../../permissions/modes.js";
 import { truncateToWidth, visibleWidth, type Component, type Theme } from "../../tui.js";
 
 export interface StatusBarSource {
@@ -122,7 +123,7 @@ export class StatusBar implements Component {
     });
     if (this.queue > 0)
       parts.push({ text: theme.fg("warning", `queue ${this.queue}`), priority: 4 });
-    const mode = `mode:${state.permissionMode}`;
+    const mode = `mode:${permissionModeLabel(state.permissionMode)}`;
     parts.push({
       text: state.permissionMode === "full-auto" ? theme.fg("warning", mode) : mode,
       priority: 2,

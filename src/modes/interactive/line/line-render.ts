@@ -7,7 +7,7 @@ import type { AgentSession, SessionEvent } from "../../../agent/types.js";
 import { THINKING_LEVELS } from "../../../ai/thinking.js";
 import { listSessions } from "../../../cli/compose-store.js";
 import type { Runtime } from "../../../cli/runtime.js";
-import { PERMISSION_MODES_STRICT_FIRST } from "../../../permissions/types.js";
+import { AUTO_LAYER_TEXT, permissionModeLines } from "../../../permissions/modes.js";
 import type { ApprovalRequest } from "../../../permissions/types.js";
 import type { CommandResult } from "../../commands-core.js";
 import { cacheEventNotice, warmSentNotice } from "../../session-report.js";
@@ -31,12 +31,15 @@ export function argsSummary(args: unknown): string {
 export function approvalQuestion(request: ApprovalRequest): string {
   const task = (request.context?.depth ?? 0) > 0 ? "[task] " : "";
   const summary = argsSummary(request.input);
+  const auto = request.autoDecision;
   const why =
     request.reason === "dangerous"
       ? "（危险命令）"
       : request.hookReason !== undefined
         ? `（${request.hookReason}）`
-        : "";
+        : auto !== undefined
+          ? `（Auto ${AUTO_LAYER_TEXT[auto.layer]}：${auto.reason}）`
+          : "";
   return `${task}允许 ${request.toolName}${summary !== "" ? ` ${summary}` : ""}${why}？[y 允许 / a 本会话都允许 / N 拒绝] `;
 }
 
@@ -189,7 +192,13 @@ export async function pickHint(
       ].join("\n");
     }
     case "permission":
-      return `权限模式（/permission <模式>）：${PERMISSION_MODES_STRICT_FIRST.join(" | ")}；当前 ${session.state.permissionMode}`;
+      return [
+        "Mode（/permission <模式>）：",
+        ...permissionModeLines(
+          session.state.permissionMode,
+          runtime.config.permission?.mode ?? "default",
+        ).map((line) => `  ${line}`),
+      ].join("\n");
     case "thinking":
       return `思考级别（/thinking <级别>）：${THINKING_LEVELS.join(" | ")}；当前 ${session.state.thinkingLevel}`;
   }

@@ -1,9 +1,13 @@
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import type { SessionEntry } from "../../session/types.js";
 import { Editor, MemoryTerminal, TUI, plainTheme } from "../../tui.js";
 import {
   openPicker,
   permissionItems,
+  permissionPickerSpec,
   thinkingItems,
   treeItems,
   userMessageTree,
@@ -11,6 +15,30 @@ import {
 } from "./pickers.js";
 
 const theme = plainTheme();
+
+const FIXTURES = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "..",
+  "test",
+  "fixtures",
+);
+
+/** 帧黄金（与 src/tui/tui-frames.test.ts 同格式）；更新：AMA_UPDATE_GOLDEN=1。 */
+function golden(name: string, terminal: MemoryTerminal): void {
+  const { row, col } = terminal.screen.cursor;
+  const actual =
+    [
+      `# viewport ${terminal.columns}x${terminal.rows} cursor=${row},${col}`,
+      ...terminal.viewport().map((l) => `|${l}`),
+    ].join("\n") + "\n";
+  const file = join(FIXTURES, "tui", `${name}.txt`);
+  if (process.env["AMA_UPDATE_GOLDEN"] === "1" || (!existsSync(file) && !process.env["CI"])) {
+    writeFileSync(file, actual);
+  }
+  expect(actual).toBe(readFileSync(file, "utf8"));
+}
 let tui: TUI | undefined;
 afterEach(() => tui?.stop());
 
@@ -66,20 +94,67 @@ function reply(id: string, parentId: string): SessionEntry {
 describe("选择器", () => {
   it("openPicker：居中覆盖层，当前项预选，Enter 返回、焦点回到编辑器", async () => {
     const { terminal, editor, h, screen, tui } = host();
-    const picked = openPicker(h, {
-      title: "权限模式",
-      items: permissionItems(),
-      selected: "auto-edit",
-    });
+    const picked = openPicker(h, permissionPickerSpec("auto-edit"));
     const shown = screen();
-    expect(shown).toContain("╭─ 权限模式");
-    expect(shown).toContain("› auto-edit");
+    expect(shown).toContain("╭─ Mode");
+    expect(shown).toContain("› ✔ Accept edits");
     expect(shown).toContain("自动接受文件编辑，执行命令仍询问");
     terminal.sendInput("\x1b[B\r");
-    expect((await picked)?.value).toBe("auto");
+    expect((await picked)?.value).toBe("plan");
     expect(tui.getFocus()).toBe(editor);
-    expect(screen()).not.toContain("权限模式");
+    expect(screen()).not.toContain("Mode");
   });
+
+  it("模式选择器：界面顺序、打勾、Default 与 Recommended 徽标、数字键直接选", async () => {
+    const items = permissionItems("auto", "plan");
+    expect(items.map((i) => i.value)).toEqual([
+      "default",
+      "auto-edit",
+      "plan",
+      "auto",
+      "full-auto",
+      "allowlist",
+    ]);
+    expect(items.map((i) => i.label)).toEqual([
+      "  Manual",
+      "  Accept edits",
+      "  Plan",
+      "✔ Auto",
+      "  Bypass permissions",
+      "  Allowlist only",
+    ]);
+    expect(items.map((i) => i.badge)).toEqual([
+      undefined,
+      undefined,
+      "Default",
+      "Recommended",
+      undefined,
+      undefined,
+    ]);
+    expect(permissionItems("default").find((i) => i.value === "default")?.badge).toBe("Default");
+    const { terminal, h } = host();
+    const picked = openPicker(h, permissionPickerSpec("default"));
+    terminal.sendInput("6");
+    expect((await picked)?.value).toBe("allowlist");
+  });
+
+  for (const columns of [80, 40]) {
+    it(`模式选择器帧黄金 ${columns}x24`, () => {
+      const terminal = new MemoryTerminal({ columns, rows: 24 });
+      tui = new TUI(terminal);
+      const editor = new Editor({ theme });
+      tui.addChild(editor);
+      tui.start();
+      tui.setFocus(editor);
+      const t = tui;
+      void openPicker(
+        { theme, showOverlay: (c, o) => t.showOverlay(c, o), columns: () => terminal.columns },
+        permissionPickerSpec("auto-edit"),
+      );
+      t.renderNow();
+      golden(`mode-picker-${columns}x24`, terminal);
+    });
+  }
 
   it("超过 8 项自动可过滤；Esc 取消返回 undefined", async () => {
     const { terminal, h, screen } = host(40);

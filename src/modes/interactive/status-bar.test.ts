@@ -55,7 +55,7 @@ describe("状态栏", () => {
       plainTheme(),
     );
     expect(lines(bar, 120)).toEqual([
-      "anthropic/claude-sonnet · think:medium · ctx ? · mode:default · preset:default",
+      "anthropic/claude-sonnet · think:medium · ctx ? · mode:Manual · preset:default",
     ]);
   });
 
@@ -84,7 +84,7 @@ describe("状态栏", () => {
     bar.setQueue(1, 1);
     bar.refresh();
     expect(lines(bar, 200)).toEqual([
-      "anthropic/claude-sonnet · think:medium · ↑10k ↓1.2k · cache 80% · $0.12 · ctx 34% · queue 2 · mode:full-auto · preset:codemode · [画布已连接 · 网络未隔离]",
+      "anthropic/claude-sonnet · think:medium · ↑10k ↓1.2k · cache 80% · $0.12 · ctx 34% · queue 2 · mode:Bypass permissions · preset:codemode · [画布已连接 · 网络未隔离]",
     ]);
   });
 
@@ -102,9 +102,9 @@ describe("状态栏", () => {
       plainTheme(),
     );
     expect(lines(bar, 40)).toEqual(["anthropic/claude-sonnet · ctx 5%"]);
-    expect(lines(bar, 60)).toEqual(["anthropic/claude-sonnet · ctx 5% · mode:default"]);
+    expect(lines(bar, 60)).toEqual(["anthropic/claude-sonnet · ctx 5% · mode:Manual"]);
     expect(lines(bar, 64)).toEqual([
-      "anthropic/claude-sonnet · think:medium · ctx 5% · mode:default",
+      "anthropic/claude-sonnet · think:medium · ctx 5% · mode:Manual",
     ]);
     expect(lines(bar, 10)[0]).toBe("anthropic…");
   });
@@ -156,7 +156,7 @@ describe("状态栏", () => {
       plainTheme(),
     );
     expect(lines(bar, 200)).toEqual([
-      "anthropic/claude-sonnet · think:medium · ↑10k ↓1.2k · cache 未报告 · $0.12 · ctx 34% · mode:default · preset:default",
+      "anthropic/claude-sonnet · think:medium · ↑10k ↓1.2k · cache 未报告 · $0.12 · ctx 34% · mode:Manual · preset:default",
     ]);
   });
 
@@ -182,7 +182,7 @@ describe("状态栏", () => {
         plainTheme(),
       );
     const full =
-      "anthropic/claude-sonnet · think:medium · ↑10k ↓1.2k · cache 83% ♨ · $0.12 · rebill $0.11 · ctx 34% · mode:default · codemode:only net! · preset:codemode · [画布已连接]";
+      "anthropic/claude-sonnet · think:medium · ↑10k ↓1.2k · cache 83% ♨ · $0.12 · rebill $0.11 · ctx 34% · mode:Manual · codemode:only net! · preset:codemode · [画布已连接]";
     expect(lines(make(false), 200)).toEqual([full]);
     expect(lines(make(true), 200)[0]).toContain("· codemode:only · preset");
     const { reBilledUsd: _usd, ...unpriced } = stats.cache;
@@ -191,14 +191,14 @@ describe("状态栏", () => {
     const bar = make(false);
     // 先丢宿主、预设、rebill、费用、cache……codemode 比队列以外的项都晚丢
     expect(lines(bar, 125)).toEqual([
-      "anthropic/claude-sonnet · think:medium · ↑10k ↓1.2k · cache 83% ♨ · $0.12 · ctx 34% · mode:default · codemode:only net!",
+      "anthropic/claude-sonnet · think:medium · ↑10k ↓1.2k · cache 83% ♨ · $0.12 · ctx 34% · mode:Manual · codemode:only net!",
     ]);
     expect(lines(bar, 100)).toEqual([
-      "anthropic/claude-sonnet · think:medium · ↑10k ↓1.2k · ctx 34% · mode:default · codemode:only net!",
+      "anthropic/claude-sonnet · think:medium · ↑10k ↓1.2k · ctx 34% · mode:Manual · codemode:only net!",
     ]);
     expect(lines(bar, 70)).toEqual([
-      "anthropic/claude-sonnet · ctx 34% · mode:default · codemode:only net!",
+      "anthropic/claude-sonnet · ctx 34% · mode:Manual · codemode:only net!",
     ]);
-    expect(lines(bar, 50)).toEqual(["anthropic/claude-sonnet · ctx 34% · mode:default"]);
+    expect(lines(bar, 50)).toEqual(["anthropic/claude-sonnet · ctx 34% · mode:Manual"]);
   });
 });

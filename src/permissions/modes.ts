@@ -63,6 +63,30 @@ export function nextCycleMode(mode: PermissionMode): PermissionMode {
   return PERMISSION_MODE_CYCLE[(index + 1) % PERMISSION_MODE_CYCLE.length] as PermissionMode;
 }
 
+/** line 模式 `/permission` 与 `/permissions` 用的纯文本列表（与选择器同一顺序与标注）。 */
+export function permissionModeLines(
+  current: PermissionMode,
+  configDefault: PermissionMode,
+): string[] {
+  return PERMISSION_MODE_ORDER.map((mode, i) => {
+    const info = PERMISSION_MODE_INFO[mode];
+    const tags = [
+      ...(mode === configDefault ? ["Default"] : []),
+      ...(mode === RECOMMENDED_PERMISSION_MODE ? ["Recommended"] : []),
+    ];
+    const mark = mode === current ? "✔" : " ";
+    const tail = tags.length > 0 ? `  [${tags.join(", ")}]` : "";
+    return `${mark} ${i + 1}. ${info.label} (${mode}) — ${info.description}${tail}`;
+  });
+}
+
+/** 审批对话框与提示里 auto 判定层的中文名。 */
+export const AUTO_LAYER_TEXT: Readonly<Record<"rule" | "static" | "classifier", string>> = {
+  rule: "规则层",
+  static: "静态判定",
+  classifier: "分类器",
+};
+
 /**
  * 命令参数里的模式：接受值（`auto-edit`）或显示名（`Accept edits`、`accept-edits`，大小写不敏感）。
  */

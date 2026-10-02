@@ -8,7 +8,7 @@
 
 import type { AgentSession } from "../../agent/types.js";
 import { ExitCode } from "../../cli/exit-codes.js";
-import { PERMISSION_MODES_STRICT_FIRST } from "../../permissions/types.js";
+import { nextCycleMode, permissionModeLabel } from "../../permissions/modes.js";
 import type { Editor, Keybindings } from "../../tui.js";
 import type { StatusBar } from "./status-bar.js";
 import type { ToolTracker } from "./tool-view.js";
@@ -63,12 +63,10 @@ export function createKeyDispatch(deps: KeyDispatchDeps): (data: string) => bool
 
   const cyclePermission = (): void => {
     const session = deps.session();
-    const modes = PERMISSION_MODES_STRICT_FIRST;
-    const index = modes.indexOf(session.state.permissionMode);
-    const next = modes[(index + 1) % modes.length]!;
+    const next = nextCycleMode(session.state.permissionMode);
     session.setPermissionMode(next);
     status.refresh();
-    deps.showHint(`权限模式：${next}`);
+    deps.showHint(`权限模式：${permissionModeLabel(next)}`);
   };
 
   return (data) => {

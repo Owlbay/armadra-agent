@@ -5,7 +5,7 @@
 |────────────────────────────────────────
 |
 |────────────────────────────────────────
-|fake/echo · ctx 0% · mode:default
+|fake/echo · ctx 0% · mode:Manual
 |
 |
 |
@@ -31,7 +31,7 @@
 |────────────────────────────────────────
 |读一下 README，说说是什么
 |────────────────────────────────────────
-|fake/echo · ctx 0% · mode:default
+|fake/echo · ctx 0% · mode:Manual
 |
 |
 |
@@ -66,7 +66,7 @@
 |────────────────────────────────────────
 |
 |────────────────────────────────────────
-|fake/echo · ctx 1% · mode:default
+|fake/echo · ctx 1% · mode:Manual
 |
 |
 |
@@ -98,7 +98,7 @@
 |────────────────────────────────────────
 |
 |────────────────────────────────────────
-|fake/echo · ctx 1% · mode:default
+|fake/echo · ctx 1% · mode:Manual
 |
 |
 
@@ -126,7 +126,7 @@
 |
 |────────────────────────────────────────
 |工具输出：展开
-|fake/echo · ctx 1% · mode:default
+|fake/echo · ctx 1% · mode:Manual
 
 # exit · viewport 40x24 cursor=23,0
 |ama <version> · Enter 发送 · Esc 中断 ·
@@ -151,5 +151,5 @@
 |────────────────────────────────────────
 |
 |────────────────────────────────────────
-|fake/echo · ctx 1% · mode:default
+|fake/echo · ctx 1% · mode:Manual
 |

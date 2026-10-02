@@ -4,13 +4,17 @@
  * - 模型：按供应商分组并标 key 状态（`modelItems`，与启动期共用），当前模型预选；
  * - 会话：名字或首条提示、相对时间、消息数（`sessionItems`）；
  * - 树：会话文件里全部用户消息，按分叉缩进，`●` 标出当前分支；选中项回填编辑器（由 commands.ts 处理）；
- * - 权限模式（从严到宽）与思考级别。
+ * - 权限模式（标题 Mode，界面顺序 1–6，打勾 / Default / Recommended，见 permissionItems）与思考级别。
  */
 
 import type { ModelThinkingLevel } from "../../ai/types.js";
 import { THINKING_LEVELS } from "../../ai/thinking.js";
-import { PERMISSION_MODE_INFO } from "../../permissions/modes.js";
-import { PERMISSION_MODES_STRICT_FIRST } from "../../permissions/types.js";
+import {
+  PERMISSION_MODE_INFO,
+  PERMISSION_MODE_ORDER,
+  RECOMMENDED_PERMISSION_MODE,
+} from "../../permissions/modes.js";
+import type { PermissionMode } from "../../permissions/types.js";
 import type { SessionEntry } from "../../session/types.js";
 import {
   Box,
@@ -42,6 +46,10 @@ export interface PickerSpec {
   filterable?: boolean;
   maxVisible?: number;
   emptyText?: string;
+  /** 右侧序号 1–9，按数字直接选中。 */
+  numberKeys?: boolean;
+  /** 说明放在标签下一行。 */
+  stacked?: boolean;
 }
 
 /** 打开一个居中选择器；Enter 返回选中项，Esc / Ctrl+C 返回 undefined。 */
@@ -58,6 +66,8 @@ export function openPicker(host: PickerHost, spec: PickerSpec): Promise<SelectIt
       filterable: spec.filterable ?? spec.items.length > 8,
       ...(host.keybindings !== undefined ? { keybindings: host.keybindings } : {}),
       ...(spec.emptyText !== undefined ? { emptyText: spec.emptyText } : {}),
+      ...(spec.numberKeys === true ? { numberKeys: true } : {}),
+      ...(spec.stacked === true ? { stacked: true } : {}),
       onSelect: (item) => close(item),
       onCancel: () => close(undefined),
     });
@@ -70,12 +80,42 @@ export function openPicker(host: PickerHost, spec: PickerSpec): Promise<SelectIt
   });
 }
 
-export function permissionItems(): SelectItem[] {
-  return PERMISSION_MODES_STRICT_FIRST.map((mode) => ({
-    value: mode,
-    label: mode,
-    description: PERMISSION_MODE_INFO[mode].description,
-  }));
+/**
+ * 模式选择器（标题 Mode）：界面顺序、当前模式打勾、配置里的缺省模式标 `Default`、Auto 标
+ * `Recommended`，右侧数字快捷键 1–6，说明在下一行。
+ */
+export function permissionItems(
+  current: PermissionMode,
+  configDefault: PermissionMode = "default",
+): SelectItem[] {
+  return PERMISSION_MODE_ORDER.map((mode) => {
+    const info = PERMISSION_MODE_INFO[mode];
+    const item: SelectItem = {
+      value: mode,
+      label: `${mode === current ? "✔" : " "} ${info.label}`,
+      description: info.description,
+    };
+    const badges = [
+      ...(mode === configDefault ? ["Default"] : []),
+      ...(mode === RECOMMENDED_PERMISSION_MODE ? ["Recommended"] : []),
+    ];
+    if (badges.length > 0) item.badge = badges.join(" · ");
+    return item;
+  });
+}
+
+export function permissionPickerSpec(
+  current: PermissionMode,
+  configDefault: PermissionMode = "default",
+): PickerSpec {
+  return {
+    title: "Mode",
+    items: permissionItems(current, configDefault),
+    selected: current,
+    filterable: false,
+    numberKeys: true,
+    stacked: true,
+  };
 }
 
 export function thinkingItems(reasoning: boolean): SelectItem[] {
