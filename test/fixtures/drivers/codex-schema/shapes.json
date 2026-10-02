@@ -1,0 +1,550 @@
+{
+  "source": "codex 0.160.0 app-server generate-json-schema",
+  "objects": {
+    "InitializeParams": {
+      "properties": [
+        "capabilities",
+        "clientInfo"
+      ],
+      "required": [
+        "clientInfo"
+      ]
+    },
+    "ThreadStartParams": {
+      "properties": [
+        "approvalPolicy",
+        "approvalsReviewer",
+        "baseInstructions",
+        "config",
+        "cwd",
+        "developerInstructions",
+        "ephemeral",
+        "model",
+        "modelProvider",
+        "personality",
+        "sandbox",
+        "serviceName",
+        "serviceTier",
+        "sessionStartSource",
+        "threadSource"
+      ],
+      "required": []
+    },
+    "ThreadResumeParams": {
+      "properties": [
+        "approvalPolicy",
+        "approvalsReviewer",
+        "baseInstructions",
+        "config",
+        "cwd",
+        "developerInstructions",
+        "excludeTurns",
+        "model",
+        "modelProvider",
+        "personality",
+        "sandbox",
+        "serviceTier",
+        "threadId"
+      ],
+      "required": [
+        "threadId"
+      ]
+    },
+    "TurnStartParams": {
+      "properties": [
+        "approvalPolicy",
+        "approvalsReviewer",
+        "clientUserMessageId",
+        "cwd",
+        "disabledPluginIds",
+        "effort",
+        "input",
+        "model",
+        "outputSchema",
+        "personality",
+        "sandboxPolicy",
+        "serviceTier",
+        "serviceTierForTurn",
+        "summary",
+        "threadId",
+        "toolOutput",
+        "turnTrigger"
+      ],
+      "required": [
+        "input",
+        "threadId"
+      ]
+    },
+    "TurnSteerParams": {
+      "properties": [
+        "clientUserMessageId",
+        "expectedTurnId",
+        "input",
+        "threadId"
+      ],
+      "required": [
+        "expectedTurnId",
+        "input",
+        "threadId"
+      ]
+    },
+    "TurnInterruptParams": {
+      "properties": [
+        "threadId",
+        "turnId"
+      ],
+      "required": [
+        "threadId",
+        "turnId"
+      ]
+    },
+    "AgentMessageDeltaNotification": {
+      "properties": [
+        "delta",
+        "itemId",
+        "threadId",
+        "turnId"
+      ],
+      "required": [
+        "delta",
+        "itemId",
+        "threadId",
+        "turnId"
+      ]
+    },
+    "ItemStartedNotification": {
+      "properties": [
+        "item",
+        "startedAtMs",
+        "threadId",
+        "turnId"
+      ],
+      "required": [
+        "item",
+        "startedAtMs",
+        "threadId",
+        "turnId"
+      ]
+    },
+    "ItemCompletedNotification": {
+      "properties": [
+        "completedAtMs",
+        "item",
+        "threadId",
+        "turnId"
+      ],
+      "required": [
+        "completedAtMs",
+        "item",
+        "threadId",
+        "turnId"
+      ]
+    },
+    "TurnCompletedNotification": {
+      "properties": [
+        "threadId",
+        "turn"
+      ],
+      "required": [
+        "threadId",
+        "turn"
+      ]
+    },
+    "TurnPlanUpdatedNotification": {
+      "properties": [
+        "explanation",
+        "plan",
+        "threadId",
+        "turnId"
+      ],
+      "required": [
+        "plan",
+        "threadId",
+        "turnId"
+      ]
+    },
+    "ThreadTokenUsageUpdatedNotification": {
+      "properties": [
+        "threadId",
+        "tokenUsage",
+        "turnId"
+      ],
+      "required": [
+        "threadId",
+        "tokenUsage",
+        "turnId"
+      ]
+    },
+    "ErrorNotification": {
+      "properties": [
+        "error",
+        "threadId",
+        "turnId",
+        "willRetry"
+      ],
+      "required": [
+        "error",
+        "threadId",
+        "turnId",
+        "willRetry"
+      ]
+    },
+    "CommandExecutionRequestApprovalParams": {
+      "properties": [
+        "approvalId",
+        "command",
+        "commandActions",
+        "cwd",
+        "environmentId",
+        "itemId",
+        "kind",
+        "networkApprovalContext",
+        "proposedExecpolicyAmendment",
+        "proposedNetworkPolicyAmendments",
+        "reason",
+        "startedAtMs",
+        "threadId",
+        "turnId"
+      ],
+      "required": [
+        "itemId",
+        "startedAtMs",
+        "threadId",
+        "turnId"
+      ]
+    },
+    "CommandExecutionRequestApprovalResponse": {
+      "properties": [
+        "decision"
+      ],
+      "required": [
+        "decision"
+      ]
+    },
+    "FileChangeRequestApprovalParams": {
+      "properties": [
+        "grantRoot",
+        "itemId",
+        "reason",
+        "startedAtMs",
+        "threadId",
+        "turnId"
+      ],
+      "required": [
+        "itemId",
+        "startedAtMs",
+        "threadId",
+        "turnId"
+      ]
+    },
+    "FileChangeRequestApprovalResponse": {
+      "properties": [
+        "decision"
+      ],
+      "required": [
+        "decision"
+      ]
+    },
+    "PermissionsRequestApprovalParams": {
+      "properties": [
+        "cwd",
+        "environmentId",
+        "itemId",
+        "permissions",
+        "reason",
+        "startedAtMs",
+        "threadId",
+        "turnId"
+      ],
+      "required": [
+        "cwd",
+        "itemId",
+        "permissions",
+        "startedAtMs",
+        "threadId",
+        "turnId"
+      ]
+    },
+    "PermissionsRequestApprovalResponse": {
+      "properties": [
+        "permissions",
+        "scope",
+        "strictAutoReview"
+      ],
+      "required": [
+        "permissions"
+      ]
+    },
+    "ToolRequestUserInputParams": {
+      "properties": [
+        "autoResolutionMs",
+        "isBlocking",
+        "itemId",
+        "questions",
+        "threadId",
+        "turnId"
+      ],
+      "required": [
+        "isBlocking",
+        "itemId",
+        "questions",
+        "threadId",
+        "turnId"
+      ]
+    },
+    "McpServerElicitationRequestResponse": {
+      "properties": [
+        "_meta",
+        "action",
+        "content"
+      ],
+      "required": [
+        "action"
+      ]
+    }
+  },
+  "definitions": {
+    "AskForApproval": {
+      "enum": [
+        "never",
+        "on-request",
+        "untrusted",
+        "{granular}"
+      ]
+    },
+    "SandboxMode": {
+      "enum": [
+        "danger-full-access",
+        "read-only",
+        "workspace-write"
+      ]
+    },
+    "CommandExecutionApprovalDecision": {
+      "enum": [
+        "accept",
+        "acceptForSession",
+        "cancel",
+        "decline",
+        "{acceptWithExecpolicyAmendment}",
+        "{applyNetworkPolicyAmendment}"
+      ]
+    },
+    "FileChangeApprovalDecision": {
+      "enum": [
+        "accept",
+        "acceptForSession",
+        "cancel",
+        "decline"
+      ]
+    },
+    "PermissionGrantScope": {
+      "enum": [
+        "session",
+        "turn"
+      ]
+    },
+    "McpServerElicitationAction": {
+      "enum": [
+        "accept",
+        "cancel",
+        "decline"
+      ]
+    },
+    "TurnStatus": {
+      "enum": [
+        "completed",
+        "failed",
+        "inProgress",
+        "interrupted"
+      ]
+    },
+    "TokenUsageBreakdown": {
+      "properties": [
+        "cacheWriteInputTokens",
+        "cachedInputTokens",
+        "inputTokens",
+        "outputTokens",
+        "reasoningOutputTokens",
+        "totalTokens"
+      ],
+      "required": [
+        "cachedInputTokens",
+        "inputTokens",
+        "outputTokens",
+        "reasoningOutputTokens",
+        "totalTokens"
+      ]
+    },
+    "ThreadTokenUsage": {
+      "properties": [
+        "last",
+        "modelContextWindow",
+        "total"
+      ],
+      "required": [
+        "last",
+        "total"
+      ]
+    },
+    "Turn": {
+      "properties": [
+        "completedAt",
+        "durationMs",
+        "error",
+        "id",
+        "items",
+        "itemsView",
+        "startedAt",
+        "status"
+      ],
+      "required": [
+        "id",
+        "items",
+        "status"
+      ]
+    },
+    "TurnPlanStep": {
+      "properties": [
+        "status",
+        "step"
+      ],
+      "required": [
+        "status",
+        "step"
+      ]
+    }
+  },
+  "methods": {
+    "client": [
+      {
+        "method": "initialize",
+        "present": true
+      },
+      {
+        "method": "thread/start",
+        "present": true
+      },
+      {
+        "method": "thread/resume",
+        "present": true
+      },
+      {
+        "method": "thread/fork",
+        "present": true
+      },
+      {
+        "method": "thread/read",
+        "present": true
+      },
+      {
+        "method": "thread/list",
+        "present": true
+      },
+      {
+        "method": "turn/start",
+        "present": true
+      },
+      {
+        "method": "turn/steer",
+        "present": true
+      },
+      {
+        "method": "turn/interrupt",
+        "present": true
+      },
+      {
+        "method": "model/list",
+        "present": true
+      },
+      {
+        "method": "account/rateLimits/read",
+        "present": true
+      }
+    ],
+    "server": [
+      {
+        "method": "item/commandExecution/requestApproval",
+        "present": true
+      },
+      {
+        "method": "item/fileChange/requestApproval",
+        "present": true
+      },
+      {
+        "method": "item/permissions/requestApproval",
+        "present": true
+      },
+      {
+        "method": "item/tool/requestUserInput",
+        "present": true
+      },
+      {
+        "method": "mcpServer/elicitation/request",
+        "present": true
+      }
+    ],
+    "notification": [
+      {
+        "method": "item/agentMessage/delta",
+        "present": true
+      },
+      {
+        "method": "item/reasoning/summaryTextDelta",
+        "present": true
+      },
+      {
+        "method": "item/reasoning/textDelta",
+        "present": true
+      },
+      {
+        "method": "item/started",
+        "present": true
+      },
+      {
+        "method": "item/completed",
+        "present": true
+      },
+      {
+        "method": "turn/started",
+        "present": true
+      },
+      {
+        "method": "turn/completed",
+        "present": true
+      },
+      {
+        "method": "turn/plan/updated",
+        "present": true
+      },
+      {
+        "method": "thread/tokenUsage/updated",
+        "present": true
+      },
+      {
+        "method": "error",
+        "present": true
+      }
+    ]
+  },
+  "threadItemTypes": [
+    "agentMessage",
+    "collabAgentToolCall",
+    "commandExecution",
+    "contextCompaction",
+    "dynamicToolCall",
+    "enteredReviewMode",
+    "exitedReviewMode",
+    "fileChange",
+    "functionCallOutput",
+    "hookPrompt",
+    "imageGeneration",
+    "imageView",
+    "mcpToolCall",
+    "plan",
+    "reasoning",
+    "sleep",
+    "subAgentActivity",
+    "userMessage",
+    "webSearch"
+  ]
+}

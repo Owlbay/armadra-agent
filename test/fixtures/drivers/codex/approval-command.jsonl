@@ -1,0 +1,17 @@
+// codex-cli 0.160.0（手写）：命令审批 → 本会话允许（acceptForSession）→ 命令完成；用量按 total 差值
+{"dir":"in","msg":{"id":"$init","method":"initialize","params":{"clientInfo":{"name":"ama","title":"ama"},"capabilities":{"experimentalApi":false,"requestAttestation":false}}}}
+{"dir":"out","msg":{"id":"$init","result":{"userAgent":"codex_cli_rs/0.160.0","codexHome":"/home/u/.codex","platformFamily":"unix","platformOs":"linux"}}}
+{"dir":"in","msg":{"method":"initialized"}}
+{"dir":"in","msg":{"id":"$thread","method":"thread/start","params":{"cwd":"/work","approvalPolicy":"on-request","sandbox":"workspace-write"}}}
+{"dir":"out","msg":{"id":"$thread","result":{"thread":{"id":"t-2"}}}}
+{"dir":"in","msg":{"id":"$turn","method":"turn/start","params":{"threadId":"t-2"}}}
+{"dir":"out","msg":{"id":"$turn","result":{"turn":{"id":"turn-2","items":[],"status":"inProgress","error":null}}}}
+{"dir":"out","msg":{"method":"thread/tokenUsage/updated","params":{"threadId":"t-2","turnId":"turn-2","tokenUsage":{"total":{"totalTokens":100,"inputTokens":90,"cachedInputTokens":0,"cacheWriteInputTokens":0,"outputTokens":10,"reasoningOutputTokens":0},"last":{"totalTokens":100,"inputTokens":90,"cachedInputTokens":0,"cacheWriteInputTokens":0,"outputTokens":10,"reasoningOutputTokens":0},"modelContextWindow":null}}}}
+{"dir":"out","msg":{"method":"item/started","params":{"item":{"type":"commandExecution","id":"c1","command":"pnpm test","cwd":"/work","status":"inProgress","commandActions":[]},"threadId":"t-2","turnId":"turn-2","startedAtMs":0}}}
+{"dir":"out","msg":{"id":0,"method":"item/commandExecution/requestApproval","params":{"kind":"command","threadId":"t-2","turnId":"turn-2","itemId":"c1","startedAtMs":0,"environmentId":null,"command":"pnpm test","cwd":"/work","reason":"needs network"}}}
+{"dir":"in","msg":{"id":0,"result":{"decision":"acceptForSession"}}}
+{"dir":"out","msg":{"method":"item/completed","params":{"item":{"type":"commandExecution","id":"c1","command":"pnpm test","cwd":"/work","status":"completed","exitCode":0,"aggregatedOutput":"ok"},"threadId":"t-2","turnId":"turn-2","completedAtMs":0}}}
+{"dir":"out","msg":{"method":"turn/plan/updated","params":{"threadId":"t-2","turnId":"turn-2","explanation":null,"plan":[{"step":"run tests","status":"completed"}]}}}
+{"dir":"out","msg":{"method":"item/completed","params":{"item":{"type":"agentMessage","id":"m2","text":"Tests pass."},"threadId":"t-2","turnId":"turn-2","completedAtMs":0}}}
+{"dir":"out","msg":{"method":"thread/tokenUsage/updated","params":{"threadId":"t-2","turnId":"turn-2","tokenUsage":{"total":{"totalTokens":300,"inputTokens":260,"cachedInputTokens":50,"cacheWriteInputTokens":0,"outputTokens":40,"reasoningOutputTokens":0},"last":{"totalTokens":200,"inputTokens":170,"cachedInputTokens":50,"cacheWriteInputTokens":0,"outputTokens":30,"reasoningOutputTokens":0},"modelContextWindow":272000}}}}
+{"dir":"out","msg":{"method":"turn/completed","params":{"threadId":"t-2","turn":{"id":"turn-2","items":[],"status":"completed","error":null}}}}

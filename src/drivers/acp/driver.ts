@@ -230,15 +230,17 @@ class AcpDriverSession implements DriverSession {
     const request = this.client.prompt(this.id, toAcpContent(content, images));
     this.running = request;
     try {
-      const result = await Promise.race([
-        request,
-        this.client.closed.then(() => {
-          throw new AmaError(
-            "agent_exited",
-            `${this.agentId} 进程已退出${stderrHint(this.transport) !== "" ? `：${stderrHint(this.transport)}` : ""}`,
-          );
-        }),
-      ]);
+      const result = await request.catch((error: unknown) => {
+        if (this.client.isOpen) throw error;
+        const hint = stderrHint(this.transport);
+        throw new AmaError(
+          "agent_exited",
+          `${this.agentId} 进程已退出${hint !== "" ? `：${hint}` : ""}`,
+          {
+            cause: error,
+          },
+        );
+      });
       const usage = result.usage;
       if (usage != null) {
         turn.mergeUsage({
