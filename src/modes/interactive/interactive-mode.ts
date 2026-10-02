@@ -11,7 +11,8 @@
  * - 晚绑定：`runtime.approvals.setUiBroker`（审批对话框）与 `runtime.notifier.set`（宿主通知进消息区），
  *   退出时撤下。
  * - 键位：Enter 发送（运行中 = steer），其余应用级键位见 `key-dispatch.ts`。
- * - 启动画面按 `ui.quietStartup`：normal 标题 + 模型 / 信任 / 资源清单，header 只有标题，silent 不输出。
+ * - 启动头按 `ui.quietStartup`（startup-header.ts）：normal 框 + 模型 / 目录 / 模式 / 资源清单（窄屏或
+ *   `ui.compact` 去框），header 一行，silent 不输出。
  */
 
 import { promptImages, sessionModel } from "../image-input.js";
@@ -21,7 +22,7 @@ import type { AgentSession, SessionEvent } from "../../agent/types.js";
 import { currentSession, switchSession, type SwitchRequest } from "../../cli/compose-session.js";
 import type { ModeContext } from "../../cli/deps.js";
 import type { Runtime } from "../../cli/runtime.js";
-import { buildStartupScreen } from "../../cli/startup-screen.js";
+import { startupInfo, startupScreenLevel } from "../../cli/startup-screen.js";
 import { KEYBINDINGS_FILE } from "../../config/paths.js";
 import { AmaError, isAmaError } from "../../errors.js";
 import { detectSandboxCapability } from "../../codemode/capability.js";
@@ -53,6 +54,7 @@ import { InteractiveCompletion } from "./completion.js";
 import { createKeyDispatch } from "./key-dispatch.js";
 import { MessageView, type NoticeLevel } from "./message-view.js";
 import { openPicker } from "./pickers.js";
+import { StartupHeader } from "./startup-header.js";
 import { StatusBar } from "./status-bar.js";
 import { ToolTracker } from "./tool-view.js";
 
@@ -347,11 +349,14 @@ export function runInteractiveMode(
   };
   let unsubscribe = session.subscribe(onEvent);
 
-  const startup = buildStartupScreen(runtime);
-  /** 清空消息区（切换会话、/tree）：只留标题行。 */
+  const startupLevel = startupScreenLevel(runtime);
+  const info = startupInfo(runtime, env["HOME"] ?? env["USERPROFILE"]);
+  const header = (level: "normal" | "header"): StartupHeader =>
+    new StartupHeader(info, { theme, level, ...(ui.compact === true ? { compact: true } : {}) });
+  /** 清空消息区（切换会话、/tree）：只留一行头。 */
   const resetView = (): void => {
     view.reset();
-    view.addHeader(startup.slice(0, 1));
+    if (startupLevel !== "silent") view.add(header("header"));
   };
 
   const replay = (): void => {
@@ -543,7 +548,7 @@ export function runInteractiveMode(
       });
   }
 
-  view.addHeader(startup);
+  if (startupLevel !== "silent") view.add(header(startupLevel));
   for (const warning of startupWarnings) view.addNotice("warn", warning);
   replay();
   status.refresh();

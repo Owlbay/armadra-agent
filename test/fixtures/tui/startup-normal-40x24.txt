@@ -1,0 +1,25 @@
+# startup normal · viewport 40x24 cursor=8,2
+|✻ ama <version>
+|fake/echo · medium
+|~/work · 已信任
+|Manual · default
+|AGENTS.md
+|/help · Shift+Tab 切模式
+|
+|────────────────────────────────────────
+|› 输入消息，/ 命令，@ 文件，Shift+Enter…
+|────────────────────────────────────────
+|fake/echo · ctx 0% · mode:Manual
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|

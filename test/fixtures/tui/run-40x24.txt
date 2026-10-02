@@ -1,6 +1,5 @@
-# startup · viewport 40x24 cursor=4,2
-|ama <version> · Enter 发送 · Esc 中断 ·
-|Ctrl+C 两次退出 · /help 命令
+# startup · viewport 40x24 cursor=3,2
+|✻ ama <version> · fake/echo · Manual · /help
 |
 |────────────────────────────────────────
 |› 输入消息，/ 命令，@ 文件，Shift+Enter…
@@ -23,10 +22,10 @@
 |
 |
 |
+|
 
-# typed · viewport 40x24 cursor=4,27
-|ama <version> · Enter 发送 · Esc 中断 ·
-|Ctrl+C 两次退出 · /help 命令
+# typed · viewport 40x24 cursor=3,27
+|✻ ama <version> · fake/echo · Manual · /help
 |
 |────────────────────────────────────────
 |› 读一下 README，说说是什么
@@ -49,10 +48,10 @@
 |
 |
 |
+|
 
-# tool running · viewport 40x24 cursor=13,2
-|ama <version> · Enter 发送 · Esc 中断 ·
-|Ctrl+C 两次退出 · /help 命令
+# tool running · viewport 40x24 cursor=12,2
+|✻ ama <version> · fake/echo · Manual · /help
 |
 |› 读一下 README，说说是什么
 |
@@ -75,10 +74,10 @@
 |
 |
 |
+|
 
-# settled · viewport 40x24 cursor=19,2
-|ama <version> · Enter 发送 · Esc 中断 ·
-|Ctrl+C 两次退出 · /help 命令
+# settled · viewport 40x24 cursor=18,2
+|✻ ama <version> · fake/echo · Manual · /help
 |
 |› 读一下 README，说说是什么
 |
@@ -101,10 +100,10 @@
 |fake/echo · ctx 1% · mode:Manual
 |
 |
+|
 
-# ctrl+o expanded · viewport 40x24 cursor=20,2
-|ama <version> · Enter 发送 · Esc 中断 ·
-|Ctrl+C 两次退出 · /help 命令
+# ctrl+o expanded · viewport 40x24 cursor=19,2
+|✻ ama <version> · fake/echo · Manual · /help
 |
 |› 读一下 README，说说是什么
 |
@@ -127,10 +126,10 @@
 |────────────────────────────────────────
 |工具输出：展开
 |fake/echo · ctx 1% · mode:Manual
+|
 
-# exit · viewport 40x24 cursor=23,0
-|ama <version> · Enter 发送 · Esc 中断 ·
-|Ctrl+C 两次退出 · /help 命令
+# exit · viewport 40x24 cursor=22,0
+|✻ ama <version> · fake/echo · Manual · /help
 |
 |› 读一下 README，说说是什么
 |
@@ -152,4 +151,5 @@
 |› 输入消息，/ 命令，@ 文件，Shift+Enter…
 |────────────────────────────────────────
 |fake/echo · ctx 1% · mode:Manual
+|
 |

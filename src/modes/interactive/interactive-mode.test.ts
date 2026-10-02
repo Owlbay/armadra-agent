@@ -4,127 +4,19 @@
  * `AMA_UPDATE_GOLDEN=1 pnpm vitest run src/modes/interactive/interactive-mode.test.ts`。
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { composeHarness, type ComposeHarness } from "../../../test/helpers/compose-harness.js";
-import type { SessionEvent } from "../../agent/types.js";
+import { composeHarness } from "../../../test/helpers/compose-harness.js";
 import { sharedCacheReporting } from "../../ai/cache/reporting.js";
 import type { FakeResponse } from "../../ai/fake/fake-script.js";
 import { parseArgs } from "../../cli/args.js";
 import { currentSession } from "../../cli/compose-session.js";
 import type { ModeContext } from "../../cli/deps.js";
-import type { Runtime } from "../../cli/runtime.js";
 import { isAmaError } from "../../errors.js";
 import { MemoryTerminal, plainTheme } from "../../tui.js";
-import { AMA_VERSION } from "../../version.js";
+import { cleanupStarted, golden, snapshot, start, started } from "./test-support.js";
 import { runInteractiveMode, type InteractiveHandle } from "./interactive-mode.js";
 
-const FIXTURES = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "..",
-  "..",
-  "test",
-  "fixtures",
-  "tui",
-);
-
-function golden(name: string, actual: string): void {
-  const file = join(FIXTURES, `${name}.txt`);
-  if (process.env["AMA_UPDATE_GOLDEN"] === "1" || (!existsSync(file) && !process.env["CI"])) {
-    mkdirSync(FIXTURES, { recursive: true });
-    writeFileSync(file, actual);
-  }
-  expect(actual).toBe(readFileSync(file, "utf8"));
-}
-
-function snapshot(terminal: MemoryTerminal, label: string): string {
-  const { row, col } = terminal.screen.cursor;
-  const out = [`# ${label} · viewport ${terminal.columns}x${terminal.rows} cursor=${row},${col}`];
-  out.push(...terminal.viewport().map((l) => `|${l}`));
-  return out.join("\n").replaceAll(AMA_VERSION, "<version>") + "\n";
-}
-
-let h: ComposeHarness | undefined;
-let runtime: Runtime | undefined;
-afterEach(async () => {
-  await runtime?.dispose();
-  runtime = undefined;
-  h?.cleanup();
-  h = undefined;
-});
-
-interface Started {
-  terminal: MemoryTerminal;
-  handle: InteractiveHandle;
-  done: Promise<number>;
-  rt: Runtime;
-  /** 立即渲染一帧。 */
-  frame(): void;
-  /** 等到会话发出某个事件（含判定），然后渲染。 */
-  until(pred: (e: SessionEvent) => boolean): Promise<void>;
-  type(text: string): void;
-}
-
-async function start(
-  script: FakeResponse[],
-  options: {
-    columns?: number;
-    rows?: number;
-    argv?: string[];
-    files?: Record<string, string>;
-    /** 沿用调用方已建好的 harness（先写配置）。 */
-    keepHarness?: boolean;
-  } = {},
-): Promise<Started> {
-  if (options.keepHarness !== true || h === undefined)
-    h = composeHarness(script, { stdinIsTTY: true, stdoutIsTTY: true });
-  for (const [path, body] of Object.entries(options.files ?? {}))
-    h.home.write(`work/${path}`, body);
-  const argv = ["--model", "fake/echo", "--quiet-startup", "header", ...(options.argv ?? [])];
-  const rt = await h.boot(argv);
-  runtime = rt;
-  const parsed = parseArgs(argv);
-  if (parsed.kind !== "run") throw new Error("subcommand");
-  const context: ModeContext = { args: parsed.args, prompt: undefined, io: h.io };
-  const terminal = new MemoryTerminal({ columns: options.columns ?? 80, rows: options.rows ?? 24 });
-  let handle: InteractiveHandle | undefined;
-  const done = runInteractiveMode(rt, context, {
-    terminal,
-    theme: plainTheme(),
-    now: () => 0,
-    spinnerIntervalMs: 1e9,
-    historyFile: false,
-    onReady: (x) => (handle = x),
-  });
-  if (handle === undefined) throw new Error("not ready");
-  const ready = handle;
-  const frame = (): void => ready.tui.renderNow();
-  frame();
-  return {
-    terminal,
-    handle: ready,
-    done,
-    rt,
-    frame,
-    type: (text) => {
-      terminal.sendInput(text);
-      frame();
-    },
-    until: (pred) =>
-      new Promise<void>((resolve) => {
-        const off = ready.session().subscribe((event) => {
-          if (!pred(event)) return;
-          off();
-          frame();
-          resolve();
-        });
-      }),
-  };
-}
-
+afterEach(cleanupStarted);
 const README = "# Demo\n\nA tiny project.\nIt has three lines of prose.\nAnd one more.\n";
 const READ_SCRIPT: FakeResponse[] = [
   {
@@ -323,10 +215,10 @@ describe("交互模式", () => {
     await settled;
     s.handle.exit(0);
     await s.done;
-    await runtime?.dispose();
-    runtime = undefined;
+    await started.runtime?.dispose();
+    started.runtime = undefined;
     // 同一个 HOME 下 --continue 再进
-    const harness = h!;
+    const harness = started.h!;
     const rt2 = await harness.boot([
       "--model",
       "fake/echo",
@@ -363,9 +255,10 @@ describe("交互模式", () => {
   });
 
   it("stdin 不是终端：抛 terminal_init_failed 交给 bootstrap 降级", async () => {
-    h = composeHarness([], { stdinIsTTY: true, stdoutIsTTY: true });
+    const h = composeHarness([], { stdinIsTTY: true, stdoutIsTTY: true });
+    started.h = h;
     const rt = await h.boot(["--model", "fake/echo"]);
-    runtime = rt;
+    started.runtime = rt;
     const context: ModeContext = {
       args: (parseArgs([]) as { args: ModeContext["args"] }).args,
       prompt: undefined,
@@ -405,8 +298,11 @@ describe("交互模式", () => {
 
   it("[W3-C2] cache.missNotices 为 false：不进消息区，状态栏照常", async () => {
     sharedCacheReporting.clear();
-    h = composeHarness(CACHE_SCRIPT, { stdinIsTTY: true, stdoutIsTTY: true });
-    h.home.write("home/.config/ama/config.json", { version: 1, cache: { missNotices: false } });
+    started.h = composeHarness(CACHE_SCRIPT, { stdinIsTTY: true, stdoutIsTTY: true });
+    started.h.home.write("home/.config/ama/config.json", {
+      version: 1,
+      cache: { missNotices: false },
+    });
     const s = await start(CACHE_SCRIPT, { keepHarness: true });
     for (const text of ["一", "二"]) {
       const settled = s.until((e) => e.type === "agent_settled");
