@@ -5,7 +5,7 @@
 ## 配置目录
 
 缺省 `~/.config/ama/`（Windows `%APPDATA%\ama\`；`AMA_CONFIG_DIR` 优先，其次 `XDG_CONFIG_HOME/ama`）。数据
-（会话、models.dev 缓存）在另一个目录：`~/.local/share/ama/`（`AMA_DATA_DIR` / `XDG_DATA_HOME`）。
+（会话、models.dev 刷新覆盖）在另一个目录：`~/.local/share/ama/`（`AMA_DATA_DIR` / `XDG_DATA_HOME`）。
 
 ```
 ~/.config/ama/                 0700
@@ -17,7 +17,7 @@
 └── skills/ prompts/           （按需）
 ~/.local/share/ama/
 ├── sessions/                  会话
-└── models-dev.json            models.dev 元数据缓存
+└── models-dev.json            models.dev 刷新覆盖（只有 ama models refresh 写）
 ```
 
 - `ama init`：建目录（0700）并补齐缺失的 `config.json` 与 `config.schema.json`，逐个打印「已创建」或
@@ -167,7 +167,7 @@ export PACKY_API_KEY=sk-...
   的（每模型最多 3 次，`--limit` 限制探测的模型数，缺省 30，执行前打印预估；模型之间并发，探测规则同下文
   `providers add --probe`）；
   `--write` 把结果合并进用户级 `config.json`（已有同 id 不覆盖，只写 `id` 与和供应商不同的 `api`，
-  原文件备份为 `config.json.bak`）。上下文等元数据在运行时从 models.dev 缓存补（见下文「模型元数据」），
+  原文件备份为 `config.json.bak`）。上下文等元数据在运行时从 models.dev 快照补（见下文「模型元数据」），
   匹配不到的条目没有 `contextWindow`，自动压缩随之关闭，需要时手动补。
 
 ```sh
@@ -282,7 +282,7 @@ ama providers refresh <id> [--probe …]
   - **限流**：401 / 403 立即停止；429 时并发减半、2 s 后重试该请求一次，重试仍 429 则停止。
 - **渠道收敛**：写入前删掉没有任何模型挂载的候选渠道；`defaultChannel` 取剩下的第一个（按 `--prefer`）。
 - **写入**：用户级 `config.json` 的 `providers.<id>`（先备份为 `config.json.bak`）。模型条目只写 `id` 与
-  `channels`；上下文、输出、图像、推理、价格**不写进配置**，运行时从 models.dev 缓存补（见下节），所以
+  `channels`；上下文、输出、图像、推理、价格**不写进配置**，运行时从 models.dev 快照补（见下节），所以
   `refresh` 不会覆盖手改的字段，手写的值永远优先。models.dev 标明不支持工具调用的模型缺省不写入（Agent
   离不开工具调用），`--include-no-tools` 照写。对已存在的供应商再执行 `add`：只追加新渠道与新模型，已有
   渠道定义与模型条目一字不改。
@@ -291,8 +291,8 @@ ama providers refresh <id> [--probe …]
   中转实际价格可能不同）、匹配方式。
 - `list`：全部供应商（config.json 里的与有 key 的内置供应商）→ 渠道（协议、地址、key 来源：auth.json /
   `$VAR` / 字面量 / 无，从不显示 key）→ 模型数。`channels <id>`：每个渠道的协议、地址与挂载的模型数。
-  `remove`：删 `providers.<id>`（备份）与 auth.json 里该供应商的条目。`refresh`：重拉 `/models` 与
-  models.dev，只追加新模型（带 `--probe` 时同 add 的探测），已有条目不改；上游已下架的 id 只提示、不删。
+  `remove`：删 `providers.<id>`（备份）与 auth.json 里该供应商的条目。`refresh`：重拉 `/models`（models.dev
+  用本地快照），只追加新模型（带 `--probe` 时同 add 的探测），已有条目不改；上游已下架的 id 只提示、不删。
 
 实测（2026-10-02，一家同时提供三种接口的中转，22 个模型，共 29 次请求）：
 
@@ -308,34 +308,64 @@ ama providers refresh <id> [--probe …]
 
 ### 模型元数据：models.dev
 
-[models.dev](https://models.dev) 汇总了两百多家供应商的模型参数（`https://models.dev/api.json`，约 5 MB）。
-ama 用它给**没写元数据**的自定义模型补上下文、输出上限、输入模态、推理、价格与工具调用能力。
+[models.dev](https://models.dev) 汇总了两百多家供应商的模型参数（`https://models.dev/api.json`，约 5 MB，MIT 许可，
+声明见仓库根的 `THIRD_PARTY_NOTICES.md`）。ama 把主流厂商的一份**裁剪快照随包携带**，用它给内置目录与自定义模型
+补上下文、输出上限、输入模态、推理、价格等数值事实。**启动与运行都不联网**。
 
-- **何时联网**：只有 `ama providers add|refresh`、`ama models discover`、`ama models refresh-catalog`
-  会拉取；**启动不联网**，只读缓存。缓存在数据目录 `models-dev.json`（缺省 `~/.local/share/ama/`，只留用到的
-  字段，约 2.3 MB），记获取时间与 ETag，24 小时内不重拉（`refresh-catalog` 强制，带 `If-None-Match`）。离线或
-  失败时用旧缓存并 warning。`AMA_MODELS_DEV_URL` 换数据源（镜像或本地文件服务）。
-- **优先级**：用户配置（`models[]` / `modelOverrides[]` 里写了的字段）> 内置目录 > models.dev > 自定义缺省
-  （`maxTokens: 8192`、`input: ["text"]`、`reasoning: false`、不猜 `contextWindow`）。`ama models list` 与
-  `ama config show` 标出每个字段来自哪里（`config` / `目录` / `models.dev` / `缺省`）。
-- **字段映射**：`contextWindow = limit.context`；`maxTokens = min(limit.output, 65536, contextWindow)`——
+- **快照**：`src/ai/providers/models-dev/<provider>.json`，一家一份，收录清单在同目录 `_providers.json`（22 家：
+  anthropic、openai、google、xai、deepseek、moonshotai / moonshotai-cn、zhipuai / zai、alibaba / alibaba-cn、
+  minimax / minimax-cn、stepfun / stepfun-ai、volcengine、tencent-tokenhub、mistral、meta、xiaomi、groq，以及
+  openrouter 里原厂前缀白名单内的模型）。`scripts/update-models-dev.mjs`（零依赖）拉取、过滤（丢 `deprecated`、
+  输出不含文本、上下文为 0、`tool_call: false` 的条目）、裁剪字段（name、family、knowledge、release_date、
+  reasoning、modalities.input、limit.context / input / output、cost 含 `context_over_200k` 与按上下文的 `tiers`、
+  interleaved、beta 状态、canonical_model_id）并按键排序写出，再生成内联进 bundle 的 `models-dev-data.ts`；内容
+  不变时字节不变（`_meta.json` 的 `fetchedAt` 只随 sha256 变）。为控制体积（内联数据 ≤ 200 KB，测试守住）不收
+  `last_updated`、`reasoning_options`。
+- **每周刷新**：`.github/workflows/models-dev.yml` 每周一 03:17 UTC（与手动 `workflow_dispatch`）跑脚本，自动删掉
+  目录里与新快照相同的覆盖项，有改动才往固定分支 `chore/models-dev-refresh` 开 / 更新 PR（摘要列新增、删除、上下文 /
+  输出 / 价格变化；删除超过 30% 加 `needs-review`）。PR 用仓库 secret `MODELS_DEV_PR_TOKEN`（GitHub App token 或
+  fine-grained PAT，`contents` + `pull-requests` 写权限）创建以触发 CI；没有这个 secret 时 workflow 先自己跑
+  `pnpm run ci`，再用缺省 token 开 PR 并在描述里写明结果。合并由人做。
+- **`ama models refresh [--provider <id>[,<id>…]]`**：显式联网拉最新 `api.json`，按同一清单裁剪，写到数据目录
+  `models-dev.json`（缺省 `~/.local/share/ama/`），打印新增 / 上游删除 / 变价。之后的索引 = 内置快照 ⊕ 这份覆盖：
+  覆盖文件的 `fetchedAt` 晚于快照才叠加（升级 ama 带来更新的快照后旧覆盖自动失效），同一 `provider/model` 以覆盖
+  为准，上游删掉的条目沿用快照。`refresh-catalog` 是旧名。`AMA_MODELS_DEV_URL` 换刷新的数据源。旧版 ama 写的全量
+  缓存（version 1）不再读取。`ama providers add|refresh` 与 `ama models discover` 只用本地索引，不再拉 models.dev
+  （它们对 `/models` 的请求照旧）。
+- **内置目录（`catalog/*.json`）只写覆盖项**：文件级 `"modelsDev": "<快照供应商 id>"`（本地服务写 `false`）；条目
+  按 `<modelsDev>/<id>` 从快照继承 name、reasoning、contextWindow、maxTokens、input、cost、family、knowledge、
+  releaseDate、inputLimit、status，目录只写 ama 特有字段（`api`、`thinkingLevelMap`、`promptCache`、`compat`）与
+  有意不同于快照的值（如 openai 的 272k 窗口、deepseek 的价格）；`cost` 可只写要改的键。id 与快照不同时条目写
+  `"modelsDev": "provider/model"`，不继承写 `false`。快照里没有的模型（已 deprecated 等）写完整条目。
+  `catalog.test.ts` 把与快照取值相同的字段当冗余报错，`UPDATE_CATALOG=1 pnpm vitest run
+src/ai/providers/catalog.test.ts` 自动删除并重新生成 `catalog-data.ts`（之后跑 prettier）；确实要钉住与快照相同的
+  值时在条目上写 `"_reason": "…"`（注释，运行时忽略，该条目不做冗余检查）。目录继承的映射与自定义模型略有不同：
+  `maxTokens` 不封顶（取 `min(limit.output, contextWindow)`），缺的缓存价记 0。
+- **优先级**：用户配置（`models[]` / `modelOverrides[]` 里写了的字段）> 内置目录（快照 ⊕ 目录覆盖）> models.dev
+  索引 > 自定义缺省（`maxTokens: 8192`、`input: ["text"]`、`reasoning: false`、不猜 `contextWindow`）。
+  `ama models list` 与 `ama config show` 标出每个字段来自哪里（`config` / `目录` / `models.dev` / `缺省`；内置目录
+  从快照继承的字段标 `models.dev`）。
+- **字段映射**（自定义模型）：`contextWindow = limit.context`；`maxTokens = min(limit.output, 65536, contextWindow)`——
   `maxTokens` 每次请求都作为 `max_tokens` 发出，models.dev 给的是原厂上限（不少模型写的是与上下文相同的
   1M），中转换了上游后常拒收超大值，Anthropic 协议的思考预算也从它推导，64k 对编码 Agent 的单轮输出足够，
   需要更大时在配置里写；`input` 由 `modalities.input` 含不含 `image` 定为 `["text","image"]` 或 `["text"]`；
   `reasoning`；`cost` 取 `input` / `output` / `cache_read` / `cache_write`（$/M），缺缓存价时按输入价算
-  （不假设有折扣，保温的经济性判断因此偏保守）。
-- **匹配规则**（同一个 id 常在几十家转售商下重复出现，取值不一）：
+  （不假设有折扣，保温的经济性判断因此偏保守）；`cost.tiers` 取 models.dev 的按上下文档位，只有
+  `context_over_200k` 时折成 200k 一档；另补 `family`、`knowledge`、`releaseDate`、`inputLimit`（与上下文不同时）、
+  `status: "beta"`。
+- **匹配规则**（同一个 id 常在多家转售商下重复出现，取值不一）：
   1. 模型上写了 `"modelsDev": "provider/model"` → 直接用该条目（写 `false` 关闭补全）；
-  2. id 形如 `vendor/model` 且 models.dev 正好有这个 `provider/model` → 用它；
+  2. id 形如 `vendor/model` 且索引里正好有这个 `provider/model` → 用它；
   3. 按 id 不分大小写找全部同名条目；有 `canonical_model_id` 的，取指向与 id 同名的那个（否则取票数最多的），
      它若能在原厂供应商下找到 → 用原厂条目；
   4. 否则在（同一 canonical 的）条目里优先原厂供应商：anthropic、openai、google、deepseek、moonshotai(-cn)、
-     zhipuai、zai、alibaba(-cn)、xai、mistral、minimax(-cn)、llama（Meta）、cohere、xiaomi、stepfun 等
-     （models.dev 里没有 `qwen` / `meta` 这样的供应商 id，通义在 `alibaba`，Llama 在 `llama`）；
+     zhipuai、zai、alibaba(-cn)、xai、mistral、minimax(-cn)、meta、llama、cohere、xiaomi、stepfun(-ai)、volcengine、
+     tencent-tokenhub 等（models.dev 里没有 `qwen` 这样的供应商 id，通义在 `alibaba`）；
   5. 仍有多条 → 按 (上下文, 输出, 图像) 取多数，取值不一时记 warning；只有一条就用它；
   6. 同名找不到时依次试归一化后的 id：去 `vendor/` 前缀、去 `:free` 一类后缀、去 `-latest`、去日期后缀
      （`-0902`、`-20250514`、`-2025-05-14`）；
-  7. 都没有 → 「未匹配」，保持自定义缺省（不猜 `contextWindow`，自动压缩关闭）。
+  7. 都没有 → 「未匹配」，保持自定义缺省（不猜 `contextWindow`，自动压缩关闭）。快照只收主流厂商，转售商专有的
+     id 可能匹配不到，可在模型上写 `modelsDev` 指向收录的条目。
 
 ### 图像输入
 
