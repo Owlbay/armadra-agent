@@ -20,6 +20,8 @@ export interface ProfileOptions {
   instructions: string[];
   skillDirs: string[];
   promptDirs: string[];
+  /** [W5-C0] 子 Agent 定义目录（W5-G 接入发现）。 */
+  agentDirs?: string[];
   hooksFile?: string;
   authFile?: string;
   /** false：key 只来自 authFile。 */
@@ -78,6 +80,7 @@ function profileToOptions(path: string, profile: ProfileFile, warnings: string[]
     trustProject: profile.trustProject === true,
     warnings: [...warnings],
   };
+  if (profile.agentDirs !== undefined) options.agentDirs = [...profile.agentDirs];
   if (profile.host !== undefined) options.host = profile.host;
   if (profile.hooksFile !== undefined) options.hooksFile = profile.hooksFile;
   if (profile.authFile !== undefined) options.authFile = profile.authFile;

@@ -15,8 +15,14 @@ import {
   CHANNEL_NAME_PATTERN,
   CHECKPOINT_MODES,
   CODEMODE_MODES,
+  IMAGE_RESIZE_MODES,
+  PLAN_BASH_MODES_STRICT_FIRST,
+  PLAN_UNATTENDED_MODES,
+  STATUS_LINE_MODES,
   TOOLS_PRESET_INPUTS,
 } from "./types.js";
+import { AGENT_ID_PATTERN } from "./schema-w5.js";
+import { AGENTS_RESERVED_KEYS } from "./types-w5.js";
 
 type Schema = Record<string, unknown>;
 
@@ -142,6 +148,47 @@ const provider: Schema = object({
   modelOverrides: { type: "array", items: model("只改已有模型的元数据") },
 });
 
+// [W5-C0] 第五波的段（规则同 schema-w5.ts）
+const agentEntry: Schema = object({
+  maxConcurrent: num(1, 64),
+  maxMode: oneOf(PERMISSION_MODES_STRICT_FIRST),
+  model: str(),
+  env: object({ passthrough: strings }),
+});
+
+function w5Sections(): Record<string, Schema> {
+  return {
+    images: object({ resize: oneOf(IMAGE_RESIZE_MODES) }),
+    plan: object({
+      bash: oneOf(PLAN_BASH_MODES_STRICT_FIRST),
+      directory: str(),
+      unattended: oneOf(PLAN_UNATTENDED_MODES),
+      model: str(),
+      thinkingLevel: oneOf(THINKING_LEVELS),
+    }),
+    agents: object(
+      { maxConcurrent: num(1, 64), sessionBudgetUsd: num(0), dirs: strings },
+      {
+        additionalProperties: agentEntry,
+        propertyNames: {
+          pattern: `^(${AGENTS_RESERVED_KEYS.join("|")}|${AGENT_ID_PATTERN.source.slice(1, -1)})$`,
+        },
+      },
+    ),
+    subagents: object({ maxConcurrent: num(1, 64), maxPending: num(0, 1024), defaultModel: str() }),
+    models: object({ aliases: object({ fast: str(), strong: str() }) }),
+    fallbackModel: str(),
+    limits: object({ maxTurns: num(1), maxCostUsd: num(0) }),
+    reminders: object({
+      todo: bool(),
+      fileChanges: bool(),
+      contextPressure: bool(),
+      budget: bool(),
+    }),
+    todo: object({ reminder: num(0) }),
+  };
+}
+
 /** 给顶层与各段的键写上 description 与 default（key-docs.ts）；供应商内部不动。 */
 function annotate(properties: Record<string, Schema>, prefix = ""): void {
   for (const [key, shared] of Object.entries(properties)) {
@@ -187,7 +234,16 @@ function buildBaseSchema(): Schema {
         autoModel: str("auto 模式分类器的模型 provider/model；缺省用当前会话模型"),
         autoSafeCommands: strings,
       }),
-      compaction: object({ enabled: bool(), reserveTokens: num(0), keepRecentTokens: num(0) }),
+      compaction: object({
+        enabled: bool(),
+        reserveTokens: num(0),
+        keepRecentTokens: num(0),
+        prune: object({
+          keepResults: num(0),
+          clearAtLeast: { anyOf: [{ const: "auto" }, { type: "number", minimum: 0 }] },
+        }),
+        pruneExclude: strings,
+      }),
       retry: object({
         enabled: bool(),
         maxRetries: num(0, 100),
@@ -217,6 +273,7 @@ function buildBaseSchema(): Schema {
         compact: bool(),
         animation: bool(),
         restoreOnCancel: bool(),
+        statusLine: oneOf(STATUS_LINE_MODES),
       }),
       skills: object({ dirs: strings }),
       cache: object({
@@ -232,6 +289,7 @@ function buildBaseSchema(): Schema {
         maxFileBytes: num(0),
         keep: num(1),
       }),
+      ...w5Sections(),
     }),
     required: ["version"],
   };

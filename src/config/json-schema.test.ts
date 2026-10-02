@@ -110,6 +110,35 @@ const GOOD: unknown[] = [
       deepseek: { modelOverrides: [{ id: "deepseek-flash", contextWindow: 131072 }] },
     },
   },
+  // [W5-C0] 第五波键
+  {
+    version: 1,
+    ui: { statusLine: "compact" },
+    compaction: { prune: { keepResults: 3, clearAtLeast: "auto" }, pruneExclude: ["todo"] },
+    images: { resize: "off" },
+    plan: {
+      bash: "ask",
+      directory: "docs/plans",
+      unattended: "approve",
+      model: "anthropic/claude-opus-5-5",
+      thinkingLevel: "high",
+    },
+    agents: {
+      maxConcurrent: 2,
+      sessionBudgetUsd: 5,
+      dirs: ["~/agents"],
+      claude: { maxConcurrent: 1, maxMode: "auto-edit", env: { passthrough: ["HTTPS_PROXY"] } },
+      explore: { model: "deepseek/deepseek-flash" },
+      "acp:gemini": {},
+    },
+    subagents: { maxConcurrent: 2, maxPending: 8, defaultModel: "fake/echo" },
+    models: { aliases: { fast: "deepseek/deepseek-flash", strong: "anthropic/claude-opus-5-5" } },
+    fallbackModel: "openai/gpt-6",
+    limits: { maxTurns: 40, maxCostUsd: 2.5 },
+    reminders: { todo: false, fileChanges: true, contextPressure: true, budget: false },
+    todo: { reminder: 0 },
+  },
+  { version: 1, compaction: { prune: { clearAtLeast: 20000 } } },
 ];
 
 /** 两边都应拒绝（validateConfig 有诊断；schema 不通过）。 */
@@ -141,6 +170,27 @@ const BAD: unknown[] = [
   { version: 1, providers: { p: { channels: { chat: { api: "x", baseUrl: "y", extra: 1 } } } } },
   { version: 1, providers: { p: { compat: { cacheReporting: "maybe" } } } },
   { version: 1, providers: { p: { models: [{ id: "m", promptCache: { forever: 1 } }] } } },
+  // [W5-C0] 第五波键
+  { version: 1, ui: { statusLine: "tall" } },
+  { version: 1, compaction: { prune: { clearAtLeast: "always" } } },
+  { version: 1, compaction: { prune: { keepResults: -1 } } },
+  { version: 1, compaction: { pruneExclude: "todo" } },
+  { version: 1, images: { resize: "always" } },
+  { version: 1, plan: { bash: "yes" } },
+  { version: 1, plan: { unattended: "ask" } },
+  { version: 1, plan: { thinkingLevel: "max" } },
+  { version: 1, agents: { maxConcurrent: 0 } },
+  { version: 1, agents: { Claude: {} } },
+  { version: 1, agents: { claude: { maxMode: "yolo" } } },
+  { version: 1, agents: { claude: { env: { passthrough: "X" } } } },
+  { version: 1, agents: { claude: 3 } },
+  { version: 1, subagents: { maxPending: -1 } },
+  { version: 1, models: { aliases: { fast: 1 } } },
+  { version: 1, fallbackModel: 1 },
+  { version: 1, limits: { maxTurns: 0 } },
+  { version: 1, limits: { maxCostUsd: -1 } },
+  { version: 1, reminders: { todo: "yes" } },
+  { version: 1, todo: { reminder: -1 } },
 ];
 
 describe("config.schema.json 与 validateConfig 一致", () => {

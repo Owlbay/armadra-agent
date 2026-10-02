@@ -7,7 +7,8 @@
  * - 项目级 `.ama/config.json` 只接受：`permission.deny`（追加）、`permission.mode`（只能更严，且不能是
  *   auto / full-auto）、
  *   `compaction`、`tools.disabled`、`tools.preset`（只能更严）、`codemode.mode: "off"`、`ui`、
- *   `checkpoints.mode: "off"`、`checkpoints.maxFileBytes`（只能调小）；
+ *   `checkpoints.mode: "off"`、`checkpoints.maxFileBytes`（只能调小）、（W5-C0）`plan.bash`（只能更严）、
+ *   `reminders`；`compaction.prune / pruneExclude` 与第五波其余段只认用户级；
  *   其它字段与放宽项（含 `permission.builtinDeny / autoModel / autoSafeCommands`）被忽略并记 warning。
  * - 同时产出带来源的权限规则清单（`ruleSpecs`），交给权限管线（B3 的 rules.ts 解析）。
  */
@@ -17,12 +18,15 @@ import type {
   CheckpointsConfig,
   CodemodeMode,
   PermissionConfig,
+  PlanBashMode,
+  PlanConfig,
   ToolsConfig,
   ToolsPresetInput,
 } from "./types.js";
 import {
   CONFIG_FILE_VERSION,
   DEFAULT_CHECKPOINTS_CONFIG,
+  PLAN_BASH_MODES_STRICT_FIRST,
   TOOLS_PRESETS_STRICT_FIRST,
   canonicalPreset,
 } from "./types.js";
@@ -76,6 +80,7 @@ const ACCUMULATING = new Set([
   "permission.autoSafeCommands",
   "tools.disabled",
   "skills.dirs",
+  "agents.dirs",
 ]);
 
 type Obj = Record<string, unknown>;
@@ -143,6 +148,7 @@ export function restrictProjectConfig(
   label = ".ama/config.json",
   currentPreset: ToolsPresetInput = "default",
   currentMaxFileBytes: number = DEFAULT_CHECKPOINTS_CONFIG.maxFileBytes,
+  currentPlanBash: PlanBashMode = "readonly",
 ): RestrictResult {
   const warnings: string[] = [];
   const accepted: Partial<AmaConfig> = {};
@@ -150,9 +156,22 @@ export function restrictProjectConfig(
     if (key === "version" || key === "$schema" || value === undefined) continue;
     switch (key) {
       case "compaction":
-        if (project.compaction !== undefined)
-          accepted.compaction = structuredClone(project.compaction);
+        if (project.compaction !== undefined) {
+          const { prune, pruneExclude, ...rest } = structuredClone(project.compaction);
+          if (prune !== undefined || pruneExclude !== undefined)
+            warnings.push(`${label}: 项目级不能设 compaction.prune / pruneExclude，已忽略`);
+          if (Object.keys(rest).length > 0) accepted.compaction = rest;
+        }
         break;
+      case "reminders":
+        if (project.reminders !== undefined)
+          accepted.reminders = structuredClone(project.reminders);
+        break;
+      case "plan": {
+        const plan = restrictPlan(project.plan ?? {}, currentPlanBash, label, warnings);
+        if (plan !== undefined) accepted.plan = plan;
+        break;
+      }
       case "ui":
         if (project.ui !== undefined) accepted.ui = structuredClone(project.ui);
         break;
@@ -212,6 +231,23 @@ export function restrictProjectConfig(
     }
   }
   return { accepted, warnings };
+}
+
+/** [W5-C0] 项目级 plan：只接受 `bash`，且只能更严（deny < readonly < ask）。 */
+function restrictPlan(
+  plan: PlanConfig,
+  current: PlanBashMode,
+  label: string,
+  warnings: string[],
+): PlanConfig | undefined {
+  for (const sub of Object.keys(plan)) {
+    if (sub !== "bash") warnings.push(`${label}: 项目级只能设 plan.bash，忽略 plan.${sub}`);
+  }
+  if (plan.bash === undefined) return undefined;
+  const order = PLAN_BASH_MODES_STRICT_FIRST;
+  if (order.indexOf(plan.bash) <= order.indexOf(current)) return { bash: plan.bash };
+  warnings.push(`${label}: 项目级只能收紧 plan.bash，忽略 ${plan.bash}（当前 ${current}）`);
+  return undefined;
 }
 
 /** 项目级检查点：只能关闭、只能调小单文件上限（多备份即多占用户磁盘）；`keep` 只认用户级。 */
@@ -376,6 +412,7 @@ export function mergeProjectAndCli(
       projectLabel,
       config.tools?.preset ?? "default",
       config.checkpoints?.maxFileBytes ?? DEFAULT_CHECKPOINTS_CONFIG.maxFileBytes,
+      config.plan?.bash ?? "readonly",
     );
     warnings.push(...restricted.warnings);
     config = mergeConfig(config, restricted.accepted);
