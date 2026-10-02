@@ -16,6 +16,7 @@
  *   让宿主访问、Hook 公共字段与退出 dispose 跟随新会话。
  */
 
+import type { ProviderRegistryApi } from "../ai/types.js";
 import { readFileSync } from "node:fs";
 import { AgentSessionImpl, type AgentSessionOptions } from "../agent/session.js";
 import type { AgentSession, CacheSettings, SessionEvent } from "../agent/types.js";
@@ -50,6 +51,8 @@ export interface ComposeState {
   warnings: string[];
   /** 当前会话（工具工厂的 `session()`）。 */
   session: AgentSession | undefined;
+  /** 第 11 步建好的供应商注册表（read 工具判断当前模型收不收图片）。 */
+  providers?: ProviderRegistryApi;
 }
 
 export function emptyComposeState(): ComposeState {
