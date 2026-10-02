@@ -64,6 +64,7 @@ import { createKeyDispatch } from "./key-dispatch.js";
 import { MessageView, exitSummaryLines, type NoticeLevel } from "./message-view.js";
 import { openPicker } from "./pickers.js";
 import { createRewindFlow } from "./rewind-flow.js";
+import { openTraceView } from "./trace-view.js";
 import { StartupHeader } from "./startup-header.js";
 import { QueueView, RunIndicator } from "./run-indicator.js";
 import { StatusArea, statusLineSlash } from "./status-area.js";
@@ -405,6 +406,8 @@ export function runInteractiveMode(
     exit: (code) => exit(code),
     now,
     extra: (name, args) => agentUi.command(name, args),
+    traceView: (id) =>
+      openTraceView({ ...pickerHost, session: () => session, now, notice, render }, id),
   };
 
   const runCommand = (line: string): Promise<boolean> =>

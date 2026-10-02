@@ -28,6 +28,7 @@ import { previewDisplayLines } from "../../../permissions/preview.js";
 import type { Runtime } from "../../../cli/runtime.js";
 import { AMA_VERSION } from "../../../version.js";
 import { runSlashCommand, type CommandContext } from "../../commands-core.js";
+import { lineTraceCommand } from "../../../trace/session.js";
 import { createLineReader } from "../../rpc/jsonl.js";
 import { errorText, onTerminationSignals } from "../../shared.js";
 import { LineEditor } from "./line-editor.js";
@@ -75,6 +76,7 @@ export async function runLineMode(
       unsubscribe = next.subscribe((event) => printer.handle(event));
       return next;
     },
+    extra: { trace: lineTraceCommand },
   };
 
   /** 一行输入：命令或提示；返回 "exit" 表示结束。 */

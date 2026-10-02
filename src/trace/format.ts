@@ -336,10 +336,11 @@ export function formatTraceText(
   trace: Trace,
   ctx: TraceFormatContext,
   rows: TraceRow[] = expandAll((expanded) => flattenTrace(trace, { expanded })),
+  title = `${msg().trace.title} · ${summaryText(trace, ctx.theme)}`,
 ): string {
   const theme = ctx.theme;
-  const lines = [`${msg().trace.title} · ${summaryText(trace, theme)}`];
-  if (trace.turns.length === 0) lines.push(msg().trace.empty);
+  const lines = [title];
+  if (rows.length === 0) lines.push(msg().trace.empty);
   for (const row of rows) {
     const indent = "  ".repeat(row.depth);
     const mark = statusMark(row.node, theme);
