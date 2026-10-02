@@ -10,10 +10,10 @@
  */
 
 import {
-  BYPASS_CHOICES,
-  BYPASS_CONFIRM_TITLE,
   BYPASS_DEFAULT_CHOICE,
-  BYPASS_RISK_LINES,
+  bypassChoices,
+  bypassConfirmTitle,
+  bypassRiskLines,
 } from "../../permissions/bypass.js";
 import {
   Box,
@@ -160,9 +160,9 @@ export function openChoice(host: ChoiceHost, spec: ChoiceSpec): Promise<number |
 /** Bypass 确认框的内容（缺省选中「取消」，边框 warning）。 */
 export function bypassChoiceSpec(theme: Theme): ChoiceSpec {
   return {
-    title: BYPASS_CONFIRM_TITLE,
-    body: BYPASS_RISK_LINES.map((line, i) => (i === 0 ? theme.fg("warning", line) : line)),
-    options: BYPASS_CHOICES,
+    title: bypassConfirmTitle(),
+    body: bypassRiskLines().map((line, i) => (i === 0 ? theme.fg("warning", line) : line)),
+    options: bypassChoices(),
     selected: BYPASS_DEFAULT_CHOICE,
     borderColor: "warning",
   };

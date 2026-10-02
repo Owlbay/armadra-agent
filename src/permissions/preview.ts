@@ -22,6 +22,8 @@ import { normalizeToLF, splitBom } from "../tools/edit-fuzzy.js";
 import { displayPath, resolvePath } from "../tools/paths.js";
 import { collectNestedCommands, commandWords, matchDangerous, shellWords } from "./dangerous.js";
 import { splitShellSegments } from "./rules.js";
+import { msg } from "../i18n/index.js";
+import type { PreviewNote, PreviewVerb } from "../i18n/messages/permissions.js";
 import type { ActionPreview, ActionPreviewTarget, ApprovalRequest } from "./types.js";
 
 export const PREVIEW_MAX_ENTRIES = 2000;
@@ -104,10 +106,10 @@ class Collector {
   }
 
   finish(kind: ActionPreview["kind"]): ActionPreview {
-    if (this.hidden > 0) this.lines.push(`… 另 ${this.hidden} 处未列出`);
+    if (this.hidden > 0) this.lines.push(msg().permissions.preview.moreHidden(this.hidden));
     if (this.timedOut) {
       this.lines.push(
-        `统计超时（> ${this.options.budgetMs ?? PREVIEW_BUDGET_MS} ms），实际范围可能更大`,
+        msg().permissions.preview.timedOut(this.options.budgetMs ?? PREVIEW_BUDGET_MS),
       );
       this.raise("warn");
     }
@@ -154,34 +156,35 @@ function tally(root: string, c: Collector): { files: number; bytes: number; capp
 
 /** 统计一个路径：返回目标与「：」之后的说明。 */
 function inspect(abs: string, c: Collector): { target: ActionPreviewTarget; text: string } {
+  const m = msg().permissions.preview;
   const shown = displayPath(abs, c.root);
   const info = tryStat(abs);
-  if (info === undefined) return { target: { path: shown, exists: false }, text: "不存在" };
-  if (info.isSymbolicLink()) return { target: { path: shown, exists: true }, text: "符号链接" };
+  if (info === undefined) return { target: { path: shown, exists: false }, text: m.missing };
+  if (info.isSymbolicLink()) return { target: { path: shown, exists: true }, text: m.symlink };
   if (!info.isDirectory()) {
     return {
       target: { path: shown, exists: true, bytes: info.size },
-      text: `文件，${formatBytes(info.size)}`,
+      text: m.file(formatBytes(info.size)),
     };
   }
   const t = tally(abs, c);
   const target: ActionPreviewTarget = { path: `${shown}/`, exists: true, files: t.files };
-  if (t.capped) return { target, text: `目录，> ${c.maxEntries} 项` };
+  if (t.capped) return { target, text: m.dirCapped(c.maxEntries) };
   target.bytes = t.bytes;
-  const partial = c.timedOut ? "（统计未完成）" : "";
-  return { target, text: `目录，${t.files} 个文件，${formatBytes(t.bytes)}${partial}` };
+  return { target, text: m.dir(t.files, formatBytes(t.bytes), c.timedOut) };
 }
 
 /** 一个路径参数一行；含通配 / 变量的原样显示不展开。 */
-function pathLine(verb: string, word: string, c: Collector, note = ""): void {
+function pathLine(verb: PreviewVerb, word: string, c: Collector, note?: PreviewNote): void {
+  const m = msg().permissions.preview;
   if (UNEXPANDED.test(word)) {
-    c.target(`${verb} ${word}：含通配符或变量，未展开，实际范围可能更大`);
+    c.target(m.pathUnexpanded(verb, word));
     c.raise("warn");
     return;
   }
   const { target, text } = inspect(resolvePath(word, c.cwd), c);
   if (target.exists) c.raise("warn");
-  c.target(`${verb} ${target.path}：${text}${note}`, target);
+  c.target(m.pathTarget(verb, target.path, text, note), target);
 }
 
 /** 段里的 `>` / `>>` 重定向：返回目标与去掉重定向后的文本。 */
@@ -247,7 +250,7 @@ function previewSegment(segment: string, c: Collector): void {
   const { rest, targets } = splitRedirects(segment);
   for (const { word, append } of targets) {
     if (NULL_DEVICES.has(word.toLowerCase())) continue;
-    pathLine(append ? "追加写入" : "覆盖写入", word, c);
+    pathLine(append ? "append" : "overwrite", word, c);
   }
   const argv = commandWords(rest);
   const name = basename(argv[0] ?? "");
@@ -257,17 +260,17 @@ function previewSegment(segment: string, c: Collector): void {
   }
   if (name === "rm" || name === "rmdir" || name === "unlink") {
     const paths = operands(argv);
-    if (paths.length === 0) c.target(`${name}：路径来自管道或展开，范围未知`);
-    for (const p of paths) pathLine("删除", p, c);
+    if (paths.length === 0) c.target(msg().permissions.preview.rmUnknown(name));
+    for (const p of paths) pathLine("delete", p, c);
   } else if (name === "mv") {
     const paths = operands(argv, ["-t", "-S", "--target-directory", "--suffix"]);
     const t = argv.indexOf("-t");
     const dest = t > 0 ? argv[t + 1] : paths.pop();
-    for (const p of paths) pathLine("移动", p, c);
+    for (const p of paths) pathLine("move", p, c);
     if (dest !== undefined && paths.length > 0) {
       const info = UNEXPANDED.test(dest) ? undefined : tryStat(resolvePath(dest, c.cwd));
-      const note = info?.isDirectory() ? "（已存在的目录，移入其中）" : "（已存在，将被覆盖）";
-      pathLine("移到", dest, c, info === undefined ? "" : note);
+      const note: PreviewNote = info?.isDirectory() ? "intoDir" : "overwritten";
+      pathLine("moveTo", dest, c, info === undefined ? undefined : note);
     }
   } else if (name === "git") {
     previewGit(argv, c);
@@ -295,14 +298,14 @@ function previewGit(argv: readonly string[], c: Collector): void {
     ) {
       const paths = operands(args, ["-e", "--exclude"]);
       for (const p of paths.length > 0 ? paths : ["."]) {
-        pathLine("git clean 范围", p, c, "（计数含已跟踪文件，实际只删未跟踪的）");
+        pathLine("gitClean", p, c, "gitCleanTracked");
       }
       // 与危险规则无关地标红：`git -C 目录 clean -f` 之类危险表认不出的写法也算
       if (args.some((a) => a === "--force" || /^-[A-Za-z]*f/.test(a))) c.raise("danger");
     } else if (sub === "checkout" && args.includes("--")) {
-      for (const p of args.slice(args.indexOf("--") + 1)) pathLine("丢弃改动", p, c);
+      for (const p of args.slice(args.indexOf("--") + 1)) pathLine("discard", p, c);
     } else if (sub === "reset" && args.includes("--hard")) {
-      c.lines.push("git reset --hard：丢弃工作区与暂存区的全部未提交改动");
+      c.lines.push(msg().permissions.preview.gitResetHard);
       c.raise("danger");
     }
   } finally {
@@ -312,7 +315,7 @@ function previewGit(argv: readonly string[], c: Collector): void {
 
 function previewBash(command: string, c: Collector, dangerous: boolean): void {
   const hit = matchDangerous(command);
-  if (hit !== undefined) c.lines.push(`危险：${hit.description}`);
+  if (hit !== undefined) c.lines.push(msg().permissions.preview.dangerous(hit.description));
   if (hit !== undefined || dangerous) c.raise("danger");
   const nested = collectNestedCommands(command);
   const start = c.cwd;
@@ -325,7 +328,7 @@ function previewBash(command: string, c: Collector, dangerous: boolean): void {
   }
   c.cwd = start;
   if (nested.tooDeep) {
-    c.lines.push("嵌套过深，内层命令未展开");
+    c.lines.push(msg().permissions.preview.tooDeep);
     c.raise("warn");
   }
 }
@@ -337,7 +340,7 @@ function readSmall(abs: string, info: Stats): string | undefined {
 function unread(abs: string, request: ApprovalRequest, c: Collector, tool: string): void {
   const readFiles = request.context?.readFiles;
   if (readFiles === undefined || readFiles.has(abs)) return;
-  c.lines.push(`本会话未 read 过此文件，${tool} 会被拒绝（先 read）`);
+  c.lines.push(msg().permissions.preview.unread(tool));
   c.raise("warn");
 }
 
@@ -348,48 +351,51 @@ function previewWrite(
 ): void {
   const abs = resolvePath(String(input["path"] ?? ""), c.cwd);
   const content = typeof input["content"] === "string" ? input["content"] : "";
-  const next = `${countLines(content)} 行，${formatBytes(Buffer.byteLength(content, "utf8"))}`;
+  const m = msg().permissions.preview;
+  const next = m.size(countLines(content), formatBytes(Buffer.byteLength(content, "utf8")));
   const shown = displayPath(abs, c.root);
   const info = tryStat(abs, true);
   if (info === undefined) {
-    c.target(`新建 ${shown}：${next}`, { path: shown, exists: false });
+    c.target(m.writeNew(shown, next), { path: shown, exists: false });
     return;
   }
   if (info.isDirectory()) {
-    c.target(`${shown} 是目录，write 会失败`, { path: `${shown}/`, exists: true });
+    c.target(m.writeIsDir(shown), { path: `${shown}/`, exists: true });
     c.raise("warn");
     return;
   }
   const old = readSmall(abs, info);
   const before =
-    old === undefined ? formatBytes(info.size) : `${countLines(old)} 行，${formatBytes(info.size)}`;
-  c.target(`覆盖 ${shown}：${before} → ${next}`, { path: shown, exists: true, bytes: info.size });
+    old === undefined ? formatBytes(info.size) : m.size(countLines(old), formatBytes(info.size));
+  c.target(m.writeOverwrite(shown, before, next), { path: shown, exists: true, bytes: info.size });
   unread(abs, request, c, "write");
 }
 
 function editFailure(message: string): string {
+  const m = msg().permissions.preview;
   const many = /^(\S+) matches (\d+) times/.exec(message);
-  if (many) return `${many[1]} 匹配不唯一（${many[2]} 处）`;
+  if (many) return m.editNotUnique(many[1] as string, many[2] as string);
   const missing = /^Could not find (\S+)/.exec(message);
-  if (missing) return `未找到 ${missing[1]}`;
-  if (message.includes("overlap")) return "多处修改的区间重叠";
-  if (message.includes("no change")) return "修改前后内容相同";
+  if (missing) return m.editNotFound(missing[1] as string);
+  if (message.includes("overlap")) return m.editOverlap;
+  if (message.includes("no change")) return m.editNoChange;
   return message;
 }
 
 function previewEdit(input: Record<string, unknown>, request: ApprovalRequest, c: Collector): void {
+  const m = msg().permissions.preview;
   const abs = resolvePath(String(input["path"] ?? ""), c.cwd);
   const shown = displayPath(abs, c.root);
   const info = tryStat(abs, true);
   if (info === undefined || !info.isFile()) {
-    c.target(`${shown} 不存在或不是文件，edit 会失败`, { path: shown, exists: info !== undefined });
+    c.target(m.editMissing(shown), { path: shown, exists: info !== undefined });
     c.raise("warn");
     return;
   }
   const target = { path: shown, exists: true, bytes: info.size };
   const raw = readSmall(abs, info);
   if (raw === undefined) {
-    c.target(`修改 ${shown}：${formatBytes(info.size)}，文件过大，未干跑`, target);
+    c.target(m.editTooLarge(shown, formatBytes(info.size)), target);
     unread(abs, request, c, "edit");
     return;
   }
@@ -397,16 +403,15 @@ function previewEdit(input: Record<string, unknown>, request: ApprovalRequest, c
   const edits = Array.isArray(input["edits"]) ? (input["edits"] as EditOp[]) : [];
   try {
     const plan = planEdits(content, edits, input["replaceAll"] === true);
-    const fuzzy = plan.fuzzy ? "（空白 / 引号归一后匹配）" : "";
-    c.target(`修改 ${shown}：${plan.replacements} 处替换${fuzzy}`, target);
+    c.target(m.editPlan(shown, plan.replacements, plan.fuzzy === true), target);
     edits.slice(0, 5).forEach((e, i) => {
-      c.lines.push(`  #${i + 1} −${countLines(e.oldText)}/+${countLines(e.newText)} 行`);
+      c.lines.push(m.editOp(i + 1, countLines(e.oldText), countLines(e.newText)));
     });
-    if (edits.length > 5) c.lines.push(`  … 另 ${edits.length - 5} 处`);
-    c.lines.push(`  共 ${countLines(content)} → ${countLines(plan.result)} 行`);
+    if (edits.length > 5) c.lines.push(m.editMore(edits.length - 5));
+    c.lines.push(m.editTotal(countLines(content), countLines(plan.result)));
   } catch (err) {
     if (!(err instanceof EditError)) throw err;
-    c.target(`修改 ${shown}：干跑失败——${editFailure(err.message)}`, target);
+    c.target(m.editDryRunFailed(shown, editFailure(err.message)), target);
     c.raise("warn");
   }
   unread(abs, request, c, "edit");
@@ -442,7 +447,9 @@ export function previewAction(request: ApprovalRequest, options: PreviewOptions)
         );
     }
   } catch (err) {
-    c.lines.push(`预览失败：${err instanceof Error ? err.message : String(err)}`);
+    c.lines.push(
+      msg().permissions.preview.failed(err instanceof Error ? err.message : String(err)),
+    );
   }
   return c.finish(kind);
 }
@@ -451,5 +458,8 @@ export function previewAction(request: ApprovalRequest, options: PreviewOptions)
 export function previewDisplayLines(preview: ActionPreview | undefined, max = 10): string[] {
   if (preview === undefined || preview.kind === "other") return [];
   if (preview.lines.length <= max) return preview.lines;
-  return [...preview.lines.slice(0, max - 1), `… 另 ${preview.lines.length - max + 1} 行`];
+  return [
+    ...preview.lines.slice(0, max - 1),
+    msg().permissions.preview.moreLines(preview.lines.length - max + 1),
+  ];
 }

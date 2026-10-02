@@ -19,9 +19,9 @@ import { currentSession, switchSession } from "../../../cli/compose-session.js";
 import type { ModeContext } from "../../../cli/deps.js";
 import { ExitCode } from "../../../cli/exit-codes.js";
 import {
-  BYPASS_LINE_QUESTION,
   BYPASS_MODE,
-  BYPASS_RISK_LINES,
+  bypassLineQuestion,
+  bypassRiskLines,
   createBypassGate,
 } from "../../../permissions/bypass.js";
 import { previewDisplayLines } from "../../../permissions/preview.js";
@@ -151,8 +151,12 @@ export async function runLineMode(
   // /permission full-auto：进入 Bypass 前文本确认一次（管道里没有这一步，命令本身就是显式选择）
   commands.confirmPermissionMode = createBypassGate(() => {
     ed.hide();
-    io.stdout(`\n${BYPASS_RISK_LINES.map((l) => `  ${l}\n`).join("")}`);
-    return ed.ask(BYPASS_LINE_QUESTION, "n").then((answer) => answer === "y");
+    io.stdout(
+      `\n${bypassRiskLines()
+        .map((l) => `  ${l}\n`)
+        .join("")}`,
+    );
+    return ed.ask(bypassLineQuestion(), "n").then((answer) => answer === "y");
   }, session.state.permissionMode === BYPASS_MODE);
   runtime.approvals.setUiBroker({
     ask: (request, signal) =>

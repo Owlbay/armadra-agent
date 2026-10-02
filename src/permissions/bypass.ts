@@ -8,27 +8,36 @@
  * - 只管「要不要问」与记住确认；怎么问（对话框 / 行式 y/N）由各界面提供 `ask`。
  */
 
+import { msg } from "../i18n/index.js";
 import type { PermissionMode } from "./types.js";
 
 export const BYPASS_MODE: PermissionMode = "full-auto";
 
-export const BYPASS_CONFIRM_TITLE = "进入 Bypass permissions？";
+/** 确认框标题（随界面语言）。 */
+export function bypassConfirmTitle(): string {
+  return msg().permissions.bypass.title;
+}
 
 /** 确认框正文：Bypass 意味着什么（一两条关键风险）。 */
-export const BYPASS_RISK_LINES: readonly string[] = [
-  "所有工具调用都不再询问：写文件、执行命令、联网直接放行",
-  "只有危险命令仍会询问，deny 规则照常生效；只建议在一次性沙箱、容器里用",
-];
+export function bypassRiskLines(): string[] {
+  const m = msg().permissions.bypass;
+  return [m.riskAllowAll, m.riskDangerous];
+}
 
 /** 选项：缺省选中「取消」。 */
-export const BYPASS_CHOICES = [
-  { label: "进入 Bypass", keys: "y" },
-  { label: "取消", keys: "n Esc" },
-] as const;
+export function bypassChoices(): { label: string; keys: string }[] {
+  const m = msg().permissions.bypass;
+  return [
+    { label: m.choiceEnter, keys: "y" },
+    { label: m.choiceCancel, keys: "n Esc" },
+  ];
+}
 export const BYPASS_DEFAULT_CHOICE = 1;
 
 /** 行式界面的问句（单键 y/N，缺省 N）。 */
-export const BYPASS_LINE_QUESTION = "确认进入 Bypass？[y/N] ";
+export function bypassLineQuestion(): string {
+  return msg().permissions.bypass.lineQuestion;
+}
 
 /** 不用问时同步返回 true（切换立即生效）；要问时返回等用户回答的 Promise。 */
 export type BypassGate = (mode: PermissionMode) => boolean | Promise<boolean>;

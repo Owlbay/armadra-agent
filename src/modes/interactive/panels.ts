@@ -11,7 +11,7 @@
 
 import type { AgentSession } from "../../agent/types.js";
 import type { Runtime } from "../../cli/runtime.js";
-import { AUTO_LAYER_TEXT, permissionModeLabel } from "../../permissions/modes.js";
+import { autoLayerText, permissionModeLabel } from "../../permissions/modes.js";
 import {
   Card,
   KeyValue,
@@ -198,7 +198,7 @@ export function permissionsPanel(
       new Indent(
         keyValue(
           recent.map((d) => ({
-            key: AUTO_LAYER_TEXT[d.layer],
+            key: autoLayerText(d.layer),
             value:
               `${effect(d.decision)}  ${d.toolName} ${d.summary} — ${d.reason}` +
               (d.cached === true ? theme.fg("dim", "（缓存）") : ""),

@@ -24,7 +24,7 @@ import type { SwitchRequest } from "../../cli/compose-session.js";
 import { listSessions } from "../../cli/compose-store.js";
 import { hideFakeProvider } from "../../cli/fake-visibility.js";
 import type { Runtime } from "../../cli/runtime.js";
-import { AUTO_LAYER_TEXT, permissionModeLabel } from "../../permissions/modes.js";
+import { autoLayerText, permissionModeLabel } from "../../permissions/modes.js";
 import type { PermissionMode } from "../../permissions/types.js";
 import type { SessionEntry } from "../../session/types.js";
 import type { Component, SelectItem, Theme } from "../../tui.js";
@@ -179,7 +179,7 @@ export function permissionsText(runtime: Runtime, session: AgentSession): string
     for (const d of recent) {
       const cached = d.cached === true ? "（缓存）" : "";
       lines.push(
-        `  ${AUTO_LAYER_TEXT[d.layer]}  ${d.decision}  ${d.toolName} ${d.summary} — ${d.reason}${cached}`,
+        `  ${autoLayerText(d.layer)}  ${d.decision}  ${d.toolName} ${d.summary} — ${d.reason}${cached}`,
       );
     }
   }

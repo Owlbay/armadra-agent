@@ -7,7 +7,7 @@ import type { AgentSession, SessionEvent } from "../../../agent/types.js";
 import { THINKING_LEVELS } from "../../../ai/thinking.js";
 import { listSessions } from "../../../cli/compose-store.js";
 import type { Runtime } from "../../../cli/runtime.js";
-import { AUTO_LAYER_TEXT, permissionModeLines } from "../../../permissions/modes.js";
+import { autoLayerText, permissionModeLines } from "../../../permissions/modes.js";
 import type { ApprovalRequest } from "../../../permissions/types.js";
 import type { CommandResult } from "../../commands-core.js";
 import { cacheEventNotice, warmSentNotice } from "../../session-report.js";
@@ -56,7 +56,7 @@ export function approvalQuestion(request: ApprovalRequest, taskAgent?: TaskAgent
       : request.hookReason !== undefined
         ? `（${request.hookReason}）`
         : auto !== undefined
-          ? `（Auto ${AUTO_LAYER_TEXT[auto.layer]}：${auto.reason}）`
+          ? `（Auto ${autoLayerText(auto.layer)}：${auto.reason}）`
           : "";
   return `${task}允许 ${request.toolName}${summary !== "" ? ` ${summary}` : ""}${why}？[y 允许 / a 本会话都允许 / N 拒绝] `;
 }

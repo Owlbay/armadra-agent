@@ -1,10 +1,11 @@
 /**
  * 六种权限模式的显示名、一行说明、界面顺序与 Shift+Tab 循环（§7.4）。
  *
- * 显示名用英文（与常见编码 Agent 的叫法一致），说明用界面语言（中文）。界面顺序就是选择器里
+ * 显示名用英文（与常见编码 Agent 的叫法一致），说明随界面语言（`msg().permissions`）。界面顺序就是选择器里
  * 数字快捷键 1–6 的顺序；`allowlist` 不在 Shift+Tab 循环里，只能显式选。
  */
 
+import { msg, type Catalog } from "../i18n/index.js";
 import { PERMISSION_MODES_STRICT_FIRST, type PermissionMode } from "./types.js";
 
 export interface PermissionModeInfo {
@@ -12,16 +13,26 @@ export interface PermissionModeInfo {
   description: string;
 }
 
+/** 说明随界面语言（取用时求值，不在 import 时定死）。 */
+function info(
+  label: string,
+  key: keyof Catalog["permissions"]["modeDescription"],
+): PermissionModeInfo {
+  return {
+    label,
+    get description() {
+      return msg().permissions.modeDescription[key];
+    },
+  };
+}
+
 export const PERMISSION_MODE_INFO: Readonly<Record<PermissionMode, PermissionModeInfo>> = {
-  default: { label: "Manual", description: "写文件、执行命令前询问" },
-  "auto-edit": { label: "Accept edits", description: "自动接受文件编辑，执行命令仍询问" },
-  plan: { label: "Plan", description: "只读调研，只跑只读命令，出计划后审批执行" },
-  auto: { label: "Auto", description: "由 ama 判断每一步：安全的自动放行，有风险的才问" },
-  "full-auto": { label: "Bypass permissions", description: "全部放行（危险命令仍询问）" },
-  allowlist: {
-    label: "Allowlist only",
-    description: "只放行 allow 规则命中的，其余拒绝，从不询问",
-  },
+  default: info("Manual", "default"),
+  "auto-edit": info("Accept edits", "autoEdit"),
+  plan: info("Plan", "plan"),
+  auto: info("Auto", "auto"),
+  "full-auto": info("Bypass permissions", "fullAuto"),
+  allowlist: info("Allowlist only", "allowlist"),
 };
 
 /** 选择器顺序（数字快捷键 1–6）。 */
@@ -80,12 +91,10 @@ export function permissionModeLines(
   });
 }
 
-/** 审批对话框与提示里 auto 判定层的中文名。 */
-export const AUTO_LAYER_TEXT: Readonly<Record<"rule" | "static" | "classifier", string>> = {
-  rule: "规则层",
-  static: "静态判定",
-  classifier: "分类器",
-};
+/** 审批对话框与提示里 auto 判定层的名字（随界面语言）。 */
+export function autoLayerText(layer: "rule" | "static" | "classifier"): string {
+  return msg().permissions.autoLayer[layer];
+}
 
 /**
  * 命令参数里的模式：接受值（`auto-edit`）或显示名（`Accept edits`、`accept-edits`，大小写不敏感）。
