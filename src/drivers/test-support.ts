@@ -5,14 +5,13 @@
  *   同时记下两个方向的线上消息用于黄金记录；
  * - {@link replayPeer}：按 `test/fixtures/drivers/<agent>/*.jsonl` 的录制回放原生协议
  *   （每行 `{"dir":"in"|"out","msg":…}`：`in` 是驱动应发出的消息（子集匹配），`out` 是对端的回应）；
- * - {@link golden}：与 `test/fixtures/` 下的黄金文件比对（`UPDATE_GOLDEN=1` 重写）。
+ * - {@link golden}：读 `test/fixtures/` 下的黄金文件（`UPDATE_GOLDEN=1` 重写）。
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
-import { expect } from "vitest";
 import { createLineReader } from "../modes/rpc/jsonl.js";
 import type { AgentTransport, SpawnTransport, TransportSpec } from "./process.js";
 
@@ -177,14 +176,14 @@ export function replayPeer(recording: readonly WireLine[]): {
   };
 }
 
-/** 归一化并与黄金文件比对。 */
-export function golden(relative: string, actual: string): void {
+/** 黄金文件内容（`UPDATE_GOLDEN=1` 或文件不存在时先写入 actual）；调用方 `expect(actual).toBe(…)`。 */
+export function golden(relative: string, actual: string): string {
   const file = fileURLToPath(new URL(`../../test/fixtures/${relative}`, import.meta.url));
   if (process.env["UPDATE_GOLDEN"] === "1" || !existsSync(file)) {
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, actual);
   }
-  expect(actual).toBe(readFileSync(file, "utf8"));
+  return readFileSync(file, "utf8");
 }
 
 /** 线上记录 → 黄金文本：去掉不稳定字段（版本、临时路径）。 */

@@ -85,7 +85,10 @@ describe("AcpDriver × 假 ACP Agent（黄金记录）", () => {
       toolSummary: ["✓ edit Write note.txt"],
       usage: { input: 10, output: 5 },
     });
-    golden("acp/driver-allow.jsonl", wireText(wire));
+    {
+      const text = wireText(wire);
+      expect(text).toBe(golden("acp/driver-allow.jsonl", text));
+    }
   });
 
   it("拒绝：reject_once，工具失败，无文件", async () => {
@@ -99,7 +102,10 @@ describe("AcpDriver × 假 ACP Agent（黄金记录）", () => {
       filesTouched: [],
       toolSummary: ["✗ edit Write note.txt"],
     });
-    golden("acp/driver-reject.jsonl", wireText(wire));
+    {
+      const text = wireText(wire);
+      expect(text).toBe(golden("acp/driver-reject.jsonl", text));
+    }
   });
 
   it("取消：审批挂起时 cancel → 请求回 cancelled，回合 cancelled", async () => {
@@ -113,7 +119,10 @@ describe("AcpDriver × 假 ACP Agent（黄金记录）", () => {
     expect(result.stopReason).toBe("cancelled");
     const response = wire.find((w) => w.dir === "in" && w.msg["id"] === 1 && "result" in w.msg);
     expect(response?.msg["result"]).toEqual({ outcome: { outcome: "cancelled" } });
-    golden("acp/driver-cancel.jsonl", wireText(wire));
+    {
+      const text = wireText(wire);
+      expect(text).toBe(golden("acp/driver-cancel.jsonl", text));
+    }
   });
 
   it("close() 时挂起的审批回 cancelled（父 abort 路径）", async () => {

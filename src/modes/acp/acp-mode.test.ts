@@ -109,7 +109,10 @@ describe("ama --mode acp", () => {
       .join("");
     expect(text).toBe("hello back");
     expect(await t.finish()).toBe(0);
-    golden("acp/mode-prompt.jsonl", normalize(t.wire, h.home.root));
+    {
+      const text = normalize(t.wire, h.home.root);
+      expect(text).toBe(golden("acp/mode-prompt.jsonl", text));
+    }
   });
 
   it("审批经 session/request_permission 交给客户端：允许后执行", async () => {
