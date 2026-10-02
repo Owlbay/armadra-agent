@@ -151,7 +151,11 @@ ama -p "列出 TODO" --model deepseek/deepseek-v4-pro --output-format json
 }
 ```
 
-其余（`compaction`、`retry`、`codemode`、`hooks`、`ui`、`skills`、`cache`）都有缺省，`ama config show` 会列出来。
+其余（`compaction`、`retry`、`codemode`、`hooks`、`ui`、`skills`、`cache`、`request`）都有缺省，`ama config show` 会列出来。
+
+**请求超时**：模型请求有空闲超时，缺省 300 s——等响应头、以及流里两块数据之间超过这个时间就判定卡住，按可重试错误
+走 `retry` 的退避重试（收到任何字节即重新计时，长回答不受影响）。用 `request.idleTimeoutMs`（只认用户级）或环境变量
+`AMA_IDLE_TIMEOUT_MS` 调整，0 关闭。
 
 ### 文件位置与层级
 

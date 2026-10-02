@@ -195,6 +195,24 @@ export function cacheSettingsFrom(
   return settings;
 }
 
+/**
+ * 模型请求的空闲超时：`AMA_IDLE_TIMEOUT_MS` > config `request.idleTimeoutMs`；都没有 → undefined
+ * （协议层取缺省 300 000）。0 关闭；非法的环境变量值忽略并 warning。
+ */
+export function idleTimeoutFrom(
+  config: Pick<AmaConfig, "request">,
+  env: NodeJS.ProcessEnv = process.env,
+  warn: (message: string) => void = () => undefined,
+): number | undefined {
+  const raw = env["AMA_IDLE_TIMEOUT_MS"];
+  if (raw !== undefined && raw.trim() !== "") {
+    const value = Number(raw);
+    if (Number.isFinite(value) && value >= 0) return value;
+    warn(`AMA_IDLE_TIMEOUT_MS=${raw} 无效（应为不小于 0 的毫秒数），已忽略`);
+  }
+  return config.request?.idleTimeoutMs;
+}
+
 /** §1.4：SessionEvent → AgentEvents。 */
 export function bridgeEvent(event: SessionEvent, bus: AgentEventBus): void {
   switch (event.type) {
@@ -298,6 +316,8 @@ function buildSession(
     cache: cacheSettingsFrom(config, process.env, (message) => record.log("warn", message)),
     warmingDecider: () => assembly.host.warmingDecider?.(),
   };
+  const idle = idleTimeoutFrom(config, process.env, (message) => record.log("warn", message));
+  if (idle !== undefined) options.idleTimeoutMs = idle;
   const autoModel = config.permission?.autoModel;
   if (autoModel !== undefined) options.permissionClassifier = { model: autoModel };
   const maxChars = config.tools?.maxToolResultChars;

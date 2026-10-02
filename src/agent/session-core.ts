@@ -75,6 +75,8 @@ export interface AgentSessionOptions {
   outputDir?: string;
   /** task 深度：主会话 0。 */
   depth?: number;
+  /** 模型请求的空闲超时（毫秒，0 关闭）；缺省由协议层取 300 000。 */
+  idleTimeoutMs?: number;
   /** 子 Agent 的回合上限（maxTurns）。 */
   maxTurns?: number;
   /** 子 Agent 并发上限，缺省 4；`false` 关闭 spawnSubagent。 */

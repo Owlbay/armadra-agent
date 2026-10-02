@@ -409,6 +409,11 @@ export interface StreamOptions {
   /** 值为 null 表示删除该头。 */
   headers?: Record<string, string | null>;
   timeoutMs?: number;
+  /**
+   * 空闲超时：等响应头、以及流中两块数据之间的最长间隔（每收到字节即重新计时）。缺省 300 000，
+   * 0 关闭。超时报 `idle timeout` 错误，会话层按可重试处理。
+   */
+  idleTimeoutMs?: number;
   maxTokens?: number;
   temperature?: number;
   thinkingLevel?: ModelThinkingLevel;
