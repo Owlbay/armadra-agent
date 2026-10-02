@@ -238,6 +238,38 @@ describe("ama providers add", () => {
     expect(await runProviders(["remove", "relay"], io(), deps)).toBe(1);
   });
 
+  it("只有 Messages 渠道：列模型先试 Bearer，401 再试 x-api-key", async () => {
+    vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input instanceof Request ? input.url : input);
+      const headers = Object.fromEntries(new Headers(init?.headers).entries());
+      requests.push({ url, headers });
+      if (url === MD_URL) return Response.json(SAMPLE);
+      if (headers["x-api-key"] === "sk-relay")
+        return Response.json({ data: [{ id: "kimi-k2.5" }] });
+      return new Response("unauthorized", { status: 401 });
+    });
+    const code = await runProviders(
+      [
+        "add",
+        "msg",
+        "--channel",
+        "m=anthropic-messages@https://relay.example",
+        "--key-env",
+        "RELAY_KEY",
+        "--yes",
+      ],
+      io(),
+      deps,
+    );
+    expect(code).toBe(0);
+    const listing = requests.filter((r) => r.url === "https://relay.example/v1/models");
+    expect(listing.map((r) => Object.keys(r.headers).sort())).toEqual([
+      ["accept", "authorization"],
+      ["accept", "anthropic-version", "x-api-key"],
+    ]);
+    expect(config().providers?.["msg"]?.models).toEqual([{ id: "kimi-k2.5", channels: ["m"] }]);
+  });
+
   it("用法错误", async () => {
     await expect(runProviders(["add", "relay"], io(), deps)).rejects.toThrow(/--base-url/);
     await expect(

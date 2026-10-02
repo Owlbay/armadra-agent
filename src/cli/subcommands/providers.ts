@@ -130,22 +130,26 @@ async function approved(ctx: Ctx, what: string): Promise<boolean | "usage"> {
   return confirm(ctx.io, `${what}\n`);
 }
 
+/**
+ * `GET /models`。OpenAI 系带 `Authorization: Bearer`；Anthropic 形状的渠道先试 Bearer（中转多半只认它），
+ * 401 / 403 再试 `x-api-key` + `anthropic-version`（官方形状）。
+ */
 async function fetchModelList(
   target: { channel: CandidateChannel; url: string },
   apiKey: string | undefined,
 ): Promise<ListedModel[]> {
-  const anthropic = target.channel.api === "anthropic-messages";
-  const headers: Record<string, string> = { accept: "application/json" };
-  if (apiKey !== undefined) {
-    if (anthropic) {
-      headers["x-api-key"] = apiKey;
-      headers["anthropic-version"] = "2023-06-01";
-    } else headers["authorization"] = `Bearer ${apiKey}`;
-  }
-  const response = await fetch(target.url, {
-    headers,
-    signal: AbortSignal.timeout(DISCOVER_TIMEOUT_MS),
-  });
+  const get = (headers: Record<string, string>): Promise<Response> =>
+    fetch(target.url, {
+      headers: { accept: "application/json", ...headers },
+      signal: AbortSignal.timeout(DISCOVER_TIMEOUT_MS),
+    });
+  let response = await get(apiKey !== undefined ? { authorization: `Bearer ${apiKey}` } : {});
+  if (
+    (response.status === 401 || response.status === 403) &&
+    apiKey !== undefined &&
+    target.channel.api === "anthropic-messages"
+  )
+    response = await get({ "x-api-key": apiKey, "anthropic-version": "2023-06-01" });
   if (!response.ok) throw new Error(`HTTP ${response.status} ${target.url}`);
   return parseModelList(await response.json());
 }
