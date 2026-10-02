@@ -4,9 +4,10 @@
  * 判定顺序：上下文溢出（不重试，走压缩）→ 不可重试（配额 / 计费 / key / 401 / 403，快速失败）→
  * 可重试（429、5xx、overloaded、网络错误、断流）→ 其它（不重试）。
  * 延迟 `baseDelayMs × 2^(attempt−1)`，上限 `maxDelayMs`；`sleep` 可被 abort 打断。
- * 协议层自身不重试。溢出文案识别归 B1 的 ai/overflow.ts；这里的正则只是缺省，集成时可注入替换。
+ * 协议层自身不重试。溢出文案识别只有一份：ai/overflow.ts 的 `isOverflowErrorText`（缺省），可注入替换。
  */
 
+import { isOverflowErrorText } from "../ai/overflow.js";
 import type { AssistantMessage } from "../ai/types.js";
 import { AmaError } from "../errors.js";
 import type { RetrySettings } from "./types.js";
@@ -19,19 +20,6 @@ export const DEFAULT_RETRY_SETTINGS: RetrySettings = {
 };
 
 export type FailureKind = "overflow" | "fatal" | "retryable" | "other";
-
-const OVERFLOW_PATTERNS: readonly RegExp[] = [
-  /prompt is too long/i,
-  /exceeds? the (?:model'?s? )?(?:maximum )?context (?:window|length)/i,
-  /maximum context length/i,
-  /context[_ ]length[_ ]exceeded/i,
-  /context window (?:is )?(?:full|exceeded)/i,
-  /input (?:is )?too long/i,
-  /too many (?:input )?tokens/i,
-  /reduce the length of the messages/i,
-  /request too large for model/i,
-  /token limit exceeded/i,
-];
 
 const FATAL_PATTERNS: readonly RegExp[] = [
   /insufficient[_ ]quota/i,
@@ -68,10 +56,6 @@ const RETRYABLE_PATTERNS: readonly RegExp[] = [
   /connection (?:reset|closed|error)/i,
 ];
 
-export function defaultIsContextOverflow(errorMessage: string): boolean {
-  return OVERFLOW_PATTERNS.some((pattern) => pattern.test(errorMessage));
-}
-
 export interface ClassifyOptions {
   isContextOverflow?: (errorMessage: string) => boolean;
 }
@@ -86,7 +70,7 @@ export function classifyFailure(
   }
   if (message.stopReason !== "error") return "other";
   const text = message.errorMessage ?? "";
-  const isOverflow = options.isContextOverflow ?? defaultIsContextOverflow;
+  const isOverflow = options.isContextOverflow ?? isOverflowErrorText;
   if (isOverflow(text)) return "overflow";
   if (FATAL_PATTERNS.some((pattern) => pattern.test(text))) return "fatal";
   if (RETRYABLE_PATTERNS.some((pattern) => pattern.test(text))) return "retryable";

@@ -1,0 +1,15 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`描述规则与权限类 > 描述快照：规则段 + 6 行示例 + 内置工具声明 1`] = `
+"Run a JavaScript script that calls tools; only the script's output comes back to you. Use it to batch many tool calls (Promise.all), filter or summarize large results, or loop, in one step.
+Only tools.<name>(args) is available. There is no require, import, process, fetch or timers; do not call tools directly as functions.
+The input is raw JavaScript (not JSON, no code fence), run as the body of an async function: top-level await and return work. Optional first line: // @options: {"max_output_tokens": 10000, "timeout_ms": 300000}
+Example:
+const [a, b] = await Promise.all([
+  tools.read({ path: "src/a.ts" }),
+  tools.read({ path: "src/b.ts" }),
+]);
+const hits = (a + "\\n" + b).split("\\n").filter((line) => line.includes("TODO"));
+return hits.join("\\n");
+Globals: tools.<name>(args) returns a Promise and rejects with an Error when the call fails or is denied (use Promise.allSettled to keep the rest); text(v) and console.log(...) append output (non-strings as JSON); return v is text(v); store(key, v) / load(key) keep small JSON values across scripts (saved only when the script succeeds); ALL_TOOLS lists callable tools; describeTool(name) returns a declaration. At most 8 tool calls run at once; codemode cannot call itself. Every call goes through the normal hooks, permissions and approvals."
+`;

@@ -117,12 +117,19 @@ export async function main(argv: readonly string[], options: MainOptions = {}): 
   }
   if (options.processHooks !== false) installProcessHooks(io);
   // 缺省装配走动态 import：--version / auth 不加载运行时实现（bundle 里同样内联）。
+  // io 交给组装根决定启动期问答（迷你 TUI / 文本 / 不问）；--no-tui 在解析后才知道。
+  let noTui = false;
   const resolveDeps = async (): Promise<RuntimeDeps> =>
     options.deps ??
     registeredDeps ??
-    (await import("./compose.js")).createRuntimeDeps({ env: io.env as NodeJS.ProcessEnv });
+    (await import("./compose.js")).createRuntimeDeps({
+      env: io.env as NodeJS.ProcessEnv,
+      io,
+      noTui,
+    });
   try {
     const parsed = parseArgs(argv);
+    if (parsed.kind !== "subcommand") noTui = parsed.args.noTui;
     if (parsed.kind === "subcommand") {
       switch (parsed.name) {
         case "auth":
