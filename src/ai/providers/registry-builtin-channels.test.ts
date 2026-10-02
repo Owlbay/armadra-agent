@@ -336,3 +336,28 @@ describe("OpenAI / xAI：中转（*_BASE_URL）时单渠道回落", () => {
     expect(model(resp, "openai/some-new-id").api).toBe("openai-responses");
   });
 });
+
+describe("新增内置供应商", () => {
+  it.each([
+    ["minimax/MiniMax-M3", "messages", "anthropic-messages", "https://api.minimax.cn/anthropic"],
+    ["minimax/MiniMax-M3@responses", "responses", "openai-responses", "https://api.minimax.cn/v1"],
+    [
+      "minimax/MiniMax-M2.7@messages-intl",
+      "messages-intl",
+      "anthropic-messages",
+      "https://api.minimax.io/anthropic",
+    ],
+  ])("%s → %s", (ref, channel, api, baseUrl) => {
+    expect(model(registry(), ref)).toMatchObject({ channel, api, baseUrl });
+  });
+
+  it("目录按模型限定渠道：MiniMax M2.x 没有 Responses", () => {
+    const r = registry();
+    expect(model(r, "minimax/MiniMax-M2.7").channels).not.toContain("responses");
+    expect(r.findModel("minimax/MiniMax-M2.7@responses")).toMatchObject({
+      ok: false,
+      reason: "channel_not_found",
+    });
+    expect(model(r, "minimax/MiniMax-M3").authHeader).toBe("authorization-bearer");
+  });
+});

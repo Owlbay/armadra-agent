@@ -184,6 +184,23 @@ export const BUILTIN_PROVIDERS: readonly BuiltinProvider[] = [
     requiresApiKey: true,
   },
   {
+    id: "minimax",
+    name: "MiniMax",
+    api: "openai-completions",
+    baseUrl: "https://api.minimax.cn/v1",
+    // 官方推荐 Anthropic 兼容端点；M2.x 执行 cache_control（5m），M3 的缓存行为列入实测；Responses 只有 M3
+    channels: [
+      ch("messages", MESSAGES, "https://api.minimax.cn/anthropic", BEARER),
+      ch("responses", RESPONSES, "https://api.minimax.cn/v1"),
+      ch("chat", CHAT, "https://api.minimax.cn/v1"),
+      ch("messages-intl", MESSAGES, "https://api.minimax.io/anthropic", BEARER),
+      ch("chat-intl", CHAT, "https://api.minimax.io/v1"),
+    ],
+    defaultChannel: "messages",
+    envKeys: ["MINIMAX_API_KEY", "AMA_API_KEY_MINIMAX"],
+    requiresApiKey: true,
+  },
+  {
     id: "ollama",
     name: "Ollama (local)",
     api: "openai-completions",

@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "provider": "minimax",
+  "modelsDev": "minimax-cn",
+  "models": [
+    {
+      "id": "MiniMax-M3"
+    },
+    {
+      "id": "MiniMax-M2.7",
+      "channels": ["messages", "chat", "messages-intl", "chat-intl"],
+      "thinkingLevelMap": {
+        "off": null
+      },
+      "promptCache": {
+        "short": 300
+      }
+    },
+    {
+      "id": "MiniMax-M2.7-highspeed",
+      "channels": ["messages", "chat", "messages-intl", "chat-intl"],
+      "thinkingLevelMap": {
+        "off": null
+      },
+      "promptCache": {
+        "short": 300
+      }
+    },
+    {
+      "id": "MiniMax-M2.5",
+      "channels": ["messages", "chat", "messages-intl", "chat-intl"],
+      "thinkingLevelMap": {
+        "off": null
+      },
+      "promptCache": {
+        "short": 300
+      }
+    }
+  ]
+}
