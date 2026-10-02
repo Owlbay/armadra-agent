@@ -52,7 +52,7 @@ import { classifyKeyValue } from "../../config/auth-file.js";
 import { CODEMODE_TOOL, resolveCodemodeMode, resolvePreset } from "../../tools/presets.js";
 import { builtinTools } from "../../tools/registry.js";
 import { parseSubArgs, UsageError } from "../args.js";
-import { pickDefaultModel } from "../default-model.js";
+import { noModelGuidance, pickDefaultModel } from "../default-model.js";
 import type { CliIo, RuntimeDeps } from "../deps.js";
 import { ExitCode } from "../exit-codes.js";
 import { buildRegistry, loadUserLevel, type UserLevel } from "./context.js";
@@ -158,8 +158,7 @@ export async function describeModel(
     return { ref: config.defaultModel, reason: "config.defaultModel" };
   if (registry === undefined) return { ref: undefined, reason: "注册表未装配" };
   const picked = await pickDefaultModel(registry);
-  if (picked === undefined)
-    return { ref: undefined, reason: "没有可用模型：ama auth set <provider> 或设置对应环境变量" };
+  if (picked === undefined) return { ref: undefined, reason: noModelGuidance(registry) };
   const ref = `${picked.provider.id}/${picked.model.id}`;
   if (picked.via === "local") return { ref, reason: `零配置：本地 ${picked.provider.id} 可达` };
   const key = await registry.resolveApiKey(picked.provider.id);

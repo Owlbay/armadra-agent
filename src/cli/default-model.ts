@@ -30,3 +30,21 @@ export async function pickDefaultModel(
   }
   return undefined;
 }
+
+/**
+ * 没有可用模型时的引导（一行，选择器的说明行与报错共用）：列出前几个内置供应商的 key 环境变量，
+ * 以及 `ama auth set` / `ama providers add`。
+ */
+export function noModelGuidance(registry: Pick<ProviderRegistryApi, "list">): string {
+  const envs = registry
+    .list()
+    .filter((p) => p.builtin && p.requiresApiKey && p.id !== "fake")
+    .map((p) => p.envKeys[0])
+    .filter((name): name is string => name !== undefined);
+  const shown = envs.slice(0, 3).join(" / ");
+  const more = envs.length > 3 ? " 等" : "";
+  return (
+    `没有可用模型：设置 ${shown}${more}环境变量，或 \`ama auth set <provider>\` 保存 key，` +
+    "或 `ama providers add <id> --base-url <url>` 接入中转站（也可 --model 指定）"
+  );
+}

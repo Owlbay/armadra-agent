@@ -13,7 +13,8 @@ import { AmaError, StartupError, isAmaError } from "../errors.js";
 import type { InstructionSource } from "../host/types.js";
 import type { SessionEntry, SessionManagerApi } from "../session/types.js";
 import { UsageError, type ParsedArgs } from "./args.js";
-import { pickDefaultModel } from "./default-model.js";
+import { noModelGuidance, pickDefaultModel } from "./default-model.js";
+import { hideFakeProvider } from "./fake-visibility.js";
 import type { CliIo, RuntimeDeps, SessionAssembly, SessionRequest } from "./deps.js";
 import { ExitCode } from "./exit-codes.js";
 import type { Runtime, RuntimeMode } from "./runtime.js";
@@ -123,6 +124,7 @@ export async function resolveModel(
   defaultModel: string | undefined,
   deps: RuntimeDeps,
   interactive: boolean,
+  env: Readonly<Record<string, string | undefined>> = {},
 ): Promise<ModelChoice> {
   if (args.provider !== undefined && args.model === undefined) {
     throw new UsageError(
@@ -169,14 +171,15 @@ export async function resolveModel(
     }
   }
   const pick = async (reason: string): Promise<ModelChoice> => {
-    const picked = interactive ? await deps.ui?.pickModel?.(registry, reason) : undefined;
+    // 选择器不列测试供应商 fake（AMA_SHOW_FAKE=1 或 AMA_FAKE_SCRIPT 时照列）
+    const picked = interactive
+      ? await deps.ui?.pickModel?.(hideFakeProvider(registry, env), reason)
+      : undefined;
     if (picked === undefined) throw new StartupError("no_api_key", reason, ExitCode.NoModel);
     return lookup(picked, "");
   };
   if (choice === undefined) {
-    return pick(
-      "没有可用模型：用 `ama auth set <provider>` 保存 key，或设置对应环境变量，或 --model 指定",
-    );
+    return pick(noModelGuidance(registry));
   }
   if (choice.provider.requiresApiKey) {
     const key = await registry.resolveApiKey(choice.provider.id);

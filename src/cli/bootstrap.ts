@@ -198,7 +198,7 @@ export async function bootstrap(
     }),
   );
   const { model, provider } = await step(ExitCode.NoModel, "模型", () =>
-    resolveModel(args, providers, sessionManager, config.defaultModel, deps, interactive),
+    resolveModel(args, providers, sessionManager, config.defaultModel, deps, interactive, io.env),
   );
   const thinkingLevel = thinkingOf(args, sessionManager, config.thinkingLevel);
   // 12. 工具注册表
