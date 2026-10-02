@@ -23,6 +23,7 @@ import { AgentEventBus, createHostApi } from "../host/api-impl.js";
 import { activateHost, disposeHost } from "../host/loader.js";
 import type { ApprovalBroker, HostAdapterHandle } from "../host/types.js";
 import { HELP_TEXT, parseArgs, UsageError, type ParsedArgs } from "./args.js";
+import { applyFromOption } from "./from-prompt.js";
 import type { CliIo, RuntimeDeps, SessionAssembly } from "./deps.js";
 import { ExitCode } from "./exit-codes.js";
 import {
@@ -425,10 +426,14 @@ export async function runCli(
   }
   const restore =
     runtime.mode === "print" || runtime.mode === "rpc" ? takeOverStdout() : () => undefined;
+  let cleanupFrom = (): void => undefined;
   try {
     if (runtime.mode !== "interactive")
       for (const w of runtime.warnings) io.stderr(`ama: 警告：${w}\n`);
-    const context = { args, prompt: args.prompt, io };
+    // [W4-D] --from：旧会话的一条用户消息作提示（-p 时连图片，临时文件在 finally 删除）。
+    const from = applyFromOption(args, runtime, io);
+    cleanupFrom = from.cleanup;
+    const context = from.context;
     const runner = deps.modes[runtime.mode];
     if (runner === undefined)
       throw new AmaError("not_implemented", `模式 ${runtime.mode} 尚未装配`, { exitCode: 1 });
@@ -445,6 +450,7 @@ export async function runCli(
     return reportError(error, io, ExitCode.RuntimeError);
   } finally {
     await runtime.dispose("exit").catch(() => undefined);
+    cleanupFrom();
     restore();
   }
 }

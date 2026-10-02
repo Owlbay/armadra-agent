@@ -32,6 +32,7 @@ import { runInit } from "./subcommands/init.js";
 import { autoInitConfigDir } from "../config/init.js";
 import { resolveConfigDir } from "../config/paths.js";
 import { runSessions } from "./subcommands/sessions.js";
+import { runStats } from "./subcommands/stats.js";
 import { enableEnvProxy, proxyHint } from "./proxy.js";
 
 declare const __AMA_BUNDLED__: boolean | undefined;
@@ -184,6 +185,8 @@ export async function main(argv: readonly string[], options: MainOptions = {}): 
           return await runConfig(parsed.argv, io, await resolveDeps());
         case "init":
           return runInit(parsed.argv, io);
+        case "stats":
+          return await runStats(parsed.argv, io);
       }
     }
     if (parsed.args.version) {
