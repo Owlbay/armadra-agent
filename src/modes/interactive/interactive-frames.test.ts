@@ -36,7 +36,9 @@ describe("启动头", () => {
         quietStartup: "normal",
         argv: ["--trust", "--codemode", "off"],
       });
-      golden(`startup-normal-${columns}x24`, snapshot(s.terminal, "startup normal"));
+      // Windows 上目录显示为 ~\work
+      const shot = snapshot(s.terminal, "startup normal").replaceAll("~\\work", "~/work");
+      golden(`startup-normal-${columns}x24`, shot);
       s.handle.exit(0);
       await s.done;
     });
@@ -82,7 +84,8 @@ const DIFF = [
 function toolsScene(): MessageView {
   const theme = plainTheme();
   let now = 0;
-  const tracker = new ToolTracker({ theme, cwd: "/w", now: () => now, spinner: () => "⠋" });
+  // 路径用相对写法：绝对路径经 relative() 在 Windows 上会变成反斜杠
+  const tracker = new ToolTracker({ theme, now: () => now, spinner: () => "⠋" });
   const view = new MessageView({ theme });
   const add = (id: string, name: string, args: unknown, parent?: string) => {
     const { view: v, topLevel } = tracker.start({
@@ -95,7 +98,7 @@ function toolsScene(): MessageView {
     return v;
   };
   view.addUser({ content: "检查差分渲染" });
-  add("r", "read", { path: "/w/src/tui/tui.ts", offset: 1, limit: 120 });
+  add("r", "read", { path: "src/tui/tui.ts", offset: 1, limit: 120 });
   const numbered = Array.from(
     { length: 120 },
     (_, i) => `${String(i + 1).padStart(6)}\tline ${i + 1}`,
@@ -105,7 +108,7 @@ function toolsScene(): MessageView {
     { content: numbered.join("\n"), details: { firstLine: 1, lastLine: 120 } },
     false,
   );
-  add("e", "edit", { path: "/w/src/tui/tui.ts", edits: [{}, {}] });
+  add("e", "edit", { path: "src/tui/tui.ts", edits: [{}, {}] });
   tracker.end("e", { content: "Edited", details: { diff: DIFF, replacements: 2 } }, false);
   add("b1", "bash", { command: "pnpm vitest run src/tui" });
   tracker.update(
@@ -127,7 +130,7 @@ function toolsScene(): MessageView {
     },
     true,
   );
-  add("g", "grep", { pattern: "requestRender", path: "/w/src" });
+  add("g", "grep", { pattern: "requestRender", path: "src" });
   tracker.end(
     "g",
     {
@@ -144,7 +147,7 @@ function toolsScene(): MessageView {
   add("c", "codemode", { script: 'const files = await tools.glob("src/**/*.ts")' });
   add("c1", "glob", { pattern: "src/**/*.ts" }, "c");
   tracker.end("c1", { content: "a\nb", details: { count: 42 } }, false);
-  add("c2", "read", { path: "/w/src/tui/tui.ts" }, "c");
+  add("c2", "read", { path: "src/tui/tui.ts" }, "c");
   tracker.end("c2", { content: "x", details: { firstLine: 1, lastLine: 399 } }, false);
   tracker.end("c", { content: "42 files, 14 matches\ndone", details: { toolCalls: 2 } }, false);
   add("t", "task", { description: "检查 src/tui 的测试覆盖缺口" });
@@ -170,8 +173,10 @@ describe("运行中动词", () => {
           { delayMs: 30 },
           { toolCall: { name: "bash", arguments: { command: "echo verbs-ok" }, id: "call_b" } },
         ],
+        // 用量写死：缺省按请求大小估算，系统提示含平台信息，各机器不同
+        usage: { input: 900, output: 17 },
       },
-      { text: "好了。" },
+      { text: "好了。", usage: { input: 1200, output: 1 } },
     ]);
     const frames: string[] = [];
     const isUpdate = (kind: "thinking" | "text") => (e: SessionEvent) =>
