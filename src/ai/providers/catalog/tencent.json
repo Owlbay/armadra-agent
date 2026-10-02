@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "provider": "tencent",
+  "modelsDev": "tencent-tokenhub",
+  "models": [
+    {
+      "id": "hy4-preview",
+      "promptCache": {
+        "short": 300,
+        "long": 3600
+      }
+    },
+    {
+      "id": "hy3",
+      "cost": {
+        "input": 0.139,
+        "output": 0.556,
+        "cacheRead": 0.0348,
+        "cacheWrite": 0
+      },
+      "_reason": "快照价为 0；官方价格页（2026-10）1 / 4 / 0.25 元每百万 token，按快照同一汇率（约 0.139）折算",
+      "promptCache": {
+        "short": 300,
+        "long": 3600
+      }
+    }
+  ]
+}

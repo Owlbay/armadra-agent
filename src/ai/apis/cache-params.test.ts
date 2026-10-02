@@ -34,10 +34,12 @@ describe("resolvePromptCacheCompat：按请求主机推断，显式 compat 覆�
     expect(anthropic.sendPromptCacheKey).toBe(false);
   });
 
-  it("中转 / 国产 / OpenRouter：全部缺省关；provider id 不参与（openai 指到中转按中转）", () => {
+  it("中转 / 未列入的国产 / OpenRouter：全部缺省关；provider id 不参与（openai 指到中转按中转）", () => {
     for (const url of [
       "https://www.packyapi.com/v1",
-      "https://api.moonshot.cn/v1",
+      "https://open.bigmodel.cn/api/paas/v4",
+      "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "https://api.groq.com/openai/v1",
       "https://openrouter.ai/api/v1",
       "https://api.openai.com.evil.test/v1",
       "not a url",
@@ -48,6 +50,38 @@ describe("resolvePromptCacheCompat：按请求主机推断，显式 compat 覆�
       expect(compat.supportsLongCacheRetention).toBe(false);
     }
     expect(endpointHost(at("not a url"), "openai-completions")).toBe("");
+  });
+
+  it.each<[string, boolean, boolean]>([
+    // [baseUrl, 发 prompt_cache_key, 长保留]（HOST_CACHE_CAPABILITIES，W5-M2）
+    ["https://api.x.ai/v1", true, false],
+    ["https://api.mistral.ai/v1", true, false],
+    ["https://api.moonshot.cn/v1", true, false],
+    ["https://api.moonshot.ai/v1", true, false],
+    ["https://tokenhub.tencentmaas.com/v1", true, true],
+    ["https://api.deepseek.com", false, false],
+  ])("按主机的缓存能力表：%s", (url, key, long) => {
+    const compat = resolvePromptCacheCompat(at(url), "openai-responses");
+    expect(compat.sendPromptCacheKey).toBe(key);
+    expect(compat.supportsLongCacheRetention).toBe(long);
+  });
+
+  it("Anthropic 线：腾讯 TokenHub 支持 1h，通义只有 5m；Messages 上永不发 prompt_cache_key", () => {
+    const tencent = resolvePromptCacheCompat(
+      at("https://tokenhub.tencentmaas.com"),
+      "anthropic-messages",
+    );
+    expect(tencent).toMatchObject({ supportsLongCacheRetention: true, sendPromptCacheKey: false });
+    const qwen = resolvePromptCacheCompat(
+      at("https://dashscope.aliyuncs.com/apps/anthropic"),
+      "anthropic-messages",
+    );
+    expect(qwen.supportsLongCacheRetention).toBe(false);
+    expect(effectiveRetention("long", qwen)).toBe("short");
+    expect(effectiveRetention("long", tencent)).toBe("long");
+    expect(resolvePromptCacheCompat(at("https://constructor"), "openai-completions")).toMatchObject(
+      { sendPromptCacheKey: false },
+    );
   });
 
   it("显式 compat 逐字段覆盖推断", () => {

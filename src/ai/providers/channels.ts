@@ -12,7 +12,8 @@
 
 import type { ChannelConfig, ProviderConfig } from "../../config/types.js";
 import { CHANNEL_NAME_PATTERN } from "../../config/types.js";
-import type { Api, ProviderChannel } from "../types.js";
+import { mergeHeaders } from "../http.js";
+import type { Api, Model, ProviderChannel, ProviderData } from "../types.js";
 
 /** 隐式渠道名（单渠道供应商）。 */
 export const DEFAULT_CHANNEL = "default";
@@ -22,31 +23,84 @@ export function channelKeyId(providerId: string, channel: string): string {
   return `${providerId}@${channel}`;
 }
 
-/** config 的 `channels` → 物化渠道表（跳过名字非法或缺 api / baseUrl 的，返回警告）。 */
+/**
+ * 内置渠道 ⊕ 用户渠道（[W5-M2]）：同名按字段覆盖（`headers` / `compat` 再合并一层）、新名追加在后。
+ */
+export function mergeChannels(
+  base: readonly ProviderChannel[],
+  user: readonly ProviderChannel[],
+): ProviderChannel[] {
+  const out = base.map((c) => structuredClone(c));
+  for (const channel of user) {
+    const index = out.findIndex((c) => c.name === channel.name);
+    const current = out[index];
+    if (current === undefined) {
+      out.push(channel);
+      continue;
+    }
+    const next: ProviderChannel = { ...current, ...channel };
+    if (current.headers && channel.headers)
+      next.headers = { ...current.headers, ...channel.headers };
+    if (current.compat && channel.compat) next.compat = { ...current.compat, ...channel.compat };
+    out[index] = next;
+  }
+  return out;
+}
+
+/**
+ * config 的 `channels` → 物化渠道表（跳过名字非法或缺 api / baseUrl 的，返回警告）。给了 `builtin`
+ * （内置供应商的内置渠道）时与之合并：同名渠道可只写要改的字段；`defaultChannel` 用户优先，其次内置。
+ */
 export function parseChannels(
   providerId: string,
   config: ProviderConfig,
+  builtin?: { channels: readonly ProviderChannel[]; defaultChannel: string | undefined },
 ): { channels: ProviderChannel[]; defaultChannel: string | undefined; warnings: string[] } {
   const warnings: string[] = [];
-  const channels: ProviderChannel[] = [];
+  const own: ProviderChannel[] = [];
+  const known = new Set((builtin?.channels ?? []).map((c) => c.name));
   for (const [name, raw] of Object.entries(config.channels ?? {})) {
     const c = raw as Partial<ChannelConfig> | undefined;
-    if (!CHANNEL_NAME_PATTERN.test(name) || !c || !c.api || !c.baseUrl) {
+    const partial = known.has(name);
+    if (!CHANNEL_NAME_PATTERN.test(name) || !c || (!partial && (!c.api || !c.baseUrl))) {
       warnings.push(`provider "${providerId}" channel "${name}" is invalid; ignored`);
       continue;
     }
-    const channel: ProviderChannel = { name, api: c.api, baseUrl: c.baseUrl };
+    const channel = { name } as ProviderChannel;
+    if (c.api) channel.api = c.api;
+    if (c.baseUrl) channel.baseUrl = c.baseUrl;
     if (c.authHeader !== undefined) channel.authHeader = c.authHeader;
     if (c.headers !== undefined) channel.headers = { ...c.headers };
     if (c.compat !== undefined) channel.compat = { ...c.compat };
-    channels.push(channel);
+    own.push(channel);
   }
+  const channels = mergeChannels(builtin?.channels ?? [], own);
   let defaultChannel = config.defaultChannel;
   if (defaultChannel !== undefined && !channels.some((c) => c.name === defaultChannel)) {
     warnings.push(`provider "${providerId}" defaultChannel "${defaultChannel}" not found`);
     defaultChannel = undefined;
   }
-  return { channels, defaultChannel: defaultChannel ?? channels[0]?.name, warnings };
+  const fallback = channels.some((c) => c.name === builtin?.defaultChannel)
+    ? builtin?.defaultChannel
+    : channels[0]?.name;
+  return { channels, defaultChannel: defaultChannel ?? fallback, warnings };
+}
+
+/**
+ * 内置供应商目录模型的渠道表：目录条目写了 `channels` 就用它（去掉不存在的），否则挂全部渠道；
+ * 缺省渠道在表里时排到首位（首个 = 首选）。
+ */
+export function catalogChannels(
+  wanted: readonly string[] | undefined,
+  known: readonly ProviderChannel[],
+  defaultChannel: string,
+): string[] {
+  const names = known.map((c) => c.name);
+  const list = wanted === undefined ? names : wanted.filter((name) => names.includes(name));
+  const out = list.includes(defaultChannel)
+    ? [defaultChannel, ...list.filter((name) => name !== defaultChannel)]
+    : [...list];
+  return out.length > 0 ? out : [defaultChannel];
 }
 
 /** 模型的渠道表：去掉不存在的；空 → [defaultChannel]。 */
@@ -108,5 +162,66 @@ export function apiShortName(api: Api): string {
       return "gemini";
     default:
       return api;
+  }
+}
+
+/**
+ * 物化：模型补齐供应商级字段（不可变：返回新对象）。给了 `channel` 时协议与地址取渠道的（模型级
+ * `explicit` 覆盖优先），headers / compat 按 供应商 ← 渠道 ← 模型 合并，并记下渠道名。
+ */
+export function materializeModel(
+  model: Model,
+  provider: ProviderData,
+  channel?: ProviderChannel,
+  explicit?: { api?: Api | undefined; baseUrl?: string | undefined },
+): Model {
+  const out: Model = {
+    ...model,
+    provider: provider.id,
+    baseUrl: model.baseUrl ?? provider.baseUrl,
+  };
+  if (channel !== undefined) {
+    out.api = explicit?.api ?? channel.api;
+    out.baseUrl = explicit?.baseUrl ?? channel.baseUrl;
+    out.channel = channel.name;
+  }
+  if (provider.headers || channel?.headers || model.headers)
+    out.headers = mergeHeaders(provider.headers, channel?.headers, model.headers);
+  if (provider.compat || channel?.compat || model.compat)
+    out.compat = { ...provider.compat, ...channel?.compat, ...model.compat };
+  const authHeader = channel?.authHeader ?? provider.authHeader;
+  if (authHeader !== undefined) out.authHeader = model.authHeader ?? authHeader;
+  out.requiresApiKey = provider.requiresApiKey;
+  return out;
+}
+
+/** 内置渠道作废：按供应商级 api / baseUrl 单渠道处理。 */
+export function dropChannels(provider: ProviderData): void {
+  delete provider.channels;
+  delete provider.defaultChannel;
+}
+
+/**
+ * 内置渠道 + 用户只改供应商级字段：改了 baseUrl → 内置渠道作废（单渠道回落）；只写 `api` → 选同协议的
+ * 内置渠道作缺省（没有就作废）；`defaultChannel` 必须是内置渠道名。
+ */
+export function pickBuiltinChannel(
+  provider: ProviderData,
+  config: ProviderConfig,
+  warn: (message: string) => void,
+): void {
+  if (config.baseUrl !== undefined) {
+    dropChannels(provider);
+    return;
+  }
+  const channels = provider.channels ?? [];
+  if (config.defaultChannel !== undefined) {
+    if (channels.some((c) => c.name === config.defaultChannel))
+      provider.defaultChannel = config.defaultChannel;
+    else warn(`provider "${provider.id}" defaultChannel "${config.defaultChannel}" not found`);
+  } else if (config.api !== undefined) {
+    const same = channels.find((c) => c.api === config.api);
+    if (same !== undefined) provider.defaultChannel = same.name;
+    else dropChannels(provider);
   }
 }

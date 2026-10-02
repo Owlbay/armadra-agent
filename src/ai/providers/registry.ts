@@ -19,8 +19,14 @@
  * 重新物化（协议、地址、headers、compat 取渠道的，模型级 api / baseUrl 仍覆盖）；渠道 key 经
  * `resolveApiKey(provider, channel)`。没有 `channels` 的供应商行为不变。
  *
+ * 内置渠道（[W5-M2]，builtin.ts）：用户 `channels` 同名字段级覆盖、新名追加，`defaultChannel` 用户优先
+ * （也可只写 `defaultChannel`，或只写 `api` 选同协议的内置渠道）；目录模型缺省挂全部渠道、缺省渠道在前。
+ * 用户（config / auth.json / `*_BASE_URL`）改了供应商级 baseUrl 而没写自己的 `channels` 时，内置渠道作废，
+ * 按单渠道回落（`api` 取用户写的或内置的回落协议）。
+ *
  * models.dev（enrich.ts）：config 里缺元数据的自定义模型与合成模型，用传入的索引（只读缓存）补
- * contextWindow / maxTokens / input / reasoning / cost，来源记在 `modelMetadata()`；内置目录不补。
+ * contextWindow / maxTokens / input / reasoning / cost，来源记在 `modelMetadata()`；内置目录按同一索引
+ * （快照 ⊕ `ama models refresh` 的覆盖）在 catalog.ts 合并，缺字段的条目退回内置快照。
  */
 
 import type { AmaConfig, ProviderConfig } from "../../config/types.js";
@@ -40,7 +46,16 @@ import type {
 import { ApiKeyResolver, type KeyResolverOptions } from "./auth.js";
 import { BUILTIN_PROVIDERS, fallbackEnvKey, isRelayedBaseUrl } from "./builtin.js";
 import { applyModelOverride, loadBuiltinCatalog, toModel, withCustomDefaults } from "./catalog.js";
-import { channelKeyId, modelChannels, parseChannels, splitChannelRef } from "./channels.js";
+import {
+  catalogChannels,
+  channelKeyId,
+  dropChannels,
+  materializeModel,
+  pickBuiltinChannel,
+  modelChannels,
+  parseChannels,
+  splitChannelRef,
+} from "./channels.js";
 import {
   catalogMetadata,
   enrichEntry,
@@ -50,6 +65,8 @@ import {
 } from "./enrich.js";
 import type { ModelsDevIndex } from "./models-dev.js";
 import { closest } from "./suggest.js";
+
+export { materializeModel } from "./channels.js";
 
 export type ModelSource = "builtin" | "config" | "discovered";
 
@@ -73,36 +90,6 @@ export interface ModelEntry {
   model: Model;
   provider: ProviderData;
   source: ModelSource;
-}
-
-/**
- * 物化：模型补齐供应商级字段（不可变：返回新对象）。给了 `channel` 时协议与地址取渠道的（模型级
- * `explicit` 覆盖优先），headers / compat 按 供应商 ← 渠道 ← 模型 合并，并记下渠道名。
- */
-export function materializeModel(
-  model: Model,
-  provider: ProviderData,
-  channel?: ProviderChannel,
-  explicit?: { api?: Api | undefined; baseUrl?: string | undefined },
-): Model {
-  const out: Model = {
-    ...model,
-    provider: provider.id,
-    baseUrl: model.baseUrl ?? provider.baseUrl,
-  };
-  if (channel !== undefined) {
-    out.api = explicit?.api ?? channel.api;
-    out.baseUrl = explicit?.baseUrl ?? channel.baseUrl;
-    out.channel = channel.name;
-  }
-  if (provider.headers || channel?.headers || model.headers)
-    out.headers = mergeHeaders(provider.headers, channel?.headers, model.headers);
-  if (provider.compat || channel?.compat || model.compat)
-    out.compat = { ...provider.compat, ...channel?.compat, ...model.compat };
-  const authHeader = channel?.authHeader ?? provider.authHeader;
-  if (authHeader !== undefined) out.authHeader = model.authHeader ?? authHeader;
-  out.requiresApiKey = provider.requiresApiKey;
-  return out;
 }
 
 function configKeysOf(config: AmaConfig | undefined): Record<string, string | undefined> {
@@ -130,6 +117,10 @@ export class ProviderRegistry implements ProviderRegistryApi {
   private readonly envBaseUrls = new Map<string, string>();
   /** baseUrl 指向非官方主机的内置供应商：接受目录外的 model id。 */
   private readonly relayed = new Set<string>();
+  /** config 里写了自己 `channels` 的供应商（内置渠道不因改 baseUrl 作废）。 */
+  private readonly userChannels = new Set<string>();
+  /** config 里写了供应商级 `api` 的供应商（单渠道回落时目录模型跟它走）。 */
+  private readonly userApi = new Set<string>();
   /** `provider/model` → 物化前的模型（多渠道供应商切换渠道时重新物化）。 */
   private readonly raw = new Map<string, RawModel>();
   /** `provider/model` → 元数据来源与 models.dev 匹配。 */
@@ -148,9 +139,9 @@ export class ProviderRegistry implements ProviderRegistryApi {
       configKeys: options.keys?.configKeys ?? configKeysOf(options.config),
       onWarning: (message) => this.warn(message),
     });
-    const catalog = loadBuiltinCatalog();
+    const catalog = this.loadCatalog();
     const env = options.keys?.useEnv === false ? {} : (options.keys?.env ?? process.env);
-    for (const { baseUrlEnv, ...base } of BUILTIN_PROVIDERS) {
+    for (const { baseUrlEnv, catalogApi: _catalogApi, ...base } of BUILTIN_PROVIDERS) {
       const models = (catalog.get(base.id) ?? []).map((entry) => {
         const api = (entry as { api?: Api }).api ?? base.api;
         this.sources.set(`${base.id}/${entry.id}`, "builtin");
@@ -162,12 +153,12 @@ export class ProviderRegistry implements ProviderRegistryApi {
       });
       const fromEnv = baseUrlEnv !== undefined ? env[baseUrlEnv]?.trim() : undefined;
       if (baseUrlEnv !== undefined && fromEnv) this.envBaseUrls.set(base.id, baseUrlEnv);
-      this.providers.set(base.id, {
-        ...base,
-        ...(fromEnv ? { baseUrl: fromEnv } : {}),
-        models,
-        builtin: true,
-      });
+      const provider: ProviderData = { ...structuredClone(base), models, builtin: true };
+      if (fromEnv) {
+        provider.baseUrl = fromEnv;
+        dropChannels(provider);
+      }
+      this.providers.set(base.id, provider);
     }
     for (const [id, config] of Object.entries(options.config?.providers ?? {})) {
       this.applyConfig(id, config);
@@ -177,6 +168,7 @@ export class ProviderRegistry implements ProviderRegistryApi {
       if (baseUrl) {
         provider.baseUrl = baseUrl;
         this.envBaseUrls.delete(provider.id);
+        if (provider.builtin && !this.userChannels.has(provider.id)) dropChannels(provider);
       }
       if (provider.builtin && isRelayedBaseUrl(provider.id, provider.baseUrl)) {
         this.relayed.add(provider.id);
@@ -190,7 +182,50 @@ export class ProviderRegistry implements ProviderRegistryApi {
       this.providers.set(fake.id, fake);
     }
     for (const provider of this.providers.values()) {
+      if (provider.builtin) this.settleBuiltinChannels(provider);
       provider.models = provider.models.map((model) => this.materialize(provider, model));
+    }
+  }
+
+  /** 内置目录（快照 ⊕ 用户刷新）；刷新数据出任何问题都退回内置快照，不让启动失败。 */
+  private loadCatalog(): ReturnType<typeof loadBuiltinCatalog> {
+    try {
+      return loadBuiltinCatalog(this.modelsDev());
+    } catch (error) {
+      this.warn(`models.dev refresh data ignored: ${(error as Error).message}`);
+      return loadBuiltinCatalog();
+    }
+  }
+
+  /**
+   * 内置供应商定渠道：供应商级 api / baseUrl 取缺省渠道的（discover 等单地址的用法看它）；用户没指定渠道的
+   * 模型挂全部渠道（缺省在前）。渠道已作废的去掉模型上残留的 `channels`。
+   */
+  private settleBuiltinChannels(provider: ProviderData): void {
+    const channels = provider.channels;
+    if (channels === undefined || channels.length === 0) {
+      // 单渠道回落：没有模型级协议的目录模型走 catalogApi（用户改了 api 时走用户的）
+      const builtin = BUILTIN_PROVIDERS.find((p) => p.id === provider.id);
+      const api =
+        builtin === undefined || this.userApi.has(provider.id)
+          ? provider.api
+          : (builtin.catalogApi ?? builtin.api);
+      for (const model of provider.models) {
+        delete model.channels;
+        const key = `${provider.id}/${model.id}`;
+        if (this.sources.get(key) === "builtin" && this.raw.get(key)?.explicit.api === undefined)
+          model.api = api;
+      }
+      return;
+    }
+    const first = channels.find((c) => c.name === provider.defaultChannel) ?? channels[0];
+    if (first === undefined) return;
+    provider.defaultChannel = first.name;
+    provider.api = first.api;
+    provider.baseUrl = first.baseUrl;
+    for (const model of provider.models) {
+      if (this.sources.get(`${provider.id}/${model.id}`) === "builtin" || !model.channels)
+        model.channels = catalogChannels(model.channels, channels, first.name);
     }
   }
 
@@ -216,7 +251,19 @@ export class ProviderRegistry implements ProviderRegistryApi {
 
   private applyConfig(id: string, config: ProviderConfig): void {
     const existing = this.providers.get(id);
-    const parsed = config.channels !== undefined ? parseChannels(id, config) : undefined;
+    const builtinChannels = existing?.builtin ? existing.channels : undefined;
+    const parsed =
+      config.channels !== undefined
+        ? parseChannels(
+            id,
+            config,
+            builtinChannels && {
+              channels: builtinChannels,
+              defaultChannel: existing?.defaultChannel,
+            },
+          )
+        : undefined;
+    if (config.channels !== undefined) this.userChannels.add(id);
     for (const warning of parsed?.warnings ?? []) this.warn(warning);
     const first = parsed?.channels.find((c) => c.name === parsed.defaultChannel);
     if (!existing && !config.baseUrl && first === undefined) {
@@ -234,11 +281,16 @@ export class ProviderRegistry implements ProviderRegistryApi {
       builtin: false,
     };
     if (config.name !== undefined) provider.name = config.name;
-    if (config.api !== undefined) provider.api = config.api;
+    if (config.api !== undefined) {
+      provider.api = config.api;
+      this.userApi.add(id);
+    }
     if (config.baseUrl !== undefined) {
       provider.baseUrl = config.baseUrl;
       this.envBaseUrls.delete(id);
     }
+    if (builtinChannels !== undefined && parsed === undefined)
+      pickBuiltinChannel(provider, config, (m) => this.warn(m));
     if (parsed !== undefined && first !== undefined) {
       // 有渠道时供应商级 api / baseUrl 取首选渠道的（discover 等单地址的用法看它）。
       provider.channels = parsed.channels;
@@ -267,7 +319,9 @@ export class ProviderRegistry implements ProviderRegistryApi {
       if (typeof entry.modelsDev === "string" && metadata.looked && metadata.match === undefined)
         this.warn(`modelsDev "${entry.modelsDev}" for "${id}/${entry.id}" not found`);
       const model = withCustomDefaults(filled, id, entry.api ?? provider.api);
-      if (provider.channels !== undefined) model.channels = channelsOf(entry.channels, entry.id);
+      // 内置供应商上没写 channels 的模型：定渠道时挂全部渠道（settleBuiltinChannels）
+      if (provider.channels !== undefined && (entry.channels !== undefined || !provider.builtin))
+        model.channels = channelsOf(entry.channels, entry.id);
       const index = provider.models.findIndex((m) => m.id === entry.id);
       if (index >= 0) provider.models[index] = model;
       else provider.models.push(model);
@@ -309,10 +363,6 @@ export class ProviderRegistry implements ProviderRegistryApi {
       if (meta !== undefined)
         for (const field of Object.keys(meta.sources) as (keyof ModelMetadata["sources"])[])
           if (fields[field] !== undefined) meta.sources[field] = "config";
-    }
-    if (provider.channels !== undefined) {
-      // 目录模型（给内置供应商加了渠道时）挂到首选渠道。
-      for (const model of provider.models) model.channels ??= [provider.defaultChannel ?? ""];
     }
     this.providers.set(id, provider);
   }

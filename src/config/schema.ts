@@ -27,6 +27,7 @@ import type { HookConfig } from "../hooks/types.js";
 import { HOOK_EVENTS } from "../hooks/types.js";
 import { PERMISSION_MODES_STRICT_FIRST } from "../permissions/types.js";
 import { WARMING_MODES } from "../ai/cache/types.js";
+import { BUILTIN_PROVIDERS } from "../ai/providers/builtin.js";
 import {
   CACHE_RETENTIONS,
   CHANNEL_NAME_PATTERN,
@@ -187,13 +188,25 @@ function checkCompat(c: Checker, compat: unknown, path: string): void {
   c.oneOf(compat, "cacheReporting", path, ["auto", "silent", "reported"]);
 }
 
-/** 返回合法的渠道名集合；没有 `channels` 时 undefined。 */
-function checkChannels(c: Checker, value: Obj, path: string): Set<string> | undefined {
+/**
+ * 返回合法的渠道名集合；没有 `channels`（也没有内置渠道）时 undefined。`builtin` 是内置供应商的内置渠道名
+ * （[W5-M2]）：同名渠道可只写要改的字段，`defaultChannel` 与模型 `channels` 也可引用它们。
+ */
+function checkChannels(
+  c: Checker,
+  value: Obj,
+  path: string,
+  builtin: readonly string[],
+): Set<string> | undefined {
   const channels = value["channels"];
-  if (channels === undefined) return undefined;
+  if (channels === undefined) {
+    if (builtin.length === 0) return undefined;
+    checkDefaultChannel(c, value, path, new Set(builtin));
+    return new Set(builtin);
+  }
   const cp = join(path, "channels");
   if (!c.object(channels, cp)) return new Set();
-  const names = new Set<string>();
+  const names = new Set<string>(builtin);
   for (const [name, channel] of Object.entries(channels)) {
     const p = join(cp, name);
     if (!CHANNEL_NAME_PATTERN.test(name)) {
@@ -203,24 +216,27 @@ function checkChannels(c: Checker, value: Obj, path: string): Set<string> | unde
     names.add(name);
     if (!c.object(channel, p)) continue;
     c.keys(channel, p, CHANNEL_KEYS);
-    c.string(channel, "api", p, true);
-    c.string(channel, "baseUrl", p, true);
+    c.string(channel, "api", p, !builtin.includes(name));
+    c.string(channel, "baseUrl", p, !builtin.includes(name));
     c.string(channel, "apiKey", p);
     c.stringRecord(channel, "headers", p);
     if (channel["authHeader"] !== undefined) c.object(channel["authHeader"], join(p, "authHeader"));
     checkCompat(c, channel["compat"], join(p, "compat"));
   }
   if (names.size === 0 && Object.keys(channels).length === 0) c.error(cp, "至少要有一个渠道");
-  const preferred = value["defaultChannel"];
-  if (preferred !== undefined) {
-    if (typeof preferred !== "string") c.error(join(path, "defaultChannel"), "应为字符串");
-    else if (!names.has(preferred))
-      c.error(join(path, "defaultChannel"), `渠道 "${preferred}" 不存在`);
-  }
+  checkDefaultChannel(c, value, path, names);
   return names;
 }
 
-function checkProvider(c: Checker, value: unknown, path: string): void {
+function checkDefaultChannel(c: Checker, value: Obj, path: string, names: Set<string>): void {
+  const preferred = value["defaultChannel"];
+  if (preferred === undefined) return;
+  if (typeof preferred !== "string") c.error(join(path, "defaultChannel"), "应为字符串");
+  else if (!names.has(preferred))
+    c.error(join(path, "defaultChannel"), `渠道 "${preferred}" 不存在`);
+}
+
+function checkProvider(c: Checker, value: unknown, path: string, id: string): void {
   if (!c.object(value, path)) return;
   c.keys(value, path, PROVIDER_KEYS);
   for (const key of ["name", "api", "baseUrl", "apiKey"]) c.string(value, key, path);
@@ -229,7 +245,8 @@ function checkProvider(c: Checker, value: unknown, path: string): void {
   c.boolean(value, "requiresApiKey", path);
   checkCompat(c, value["compat"], join(path, "compat"));
   if (value["authHeader"] !== undefined) c.object(value["authHeader"], join(path, "authHeader"));
-  const channels = checkChannels(c, value, path);
+  const builtin = BUILTIN_PROVIDERS.find((p) => p.id === id)?.channels?.map((ch) => ch.name);
+  const channels = checkChannels(c, value, path, builtin ?? []);
   if (channels === undefined && value["defaultChannel"] !== undefined)
     c.error(join(path, "defaultChannel"), "没有 channels 时不能设 defaultChannel");
   checkModels(c, value["models"], join(path, "models"), channels);
@@ -246,7 +263,7 @@ export function validateConfig(value: unknown): Diagnostic[] {
   const providers = value["providers"];
   if (providers !== undefined && c.object(providers, "providers")) {
     for (const [id, provider] of Object.entries(providers)) {
-      checkProvider(c, provider, join("providers", id));
+      checkProvider(c, provider, join("providers", id), id);
     }
   }
   const permissionKeys = ["mode", "allow", "deny", "builtinDeny", "autoModel", "autoSafeCommands"];

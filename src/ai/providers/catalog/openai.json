@@ -5,7 +5,6 @@
   "models": [
     {
       "id": "gpt-6.1-sol",
-      "api": "openai-responses",
       "contextWindow": 272000,
       "thinkingLevelMap": {
         "off": null,
@@ -23,7 +22,6 @@
     },
     {
       "id": "gpt-6-sol",
-      "api": "openai-responses",
       "contextWindow": 272000,
       "thinkingLevelMap": {
         "off": "none",
@@ -41,7 +39,6 @@
     },
     {
       "id": "gpt-6-luna",
-      "api": "openai-responses",
       "contextWindow": 272000,
       "thinkingLevelMap": {
         "off": "none",
@@ -59,7 +56,6 @@
     },
     {
       "id": "gpt-6-astra",
-      "api": "openai-responses",
       "contextWindow": 272000,
       "thinkingLevelMap": {
         "off": null,
@@ -77,7 +73,6 @@
     },
     {
       "id": "gpt-5.5",
-      "api": "openai-responses",
       "contextWindow": 272000,
       "thinkingLevelMap": {
         "off": "none",
@@ -95,7 +90,6 @@
     },
     {
       "id": "gpt-5.4",
-      "api": "openai-responses",
       "contextWindow": 272000,
       "thinkingLevelMap": {
         "off": "none",
@@ -113,7 +107,6 @@
     },
     {
       "id": "gpt-5.4-mini",
-      "api": "openai-responses",
       "thinkingLevelMap": {
         "off": "none",
         "minimal": null,
@@ -130,7 +123,6 @@
     },
     {
       "id": "gpt-5.4-nano",
-      "api": "openai-responses",
       "thinkingLevelMap": {
         "off": "none",
         "minimal": null,
@@ -147,7 +139,6 @@
     },
     {
       "id": "gpt-5",
-      "api": "openai-responses",
       "thinkingLevelMap": {
         "off": null,
         "minimal": "minimal",
@@ -164,7 +155,6 @@
     },
     {
       "id": "gpt-5-mini",
-      "api": "openai-responses",
       "thinkingLevelMap": {
         "off": null,
         "minimal": "minimal",
@@ -206,7 +196,6 @@
     {
       "id": "o4-mini",
       "name": "o4-mini",
-      "api": "openai-responses",
       "contextWindow": 200000,
       "maxTokens": 100000,
       "reasoning": true,
@@ -233,7 +222,6 @@
     },
     {
       "id": "o3",
-      "api": "openai-responses",
       "thinkingLevelMap": {
         "off": null,
         "minimal": null,
