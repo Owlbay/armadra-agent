@@ -23,6 +23,7 @@ import { RPC_PROTOCOL_VERSION, type RpcCommandType, type RpcHello } from "../../
 import { AMA_VERSION } from "../../version.js";
 import { toJsonLine, toWireEvent } from "../print/json-event.js";
 import { errorText, onTerminationSignals } from "../shared.js";
+import { sessionAgents, taskRegistryView } from "../../agent/subagent-registry.js";
 import { RpcApprovals, handlers, type RpcContext } from "./commands.js";
 import { createLineReader, writeChunked } from "./jsonl.js";
 
@@ -66,6 +67,9 @@ export async function runRpcMode(
     onBackgroundError(error) {
       void write({ type: "notification", level: "error", message: errorText(error) });
     },
+    // [W5-G] get_tasks / get_agents：当前会话的任务注册表与可用类型
+    tasks: () => taskRegistryView(session.state.sessionId),
+    agents: () => sessionAgents(session.state.sessionId),
   };
   runtime.notifier.set((message, level) => {
     void write({ type: "notification", level, message });

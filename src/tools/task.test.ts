@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { SubagentRequest, SubagentResult } from "./types.js";
 import { makeToolContext } from "../../test/helpers/tool-context.js";
 import { DEFAULT_SUBAGENT_CONCURRENCY, SubagentPool } from "../agent/session-subagent.js";
-import { createTaskTool } from "./task.js";
+import { AgentCatalog } from "../agents/catalog.js";
+import { bindTaskAgents, createTaskTool } from "./task.js";
 
 const usage = { input: 1, output: 2, cacheRead: 0, cacheWrite: 0, totalTokens: 3 };
 
@@ -42,9 +43,9 @@ describe("task", () => {
       description: "d",
       tools: ["read", "bash"],
       thinkingLevel: "low",
-      maxTurns: 30,
       parentToolCallId: "call_1",
     });
+    expect(requests[0]?.maxTurns).toBeUndefined(); // 缺省取类型的 max-turns（注册表）
     expect(requests[0]?.signal).toBe(ctx.signal);
     expect(ctx.updates).toEqual(["working"]);
   });
@@ -139,5 +140,77 @@ describe("task", () => {
     });
     const r = await tool.execute({ prompt: "x" }, ctx);
     expect(r).toMatchObject({ isError: true, content: "Sub-agent failed: model down" });
+  });
+
+  it("[W5-G] 新参数透传；taskId 续聊忽略 agent / tools / model；后台结果带 taskId 前缀", async () => {
+    const requests: SubagentRequest[] = [];
+    const spawn = async (req: SubagentRequest) => {
+      requests.push(req);
+      return result(req.background === true ? "Started background task t1" : "report", {
+        taskId: "t1",
+        status: req.background === true ? "running" : "completed",
+        outputFile: "/o/t1.md",
+      });
+    };
+    const tool = createTaskTool();
+    const ctx = makeToolContext("/w", { spawnSubagent: spawn });
+    const started = await tool.execute(
+      {
+        prompt: "look",
+        agent: "explore",
+        background: true,
+        isolation: "worktree",
+        budgetUsd: 1,
+        maxTurns: 5,
+      },
+      ctx,
+    );
+    expect(requests[0]).toMatchObject({
+      agent: "explore",
+      background: true,
+      isolation: "worktree",
+      budgetUsd: 1,
+      maxTurns: 5,
+    });
+    expect(started).toMatchObject({
+      content: "[task t1] Started background task t1",
+      isError: false,
+      details: { taskId: "t1", status: "running", outputFile: "/o/t1.md" },
+    });
+    await tool.execute(
+      { prompt: "more", taskId: "t1", agent: "plan", tools: ["read"], model: "x/y" },
+      ctx,
+    );
+    expect(requests[1]).toMatchObject({ prompt: "more", taskId: "t1" });
+    expect(requests[1]?.agent).toBeUndefined();
+    expect(requests[1]?.tools).toBeUndefined();
+    expect(requests[1]?.model).toBeUndefined();
+    const bad = await tool.execute({ prompt: "x", isolation: "docker" as never }, ctx);
+    expect(bad.isError).toBe(true);
+  });
+
+  it("[W5-G] parallel；描述列出绑定的类型目录；rules 说明 task-notification 不是用户发言", () => {
+    const tool = createTaskTool();
+    expect(tool.executionMode).toBe("parallel");
+    expect(tool.description).toContain("- explore: Read-only search");
+    expect(tool.promptGuidelines?.join()).toContain("<task-notification>");
+    bindTaskAgents(
+      tool,
+      new AgentCatalog([
+        {
+          name: "reviewer",
+          description: "Reviews diffs",
+          permissionMode: "plan",
+          model: "inherit",
+          maxTurns: 30,
+          isolation: "none",
+          background: false,
+          runner: "ama",
+          prompt: "",
+          source: "user",
+        },
+      ]),
+    );
+    expect(tool.description).toContain("- reviewer: Reviews diffs");
   });
 });

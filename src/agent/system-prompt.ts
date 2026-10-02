@@ -1,8 +1,9 @@
 /**
  * 系统提示的命名节装配与补丁 diff（设计 §1.2 system-prompt.ts、§9「缓存」）。[B2]
  *
- * 节顺序固定：preamble → tools → rules → project_context → skills → hooks → cwd → host
- * （`hooks` = SessionStart Hook 的 additionalContext；`host` = 宿主 instructions.add，最后）。
+ * 节顺序固定：preamble → tools → rules → project_context → skills → hooks → cwd → host → role
+ * （`hooks` = SessionStart Hook 的 additionalContext；`host` = 宿主 instructions.add；`role` = [W5-G]
+ * task 子会话的角色说明，只有子会话有、放在最末，父会话的全部节是子会话的逐字节前缀）。
  * 不含时间戳等易变内容，保证前缀缓存稳定。
  *
  * 首次请求前，整份节 + 工具表作为首条 `system` 消息落盘；之后节或工具表变化时只落补丁
@@ -25,6 +26,7 @@ export const SECTION_ORDER = [
   "hooks",
   "cwd",
   "host",
+  "role",
 ] as const;
 
 export type SectionName = (typeof SECTION_ORDER)[number];
@@ -46,6 +48,8 @@ export interface SystemPromptInput {
   cwd: string;
   /** 宿主 instructions（已读入的文本），按添加顺序。 */
   hostInstructions?: readonly string[];
+  /** [W5-G] task 子会话的角色说明（子 Agent 通用说明 + 类型正文）；主会话没有。 */
+  role?: string;
 }
 
 function firstLine(text: string): string {
@@ -101,6 +105,7 @@ export function assembleSections(
     hooks: nonEmpty(input.hookContext),
     cwd: `Current working directory: ${input.cwd}`,
     host: host.length > 0 ? host.join("\n\n") : undefined,
+    role: nonEmpty(input.role),
   };
 }
 

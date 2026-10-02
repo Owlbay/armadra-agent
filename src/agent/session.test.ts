@@ -439,7 +439,7 @@ describe("Stop Hook 上限", () => {
 });
 
 describe("子 Agent 与会话操作", () => {
-  it("spawnSubagent：独立 JSONL、parentSession、ama.task、工具子集去掉 task", async () => {
+  it("spawnSubagent：独立 JSONL、parentSession、ama.task；工具表与父相同（[W5-G] 保留 task，运行时拒绝）", async () => {
     const read = stubTool({ name: "read" });
     const task = stubTool({
       name: "task",
@@ -480,7 +480,10 @@ describe("子 Agent 与会话操作", () => {
     expect(lines[0]).toMatchObject({ type: "session", parentSession: h.manager.file() });
     expect(lines[1]).toMatchObject({ type: "custom", customType: "ama.task" });
     const childSystem = lines.find((l) => l.type === "message" && l.message.role === "system");
-    expect(childSystem.message.toolsAdded.map((t: { name: string }) => t.name)).toEqual(["read"]);
+    expect(childSystem.message.toolsAdded.map((t: { name: string }) => t.name)).toEqual([
+      "read",
+      "task",
+    ]);
   });
 
   it("活动工具变化 → system 补丁；setModel 记 model_change", async () => {

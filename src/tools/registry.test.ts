@@ -47,7 +47,7 @@ describe("ToolRegistry", () => {
       grep: "parallel",
       ls: "parallel",
       read: "parallel",
-      task: "sequential",
+      task: "parallel", // [W5-G] 同轮多个 task 并行（D23）
       task_ctl: "parallel",
       todo: "parallel",
       write: "sequential",
@@ -106,11 +106,9 @@ describe("伴随工具（W5-C0：task_ctl 与 task 同进退）", () => {
     expect(reg.active().map((t) => t.name)).toEqual(["read"]);
   });
 
-  it("task_ctl 桩：轮询类、执行返回尚未实现", async () => {
+  it("task_ctl：轮询类（[W5-G] 已实现，行为见 task-ctl.test.ts）", () => {
     const tool = builtinTools().find((t) => t.name === "task_ctl");
     expect(tool?.annotations?.pollable).toBe(true);
-    const result = await tool!.execute({ action: "list" }, {} as never);
-    expect(result).toMatchObject({ isError: true });
-    expect(String(result.content)).toContain("not implemented");
+    expect(tool?.permission).toBe("read");
   });
 });

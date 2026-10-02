@@ -106,11 +106,16 @@
 | `customType`         | 条目类型         | 内容                                                                                           | 写入时机                                                                           |
 | -------------------- | ---------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | `ama.todo`           | `custom`         | `data: { items: { id, text, status: pending \| in_progress \| done, planStep? }[] }`，整表快照 | `todo` 工具 `set` / `update`、计划获批时由步骤生成（W5-F）；`get` 取分支上最近一条 |
-| `ama.task`           | `custom`         | `data: { parentToolCallId, description, parentSession? }`                                      | `task` 子会话的首条条目                                                            |
+| `ama.task`           | `custom`         | `data: { parentToolCallId, description, parentSession? }`；第五波见表后说明                    | `task` 子会话的首条条目；第五波起父会话也写                                        |
 | `ama.codemode-store` | `custom`         | `data: { entries }`，`store()` 的完整快照                                                      | codemode 脚本成功结束且写过 store；读取取分支上最近一条                            |
 | `ama.aborted`        | `custom_message` | `content`：告诉模型上一条回复被用户中断；`display: false`                                      | 用户中断运行                                                                       |
 | `ama.hook_context`   | `custom_message` | `content`：UserPromptSubmit Hook 的 `additionalContext`；`display: false`                      | 随用户提示进上下文                                                                 |
 | `ama.rewind-note`    | `custom_message` | `content`：回滚后哪些文件与对话不一致（最多列 20 个）；`display: false`                        | 仅对话 / 仅代码回滚后，下一次提示之前追加在末尾                                    |
+
+`ama.task`（第五波 W5-G）：子会话首条的 `data` 另带 `taskId`、`agent`；父会话在任务开始、每次续聊与结束时各写一条，
+`data` = `TaskInfo`（`taskId, agent, runner, description, background, status, startedAt, endedAt?, turns?, usage?, costUsd?,
+outputFile?, sessionRef?`）+ `parentToolCallId`、`cwd`。同一 `taskId` 取分支上最后一条；resume 时据此重建任务注册表，
+`status: "running"` 视为 `interrupted`（`taskId` 续聊重开 `sessionRef.sessionFile`）。没有 `status` 的是子会话自己的首条。
 
 第五波登记的类型（docs/wave5-plan.md；括号里是开始写入的批次，之前的版本不会产生，读到未知 `customType` 一律忽略）。`custom_message` 类都是 `display: false`，经扩展点 `beforePrompts` 追加在末尾，不改缓存前缀：
 
