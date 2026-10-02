@@ -13,6 +13,12 @@
   「已读」集合按新路径重算并去掉被恢复 / 不一致的文件；仅对话或仅代码时在下一次提示前追加 `ama.rewind-note`，前缀不变、缓存照常命中。
   `summarizeFrom` / `summarizeUpTo` 对应「从这里摘要」「摘要到这里」；`canUndoAbortedTurn` / `undoAbortedTurn` 供中断即撤回，
   新配置 `ui.restoreOnCancel`（缺省 true）。新回合用户消息落盘后建检查点，`task` 子会话的编辑记到父会话当前回合。
+- **回滚界面**（docs/tui.md「回滚」）：`/rewind` 与空闲时双击 Esc 打开回滚列表（高亮行右侧显示代码改动统计，
+  没有检查点的标「仅对话」），确认面板给出恢复代码和对话 / 恢复对话 / 恢复代码 / 从这里摘要 / 摘要到这里 / 取消，
+  每项带预览，列出冲突与无法恢复的文件（冲突可选择覆盖），git HEAD 变化时给出两条命令（不执行）；对话类操作后
+  原消息回填输入框。输入框有字时双击 Esc 清空并存进输入历史。运行中 Esc 中断且本回合还没有输出时自动撤回并回填
+  （`ui.restoreOnCancel`）。line 模式 `/rewind` 列编号，`/rewind <n> [both|conversation|code] [overwrite]`、
+  `/rewind <n> summarize-from|summarize-up-to [说明]`。新键位动作 `app.rewind`（缺省 Esc）。
 - RPC 新增 `get_rewind_points`、`rewind`、`summarize_from`、`summarize_up_to` 与事件 `session_rewound`（命令表 37 条）；
   命令式 Hook 新增 `PostRewind`（`{ entryId, mode, files }`，不可阻止）；SDK 导出回滚类型。
 
