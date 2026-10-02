@@ -106,8 +106,9 @@ export function createTmpHome(prefix = "ama-home-"): TmpHome {
         }
       };
     },
+    // Windows 上会话收尾的异步写入（git 状态、遥测落盘）可能晚于测试结束，删除偶发 ENOTEMPTY；重试几次即可
     cleanup() {
-      rmSync(root, { recursive: true, force: true });
+      rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     },
   };
 }
