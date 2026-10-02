@@ -113,6 +113,8 @@ describe.skipIf(!hasDist)("e2e：交互模式（dist 构建产物 + MemoryTermin
         theme: tui.plainTheme(),
         now: () => 0,
         spinnerIntervalMs: 1e9,
+        // 与 test-support 一致：速率行数值随真实时钟变，帧黄金固定单行布局
+        statusLine: "compact",
         historyFile: false,
         onReady: (x) => (handle = x),
       },
