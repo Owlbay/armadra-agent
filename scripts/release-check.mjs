@@ -8,6 +8,10 @@
  *    `SESSION_FORMAT_VERSION`（src/session/types.ts）与上一个 tag 不同 → 版本必须是**破坏性升级**：
  *    主版本号变化；主版本为 0 时按 semver 0.x 惯例，次版本号变化即可；
  * 3. 在 tag 构建里（`GITHUB_REF_TYPE=tag`）tag 名必须等于 `v<version>`，比较对象是它之前的 tag。
+ * 4. 双语文档（第六波 §5.5、D21，`checkDocs()`）：`README.md`（英文）/ `README.zh-CN.md`、`CHANGELOG.md`（英文，
+ *    从 0.6.0 起）/ `CHANGELOG.zh-CN.md`（中文，含 0.1–0.5.1 全部历史）、`docs/en/` 六篇都在，且列进
+ *    `package.json files`；README 与 CHANGELOG 两份顶部互链；`CHANGELOG.zh-CN.md` 有当前版本段，版本 ≥ 0.6.0
+ *    时 `CHANGELOG.md` 也要有（段标题 `## 0.6.0（…）` / `## 0.6.0 (…)`，「未发布 / Unreleased」不算）。
  *
  * 纯函数 `checkRelease()` 导出给测试；CLI 部分只负责读 git 与文件（`--root <dir>` 换仓库根，
  * 测试用）。CI 的 checkout 需要
@@ -15,7 +19,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -101,6 +105,90 @@ export function checkRelease(input) {
   return { ok: errors.length === 0, errors, notes };
 }
 
+/** `docs/en/` 首批英文文档（D21）。 */
+export const EN_DOCS = ["tui", "permissions", "providers", "rpc", "host-api", "sessions"];
+
+/** 发布必须带的双语文档。 */
+export const DOC_FILES = [
+  "README.md",
+  "README.zh-CN.md",
+  "CHANGELOG.md",
+  "CHANGELOG.zh-CN.md",
+  ...EN_DOCS.map((name) => `docs/en/${name}.md`),
+];
+
+/** npm 不会自动打包、需要列进 `package.json files` 的（README.md 由 npm 自动带上）。 */
+export const PACKED_DOC_FILES = DOC_FILES.filter((file) => file !== "README.md");
+
+/** 英文 CHANGELOG 从这个版本起。 */
+export const ENGLISH_CHANGELOG_SINCE = "0.6.0";
+
+/** 顶部互链：文件 → 必须出现的链接目标。 */
+const CROSS_LINKS = {
+  "README.md": "README.zh-CN.md",
+  "README.zh-CN.md": "README.md",
+  "CHANGELOG.md": "CHANGELOG.zh-CN.md",
+  "CHANGELOG.zh-CN.md": "CHANGELOG.md",
+};
+
+/** CHANGELOG 里有没有该版本的段（`## 0.6.0（2026-…）`、`## 0.6.0 (…)`、`## v0.6.0`）。 */
+export function hasVersionSection(text, version) {
+  const escaped = String(version).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^##\\s+v?${escaped}(?=\\s*(?:$|[(（]))`, "m").test(text ?? "");
+}
+
+/** `package.json files` 的一项是否覆盖该路径（原样、目录前缀或 `*` 通配）。 */
+export function filesEntryCovers(entry, path) {
+  const clean = String(entry).replace(/^\.\//, "").replace(/\/$/, "");
+  if (clean === path || path.startsWith(`${clean}/`)) return true;
+  if (!clean.includes("*")) return false;
+  const re = clean
+    .split(/(\*\*|\*)/)
+    .map((part) =>
+      part === "**" ? ".*" : part === "*" ? "[^/]*" : part.replace(/[.+?^${}()|[\]\\]/g, "\\$&"),
+    )
+    .join("");
+  return new RegExp(`^${re}$`).test(path);
+}
+
+/**
+ * 双语文档检查。
+ * @param {{ version: string, docs: Record<string, string | undefined>, packageFiles: string[] }} input
+ *   `docs`：DOC_FILES 每个路径的内容（不存在为 undefined）。
+ * @returns {{ errors: string[], notes: string[] }}
+ */
+export function checkDocs(input) {
+  const errors = [];
+  const notes = [];
+  for (const file of DOC_FILES) {
+    if (input.docs[file] === undefined) errors.push(`缺少 ${file}`);
+  }
+  for (const file of PACKED_DOC_FILES) {
+    if (!input.packageFiles.some((entry) => filesEntryCovers(entry, file)))
+      errors.push(`package.json files 没有包含 ${file}`);
+  }
+  for (const [file, target] of Object.entries(CROSS_LINKS)) {
+    const text = input.docs[file];
+    if (text === undefined) continue;
+    const top = text.split("\n").slice(0, 10).join("\n");
+    if (!top.includes(`](${target})`)) errors.push(`${file} 顶部缺少到 ${target} 的链接`);
+  }
+  const current = parseVersion(input.version);
+  if (current !== undefined) {
+    const zh = input.docs["CHANGELOG.zh-CN.md"];
+    if (zh !== undefined && !hasVersionSection(zh, input.version))
+      errors.push(`CHANGELOG.zh-CN.md 没有 ${input.version} 的段`);
+    const since = parseVersion(ENGLISH_CHANGELOG_SINCE);
+    const en = input.docs["CHANGELOG.md"];
+    if (compareVersions(current, since) >= 0) {
+      if (en !== undefined && !hasVersionSection(en, input.version))
+        errors.push(`CHANGELOG.md 没有 ${input.version} 的段`);
+    } else
+      notes.push(`CHANGELOG.md 从 ${ENGLISH_CHANGELOG_SINCE} 起记录，${input.version} 只查中文`);
+  }
+  return { errors, notes };
+}
+
 function git(root, args) {
   try {
     return execFileSync("git", args, {
@@ -149,6 +237,19 @@ function main(argv) {
     };
   }
   const result = checkRelease(input);
+  const docs = {};
+  for (const file of DOC_FILES) {
+    const path = join(root, file);
+    docs[file] = existsSync(path) ? readFileSync(path, "utf8") : undefined;
+  }
+  const docResult = checkDocs({
+    version: pkg.version,
+    docs,
+    packageFiles: Array.isArray(pkg.files) ? pkg.files : [],
+  });
+  result.errors.push(...docResult.errors);
+  result.notes.push(...docResult.notes);
+  result.ok = result.errors.length === 0;
   for (const note of result.notes) process.stdout.write(`release-check: ${note}\n`);
   for (const error of result.errors) process.stderr.write(`release-check: ✗ ${error}\n`);
   if (!result.ok) process.exit(1);
