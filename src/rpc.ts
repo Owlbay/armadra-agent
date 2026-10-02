@@ -33,7 +33,8 @@ import type { AgentInfo } from "./agents/types.js";
 import type { TaskInfo } from "./tools/types.js";
 import type { RewindRequest } from "./checkpoints/types.js";
 import type { ApprovalDecision, PermissionMode } from "./permissions/types.js";
-import type { Trace } from "./trace/types.js";
+import type { TracePreview } from "./trace/preview.js";
+import type { Trace, TraceSubagentNode } from "./trace/types.js";
 
 export type { SessionEvent } from "./agent/types.js";
 
@@ -139,6 +140,10 @@ export interface RpcW6Results {
     hasMoreBefore: boolean;
     cursor: { before?: string; since: string };
     leafId: string | null;
+    /** [W6-T2] `taskId` 时：子 Agent 节点本身（不含 `child`；外部 Agent 的骨架在 `external`）。 */
+    task?: TraceSubagentNode;
+    /** [W6-T2] `content:"preview"` 时：`<kind>:<id>` → 已脱敏、已截断的正文预览（只含窗口内节点）。 */
+    previews?: Record<string, TracePreview>;
   };
 }
 

@@ -74,6 +74,13 @@ describe("第六波 ②：轨迹", () => {
     expectTypeOf<SdkAgentSession["trace"]>().toEqualTypeOf<
       ((options?: import("./trace/types.js").TraceOptions) => Trace) | undefined
     >();
+    // [W6-T2] 实现与契约同形（task / previews 是 T2 追加的可选字段）
+    expectTypeOf<import("./trace/query.js").TraceQueryResult>().toEqualTypeOf<
+      RpcW6Results["get_trace"]
+    >();
+    expectTypeOf<RpcW6Results["get_trace"]["previews"]>().toEqualTypeOf<
+      Record<string, import("./trace/preview.js").TracePreview> | undefined
+    >();
   });
 });
 
