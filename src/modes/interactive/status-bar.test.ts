@@ -5,9 +5,9 @@ import type {
   SessionState,
   SessionStats,
 } from "../../agent/types.js";
-import { plainTheme } from "../../tui.js";
-import { StatusBar, cacheText, formatCost, formatTokens } from "./status-bar.js";
-import { lines } from "./test-support.js";
+import { plainTheme, visibleWidth, type Theme } from "../../tui.js";
+import { StatusBar, abbreviateModel, cacheText, formatCost, formatTokens } from "./status-bar.js";
+import { golden, lines } from "./test-support.js";
 
 function fakeSession(state: Partial<SessionState>, stats: Partial<SessionStats>): AgentSession {
   const fullStats: SessionStats = {
@@ -49,14 +49,24 @@ describe("状态栏", () => {
     expect(formatCost(0.0042)).toBe("$0.004");
   });
 
-  it("无用量：模型 · think · ctx ? · 模式 · 预设", () => {
+  it("无用量：左区模式 + 切换提示，右区模型 · 思考 · ctx ?；预设 default 不显示", () => {
     const bar = new StatusBar(
       { session: () => fakeSession({}, {}), preset: () => "default" },
       plainTheme(),
     );
-    expect(lines(bar, 120)).toEqual([
-      "anthropic/claude-sonnet · think:medium · ctx ? · mode:Manual · preset:default",
-    ]);
+    const [line] = lines(bar, 100);
+    expect(line).toMatch(
+      /^Manual · shift\+tab 切换 {4,}anthropic\/claude-sonnet · medium · ctx \?$/,
+    );
+    expect(visibleWidth(line!)).toBe(100);
+  });
+
+  it("模型名缩写：< 100 去供应商，< 60 去渠道，< 48 去版本后缀", () => {
+    const ref = "anthropic/claude-sonnet-4-5@messages";
+    expect(abbreviateModel(ref, 120)).toBe(ref);
+    expect(abbreviateModel(ref, 80)).toBe("claude-sonnet-4-5@messages");
+    expect(abbreviateModel(ref, 50)).toBe("claude-sonnet-4-5");
+    expect(abbreviateModel(ref, 40)).toBe("claude-sonnet");
   });
 
   it("有用量：↑ 含缓存读写、↓ 输出、命中率、费用、ctx%、队列、宿主状态", () => {
@@ -83,9 +93,9 @@ describe("状态栏", () => {
     );
     bar.setQueue(1, 1);
     bar.refresh();
-    expect(lines(bar, 200)).toEqual([
-      "anthropic/claude-sonnet · think:medium · ↑10k ↓1.2k · cache 80% · $0.12 · ctx 34% · queue 2 · mode:Bypass permissions · preset:codemode · [画布已连接 · 网络未隔离]",
-    ]);
+    expect(lines(bar, 200)[0]).toMatch(
+      /^Bypass permissions · shift\+tab 切换 +anthropic\/claude-sonnet · medium · ↑10k ↓1\.2k · cache 80% · \$0\.12 · ctx ▮▮▮▯▯▯▯▯▯▯ 34% · queue 2 · preset codemode · \[画布已连接 · 网络未隔离\]$/,
+    );
   });
 
   it("窄终端按优先级丢弃：先丢宿主、预设、费用……模型与 ctx 最后丢", () => {
@@ -101,12 +111,16 @@ describe("状态栏", () => {
       { session: () => session, preset: () => "default", hostStatus: () => new Map([["h", "x"]]) },
       plainTheme(),
     );
-    expect(lines(bar, 40)).toEqual(["anthropic/claude-sonnet · ctx 5%"]);
-    expect(lines(bar, 60)).toEqual(["anthropic/claude-sonnet · ctx 5% · mode:Manual"]);
-    expect(lines(bar, 64)).toEqual([
-      "anthropic/claude-sonnet · think:medium · ctx 5% · mode:Manual",
-    ]);
-    expect(lines(bar, 10)[0]).toBe("anthropic…");
+    expect(lines(bar, 40)).toEqual(["Manual · claude-sonnet · medium · ctx 5%"]);
+    expect(lines(bar, 60)[0]).toMatch(
+      /^Manual {4,}claude-sonnet · medium · ↑100 ↓10 · \$\? · ctx 5%$/,
+    );
+    expect(lines(bar, 31)).toEqual(["Manual · claude-sonnet · ctx 5%"]);
+    expect(lines(bar, 90)[0]).toMatch(
+      /^Manual · shift\+tab 切换 {4,}claude-sonnet@?.* · ctx 5% · \[x\]$/,
+    );
+    expect(lines(bar, 10)[0]).toBe("Manual");
+    expect(lines(bar, 24)).toEqual(["Manual     claude-sonnet"]);
   });
 
   it("refresh 才重新取统计；invalidate 后下次渲染再取", () => {
@@ -155,9 +169,7 @@ describe("状态栏", () => {
       },
       plainTheme(),
     );
-    expect(lines(bar, 200)).toEqual([
-      "anthropic/claude-sonnet · think:medium · ↑10k ↓1.2k · cache 未报告 · $0.12 · ctx 34% · mode:Manual · preset:default",
-    ]);
+    expect(lines(bar, 200)[0]).toContain("· ↑10k ↓1.2k · cache 未报告 · $0.12 · ctx ");
   });
 
   it("[W3-C2] rebill（有价显示金额、无价显示 token）、codemode 项与 net!，窄屏丢弃顺序", () => {
@@ -181,24 +193,59 @@ describe("状态栏", () => {
         },
         plainTheme(),
       );
-    const full =
-      "anthropic/claude-sonnet · think:medium · ↑10k ↓1.2k · cache 83% ♨ · $0.12 · rebill $0.11 · ctx 34% · mode:Manual · codemode:only net! · preset:codemode · [画布已连接]";
-    expect(lines(make(false), 200)).toEqual([full]);
-    expect(lines(make(true), 200)[0]).toContain("· codemode:only · preset");
+    const full = lines(make(false), 200)[0]!;
+    expect(full).toContain(
+      "↑10k ↓1.2k · cache 83% ♨ · $0.12 · rebill $0.11 · ctx ▮▮▮▯▯▯▯▯▯▯ 34% · codemode only net! · preset codemode · [画布已连接]",
+    );
+    expect(lines(make(true), 200)[0]).toContain("· codemode only · preset");
     const { reBilledUsd: _usd, ...unpriced } = stats.cache;
     const noPrice = { ...stats, cache: unpriced };
     expect(lines(make(true, noPrice), 200)[0]).toContain("· rebill 38k tok ·");
     const bar = make(false);
-    // 先丢宿主、预设、rebill、费用、cache……codemode 比队列以外的项都晚丢
-    expect(lines(bar, 125)).toEqual([
-      "anthropic/claude-sonnet · think:medium · ↑10k ↓1.2k · cache 83% ♨ · $0.12 · ctx 34% · mode:Manual · codemode:only net!",
-    ]);
-    expect(lines(bar, 100)).toEqual([
-      "anthropic/claude-sonnet · think:medium · ↑10k ↓1.2k · ctx 34% · mode:Manual · codemode:only net!",
-    ]);
-    expect(lines(bar, 70)).toEqual([
-      "anthropic/claude-sonnet · ctx 34% · mode:Manual · codemode:only net!",
-    ]);
-    expect(lines(bar, 50)).toEqual(["anthropic/claude-sonnet · ctx 34% · mode:Manual"]);
+    // 先丢切换提示、宿主、预设、rebill、费用、cache……codemode 比队列以外的项都晚丢
+    const at = (w: number): string => lines(bar, w)[0]!.replace(/ {4,}/, " ‖ ");
+    expect(at(100)).toBe(
+      "Manual ‖ anthropic/claude-sonnet · medium · ↑10k ↓1.2k · cache 83% ♨ · ctx 34% · codemode only net!",
+    );
+    expect(at(70)).toBe("Manual ‖ claude-sonnet · medium · ctx 34% · codemode only net!");
+    expect(at(50)).toBe("Manual ‖ claude-sonnet · ctx 34%");
+    expect(at(53)).toBe("Manual · claude-sonnet · ctx 34% · codemode only net!");
+  });
+
+  it("着色：模式名正文色、模型 accent、ctx 按阈值、其余 dim", () => {
+    const tagged = Object.assign(Object.create(plainTheme()) as Theme, {
+      fg: (c: string, t: string) => `<${c}>${t}`,
+    });
+    const bar = new StatusBar(
+      {
+        session: () => fakeSession({ permissionMode: "plan" }, { contextPercent: 75 }),
+        preset: () => "default",
+      },
+      tagged,
+    );
+    const [line] = bar.render(300);
+    expect(line).toContain("<accent>Plan");
+    expect(line).toContain("<accent>anthropic/claude-sonnet");
+    expect(line).toContain("<dim>shift+tab 切换");
+    expect(line).toContain("<warning>▮▮▮▮▮▮▮▮");
+  });
+
+  it("帧黄金：40 / 60 / 80 / 110 列", () => {
+    const session = fakeSession(
+      {
+        permissionMode: "auto-edit",
+        model: { provider: "anthropic", id: "claude-sonnet-4-5" } as never,
+      },
+      {
+        ...used,
+        cache: cache({
+          lastHitRate: 0.8,
+          warming: { mode: "streaming", state: "scheduled", nextWarmAt: 1 },
+        }),
+      },
+    );
+    const bar = new StatusBar({ session: () => session, preset: () => "default" }, plainTheme());
+    const rows = [40, 60, 80, 110].map((w) => `# ${w}\n|${bar.render(w)[0]}|`);
+    golden("status-widths", rows.join("\n") + "\n");
   });
 });

@@ -160,7 +160,9 @@ describe("交互模式", () => {
     s.type("\x1b[Z");
     expect(currentSession(s.rt).state.permissionMode).toBe("auto-edit");
     expect(s.terminal.viewport().join("\n")).toContain("权限模式：Accept edits");
-    expect(s.terminal.viewport().join("\n")).toContain("mode:Accept edits");
+    expect(s.terminal.viewport().some((l) => l.startsWith("Accept edits · shift+tab 切换"))).toBe(
+      true,
+    );
     const settled = s.until((e) => e.type === "agent_settled");
     s.terminal.sendInput("\x1b[200~第一行\n第二行\x1b[201~");
     s.terminal.sendInput("\r");
@@ -178,7 +180,7 @@ describe("交互模式", () => {
     await new Promise((r) => setTimeout(r, 10));
     s.frame();
     expect(currentSession(s.rt).state.model?.id).toBe("reasoning");
-    expect(s.terminal.viewport().join("\n")).toContain("fake/reasoning ·");
+    expect(s.terminal.viewport().join("\n")).toContain("  reasoning · ");
     s.handle.exit(0);
     await s.done;
   });

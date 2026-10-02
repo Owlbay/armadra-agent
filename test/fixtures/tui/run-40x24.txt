@@ -4,7 +4,7 @@
 |────────────────────────────────────────
 |› 输入消息，/ 命令，@ 文件，Shift+Enter…
 |────────────────────────────────────────
-|fake/echo · ctx 0% · mode:Manual
+|Manual            echo · medium · ctx 0%
 |
 |
 |
@@ -30,7 +30,7 @@
 |────────────────────────────────────────
 |› 读一下 README，说说是什么
 |────────────────────────────────────────
-|fake/echo · ctx 0% · mode:Manual
+|Manual            echo · medium · ctx 0%
 |
 |
 |
@@ -66,7 +66,7 @@
 |────────────────────────────────────────
 |› 输入消息，/ 命令，@ 文件，Shift+Enter…
 |────────────────────────────────────────
-|fake/echo · ctx 1% · mode:Manual
+|Manual            echo · medium · ctx 1%
 |
 |
 |
@@ -98,7 +98,7 @@
 |────────────────────────────────────────
 |› 输入消息，/ 命令，@ 文件，Shift+Enter…
 |────────────────────────────────────────
-|fake/echo · ctx 1% · mode:Manual
+|Manual            echo · medium · ctx 1%
 |
 |
 
@@ -126,7 +126,7 @@
 |› 输入消息，/ 命令，@ 文件，Shift+Enter…
 |────────────────────────────────────────
 |工具输出：展开
-|fake/echo · ctx 1% · mode:Manual
+|Manual            echo · medium · ctx 1%
 
 # exit · viewport 40x24 cursor=23,0
 |✻ ama <version> · fake/echo · Manual · /help
@@ -151,5 +151,5 @@
 |────────────────────────────────────────
 |› 输入消息，/ 命令，@ 文件，Shift+Enter…
 |────────────────────────────────────────
-|fake/echo · ctx 1% · mode:Manual
+|Manual            echo · medium · ctx 1%
 |
