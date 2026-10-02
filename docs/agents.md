@@ -205,7 +205,7 @@ ama 能以各 CLI 自己的账户、模型与权限策略驱动外部编码 Agen
 
 ### 环境与账户
 
-外部 Agent 用你在该 CLI 里的现有登录。为了不把订阅计费切成 API 计费，ama 起子进程时**缺省剥离**：全部内置供应商的 API key 变量、`*_BASE_URL`、`AMA_*`、`CODEX_API_KEY`、`ANTHROPIC_AUTH_TOKEN`；其余（PATH、HOME、LANG、代理、SSH、各 CLI 自己的配置目录与令牌）保留。确实要传的用 `agents.<id>.env.passthrough` 列出（`config.json`，只认用户级）：
+外部 Agent 用你在该 CLI 里的现有登录。为了不把订阅计费切成 API 计费，ama 起子进程时**缺省剥离**：全部内置供应商的 API key 变量、`*_BASE_URL`、`AMA_*`、`CODEX_API_KEY`、`ANTHROPIC_AUTH_TOKEN`，以及 `ARMADRA_*`（`ARMADRA_ASKPASS_*` 除外，见「嵌入宿主」）；其余（PATH、HOME、LANG、代理、SSH、各 CLI 自己的配置目录与令牌）保留。确实要传的用 `agents.<id>.env.passthrough` 列出（`config.json`，只认用户级）：
 
 ```json
 {
@@ -231,6 +231,8 @@ ama 能以各 CLI 自己的账户、模型与权限策略驱动外部编码 Agen
 ### 嵌入宿主
 
 有宿主（`--host` 或 profile 的 `host`，如嵌入 Armadra）时 ama **不自己启动外部 CLI**：内置外部 Agent 一律不可用，不写进 task 描述，`task(agent="claude")` 以「由宿主提供」失败；只有宿主经 `HostApi.runners.provide(runner)` 注入的 runner 可用，它以同一个 `task(agent=<id>)` 入口出现，同名时替换内置的。`create()` 时已注入的 runner 写进 task 描述（`- <id>: <description>`），之后注入的也能用但不进描述。runner 的 `start` 收到 `prompt`、`cwd`、`mode`（父会话当前模式）、`taskId`、`signal`、`onEvent`；不经首次确认。
+
+**在 Armadra 画布终端里直接运行 ama（没有 `--host`）**：此时 ama 按独立模式工作，自己启动的外部 Agent 是这个终端节点里的子进程，不会出现在画布上，也不经连线授权；需要让多个 Agent 在画布上协同，就在画布上连线 Agent 节点，或以宿主模式嵌入 ama。终端带着该节点的身份变量（`ARMADRA_NODE_ID`、`ARMADRA_SESSION_ID`、Hook 端点、`ARMADRA_CANVAS_CONTROL` 等），ama 起子进程时一律剥离（askpass 除外），否则 Armadra 装在 Claude / Codex 上的 Hook 会把子 Agent 的事件记到这个节点名下。
 
 ### 本地验证真实 CLI
 
