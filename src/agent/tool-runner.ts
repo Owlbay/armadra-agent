@@ -26,6 +26,7 @@ import type {
 } from "../ai/types.js";
 import { formatSchemaErrors, validateSchema } from "./schema.js";
 import type { NestedCallInfo, SessionEvent, ToolCallGate, ToolCallGateContext } from "./types.js";
+import { CODEMODE_TOOL } from "../tools/presets.js";
 import type { ToolContext, ToolDefinition, ToolResult } from "../tools/types.js";
 
 export const ABORTED_TOOL_TEXT = "aborted by user";
@@ -107,6 +108,17 @@ export function toolCallsOf(message: AssistantMessage): ToolCallBlock[] {
   return message.content.filter((block): block is ToolCallBlock => block.type === "toolCall");
 }
 
+/**
+ * 找不到工具的错误文本。codemode `only` 下模型常直接调用 `read` 等（它们只在脚本里可用）：
+ * 这时告诉模型正确写法。
+ */
+function notFoundText(name: string, options: ToolRunnerOptions): string {
+  if (options.getNestedTool?.(name) !== undefined && options.getTool(CODEMODE_TOOL) !== undefined) {
+    return `Tool ${name} is only callable inside a codemode script: tools.${name}({...})`;
+  }
+  return `Tool ${name} not found`;
+}
+
 async function prepare(
   call: ToolCallBlock,
   assistant: AssistantMessage,
@@ -120,7 +132,7 @@ async function prepare(
       ? options.getNestedTool(call.name)
       : options.getTool(call.name);
   if (tool === undefined) {
-    return { kind: "immediate", call, result: errorResult(`Tool ${call.name} not found`) };
+    return { kind: "immediate", call, result: errorResult(notFoundText(call.name, options)) };
   }
   const invalid = (input: unknown): Immediate | undefined => {
     const errors = validateSchema(tool.parameters, input);

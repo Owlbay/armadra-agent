@@ -31,6 +31,26 @@ function outer(name: string, calls: { name: string; input: unknown }[], signal?:
 const script = [{ toolCalls: [{ name: "codemode", args: {}, id: "cm1" }] }, { text: "done" }];
 
 describe("嵌套调用", () => {
+  it("活动集只有 codemode 时直接调 read：错误文本给出脚本写法；真不存在的仍是 not found", async () => {
+    const h = createHarness({
+      script: [
+        { toolCalls: [{ name: "read", args: {}, id: "r1" }] },
+        { toolCalls: [{ name: "nope", args: {}, id: "n1" }] },
+        { text: "done" },
+      ],
+      tools: [outer("codemode", []), stubTool({ name: "read" })],
+      activeTools: ["codemode"],
+    });
+    await h.session.prompt("go");
+    const texts = h.session.messages
+      .filter((m) => m.role === "toolResult")
+      .map((m) => String(m.content));
+    expect(texts).toEqual([
+      "Tool read is only callable inside a codemode script: tools.read({...})",
+      "Tool nope not found",
+    ]);
+  });
+
   it("按全部工具查找（活动集只有 codemode）；事件带 parentToolCallId，不入转录", async () => {
     const h = createHarness({
       script,
