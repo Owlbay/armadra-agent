@@ -68,7 +68,8 @@ export function findSessionFileReadOnly(root: string, id: string, cwd?: string):
     });
   }
   const [file] = prefix;
-  if (file === undefined) throw new AmaError("session_not_found", `会话不存在：${id}`);
+  if (file === undefined)
+    throw new AmaError("session_not_found", `会话不存在：${id}`, { exitCode: 5 });
   return file;
 }
 
