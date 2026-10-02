@@ -154,8 +154,9 @@ export function runInteractiveMode(
   const loaderSlot = new Container();
   const loader = new Loader(() => tui.requestRender(), {
     theme,
-    message: "工作中",
+    message: "思考中",
     now,
+    ...(ui.animation === false ? { animation: false } : {}),
     ...(options.spinnerIntervalMs !== undefined ? { intervalMs: options.spinnerIntervalMs } : {}),
   });
   loader.onFrame(() => tools.tick());
