@@ -2,6 +2,22 @@
 
 ## 未发布
 
+- **内置渠道与缺省协议**（docs/providers.md「内置供应商」）：多协议的内置供应商带内置渠道，`provider/model@channel`
+  直接可选；缺省协议 Messages / Responses 优先、Chat 回落——**OpenAI、xAI 全部模型改走 Responses**（`@chat` 换回
+  Chat），**通义改走 Messages**（`/apps/anthropic`，执行 `cache_control`）；DeepSeek、智谱、Kimi 维持 Chat，另有
+  `@messages` 等渠道，过了官方直连的实测门再切。用户 `channels` 同名字段级覆盖、新名追加，`defaultChannel` 或只写
+  `api` 也能选内置渠道；改了供应商级 `baseUrl`（含 `OPENAI_BASE_URL`）时内置渠道作废、按单渠道回落（OpenAI / xAI
+  的目录模型在中转上仍走 Responses）。新增内置供应商 MiniMax、阶跃、火山方舟、腾讯 TokenHub（共 17 家）；Coding Plan
+  类订阅端点不做内置渠道，只给配置示例。
+- **Anthropic 兼容端点按主机推断 compat**：交错思考 beta 头只发给官方端点与中转上的 Claude 模型，DeepSeek 不再打
+  `cache_control`（文档写明忽略）；新开关 `sendInterleavedThinkingBeta`、`sendCacheControl`。
+- **缓存能力按主机**：xAI、Mistral、Kimi 官方端点缺省发 `prompt_cache_key`，腾讯 TokenHub 发键并支持 1h 保留。
+  这些端点的请求体因此多一个字段，**升级后首个请求可能未命中一次**。
+- **内置目录吃 `ama models refresh` 的数据**（缺字段的条目退回内置快照）。价格核对：OpenRouter 的 kimi-k3、glm-5.3
+  改用 OpenRouter 现价；DeepSeek 维持官方高峰价。
+- `scripts/channel-probe.mjs`：渠道实测门（每模型 ≤ 8 请求，输出结果表），中转上五家 messages / chat 对比见
+  docs/providers.md「渠道实测」。
+
 - **操作系统级沙箱**（docs/sandbox.md）：新模块 `src/sandbox/` 探测 macOS `sandbox-exec`、Linux bubblewrap（退而
   `unshare -r -n`），用目标配置跑一次最小探针确认真能用（嵌套沙箱、无用户命名空间会降级），结果进程内缓存。codemode
   子进程经它启动，内核拒绝网络（含 DNS）与一切写入：**Node 22 / 24 在有操作系统沙箱时与 Node ≥ 25 一样网络隔离**——
