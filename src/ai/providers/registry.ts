@@ -312,6 +312,15 @@ export class ProviderRegistry implements ProviderRegistryApi {
   }
 }
 
+/** 注册表若是 ProviderRegistry（或同形状），报告 baseUrl 来自的环境变量；否则 undefined。 */
+export function baseUrlEnvOf(
+  registry: ProviderRegistryApi,
+  providerId: string,
+): string | undefined {
+  const r = registry as Partial<Pick<ProviderRegistry, "baseUrlEnv">>;
+  return typeof r.baseUrlEnv === "function" ? r.baseUrlEnv(providerId) : undefined;
+}
+
 /**
  * 模型枚举：本地服务（`ama models list --provider ollama|lmstudio`）与 `ama models discover`
  * （第三波 §2.3）共用。ollama 走 `/api/tags`，其它走 OpenAI 兼容的 `GET {baseUrl}/models`；

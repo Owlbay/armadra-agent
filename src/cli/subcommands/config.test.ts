@@ -72,4 +72,42 @@ describe("ama config show", () => {
     expect(await ama(["doctor"], { DEEPSEEK_API_KEY: "k" })).toBe(0);
     expect(out.join("")).toMatch(/将使用的模型：deepseek\/\S+（零配置：deepseek 有 key/);
   });
+
+  it("供应商节：模型级协议与 baseUrl 来自环境变量（文本与 --json）；doctor 标出变量", async () => {
+    home.write("home/.config/ama/config.json", {
+      version: 1,
+      providers: {
+        relay: {
+          baseUrl: "https://relay.example/v1",
+          models: [{ id: "glm-5", api: "anthropic-messages" }, { id: "deepseek-v4-flash" }],
+        },
+      },
+    });
+    const env = { OPENAI_BASE_URL: "https://relay.example/v1" };
+    expect(await ama(["config", "show"], env)).toBe(0);
+    const text = out.join("");
+    expect(text).toContain("供应商：\n  openai  ");
+    expect(text).toContain("\n  relay  openai-completions  https://relay.example/v1\n");
+    expect(text).toContain("    relay/glm-5  anthropic-messages\n");
+    expect(text).toContain("    relay/deepseek-v4-flash  openai-completions\n");
+    expect(text).toContain(
+      "  openai  openai-completions  https://relay.example/v1（baseUrl 来自环境变量 OPENAI_BASE_URL）",
+    );
+    expect(text).not.toContain("  anthropic  anthropic-messages");
+    out = [];
+    expect(await ama(["config", "show", "--json"], env)).toBe(0);
+    const json = JSON.parse(out.join("")) as { providers: unknown[] };
+    expect(json.providers).toContainEqual({
+      id: "openai",
+      api: "openai-completions",
+      baseUrl: "https://relay.example/v1",
+      baseUrlEnv: "OPENAI_BASE_URL",
+      models: [],
+    });
+    out = [];
+    expect(await ama(["doctor"], { ...env, OPENAI_API_KEY: "k" })).toBe(0);
+    expect(out.join("")).toMatch(
+      /baseUrl 来自环境变量 OPENAI_BASE_URL：https:\/\/relay\.example\/v1（compat 按保守缺省）/,
+    );
+  });
 });

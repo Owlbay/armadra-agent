@@ -4,9 +4,11 @@
  * 输出：目录、配置层级（每层文件存在 / 有效 / 警告）、信任状态与需信任的资源、AGENTS.md、
  * key 来源（只给来源不给值）、将执行的 Hook 命令（含因未信任被跳过的项目级）、终端能力。
  * 只读：不询问信任、不写任何文件；配置错误照常列出并以退出码 3 结束。
+ * [W3-B12] baseUrl 来自 `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` 时在 key 行后标出变量与地址。
  */
 
 import { existsSync } from "node:fs";
+import { baseUrlEnvOf } from "../../ai/providers/registry.js";
 import { classifyKeyValue, isModeTooOpen, fileMode, readAuthFile } from "../../config/auth-file.js";
 import { findContextFiles } from "../../config/context-files.js";
 import { loadConfigFile, probeConfigFile } from "../../config/load.js";
@@ -124,6 +126,11 @@ async function keySection(
               ? "无"
               : "无需";
         report.item(`${provider.id.padEnd(20)} ${text}`);
+        const env = baseUrlEnvOf(registry, provider.id);
+        if (env !== undefined)
+          report.item(
+            `${"".padEnd(20)} baseUrl 来自环境变量 ${env}：${provider.baseUrl}（compat 按保守缺省）`,
+          );
       }
       const model = await describeModel(level.merged.config, registry);
       report.item(`将使用的模型：${model.ref ?? "（无）"}（${model.reason}）`);
