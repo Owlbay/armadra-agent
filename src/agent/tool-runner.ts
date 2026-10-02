@@ -8,6 +8,12 @@
  * `terminate` 要整批都为真才提前结束。`stopReason: "length"` 且有工具调用 → 整批判失败不执行。
  * abort：未开始的调用直接给 `aborted by user` 错误结果；执行中的工具收到 signal，超过宽限期仍未结束
  * 则不再等待、记 `aborted by user`。结果超 `maxToolResultChars` 截断并把全文写到 `outputDir`。
+ *
+ * 嵌套调用（`ToolContext.tools.executeTool`，codemode 脚本里的 `tools.*`）走 `runSingleToolCall`：
+ * 同一套校验与门禁，按**全部未禁用工具**查找（codemode only 模式下活动集只有 codemode），
+ * 发带 `parentToolCallId` 的 `tool_execution_start / update / end`（不入转录），门禁与 PostToolUse
+ * 拿到 `parent`（Hook 输入的 `viaCodemode / parentToolCallId`）；结果给脚本而不是模型，截断上限放宽到
+ * `NESTED_MAX_RESULT_CHARS`。
  */
 
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -19,19 +25,34 @@ import type {
   ToolResultMessage,
 } from "../ai/types.js";
 import { formatSchemaErrors, validateSchema } from "./schema.js";
-import type { SessionEvent, ToolCallGate, ToolCallGateContext } from "./types.js";
+import type { NestedCallInfo, SessionEvent, ToolCallGate, ToolCallGateContext } from "./types.js";
 import type { ToolContext, ToolDefinition, ToolResult } from "../tools/types.js";
 
 export const ABORTED_TOOL_TEXT = "aborted by user";
 export const DEFAULT_MAX_TOOL_RESULT_CHARS = 30_000;
 export const DEFAULT_ABORT_GRACE_MS = 3000;
+/** 嵌套调用结果的截断上限（给脚本，不进上下文）。 */
+export const NESTED_MAX_RESULT_CHARS = 1024 * 1024;
 
 export type LoopEmit = (event: SessionEvent) => Promise<void>;
+
+/** 嵌套调用：由 `runSingleToolCall` 的调用方提供。 */
+export interface NestedCall {
+  parent: NestedCallInfo;
+  /** 嵌套调用的 tool_execution_* 事件出口（事件已带 parentToolCallId）。 */
+  emit: LoopEmit;
+}
 
 export interface ToolRunnerOptions {
   getTool(name: string): ToolDefinition | undefined;
   beforeToolCall(call: ToolCallBlock, ctx: ToolCallGateContext): Promise<ToolCallGate>;
-  afterToolCall?(call: ToolCallBlock, result: ToolResult): Promise<ToolResult>;
+  afterToolCall?(
+    call: ToolCallBlock,
+    result: ToolResult,
+    ctx?: { parent?: NestedCallInfo },
+  ): Promise<ToolResult>;
+  /** 嵌套调用的工具查找（全部未禁用工具）；缺省同 getTool。 */
+  getNestedTool?(name: string): ToolDefinition | undefined;
   createToolContext(
     call: ToolCallBlock,
     signal: AbortSignal,
@@ -91,9 +112,13 @@ async function prepare(
   assistant: AssistantMessage,
   options: ToolRunnerOptions,
   signal: AbortSignal,
+  parent?: NestedCallInfo,
 ): Promise<Prepared | Immediate> {
   if (signal.aborted) return { kind: "immediate", call, result: errorResult(ABORTED_TOOL_TEXT) };
-  const tool = options.getTool(call.name);
+  const tool =
+    parent !== undefined && options.getNestedTool !== undefined
+      ? options.getNestedTool(call.name)
+      : options.getTool(call.name);
   if (tool === undefined) {
     return { kind: "immediate", call, result: errorResult(`Tool ${call.name} not found`) };
   }
@@ -110,7 +135,9 @@ async function prepare(
   if (firstCheck !== undefined) return firstCheck;
   let input: unknown = call.arguments;
   try {
-    const gate = await options.beforeToolCall(call, { signal, assistant, tool });
+    const gateContext: ToolCallGateContext =
+      parent === undefined ? { signal, assistant, tool } : { signal, assistant, tool, parent };
+    const gate = await options.beforeToolCall(call, gateContext);
     if (signal.aborted) return { kind: "immediate", call, result: errorResult(ABORTED_TOOL_TEXT) };
     if (gate.block === true) {
       return {
@@ -145,8 +172,11 @@ function truncateResult(
   call: ToolCallBlock,
   result: ToolResult,
   options: ToolRunnerOptions,
+  nested = false,
 ): ToolResult {
-  const limit = options.maxToolResultChars ?? DEFAULT_MAX_TOOL_RESULT_CHARS;
+  const limit = nested
+    ? NESTED_MAX_RESULT_CHARS
+    : (options.maxToolResultChars ?? DEFAULT_MAX_TOOL_RESULT_CHARS);
   const text = resultText(result.content);
   if (text.length <= limit) return result;
   let where = "全文未保存";
@@ -176,6 +206,7 @@ async function execute(
   options: ToolRunnerOptions,
   signal: AbortSignal,
   emit: LoopEmit,
+  parent?: NestedCallInfo,
 ): Promise<ToolResult> {
   const { call, tool, input } = prepared;
   if (signal.aborted) return errorResult(ABORTED_TOOL_TEXT);
@@ -221,12 +252,15 @@ async function execute(
   await Promise.all(updates);
   if (options.afterToolCall !== undefined && !signal.aborted) {
     try {
-      result = await options.afterToolCall(call, result);
+      result =
+        parent === undefined
+          ? await options.afterToolCall(call, result)
+          : await options.afterToolCall(call, result, { parent });
     } catch (error) {
       result = errorResult(`PostToolUse failed: ${String(error)}`);
     }
   }
-  return truncateResult(call, result, options);
+  return truncateResult(call, result, options, parent !== undefined);
 }
 
 async function emitEnd(call: ToolCallBlock, result: ToolResult, emit: LoopEmit): Promise<void> {
@@ -339,15 +373,41 @@ export async function closeDanglingCalls(
 
 /**
  * 单次调用（ToolContext.tools.executeTool 用）：同样经过校验与 beforeToolCall / afterToolCall，
- * 不发事件、不入转录。
+ * 不入转录。给了 `nested` 时按全部工具查找、发带 `parentToolCallId` 的 tool_execution_* 事件、
+ * 门禁拿到 `parent`；不给则不发事件（与旧行为相同）。
  */
 export async function runSingleToolCall(
   call: ToolCallBlock,
   assistant: AssistantMessage,
   options: ToolRunnerOptions,
   signal: AbortSignal,
+  nested?: NestedCall,
 ): Promise<ToolResult> {
-  const prepared = await prepare(call, assistant, options, signal);
-  if (prepared.kind === "immediate") return prepared.result;
-  return execute(prepared, options, signal, async () => {});
+  if (nested === undefined) {
+    const prepared = await prepare(call, assistant, options, signal);
+    if (prepared.kind === "immediate") return prepared.result;
+    return execute(prepared, options, signal, async () => {});
+  }
+  const parentToolCallId = nested.parent.toolCallId;
+  const emit: LoopEmit = (event) =>
+    nested.emit(
+      event.type === "tool_execution_start" ||
+        event.type === "tool_execution_update" ||
+        event.type === "tool_execution_end"
+        ? { ...event, parentToolCallId }
+        : event,
+    );
+  await emit({
+    type: "tool_execution_start",
+    toolCallId: call.id,
+    toolName: call.name,
+    args: call.arguments,
+  });
+  const prepared = await prepare(call, assistant, options, signal, nested.parent);
+  const result =
+    prepared.kind === "immediate"
+      ? prepared.result
+      : await execute(prepared, options, signal, emit, nested.parent);
+  await emitEnd(call, result, emit);
+  return result;
 }

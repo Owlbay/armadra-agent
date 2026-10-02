@@ -26,6 +26,8 @@ import { BUILTIN_DENY_RULES, parseRule } from "../permissions/rules.js";
 import type { Rule } from "../permissions/types.js";
 import { discoverSkills, skillSources } from "../skills/discover.js";
 import { discoverPromptTemplates, promptSources } from "../skills/templates.js";
+import { applyCodemodeMode, decorateForMode } from "../codemode/modes.js";
+import { codemodeToolFactory } from "../codemode/tool.js";
 import { PresetToolRegistry, resolvePreset } from "../tools/presets.js";
 import { builtinTools } from "../tools/registry.js";
 import type { ToolDefinition, ToolRegistryApi } from "../tools/types.js";
@@ -48,13 +50,15 @@ export interface ToolFactoryContext {
   registry: ToolRegistryApi;
   /** 会话组装之后才有值；工具执行期取用。 */
   session(): AgentSession | undefined;
+  /** 组装期 warning（组装会话时交给 assembly.warn）。 */
+  warn(message: string): void;
 }
 
 /** 返回 undefined = 本次不注册（例如配置关闭）。 */
 export type ToolFactory = (ctx: ToolFactoryContext) => ToolDefinition | undefined;
 
-/** 缺省工具工厂（B10 在这里加 codemode）。 */
-export const DEFAULT_TOOL_FACTORIES: readonly ToolFactory[] = [];
+/** 缺省工具工厂：codemode（`codemode.mode` 生效值为 off 时不注册）。 */
+export const DEFAULT_TOOL_FACTORIES: readonly ToolFactory[] = [codemodeToolFactory()];
 
 export interface ComposeOptions {
   /** 追加 / 覆盖供应商（SDK）。 */
@@ -89,7 +93,13 @@ export const DEFAULT_MODES: Readonly<Partial<Record<RuntimeMode, ModeRunner>>> =
   ),
 };
 
-/** 第 12 步：内置工具 + 工厂 + extraTools，按预设定活动集；warning 留给组装会话时报告。 */
+/**
+ * 第 12 步：内置工具 + 工厂 + extraTools，按预设定活动集；warning 留给组装会话时报告。
+ *
+ * 先跑工厂（产物暂不注册）再解析预设：codemode 是否可用决定预设与模式；`on` 模式下注册时给
+ * 其它工具的描述追加 codemode 提示，`only` 模式活动集独占（codemode/modes.ts）。工厂拿到的
+ * `registry` 在执行期才读，此时已登记完全部工具。
+ */
 export function createTools(
   input: { config: AmaConfig; cwd: string; mode: RuntimeMode },
   options: ComposeOptions,
@@ -100,22 +110,35 @@ export function createTools(
     input.config.tools?.bashTimeoutMs !== undefined
       ? { defaultTimeoutMs: input.config.tools.bashTimeoutMs }
       : {};
-  for (const tool of builtinTools({ bash })) registry.register(tool, "builtin");
-  const ctx: ToolFactoryContext = { ...input, registry, session: () => state.session };
+  const builtins = builtinTools({ bash });
+  const ctx: ToolFactoryContext = {
+    ...input,
+    registry,
+    session: () => state.session,
+    warn: (message) => state.warnings.push(message),
+  };
+  const produced: ToolDefinition[] = [];
   for (const factory of options.toolFactories ?? DEFAULT_TOOL_FACTORIES) {
     try {
       const tool = factory(ctx);
-      if (tool !== undefined) registry.register(tool, "builtin");
+      if (tool !== undefined) produced.push(tool);
     } catch (error) {
       state.warnings.push(`工具工厂失败：${(error as Error).message}`);
     }
   }
-  for (const tool of options.extraTools ?? []) registry.register(tool, "sdk");
-  const preset = resolvePreset({
-    config: input.config,
-    available: (name) => registry.get(name) !== undefined,
-  });
-  registry.setPresetTools(preset.builtin);
+  const extra = options.extraTools ?? [];
+  const names = new Set([...builtins, ...produced, ...extra].map((tool) => tool.name));
+  const preset = resolvePreset({ config: input.config, available: (name) => names.has(name) });
+  const decorate = decorateForMode(preset.codemode);
+  for (const tool of [...builtins, ...produced]) {
+    try {
+      registry.register(decorate(tool), "builtin");
+    } catch (error) {
+      state.warnings.push(`工具 ${tool.name} 注册失败：${(error as Error).message}`);
+    }
+  }
+  for (const tool of extra) registry.register(decorate(tool), "sdk");
+  applyCodemodeMode(registry, preset);
   state.warnings.push(...preset.warnings);
   return registry;
 }

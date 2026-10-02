@@ -87,6 +87,8 @@ export interface SessionCore {
   /** 从会话管理器重建 Agent 的上下文消息。 */
   reloadMessages(): void;
   activeTool(name: string): ToolDefinition | undefined;
+  /** 任一已登记工具（不限于活动集；嵌套调用用）。 */
+  tool(name: string): ToolDefinition | undefined;
   activeToolNames(): string[];
   runHook(
     event: HookEvent,

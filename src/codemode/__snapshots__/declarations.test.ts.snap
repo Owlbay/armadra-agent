@@ -1,0 +1,95 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildDeclarationBlock > 内置工具的声明快照（缺省预算全部内联，按名排序） 1`] = `
+"interface BashResult { output: string; truncated: boolean; fullOutputPath?: string; exitCode: number; wallTimeMs: number }
+declare const tools: {
+  /** Run a shell command. stdout+stderr combined; over 2000 lines or 50 KB keeps the tail and saves the full output to a file. Timeout default 120000 ms, max 600000 ms. */
+  bash(args: {
+    command: string;
+    timeoutMs?: number;
+    /** Default: session cwd */
+    cwd?: string;
+    /** What this does, briefly */
+    description?: string;
+  }): Promise<BashResult>;
+  /** Replace text in a file (read it first). Each oldText must be unique in the original (unless replaceAll); edits must not overlap. */
+  edit(args: {
+    path: string;
+    edits: {
+      /** Exact text to replace */
+      oldText: string;
+      newText: string;
+    }[];
+    replaceAll?: boolean;
+  }): Promise<string>;
+  /** Find files by glob (\`**\`, \`*\`, \`?\`, \`[...]\`, \`{a,b}\`, leading \`!\` excludes). Patterns without \`/\` match names at any depth. Respects .gitignore/.ignore; newest first. */
+  glob(args: {
+    /** e.g. **\\/*.ts */
+    pattern: string;
+    /** Directory (default: cwd) */
+    path?: string;
+    /** Default 1000 */
+    limit?: number;
+  }): Promise<string>;
+  /** Search file contents by JS regex. Respects .gitignore/.ignore; skips binary and >2 MB files. Output: \`path:line: text\`. */
+  grep(args: {
+    pattern: string;
+    /** File or dir (default: cwd) */
+    path?: string;
+    /** File filter, e.g. *.ts */
+    glob?: string;
+    ignoreCase?: boolean;
+    literal?: boolean;
+    /** 0-5 lines */
+    context?: number;
+    /** Default 100 */
+    limit?: number;
+  }): Promise<string>;
+  /** List a directory: subdirectories end with \`/\`, files show their size, symlinks show their target. Includes dotfiles. Default limit 500. */
+  ls(args: {
+    /** Directory (default: cwd) */
+    path?: string;
+    /** Maximum entries (default 500) */
+    limit?: number;
+  }): Promise<string>;
+  /** Read a file. Text comes with line numbers (cat -n), limited to 2000 lines or 50.0 KB; page with offset/limit. Images (png, jpg, gif, webp) come as attachments. */
+  read(args: {
+    /** Absolute or relative to cwd */
+    path: string;
+    /** First line (1-based) */
+    offset?: number;
+    /** Max lines */
+    limit?: number;
+  }): Promise<string>;
+  /** Delegate to a fresh sub-agent. It cannot see this chat: give full instructions. Returns its final answer. */
+  task(args: {
+    prompt: string;
+    /** Label */
+    description?: string;
+    /** Default: all but task */
+    tools?: string[];
+    /** provider/model */
+    model?: string;
+    thinkingLevel?: "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
+    /** Default 30 */
+    maxTurns?: number;
+  }): Promise<string>;
+  /** Session task list for multi-step work: \`set\` replaces the whole list, \`get\` returns it. */
+  todo(args: {
+    action: "set" | "get";
+    /** Full list (set) */
+    items?: {
+      id: string;
+      text: string;
+      status: "pending" | "in_progress" | "done";
+    }[];
+  }): Promise<string>;
+  /** Write a file, replacing its entire content; parent directories are created. An existing file must be read first. Prefer the edit tool for partial changes. */
+  write(args: {
+    /** File path, absolute or relative to cwd */
+    path: string;
+    /** Full new file content */
+    content: string;
+  }): Promise<string>;
+};"
+`;

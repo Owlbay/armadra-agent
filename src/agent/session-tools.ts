@@ -13,9 +13,11 @@ import type { ApprovalDecision, ApprovalRequest, Decision } from "../permissions
 import type { ToolContext, ToolResult } from "../tools/types.js";
 import type { SessionCore } from "./session-core.js";
 import { runSingleToolCall, type ToolRunnerOptions } from "./tool-runner.js";
-import type { ToolCallGate, ToolCallGateContext } from "./types.js";
+import type { NestedCallInfo, ToolCallGate, ToolCallGateContext } from "./types.js";
 
 export const DEFAULT_APPROVAL_TIMEOUT_MS = 10 * 60 * 1000;
+/** 外层是这个工具时，嵌套调用的 Hook 输入带 `viaCodemode: true`。 */
+const CODEMODE_TOOL_NAME = "codemode";
 
 function textOf(content: ToolResult["content"]): string {
   if (typeof content === "string") return content;
@@ -70,6 +72,17 @@ export async function requestApproval(
   return decision;
 }
 
+/** 嵌套调用时 Hook 输入的两个字段（设计 §5.5）；模型直接发起的调用不带。 */
+function nestedFields(parent: NestedCallInfo | undefined): {
+  viaCodemode?: boolean;
+  parentToolCallId?: string;
+} {
+  if (parent === undefined) return {};
+  return parent.viaCodemode
+    ? { viaCodemode: true, parentToolCallId: parent.toolCallId }
+    : { parentToolCallId: parent.toolCallId };
+}
+
 export async function gateToolCall(
   core: SessionCore,
   call: ToolCallBlock,
@@ -85,7 +98,7 @@ export async function gateToolCall(
   if (core.options.hooks?.has("PreToolUse", call.name) === true) {
     const outcome = await core.runHook(
       "PreToolUse",
-      { toolCallId: call.id, toolName: call.name, toolInput: input },
+      { toolCallId: call.id, toolName: call.name, toolInput: input, ...nestedFields(ctx.parent) },
       ctx.signal,
     );
     if (outcome !== undefined) {
@@ -147,6 +160,7 @@ export async function afterToolCall(
   core: SessionCore,
   call: ToolCallBlock,
   result: ToolResult,
+  parent?: NestedCallInfo,
 ): Promise<ToolResult> {
   if (core.options.hooks?.has("PostToolUse", call.name) !== true) return result;
   const outcome = await core.runHook("PostToolUse", {
@@ -154,6 +168,7 @@ export async function afterToolCall(
     toolName: call.name,
     toolInput: call.arguments,
     toolResult: { content: textOf(result.content), isError: result.isError === true },
+    ...nestedFields(parent),
   });
   if (outcome === undefined) return result;
   if (outcome.stop) core.requestStop(outcome.reason);
@@ -198,7 +213,7 @@ export function createToolContext(
       core.readFiles.add(path);
     },
     tools: {
-      executeTool: (name, input) => {
+      executeTool: (name, input, options) => {
         nested++;
         const nestedCall: ToolCallBlock = {
           type: "toolCall",
@@ -213,7 +228,12 @@ export function createToolContext(
         if (assistant === undefined || assistant.role !== "assistant") {
           return Promise.resolve({ content: "no active assistant message", isError: true });
         }
-        return runSingleToolCall(nestedCall, assistant, runner, signal);
+        const nestedSignal =
+          options?.signal === undefined ? signal : AbortSignal.any([signal, options.signal]);
+        return runSingleToolCall(nestedCall, assistant, runner, nestedSignal, {
+          parent: { toolCallId: call.id, viaCodemode: call.name === CODEMODE_TOOL_NAME },
+          emit: async (event) => core.emit(event),
+        });
       },
     },
     session: {
@@ -246,8 +266,9 @@ export function createToolContext(
 export function createToolRunnerOptions(core: SessionCore): ToolRunnerOptions {
   const runner: ToolRunnerOptions = {
     getTool: (name) => core.activeTool(name),
+    getNestedTool: (name) => core.tool(name),
     beforeToolCall: (call, ctx) => gateToolCall(core, call, ctx),
-    afterToolCall: (call, result) => afterToolCall(core, call, result),
+    afterToolCall: (call, result, ctx) => afterToolCall(core, call, result, ctx?.parent),
     createToolContext: (call, signal, onUpdate) =>
       createToolContext(core, runner, call, signal, onUpdate),
     get outputDir() {

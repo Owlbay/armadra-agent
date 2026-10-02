@@ -80,6 +80,15 @@ export interface ToolCallGateContext {
   readonly assistant: AssistantMessage;
   /** 找不到工具时为 undefined（tool-runner 已先行报错，通常不会走到钩子）。 */
   readonly tool: ToolDefinition | undefined;
+  /** 嵌套调用（工具里经 `ToolContext.tools.executeTool` 发起，例如 codemode 脚本）时的外层调用。 */
+  readonly parent?: NestedCallInfo;
+}
+
+/** 嵌套调用的外层：Hook 输入据此带 `parentToolCallId` 与 `viaCodemode`（设计 §5.5）。 */
+export interface NestedCallInfo {
+  readonly toolCallId: string;
+  /** 外层是 codemode 工具。 */
+  readonly viaCodemode: boolean;
 }
 
 export interface ToolCallGate {

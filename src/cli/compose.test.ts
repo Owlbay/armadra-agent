@@ -6,7 +6,7 @@ import {
 } from "../../test/helpers/compose-harness.js";
 import { AgentSessionImpl } from "../agent/session.js";
 import type { SystemMessage } from "../ai/types.js";
-import { buildRules } from "./compose.js";
+import { buildRules, type ComposeOptions } from "./compose.js";
 
 let h: ComposeHarness;
 afterEach(() => h?.cleanup());
@@ -46,10 +46,10 @@ describe("createRuntimeDeps + bootstrap", () => {
     expect(host.events().at(-1)?.name).toBe("session_shutdown");
   });
 
-  it("工具预设决定活动集；--tools 整组替换；codemode 预设缺工具时回退并 warning", async () => {
+  it("工具预设决定活动集；--tools 整组替换；codemode 预设只给 codemode，缺工具时回退并 warning", async () => {
     h = composeHarness();
-    const names = async (argv: string[]) => {
-      const runtime = await h.boot(["--model", "fake/echo", ...argv]);
+    const names = async (argv: string[], options?: ComposeOptions) => {
+      const runtime = await h.boot(["--model", "fake/echo", ...argv], options);
       const tools = runtime.session.getTools().map((t) => t.name);
       await runtime.dispose();
       return { tools, warnings: runtime.warnings };
@@ -63,7 +63,15 @@ describe("createRuntimeDeps + bootstrap", () => {
     ]);
     expect((await names(["--tools-preset", "coordinator"])).tools).toEqual(["read"]);
     expect((await names(["--tools", "read,ls"])).tools).toEqual(["ls", "read"]);
-    const codemode = await names(["--tools-preset", "codemode"]);
+    expect((await names(["--tools-preset", "codemode"])).tools).toEqual(["codemode"]);
+    expect((await names(["--codemode", "on", "--tools-preset", "minimal"])).tools).toEqual([
+      "bash",
+      "codemode",
+      "edit",
+      "read",
+      "write",
+    ]);
+    const codemode = await names(["--tools-preset", "codemode"], { toolFactories: [] });
     expect(codemode.tools).toContain("grep");
     expect(codemode.warnings.join("\n")).toContain("回退到 default");
     h.home.write("home/.config/ama/config.json", {
