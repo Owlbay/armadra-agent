@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createHarness } from "../agent/testing/harness.js";
 import { stubHooks, stubPermission, stubTool } from "../agent/testing/stubs.js";
@@ -299,9 +300,9 @@ describe("结果与返回值", () => {
     });
     await h.session.prompt("go");
     const content = String(toolResults(h)[0]?.content);
-    expect(content).toContain(`full output: ${dir}/cm1.txt`);
-    expect(existsSync(`${dir}/cm1.txt`)).toBe(true);
-    expect(readFileSync(`${dir}/cm1.txt`, "utf8")).toBe("z".repeat(5000));
+    expect(content).toContain(`full output: ${join(dir, "cm1.txt")}`);
+    expect(existsSync(join(dir, "cm1.txt"))).toBe(true);
+    expect(readFileSync(join(dir, "cm1.txt"), "utf8")).toBe("z".repeat(5000));
     rmSync(dir, { recursive: true, force: true });
   });
 });

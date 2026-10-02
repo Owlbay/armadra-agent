@@ -48,7 +48,7 @@ attempt("write", () => fs.writeFileSync(${JSON.stringify(join(tmp, "w.txt"))}, "
 attempt("spawn", () => require("node:child_process").spawnSync("echo", ["hi"]));
 attempt("worker", () => new (require("node:worker_threads").Worker)("1", { eval: true }));
 attempt("codegen", () => new Function("return 1")());
-out.env = Object.keys(process.env).filter((k) => k !== "__CF_USER_TEXT_ENCODING").join(",");
+out.env = Object.keys(process.env).filter((k) => k !== "__CF_USER_TEXT_ENCODING" && k.toLowerCase() !== "systemroot").join(",");
 const net = require("node:net");
 const socket = net.connect({ host: "127.0.0.1", port: 9 });
 socket.on("connect", () => { out.net = "allowed"; socket.destroy(); print(); });
