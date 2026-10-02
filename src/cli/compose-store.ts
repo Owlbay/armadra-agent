@@ -107,13 +107,19 @@ export function openSession(
   }
 }
 
-export function listSessions(context: { sessionDir: string; cwd?: string }): SessionListItem[] {
+/** 列会话（最新在前）；子 Agent 会话缺省跳过，`includeSubagents` 时保留（带 `subagent` 标记）。 */
+export function listSessions(context: {
+  sessionDir: string;
+  cwd?: string;
+  includeSubagents?: boolean;
+}): SessionListItem[] {
   const dirs =
     context.cwd === undefined
       ? cwdDirs(context.sessionDir)
       : [sessionDirForCwd(context.sessionDir, context.cwd)];
   return dirs
     .flatMap((dir) => SessionManager.list(dir))
+    .filter((item) => context.includeSubagents === true || item.subagent !== true)
     .sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
 }
 
@@ -131,7 +137,10 @@ export function createSessionStore(): RuntimeDeps["sessions"] {
     },
     prune: async (context) => {
       const cutoff = Date.now() - context.olderThanDays * 24 * 60 * 60 * 1000;
-      const old = listSessions(context).filter((i) => Date.parse(i.modifiedAt) < cutoff);
+      // 子 Agent 会话一样按时间清理
+      const old = listSessions({ ...context, includeSubagents: true }).filter(
+        (i) => Date.parse(i.modifiedAt) < cutoff,
+      );
       if (context.dryRun) return { moved: old.map((i) => i.file) };
       for (const item of old) trashSession(item.file, context.sessionDir);
       purgeTrash(context.sessionDir);

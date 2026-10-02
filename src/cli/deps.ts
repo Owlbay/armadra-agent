@@ -167,8 +167,12 @@ export interface RuntimeDeps {
       request: SessionRequest,
       context: { sessionDir: string; cwd: string },
     ): SessionManagerApi | Promise<SessionManagerApi>;
-    /** `--resume` 选择器与 `ama sessions` 用。 */
-    list?(context: { sessionDir: string; cwd?: string }): Promise<SessionListItem[]>;
+    /** `--resume` 选择器与 `ama sessions` 用；子 Agent 会话缺省不列，`includeSubagents` 时列出。 */
+    list?(context: {
+      sessionDir: string;
+      cwd?: string;
+      includeSubagents?: boolean;
+    }): Promise<SessionListItem[]>;
     /** `ama sessions show`：id 可为前缀；找不到抛 AmaError{code:"session_not_found"}。 */
     show?(
       id: string,

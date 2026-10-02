@@ -2,7 +2,7 @@
  * `ama sessions list|show|prune`（设计 §1.2、§8）。[B5]
  *
  * 会话存储是 B2 的实现，经 RuntimeDeps.sessions 注入；这里只做参数、目录解析与输出格式。
- * - list [--all]：缺省只列当前目录的会话；`--all` 列全部。
+ * - list [--all]：缺省只列当前目录的会话、不列子 Agent 会话；`--all` 列全部目录并带上子 Agent 会话（标 `↳`）。
  * - show <id>：头信息 + 条目类型统计 + 首条提示 + 用户消息编号（`--from <id>#<编号>` 复用）。
  * - search / export / trace：见 sessions-search.ts、sessions-export.ts、sessions-trace.ts（只读扫描，不经会话存储）。
  * - prune [--older-than <天>] [--dry-run]：缺省 30 天，移到 trash（不删除）；之后清理检查点备份
@@ -66,13 +66,15 @@ export async function runSessions(
   switch (action) {
     case "list": {
       if (sessions?.list === undefined) return notWired(io, "sessions list");
-      const items = await sessions.list({ sessionDir, ...scope });
+      const all = flags.has("all");
+      const items = await sessions.list({ sessionDir, ...scope, includeSubagents: all });
       if (items.length === 0) {
         io.stdout(msg().session.cli.none);
         return ExitCode.Ok;
       }
       for (const item of items) {
-        const name = item.name ?? oneLine(item.firstPrompt);
+        const title = item.name ?? oneLine(item.firstPrompt);
+        const name = item.subagent === true ? `${msg().session.cli.subagentTag} ${title}` : title;
         io.stdout(
           msg().session.cli.listRow(
             item.id.slice(0, 8),
