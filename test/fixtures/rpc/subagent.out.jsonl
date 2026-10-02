@@ -1,0 +1,8 @@
+{"id":"p","type":"response","command":"prompt","success":true,"data":{"disposition":"started"}}
+{"type":"tool_execution_start","toolCallId":"fake_call_0","toolName":"task","args":{"prompt":"find the config loader","agent":"explore","description":"find"}}
+{"type":"subagent_start","taskId":"t1","parentToolCallId":"fake_call_0","agent":"explore","runner":"ama","description":"find","background":false,"cwd":"<root>/work","model":"fake/echo","sessionFile":"<root>/home/.local/share/ama/sessions/<cwd>/<time>_<uuid>.jsonl"}
+{"type":"subagent_update","taskId":"t1","kind":"text","textDelta":"src/config/load.ts:12","turn":0}
+{"type":"subagent_update","taskId":"t1","kind":"turn","turn":1,"usage":{"input":50,"output":5,"cacheRead":0,"cacheWrite":0,"totalTokens":55}}
+{"type":"subagent_end","taskId":"t1","status":"completed","usage":{"input":50,"output":5,"cacheRead":0,"cacheWrite":0,"totalTokens":55},"cache":{"reBilledTokens":0}}
+{"type":"tool_execution_end","toolCallId":"fake_call_0","toolName":"task","result":{"content":"[task t1] src/config/load.ts:12","isError":false,"details":{"taskId":"t1","status":"completed","sessionFile":"<root>/home/.local/share/ama/sessions/<cwd>/<time>_<uuid>.jsonl","usage":{"input":50,"output":5,"cacheRead":0,"cacheWrite":0,"totalTokens":55},"stopReason":"stop"}},"isError":false}
+{"type":"agent_settled"}
