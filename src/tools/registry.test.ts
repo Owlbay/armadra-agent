@@ -35,6 +35,7 @@ describe("ToolRegistry", () => {
       "ls",
       "read",
       "task",
+      "task_ctl",
       "todo",
       "write",
     ]);
@@ -47,11 +48,12 @@ describe("ToolRegistry", () => {
       ls: "parallel",
       read: "parallel",
       task: "sequential",
+      task_ctl: "parallel",
       todo: "parallel",
       write: "sequential",
     });
     expect(builtinTools().map((t) => t.name)).not.toContain("skill");
-    expect(builtinTools().length).toBe(9);
+    expect(builtinTools().length).toBe(10);
     expect(executionModeOf({ permission: "execute" })).toBe("sequential");
   });
 
@@ -91,5 +93,24 @@ describe("ToolRegistry", () => {
     const reg = createToolRegistry({ disabled: ["bash", "task"] });
     expect(reg.list()).not.toContain("bash");
     expect(reg.list()).not.toContain("task");
+  });
+});
+
+describe("伴随工具（W5-C0：task_ctl 与 task 同进退）", () => {
+  it("disable(task) 一并禁用 task_ctl；setActive 选 task 时带上 task_ctl", () => {
+    const reg = createToolRegistry();
+    reg.setActive(["read", "task"]);
+    expect(reg.active().map((t) => t.name)).toEqual(["read", "task", "task_ctl"]);
+    reg.disable("task");
+    expect(reg.list()).not.toContain("task_ctl");
+    expect(reg.active().map((t) => t.name)).toEqual(["read"]);
+  });
+
+  it("task_ctl 桩：轮询类、执行返回尚未实现", async () => {
+    const tool = builtinTools().find((t) => t.name === "task_ctl");
+    expect(tool?.annotations?.pollable).toBe(true);
+    const result = await tool!.execute({ action: "list" }, {} as never);
+    expect(result).toMatchObject({ isError: true });
+    expect(String(result.content)).toContain("not implemented");
   });
 });

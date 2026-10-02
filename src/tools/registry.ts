@@ -6,6 +6,8 @@
  * - `disable(name)` 后不再出现在 `list()` / `active()`，也不能被 `setActive` 选中；未注册的名字也
  *   记下（宿主可能先 disable 再由内置注册，例如 `disable("task")`）；
  * - 活动集缺省 = 全部已注册且未禁用；`setActive(names)` 之后只用这些（未知名 → tool_not_found）；
+ * - （W5-C0）伴随工具 `TOOL_COMPANIONS`：`task_ctl` 与 `task` 同进退——`disable("task")` 一并禁用，
+ *   `setActive` 选了 `task` 时一并选上（预设里的配对在 presets.ts）；
  * - `builtinTools()` 给出全部内置工具；Skill 正文由模型用 read 读取（设计 §5.6 删除了 skill 工具），
  *   `/skill:` 命令展开在 skills/expand.ts。
  */
@@ -22,6 +24,27 @@ import { createGlobTool } from "./glob.js";
 import { createLsTool } from "./ls.js";
 import { createTodoTool } from "./todo.js";
 import { createTaskTool, type TaskToolOptions } from "./task.js";
+import { TASK_CTL_TOOL, createTaskCtlTool } from "./task-ctl.js";
+
+/** [W5-C0] 主工具 → 随它出现 / 消失的伴随工具。 */
+export const TOOL_COMPANIONS: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  task: [TASK_CTL_TOOL],
+});
+
+/** 按 `TOOL_COMPANIONS` 配对：有主工具就带上（已注册的）伴随工具，没有就去掉。 */
+export function pairCompanions(
+  names: Iterable<string>,
+  available: (name: string) => boolean,
+): string[] {
+  const set = new Set(names);
+  for (const [main, companions] of Object.entries(TOOL_COMPANIONS)) {
+    for (const companion of companions) {
+      if (set.has(main) && available(companion)) set.add(companion);
+      else set.delete(companion);
+    }
+  }
+  return [...set];
+}
 
 export const TOOL_NAME_RE = /^[a-z][a-z0-9_]{1,63}$/;
 
@@ -70,8 +93,10 @@ export class ToolRegistry implements ToolRegistryApi {
   }
 
   disable(name: string): void {
-    this.disabled.add(name);
-    this.activeNames?.delete(name);
+    for (const target of [name, ...(TOOL_COMPANIONS[name] ?? [])]) {
+      this.disabled.add(target);
+      this.activeNames?.delete(target);
+    }
   }
 
   isDisabled(name: string): boolean {
@@ -103,7 +128,9 @@ export class ToolRegistry implements ToolRegistryApi {
         throw new AmaError("tool_not_found", `Unknown or disabled tool "${name}"`);
       }
     }
-    this.activeNames = new Set(names);
+    this.activeNames = new Set(
+      pairCompanions(names, (n) => this.entries.has(n) && !this.disabled.has(n)),
+    );
   }
 }
 
@@ -113,7 +140,7 @@ export interface BuiltinToolOptions {
   task?: TaskToolOptions;
 }
 
-/** 全部内置工具（read / write / edit / bash / grep / glob / ls / todo / task）。 */
+/** 全部内置工具（read / write / edit / bash / grep / glob / ls / todo / task / task_ctl）。 */
 export function builtinTools(options: BuiltinToolOptions = {}): ToolDefinition[] {
   const tools = [
     createReadTool(options.read),
@@ -125,6 +152,7 @@ export function builtinTools(options: BuiltinToolOptions = {}): ToolDefinition[]
     createLsTool(),
     createTodoTool(),
     createTaskTool(options.task),
+    createTaskCtlTool(),
   ] as ToolDefinition[];
   return tools;
 }

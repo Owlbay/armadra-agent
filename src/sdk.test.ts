@@ -130,6 +130,7 @@ describe("SDK", () => {
       "grep",
       "read",
       "sdk_hello",
+      "todo",
       "write",
     ]);
     await session.prompt("go");

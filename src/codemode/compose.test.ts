@@ -202,14 +202,15 @@ describe("组装根里的 codemode", () => {
       "glob",
       "grep",
       "read",
+      "todo",
       "write",
     ]);
     expect(tools.find((t) => t.name === "read")?.description).not.toContain("codemode");
     const codemode = tools.find((t) => t.name === "codemode")?.description ?? "";
     expect(codemode).toContain(
-      "same arguments: bash, edit, glob, grep, read, write (tools.bash resolves to BashResult",
+      "same arguments: bash, edit, glob, grep, read, todo, write (tools.bash resolves to BashResult",
     );
-    expect(codemode).toContain("Callable only from scripts: ls, task, todo.");
+    expect(codemode).toContain("Callable only from scripts: ls, task, task_ctl.");
     expect(codemode).not.toContain("ls(args:");
     await runtime.dispose();
   });

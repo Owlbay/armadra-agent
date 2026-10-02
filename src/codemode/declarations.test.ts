@@ -61,6 +61,7 @@ describe("buildDeclarationBlock", () => {
       "ls",
       "read",
       "task",
+      "task_ctl",
       "todo",
       "write",
     ]);

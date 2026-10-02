@@ -266,12 +266,12 @@ ama models cache-probe packy/grok-4.7                  # 这个端点报不报�
 
 ## 工具与预设
 
-| 预设            | 模型直接看到的工具                                               | 适合                                                                                        |
-| --------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `default`       | read、edit、write、bash、grep、glob；Node ≥ 25 时另加 `codemode` | 缺省                                                                                        |
-| `minimal`       | read、edit、write、bash                                          | 小模型、小上下文；`full-auto`                                                               |
-| `codemode-only` | 只有 `codemode`                                                  | 长流程、工具调用密集的任务                                                                  |
-| `coordinator`   | read 与宿主注册的画布工具                                        | 嵌入 Armadra 的协调者：不写文件、不跑 bash；codemode 缺省关，显式开了脚本里也只能调这些工具 |
+| 预设            | 模型直接看到的工具                                                     | 适合                                                                                        |
+| --------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `default`       | read、edit、write、bash、grep、glob、todo；Node ≥ 25 时另加 `codemode` | 缺省                                                                                        |
+| `minimal`       | read、edit、write、bash                                                | 小模型、小上下文；`full-auto`                                                               |
+| `codemode-only` | 只有 `codemode`                                                        | 长流程、工具调用密集的任务                                                                  |
+| `coordinator`   | read 与宿主注册的画布工具                                              | 嵌入 Armadra 的协调者：不写文件、不跑 bash；codemode 缺省关，显式开了脚本里也只能调这些工具 |
 
 - `--tools-preset <名>` 或 `tools.preset` 选预设。`codemode` 是 `codemode-only` 的旧名（0.3.0），配置、命令行、RPC、SDK 都还认，`ama config show` 显示规范名并提示。
 - `tools.default` 在预设上微调：`["+todo", "+task", "-glob"]`；不带前缀的名字整组替换。
@@ -279,7 +279,7 @@ ama models cache-probe packy/grok-4.7                  # 这个端点报不报�
 
 **codemode** 让模型写一段 JavaScript，用 `tools.<name>(args)` 编排多次工具调用（可以 `Promise.all` 并发），只有脚本输出回到模型。脚本跑在 `node --permission` 子进程的 vm 里：没有 `require` / `import` / `process` / `fetch`，每次内层调用仍逐个经过 Hook、权限与审批。
 
-**缺省开放**：`codemode.mode` 不写时跟随预设——`default` → `on`（六个工具 + codemode，只在 Node ≥ 25 的网络隔离沙箱里；Node 22 / 24 → `off`），`codemode-only` → `only`，`minimal` / `coordinator` → `off`。显式的 `--codemode off|on|only` 或 `codemode.mode` 优先，项目级只能写 `off`。`on` 模式下 codemode 的描述只用一行列出可在脚本里调用的直接工具（参数相同）与仅脚本可调的工具名，不重复声明，前缀只多约 400 token（[三预设基准](docs/benchmarks/presets-2026-10-02.md)测的是去重前的 codemode 预设：小任务输入多约 45%、轮数不减）。只读检索多、调用次数多的长流程可以用 `codemode-only`。
+**缺省开放**：`codemode.mode` 不写时跟随预设——`default` → `on`（七个工具 + codemode，只在 Node ≥ 25 的网络隔离沙箱里；Node 22 / 24 → `off`），`codemode-only` → `only`，`minimal` / `coordinator` → `off`。显式的 `--codemode off|on|only` 或 `codemode.mode` 优先，项目级只能写 `off`。`on` 模式下 codemode 的描述只用一行列出可在脚本里调用的直接工具（参数相同）与仅脚本可调的工具名，不重复声明，前缀只多约 400 token（[三预设基准](docs/benchmarks/presets-2026-10-02.md)测的是去重前的 codemode 预设：小任务输入多约 45%、轮数不减）。只读检索多、调用次数多的长流程可以用 `codemode-only`。
 
 ## 缓存
 

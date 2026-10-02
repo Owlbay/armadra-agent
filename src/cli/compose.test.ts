@@ -54,7 +54,15 @@ describe("createRuntimeDeps + bootstrap", () => {
       await runtime.dispose();
       return { tools, warnings: runtime.warnings };
     };
-    expect((await names([])).tools).toEqual(["bash", "edit", "glob", "grep", "read", "write"]);
+    expect((await names([])).tools).toEqual([
+      "bash",
+      "edit",
+      "glob",
+      "grep",
+      "read",
+      "todo",
+      "write",
+    ]);
     expect((await names(["--tools-preset", "minimal"])).tools).toEqual([
       "bash",
       "edit",
@@ -78,7 +86,8 @@ describe("createRuntimeDeps + bootstrap", () => {
       version: 1,
       tools: { preset: "minimal", default: ["+task", "-bash"] },
     });
-    expect((await names([])).tools).toEqual(["edit", "read", "task", "write"]);
+    // [W5-C0] task_ctl 随 task 暴露
+    expect((await names([])).tools).toEqual(["edit", "read", "task", "task_ctl", "write"]);
   });
 
   it("权限：内置 deny 按 builtinDeny 过滤，非法规则 warning 后跳过", async () => {
