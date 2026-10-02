@@ -241,9 +241,9 @@ describe("ama models / sessions（依赖注入）", () => {
   });
 
   it("models 动作表（W3-C0）：用法文本由表生成且与改表前一致；未知动作与选项 → 2", async () => {
-    expect(Object.keys(MODELS_ACTIONS)).toEqual(["list", "check"]);
-    expect(MODELS_USAGE).toBe(
-      "用法：ama models list [--provider <id>]\n      ama models check <provider/id>\n",
+    expect(Object.keys(MODELS_ACTIONS)).toEqual(["list", "check", "discover"]);
+    expect(MODELS_USAGE).toMatch(
+      /^用法：ama models list \[--provider <id>\]\n {6}ama models check <provider\/id>\n {6}ama models discover /,
     );
     expect(await ama(["models", "--help"], stubDeps())).toBe(0);
     expect(out.join("")).toContain(MODELS_USAGE);

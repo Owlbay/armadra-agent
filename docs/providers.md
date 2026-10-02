@@ -29,7 +29,8 @@ B1 草稿（B9 统稿）。设计依据见 [design.md](design.md) §3。
 
 `provider/model-id`，例如 `deepseek/deepseek-v4-pro`、`openrouter/anthropic/claude-sonnet-5.5`。
 不带供应商前缀时在全部目录里唯一匹配；多家同名时只看已配置 key 的供应商，仍不唯一则报错并列出
-候选。模型表为空的供应商（ollama、lmstudio、没写 `models` 的自定义供应商）接受任意 model id。
+候选。模型表为空的供应商（ollama、lmstudio、没写 `models` 的自定义供应商）与 baseUrl 指向非官方
+主机的内置供应商（见「接入中转站」）接受任意 model id。
 
 ## API Key 发现顺序
 
@@ -61,6 +62,55 @@ B1 草稿（B9 统稿）。设计依据见 [design.md](design.md) §3。
 - `api` 缺省 `openai-completions`；自定义模型缺省 `maxTokens: 8192`、`reasoning: false`、
   `input: ["text"]`；不猜 `contextWindow`（缺省关自动压缩）。
 - `models[]` 同 id 整条替换、新 id 追加；`modelOverrides[]` 只改已有模型的元数据。
+
+## 接入中转站
+
+同一个中转站下，不同模型支持的协议常常不同（有的三种都行，有的只有 Chat 与 Messages，有的只有
+Responses）。一个供应商就够：协议写在模型上。
+
+```sh
+export PACKY_API_KEY=…
+```
+
+```json
+{
+  "providers": {
+    "packy": {
+      "baseUrl": "https://proxy.example/v1",
+      "apiKey": "$PACKY_API_KEY",
+      "models": [
+        { "id": "deepseek-v4-flash" },
+        { "id": "grok-4.7", "api": "openai-responses" },
+        { "id": "MiniMax-M2.7", "api": "anthropic-messages" }
+      ]
+    }
+  }
+}
+```
+
+- 模型的 `api` 缺省沿用供应商的（这里是 `openai-completions`）；`modelOverrides[]` 也可以改 `api`。
+- 三种协议共用一个 `baseUrl`：Completions / Responses 拼 `/chat/completions`、`/responses`；
+  Messages 在 baseUrl 以 `/v1` 结尾时拼 `/messages`，否则 `/v1/messages`。
+- 不想手写 `models`：`ama models discover packy` 列出中转站的模型（`GET {baseUrl}/models`）；
+  `--probe` 对每个模型依次试供应商协议、completions、responses、messages 的最小请求，记第一个成功
+  的（每模型最多 3 次，`--limit` 限制探测的模型数，缺省 30，执行前打印预估，401 / 403 / 429 即停）；
+  `--write` 把结果合并进用户级 `config.json`（已有同 id 不覆盖，只写 `id` 与和供应商不同的 `api`，
+  原文件备份为 `config.json.bak`）。写入的条目没有 `contextWindow`，自动压缩随之关闭，需要时手动补。
+
+```sh
+ama models discover packy --probe --write --limit 8
+ama -p "hi" --model packy/grok-4.7
+```
+
+零配置：内置 `openai` / `anthropic` 识别 `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`（OpenAI SDK 与
+Claude Code 的通行约定），优先级低于 config 与 auth.json 的 `baseUrl`，profile `authEnv: false` 时
+不读。baseUrl 不在官方主机时，目录外的 model id 也接受，compat 按保守缺省（不发
+`prompt_cache_key`）。`ama config show` 的「供应商」节与 `ama doctor` 标出 baseUrl 来自哪个变量；
+零配置挑的缺省模型来自官方目录，中转站未必有，用 `--model` 或 `defaultModel` 指定。
+
+```sh
+OPENAI_BASE_URL=https://proxy.example/v1 OPENAI_API_KEY=$PACKY_API_KEY ama -p "hi" --model openai/qwen3.8-flash
+```
 
 ## OpenAI 兼容线的 compat
 
