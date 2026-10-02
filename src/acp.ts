@@ -3,7 +3,7 @@
  *
  * 供 Armadra 等宿主复用 ama 的 ACP 协议栈（只维护一份）：
  * - 驱动契约（ACP 词汇）与 ACP v1 子集类型；
- * - NDJSON 分帧与 JSON-RPC 对等端；
+ * - NDJSON 分帧与 JSON-RPC 对等端；ACP 客户端 `AcpClient` 与驱动 `AcpDriver`；
  * - 假 ACP Agent（进程内 `runFakeAcpAgent`，或 `fakeAcpAgentPath()` 起子进程），用于黄金记录。
  */
 
@@ -25,6 +25,13 @@ export {
   type JsonRpcPeerOptions,
   type RpcId,
 } from "./drivers/jsonrpc.js";
+export {
+  AcpClient,
+  unattendedOutcome,
+  type AcpClientHandlers,
+  type AcpClientOptions,
+} from "./drivers/acp/client.js";
+export { AcpDriver } from "./drivers/acp/driver.js";
 export { runFakeAcpAgent, type FakeAcpAgentOptions } from "./drivers/acp/testing/fake-agent.js";
 
 /** 假 ACP Agent 的可执行入口（`node <path> [--minimal]`）；只在已编译的包里存在。 */
