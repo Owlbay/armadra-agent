@@ -3,6 +3,7 @@
  *
  * - stdin 是 TTY 且可开 raw：自带单行编辑器（line-editor.ts：历史、括号粘贴折叠），运行中回车
  *   = steer；Ctrl+C 运行中中断、空闲时连按两次退出（130）；空行 Ctrl+D 退出；审批 y / a / N 单键问答。
+ *   问句之前逐行打印执行前预览（`request.preview`，W3-B9a-2）。
  * - 否则（管道）：逐行读 stdin，每行依次执行（等上一条运行结束）；没有审批 UI，ask → deny。
  * - 斜杠命令走 commands-core（与 B7 同一语义），`pick` 退化为列出候选。
  */
@@ -11,6 +12,7 @@ import type { AgentSession } from "../../../agent/types.js";
 import { currentSession, switchSession } from "../../../cli/compose-session.js";
 import type { ModeContext } from "../../../cli/deps.js";
 import { ExitCode } from "../../../cli/exit-codes.js";
+import { previewDisplayLines } from "../../../permissions/preview.js";
 import type { Runtime } from "../../../cli/runtime.js";
 import { AMA_VERSION } from "../../../version.js";
 import { runSlashCommand, type CommandContext } from "../../commands-core.js";
@@ -104,7 +106,8 @@ export async function runLineMode(
       new Promise((resolve) => {
         if (signal.aborted) return resolve(undefined);
         signal.addEventListener("abort", () => resolve(undefined), { once: true });
-        void ed.ask(`\n${approvalQuestion(request)}`, "n").then((answer) => {
+        const preview = previewDisplayLines(request.preview).map((l) => `  ${l}\n`);
+        void ed.ask(`\n${preview.join("")}${approvalQuestion(request)}`, "n").then((answer) => {
           resolve(answer === "y" ? "allow" : answer === "a" ? "allow_session" : "deny");
           if (!busy) ed.render();
         });
