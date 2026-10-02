@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
 import { composeHarness, type ComposeHarness } from "../../../test/helpers/compose-harness.js";
+import { sharedCacheReporting } from "../../ai/cache/reporting.js";
 import type { FakeResponse } from "../../ai/fake/fake-script.js";
 import { emptyArgs } from "../../cli/args.js";
 import type { ComposeOptions } from "../../cli/compose.js";
@@ -288,6 +289,45 @@ describe("RPC 命令表", () => {
     expect(lines.filter((l) => l["type"] === "session_start")).toHaveLength(3);
   });
 });
+
+describe("RPC get_session_stats.cache [W3-C2]", () => {
+  it("形状：三态、最近 / 会话命中率、未命中按原因、保温状态、余量；未命中与余量事件在流里", async () => {
+    sharedCacheReporting.clear();
+    const { lines } = await drive(
+      [
+        { text: "one", usage: { input: 2_000, output: 10, cacheRead: 140_000 } },
+        { text: "two", usage: { input: 150_000, output: 10 } },
+      ],
+      async (d) => {
+        d.send({ id: "p1", type: "prompt", message: "first" });
+        await d.waitFor(settled);
+        d.send({ id: "p2", type: "prompt", message: "second" });
+        await d.waitFor((l) => l["type"] === "agent_settled" && settledCount(d) >= 2);
+        d.send({ id: "st", type: "get_session_stats" });
+        await d.waitFor((l) => l["id"] === "st");
+      },
+    );
+    const stats = lines.find((l) => l["id"] === "st")?.["data"] as Record<string, unknown>;
+    expect(stats["cache"]).toEqual({
+      reporting: "reported",
+      lastHitRate: 0,
+      hitRate: 140_000 / 292_000,
+      reBilledTokens: 142_000,
+      reBilledUsd: expect.closeTo(0.1278, 4),
+      misses: { count: 1, byReason: { evicted: 1 } },
+      warming: { mode: "streaming", state: "stopped", reason: "no_ttl" },
+      contextRemainingTokens: expect.any(Number),
+      estimatedTurnsLeft: expect.any(Number),
+    });
+    const types = lines.map((l) => l["type"]);
+    expect(types).toContain("context_pressure");
+    expect(types).toContain("cache_miss");
+  });
+});
+
+function settledCount(d: Driver): number {
+  return d.lines.filter((l) => l["type"] === "agent_settled").length;
+}
 
 function isRequest(line: Line): boolean {
   return line["type"] === "permission_request";
