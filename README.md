@@ -487,6 +487,7 @@ Armadra 以 `ama --profile <path>` 启动 ama。profile 是一个 JSON 文件，
 | [docs/implementation-plan.md](docs/implementation-plan.md)、[docs/wave3-plan.md](docs/wave3-plan.md) | 实施计划（追溯用）                                                                             |
 | [docs/rewind-plan.md](docs/rewind-plan.md)                                                           | 检查点与回滚（设计，实施中）                                                                   |
 | [docs/wave5-plan.md](docs/wave5-plan.md)                                                             | 第五波：状态行、模型元数据入库、渠道、图像、外部 Agent、Plan、子 Agent、压缩与 harness（设计） |
+| [docs/research/](docs/research/)                                                                     | 第五波调研报告（追溯用）                                                                       |
 
 ## 开发
 

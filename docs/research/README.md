@@ -1,0 +1,11 @@
+# 第五波调研报告（2026-10-02）
+
+`docs/wave5-plan.md` 的设计依据，只用于追溯；现状以代码与 `docs/` 其余文档为准。报告里的代码行号对应写作时的 `main`，`/tmp/...` 路径是调研时的本地材料，不在仓库中。引用第三方产品只记录行为，原文引用每段不超过 15 词。
+
+| 报告                                                 | 主题                                       |
+| ---------------------------------------------------- | ------------------------------------------ |
+| [R1-models-protocols.md](R1-models-protocols.md)     | 模型元数据入库、各厂商协议与缓存、图像输入 |
+| [R2-agent-control.md](R2-agent-control.md)           | 原生操控其他 CLI Agent、ACP                |
+| [R3-plan.md](R3-plan.md)                             | Plan 模式                                  |
+| [R4-subagent.md](R4-subagent.md)                     | 子 Agent                                   |
+| [R5-harness-compaction.md](R5-harness-compaction.md) | Agent 循环与自动压缩选型                   |
