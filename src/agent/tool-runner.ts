@@ -382,6 +382,7 @@ export async function runToolBatch(
     );
     finalized.push(...results);
   }
+  appendBatchSuffix(finalized, signal, stop);
   for (const item of finalized) {
     if (verdicts.get(item.call) === "remind")
       item.result = withReminder(
@@ -393,6 +394,33 @@ export async function runToolBatch(
   const terminate =
     finalized.length > 0 && finalized.every(({ result }) => result.terminate === true);
   return stop === undefined ? { messages, terminate } : { messages, terminate, stop };
+}
+
+/**
+ * [W5-H2] 本 run 的「批次尾部提醒」来源（reminders.ts 在 agent_start 时以 run 的 signal 登记）：
+ * 每个工具批次结束时取一次，非空就追加在本批**最后一条**结果末尾——run 进行中的提醒（todo 复述、
+ * 文件改动、上下文用量、预算、后台命令退出）由此进上下文，只改新结果、不碰前缀。
+ */
+const batchSuffixSources = new WeakMap<AbortSignal, () => string | undefined>();
+
+export function setBatchSuffixSource(signal: AbortSignal, source: () => string | undefined): void {
+  batchSuffixSources.set(signal, source);
+}
+
+function appendBatchSuffix(
+  finalized: { call: ToolCallBlock; result: ToolResult }[],
+  signal: AbortSignal,
+  stop: string | undefined,
+): void {
+  const last = finalized.at(-1);
+  if (last === undefined || stop !== undefined || signal.aborted) return;
+  let suffix: string | undefined;
+  try {
+    suffix = batchSuffixSources.get(signal)?.();
+  } catch {
+    suffix = undefined;
+  }
+  if (suffix !== undefined && suffix !== "") last.result = withReminder(last.result, suffix);
 }
 
 /** 在结果末尾追加一段文本（字符串结果拼接，块数组追加 text 块）。 */
