@@ -41,11 +41,20 @@ async function waitFor(
 
 const screenOf = (s: Started): string => s.terminal.viewport().join("\n");
 
-/** 帧黄金：光标位置随渲染时机变、计划文件名带会话 id，都抹掉。 */
+/**
+ * 帧黄金：光标位置随渲染时机变、计划文件名带会话 id（Windows 路径用反斜杠）、token 估算随平台的
+ * 系统提示长短变，都抹掉。
+ */
 function shot(s: Started, label: string): string {
-  return snapshot(s.terminal, label)
-    .replace(/ cursor=\d+,\d+/, "")
-    .replace(/plans\/([0-9a-f-]+)/g, (_m, id: string) => `plans/${"x".repeat(id.length)}`);
+  return (
+    snapshot(s.terminal, label)
+      .replace(/ cursor=\d+,\d+/, "")
+      .replace(/~\\\.local\\share\\ama\\plans\\/g, "~/.local/share/ama/plans/")
+      .replace(/↑[\d.]+k? ↓[\d.]+k?/g, "↑<n> ↓<n>")
+      // 状态栏的用量、费用与对齐都随 token 估算变：整行换成占位
+      .replace(/^\|(Manual|Plan|Bypass permissions) .*$/m, "|<状态栏>")
+      .replace(/plans\/([0-9a-f-]+)/g, (_m, id: string) => `plans/${"x".repeat(id.length)}`)
+  );
 }
 
 describe("计划审批（交互）", () => {
