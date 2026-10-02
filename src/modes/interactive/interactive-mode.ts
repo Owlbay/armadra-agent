@@ -483,10 +483,12 @@ export function runInteractiveMode(
     showOverlay: (component) => tui.showOverlay(component, { anchor: "bottom" }),
     onOpen: () => {
       editor.disableSubmit = true;
+      tools.setAwaiting(true);
       indicator.setApproval(true);
     },
     onClose: () => {
       editor.disableSubmit = false;
+      tools.setAwaiting(false);
       indicator.setApproval(false);
     },
     report: (request, outcome) => {

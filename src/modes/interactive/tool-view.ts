@@ -74,7 +74,9 @@ export class ToolView implements Component {
   private readonly nested: ToolView[] = [];
   private cache: { width: number; version: number; lines: string[] } | null = null;
   private version = 0;
-  private readonly startedAt: number;
+  private startedAt: number;
+  /** 审批对话框打开时还没开始执行（摘要行显示「等待确认」，关闭后重新计时）。 */
+  private awaiting = false;
   private elapsedMs = 0;
   /** 重放的历史调用（没有真实耗时）。 */
   replayed = false;
@@ -133,6 +135,16 @@ export class ToolView implements Component {
     this.touch();
   }
 
+  /** 审批打开 / 关闭：还没有输出的运行中调用显示「等待确认」，关闭后从此刻重新计时。 */
+  setAwaiting(awaiting: boolean): void {
+    if (this.state !== "running") return;
+    if (awaiting && this.partial !== "") return;
+    if (!awaiting && this.awaiting) this.startedAt = this.now();
+    if (this.awaiting === awaiting) return;
+    this.awaiting = awaiting;
+    this.touch();
+  }
+
   /** spinner 换帧 / 秒数变化：运行中的视图重画摘要行。 */
   tick(): void {
     if (this.state === "running") this.touch();
@@ -175,6 +187,9 @@ export class ToolView implements Component {
     const { theme } = this.options;
     const g = theme.glyphs;
     const lead = "  " + theme.fg("border", g.result) + " ";
+    if (this.state === "running" && this.awaiting) {
+      return truncateToWidth(lead + theme.fg("dim", `${g.spinnerStatic} 等待确认`), width);
+    }
     if (this.state === "running") {
       const frame = this.options.spinner?.() ?? g.spinnerStatic;
       const elapsed = formatElapsed(this.now() - this.startedAt);
@@ -405,6 +420,11 @@ export class ToolTracker {
 
   end(toolCallId: string, result: ToolResult, isError: boolean): void {
     this.views.get(toolCallId)?.finish(result, isError);
+  }
+
+  /** 审批对话框打开 / 关闭（见 ToolView.setAwaiting）。 */
+  setAwaiting(awaiting: boolean): void {
+    for (const view of this.views.values()) view.setAwaiting(awaiting);
   }
 
   /** Loader 换帧：运行中的视图重画摘要行。 */

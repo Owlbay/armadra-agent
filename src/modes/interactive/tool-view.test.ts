@@ -68,6 +68,9 @@ describe("工具视图", () => {
     expect(running[9]).toBe("    out 20");
     frame = "⠙";
     view.tick();
+    // 已有输出的调用不受审批影响
+    view.setAwaiting(true);
+    expect(lines(view)[1]).toBe("  ⎿ ⠙ 运行中 · 4s");
     expect(lines(view)[1]).toBe("  ⎿ ⠙ 运行中 · 4s");
     now = 6_100;
     view.finish(
@@ -332,5 +335,18 @@ describe("工具视图：结果摘要", () => {
   it("task 运行中：子 Agent 摘要", () => {
     const view = new ToolView("t", "task", { description: "查" }, { theme, now: () => 65_000 });
     expect(lines(view)[1]).toBe("  ⎿ · 子 Agent · 运行中 0s");
+  });
+
+  it("审批打开时还没输出的调用显示等待确认，关闭后重新计时", () => {
+    let now = 0;
+    const view = new ToolView("w", "bash", { command: "ls" }, { theme, now: () => now });
+    view.setAwaiting(true);
+    now = 5_000;
+    expect(lines(view)[1]).toBe("  ⎿ · 等待确认");
+    view.setAwaiting(false);
+    now = 6_000;
+    expect(lines(view)[1]).toBe("  ⎿ · 运行中 · 1s");
+    view.finish({ content: "a", details: { exit_code: 0, output: "a", totalLines: 1 } }, false);
+    expect(lines(view)[1]).toBe("  ⎿ 退出 0 · 1.0s · 1 行");
   });
 });
