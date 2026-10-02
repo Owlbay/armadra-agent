@@ -22,9 +22,9 @@ import { Script, createContext } from "node:vm";
 import type { ChildMessage, ParentMessage, ToolDecl } from "./protocol.js";
 
 /** 与 protocol.ts 的 MAX_CONCURRENT_TOOL_CALLS、store.ts 的上限一致（本文件不能 import 运行时代码）。 */
-const MAX_CONCURRENT = 8;
-const MAX_STORE_VALUE_CHARS = 262_144;
-const MAX_STORE_TOTAL_CHARS = 1_048_576;
+export const MAX_CONCURRENT = 8;
+export const MAX_STORE_VALUE_CHARS = 262_144;
+export const MAX_STORE_TOTAL_CHARS = 1_048_576;
 const SCRIPT_FILENAME = "codemode-script.js";
 
 /** 在 vm 上下文里执行的引导脚本：返回 `{ deliver, finish, run }`，全部是上下文 realm 的函数。 */
