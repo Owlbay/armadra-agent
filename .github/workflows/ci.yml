@@ -142,6 +142,15 @@ jobs:
           if npm publish --provenance --access public; then
             exit 0
           fi
+          # 可信发布可能先暂存再落地，同一 tag 的重复运行或暂存冲突（E409 previously staged）时，
+          # 以 registry 上是否已有该版本为准：等最多 2 分钟，出现即视为成功
+          for i in $(seq 1 12); do
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "::notice::$name@$version 已在 npm 上（publish 返回失败但版本已落地，多为暂存冲突），视为成功"
+              exit 0
+            fi
+            sleep 10
+          done
           if [ -z "$NPM_TOKEN" ]; then
             echo "::error::npm publish 失败：请在 npmjs.com 的 $name 包设置 → Trusted Publisher 添加 GitHub Actions（组织 Owlbay、仓库 armadra-agent、工作流 ci.yml、环境留空），或在仓库 secrets 配置 NPM_TOKEN"
           fi
