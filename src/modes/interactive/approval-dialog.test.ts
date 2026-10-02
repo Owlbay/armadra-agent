@@ -1,7 +1,11 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
+import { setLocale } from "../../i18n/index.js";
+import { previewAction } from "../../permissions/preview.js";
 import type { ActionPreview, ApprovalDecision, ApprovalRequest } from "../../permissions/types.js";
 import { Editor, MemoryTerminal, TUI, Text, plainTheme } from "../../tui.js";
 import { ApprovalDialogBroker, approvalOutcomeText, describeRequest } from "./approval-dialog.js";
@@ -22,11 +26,11 @@ function req(partial: Partial<ApprovalRequest> = {}): ApprovalRequest {
 let tui: TUI | undefined;
 afterEach(() => tui?.stop());
 
-function setup(columns = 80) {
+function setup(columns = 80, prompt = "› 清理构建目录") {
   const terminal = new MemoryTerminal({ columns, rows: 24 });
   tui = new TUI(terminal);
   const editor = new Editor({ theme });
-  tui.addChild(new Text("› 清理构建目录"));
+  tui.addChild(new Text(prompt));
   tui.addChild(editor);
   tui.start();
   tui.setFocus(editor);
@@ -324,6 +328,70 @@ describe("审批对话框：执行前预览", () => {
       golden(`approval-preview-${columns}x24`, terminal);
       terminal.sendInput("n");
       expect(await answer).toBe("deny");
+    });
+  }
+});
+
+describe("审批对话框（en）", () => {
+  let dir: string | undefined;
+  afterEach(() => {
+    setLocale("zh");
+    if (dir !== undefined) rmSync(dir, { recursive: true, force: true });
+    dir = undefined;
+  });
+
+  /** 真实预览：build/ 下 3 个文件、out.log 4 KB（显示路径相对，帧与机器无关）。 */
+  function realPreview(command: string): ActionPreview {
+    dir = mkdtempSync(join(tmpdir(), "ama-approval-en-"));
+    mkdirSync(join(dir, "build"));
+    for (const [name, size] of [
+      ["a.js", 1000],
+      ["b.js", 2000],
+      ["c.js", 300],
+    ] as const)
+      writeFileSync(join(dir, "build", name), "x".repeat(size));
+    writeFileSync(join(dir, "out.log"), "x".repeat(4096));
+    return previewAction(
+      { requestId: "r1", toolName: "bash", input: { command }, reason: "dangerous" },
+      { cwd: dir },
+    );
+  }
+
+  for (const columns of [80, 40]) {
+    it(`危险命令带预览 ${columns}x24`, async () => {
+      setLocale("en");
+      const command = "rm -rf build dist/*.map > out.log";
+      const preview = realPreview(command);
+      const { terminal, broker, screen } = setup(columns, "› clean the build folder");
+      const answer = broker.ask(
+        req({ input: { command }, reason: "dangerous", preview }),
+        new AbortController().signal,
+      );
+      screen();
+      golden(`en/approval-preview-${columns}x24`, terminal);
+      terminal.sendInput("n");
+      expect(await answer).toBe("deny");
+    });
+
+    it(`edit 需要确认 ${columns}x24`, async () => {
+      setLocale("en");
+      const { terminal, broker, screen } = setup(columns, "› rename the helper");
+      const answer = broker.ask(
+        req({
+          toolName: "edit",
+          input: {
+            path: "/w/util.ts",
+            edits: [
+              { oldText: "export function helper() {", newText: "export function format() {" },
+            ],
+          },
+        }),
+        new AbortController().signal,
+      );
+      screen();
+      golden(`en/approval-edit-${columns}x24`, terminal);
+      terminal.sendInput("y");
+      expect(await answer).toBe("allow");
     });
   }
 });

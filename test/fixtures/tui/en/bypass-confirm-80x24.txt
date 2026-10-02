@@ -1,0 +1,25 @@
+# tab · viewport 80x24 cursor=10,79
+|╭─ Enter Bypass permissions? ──────────────────────────────────────────────────╮
+|│ No tool call will ask anymore: file writes, commands and network run         │
+|│ directly                                                                     │
+|│ Only dangerous commands still ask and deny rules still apply; use it only in │
+|│ a throwaway sandbox or container                                             │
+|│                                                                              │
+|│   1. Enter Bypass                                                      y     │
+|│ › 2. Cancel                                                            n Esc │
+|│                                                                              │
+|│ ↑↓ select · Enter confirm · 1-2 pick · Esc cancel                            │
+|╰──────────────────────────────────────────────────────────────────────────────╯
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|

@@ -30,16 +30,14 @@ import { currentSession, switchSession, type SwitchRequest } from "../../cli/com
 import type { ModeContext } from "../../cli/deps.js";
 import type { Runtime } from "../../cli/runtime.js";
 import { startupInfo, startupScreenLevel, tildePath } from "../../cli/startup-screen.js";
-import { KEYBINDINGS_FILE } from "../../config/paths.js";
 import { AmaError, isAmaError } from "../../errors.js";
+import { msg } from "../../i18n/index.js";
 import type { StatusLineMode } from "../../config/types.js";
 import type { ClipboardDeps } from "../../tools/clipboard-image.js";
 import {
   Container,
   Editor,
-  Keybindings,
   Loader,
-  ProcessTerminal,
   Spacer,
   TUI,
   Text,
@@ -47,8 +45,8 @@ import {
   detectCapabilities,
   resolveAscii,
   resolveThemeName,
-  loadKeybindingsFile,
   type Component,
+  type Keybindings,
   type Terminal,
   type Theme,
 } from "../../tui.js";
@@ -73,10 +71,10 @@ import { StatusArea, statusLineSlash } from "./status-area.js";
 import type { StatusBar } from "./status-bar.js";
 import { createSessionEventHandler } from "./session-events.js";
 import { SubagentTracker } from "./subagent-view.js";
+import { loadKeys, processTerminal } from "./terminal-setup.js";
 import { ToolTracker } from "./tool-view.js";
 
 const HINT_MS = 2500;
-const EDITOR_PLACEHOLDER = "输入消息，/ 命令，@ 文件，Shift+Enter 换行";
 
 export interface InteractiveModeOptions {
   /** 缺省 `ProcessTerminal`（测试注入 MemoryTerminal）。 */
@@ -106,20 +104,6 @@ export interface InteractiveHandle {
   readonly area: StatusArea;
   session(): AgentSession;
   exit(code: number): void;
-}
-
-function processTerminal(): Terminal {
-  const stdin = process.stdin as NodeJS.ReadStream & { setRawMode?: unknown };
-  if (stdin.isTTY !== true || typeof stdin.setRawMode !== "function" || !process.stdout.isTTY) {
-    throw new AmaError("terminal_init_failed", "stdin / stdout 不是终端");
-  }
-  return new ProcessTerminal();
-}
-
-function loadKeys(runtime: Runtime, warn: (m: string) => void): Keybindings {
-  const parsed = loadKeybindingsFile(join(runtime.paths.configDir, KEYBINDINGS_FILE));
-  for (const w of parsed.warnings) warn(`keybindings.json：${w}`);
-  return new Keybindings(parsed.overrides);
 }
 
 export function runInteractiveMode(
@@ -162,7 +146,7 @@ export function runInteractiveMode(
   const loaderSlot = new Container();
   const loader = new Loader(() => tui.requestRender(), {
     theme,
-    message: "思考中",
+    message: msg().interactive.view.run.thinking,
     now,
     ...(ui.animation === false ? { animation: false } : {}),
     ...(options.spinnerIntervalMs !== undefined ? { intervalMs: options.spinnerIntervalMs } : {}),
@@ -194,7 +178,7 @@ export function runInteractiveMode(
     theme,
     keybindings: keys,
     maxVisibleLines: 8,
-    placeholder: EDITOR_PLACEHOLDER,
+    placeholder: msg().interactive.app.placeholder,
     autocomplete: completion,
     requestRender: () => tui.requestRender(),
     ...(historyFile !== undefined ? { historyFile } : {}),
@@ -276,7 +260,7 @@ export function runInteractiveMode(
           call.name,
           call.arguments,
           result === undefined
-            ? { content: "（没有结果）", isError: true }
+            ? { content: msg().interactive.app.noResult, isError: true }
             : {
                 content: result.content,
                 isError: result.isError,
@@ -524,7 +508,10 @@ export function runInteractiveMode(
     }),
     agentUi.merge,
     (request) =>
-      notice("info", `${approvalOutcomeText(request, "allow", taskAgent)}（随上一次确认）`),
+      notice(
+        "info",
+        msg().interactive.app.followed(approvalOutcomeText(request, "allow", taskAgent)),
+      ),
   );
 
   // ---- 启动与退出 -----------------------------------------------------------
@@ -569,7 +556,9 @@ export function runInteractiveMode(
       reject(
         new AmaError(
           "terminal_init_failed",
-          `终端初始化失败：${error instanceof Error ? error.message : String(error)}`,
+          msg().interactive.app.terminalInitFailed(
+            error instanceof Error ? error.message : String(error),
+          ),
           { cause: error },
         ),
       );

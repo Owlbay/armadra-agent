@@ -1,0 +1,31 @@
+# list · cursor at tail · viewport 80x14
+|Trace · 1 turn · 2 requests · 3 tool calls · 12s · ↑8.1k ↓240 · cache 70% · ttf…
+| ▾ #1 跑测试并找出 TODO                    12s [==-------.==] ↑8.1k ↓240     70%
+|   ▾ request claude-sonnet-4-5 · ttft…    1.7s [==--------  ] ↑3.9k ↓150     46%
+|       bash pnpm test                     8.0s [ ---------  ]
+|       grep TODO                          0.3s [ --         ]
+|       ⛔ write notes.md                  2.2s [ ----       ]
+|›    request claude-sonnet-4-5 · ttft…    2.0s [         .==] ↑4.2k ↓90      93%
+|
+|
+|
+|
+|
+|↑↓ move · → expand · ← collapse · Enter details · f follow · Esc close
+|
+
+# detail · viewport 80x14
+|Trace · 1 turn · 2 requests · 3 tool calls · 12s · ↑8.1k ↓240 · cache 70% · ttf…
+| bash pnpm test
+| Kind              tool
+| Status            done
+| Start             +1.8s
+| Duration          8.0s
+| Waiting for approval  3.2s
+|
+| Arguments
+| {
+|   "command": "pnpm test"
+| }
+|↑↓ scroll · Esc back
+|

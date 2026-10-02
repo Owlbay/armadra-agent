@@ -12,22 +12,18 @@
 import type { AgentSession, PlanData } from "../../agent/types.js";
 import type { SwitchRequest } from "../../cli/compose-session.js";
 import { AmaError } from "../../errors.js";
+import { msg } from "../../i18n/index.js";
 import { parsePermissionMode, permissionModeLabel } from "../../permissions/modes.js";
 import type { PermissionMode } from "../../permissions/types.js";
 import { planController, type PlanController } from "../../plan/controller.js";
 import { executionMode } from "../../plan/store.js";
 
-export const PLAN_USAGE = "用法：/plan [目标] | /plan approve [模式|fresh] | /plan reject";
-
-const STATUS_TEXT: Readonly<Record<PlanData["status"], string>> = {
-  proposed: "待审批",
-  approved: "已批准",
-  rejected: "已放弃",
-  superseded: "已被新版本取代",
-};
+export function planUsage(): string {
+  return msg().plan.usage;
+}
 
 export function planStatusText(status: PlanData["status"]): string {
-  return STATUS_TEXT[status];
+  return msg().plan.status[status];
 }
 
 /** 计划的标题：第一个 `#` 标题，没有时取第一行非空文本。 */
@@ -35,7 +31,7 @@ export function planTitle(plan: Pick<PlanData, "markdown">): string {
   const lines = plan.markdown.split(/\r?\n/).map((l) => l.trim());
   const heading = lines.find((l) => /^#{1,6}\s+\S/.test(l));
   if (heading !== undefined) return heading.replace(/^#{1,6}\s+/, "");
-  return lines.find((l) => l !== "" && !/^<\/?proposed_plan>$/.test(l)) ?? "（无标题）";
+  return lines.find((l) => l !== "" && !/^<\/?proposed_plan>$/.test(l)) ?? msg().plan.untitled;
 }
 
 /** 批准后的执行模式（缺省回到进入 plan 前的模式；进入前就是 plan 则 default）。 */
@@ -48,34 +44,30 @@ export function describePlan(controller: PlanController, session: AgentSession):
   const plan = controller.current();
   const mode = session.state.permissionMode;
   const pre = controller.prePlanMode();
+  const m = msg().plan.command;
   const modeLine =
     mode === "plan"
-      ? `模式：Plan（批准后回到 ${permissionModeLabel(executionMode(undefined, pre))}）`
-      : `模式：${permissionModeLabel(mode)}`;
+      ? m.modePlan(permissionModeLabel(executionMode(undefined, pre)))
+      : m.mode(permissionModeLabel(mode));
   if (plan === null) {
-    return mode === "plan"
-      ? [modeLine, "还没有计划：模型给出 <proposed_plan> 后在这里审批"].join("\n")
-      : "没有计划。/plan <目标> 进入 Plan 模式";
+    return mode === "plan" ? [modeLine, m.noPlanYet].join("\n") : m.noPlan;
   }
   const lines = [
-    `计划 v${plan.version} · ${planStatusText(plan.status)} · ${planTitle(plan)}`,
-    ...(plan.filePath !== undefined ? [`文件：${plan.filePath}`] : []),
+    m.head(plan.version, planStatusText(plan.status), planTitle(plan)),
+    ...(plan.filePath !== undefined ? [m.file(plan.filePath)] : []),
     modeLine,
   ];
   if (plan.steps.length > 0) {
-    lines.push(`步骤（${plan.steps.length}）：`);
+    lines.push(m.steps(plan.steps.length));
     for (const step of plan.steps) lines.push(`  ${step.id} ${step.text}`);
   }
   const todos = controller.todos();
   if (todos.length > 0) {
     const done = todos.filter((t) => t.status === "done").length;
     const current = todos.find((t) => t.status === "in_progress");
-    lines.push(
-      `待办：${done}/${todos.length} 完成${current !== undefined ? ` · 进行中 ${current.text}` : ""}`,
-    );
+    lines.push(m.todos(done, todos.length, current?.text));
   }
-  if (plan.status === "proposed")
-    lines.push("/plan approve [模式|fresh] 批准 · /plan reject 放弃 · 直接输入修改意见");
+  if (plan.status === "proposed") lines.push(m.actions);
   return lines.join("\n");
 }
 
@@ -108,7 +100,7 @@ export async function approveFresh(
 
 function pendingOrLastReply(controller: PlanController): PlanData {
   const plan = controller.pending() ?? controller.proposeFromLastReply();
-  if (plan === undefined) throw new AmaError("plan_not_found", "没有待审批的计划");
+  if (plan === undefined) throw new AmaError("plan_not_found", msg().plan.command.notFound);
   return plan;
 }
 
@@ -118,14 +110,15 @@ export async function planCommand(
   ctx: PlanCommandContext,
 ): Promise<PlanCommandResult> {
   const controller = planController(session);
+  const m = msg().plan.command;
   const [verb = "", ...rest] = args.split(/\s+/).filter((s) => s !== "");
   if (controller === undefined) {
-    if (args === "") return { kind: "handled", message: "当前会话没有 Plan 能力" };
-    throw new AmaError("invalid_arguments", "当前会话没有 Plan 能力");
+    if (args === "") return { kind: "handled", message: m.unavailable };
+    throw new AmaError("invalid_arguments", m.unavailable);
   }
   if (verb === "") return { kind: "handled", message: describePlan(controller, session) };
   if (verb === "approve") {
-    if (rest.length > 1) throw new AmaError("invalid_arguments", PLAN_USAGE);
+    if (rest.length > 1) throw new AmaError("invalid_arguments", planUsage());
     const plan = pendingOrLastReply(controller);
     const arg = rest[0];
     if (arg === "fresh") {
@@ -134,19 +127,19 @@ export async function planCommand(
     }
     const mode = arg === undefined ? defaultExecutionMode(controller) : parsePermissionMode(arg);
     if (mode === undefined || mode === "plan")
-      throw new AmaError("invalid_arguments", `执行模式无效：${arg ?? ""}（${PLAN_USAGE}）`);
+      throw new AmaError("invalid_arguments", m.invalidMode(arg ?? "", planUsage()));
     const result = await controller.respond({ planId: plan.id, decision: "approve", mode });
     return {
       kind: "handled",
-      message: `已批准计划 v${result.plan.version}，以 ${permissionModeLabel(result.mode ?? mode)} 执行`,
+      message: m.approved(result.plan.version, permissionModeLabel(result.mode ?? mode)),
       wait: true,
     };
   }
   if (verb === "reject" && rest.length === 0) {
     const plan = controller.pending();
-    if (plan === undefined) throw new AmaError("plan_not_found", "没有待审批的计划");
+    if (plan === undefined) throw new AmaError("plan_not_found", m.notFound);
     await controller.respond({ planId: plan.id, decision: "reject" });
-    return { kind: "handled", message: `已放弃计划 v${plan.version}（仍在 Plan 模式）` };
+    return { kind: "handled", message: m.rejected(plan.version) };
   }
   // 其余：目标文本
   if (session.state.permissionMode !== "plan") session.setPermissionMode("plan");

@@ -1,0 +1,25 @@
+# approval origin · viewport 80x24 cursor=12,79
+|╭─ [claude · session abc12345] Needs confirmation ─────────────────────────────╮
+|│ [claude · session abc12345] Write note.txt  edit                             │
+|│ note.txt                                                                     │
+|│ content: hi                                                                  │
+|│                                                                              │
+|│ claude asks for confirmation                                                 │
+|│                                                                              │
+|│ › 1. Allow                                                             y     │
+|│   2. Allow for this session                                            a     │
+|│   3. Deny                                                              n Esc │
+|│                                                                              │
+|│ ↑↓ select · Enter confirm · v full input                                     │
+|╰──────────────────────────────────────────────────────────────────────────────╯
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|

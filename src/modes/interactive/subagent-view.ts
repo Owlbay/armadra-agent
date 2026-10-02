@@ -14,6 +14,7 @@
  * 外部 runner（claude / codex）同一组事件，用量可能缺。
  */
 
+import { msg } from "../../i18n/index.js";
 import type { SessionEvent, SubagentStatus } from "../../agent/types.js";
 import type { Usage } from "../../ai/types.js";
 import { formatElapsed, type Theme } from "../../tui.js";
@@ -116,9 +117,11 @@ export function subagentLine(state: SubagentState, theme: Theme, now: number): s
   const end = state.endedAt ?? now;
   const elapsed = formatElapsed(end - state.startedAt);
   const status =
-    state.status === "running" ? `运行中 ${elapsed}` : `${taskStatusText(state.status)} ${elapsed}`;
+    state.status === "running"
+      ? msg().interactive.subagent.running(elapsed)
+      : `${taskStatusText(state.status)} ${elapsed}`;
   const facts = [status];
-  if (state.turns > 0) facts.push(`${state.turns} 轮`);
+  if (state.turns > 0) facts.push(msg().panels.tasks.turns(state.turns));
   if (state.tools.length > 0) facts.push(state.tools.join(" "));
   const usage = state.usage;
   if (usage !== undefined && usage.input + usage.output + usage.cacheRead > 0) {
@@ -135,15 +138,19 @@ export function subagentLine(state: SubagentState, theme: Theme, now: number): s
         : "warning";
   const agent =
     state.runner !== "ama" && state.runner !== state.agent
-      ? `${state.agent}（${state.runner}）`
+      ? msg().panels.tasks.agentRunner(state.agent, state.runner)
       : state.agent;
   return theme.fg("tool", agent) + theme.fg("dim", " · ") + theme.fg(color, facts.join(" · "));
 }
 
 /** 后台任务结束的一行提示。 */
 export function backgroundEndText(state: SubagentState): string {
-  const turns = state.turns > 0 ? ` · ${state.turns} 轮` : "";
-  return `后台任务 ${state.taskId}（${state.agent}）${taskStatusText(state.status)}${turns} · /tasks 查看输出`;
+  return msg().interactive.subagent.backgroundEnd(
+    state.taskId,
+    state.agent,
+    taskStatusText(state.status),
+    state.turns,
+  );
 }
 
 /**
@@ -162,8 +169,8 @@ export function notificationSummary(text: string): string | undefined {
       ` ${status !== undefined && status in STATUS_KEYS ? taskStatusText(status) : (status ?? "")}`,
   ];
   const turns = attrs.get("turns");
-  if (turns !== undefined) parts.push(`${turns} 轮`);
-  parts.push("/tasks 查看输出");
+  if (turns !== undefined) parts.push(msg().interactive.subagent.notificationTurns(turns));
+  parts.push(msg().interactive.subagent.viewOutput);
   return parts.join(" · ");
 }
 

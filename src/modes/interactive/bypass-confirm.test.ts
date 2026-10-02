@@ -4,6 +4,7 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
+import { setLocale } from "../../i18n/index.js";
 import { currentSession } from "../../cli/compose-session.js";
 import { plainTheme } from "../../tui.js";
 import { cleanupStarted, golden, snapshot, start, type Started } from "./test-support.js";
@@ -143,4 +144,27 @@ describe("Bypass 确认：/permission", () => {
     s.handle.exit(0);
     await s.done;
   });
+});
+
+describe("Bypass 确认（en）", () => {
+  afterEach(() => setLocale("zh"));
+  for (const columns of [80, 40]) {
+    it(`帧黄金：缺省选中取消 ${columns}x24`, async () => {
+      setLocale("en");
+      const s = await start([{ text: "Sure, let me look at the layout first." }], {
+        columns,
+        argv: ["--permission-mode", "auto"],
+      });
+      const settled = s.until((e) => e.type === "agent_settled");
+      s.type("tidy up the build scripts");
+      s.type("\r");
+      await settled;
+      await press(s, "\t");
+      expect(screen(s)).toContain("Enter Bypass permissions?");
+      golden(`en/bypass-confirm-${columns}x24`, snapshot(s.terminal, "tab"));
+      await press(s, "\x1b");
+      s.handle.exit(0);
+      await s.done;
+    });
+  }
 });

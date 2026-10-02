@@ -3,6 +3,7 @@
  * 从 interactive-mode.ts 拆出（W5-U：第五波事件先交给 agent-ui.ts，预算到限的 agent_settled warning 不重复显示）。
  */
 
+import { msg } from "../../i18n/index.js";
 import type { AgentSession, SessionEvent } from "../../agent/types.js";
 import { cacheEventNotice, cacheNoticesEnabled } from "../session-report.js";
 import type { AgentUi } from "./agent-ui.js";
@@ -75,8 +76,12 @@ export function createSessionEventHandler(deps: SessionEventDeps): (event: Sessi
       case "compaction_end":
         if (event.result !== undefined) view.addCompaction(event.result);
         else if (event.error !== undefined)
-          view.addNotice("error", `压缩失败：${compactionErrorText(event.error)}`);
-        else if (event.aborted) view.addNotice("info", "压缩已取消");
+          view.addNotice(
+            "error",
+            msg().interactive.events.compactionFailed(compactionErrorText(event.error)),
+          );
+        else if (event.aborted)
+          view.addNotice("info", msg().interactive.events.compactionCancelled);
         status.refresh();
         break;
       case "auto_retry_start":

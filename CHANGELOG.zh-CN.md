@@ -27,6 +27,9 @@
 - **CLI 英文界面**（W6-I1）：`ama --help`、启动画面与启动报错、退出码说明、`ama providers` / `models` / `stats` /
   `sessions export` · `search` / `init` 的输出与报错随界面语言（`AMA_LANG=en` / `--lang en`）；中文输出逐字不变。
   `ama models cache-probe --json` 的 `advice` 是人读文本，也随界面语言。
+- **交互界面英文**（W6-I2）：TUI 与行式界面随界面语言——启动头、状态行、审批框（含执行前预览与来源标注）、Plan 审批框、
+  回滚列表与面板、`/session`、`/cache`、`/permissions`、选择器、`/agents`、`/tasks`、Bypass 确认、提示与按键说明；中文输出逐字不变，
+  compact 状态行记号（`ctx`、`cache`、`$`、`↑ ↓`）不译。`permission_request` 事件里的审批预览也随界面语言。
 - **`/config` 设置面板**（W6-S）：分组列出标量设置与生效值、来源（default / user / profile / project / cli / env）和生效档（即时 / 新会话 / 重启），
   ↑↓ Enter / 空格修改、`/` 搜索、Tab 切写入层（项目级只许收紧）、被覆盖的项标锁定；改动立即写盘（写前重读、只改一项、留 `.bak`），
   即时项当场作用于本会话，关闭时汇总。`/config key=value` 直接改一项（line 模式也可用）。

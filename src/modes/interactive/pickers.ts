@@ -11,6 +11,7 @@
 
 import type { ModelThinkingLevel } from "../../ai/types.js";
 import { THINKING_LEVELS } from "../../ai/thinking.js";
+import { msg } from "../../i18n/index.js";
 import {
   PERMISSION_MODE_INFO,
   PERMISSION_MODE_ORDER,
@@ -62,7 +63,10 @@ export interface PickerSpec {
   paddingY?: number;
 }
 
-export const PICKER_FOOTER = "↑↓ 选择 · Enter 确认 · Esc 取消";
+/** 列表下的缺省按键提示（`arrows` 缺省 `↑↓`）。 */
+export function pickerFooter(arrows = "↑↓"): string {
+  return msg().panels.picker.footer(arrows);
+}
 
 /** 打开一个居中选择器；Enter 返回选中项，Esc / Ctrl+C 返回 undefined。 */
 export function openPicker(host: PickerHost, spec: PickerSpec): Promise<SelectItem | undefined> {
@@ -82,7 +86,7 @@ export function openPicker(host: PickerHost, spec: PickerSpec): Promise<SelectIt
       ...(spec.stacked === true ? { stacked: true } : {}),
       ...(spec.currentValue !== undefined ? { currentValue: spec.currentValue } : {}),
       ...(spec.showCount === true ? { showCount: true } : {}),
-      footer: spec.footer ?? PICKER_FOOTER,
+      footer: spec.footer ?? pickerFooter(),
       onSelect: (item) => close(item),
       onCancel: () => close(undefined),
     });
@@ -128,14 +132,14 @@ export function permissionPickerSpec(
   configDefault: PermissionMode = "default",
 ): PickerSpec {
   return {
-    title: "权限模式",
+    title: msg().panels.picker.permissionTitle,
     items: permissionItems(current, configDefault),
     selected: current,
     currentValue: current,
     filterable: false,
     numberKeys: true,
     stacked: true,
-    footer: "↑↓ 选择 · 1-6 直接选 · Enter 确认 · Esc 取消",
+    footer: msg().panels.picker.permissionFooter("↑↓"),
     paddingY: 1,
   };
 }
@@ -143,7 +147,7 @@ export function permissionPickerSpec(
 export function thinkingItems(reasoning: boolean): SelectItem[] {
   return THINKING_LEVELS.map((level: ModelThinkingLevel) => {
     const item: SelectItem = { value: level, label: level };
-    if (!reasoning && level !== "off") item.description = "当前模型不支持思考";
+    if (!reasoning && level !== "off") item.description = msg().panels.picker.thinkingUnsupported;
     return item;
   });
 }
@@ -201,7 +205,7 @@ export function treeItems(
       const text = node.text.length > 60 ? `${node.text.slice(0, 59)}…` : node.text;
       items.push({
         value: node.entry.id,
-        label: `${"  ".repeat(level)}${mark}${text === "" ? "（空）" : text}`,
+        label: `${"  ".repeat(level)}${mark}${text === "" ? msg().panels.picker.emptyText : text}`,
         description: relativeTime(node.entry.timestamp, now),
       });
       visit(node.children, level);

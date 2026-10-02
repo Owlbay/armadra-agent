@@ -1,0 +1,25 @@
+# viewport 80x24 cursor=15,79
+|╭─ Dangerous command ──────────────────────────────────────────────────────────╮
+|│ bash  Dangerous command                                                      │
+|│ $ rm -rf build dist/*.map > out.log                                          │
+|│                                                                              │
+|│ Overwrite out.log: file, 4.0 KB                                              │
+|│ Delete build/: directory, 3 files, 3.2 KB                                    │
+|│ Delete dist/*.map: contains wildcards or variables, not expanded; actual     │
+|│ scope may be larger                                                          │
+|│ This command may be destructive; please confirm                              │
+|│                                                                              │
+|│   1. Allow                                                             y     │
+|│   2. Allow for this session                                            a     │
+|│ › 3. Deny                                                              n Esc │
+|│                                                                              │
+|│ ↑↓ select · Enter confirm · v full input                                     │
+|╰──────────────────────────────────────────────────────────────────────────────╯
+|
+|
+|
+|
+|
+|
+|
+|

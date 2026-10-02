@@ -1,0 +1,17 @@
+# viewport 80x16
+|▎ Task t1  explore · done · 1m45s · 7 turns · ↑12.3k ↓4.1k · $0.03 · background
+|▎ Find test gaps in src/tui
+|▎ The gap is mostly in overlay.ts
+|▎ and the editor paste folding
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|

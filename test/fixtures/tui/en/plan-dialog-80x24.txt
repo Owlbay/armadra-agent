@@ -1,0 +1,25 @@
+# plan dialog · viewport 80x24 cursor=13,79
+|╭─ Plan awaiting approval ─────────────────────────────────────────────────────╮
+|│ Plan v1 · 3 steps · ~/.local/share/ama/plans/3f2a9c1e-v1.md                  │
+|│ Show the fallback model in the status bar                                    │
+|│   S1 Read status-bar.ts and status-area.ts                                   │
+|│   S2 Record the primary and fallback model on model_fallback                 │
+|│   S3 Frame goldens and docs                                                  │
+|│                                                                              │
+|│ › 1. Approve and run                                                         │
+|│   2. Approve, run in fresh context                                           │
+|│   3. Keep revising…                                                          │
+|│   4. Reject and leave Plan mode                                              │
+|│                                                                              │
+|│ ↑↓ select · Enter confirm · Esc stay in Plan                                 │
+|╰──────────────────────────────────────────────────────────────────────────────╯
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|

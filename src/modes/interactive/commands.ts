@@ -15,6 +15,7 @@
  *   直接进子 Agent 视图（W6-A）。钩子没装时回落 commands-core（line 模式同一套文本）。
  */
 
+import { msg } from "../../i18n/index.js";
 import { formatModelRef } from "../../ai/providers/channels.js";
 import { AgentSessionImpl } from "../../agent/session.js";
 import type { AgentSession, RewindDraftText } from "../../agent/types.js";
@@ -24,7 +25,7 @@ import type { SwitchRequest } from "../../cli/compose-session.js";
 import { listSessions } from "../../cli/compose-store.js";
 import { hideFakeProvider } from "../../cli/fake-visibility.js";
 import type { Runtime } from "../../cli/runtime.js";
-import { AUTO_LAYER_TEXT, permissionModeLabel } from "../../permissions/modes.js";
+import { autoLayerText, permissionModeLabel } from "../../permissions/modes.js";
 import type { PermissionMode } from "../../permissions/types.js";
 import type { SessionEntry } from "../../session/types.js";
 import type { Component, SelectItem, Theme } from "../../tui.js";
@@ -46,24 +47,28 @@ import {
   type PickerSpec,
 } from "./pickers.js";
 
+/** 说明随界面语言（取用时求值）。 */
+function command(name: string, key: "treeDescription" | "permissionsDescription"): CommandInfo {
+  return {
+    name,
+    get description() {
+      return msg().interactive.commands[key];
+    },
+  };
+}
+
 export const INTERACTIVE_COMMANDS: readonly CommandInfo[] = [
-  { name: "tree", description: "浏览会话树，回到某条消息之前重写" },
-  { name: "permissions", description: "权限模式、判定顺序与规则" },
+  command("tree", "treeDescription"),
+  command("permissions", "permissionsDescription"),
 ];
 
 /** 补全与 /help 用的完整命令表。 */
 export const ALL_COMMANDS: readonly CommandInfo[] = [...BUILTIN_COMMANDS, ...INTERACTIVE_COMMANDS];
 
-export const KEY_HINTS = [
-  "Enter 发送（运行中 = 插话）  Alt+Enter 排到本轮之后  Shift+Enter / Ctrl+J 换行",
-  "Esc 中断（排队消息回填编辑器）  Alt+↑ 取回最后一条排队消息",
-  "空闲时 Esc Esc：输入框为空 = 回滚（/rewind），有字 = 清空（↑ 取回）",
-  "Shift+Tab / Tab（输入为空时）切换权限模式（进入 Bypass 前确认）  Ctrl+L 模型  Ctrl+T 思考级别  Ctrl+O 展开工具输出与思考",
-  "审批：1–3 或 ↑↓ Enter 选择，y 允许  a 本会话允许同类  n / Esc 拒绝  v 完整输入",
-  "计划审批：1 批准  2 新上下文执行  3 继续修改  4 放弃并退出 Plan  e 编辑计划  Esc 留在 Plan",
-  "Ctrl+V 粘贴剪贴板图片（插入 @路径）  Ctrl+G 底部信息行两行 / 一行",
-  "Ctrl+C 清空输入（再按退出）  Ctrl+D 空输入时退出  Tab 补全  @ 引用文件",
-].join("\n");
+/** `/help` 末尾的按键说明（多行）。 */
+export function keyHints(): string {
+  return msg().interactive.commands.keyHints;
+}
 
 export interface CommandUi {
   readonly runtime: Runtime;
@@ -159,27 +164,25 @@ export function activeBranchIds(session: AgentSession): Set<string> {
 }
 
 export function permissionsText(runtime: Runtime, session: AgentSession): string {
+  const m = msg().interactive.commands;
+  const p = msg().panels.permissions;
   const rules = runtime.permission.rules;
   const mode = session.state.permissionMode;
   const order =
-    mode === "auto"
-      ? "deny 规则 → Hook deny → 危险命令确认 → 规则层（受保护路径、项目外写入、网络、删除类）→ Hook ask → allow 规则 / Hook allow / 本会话记忆 → 静态判定（只读、项目内写入、安全名单）→ 模型分类器 → 询问"
-      : mode === "allowlist"
-        ? "deny 规则 → Hook deny → 危险命令（拒绝）→ 只读工具 / allow 规则 / Hook allow 放行 → 其余拒绝（从不询问）"
-        : "deny 规则 → Hook deny → 危险命令确认 → 权限模式 → allow 规则 / Hook allow / 本会话记忆 → 询问";
+    mode === "auto" ? p.orderAuto : mode === "allowlist" ? p.orderAllowlist : p.orderDefault;
   const lines = [
-    `权限模式：${permissionModeLabel(mode)}（${mode}）`,
-    `判定顺序：${order}`,
-    rules.length === 0 ? "规则：（无）" : `规则（${rules.length}）：`,
+    m.permissionsMode(permissionModeLabel(mode), mode),
+    m.permissionsOrder(order),
+    rules.length === 0 ? m.rulesNone : m.rules(rules.length),
     ...rules.map((r) => `  ${r.effect === "deny" ? "deny " : "allow"}  ${r.raw}  [${r.source}]`),
   ];
   const recent = runtime.permission.autoDecisions?.() ?? [];
   if (recent.length > 0) {
-    lines.push(`最近的 auto 判定（${recent.length}）：`);
+    lines.push(m.recentAuto(recent.length));
     for (const d of recent) {
-      const cached = d.cached === true ? "（缓存）" : "";
+      const cached = d.cached === true ? p.cached : "";
       lines.push(
-        `  ${AUTO_LAYER_TEXT[d.layer]}  ${d.decision}  ${d.toolName} ${d.summary} — ${d.reason}${cached}`,
+        `  ${autoLayerText(d.layer)}  ${d.decision}  ${d.toolName} ${d.summary} — ${d.reason}${cached}`,
       );
     }
   }
@@ -190,7 +193,7 @@ async function pickTree(ui: CommandUi, title: string): Promise<SessionEntry | un
   const session = ui.session();
   const items = treeItems(session.entries, activeBranchIds(session), ui.now());
   if (items.length === 0) {
-    ui.notice("info", "还没有用户消息");
+    ui.notice("info", msg().interactive.commands.noUserMessages);
     return undefined;
   }
   const active = [...items].reverse().find((i) => i.label.includes("● "));
@@ -207,14 +210,14 @@ async function pickTree(ui: CommandUi, title: string): Promise<SessionEntry | un
 async function treeCommand(ui: CommandUi): Promise<void> {
   const session = ui.session();
   if (!(session instanceof AgentSessionImpl)) {
-    ui.notice("warn", "当前会话不支持 /tree");
+    ui.notice("warn", msg().interactive.commands.treeUnsupported);
     return;
   }
   if (session.state.isStreaming) {
-    ui.notice("warn", "运行中不能切换分支（先 Esc 中断）");
+    ui.notice("warn", msg().interactive.commands.treeBusy);
     return;
   }
-  const entry = await pickTree(ui, "会话树");
+  const entry = await pickTree(ui, msg().interactive.commands.treeTitle);
   if (entry === undefined) return;
   await session.navigate(entry.parentId);
   ui.reload();
@@ -226,12 +229,13 @@ async function handlePick(
   ui: CommandUi,
 ): Promise<void> {
   const session = ui.session();
+  const m = msg().interactive.commands;
   switch (what) {
     case "model": {
       const current = session.state.model;
       const ref = current === undefined ? undefined : `${current.provider}/${current.id}`;
       const picked = await ui.pick({
-        title: "选择模型",
+        title: m.modelTitle,
         items: await modelItems(
           ui.env === undefined
             ? ui.runtime.providers
@@ -243,7 +247,7 @@ async function handlePick(
       });
       if (picked === undefined) return;
       await session.setModel(picked.value);
-      ui.notice("info", `模型：${picked.value}`);
+      ui.notice("info", m.modelSet(picked.value));
       return;
     }
     case "session": {
@@ -253,26 +257,26 @@ async function handlePick(
       });
       const others = items.filter((i) => i.id !== session.state.sessionId);
       if (others.length === 0) {
-        ui.notice("info", "本目录没有其它会话");
+        ui.notice("info", m.noOtherSessions);
         return;
       }
       const picked = await ui.pick({
-        title: "恢复会话",
+        title: m.resumeTitle,
         items: sessionItems(others, ui.now()),
         filterable: true,
       });
       if (picked === undefined) return;
       const next = await ui.switchSession({ kind: "resume", id: picked.value });
-      ui.notice("info", `已恢复会话 ${next.state.sessionId.slice(0, 8)}`);
+      ui.notice("info", m.resumed(next.state.sessionId.slice(0, 8)));
       return;
     }
     case "tree": {
-      const entry = await pickTree(ui, "从哪条消息之前分叉");
+      const entry = await pickTree(ui, m.forkTitle);
       if (entry === undefined) return;
       const next = await ui.switchSession(
         entry.parentId === null ? { kind: "new" } : { kind: "fork", entryId: entry.parentId },
       );
-      ui.notice("info", `已分叉到新会话 ${next.state.sessionId.slice(0, 8)}`);
+      ui.notice("info", m.forked(next.state.sessionId.slice(0, 8)));
       ui.setEditorText(userEntryText(entry) ?? "");
       return;
     }
@@ -287,11 +291,11 @@ async function handlePick(
       const mode = picked.value as PermissionMode;
       const current = session.state.permissionMode;
       if (mode !== current && ui.confirmMode !== undefined && !(await ui.confirmMode(mode))) {
-        ui.notice("info", `已取消，权限模式仍为 ${permissionModeLabel(current)}`);
+        ui.notice("info", m.modeCancelled(permissionModeLabel(current)));
         return;
       }
       session.setPermissionMode(mode);
-      ui.notice("info", `权限模式：${permissionModeLabel(mode)}`);
+      ui.notice("info", m.modeSet(permissionModeLabel(mode)));
       return;
     }
     case "thinking": {
@@ -300,13 +304,13 @@ async function handlePick(
         model === undefined ? undefined : ui.runtime.providers.findModel(formatModelRef(model));
       const reasoning = found?.ok === true ? found.model.reasoning : true;
       const picked = await ui.pick({
-        title: "思考级别",
+        title: m.thinkingTitle,
         items: thinkingItems(reasoning),
         selected: session.state.thinkingLevel,
         currentValue: session.state.thinkingLevel,
         filterable: false,
         numberKeys: true,
-        footer: `↑↓ 选择 · 1-${THINKING_LEVELS.length} 直接选 · Enter 确认 · Esc 取消`,
+        footer: m.numberFooter("↑↓", THINKING_LEVELS.length),
       });
       if (picked !== undefined) session.setThinkingLevel(picked.value as ModelThinkingLevel);
       return;
@@ -372,7 +376,7 @@ export async function runInteractiveCommand(line: string, ui: CommandUi): Promis
         if (result.reload === true) ui.reload();
         if (parsed.name === "help") {
           const extra = INTERACTIVE_COMMANDS.map((c) => `/${c.name}  ${c.description}`);
-          ui.notice("info", [result.message ?? "", ...extra, "", KEY_HINTS].join("\n"));
+          ui.notice("info", [result.message ?? "", ...extra, "", keyHints()].join("\n"));
         } else if (result.message !== undefined) ui.notice("info", result.message);
         if (result.draft !== undefined) {
           if (ui.setDraft !== undefined) ui.setDraft(result.draft);

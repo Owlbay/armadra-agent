@@ -3,7 +3,8 @@
  * 更新：`AMA_UPDATE_GOLDEN=1 pnpm vitest run src/modes/interactive/rewind-frames.test.ts`，逐个审阅 diff。
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { setLocale } from "../../i18n/index.js";
 import type { RewindPoint, RewindResult } from "../../checkpoints/types.js";
 import { MemoryTerminal, TUI, Text, plainTheme, type Theme } from "../../tui.js";
 import { openRewindPanel, type RewindFlowHost } from "./rewind-flow.js";
@@ -77,10 +78,15 @@ interface Screen {
   shot(label: string): string;
 }
 
-function screen(columns: number, rows: number, theme: Theme = plainTheme()): Screen {
+function screen(
+  columns: number,
+  rows: number,
+  theme: Theme = plainTheme(),
+  before = "先前的对话",
+): Screen {
   const terminal = new MemoryTerminal({ columns, rows });
   const tui = new TUI(terminal);
-  tui.addChild(new Text("先前的对话"));
+  tui.addChild(new Text(before));
   tui.start();
   const host: RewindFlowHost = {
     theme,
@@ -117,6 +123,7 @@ async function listFrames(
   s: Screen,
   results: Record<string, RewindResult | Error>,
   moves: string[] = [],
+  points: RewindPoint[] = POINTS,
 ): Promise<string[]> {
   const cache = new PreviewCache(async (id) => {
     const r = results[id];
@@ -124,7 +131,7 @@ async function listFrames(
     return r ?? NO_CODE;
   });
   const frames: string[] = [];
-  const picked = openRewindList(s.host, POINTS, cache);
+  const picked = openRewindList(s.host, points, cache);
   frames.push(s.shot("list · computing"));
   await tick();
   frames.push(s.shot("list · last highlighted"));
@@ -253,5 +260,63 @@ describe("回滚确认面板", () => {
       expect(frame.replace(/^#.*$/gm, "")).toMatch(/^[\x20-\x7e\n一-鿿（）：，、·—…]*$/u);
     }
     golden("rewind-ascii-80x24", [list[1]!, frames[0]!].join("\n"));
+  });
+});
+
+const POINTS_EN: RewindPoint[] = [
+  { ...POINTS[0]!, text: "Read the README and tell me what it is" },
+  { ...POINTS[1]!, text: "Add error recovery to the parser" },
+  {
+    ...POINTS[2]!,
+    text: "Switch the diff renderer in src/tui/tui.ts to line-by-line,\nadd tests\nupdate the docs\nthen run CI",
+  },
+];
+
+describe("回滚列表与确认面板（en）", () => {
+  afterEach(() => setLocale("zh"));
+  const enScreen = (columns: number, rows: number): Screen =>
+    screen(columns, rows, plainTheme(), "earlier conversation");
+  const point = POINTS_EN[2]!;
+
+  it("列表 80x24", async () => {
+    setLocale("en");
+    const frames = await listFrames(
+      enScreen(80, 24),
+      { u3: CODE, u2: NO_CODE },
+      ["\x1b[A", "\x1b[A"],
+      POINTS_EN,
+    );
+    golden("en/rewind-list-80x24", frames.join("\n"));
+  });
+
+  for (const [columns, rows] of [
+    [80, 24],
+    [40, 16],
+  ] as const) {
+    it(`面板 ${columns}x${rows}：有代码改动`, async () => {
+      setLocale("en");
+      const { frames } = await panelFrames(enScreen(columns, rows), {
+        point,
+        preview: CODE,
+        now: NOW,
+      });
+      golden(`en/rewind-panel-code-${columns}x${rows}`, frames.join("\n"));
+    });
+  }
+
+  it("面板 80x24：冲突与跳过 → 第二步", async () => {
+    setLocale("en");
+    const { frames } = await panelFrames(enScreen(80, 24), { point, preview: CONFLICT, now: NOW }, [
+      "\r",
+      "2",
+    ]);
+    golden("en/rewind-panel-conflict-80x24", frames.slice(0, 2).join("\n"));
+  });
+
+  it("面板 40x16：紧凑排版", async () => {
+    setLocale("en");
+    const preview: RewindResult = { ...CONFLICT, gitHint: GIT.gitHint! };
+    const { frames } = await panelFrames(enScreen(40, 16), { point, preview, now: NOW });
+    golden("en/rewind-panel-tight-40x16", frames.join("\n"));
   });
 });

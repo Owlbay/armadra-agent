@@ -7,6 +7,7 @@
  * `ask()`：审批等单键问答，下一个可见字符（或 Enter = 缺省答案）作答。
  */
 
+import { msg } from "../../../i18n/index.js";
 import { visibleWidth } from "../../../tui/ansi.js";
 import { PasteState } from "./paste-state.js";
 
@@ -215,7 +216,7 @@ export class LineEditor {
     if (lines <= 1) {
       this.insert(text);
     } else {
-      const marker = `[粘贴 #${this.pastes.size + 1} +${lines} 行]`;
+      const marker = msg().interactive.line.pasteMarker(this.pastes.size + 1, lines);
       this.pastes.set(marker, text);
       this.insert(marker);
     }

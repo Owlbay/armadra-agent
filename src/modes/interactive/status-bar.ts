@@ -27,6 +27,7 @@
  *   数字变化不会让某项时有时无（40 列不抖动）。
  */
 
+import { msg } from "../../i18n/index.js";
 import type { AgentSession, SessionCacheStats, SessionStats } from "../../agent/types.js";
 import { permissionModeLabel } from "../../permissions/modes.js";
 import { formatModelRef } from "../../ai/providers/channels.js";
@@ -91,7 +92,7 @@ export function cacheText(cache: SessionCacheStats, warm = "♨"): string {
   const rate = cache.lastHitRate ?? cache.hitRate;
   const value =
     cache.reporting === "silent"
-      ? "未报告"
+      ? msg().interactive.statusLine.cacheSilent
       : cache.reporting === "reported" && rate !== undefined
         ? `${Math.round(rate * 100)}%`
         : "—";
@@ -259,7 +260,7 @@ export function usageItems(
     const label = dim(`codemode ${codemode}`);
     out.codemode = strict ? label : `${label} ${theme.fg("error", "net!")}`;
   }
-  if (source.bashSandbox?.() === true) out.sandbox = dim("沙箱");
+  if (source.bashSandbox?.() === true) out.sandbox = dim(msg().interactive.statusLine.sandbox);
   const preset = source.preset();
   if (preset !== "default") out.preset = dim(`preset ${preset}`);
   const host = source.hostStatus?.();
@@ -351,7 +352,7 @@ export class StatusBar implements Component {
     });
     if (width >= 40) {
       parts.push({
-        text: dim("shift+tab 切换"),
+        text: dim(msg().interactive.statusLine.cycleHint),
         priority: full ? FULL_HINT : COMPACT.hint,
         zone: "left",
       });

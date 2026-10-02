@@ -13,6 +13,7 @@
  */
 
 import type { RewindMode, RewindPoint, RewindResult } from "../../checkpoints/types.js";
+import { msg } from "../../i18n/index.js";
 import {
   Card,
   defaultKeybindings,
@@ -30,7 +31,7 @@ import {
 } from "../../tui.js";
 import {
   REWIND_DETAIL_MAX,
-  SKIP_REASON_TEXT,
+  skipReasonText,
   gitHintLines,
   hasCodeChanges,
   restorePreview,
@@ -67,55 +68,57 @@ export interface RewindOption {
 /** 宽度低于它（覆盖层外宽）时紧凑布局。 */
 const COMPACT_WIDTH = 56;
 const MESSAGE_LINES = 3;
-const DIVERGE = "对话将分叉";
 
 /** 面板的选项（按显示顺序）。 */
 export function rewindOptions(model: RewindPanelModel, ascii = false): RewindOption[] {
   const code = model.preview?.code;
   const withCode = hasCodeChanges(code);
+  const m = msg().rewind.panel;
   const options: RewindOption[] = [];
   if (withCode) {
     options.push({
       action: "both",
-      label: "恢复代码和对话",
-      preview: `${restorePreview(code!, ascii)} · ${DIVERGE}`,
+      label: m.optionBoth,
+      preview: m.previewBoth(restorePreview(code!, ascii)),
     });
   }
   options.push({
     action: "conversation",
-    label: "恢复对话",
-    preview: withCode ? `代码不变（保留之后的修改）· ${DIVERGE}` : `代码不变 · ${DIVERGE}`,
+    label: m.optionConversation,
+    preview: withCode ? m.previewConversationKeep : m.previewConversation,
   });
   if (withCode) {
     options.push({
       action: "code",
-      label: "恢复代码",
-      preview: `${restorePreview(code!, ascii)} · 对话不变`,
+      label: m.optionCode,
+      preview: m.previewCode(restorePreview(code!, ascii)),
     });
   }
   options.push(
     {
       action: "summarize-from",
-      label: "从这里摘要",
-      preview: `${DIVERGE}，离开的部分写成摘要`,
+      label: m.optionSummarizeFrom,
+      preview: m.previewSummarizeFrom,
       input: true,
     },
     {
       action: "summarize-up-to",
-      label: "摘要到这里",
-      preview: "之前的对话压缩成摘要，之后的保留",
+      label: m.optionSummarizeUpTo,
+      preview: m.previewSummarizeUpTo,
       input: true,
     },
-    { action: "cancel", label: "取消" },
+    { action: "cancel", label: m.optionCancel },
   );
   return options;
 }
 
-const CONFLICT_OPTIONS = [
-  { value: "skip", label: "跳过冲突文件，恢复其余" },
-  { value: "overwrite", label: "覆盖冲突文件" },
-  { value: "back", label: "返回" },
-] as const;
+const CONFLICT_VALUES = ["skip", "overwrite", "back"] as const;
+
+function conflictOptions(): { value: (typeof CONFLICT_VALUES)[number]; label: string }[] {
+  const m = msg().rewind.panel;
+  const labels = { skip: m.conflictSkip, overwrite: m.conflictOverwrite, back: m.conflictBack };
+  return CONFLICT_VALUES.map((value) => ({ value, label: labels[value] }));
+}
 
 export interface RewindPanelHost {
   theme: Theme;
@@ -212,9 +215,9 @@ export class RewindPanel implements Component, Focusable {
 
   private conflictInput(data: string, keys: Keybindings): void {
     const stage = this.stage!;
-    const n = CONFLICT_OPTIONS.length;
+    const n = CONFLICT_VALUES.length;
     const pick = (index: number): void => {
-      const value = CONFLICT_OPTIONS[index]!.value;
+      const value = CONFLICT_VALUES[index]!;
       if (value === "back") this.stage = undefined;
       else this.done({ action: stage.action, onConflict: value });
     };
@@ -232,7 +235,7 @@ export class RewindPanel implements Component, Focusable {
       this.tight = tight;
       return new Card(new Lines((w) => this.body(w, tight || width < COMPACT_WIDTH)), {
         theme,
-        title: "回滚到这条消息之前",
+        title: msg().rewind.panel.title,
         ...(time !== "" ? { subtitle: time } : {}),
       }).render(width);
     };
@@ -245,6 +248,7 @@ export class RewindPanel implements Component, Focusable {
 
   private body(width: number, compact: boolean): string[] {
     const { theme } = this.host;
+    const m = msg().rewind.panel;
     const arrows = theme.glyphs.arrowUp + theme.glyphs.arrowDown;
     const out: string[] = [...this.messageLines(width)];
     const gap = (): void => {
@@ -254,27 +258,16 @@ export class RewindPanel implements Component, Focusable {
     if (this.stage !== undefined) {
       const conflicts = this.conflicts;
       out.push(
-        ...this.fileLines(
-          theme.fg("warning", `${conflicts.length} 个文件在回合外被改过：`),
-          conflicts,
-          width,
-        ),
+        ...this.fileLines(theme.fg("warning", m.conflictHead(conflicts.length)), conflicts, width),
       );
       gap();
       out.push(
-        ...CONFLICT_OPTIONS.map((o, i) =>
+        ...conflictOptions().map((o, i) =>
           this.optionLine(`${i + 1}. ${o.label}`, i === this.stage!.selected, width),
         ),
       );
       gap();
-      out.push(
-        theme.fg(
-          "dim",
-          compact
-            ? `${arrows} Enter · Esc 返回`
-            : `${arrows} 选择 · 1-3 直接选 · Enter 确认 · Esc 返回`,
-        ),
-      );
+      out.push(theme.fg("dim", compact ? m.hintConflictCompact(arrows) : m.hintConflict(arrows)));
       return out;
     }
     this.options.forEach((option, i) => {
@@ -292,14 +285,7 @@ export class RewindPanel implements Component, Focusable {
     }
     gap();
     const n = this.options.length;
-    out.push(
-      theme.fg(
-        "dim",
-        compact
-          ? `${arrows} Enter · 1-${n} · Esc 取消`
-          : `${arrows} 选择 · 1-${n} 直接执行 · Enter 确认 · Esc 取消`,
-      ),
-    );
+    out.push(theme.fg("dim", compact ? m.hintCompact(arrows, n) : m.hint(arrows, n)));
     return out;
   }
 
@@ -315,7 +301,9 @@ export class RewindPanel implements Component, Focusable {
         truncateToWidth(`${i === 0 ? theme.fg("accent", prompt) : " "} ${line}`, width),
       );
     if (all.length > max && !this.tight) {
-      shown.push(theme.fg("dim", `  ${theme.glyphs.ellipsis} 另 ${all.length - max} 行`));
+      shown.push(
+        theme.fg("dim", msg().rewind.panel.moreLines(theme.glyphs.ellipsis, all.length - max)),
+      );
     }
     return shown;
   }
@@ -326,8 +314,8 @@ export class RewindPanel implements Component, Focusable {
     if (option.input === true && option.action !== "cancel") {
       const text = this.inputs.get(option.action) ?? "";
       const cursor = selected ? (theme.glyphs.ascii ? "_" : "▏") : "";
-      if (text !== "") label += `  说明：${text}${cursor}`;
-      else if (selected) label += theme.fg("dim", "  可输入说明");
+      if (text !== "") label += `${msg().rewind.panel.instructions(text)}${cursor}`;
+      else if (selected) label += theme.fg("dim", msg().rewind.panel.instructionsHint);
     }
     return label;
   }
@@ -347,7 +335,7 @@ export class RewindPanel implements Component, Focusable {
     width: number,
     note?: (f: string) => string,
   ): string[] {
-    if (this.tight) return [truncateToWidth(`${head}${files.join("、")}`, width)];
+    if (this.tight) return [truncateToWidth(msg().rewind.panel.tightList(head, files), width)];
     const lines = files
       .slice(0, REWIND_DETAIL_MAX)
       .map((f) => truncateToWidth(`  ${f}${note !== undefined ? note(f) : ""}`, width));
@@ -356,7 +344,10 @@ export class RewindPanel implements Component, Focusable {
       lines.push(
         this.host.theme.fg(
           "dim",
-          `  ${this.host.theme.glyphs.ellipsis} 另 ${files.length - REWIND_DETAIL_MAX} 个`,
+          msg().rewind.panel.moreFiles(
+            this.host.theme.glyphs.ellipsis,
+            files.length - REWIND_DETAIL_MAX,
+          ),
         ),
       );
     }
@@ -366,24 +357,25 @@ export class RewindPanel implements Component, Focusable {
   private detailLines(width: number): string[] {
     const { theme } = this.host;
     const out: string[] = [];
+    const m = msg().rewind.panel;
     const { point, preview, previewError } = this.model;
-    if (!point.hasCheckpoint) out.push(theme.fg("dim", "仅对话：这条消息没有代码检查点"));
-    if (previewError !== undefined) out.push(theme.fg("warning", `代码预览失败：${previewError}`));
+    if (!point.hasCheckpoint) out.push(theme.fg("dim", m.noCheckpoint));
+    if (previewError !== undefined) out.push(theme.fg("warning", m.previewFailed(previewError)));
     const code = preview?.code;
     if (code !== undefined && code.conflicts.length > 0) {
       const head = this.tight
-        ? `冲突 ${code.conflicts.length} 个：`
-        : `冲突 ${code.conflicts.length} 个（回合外被改过，缺省跳过）：`;
+        ? m.conflictsTight(code.conflicts.length)
+        : m.conflicts(code.conflicts.length);
       out.push(...this.fileLines(theme.fg("warning", head), code.conflicts, width));
     }
     if (code !== undefined && code.skipped.length > 0) {
-      const reasons = new Map(code.skipped.map((s) => [s.path, SKIP_REASON_TEXT[s.reason]]));
+      const reasons = new Map(code.skipped.map((s) => [s.path, skipReasonText(s.reason)]));
       out.push(
         ...this.fileLines(
-          theme.fg("dim", `无法恢复 ${code.skipped.length} 个：`),
+          theme.fg("dim", m.unrestorable(code.skipped.length)),
           code.skipped.map((s) => s.path),
           width,
-          (f) => theme.fg("dim", `：${reasons.get(f) ?? ""}`),
+          (f) => theme.fg("dim", m.fileReason(reasons.get(f) ?? "")),
         ),
       );
     }

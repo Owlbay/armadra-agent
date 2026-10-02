@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { setLocale } from "../../i18n/index.js";
 import {
   subagentRegistryFor,
   type RegistryHost,
@@ -191,4 +192,24 @@ describe("/agents", () => {
       golden(`agents-panel-${columns}x16`, screen(agentsPanel("s-agents", theme), columns));
     });
   }
+});
+
+describe("/agents 与任务输出（en）", () => {
+  afterEach(() => setLocale("zh"));
+  it("类型面板 80 列", () => {
+    setLocale("en");
+    withTasks("s-agents");
+    golden("en/agents-panel-80x16", screen(agentsPanel("s-agents", theme), 80));
+  });
+
+  it("任务输出面板", () => {
+    setLocale("en");
+    const panel = taskOutputPanel(
+      { ...TASKS[0]!, description: "Find test gaps in src/tui" },
+      "The gap is mostly in overlay.ts\nand the editor paste folding",
+      theme,
+      NOW,
+    );
+    golden("en/tasks-output-80x16", screen(panel, 80));
+  });
 });

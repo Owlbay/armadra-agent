@@ -5,6 +5,7 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
+import { setLocale } from "../../i18n/index.js";
 import type { AgentSession, SessionEvent } from "../../agent/types.js";
 import { MemoryTerminal, TUI, Text, createTheme, plainTheme, type Theme } from "../../tui.js";
 import type { SessionEntry } from "../../session/types.js";
@@ -392,3 +393,18 @@ async function until(s: Started, check: (screen: string) => boolean, label: stri
     await new Promise((r) => setTimeout(r, 5));
   }
 }
+
+describe("帧黄金（en）", () => {
+  afterEach(() => setLocale("zh"));
+  it("80 列 nocolor：列表 → 详情", async () => {
+    setLocale("en");
+    const s = screen("parallel", 80, 14, plainTheme());
+    const closed = openTraceView(s.host);
+    const frames = [s.shot("list · cursor at tail")];
+    s.key(UP, UP, UP, ENTER);
+    frames.push(s.shot("detail"));
+    s.key(ESC, ESC);
+    await closed;
+    golden("en/trace-parallel-80x14-nocolor", frames.join("\n"));
+  });
+});

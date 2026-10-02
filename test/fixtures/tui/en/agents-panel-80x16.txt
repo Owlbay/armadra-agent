@@ -1,0 +1,17 @@
+# viewport 80x16
+|▎ Subagents (3)
+|▎ general  ama · built-in  General-purpose sub-agent (default): researches and
+|▎          changes code like you do.
+|▎ explore  ama · built-in  Read-only search: locates files, symbols and code
+|▎          paths; returns paths with line numbers.
+|▎ plan     ama · built-in  Read-only planner: returns a step-by-step plan with
+|▎          key files and trade-offs.
+|
+|
+|
+|
+|
+|
+|
+|
+|

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { setLocale } from "../../i18n/index.js";
 import type { PlanData } from "../../agent/types.js";
 import { Editor, MemoryTerminal, TUI, Text, plainTheme } from "../../tui.js";
 import { openPlanDialog, type PlanChoice, type PlanDialogHost } from "./plan-dialog.js";
@@ -30,12 +31,17 @@ afterEach(() => tui?.stop());
 
 function setup(
   columns = 80,
-  options: { ascii?: boolean; edit?: PlanDialogHost["editExternal"] } = {},
+  options: {
+    ascii?: boolean;
+    edit?: PlanDialogHost["editExternal"];
+    plan?: PlanData;
+    prompt?: string;
+  } = {},
 ) {
   const terminal = new MemoryTerminal({ columns, rows: 24 });
   tui = new TUI(terminal);
   const editor = new Editor({ theme: plainTheme() });
-  tui.addChild(new Text("› 规划一下状态栏的回退显示"));
+  tui.addChild(new Text(options.prompt ?? "› 规划一下状态栏的回退显示"));
   tui.addChild(editor);
   tui.start();
   tui.setFocus(editor);
@@ -51,10 +57,12 @@ function setup(
     ...(options.edit !== undefined ? { editExternal: options.edit } : {}),
   };
   let result: PlanChoice | undefined;
-  const done = openPlanDialog(host, { plan: PLAN, preMode: "default" }).then((c) => {
-    result = c;
-    return c;
-  });
+  const done = openPlanDialog(host, { plan: options.plan ?? PLAN, preMode: "default" }).then(
+    (c) => {
+      result = c;
+      return c;
+    },
+  );
   const screen = (label: string): string => {
     t.renderNow();
     const { row, col } = terminal.screen.cursor;
@@ -193,5 +201,50 @@ describe("计划审批框", () => {
     s.type("\r");
     s.type("\r");
     expect(await s.done).toEqual({ decision: "approve", mode: "default" });
+  });
+});
+
+const PLAN_EN: PlanData = {
+  ...PLAN,
+  markdown: [
+    "# Show the fallback model in the status bar",
+    "",
+    "## Steps",
+    "- [ ] S1 Read status-bar.ts and status-area.ts",
+    "- [ ] S2 Record the primary and fallback model on model_fallback [depends: S1]",
+    "- [ ] S3 Frame goldens and docs",
+  ].join("\n"),
+  steps: [
+    { id: "S1", text: "Read status-bar.ts and status-area.ts" },
+    {
+      id: "S2",
+      text: "Record the primary and fallback model on model_fallback",
+      dependsOn: ["S1"],
+    },
+    { id: "S3", text: "Frame goldens and docs" },
+  ],
+};
+
+describe("计划审批框（en）", () => {
+  afterEach(() => setLocale("zh"));
+  const en = { plan: PLAN_EN, prompt: "› plan the status bar fallback display" };
+
+  for (const columns of [80, 40]) {
+    it(`四选项 ${columns}x24`, async () => {
+      setLocale("en");
+      const s = setup(columns, en);
+      golden(`en/plan-dialog-${columns}x24`, s.screen("plan dialog"));
+      s.type("\x1b");
+      await s.done;
+    });
+  }
+
+  it("执行模式子选择 80x24", async () => {
+    setLocale("en");
+    const s = setup(80, en);
+    s.type("1");
+    golden("en/plan-dialog-mode-80x24", s.screen("mode"));
+    s.type("1");
+    await s.done;
   });
 });

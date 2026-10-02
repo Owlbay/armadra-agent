@@ -8,6 +8,7 @@ import { composeHarness } from "../../../test/helpers/compose-harness.js";
 import type { SessionEvent } from "../../agent/types.js";
 import { sharedCacheReporting } from "../../ai/cache/reporting.js";
 import type { FakeResponse } from "../../ai/fake/fake-script.js";
+import { setLocale } from "../../i18n/index.js";
 import { MemoryTerminal, TUI, plainTheme, type Component } from "../../tui.js";
 import { AMA_VERSION } from "../../version.js";
 import { MessageView } from "./message-view.js";
@@ -50,6 +51,28 @@ describe("启动头", () => {
     s.handle.exit(0);
     await s.done;
   });
+});
+
+describe("启动头（en）", () => {
+  beforeEach(() => setLocale("en"));
+  afterEach(() => setLocale("zh"));
+
+  for (const columns of [80, 40]) {
+    it(`normal ${columns}x24`, async () => {
+      harnessWithTildeCwd([]);
+      started.h!.home.write("work/AGENTS.md", "# rules\n");
+      const s = await start([], {
+        columns,
+        keepHarness: true,
+        quietStartup: "normal",
+        argv: ["--trust", "--codemode", "off"],
+      });
+      const shot = snapshot(s.terminal, "startup normal").replaceAll("~\\work", "~/work");
+      golden(`en/startup-normal-${columns}x24`, shot);
+      s.handle.exit(0);
+      await s.done;
+    });
+  }
 });
 
 /** 把组件放进 MemoryTerminal 渲染一帧（含回滚）。 */

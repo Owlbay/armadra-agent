@@ -8,6 +8,7 @@
  *   按键提示 dim。路径过长时从左截断（`…/armadra-agent`）。宽度变化时按新宽重算是否去框。
  */
 
+import { msg } from "../../i18n/index.js";
 import type { StartupInfo } from "../../cli/startup-screen.js";
 import { permissionModeLabel } from "../../permissions/modes.js";
 import {
@@ -80,7 +81,8 @@ export class StartupHeader implements Component {
 
   private trustText(withSource: boolean): string {
     const { trusted, trustSource } = this.info;
-    const text = `${trusted ? "已信任" : "未信任"}${withSource ? `（${trustSource}）` : ""}`;
+    const m = msg().interactive.startup.header;
+    const text = `${trusted ? m.trusted : m.untrusted}${withSource ? m.trustSource(trustSource) : ""}`;
     return this.theme.fg(trusted ? "success" : "warning", text);
   }
 
@@ -89,7 +91,7 @@ export class StartupHeader implements Component {
     const parts: string[] = [];
     if (contextFiles.length > 0) parts.push(contextFiles.join(", "));
     if (skills > 0) parts.push(`${skills} Skill`);
-    if (prompts > 0) parts.push(`${prompts} 模板`);
+    if (prompts > 0) parts.push(msg().interactive.startup.header.templates(prompts));
     if (hooks > 0) parts.push(`${hooks} Hook`);
     return parts.length === 0 ? undefined : parts.join(" · ");
   }
@@ -138,9 +140,10 @@ export class StartupHeader implements Component {
     lines.push(mode.join(sep));
     const loaded = this.loadedText();
     if (loaded !== undefined) lines.push(loaded);
-    if (info.host !== undefined) lines.push(`宿主 ${info.host}`);
-    if (info.warnings > 0) lines.push(t.fg("warning", `警告 ${info.warnings} 条（ama doctor）`));
-    lines.push(t.fg("dim", "/help · Shift+Tab 切模式"));
+    const m = msg().interactive.startup.header;
+    if (info.host !== undefined) lines.push(m.host(info.host));
+    if (info.warnings > 0) lines.push(t.fg("warning", m.warnings(info.warnings)));
+    lines.push(t.fg("dim", m.hintCompact));
     return lines.map((line) => truncateToWidth(line, width));
   }
 
@@ -148,38 +151,39 @@ export class StartupHeader implements Component {
     const t = this.theme;
     const sep = t.fg("dim", " · ");
     const { info } = this;
+    const m = msg().interactive.startup.header;
     const boxWidth = Math.min(width, HEADER_BOX_MAX_WIDTH);
-    /** 框内文本宽：边框 2 + 内边距 2；键列 6 + 间隔 1。 */
-    const valueWidth = boxWidth - 4 - 7;
+    // 键列至少 6 列（「已加载」的宽度），没有这一行时也对齐；英文键更宽时按最宽的键
+    const keyWidth = Math.max(
+      6,
+      ...[m.keyModel, m.keyDir, m.keyMode, m.keyLoaded, m.keyHost, m.keyWarnings].map((k) =>
+        visibleWidth(k),
+      ),
+    );
+    /** 框内文本宽：边框 2 + 内边距 2；键列 + 间隔 1。 */
+    const valueWidth = boxWidth - 4 - keyWidth - 1;
     const trust = this.trustText(true);
     const cwdRoom = Math.max(4, valueWidth - visibleWidth(trust) - 3);
     const rows: KeyValueRow[] = [
-      { key: "模型", value: t.fg("accent", info.model) + sep + `思考 ${info.thinking}` },
-      { key: "目录", value: truncateLeft(info.cwd, cwdRoom, t.glyphs.ellipsis) + sep + trust },
+      { key: m.keyModel, value: t.fg("accent", info.model) + sep + m.thinking(info.thinking) },
+      { key: m.keyDir, value: truncateLeft(info.cwd, cwdRoom, t.glyphs.ellipsis) + sep + trust },
       {
-        key: "模式",
-        value: [this.modeText(), `预设 ${info.preset}`, this.codemodeText()]
+        key: m.keyMode,
+        value: [this.modeText(), m.preset(info.preset), this.codemodeText()]
           .filter((p): p is string => p !== undefined)
           .join(sep),
       },
     ];
     const loaded = this.loadedText();
-    if (loaded !== undefined) rows.push({ key: "已加载", value: loaded });
-    if (info.host !== undefined) rows.push({ key: "宿主", value: info.host });
+    if (loaded !== undefined) rows.push({ key: m.keyLoaded, value: loaded });
+    if (info.host !== undefined) rows.push({ key: m.keyHost, value: info.host });
     if (info.warnings > 0) {
-      rows.push({ key: "警告", value: t.fg("warning", `${info.warnings} 条（ama doctor 查看）`) });
+      rows.push({ key: m.keyWarnings, value: t.fg("warning", m.warningsValue(info.warnings)) });
     }
-    // 键列固定 6 列（「已加载」的宽度），没有这一行时也对齐
-    const padded = rows.map((row) => ({ ...row, key: padToWidth(row.key, 6) }));
+    const padded = rows.map((row) => ({ ...row, key: padToWidth(row.key, keyWidth) }));
     const kv = new KeyValue(padded, { theme: t, gap: 1, maxKeyRatio: 1 });
     const body: Component = {
-      render: (inner) => [
-        this.title(),
-        "",
-        ...kv.render(inner),
-        "",
-        t.fg("dim", "/help 命令 · Shift+Tab 切模式 · Ctrl+O 展开工具输出"),
-      ],
+      render: (inner) => [this.title(), "", ...kv.render(inner), "", t.fg("dim", m.hint)],
       invalidate: () => kv.invalidate(),
     };
     return new Box(body, { theme: t }).render(boxWidth);

@@ -14,10 +14,11 @@
  * `… 另 N 条`；末行 `Alt+↑ 取回 · Esc 回填并中断`。
  */
 
+import { msg } from "../../i18n/index.js";
 import type { AssistantMessage } from "../../ai/types.js";
 import type { SessionEvent } from "../../agent/types.js";
 import { Container, Text, type Loader, type Theme } from "../../tui.js";
-import { ORIGIN_LABELS } from "./message-view.js";
+import { originLabel } from "./message-view.js";
 import { formatTokens } from "./status-bar.js";
 import type { ToolTracker } from "./tool-view.js";
 
@@ -141,38 +142,39 @@ export class RunIndicator {
 
   private applyVerb(): void {
     const { loader, tools } = this.deps;
-    const esc = ["Esc 中断"];
+    const m = msg().interactive.view.run;
+    const esc = [m.esc];
     if (this.approval) {
-      loader.setVerb("等待确认");
+      loader.setVerb(m.awaitingApproval);
       return;
     }
     const running = tools.running();
     const top = running.filter((view) => !running.some((p) => p.children.includes(view)));
     if (top.length === 1) {
-      loader.setVerb(`运行 ${top[0]!.toolName}`, esc);
+      loader.setVerb(m.runningTool(top[0]!.toolName), esc);
       return;
     }
     if (top.length > 1) {
-      loader.setVerb(`运行 ${top.length} 个工具`, esc);
+      loader.setVerb(m.runningTools(top.length), esc);
       return;
     }
     if (this.retry !== undefined) {
       const seconds = Math.max(1, Math.round(this.retry.delayMs / 1000));
-      loader.setVerb(`重试 ${this.retry.attempt}/${this.retry.max}`, [`${seconds}s 后`], {
+      loader.setVerb(m.retry(this.retry.attempt, this.retry.max), [m.retryIn(seconds)], {
         elapsed: false,
       });
       return;
     }
     if (this.compacting) {
-      loader.setVerb("压缩上下文", esc);
+      loader.setVerb(m.compacting, esc);
       return;
     }
     const stream = this.stream;
     if (stream !== undefined && !stream.thinking && stream.tokens > 0) {
-      loader.setVerb("回复中", [`↓≈${formatTokens(stream.tokens)}`, ...esc]);
+      loader.setVerb(m.replying, [`↓≈${formatTokens(stream.tokens)}`, ...esc]);
       return;
     }
-    loader.setVerb("思考中", esc);
+    loader.setVerb(m.thinking, esc);
   }
 }
 
@@ -185,17 +187,23 @@ export class QueueView extends Text {
   setQueue(steering: readonly string[], followUp: readonly string[]): void {
     const t = this.theme;
     const row = (origin: "steer" | "followUp", text: string): string =>
-      `  ${t.fg("dim", `${t.glyphs.queued} ${ORIGIN_LABELS[origin]}`)}  ${t.fg("muted", oneLine(text))}`;
+      `  ${t.fg("dim", `${t.glyphs.queued} ${originLabel(origin)}`)}  ${t.fg("muted", oneLine(text))}`;
     const rows = [
       ...steering.map((text) => row("steer", text)),
       ...followUp.map((text) => row("followUp", text)),
     ];
     const shown = rows.slice(-QUEUE_PREVIEW);
     if (rows.length > shown.length) {
-      shown.unshift("  " + t.fg("dim", `${t.glyphs.ellipsis} 另 ${rows.length - shown.length} 条`));
+      shown.unshift(
+        "  " +
+          t.fg(
+            "dim",
+            msg().interactive.view.run.queueMore(t.glyphs.ellipsis, rows.length - shown.length),
+          ),
+      );
     }
     if (rows.length > 0) {
-      shown.push("    " + t.fg("dim", `Alt+${t.glyphs.arrowUp} 取回 · Esc 回填并中断`));
+      shown.push("    " + t.fg("dim", msg().interactive.view.run.queueHint(t.glyphs.arrowUp)));
     }
     this.setText(shown.join("\n"));
   }

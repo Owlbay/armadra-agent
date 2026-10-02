@@ -3,8 +3,10 @@ import { composeHarness, type ComposeHarness } from "../../../test/helpers/compo
 import type { AgentSession } from "../../agent/types.js";
 import { currentSession, switchSession } from "../../cli/compose-session.js";
 import type { Runtime } from "../../cli/runtime.js";
+import { setLocale } from "../../i18n/index.js";
 import type { SelectItem } from "../../tui.js";
-import { ALL_COMMANDS, KEY_HINTS, runInteractiveCommand, type CommandUi } from "./commands.js";
+import { ALL_COMMANDS, keyHints, runInteractiveCommand, type CommandUi } from "./commands.js";
+import { golden } from "./test-support.js";
 import type { PickerSpec } from "./pickers.js";
 
 let h: ComposeHarness;
@@ -65,7 +67,7 @@ describe("交互命令", () => {
     expect(await runInteractiveCommand("/help", ui)).toBe(true);
     expect(notices[0]).toContain("/model");
     expect(notices[0]).toContain("/tree  浏览会话树");
-    expect(notices[0]).toContain(KEY_HINTS.split("\n")[0]);
+    expect(notices[0]).toContain(keyHints().split("\n")[0]);
     expect(ALL_COMMANDS.map((c) => c.name)).toEqual(
       expect.arrayContaining(["tree", "permissions"]),
     );
@@ -238,5 +240,16 @@ describe("交互命令", () => {
     ]);
     await runInteractiveCommand("/quit", ui);
     expect(state.exit).toBe(0);
+  });
+});
+
+describe("/help（en）", () => {
+  afterEach(() => setLocale("zh"));
+  it("/help 全文", async () => {
+    setLocale("en");
+    const rt = await boot();
+    const { ui, notices } = recordingUi(rt);
+    expect(await runInteractiveCommand("/help", ui)).toBe(true);
+    golden("en/help", `${notices[0]}\n`);
   });
 });

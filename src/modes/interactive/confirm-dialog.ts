@@ -9,11 +9,12 @@
  * 用途：进入 Bypass permissions 前的确认（`confirmBypass`，permissions/bypass.ts）。
  */
 
+import { msg } from "../../i18n/index.js";
 import {
-  BYPASS_CHOICES,
-  BYPASS_CONFIRM_TITLE,
   BYPASS_DEFAULT_CHOICE,
-  BYPASS_RISK_LINES,
+  bypassChoices,
+  bypassConfirmTitle,
+  bypassRiskLines,
 } from "../../permissions/bypass.js";
 import {
   Box,
@@ -108,9 +109,7 @@ export class ChoiceDialog implements Component, Focusable {
     lines.push(
       theme.fg(
         "dim",
-        compact
-          ? `${arrows} Enter · 1-${n} · Esc`
-          : `${arrows} 选择 · Enter 确认 · 1-${n} 直接选 · Esc 取消`,
+        compact ? `${arrows} Enter · 1-${n} · Esc` : msg().approval.choiceHint(arrows, n),
       ),
     );
     return lines.map((l) => truncateToWidth(l, width));
@@ -160,9 +159,9 @@ export function openChoice(host: ChoiceHost, spec: ChoiceSpec): Promise<number |
 /** Bypass 确认框的内容（缺省选中「取消」，边框 warning）。 */
 export function bypassChoiceSpec(theme: Theme): ChoiceSpec {
   return {
-    title: BYPASS_CONFIRM_TITLE,
-    body: BYPASS_RISK_LINES.map((line, i) => (i === 0 ? theme.fg("warning", line) : line)),
-    options: BYPASS_CHOICES,
+    title: bypassConfirmTitle(),
+    body: bypassRiskLines().map((line, i) => (i === 0 ? theme.fg("warning", line) : line)),
+    options: bypassChoices(),
     selected: BYPASS_DEFAULT_CHOICE,
     borderColor: "warning",
   };

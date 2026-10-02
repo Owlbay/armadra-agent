@@ -10,20 +10,12 @@ import { cachedAgentInfos } from "../../agents/external.js";
 import type { AgentInfo } from "../../agents/types.js";
 import { registryOf, sessionAgents, taskRegistryView } from "../../agent/subagent-registry.js";
 import type { SubagentStatus, TaskInfo } from "../../tools/types.js";
+import { msg } from "../../i18n/index.js";
 import { formatTokenCount, formatUsd } from "../session-report.js";
 import { formatDuration } from "./tool-summary.js";
 
-const STATUS: Readonly<Record<SubagentStatus | "running", string>> = {
-  running: "运行中",
-  completed: "完成",
-  failed: "失败",
-  aborted: "已停止",
-  max_turns: "轮数耗尽",
-  interrupted: "已中断",
-};
-
 export function taskStatusText(status: SubagentStatus | "running"): string {
-  return STATUS[status];
+  return msg().panels.tasks.status[status];
 }
 
 export function listTasks(sessionId: string): readonly TaskInfo[] {
@@ -49,7 +41,7 @@ export async function stopTask(sessionId: string, taskId: string): Promise<void>
 export function taskFacts(task: TaskInfo, now: number): string[] {
   const end = task.endedAt ?? now;
   const facts = [taskStatusText(task.status), formatDuration(end - task.startedAt)];
-  if (task.turns !== undefined && task.turns > 0) facts.push(`${task.turns} 轮`);
+  if (task.turns !== undefined && task.turns > 0) facts.push(msg().panels.tasks.turns(task.turns));
   const usage = task.usage;
   if (usage !== undefined && usage.input + usage.output + usage.cacheRead > 0)
     facts.push(
@@ -66,44 +58,43 @@ function oneLine(text: string, max = 60): string {
 
 /** `t1  explore · 运行中 · 1m05s · 7 轮 · 描述` */
 export function taskLine(task: TaskInfo, now: number): string {
+  const m = msg().panels.tasks;
   const agent =
     task.runner !== "ama" && task.runner !== task.agent
-      ? `${task.agent}（${task.runner}）`
+      ? m.agentRunner(task.agent, task.runner)
       : task.agent;
   const parts = [agent, ...taskFacts(task, now)];
-  if (task.background) parts.push("后台");
+  if (task.background) parts.push(m.background);
   const description = oneLine(task.description);
   return `${task.taskId}  ${parts.join(" · ")}${description !== "" ? `  ${description}` : ""}`;
 }
 
 /** `/tasks` 的纯文本（line 模式）。 */
 export function describeTasks(sessionId: string, now: number): string {
+  const m = msg().panels.tasks;
   const tasks = listTasks(sessionId);
-  if (tasks.length === 0) return "还没有子 Agent 任务";
+  if (tasks.length === 0) return m.none;
   return [
-    `子 Agent 任务（${tasks.length}）：`,
+    m.heading(tasks.length),
     ...tasks.map((task) => `  ${taskLine(task, now)}`),
-    "/tasks <id> 查看输出 · /tasks stop <id> 停止",
+    m.footer,
   ].join("\n");
 }
 
 /** 一个任务的输出全文（line 模式 `/tasks <id>`）。 */
 export function describeTaskOutput(sessionId: string, taskId: string, now: number): string {
+  const m = msg().panels.tasks;
   const task = taskRegistryView(sessionId)?.get(taskId);
-  if (task === undefined) return `没有任务 ${taskId}`;
+  if (task === undefined) return m.notFound(taskId);
   const output = taskOutput(sessionId, taskId) ?? "";
-  const file = task.outputFile !== undefined ? `\n全文：${task.outputFile}` : "";
-  return `${taskLine(task, now)}${file}\n${output.trim() === "" ? "（还没有输出）" : output.trimEnd()}`;
+  const file = task.outputFile !== undefined ? `\n${m.fullOutput(task.outputFile)}` : "";
+  return `${taskLine(task, now)}${file}\n${output.trim() === "" ? m.noOutput : output.trimEnd()}`;
 }
 
-const SOURCE: Readonly<Record<string, string>> = {
-  builtin: "内置",
-  cli: "命令行",
-  profile: "profile",
-  user: "用户",
-  project: "项目",
-  host: "宿主",
-};
+function sourceText(source: string): string {
+  const table: Readonly<Record<string, string>> = msg().panels.agents.source;
+  return table[source] ?? source;
+}
 
 /** 类型一行的状态：外部 Agent 写安装与版本。 */
 export function agentFacts(agent: AgentInfo): string[] {
@@ -117,26 +108,22 @@ export interface AgentFact {
 }
 
 export function agentFactItems(agent: AgentInfo): AgentFact[] {
-  const facts: AgentFact[] = [
-    { text: agent.runner },
-    { text: SOURCE[agent.source] ?? agent.source },
-  ];
-  if (agent.installed === false) facts.push({ text: "未安装", state: "missing" });
+  const m = msg().panels.agents;
+  const facts: AgentFact[] = [{ text: agent.runner }, { text: sourceText(agent.source) }];
+  if (agent.installed === false) facts.push({ text: m.notInstalled, state: "missing" });
   else if (agent.installed === true)
-    facts.push({
-      text: agent.version !== undefined ? `已安装 ${agent.version}` : "已安装",
-      state: "installed",
-    });
+    facts.push({ text: m.installed(agent.version), state: "installed" });
   return facts;
 }
 
 /** `/agents` 的纯文本（line 模式）。 */
 export function describeAgents(sessionId: string): string {
+  const m = msg().panels.agents;
   const agents = listAgents(sessionId);
-  if (agents.length === 0) return "当前会话没有子 Agent（task 工具未启用）";
+  if (agents.length === 0) return m.none;
   const width = Math.max(...agents.map((a) => a.name.length));
   return [
-    `子 Agent 类型（${agents.length}）：`,
+    m.typesHeading(agents.length),
     ...agents.map(
       (a) => `  ${a.name.padEnd(width)}  ${agentFacts(a).join(" · ")}  ${oneLine(a.description)}`,
     ),

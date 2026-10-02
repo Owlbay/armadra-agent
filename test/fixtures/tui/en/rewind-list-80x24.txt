@@ -1,0 +1,103 @@
+# list · computing · viewport 80x24
+|earl╭─ Rewind to before which message ─────────────────────────────────────╮
+|    │   Read the README and tell me what it is           conversation only │
+|    │   Add error recovery to the parser                                   │
+|    │ › Switch the diff renderer in src/tui/tui.ts to line-by-line,…     … │
+|    │ ↑↓ select · Enter confirm · Esc cancel                               │
+|    ╰──────────────────────────────────────────────────────────────────────╯
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+
+# list · last highlighted · viewport 80x24
+|earl╭─ Rewind to before which message ─────────────────────────────────────╮
+|    │   Read the README and tell me what it is           conversation only │
+|    │   Add error recovery to the parser                                   │
+|    │ › Switch the diff renderer in src/tui/tui.ts to lin… 3 files +12 −48 │
+|    │ ↑↓ select · Enter confirm · Esc cancel                               │
+|    ╰──────────────────────────────────────────────────────────────────────╯
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+
+# list · after "\u001b[A" · viewport 80x24
+|earl╭─ Rewind to before which message ─────────────────────────────────────╮
+|    │   Read the README and tell me what it is           conversation only │
+|    │ › Add error recovery to the parser                   no code changes │
+|    │   Switch the diff renderer in src/tui/tui.ts to line-by-line,…       │
+|    │ ↑↓ select · Enter confirm · Esc cancel                               │
+|    ╰──────────────────────────────────────────────────────────────────────╯
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+
+# list · after "\u001b[A" · viewport 80x24
+|earl╭─ Rewind to before which message ─────────────────────────────────────╮
+|    │ › Read the README and tell me what it is           conversation only │
+|    │   Add error recovery to the parser                                   │
+|    │   Switch the diff renderer in src/tui/tui.ts to line-by-line,…       │
+|    │ ↑↓ select · Enter confirm · Esc cancel                               │
+|    ╰──────────────────────────────────────────────────────────────────────╯
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|

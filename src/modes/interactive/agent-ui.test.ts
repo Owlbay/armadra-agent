@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { AgentSession, SessionEvent } from "../../agent/types.js";
 import { Editor, MemoryTerminal, TUI, plainTheme } from "../../tui.js";
 import { AgentUi } from "./agent-ui.js";
-import { NO_CLIPBOARD_IMAGE, NO_CLIPBOARD_TOOL, imageRef, pasteImage } from "./clipboard-paste.js";
+import { imageRef, noClipboardImage, noClipboardTool, pasteImage } from "./clipboard-paste.js";
 import { editExternally, editorCommand } from "./external-editor.js";
 import { SubagentTracker } from "./subagent-view.js";
 import { ToolTracker } from "./tool-view.js";
@@ -101,7 +101,7 @@ describe("AgentUi", () => {
     const s = setup();
     s.editor.setText("看图");
     await s.ui.paste();
-    expect(s.notices).toEqual([`info ${NO_CLIPBOARD_TOOL}`]);
+    expect(s.notices).toEqual([`info ${noClipboardTool()}`]);
     expect(s.editor.getText()).toBe("看图");
   });
 });
@@ -115,14 +115,14 @@ describe("剪贴板粘贴", () => {
         env: {},
         run: async () => ({ code: null, stdout: Buffer.alloc(0), stderr: "", missing: true }),
       }),
-    ).toEqual({ ok: false, message: NO_CLIPBOARD_TOOL });
+    ).toEqual({ ok: false, message: noClipboardTool() });
     expect(
       await pasteImage(dir, {
         platform: "linux",
         env: {},
         run: async () => ({ code: 1, stdout: Buffer.alloc(0), stderr: "" }),
       }),
-    ).toEqual({ ok: false, message: NO_CLIPBOARD_IMAGE });
+    ).toEqual({ ok: false, message: noClipboardImage() });
     const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]);
     const ok = await pasteImage(dir, {
       platform: "linux",
