@@ -91,9 +91,9 @@ export function taskRegistryView(sessionId: string): TaskRegistryView | undefine
   return registries.get(sessionId);
 }
 
-/** RPC `get_agents` / `/agents`：会话可用的类型（未装配时为内置类型）。 */
+/** RPC `get_agents` / `/agents`：会话可用的类型（没有 task 工具、注册表未装配时为空）。 */
 export function sessionAgents(sessionId: string): AgentInfo[] {
-  return (registries.get(sessionId)?.catalog ?? new AgentCatalog()).infos();
+  return registries.get(sessionId)?.catalog.infos() ?? [];
 }
 
 export function registryOf(sessionId: string): SubagentRegistry | undefined {

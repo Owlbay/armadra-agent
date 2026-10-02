@@ -41,7 +41,7 @@ const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
 
 function normalize(line: Line, root: string): string {
   return JSON.stringify(line, (key, value: unknown) => {
-    if (key === "timestamp" || key === "durationMs") return 0;
+    if (["timestamp", "durationMs", "startedAt", "endedAt"].includes(key)) return 0;
     if (typeof value !== "string") return value;
     return value
       .split(root)
@@ -101,6 +101,16 @@ describe("RPC 黄金记录：子 Agent 事件", () => {
       { taskId: "t1", agent: "explore", status: "completed", turns: 1 },
     ]);
     expect(sessionAgents(sessionId).map((a) => a.name)).toEqual(["general", "explore", "plan"]);
+    stdin.write(`${JSON.stringify({ id: "t", type: "get_tasks" })}\n`);
+    stdin.write(`${JSON.stringify({ id: "a", type: "get_agents" })}\n`);
+    while (!lines.some((l) => l["id"] === "a")) {
+      if (Date.now() - started > 5000) throw new Error("timeout");
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    expect(lines.find((l) => l["id"] === "t")).toMatchObject({
+      success: true,
+      data: { tasks: [{ taskId: "t1", agent: "explore", status: "completed" }] },
+    });
     stdin.end();
     expect(await done).toBe(0);
     await runtime.dispose();
@@ -122,6 +132,8 @@ describe("RPC 黄金记录：子 Agent 事件", () => {
       "subagent_end",
       "tool_execution_end",
       "agent_settled",
+      "response",
+      "response",
     ]);
     golden("subagent.out.jsonl", kept.map((l) => normalize(l, h.home.root)).join("\n") + "\n");
   });

@@ -185,9 +185,10 @@
 
 子会话的审批照常以 `permission_request` 发给本连接，`context.taskId` 标出来源任务。后台任务完成后父会话收到一条
 `origin: "task"` 的 user 消息（`<task-notification …>…</task-notification>`），随后照常开新回合。任务列表与类型列表由
-`get_tasks` / `get_agents` 返回（形状 `TaskInfo` / `AgentInfo`）；实现方从 `taskRegistryView(sessionId)` /
-`sessionAgents(sessionId)`（`src/agent/subagent-registry.ts`）取数据。`test/fixtures/rpc/subagent.out.jsonl` 是一次前台
-`task(agent="explore")` 的黄金记录（只保留响应、`tool_execution_*`、`subagent_*` 与 `agent_settled`），由
+`get_tasks` / `get_agents` 返回（形状 `TaskInfo` / `AgentInfo`；没有 task 工具时为空表），数据来自当前会话的
+`taskRegistryView(sessionId)` / `sessionAgents(sessionId)`（`src/agent/subagent-registry.ts`）。
+`test/fixtures/rpc/subagent.out.jsonl` 是一次前台 `task(agent="explore")` 加 `get_tasks` / `get_agents` 的黄金记录（只保留
+响应、`tool_execution_*`、`subagent_*` 与 `agent_settled`），由
 `src/agent/subagent-rpc.test.ts` 用 `UPDATE_GOLDEN=1` 更新。
 
 ### `message_update` 与消息重建
