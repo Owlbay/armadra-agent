@@ -33,6 +33,8 @@ export type * from "./checkpoints/types.js";
 // [W6-C0] 轨迹（docs/wave6-plan.md §2.1）与界面语言
 export type * from "./trace/types.js";
 export { TRACE_CUSTOM_TYPE } from "./trace/types.js";
+export { buildTrace, loadSubagentTrace } from "./trace/build.js"; // [W6-T1]
+export type { BuildTraceOptions, LiveOverlay, TraceInput } from "./trace/build.js";
 export type { Locale } from "./i18n/index.js";
 export type { AmaErrorOptions, ErrorCode, KnownErrorCode } from "./errors.js";
 export type {
