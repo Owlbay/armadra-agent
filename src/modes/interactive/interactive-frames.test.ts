@@ -5,6 +5,7 @@
 
 import { afterEach, describe, it } from "vitest";
 import { composeHarness } from "../../../test/helpers/compose-harness.js";
+import type { SessionEvent } from "../../agent/types.js";
 import type { FakeResponse } from "../../ai/fake/fake-script.js";
 import { MemoryTerminal, TUI, plainTheme, type Component } from "../../tui.js";
 import { MessageView } from "./message-view.js";
@@ -152,4 +153,47 @@ describe("工具层级", () => {
       golden(`tools-${columns}x50`, screen(toolsScene(), columns, 50));
     });
   }
+});
+
+describe("运行中动词", () => {
+  it("思考中 → 回复中 → 等待确认 → 运行 bash 80x24", async () => {
+    const s = await start([
+      {
+        steps: [
+          { thinking: "先看看目录结构。" },
+          { delayMs: 30 },
+          { text: "我先列一下文件。".repeat(4) },
+          { delayMs: 30 },
+          { toolCall: { name: "bash", arguments: { command: "echo verbs-ok" }, id: "call_b" } },
+        ],
+      },
+      { text: "好了。" },
+    ]);
+    const frames: string[] = [];
+    const isUpdate = (kind: "thinking" | "text") => (e: SessionEvent) =>
+      e.type === "message_update" &&
+      e.message.role === "assistant" &&
+      e.message.content.at(-1)?.type === kind;
+    const thinking = s.until(isUpdate("thinking"));
+    s.type("列一下文件");
+    s.terminal.sendInput("\r");
+    await thinking;
+    frames.push(snapshot(s.terminal, "思考中"));
+    await s.until(isUpdate("text"));
+    frames.push(snapshot(s.terminal, "回复中"));
+    await s.until((e) => e.type === "permission_request");
+    await new Promise((r) => setTimeout(r, 0));
+    s.frame();
+    frames.push(snapshot(s.terminal, "等待确认"));
+    // tool_execution_start 在审批之前；放行后 bash 子进程还在跑，下一轮事件循环即是「运行 bash」
+    s.terminal.sendInput("y");
+    await new Promise((r) => setTimeout(r, 0));
+    s.frame();
+    frames.push(snapshot(s.terminal, "运行 bash"));
+    await s.until((e) => e.type === "agent_settled");
+    frames.push(snapshot(s.terminal, "settled"));
+    golden("loader-verbs-80x24", frames.join("\n"));
+    s.handle.exit(0);
+    await s.done;
+  });
 });

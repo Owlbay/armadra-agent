@@ -1,0 +1,65 @@
+import { describe, expect, it } from "vitest";
+import type { SessionEvent } from "../../agent/types.js";
+import { Container, Loader, plainTheme } from "../../tui.js";
+import { QueueView, RunIndicator } from "./run-indicator.js";
+import { assistant, lines } from "./test-support.js";
+import { ToolTracker } from "./tool-view.js";
+
+function setup() {
+  const theme = plainTheme();
+  const loader = new Loader(() => undefined, { theme, now: () => 0, intervalMs: 1e9 });
+  const slot = new Container();
+  const tools = new ToolTracker({ theme, now: () => 0 });
+  const indicator = new RunIndicator({ theme, loader, slot, tools, render: () => undefined });
+  const verb = (): string => (slot.children.length === 0 ? "" : lines(slot, 60)[0]!);
+  const send = (event: unknown): void => indicator.onEvent(event as SessionEvent);
+  return { indicator, tools, verb, send, loader };
+}
+
+describe("运行指示", () => {
+  it("动词按最深状态：工具 > 重试 > 压缩 > 流式 > 思考；审批时等待确认", () => {
+    const { indicator, tools, verb, send, loader } = setup();
+    send({ type: "agent_start" });
+    expect(verb()).toBe("⠋ 思考中 · 0s · Esc 中断");
+    send({
+      type: "message_update",
+      message: assistant([{ type: "text", text: "x".repeat(4000) }]),
+    });
+    expect(verb()).toBe("⠋ 回复中 · 0s · ↓≈1.0k · Esc 中断");
+    tools.start({ toolCallId: "a", toolName: "bash", args: {} });
+    send({ type: "tool_execution_start" });
+    expect(verb()).toBe("⠋ 运行 bash · 0s · Esc 中断");
+    tools.start({ toolCallId: "b", toolName: "read", args: {} });
+    tools.start({ toolCallId: "c", toolName: "glob", args: {}, parentToolCallId: "b" });
+    send({ type: "tool_execution_start" });
+    expect(verb()).toBe("⠋ 运行 2 个工具 · 0s · Esc 中断");
+    indicator.setApproval(true);
+    expect(verb()).toBe("⠋ 等待确认 · 0s");
+    indicator.setApproval(false);
+    for (const id of ["a", "b", "c"]) tools.end(id, { content: "" }, false);
+    send({ type: "auto_retry_start", attempt: 2, maxAttempts: 3, delayMs: 2000, errorMessage: "" });
+    expect(verb()).toBe("⠋ 重试 2/3 · 2s 后");
+    send({ type: "auto_retry_end", success: true, attempt: 2 });
+    send({ type: "message_end", message: assistant([]) });
+    send({ type: "compaction_start", trigger: "threshold" });
+    expect(verb()).toBe("⠋ 压缩上下文 · 0s · Esc 中断");
+    send({ type: "compaction_end" });
+    send({ type: "agent_settled" });
+    expect(verb()).toBe("");
+    expect(loader.running).toBe(false);
+  });
+
+  it("排队消息：缩进 2 列、中文标签、超过 3 条折叠、末行按键提示", () => {
+    const queue = new QueueView(plainTheme());
+    queue.setQueue(["一", "二"], ["三", "四"]);
+    expect(lines(queue, 60)).toEqual([
+      "  … 另 1 条",
+      "  ↳ 插话  二",
+      "  ↳ 之后  三",
+      "  ↳ 之后  四",
+      "    Alt+↑ 取回 · Esc 回填并中断",
+    ]);
+    queue.setQueue([], []);
+    expect(lines(queue, 60)).toEqual([]);
+  });
+});

@@ -57,7 +57,7 @@ describe("消息区", () => {
     view.startAssistant(assistant([thinking]));
     expect(lines(view)).toEqual(["✻ 思考中…"]);
     view.updateAssistant(assistant([thinking, { type: "text", text: "# 标题\n\n正文 **加粗**" }]));
-    expect(lines(view)).toEqual(["✻ 思考中…", "", "标题", "", "正文 加粗"]);
+    expect(lines(view)).toEqual(["✻ 思考 · 10 token", "", "标题", "", "正文 加粗"]);
     view.endAssistant(
       assistant([thinking, { type: "text", text: "# 标题\n\n正文 **加粗**" }], {
         usage: usage({ reasoning: 1234 }),

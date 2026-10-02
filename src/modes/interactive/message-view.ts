@@ -198,7 +198,11 @@ export class AssistantView extends Container {
           !this.streaming && single && message.usage.reasoning !== undefined
             ? message.usage.reasoning
             : estimateTokens(block.thinking);
-        view.set(block.thinking, tokens, this.streaming, block.redacted === true);
+        // 后面已经有正文 / 工具调用：这段思考已结束
+        const later = message.content
+          .slice(index + 1)
+          .some((b) => (b.type === "text" ? b.text !== "" : b.type === "toolCall"));
+        view.set(block.thinking, tokens, this.streaming && !later, block.redacted === true);
         order.push(view);
         return;
       }

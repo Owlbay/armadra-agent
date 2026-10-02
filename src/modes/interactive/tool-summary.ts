@@ -149,8 +149,8 @@ export interface SummaryInput {
   isError: boolean;
   /** 结果正文（已清洗）。 */
   lines: readonly string[];
-  /** 完成耗时（ms）。 */
-  elapsedMs: number;
+  /** 完成耗时（ms）；重放的历史调用没有，bash 取 `details.wall_time_seconds`。 */
+  elapsedMs: number | undefined;
   /** 已显示的内层调用数（codemode 没有 details 时用）。 */
   nestedCount?: number;
 }
@@ -162,7 +162,7 @@ export function resultSummary(input: SummaryInput, theme: Theme): string {
   const muted = (s: string): string => theme.fg("muted", s);
   const sep = theme.fg("dim", " · ");
   const wall = num(details["wall_time_seconds"]);
-  const elapsed = input.elapsedMs > 0 || wall === undefined ? input.elapsedMs : wall * 1000;
+  const elapsed = input.elapsedMs ?? (wall !== undefined ? wall * 1000 : 0);
   const duration = formatDuration(elapsed);
   const count = lines.length;
   if (name === "bash") {

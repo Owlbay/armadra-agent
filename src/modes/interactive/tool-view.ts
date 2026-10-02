@@ -76,6 +76,8 @@ export class ToolView implements Component {
   private version = 0;
   private readonly startedAt: number;
   private elapsedMs = 0;
+  /** 重放的历史调用（没有真实耗时）。 */
+  replayed = false;
   /** 外层调用（嵌套时）：子视图变化要让外层缓存失效。 */
   private parent: ToolView | undefined;
 
@@ -191,7 +193,7 @@ export class ToolView implements Component {
         result,
         isError: this.state === "error",
         lines: this.resultLines(),
-        elapsedMs: this.elapsedMs,
+        elapsedMs: this.replayed ? undefined : this.elapsedMs,
         nestedCount: this.nested.length,
       },
       theme,
@@ -418,6 +420,7 @@ export class ToolTracker {
     isError: boolean,
   ): ToolView {
     const { view } = this.start({ toolCallId, toolName, args });
+    view.replayed = true;
     if (result !== undefined) view.finish(result, isError);
     return view;
   }

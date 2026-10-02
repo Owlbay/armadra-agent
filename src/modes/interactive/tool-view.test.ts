@@ -79,6 +79,7 @@ describe("工具视图", () => {
     );
     expect(lines(view)).toEqual(["⏺ bash make", "  ⎿ 退出 0 · 6.1s · 1 行", "    done"]);
     const failed = new ToolView("2", "bash", { command: "git push" }, { theme, now: () => 0 });
+    failed.replayed = true; // 重放的历史调用：耗时取 wall_time_seconds
     failed.finish(
       {
         content: "fatal\n\n[exit code: 128]",

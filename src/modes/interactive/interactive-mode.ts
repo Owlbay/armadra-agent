@@ -55,11 +55,11 @@ import { createKeyDispatch } from "./key-dispatch.js";
 import { MessageView, type NoticeLevel } from "./message-view.js";
 import { openPicker } from "./pickers.js";
 import { StartupHeader } from "./startup-header.js";
+import { QueueView, RunIndicator } from "./run-indicator.js";
 import { StatusBar } from "./status-bar.js";
 import { ToolTracker } from "./tool-view.js";
 
 const HINT_MS = 2500;
-const QUEUE_PREVIEW = 3;
 const EDITOR_PLACEHOLDER = "输入消息，/ 命令，@ 文件，Shift+Enter 换行";
 
 export interface InteractiveModeOptions {
@@ -116,10 +116,6 @@ class HintLine implements Component {
   invalidate(): void {}
 }
 
-function oneLine(text: string): string {
-  return text.replace(/\s+/g, " ").trim();
-}
-
 export function runInteractiveMode(
   runtime: Runtime,
   context: ModeContext,
@@ -153,7 +149,7 @@ export function runInteractiveMode(
     now,
     spinner: () => loader.frame,
   });
-  const queueText = new Text("");
+  const queueView = new QueueView(theme);
   const loaderSlot = new Container();
   const loader = new Loader(() => tui.requestRender(), {
     theme,
@@ -202,7 +198,7 @@ export function runInteractiveMode(
 
   tui.addChild(view);
   tui.addChild(new Spacer());
-  tui.addChild(queueText);
+  tui.addChild(queueView);
   tui.addChild(loaderSlot);
   tui.addChild(editor);
   tui.addChild(hint);
@@ -211,8 +207,6 @@ export function runInteractiveMode(
   // ---- 小工具 ---------------------------------------------------------------
 
   let finished = false;
-  let running = false;
-  let compacting = false;
   let hintTimer: ReturnType<typeof setTimeout> | undefined;
   let resolveExit: (code: number) => void = () => undefined;
 
@@ -234,28 +228,10 @@ export function runInteractiveMode(
     }
     render();
   };
-  const syncLoader = (): void => {
-    const active = running || compacting;
-    if (active && loaderSlot.children.length === 0) {
-      loader.setVerb(compacting && !running ? "压缩上下文" : "工作中", ["Esc 中断"]);
-      loaderSlot.addChild(loader);
-      loader.start();
-    } else if (!active && loaderSlot.children.length > 0) {
-      loader.stop();
-      loaderSlot.clear();
-    }
-    render();
-  };
+  const indicator = new RunIndicator({ theme, loader, slot: loaderSlot, tools, render });
   const setQueue = (steering: readonly string[], followUp: readonly string[]): void => {
     status.setQueue(steering.length, followUp.length);
-    const rows = [
-      ...steering.map((t) => `↳ steer  ${oneLine(t)}`),
-      ...followUp.map((t) => `↳ followUp  ${oneLine(t)}`),
-    ];
-    const shown = rows.slice(-QUEUE_PREVIEW);
-    if (rows.length > shown.length) shown.unshift(`… 另 ${rows.length - shown.length} 条`);
-    if (rows.length > 0) shown.push("Alt+↑ 取回 · Esc 全部回填并中断");
-    queueText.setText(shown.map((l) => theme.fg("dim", l)).join("\n"));
+    queueView.setQueue(steering, followUp);
     render();
   };
 
@@ -263,16 +239,10 @@ export function runInteractiveMode(
 
   const onEvent = (event: SessionEvent): void => {
     switch (event.type) {
-      case "agent_start":
-        running = true;
-        syncLoader();
-        return;
       case "agent_settled":
-        running = false;
         if (event.warning !== undefined) view.addNotice("warn", event.warning);
         status.refresh();
-        syncLoader();
-        return;
+        break;
       case "message_start": {
         const message = event.message;
         if (message.role === "user") view.addUser(message);
@@ -280,25 +250,21 @@ export function runInteractiveMode(
         else if (message.role === "custom" && message.display) {
           view.addNotice("info", typeof message.content === "string" ? message.content : "");
         }
-        render();
-        return;
+        break;
       }
       case "message_update":
         view.updateAssistant(event.message);
-        render();
-        return;
+        break;
       case "message_end":
         if (event.message.role === "assistant") {
           view.endAssistant(event.message);
           status.refresh();
         }
-        render();
-        return;
+        break;
       case "tool_execution_start": {
         const started = tools.start(event);
         if (started.topLevel) view.addTool(started.view);
-        render();
-        return;
+        break;
       }
       case "tool_execution_update":
         tools.update(event.toolCallId, event.partial);
@@ -306,31 +272,22 @@ export function runInteractiveMode(
         return;
       case "tool_execution_end":
         tools.end(event.toolCallId, event.result, event.isError);
-        render();
-        return;
+        break;
       case "queue_update":
         setQueue(event.steering, event.followUp);
         return;
-      case "compaction_start":
-        compacting = true;
-        syncLoader();
-        return;
       case "compaction_end":
-        compacting = false;
         if (event.result !== undefined) view.addCompaction(event.result);
         else if (event.error !== undefined) view.addNotice("error", `压缩失败：${event.error}`);
         else if (event.aborted) view.addNotice("info", "压缩已取消");
         status.refresh();
-        syncLoader();
-        return;
+        break;
       case "auto_retry_start":
         view.addRetry(event.attempt, event.maxAttempts, event.delayMs, event.errorMessage);
-        render();
-        return;
+        break;
       case "auto_retry_end":
         if (!event.success) view.addRetryFailed(event.finalError);
-        render();
-        return;
+        break;
       case "cache_miss":
       case "context_pressure": {
         const shown = cacheEventNotice(event, cacheNoticesEnabled(session));
@@ -348,8 +305,10 @@ export function runInteractiveMode(
         render();
         return;
       default:
-        return;
+        break;
     }
+    indicator.onEvent(event);
+    render();
   };
   let unsubscribe = session.subscribe(onEvent);
 
@@ -389,11 +348,9 @@ export function runInteractiveMode(
     resetView();
     tools.clear();
     replay();
-    running = false;
-    compacting = false;
     setQueue([], []);
     status.refresh();
-    syncLoader();
+    indicator.reset();
     if (next instanceof AgentSessionImpl) next.announceStart(reason);
   };
 
@@ -481,7 +438,7 @@ export function runInteractiveMode(
   }
 
   function send(text: string, via: "enter" | "followUp"): void {
-    if (!running) startPrompt(text);
+    if (!indicator.running) startPrompt(text);
     else if (via === "followUp") void session.followUp(text).catch(() => undefined);
     else void session.steer(text).catch(() => undefined);
   }
@@ -496,7 +453,7 @@ export function runInteractiveMode(
       status,
       session: () => session,
       inactive: () => finished || tui.hasOverlay,
-      busy: () => running || compacting,
+      busy: () => indicator.busy,
       now,
       showHint,
       submit: (text, via) => submit(text, via),
@@ -515,11 +472,11 @@ export function runInteractiveMode(
     showOverlay: (component) => tui.showOverlay(component, { anchor: "bottom" }),
     onOpen: () => {
       editor.disableSubmit = true;
-      render();
+      indicator.setApproval(true);
     },
     onClose: () => {
       editor.disableSubmit = false;
-      render();
+      indicator.setApproval(false);
     },
     report: (request, outcome) => {
       if (outcome === "deny" || outcome === "cancelled") {
