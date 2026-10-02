@@ -358,13 +358,25 @@ describe("接线（交互）", () => {
     const s = await start([{ text: "你好" }]);
     s.type("hi\r");
     await until(s, (x) => x.includes("你好"), "reply");
-    const before = s.terminal.viewport().join("\n");
+    await s.handle.session().waitForIdle();
+    // 消息区（输入框上沿之前）；状态栏的计时会走，不比
+    const messages = (): string => {
+      s.frame();
+      const lines = s.terminal.viewport();
+      return lines
+        .slice(
+          0,
+          lines.findIndex((l) => l.startsWith("─")),
+        )
+        .join("\n");
+    };
+    const before = messages();
     s.type("/trace\r");
     await until(s, (x) => x.includes("轨迹 · 1 回合 · 1 请求"), "trace view");
     expect(s.terminal.viewport().join("\n")).toContain("#1 hi");
     s.type("\x1b");
     await until(s, (x) => !x.includes("轨迹 · 1 回合"), "closed");
-    expect(s.terminal.viewport().join("\n")).toBe(before);
+    expect(messages()).toBe(before);
     s.handle.exit(0);
     await s.done;
   });
