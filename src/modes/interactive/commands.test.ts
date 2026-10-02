@@ -99,6 +99,8 @@ describe("交互命令", () => {
     expect(currentSession(rt).state.permissionMode).toBe("auto-edit");
     await runInteractiveCommand("/thinking", ui);
     expect(picks[1]?.items[1]?.description).toBe("当前模型不支持思考");
+    expect(picks[1]).toMatchObject({ numberKeys: true, filterable: false });
+    expect(picks[1]?.footer).toContain("直接选");
     const before = currentSession(rt).state.thinkingLevel;
     expect(before).not.toBe("high");
     await runInteractiveCommand("/thinking", ui);

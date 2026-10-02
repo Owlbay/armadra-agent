@@ -166,6 +166,12 @@ describe("启动期 UI", () => {
     await tick();
     last().sendInput("\x03");
     expect(await pending).toEqual({ trusted: false, remember: false });
+    // 数字直选：4 = 不信任并记住
+    pending = ui.promptTrust("/repo", ["/repo/.ama/hooks.json"]);
+    await tick();
+    expect(last().viewport().join("\n")).toContain("1-4 直接选");
+    last().sendInput("4");
+    expect(await pending).toEqual({ trusted: false, remember: true });
   });
 
   it("askCwd：不存在的目录提示后重输，存在的返回绝对路径；Esc 取消", async () => {

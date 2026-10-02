@@ -15,6 +15,7 @@
 import { formatModelRef } from "../../ai/providers/channels.js";
 import { AgentSessionImpl } from "../../agent/session.js";
 import type { AgentSession, RewindDraftText } from "../../agent/types.js";
+import { THINKING_LEVELS } from "../../ai/thinking.js";
 import type { ModelThinkingLevel } from "../../ai/types.js";
 import type { SwitchRequest } from "../../cli/compose-session.js";
 import { listSessions } from "../../cli/compose-store.js";
@@ -254,6 +255,10 @@ async function handlePick(
         title: "思考级别",
         items: thinkingItems(reasoning),
         selected: session.state.thinkingLevel,
+        currentValue: session.state.thinkingLevel,
+        filterable: false,
+        numberKeys: true,
+        footer: `↑↓ 选择 · 1-${THINKING_LEVELS.length} 直接选 · Enter 确认 · Esc 取消`,
       });
       if (picked !== undefined) session.setThinkingLevel(picked.value as ModelThinkingLevel);
       return;

@@ -83,7 +83,13 @@ function miniTui(r: Resolved, prompt: Prompt) {
 /** 选择题：返回选中项，Esc / Ctrl+C 返回 undefined。 */
 function askSelect(
   r: Resolved,
-  prompt: Prompt & { items: readonly SelectItem[]; selected?: string; filterable?: boolean },
+  prompt: Prompt & {
+    items: readonly SelectItem[];
+    selected?: string;
+    filterable?: boolean;
+    /** 右侧序号，按数字直选（不与 filterable 同用）。 */
+    numberKeys?: boolean;
+  },
 ): Promise<SelectItem | undefined> {
   return new Promise((done) => {
     const { tui, body, finish } = miniTui(r, prompt);
@@ -92,6 +98,7 @@ function askSelect(
       keybindings: r.keys,
       maxVisible: 10,
       filterable: prompt.filterable === true,
+      ...(prompt.numberKeys === true ? { numberKeys: true } : {}),
       onSelect: (item) => {
         finish(item.label);
         done(item);
@@ -109,7 +116,9 @@ function askSelect(
           "dim",
           prompt.filterable === true
             ? "输入过滤 · ↑↓ 选择 · Enter 确认 · Esc 取消"
-            : "↑↓ 选择 · Enter 确认 · Esc 取消",
+            : prompt.numberKeys === true
+              ? `↑↓ 选择 · Enter 确认 · 1-${prompt.items.length} 直接选 · Esc 取消`
+              : "↑↓ 选择 · Enter 确认 · Esc 取消",
         ),
       ),
     );
@@ -283,6 +292,7 @@ export function createStartupUi(options: StartupUiOptions = {}): Required<Intera
         lines: [cwd, ...shown],
         items: TRUST_CHOICES.map(({ value, label }) => ({ value, label })),
         selected: "once",
+        numberKeys: true,
       });
       const choice = TRUST_CHOICES.find((c) => c.value === picked?.value);
       return choice?.answer ?? { trusted: false, remember: false };
