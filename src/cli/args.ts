@@ -71,6 +71,8 @@ export interface ParsedArgs {
   codemode?: CodemodeMode;
   /** `--image <文件>`（可重复，只用于 -p）：随首条提示发送的图片。 */
   images: string[];
+  /** `--from <会话 id>[#编号]`：用旧会话的一条用户消息作为提示（cli/from-prompt.ts）。 */
+  from?: string;
   /** 位置参数拼成的提示（空格连接）。 */
   prompt?: string;
   /** 原始位置参数。 */
@@ -128,6 +130,8 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
   --session-id <id>            使用指定 id 的会话（不存在则新建）
   --fork <id>                  从指定会话分叉出新会话
   --session-dir <目录>         会话目录（缺省 ~/.local/share/ama/sessions）
+  --from <id>[#编号]           用旧会话的一条用户消息作提示（缺省最后一条；-p 时连图片一起；
+                               编号见 ama sessions show）
 
 权限与信任
   --permission-mode <模式>     default | auto-edit | plan | auto | full-auto | allowlist
@@ -152,6 +156,10 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
   ama auth list                列出已保存 key 的供应商（不显示 key）
   ama auth remove <provider>   删除已保存的 key
   ama sessions list|show|prune 会话管理
+  ama sessions search <关键词|/正则/> [--all] [--role user|assistant|tool] [--since 7d] [--limit N]
+                               跨会话全文检索
+  ama sessions export <id> [--format md|json|jsonl] [--output <文件>] [--branch leaf|all]
+                               导出会话（已脱敏）
   ama models list [--provider <id>]  列出模型（含来源与 key 状态）
   ama models check <provider/id>     发一次最小请求检查可用性
   ama models discover <provider> [--probe] [--write] [--limit N]
@@ -203,7 +211,8 @@ type ValueOption =
   | "exclude-tools"
   | "tools-preset"
   | "codemode"
-  | "image";
+  | "image"
+  | "from";
 
 const VALUE_OPTIONS: ReadonlySet<string> = new Set<ValueOption>([
   "profile",
@@ -230,6 +239,7 @@ const VALUE_OPTIONS: ReadonlySet<string> = new Set<ValueOption>([
   "tools-preset",
   "codemode",
   "image",
+  "from",
 ]);
 
 const FLAG_ALIASES: Readonly<Record<string, string>> = {
@@ -345,6 +355,9 @@ function applyValue(args: ParsedArgs, option: ValueOption, value: string): void 
       break;
     case "image":
       args.images.push(value);
+      break;
+    case "from":
+      args.from = value;
       break;
   }
 }
