@@ -14,6 +14,59 @@ import { plural } from "../format.js";
 import type { Messages } from "../types.js";
 
 export const en = {
+  /** `ama sessions list / show / prune`（search / export / trace 各有自己的文案）。 */
+  cli: {
+    usage: `Usage: ama sessions list [--all] [--session-dir <dir>]
+       ama sessions show <id> [--session-dir <dir>]
+       ama sessions prune [--older-than <days>] [--dry-run] [--all] [--session-dir <dir>]
+       ama sessions search <keyword|/regex/> [--all] [--role user|assistant|tool] [--since 7d] [--limit N]
+       ama sessions export <id> [--format md|json|jsonl] [--output <file>] [--branch leaf|all]
+       ama sessions trace <id|file> [--html [file]] [--json] [--output <file>] [--open] [--children]
+`,
+    none: "No sessions\n",
+    listRow: (id: string, time: string, count: number, name: string) =>
+      `${id}  ${time}  ${String(count).padStart(4)} msgs  ${name}\n`,
+    showNeedsId: "ama sessions show needs <id>",
+    show: (item: {
+      id: string;
+      file: string;
+      cwd: string;
+      name?: string | undefined;
+      created: string;
+      modified: string;
+      messages: number;
+      entries: string;
+      firstPrompt?: string | undefined;
+    }) =>
+      [
+        `id: ${item.id}`,
+        `File: ${item.file}`,
+        `Directory: ${item.cwd}`,
+        ...(item.name !== undefined ? [`Name: ${item.name}`] : []),
+        `Created: ${item.created} · Modified: ${item.modified}`,
+        `Messages: ${item.messages}`,
+        `Entries: ${item.entries}`,
+        ...(item.firstPrompt !== undefined ? [`First prompt: ${item.firstPrompt}`] : []),
+      ].join("\n") + "\n",
+    userMessages: (shortId: string) =>
+      `User messages (reuse with ama --from ${shortId}#<number>):\n`,
+    images: (count: number) => `[${plural(count, "image")}]`,
+    olderThanInvalid: (raw: string) =>
+      `--older-than must be a non-negative number of days (got ${raw})`,
+    moved: (dryRun: boolean, file: string) =>
+      `${dryRun ? "would move to trash" : "moved to trash"}: ${file}\n`,
+    pruned: (count: number, dryRun: boolean) =>
+      `${plural(count, "session")}${dryRun ? " (dry run, nothing changed)" : ""}\n`,
+    unknownAction: (action: string) => `unknown sessions subcommand: ${action}`,
+    fileHistoryPruned: (dryRun: boolean, count: number, size: string) =>
+      `file-history: ${dryRun ? "would remove" : "removed"} ${plural(count, "unreferenced backup")} (${size})\n`,
+    fileHistorySkipped: (error: string) => `ama: file-history cleanup skipped (${error})\n`,
+    clipboardPruned: (dryRun: boolean, count: number) =>
+      `clipboard: ${dryRun ? "would remove" : "removed"} ${plural(count, "clipboard image")} older than 7 days\n`,
+    clipboardSkipped: (error: string) => `ama: clipboard cleanup skipped (${error})\n`,
+    notWired: (what: string) =>
+      `ama: ${what} is not assembled yet (the integration batch injects the session store)\n`,
+  },
   /** `--from`、会话 id 查找。 */
   lookup: {
     fromNeedsId: "--from needs a session id",
@@ -132,6 +185,43 @@ export const en = {
 };
 
 export const zh = {
+  cli: {
+    usage: `用法：ama sessions list [--all] [--session-dir <目录>]
+      ama sessions show <id> [--session-dir <目录>]
+      ama sessions prune [--older-than <天>] [--dry-run] [--all] [--session-dir <目录>]
+      ama sessions search <关键词|/正则/> [--all] [--role user|assistant|tool] [--since 7d] [--limit N]
+      ama sessions export <id> [--format md|json|jsonl] [--output <文件>] [--branch leaf|all]
+      ama sessions trace <id|文件> [--html [文件]] [--json] [--output <文件>] [--open] [--children]
+`,
+    none: "没有会话\n",
+    listRow: (id, time, count, name) =>
+      `${id}  ${time}  ${String(count).padStart(4)} 条  ${name}\n`,
+    showNeedsId: "ama sessions show 需要 <id>",
+    show: (item) =>
+      [
+        `id：${item.id}`,
+        `文件：${item.file}`,
+        `目录：${item.cwd}`,
+        ...(item.name !== undefined ? [`名称：${item.name}`] : []),
+        `创建：${item.created} · 修改：${item.modified}`,
+        `消息：${item.messages}`,
+        `条目：${item.entries}`,
+        ...(item.firstPrompt !== undefined ? [`首条提示：${item.firstPrompt}`] : []),
+      ].join("\n") + "\n",
+    userMessages: (shortId) => `用户消息（ama --from ${shortId}#<编号> 复用）：\n`,
+    images: (count) => `[图片 ${count}]`,
+    olderThanInvalid: (raw) => `--older-than 应为非负天数（收到 ${raw}）`,
+    moved: (dryRun, file) => `${dryRun ? "将移到 trash" : "已移到 trash"}：${file}\n`,
+    pruned: (count, dryRun) => `${count} 个会话${dryRun ? "（演练，未改动）" : ""}\n`,
+    unknownAction: (action) => `未知的 sessions 子命令：${action}`,
+    fileHistoryPruned: (dryRun, count, size) =>
+      `file-history：${dryRun ? "将清除" : "已清除"} ${count} 个未引用的备份（${size}）\n`,
+    fileHistorySkipped: (error) => `ama: file-history 清理跳过（${error}）\n`,
+    clipboardPruned: (dryRun, count) =>
+      `clipboard：${dryRun ? "将清除" : "已清除"} ${count} 个超过 7 天的剪贴板图片\n`,
+    clipboardSkipped: (error) => `ama: clipboard 清理跳过（${error}）\n`,
+    notWired: (what) => `ama: ${what} 尚未装配（会话存储由集成批次注入）\n`,
+  },
   lookup: {
     fromNeedsId: "--from 需要会话 id",
     fromInvalid: (spec) => `--from 应为 <会话 id> 或 <会话 id>#<编号>（收到 ${spec}）`,
