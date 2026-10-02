@@ -13,18 +13,11 @@
 import { existsSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { withCustomDefaults } from "../../ai/providers/catalog.js";
-import { apiShortName } from "../../ai/providers/channels.js";
 import { describeRefresh, refreshModelsDev } from "../../ai/providers/models-dev-cache.js";
 import { modelsDevFields, type ModelsDevIndex } from "../../ai/providers/models-dev.js";
 import { materializeModel } from "../../ai/providers/registry.js";
 import type { ProviderData, ProviderRegistryApi } from "../../ai/types.js";
-import {
-  PROVIDER_ID_PATTERN,
-  classifyKeyValue,
-  readAuthFile,
-  removeAuthKey,
-  setAuthKey,
-} from "../../config/auth-file.js";
+import { PROVIDER_ID_PATTERN, setAuthKey } from "../../config/auth-file.js";
 import { loadConfigFile } from "../../config/load.js";
 import type { AmaConfig, ProviderConfig } from "../../config/types.js";
 import { CONFIG_FILE_VERSION } from "../../config/types.js";
@@ -33,6 +26,7 @@ import { parseSubArgs, UsageError } from "../args.js";
 import type { CliIo, RuntimeDeps } from "../deps.js";
 import { ExitCode } from "../exit-codes.js";
 import { extractKey } from "./auth.js";
+import { listChannels, listProviders, removeProvider } from "./providers-list.js";
 import { buildRegistry, loadUserLevel, type UserLevel } from "./context.js";
 import { attempt, DISCOVER_TIMEOUT_MS, FATAL_STATUS } from "./models-discover.js";
 import {
@@ -80,7 +74,7 @@ const VALUE_OPTIONS = [
 ];
 const FLAG_OPTIONS = ["probe", "include-no-tools", "yes"];
 
-interface Ctx {
+export interface Ctx {
   io: CliIo;
   deps: Pick<RuntimeDeps, "providers">;
   level: UserLevel;
@@ -104,7 +98,7 @@ function list(raw: string | undefined): string[] | undefined {
     .filter((s) => s !== "");
 }
 
-function userConfig(level: UserLevel): AmaConfig {
+export function userConfig(level: UserLevel): AmaConfig {
   return structuredClone(
     loadConfigFile("config", level.userConfigPath)?.value ?? { version: CONFIG_FILE_VERSION },
   );
@@ -446,110 +440,6 @@ function legacyMerge(
   const addedModels = ids.filter((id) => !known.has(id));
   for (const id of addedModels) models.push({ id });
   return { config: next, addedChannels: [], addedModels };
-}
-
-async function keySource(
-  registry: ProviderRegistryApi,
-  config: ProviderConfig | undefined,
-  id: string,
-  channel?: string,
-): Promise<string> {
-  const raw = channel !== undefined ? config?.channels?.[channel]?.apiKey : config?.apiKey;
-  if (raw !== undefined) {
-    const kind = classifyKeyValue(raw);
-    return kind === "env-ref"
-      ? raw
-      : kind === "command"
-        ? "!命令（config.json）"
-        : "字面量（config.json）";
-  }
-  const resolved = await registry.resolveApiKey(id, channel);
-  if (resolved.apiKey === undefined) return channel !== undefined ? "同供应商" : "无";
-  if (channel !== undefined && resolved.source !== "auth-file") return "同供应商";
-  return resolved.source === "env"
-    ? `环境变量 ${resolved.origin ?? ""}`
-    : resolved.source === "auth-file"
-      ? "auth.json"
-      : resolved.source;
-}
-
-async function listProviders(ctx: Ctx): Promise<number> {
-  const registry = await buildRegistry(ctx.level, ctx.io, ctx.deps);
-  const config = userConfig(ctx.level);
-  let shown = 0;
-  for (const provider of registry.list()) {
-    const own = config.providers?.[provider.id];
-    if (
-      own === undefined &&
-      !(
-        provider.builtin &&
-        provider.requiresApiKey &&
-        (await registry.resolveApiKey(provider.id)).apiKey !== undefined
-      )
-    )
-      continue;
-    shown++;
-    const kind = provider.builtin ? "内置" : "自定义";
-    const channels = provider.channels ?? [];
-    ctx.io.stdout(
-      `${provider.id}  ${kind} · ${channels.length > 0 ? `${channels.length} 渠道` : `${provider.api} ${provider.baseUrl}`} · ` +
-        `${provider.models.length} 模型 · key ${await keySource(registry, own, provider.id)}\n`,
-    );
-    for (const c of channels) {
-      const count = provider.models.filter((m) => m.channels?.includes(c.name)).length;
-      ctx.io.stdout(
-        `  @${c.name}  ${c.api}  ${c.baseUrl}  ${count} 模型 · key ${await keySource(registry, own, provider.id, c.name)}\n`,
-      );
-    }
-  }
-  if (shown === 0) ctx.io.stdout(`没有配置供应商（ama providers add <id> --base-url <url>）\n`);
-  return ExitCode.Ok;
-}
-
-async function listChannels(ctx: Ctx, id: string): Promise<number> {
-  const registry = await buildRegistry(ctx.level, ctx.io, ctx.deps);
-  const provider = registry.get(id);
-  if (provider === undefined) {
-    ctx.io.stderr(`ama: 供应商不存在：${id}\n`);
-    return ExitCode.NoModel;
-  }
-  const own = userConfig(ctx.level).providers?.[id];
-  if (provider.channels === undefined) {
-    ctx.io.stdout(
-      `${id}：单渠道（${provider.api} ${provider.baseUrl}），${provider.models.length} 模型\n`,
-    );
-    return ExitCode.Ok;
-  }
-  for (const c of provider.channels) {
-    const models = provider.models.filter((m) => m.channels?.includes(c.name));
-    const mark = c.name === provider.defaultChannel ? "（缺省）" : "";
-    ctx.io.stdout(
-      `@${c.name}${mark}  ${apiShortName(c.api)}  ${c.api}  ${c.baseUrl}  key ${await keySource(registry, own, id, c.name)}\n` +
-        `  ${models.length} 模型${models.length > 0 ? `：${models.map((m) => m.id).join(", ")}` : ""}\n`,
-    );
-  }
-  return ExitCode.Ok;
-}
-
-function removeProvider(ctx: Ctx, id: string): number {
-  const config = userConfig(ctx.level);
-  const had = config.providers?.[id] !== undefined;
-  if (had) {
-    delete config.providers?.[id];
-    writeConfigFile(ctx.level.userConfigPath, config, { backup: true });
-    ctx.io.stdout(`已从 ${ctx.level.userConfigPath} 删除 ${id}（原文件备份为 config.json.bak）\n`);
-  }
-  const auth = readAuthFile(ctx.level.authFile).file;
-  let keys = 0;
-  for (const name of Object.keys(auth.providers))
-    if (name === id || name.startsWith(`${id}@`))
-      keys += removeAuthKey(ctx.level.authFile, name) ? 1 : 0;
-  if (keys > 0) ctx.io.stdout(`已删除 ${ctx.level.authFile} 里 ${id} 的 ${keys} 个 key\n`);
-  if (!had && keys === 0) {
-    ctx.io.stderr(`ama: 没有供应商 ${id}\n`);
-    return ExitCode.RuntimeError;
-  }
-  return ExitCode.Ok;
 }
 
 /** `--channel` 可重复：先从 argv 里取出来，其余交给 parseSubArgs。 */
