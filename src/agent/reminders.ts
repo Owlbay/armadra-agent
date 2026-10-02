@@ -24,7 +24,7 @@
 
 import { execFileSync } from "node:child_process";
 import { statSync } from "node:fs";
-import { isAbsolute, resolve } from "node:path";
+import { resolve } from "node:path";
 import { estimateProjectedTokens } from "../compaction/estimate.js";
 import type { RemindersConfig } from "../config/types-w5.js";
 import { buildProjection } from "../session/projection.js";
@@ -173,10 +173,7 @@ class Reminders {
         if (event.parentToolCallId !== undefined || !FILE_TOOLS.has(event.toolName)) return;
         const path = argPath(event.args);
         if (path !== undefined)
-          this.pendingPaths.set(
-            event.toolCallId,
-            isAbsolute(path) ? path : resolve(this.core.cwd, path),
-          );
+          this.pendingPaths.set(event.toolCallId, resolve(this.core.cwd, path));
         return;
       }
       case "tool_execution_end": {

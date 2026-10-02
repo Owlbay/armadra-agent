@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { makeTmpDir } from "../../test/helpers/tool-context.js";
 import { jobsForSession } from "../tools/background-jobs.js";
@@ -111,20 +111,23 @@ describe("提醒通道（W5-H2 H3）", () => {
   });
 
   it("外部文件改动：新提示前以 custom_message 列出并附 diff --stat；本 Agent 的 edit / bash 改动不算", async () => {
+    // 路径按 cwd 解析（Windows 上 /work → C:\\work）
+    const A = resolve("/work", "a.ts");
+    const B = resolve("/work", "b.ts");
     const stats = new Map<string, { mtimeMs: number; size: number }>([
-      ["/work/a.ts", { mtimeMs: 1, size: 10 }],
-      ["/work/b.ts", { mtimeMs: 1, size: 10 }],
+      [A, { mtimeMs: 1, size: 10 }],
+      [B, { mtimeMs: 1, size: 10 }],
     ]);
     const editB = stubTool({
       name: "edit",
       properties: { path: { type: "string" } },
       permission: "write",
-      run: async () => (stats.set("/work/b.ts", { mtimeMs: 2, size: 11 }), { content: "ok" }),
+      run: async () => (stats.set(B, { mtimeMs: 2, size: 11 }), { content: "ok" }),
     });
     const bashA = stubTool({
       name: "bash",
       properties: { command: { type: "string" } },
-      run: async () => (stats.set("/work/a.ts", { mtimeMs: 5, size: 20 }), { content: "ok" }),
+      run: async () => (stats.set(A, { mtimeMs: 5, size: 20 }), { content: "ok" }),
     });
     const h = createHarness({
       script: [
@@ -153,18 +156,18 @@ describe("提醒通道（W5-H2 H3）", () => {
     const contents = () =>
       reminderEntries(h).map((e) => String(e.type === "custom_message" ? e.content : ""));
     await h.session.prompt("one");
-    stats.set("/work/a.ts", { mtimeMs: 2, size: 12 }); // 用户在编辑器里改
+    stats.set(A, { mtimeMs: 2, size: 12 }); // 用户在编辑器里改
     await h.session.prompt("two");
     expect(contents()).toHaveLength(1);
-    expect(contents()[0]).toContain("- /work/a.ts");
+    expect(contents()[0]).toContain(`- ${A}`);
     expect(contents()[0]).not.toContain("b.ts");
-    expect(contents()[0]).toContain("git diff --stat:\n /work/a.ts | 2 +-");
+    expect(contents()[0]).toContain(`git diff --stat:\n ${A} | 2 +-`);
     await h.session.prompt("three"); // edit 改 b、bash 改 a：都是本 Agent 做的
     expect(contents()).toHaveLength(1);
-    stats.delete("/work/b.ts");
+    stats.delete(B);
     await h.session.prompt("four");
     expect(contents()).toHaveLength(2);
-    expect(contents()[1]).toContain("- /work/b.ts (deleted)");
+    expect(contents()[1]).toContain(`- ${B} (deleted)`);
     expect(h.session.messages.filter((m) => m.role === "custom")).toHaveLength(2);
   });
 
