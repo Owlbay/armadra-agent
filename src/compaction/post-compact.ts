@@ -6,6 +6,7 @@
  * - 当前计划（最近一条未被拒绝 / 取代的 `ama.plan`：编号、状态、文件路径与步骤标题）；
  * - 已加载的 Skill（用 `read` 读过的索引路径，或 `skill` 工具的调用）；
  * - 最近修改 / 读取的文件路径（按最近使用排序，各至多 20 个）；
+ * - [W6-M] 本会话读写过的记忆路径（`memory` 工具的 `/memories/…` 逻辑路径，只给路径不给正文）；
  * - 完整转录与 `outputs/` 路径（模型需要细节时自己 `read`）；
  * - 续接说明。
  *
@@ -102,6 +103,7 @@ interface FileActivity {
   read: string[];
   modified: string[];
   skills: string[];
+  memory: string[];
 }
 
 /** 按最近使用排序（最近的在前）的文件与 Skill。 */
@@ -110,6 +112,7 @@ function fileActivity(input: PostCompactInput): FileActivity {
   const read = new Map<string, number>();
   const modified = new Map<string, number>();
   const skills = new Map<string, number>();
+  const memory = new Map<string, number>();
   let order = 0;
   for (const entry of input.branch) {
     if (entry.type !== "message" || entry.message.role !== "assistant") continue;
@@ -123,6 +126,10 @@ function fileActivity(input: PostCompactInput): FileActivity {
       }
       const path = block.arguments["path"];
       if (typeof path !== "string" || path === "") continue;
+      if (block.name === "memory") {
+        if (path.startsWith("/memories/")) memory.set(clip(path), order);
+        continue;
+      }
       const abs = resolve(input.cwd, path);
       if (WRITE_TOOLS.has(block.name)) modified.set(path, order);
       else if (READ_TOOLS.has(block.name)) {
@@ -134,7 +141,12 @@ function fileActivity(input: PostCompactInput): FileActivity {
   for (const path of modified.keys()) read.delete(path);
   const recent = (map: Map<string, number>): string[] =>
     [...map.entries()].sort((a, b) => b[1] - a[1]).map(([key]) => key);
-  return { read: recent(read), modified: recent(modified), skills: recent(skills) };
+  return {
+    read: recent(read),
+    modified: recent(modified),
+    skills: recent(skills),
+    memory: recent(memory),
+  };
 }
 
 function capped(paths: readonly string[]): string {
@@ -171,6 +183,8 @@ export function buildPostCompactContent(input: PostCompactInput): string {
     parts.push(`<recently-modified-files>\n${capped(files.modified)}\n</recently-modified-files>`);
   if (files.read.length > 0)
     parts.push(`<recently-read-files>\n${capped(files.read)}\n</recently-read-files>`);
+  if (files.memory.length > 0)
+    parts.push(`<memory-files>\n${capped(files.memory)}\n</memory-files>`);
   if (input.transcriptPath !== undefined)
     parts.push(
       `<transcript>${input.transcriptPath}</transcript> (full history before compaction, JSONL; read it only if the summary lacks a detail you need)`,
