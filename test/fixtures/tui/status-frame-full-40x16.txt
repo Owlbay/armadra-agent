@@ -1,19 +1,11 @@
-# startup normal · viewport 40x24 cursor=8,2
-|✻ ama <version>
-|fake/echo · medium
-|~/work · 已信任
-|Manual · default
-|AGENTS.md
-|/help · Shift+Tab 切模式
+# status full · viewport 40x16 cursor=3,2
+|✻ ama <version> · fake/echo · Manual · /help
 |
 |────────────────────────────────────────
 |› 输入消息，/ 命令，@ 文件，Shift+Enter…
 |────────────────────────────────────────
-|Manual         echo · ctx 0% · work · 0s
-|
-|
-|
-|
+|tps: —                               [-]
+|Manual              echo | Ctx 0.0% | 0s
 |
 |
 |

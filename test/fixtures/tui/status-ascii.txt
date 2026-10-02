@@ -1,0 +1,10 @@
+# full 80
+|tps: 99 tok/s (avg 100 · ttft 1.4s)               ^12k v1.2k · cache 83% ~ · [-]|
+|Manual             claude-opus-5-5 | Ctx 3.0% | git main 5ae9e54 | $0.26 | 2h24m|
+# full 140
+|tps: 99 tok/s * 546 tok / 5.5s (avg 100 · ttft 1.4s)                                                          ^12k v1.2k · cache 83% ~ · [-]|
+|Manual | shift+tab 切换                    anthropic/claude-opus-5-5 medium | Ctx 3.0% | vitaweave git main 5ae9e54 (+12,-3) | $0.26 | 2h24m|
+# compact 80
+|Manual      claude-opus-5-5 · ctx 3% · vitaweave git main 5ae9e54 +12 -3 · 2h24m|
+# compact 140
+|Manual         anthropic/claude-opus-5-5 · medium · ^12k v1.2k · cache 83% ~ · ctx .......... 3% · vitaweave git main 5ae9e54 +12 -3 · 2h24m|

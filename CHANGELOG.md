@@ -2,6 +2,13 @@
 
 ## 未发布
 
+- **底部信息行**（第五波 W5-A，docs/tui.md「状态栏」）：独立终端缺省两行——上方速率行 `tps: 100 tok/s • 546 tok / 5.5s (avg 100 · ttft 1.4s)`（流式中
+  为 2 s 窗口瞬时值），`↑ ↓`、缓存、重计费等用量项移到这一行，行尾 `[-]`；
+  下方状态栏为 `模式 | 模型 思考 | Ctx 3.0% | 目录 ⎇ 分支 短提交 (+a,-d) | $费用 | 会话时长`（git 直接读 `.git/HEAD`，增删行在回合
+  边界后台跑 `git diff --numstat`，≥ 10 s 一次、2 s 超时即停用，`AMA_STATUS_GIT=0` 关闭）。有 profile 的嵌入宿主缺省
+  一行（`ui.statusLine: "compact"`，即原状态栏加 git 与时长，最后一行、模式最左、`·` 分隔不变）；`Ctrl+G` 或
+  `/statusline [full|compact]` 本会话内切换。费用计入外部 Agent 的美元用量。RPC 新增 `telemetry_tick` 事件（流式中
+  ≤ 2 Hz）与 `get_session_stats` 的 `telemetry`。图片因请求上限被省略时提示一次，「compaction did not shrink」显示中文说明。
 - **内置渠道与缺省协议**（docs/providers.md「内置供应商」）：多协议的内置供应商带内置渠道，`provider/model@channel`
   直接可选；缺省协议 Messages / Responses 优先、Chat 回落——**OpenAI、xAI 全部模型改走 Responses**（`@chat` 换回
   Chat），**通义改走 Messages**（`/apps/anthropic`，执行 `cache_control`）；DeepSeek、智谱、Kimi 维持 Chat，另有
