@@ -157,6 +157,7 @@ export async function bootstrap(
               trusted: trust.trusted,
               extraSkillDirs: [...args.skillDirs, ...(config.skills?.dirs ?? [])],
               promptDirs: profile?.promptDirs ?? [],
+              dataDir: paths.dataDir,
             }) ?? { skills: [], prompts: [], warnings: [] },
         );
   warnings.push(...discovered.warnings);

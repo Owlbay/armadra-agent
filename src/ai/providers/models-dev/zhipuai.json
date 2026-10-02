@@ -1,0 +1,412 @@
+{
+  "api": "https://open.bigmodel.cn/api/paas/v4",
+  "id": "zhipuai",
+  "models": {
+    "glm-4.5": {
+      "cost": {
+        "cache_read": 0.11,
+        "cache_write": 0,
+        "input": 0.6,
+        "output": 2.2
+      },
+      "family": "glm",
+      "knowledge": "2025-04",
+      "limit": {
+        "context": 131072,
+        "output": 98304
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "GLM-4.5",
+      "reasoning": true,
+      "release_date": "2025-07-28"
+    },
+    "glm-4.5-air": {
+      "cost": {
+        "cache_read": 0.03,
+        "cache_write": 0,
+        "input": 0.2,
+        "output": 1.1
+      },
+      "family": "glm-air",
+      "knowledge": "2025-04",
+      "limit": {
+        "context": 131072,
+        "output": 98304
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "GLM-4.5-Air",
+      "reasoning": true,
+      "release_date": "2025-07-28"
+    },
+    "glm-4.5-flash": {
+      "cost": {
+        "cache_read": 0,
+        "cache_write": 0,
+        "input": 0,
+        "output": 0
+      },
+      "family": "glm-flash",
+      "knowledge": "2025-04",
+      "limit": {
+        "context": 131072,
+        "output": 98304
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "GLM-4.5-Flash",
+      "reasoning": true,
+      "release_date": "2025-07-28"
+    },
+    "glm-4.5v": {
+      "cost": {
+        "input": 0.6,
+        "output": 1.8
+      },
+      "family": "glm",
+      "knowledge": "2025-04",
+      "limit": {
+        "context": 64000,
+        "output": 16384
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ]
+      },
+      "name": "GLM-4.5V",
+      "reasoning": true,
+      "release_date": "2025-08-11"
+    },
+    "glm-4.6": {
+      "cost": {
+        "cache_read": 0.11,
+        "cache_write": 0,
+        "input": 0.6,
+        "output": 2.2
+      },
+      "family": "glm",
+      "knowledge": "2025-04",
+      "limit": {
+        "context": 204800,
+        "output": 131072
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "GLM-4.6",
+      "reasoning": true,
+      "release_date": "2025-09-30"
+    },
+    "glm-4.6v": {
+      "cost": {
+        "input": 0.3,
+        "output": 0.9
+      },
+      "family": "glm",
+      "knowledge": "2025-04",
+      "limit": {
+        "context": 128000,
+        "output": 32768
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ]
+      },
+      "name": "GLM-4.6V",
+      "reasoning": true,
+      "release_date": "2025-12-08"
+    },
+    "glm-4.6v-flash": {
+      "canonical_model_id": "zhipuai/glm-4.6v-flash",
+      "cost": {
+        "cache_read": 0,
+        "cache_write": 0,
+        "input": 0,
+        "output": 0
+      },
+      "family": "glm-flash",
+      "limit": {
+        "context": 128000,
+        "output": 32768
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ]
+      },
+      "name": "GLM-4.6V-Flash",
+      "reasoning": true,
+      "release_date": "2025-12-08"
+    },
+    "glm-4.7": {
+      "cost": {
+        "cache_read": 0.11,
+        "cache_write": 0,
+        "input": 0.6,
+        "output": 2.2
+      },
+      "family": "glm",
+      "interleaved": {
+        "field": "reasoning_content"
+      },
+      "knowledge": "2025-04",
+      "limit": {
+        "context": 204800,
+        "output": 131072
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "GLM-4.7",
+      "reasoning": true,
+      "release_date": "2025-12-22"
+    },
+    "glm-4.7-flash": {
+      "cost": {
+        "cache_read": 0,
+        "cache_write": 0,
+        "input": 0,
+        "output": 0
+      },
+      "family": "glm-flash",
+      "knowledge": "2025-04",
+      "limit": {
+        "context": 200000,
+        "output": 131072
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "GLM-4.7-Flash",
+      "reasoning": true,
+      "release_date": "2026-01-19"
+    },
+    "glm-4.7-flashx": {
+      "cost": {
+        "cache_read": 0.01,
+        "cache_write": 0,
+        "input": 0.07,
+        "output": 0.4
+      },
+      "family": "glm-flash",
+      "knowledge": "2025-04",
+      "limit": {
+        "context": 200000,
+        "output": 131072
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "GLM-4.7-FlashX",
+      "reasoning": true,
+      "release_date": "2026-01-19"
+    },
+    "glm-5": {
+      "cost": {
+        "cache_read": 0.2,
+        "cache_write": 0,
+        "input": 1,
+        "output": 3.2
+      },
+      "family": "glm",
+      "interleaved": {
+        "field": "reasoning_content"
+      },
+      "limit": {
+        "context": 204800,
+        "output": 131072
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "GLM-5",
+      "reasoning": true,
+      "release_date": "2026-02-11"
+    },
+    "glm-5.1": {
+      "cost": {
+        "cache_read": 0.26,
+        "cache_write": 0,
+        "input": 1.4,
+        "output": 4.4
+      },
+      "family": "glm",
+      "interleaved": {
+        "field": "reasoning_content"
+      },
+      "limit": {
+        "context": 200000,
+        "output": 131072
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "GLM-5.1",
+      "reasoning": true,
+      "release_date": "2026-03-27"
+    },
+    "glm-5.2": {
+      "cost": {
+        "cache_read": 0.26,
+        "cache_write": 0,
+        "input": 1.4,
+        "output": 4.4
+      },
+      "family": "glm",
+      "interleaved": {
+        "field": "reasoning_content"
+      },
+      "limit": {
+        "context": 1000000,
+        "output": 131072
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "GLM-5.2",
+      "reasoning": true,
+      "release_date": "2026-06-13"
+    },
+    "glm-5.3": {
+      "canonical_model_id": "zhipuai/glm-5.3",
+      "cost": {
+        "cache_read": 0.26,
+        "cache_write": 0,
+        "input": 1.4,
+        "output": 4.4
+      },
+      "family": "glm",
+      "interleaved": {
+        "field": "reasoning_content"
+      },
+      "limit": {
+        "context": 1000000,
+        "output": 131072
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "GLM-5.3",
+      "reasoning": true,
+      "release_date": "2026-08-14"
+    },
+    "glm-5.3-flash": {
+      "canonical_model_id": "zhipuai/glm-5.3-flash",
+      "cost": {
+        "cache_read": 0.03,
+        "cache_write": 0,
+        "input": 0.15,
+        "output": 0.5
+      },
+      "family": "glm-flash",
+      "interleaved": {
+        "field": "reasoning_content"
+      },
+      "limit": {
+        "context": 1000000,
+        "output": 131072
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ]
+      },
+      "name": "GLM-5.3-Flash",
+      "reasoning": true,
+      "release_date": "2026-08-26"
+    },
+    "glm-5.3-flashx": {
+      "canonical_model_id": "zhipuai/glm-5.3-flash",
+      "cost": {
+        "cache_read": 0.075,
+        "cache_write": 0,
+        "input": 0.37,
+        "output": 1.25
+      },
+      "family": "glm-flash",
+      "interleaved": {
+        "field": "reasoning_content"
+      },
+      "limit": {
+        "context": 1000000,
+        "output": 131072
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ]
+      },
+      "name": "GLM-5.3-FlashX",
+      "reasoning": true,
+      "release_date": "2026-09-18"
+    },
+    "glm-5v-turbo": {
+      "cost": {
+        "cache_read": 1.2,
+        "cache_write": 0,
+        "input": 5,
+        "output": 22
+      },
+      "family": "glm",
+      "interleaved": {
+        "field": "reasoning_content"
+      },
+      "limit": {
+        "context": 200000,
+        "output": 131072
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ]
+      },
+      "name": "GLM-5V-Turbo",
+      "reasoning": true,
+      "release_date": "2026-04-01"
+    }
+  },
+  "name": "Zhipu AI"
+}

@@ -19,6 +19,7 @@ import { mergeProjectAndCli } from "../../config/merge.js";
 import { CONFIG_FILE, HOOKS_FILE, projectFile, userFile } from "../../config/paths.js";
 import { findTrustEntry, readTrustFile, trustGatedResources } from "../../config/trust.js";
 import { loadHookConfigs } from "../../hooks/config.js";
+import { osSandboxStatus } from "../../sandbox/detect.js";
 import { AMA_VERSION } from "../../version.js";
 import { parseSubArgs } from "../args.js";
 import type { CliIo, RuntimeDeps } from "../deps.js";
@@ -273,6 +274,10 @@ export async function runDoctor(
     const codemode = describeCodemode(merged.config);
     report.item(`codemode：${codemode.mode}（${codemode.reason}）`);
     if (codemode.unavailable !== undefined) report.item(`  ${codemode.unavailable}`);
+    const os = osSandboxStatus(merged.config.sandbox?.enabled ?? "auto");
+    report.item(
+      `操作系统沙箱：${os.kind === "none" ? "无" : os.kind}（${os.detail}${os.kind !== "none" && !os.restrictsWrites ? "；只隔离网络" : ""}）`,
+    );
   } catch {
     // probeLine 已报告
   }

@@ -1,0 +1,848 @@
+{
+ "anthropic": {
+  "id": "anthropic",
+  "env": [
+   "ANTHROPIC_API_KEY"
+  ],
+  "npm": "@ai-sdk/anthropic",
+  "name": "Anthropic",
+  "doc": "https://docs.anthropic.com/en/docs/about-claude/models",
+  "models": {
+   "claude-opus-5-5": {
+    "id": "claude-opus-5-5",
+    "name": "Claude Opus 5.5",
+    "description": "Claude model for long-running agentic coding and knowledge work",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "reasoning_options": [
+     {
+      "type": "effort",
+      "values": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ]
+     }
+    ],
+    "tool_call": true,
+    "structured_output": true,
+    "temperature": false,
+    "knowledge": "2026-06",
+    "release_date": "2026-09-22",
+    "last_updated": "2026-09-22",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "pdf"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 1000000,
+     "output": 128000
+    },
+    "experimental": {
+     "modes": {
+      "fast": {
+       "cost": {
+        "input": 8,
+        "output": 40,
+        "cache_read": 0.4,
+        "cache_write": 10
+       },
+       "provider": {
+        "body": {
+         "speed": "fast"
+        },
+        "headers": {
+         "anthropic-beta": "fast-mode-2026-02-01"
+        }
+       }
+      }
+     }
+    },
+    "cost": {
+     "input": 4,
+     "output": 20,
+     "cache_read": 0.2,
+     "cache_write": 5
+    },
+    "canonical_model_id": "anthropic/claude-opus-5-5"
+   },
+   "claude-haiku-4-5": {
+    "id": "claude-haiku-4-5",
+    "name": "Claude Haiku 4.5 (latest)",
+    "description": "Fast Claude lane for lightweight agents, office tasks, and responsive chat",
+    "family": "claude-haiku",
+    "attachment": true,
+    "reasoning": true,
+    "reasoning_options": [
+     {
+      "type": "budget_tokens",
+      "min": 1024
+     }
+    ],
+    "tool_call": true,
+    "structured_output": true,
+    "temperature": true,
+    "knowledge": "2025-02-28",
+    "release_date": "2025-10-15",
+    "last_updated": "2025-10-15",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "pdf"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 200000,
+     "output": 64000
+    },
+    "cost": {
+     "input": 1,
+     "output": 5,
+     "cache_read": 0.1,
+     "cache_write": 1.25
+    },
+    "canonical_model_id": "anthropic/claude-haiku-4-5"
+   },
+   "claude-old": {
+    "id": "claude-old",
+    "name": "Claude Old",
+    "description": "Fast Claude lane for lightweight agents, office tasks, and responsive chat",
+    "family": "claude-haiku",
+    "attachment": true,
+    "reasoning": true,
+    "reasoning_options": [
+     {
+      "type": "budget_tokens",
+      "min": 1024
+     }
+    ],
+    "tool_call": true,
+    "structured_output": true,
+    "temperature": true,
+    "knowledge": "2025-02-28",
+    "release_date": "2025-10-15",
+    "last_updated": "2025-10-15",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "pdf"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 200000,
+     "output": 64000
+    },
+    "cost": {
+     "input": 1,
+     "output": 5,
+     "cache_read": 0.1,
+     "cache_write": 1.25
+    },
+    "canonical_model_id": "anthropic/claude-haiku-4-5",
+    "status": "deprecated"
+   }
+  }
+ },
+ "openai": {
+  "id": "openai",
+  "env": [
+   "OPENAI_API_KEY"
+  ],
+  "npm": "@ai-sdk/openai",
+  "name": "OpenAI",
+  "doc": "https://platform.openai.com/docs/models",
+  "models": {
+   "gpt-6.1-sol": {
+    "id": "gpt-6.1-sol",
+    "name": "GPT-6.1 Sol",
+    "description": "Near-Astra performance for complex coding, computer use, and professional work at a lower cost.",
+    "family": "gpt-sol",
+    "attachment": true,
+    "reasoning": true,
+    "reasoning_options": [
+     {
+      "type": "effort",
+      "values": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ]
+     }
+    ],
+    "tool_call": true,
+    "structured_output": true,
+    "temperature": false,
+    "knowledge": "2026-04-30",
+    "release_date": "2026-09-29",
+    "last_updated": "2026-09-29",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "pdf"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 1050000,
+     "input": 922000,
+     "output": 128000
+    },
+    "experimental": {
+     "modes": {
+      "fast": {
+       "cost": {
+        "input": 4,
+        "output": 20,
+        "cache_read": 0.2,
+        "cache_write": 5
+       },
+       "provider": {
+        "body": {
+         "service_tier": "priority"
+        }
+       }
+      },
+      "pro": {
+       "provider": {
+        "body": {
+         "reasoning": {
+          "mode": "pro"
+         }
+        }
+       }
+      }
+     }
+    },
+    "cost": {
+     "input": 2,
+     "output": 10,
+     "cache_read": 0.1,
+     "cache_write": 2.5,
+     "tiers": [
+      {
+       "input": 4,
+       "output": 15,
+       "cache_read": 0.2,
+       "cache_write": 5,
+       "tier": {
+        "type": "context",
+        "size": 272000
+       }
+      }
+     ],
+     "context_over_200k": {
+      "input": 4,
+      "output": 15,
+      "cache_read": 0.2,
+      "cache_write": 5
+     }
+    },
+    "canonical_model_id": "openai/gpt-6.1-sol"
+   },
+   "gpt-5.4-mini": {
+    "id": "gpt-5.4-mini",
+    "name": "GPT-5.4 mini",
+    "description": "Strong small GPT for coding subagents, quick tool use, and high-volume work",
+    "family": "gpt-mini",
+    "attachment": true,
+    "reasoning": true,
+    "reasoning_options": [
+     {
+      "type": "effort",
+      "values": [
+       "none",
+       "low",
+       "medium",
+       "high",
+       "xhigh"
+      ]
+     }
+    ],
+    "tool_call": true,
+    "structured_output": true,
+    "temperature": true,
+    "knowledge": "2025-08-31",
+    "release_date": "2026-03-17",
+    "last_updated": "2026-03-17",
+    "modalities": {
+     "input": [
+      "text",
+      "image"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 400000,
+     "input": 272000,
+     "output": 128000
+    },
+    "experimental": {
+     "modes": {
+      "fast": {
+       "cost": {
+        "input": 1.5,
+        "output": 9,
+        "cache_read": 0.15
+       },
+       "provider": {
+        "body": {
+         "service_tier": "priority"
+        }
+       }
+      },
+      "flex": {
+       "cost": {
+        "input": 0.375,
+        "output": 2.25,
+        "cache_read": 0.0375
+       },
+       "provider": {
+        "body": {
+         "service_tier": "flex"
+        }
+       }
+      }
+     }
+    },
+    "cost": {
+     "input": 0.75,
+     "output": 4.5,
+     "cache_read": 0.075
+    }
+   },
+   "img-only": {
+    "id": "img-only",
+    "name": "Image",
+    "tool_call": true,
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "image"
+     ]
+    },
+    "limit": {
+     "context": 1000,
+     "output": 10
+    }
+   },
+   "no-tools": {
+    "id": "no-tools",
+    "name": "No tools",
+    "tool_call": false,
+    "limit": {
+     "context": 1000,
+     "output": 10
+    }
+   },
+   "zero-ctx": {
+    "id": "zero-ctx",
+    "name": "Zero",
+    "tool_call": true,
+    "limit": {
+     "context": 0,
+     "output": 10
+    }
+   },
+   "beta-one": {
+    "id": "beta-one",
+    "name": "Beta One",
+    "tool_call": true,
+    "status": "beta",
+    "reasoning": true,
+    "interleaved": {
+     "field": "reasoning_content"
+    },
+    "limit": {
+     "context": 200000,
+     "input": 150000,
+     "output": 32000
+    },
+    "cost": {
+     "input": 1,
+     "output": 2,
+     "context_over_200k": {
+      "input": 2,
+      "output": 4
+     }
+    }
+   }
+  }
+ },
+ "google": {
+  "id": "google",
+  "env": [
+   "GOOGLE_API_KEY",
+   "GOOGLE_GENERATIVE_AI_API_KEY",
+   "GEMINI_API_KEY"
+  ],
+  "npm": "@ai-sdk/google",
+  "name": "Google",
+  "doc": "https://ai.google.dev/gemini-api/docs/models",
+  "models": {
+   "gemini-3.1-pro-preview": {
+    "id": "gemini-3.1-pro-preview",
+    "name": "Gemini 3.1 Pro Preview",
+    "description": "Reasoning-first Gemini preview for agentic coding and complex problem solving",
+    "family": "gemini-pro",
+    "attachment": true,
+    "reasoning": true,
+    "reasoning_options": [
+     {
+      "type": "effort",
+      "values": [
+       "low",
+       "medium",
+       "high"
+      ]
+     }
+    ],
+    "tool_call": true,
+    "structured_output": true,
+    "temperature": true,
+    "knowledge": "2025-01",
+    "release_date": "2026-02-19",
+    "last_updated": "2026-02-19",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "video",
+      "audio",
+      "pdf"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 1048576,
+     "output": 65536
+    },
+    "cost": {
+     "input": 2,
+     "output": 12,
+     "cache_read": 0.2,
+     "tiers": [
+      {
+       "input": 4,
+       "output": 18,
+       "cache_read": 0.4,
+       "tier": {
+        "type": "context",
+        "size": 200000
+       }
+      }
+     ],
+     "context_over_200k": {
+      "input": 4,
+      "output": 18,
+      "cache_read": 0.4
+     }
+    }
+   }
+  }
+ },
+ "openrouter": {
+  "id": "openrouter",
+  "env": [
+   "OPENROUTER_API_KEY"
+  ],
+  "npm": "@openrouter/ai-sdk-provider",
+  "api": "https://openrouter.ai/api/v1",
+  "name": "OpenRouter",
+  "doc": "https://openrouter.ai/models",
+  "models": {
+   "anthropic/claude-opus-5.5": {
+    "id": "anthropic/claude-opus-5.5",
+    "name": "Claude Opus 5.5",
+    "description": "Flagship Claude model for deep reasoning, coding, and long-horizon agents",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "reasoning_options": [
+     {
+      "type": "effort",
+      "values": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ]
+     }
+    ],
+    "tool_call": true,
+    "structured_output": true,
+    "temperature": true,
+    "knowledge": "2026-06",
+    "release_date": "2026-09-22",
+    "last_updated": "2026-09-22",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "pdf"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 1000000,
+     "output": 128000
+    },
+    "cost": {
+     "input": 4,
+     "output": 20,
+     "cache_read": 0.2,
+     "cache_write": 5
+    },
+    "canonical_model_id": "anthropic/claude-opus-5-5"
+   },
+   "openai/gpt-5.5": {
+    "id": "openai/gpt-5.5",
+    "name": "GPT-5.5",
+    "description": "Default frontier GPT for coding, computer use, research, and knowledge work",
+    "family": "gpt",
+    "attachment": true,
+    "reasoning": true,
+    "reasoning_options": [
+     {
+      "type": "effort",
+      "values": [
+       "none",
+       "low",
+       "medium",
+       "high",
+       "xhigh"
+      ]
+     }
+    ],
+    "tool_call": true,
+    "structured_output": true,
+    "temperature": false,
+    "knowledge": "2025-12-01",
+    "release_date": "2026-04-23",
+    "last_updated": "2026-04-23",
+    "modalities": {
+     "input": [
+      "text",
+      "image",
+      "pdf"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": false,
+    "limit": {
+     "context": 1050000,
+     "input": 922000,
+     "output": 128000
+    },
+    "cost": {
+     "input": 5,
+     "output": 30,
+     "cache_read": 0.5,
+     "tiers": [
+      {
+       "input": 10,
+       "output": 45,
+       "cache_read": 1,
+       "tier": {
+        "type": "context",
+        "size": 272000
+       }
+      }
+     ],
+     "context_over_200k": {
+      "input": 10,
+      "output": 45,
+      "cache_read": 1
+     }
+    },
+    "canonical_model_id": "openai/gpt-5.5"
+   },
+   "sao10k/l3-lunaris-8b": {
+    "id": "sao10k/l3-lunaris-8b",
+    "name": "Llama 3 8B Lunaris",
+    "description": "Open Llama instruction model for multilingual chat, reasoning, and coding",
+    "family": "llama",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": false,
+    "structured_output": true,
+    "temperature": true,
+    "knowledge": "2023-12-31",
+    "release_date": "2024-08-13",
+    "last_updated": "2024-08-13",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 8192,
+     "output": 7372
+    },
+    "cost": {
+     "input": 0.04,
+     "output": 0.05
+    }
+   }
+  }
+ },
+ "noise-provider": {
+  "id": "deepseek",
+  "env": [
+   "DEEPSEEK_API_KEY"
+  ],
+  "npm": "@ai-sdk/openai-compatible",
+  "api": "https://api.deepseek.com",
+  "name": "DeepSeek",
+  "doc": "https://api-docs.deepseek.com/quick_start/pricing",
+  "models": {
+   "deepseek-v4-flash-vision-exp": {
+    "id": "deepseek-v4-flash-vision-exp",
+    "name": "DeepSeek V4 Flash Vision Exp",
+    "description": "DeepSeek V4.1 Flash model for reasoning and agentic coding",
+    "family": "deepseek-flash",
+    "attachment": true,
+    "reasoning": true,
+    "reasoning_options": [
+     {
+      "type": "toggle"
+     },
+     {
+      "type": "effort",
+      "values": [
+       "low",
+       "high",
+       "max"
+      ]
+     }
+    ],
+    "tool_call": true,
+    "interleaved": {
+     "field": "reasoning_content"
+    },
+    "structured_output": true,
+    "temperature": true,
+    "knowledge": "2025-05",
+    "release_date": "2026-09-10",
+    "last_updated": "2026-09-10",
+    "modalities": {
+     "input": [
+      "text",
+      "image"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 1000000,
+     "output": 393216
+    },
+    "status": "deprecated",
+    "cost": {
+     "input": 0.15,
+     "output": 0.6,
+     "reasoning": 0.6,
+     "cache_read": 0.003
+    },
+    "canonical_model_id": "deepseek/deepseek-v4.1-flash"
+   },
+   "deepseek-flash": {
+    "id": "deepseek-flash",
+    "name": "DeepSeek V4.1 Flash",
+    "description": "DeepSeek V4.1 Flash model for reasoning and agentic coding",
+    "family": "deepseek-flash",
+    "attachment": true,
+    "reasoning": true,
+    "reasoning_options": [
+     {
+      "type": "toggle"
+     },
+     {
+      "type": "effort",
+      "values": [
+       "low",
+       "high",
+       "max"
+      ]
+     }
+    ],
+    "tool_call": true,
+    "interleaved": {
+     "field": "reasoning_content"
+    },
+    "structured_output": true,
+    "temperature": true,
+    "knowledge": "2025-05",
+    "release_date": "2026-09-10",
+    "last_updated": "2026-09-10",
+    "modalities": {
+     "input": [
+      "text",
+      "image"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 1000000,
+     "output": 393216
+    },
+    "cost": {
+     "input": 0.15,
+     "output": 0.6,
+     "reasoning": 0.6,
+     "cache_read": 0.003
+    },
+    "canonical_model_id": "deepseek/deepseek-v4.1-flash"
+   },
+   "deepseek-v4-pro": {
+    "id": "deepseek-v4-pro",
+    "name": "DeepSeek V4 Pro",
+    "description": "DeepSeek V4 Pro snapshot with million-token context and support for thinking and non-thinking modes",
+    "family": "deepseek-thinking",
+    "attachment": false,
+    "reasoning": true,
+    "reasoning_options": [
+     {
+      "type": "toggle"
+     },
+     {
+      "type": "effort",
+      "values": [
+       "low",
+       "high",
+       "max"
+      ]
+     }
+    ],
+    "tool_call": true,
+    "interleaved": {
+     "field": "reasoning_content"
+    },
+    "structured_output": true,
+    "temperature": true,
+    "release_date": "2026-08-12",
+    "last_updated": "2026-08-22",
+    "modalities": {
+     "input": [
+      "text"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 1000000,
+     "output": 393216
+    },
+    "cost": {
+     "input": 0.435,
+     "output": 0.87,
+     "reasoning": 0.87,
+     "cache_read": 0.003625
+    },
+    "canonical_model_id": "deepseek/deepseek-v4-pro-0813"
+   },
+   "deepseek-v4-flash": {
+    "id": "deepseek-v4-flash",
+    "name": "DeepSeek V4 Flash",
+    "description": "DeepSeek V4.1 Flash model for reasoning and agentic coding",
+    "family": "deepseek-flash",
+    "attachment": true,
+    "reasoning": true,
+    "reasoning_options": [
+     {
+      "type": "toggle"
+     },
+     {
+      "type": "effort",
+      "values": [
+       "low",
+       "high",
+       "max"
+      ]
+     }
+    ],
+    "tool_call": true,
+    "interleaved": {
+     "field": "reasoning_content"
+    },
+    "structured_output": true,
+    "temperature": true,
+    "knowledge": "2025-05",
+    "release_date": "2026-09-10",
+    "last_updated": "2026-09-10",
+    "modalities": {
+     "input": [
+      "text",
+      "image"
+     ],
+     "output": [
+      "text"
+     ]
+    },
+    "open_weights": true,
+    "limit": {
+     "context": 1000000,
+     "output": 393216
+    },
+    "status": "deprecated",
+    "cost": {
+     "input": 0.15,
+     "output": 0.6,
+     "reasoning": 0.6,
+     "cache_read": 0.003
+    },
+    "canonical_model_id": "deepseek/deepseek-v4.1-flash"
+   }
+  }
+ }
+}

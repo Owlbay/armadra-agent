@@ -263,6 +263,17 @@ export const DEFAULT_CHECKPOINTS_CONFIG: Readonly<Required<CheckpointsConfig>> =
   keep: 100,
 });
 
+export const SANDBOX_ENABLED_MODES: readonly ("auto" | "off")[] = ["auto", "off"];
+
+/**
+ * 操作系统级沙箱（docs/sandbox.md）。整段只认用户级 / profile（项目级忽略并 warning）；环境变量
+ * `AMA_SANDBOX=off` 覆盖 `enabled`。
+ */
+export interface SandboxConfig {
+  /** auto（缺省）：探测到可用的 sandbox-exec / bwrap / unshare 就用；off：不用。 */
+  enabled?: "auto" | "off";
+}
+
 /** config.json（用户级 / 项目级 / profile.config 同形状；项目级只接受受限字段，§10.2）。 */
 export interface AmaConfig extends AmaConfigW5 {
   version: typeof CONFIG_FILE_VERSION;
@@ -281,6 +292,7 @@ export interface AmaConfig extends AmaConfigW5 {
   cache?: CacheConfig;
   request?: RequestConfig;
   checkpoints?: CheckpointsConfig;
+  sandbox?: SandboxConfig;
 }
 
 /** auth.json（0600）。 */
