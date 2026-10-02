@@ -1,5 +1,5 @@
 /**
- * TUI 组件库演示（B4 手测用）：编辑器 + 假流式 Markdown 消息 + 选择列表 + 审批覆盖层。
+ * TUI 组件库演示（B4 手测用）：编辑器 + 假流式 Markdown 消息 + 选择列表 + 编号审批覆盖层 + 左竖条卡片。
  *
  * 运行（先构建库，再用 Node 的类型剥离直接跑本文件）：
  *   pnpm build:lib
@@ -8,14 +8,19 @@
  * 操作：
  *   输入文字 Enter 提交 → 假助手流式回复（Esc 中断）
  *   /model  打开模型选择列表（center 覆盖层，可输入过滤）
- *   /approve  打开审批对话框（bottom 覆盖层；y / n / a / v）
+ *   /approve  打开审批对话框（bottom 覆盖层，红框；1–3 / ↑↓ Enter / y / a / n）
+ *   /card   在消息区加一张左竖条卡片（Card + KeyValue + Meter）
  *   /quit 或空输入时 Ctrl+D 退出；Ctrl+C 清空输入，再按一次退出
- *   Shift+Enter / Ctrl+J 换行；粘贴超过 10 行会折叠为 [paste #N +M lines]
+ *   Shift+Enter / Ctrl+J 换行；粘贴超过 10 行会折叠为 [粘贴 #N · M 行]
+ *   AMA_ASCII=1 看 ASCII 字形；AMA_DEMO_THEME=light 看浅色主题
  */
 
 import {
   Box,
+  Card,
   Container,
+  KeyValue,
+  Meter,
   Editor,
   Loader,
   Markdown,
@@ -38,6 +43,7 @@ const tui = new TUI(new ProcessTerminal());
 const COMMANDS = [
   { value: "/model", label: "/model", description: "select a model" },
   { value: "/approve", label: "/approve", description: "show an approval dialog" },
+  { value: "/card", label: "/card", description: "add a card panel" },
   { value: "/clear", label: "/clear", description: "clear messages" },
   { value: "/quit", label: "/quit", description: "exit the demo" },
 ];
@@ -71,16 +77,19 @@ const REPLY = [
 ].join("\n");
 
 const header = new Text(
-  theme.bold("ama tui demo") + theme.fg("dim", "  ·  /model  /approve  /quit  ·  Esc 中断"),
+  theme.fg("accent", theme.glyphs.thinking) +
+    " " +
+    theme.bold("ama tui demo") +
+    theme.fg("dim", "  ·  /model  /approve  /card  /quit  ·  Esc 中断"),
 );
 const messages = new Container();
-const loader = new Loader(() => tui.requestRender(), { message: "Streaming", theme });
+const loader = new Loader(() => tui.requestRender(), { theme });
 const status = new TruncatedText("");
 const editor = new Editor({
   theme,
   autocomplete: completion,
   requestRender: () => tui.requestRender(),
-  placeholder: "Ask anything",
+  placeholder: "输入消息，/ 命令，Shift+Enter 换行",
   onSubmit: (text) => handleSubmit(text),
 });
 
@@ -91,7 +100,7 @@ let ctrlCArmed = false;
 let overlay: OverlayHandle | null = null;
 
 function updateStatus(): void {
-  const parts = [model, `mode:${mode}`, streamTimer ? "streaming" : "idle"];
+  const parts = [mode, model, streamTimer ? "streaming" : "idle"];
   status.setText(theme.fg("dim", parts.join(" · ")));
 }
 
@@ -102,7 +111,7 @@ tui.addChild(editor);
 tui.addChild(status);
 updateStatus();
 
-function addMessage(component: Text | Markdown): void {
+function addMessage(component: Text | Markdown | Card): void {
   messages.addChild(component);
   messages.addChild(new Spacer());
 }
@@ -121,12 +130,14 @@ function streamReply(): void {
   const md = new Markdown("", { theme });
   addMessage(md);
   tui.insertBefore(loader, editor);
+  loader.setVerb("思考中", ["Esc 中断"]);
   loader.start();
   let offset = 0;
   streamTimer = setInterval(() => {
     const step = 2 + Math.floor(Math.random() * 6);
     md.append(REPLY.slice(offset, offset + step));
     offset += step;
+    loader.setVerb("回复中", [`↓≈${Math.ceil(offset / 4)}`, "Esc 中断"]);
     if (offset >= REPLY.length) stopStream();
     tui.requestRender();
   }, 30);
@@ -160,43 +171,59 @@ function showModelPicker(): void {
   overlay = tui.showOverlay(new Box(list, { title: "Select model", theme }), { width: 44 });
 }
 
-class ApprovalDialog extends Container {
-  focused = false;
-  private expanded = false;
-  private readonly detail: Text;
-
-  constructor() {
-    super();
-    this.addChild(new Text(theme.fg("tool", "bash") + "  git push --force origin main"));
-    this.addChild(new Text(theme.fg("warning", "reason: dangerous")));
-    this.detail = new Text("");
-    this.addChild(this.detail);
-    this.addChild(new Spacer());
-    this.addChild(new Text("[y] allow  [n] deny  [a] allow similar  [v] view input"));
-  }
-
-  handleInput(data: string): void {
-    const decide = (decision: string): void => {
-      closeOverlay();
-      addMessage(new Text(theme.fg("dim", `approval: ${decision}`)));
-    };
-    if (data === "y") decide("allow");
-    else if (data === "n" || matchesKey(data, "escape")) decide("deny");
-    else if (data === "a") decide("allow similar (session)");
-    else if (data === "v") {
-      this.expanded = !this.expanded;
-      this.detail.setText(
-        this.expanded ? theme.fg("dim", '{ "command": "git push --force origin main" }') : "",
-      );
-    }
-  }
-}
-
 function showApproval(): void {
   editor.disableSubmit = true;
-  overlay = tui.showOverlay(new Box(new ApprovalDialog(), { title: "Approve tool call", theme }), {
+  const decide = (decision: string): void => {
+    closeOverlay();
+    addMessage(new Text(theme.fg("dim", `审批：${decision}`)));
+  };
+  const options = new SelectList(
+    [
+      { value: "允许", label: "1. 允许", badge: "y", badgeColor: "dim" },
+      { value: "本会话允许同类", label: "2. 本会话允许同类", badge: "a", badgeColor: "dim" },
+      { value: "拒绝", label: "3. 拒绝", badge: "n Esc", badgeColor: "dim" },
+    ],
+    {
+      theme,
+      footer: "↑↓ 选择 · Enter 确认",
+      onSelect: (item) => decide(item.value),
+      onCancel: () => decide("拒绝"),
+    },
+  );
+  options.setSelectedIndex(2);
+  const body = new Container();
+  body.addChild(
+    new Text(theme.bold(theme.fg("tool", "bash")) + "  " + theme.fg("error", "危险命令")),
+  );
+  body.addChild(new Text(theme.fg("code", "$ git push --force origin main")));
+  body.addChild(new Spacer());
+  body.addChild(options);
+  const dialog = Object.assign(body, {
+    focused: false,
+    handleInput(data: string): void {
+      const key = data.toLowerCase();
+      if (key === "y" || data === "1") decide("允许");
+      else if (key === "a" || data === "2") decide("本会话允许同类");
+      else if (key === "n" || data === "3" || matchesKey(data, "escape")) decide("拒绝");
+      else options.handleInput(data);
+    },
+  });
+  overlay = tui.showOverlay(new Box(dialog, { title: "危险命令", theme, borderColor: "error" }), {
     anchor: "bottom",
   });
+}
+
+function addCard(): void {
+  const meter = new Meter(0.34, { theme }).render(30)[0] ?? "";
+  const rows = new KeyValue(
+    [
+      { key: "模型", value: theme.fg("accent", model) + theme.fg("dim", " · ") + "思考 medium" },
+      { key: "用量", value: "输入 3.4k · 输出 9.4k · $0.42" },
+      { key: "上下文", value: `${meter} · 68k / 200k` },
+    ],
+    { theme },
+  );
+  addMessage(new Card(rows, { theme, title: "会话 3f2a9c1e", subtitle: "demo" }));
 }
 
 function closeOverlay(): void {
@@ -212,11 +239,12 @@ function handleSubmit(text: string): void {
   if (command === "/quit") return exit();
   if (command === "/model") return showModelPicker();
   if (command === "/approve") return showApproval();
+  if (command === "/card") return addCard();
   if (command === "/clear") {
     messages.clear();
     return;
   }
-  addMessage(new Text(theme.fg("user", "› ") + text));
+  addMessage(new Text(theme.fg("user", theme.bold(theme.glyphs.prompt)) + " " + text));
   if (streamTimer) stopStream("(interrupted by new message)");
   streamReply();
 }

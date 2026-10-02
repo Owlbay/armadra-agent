@@ -2,6 +2,20 @@
 
 ## 未发布
 
+- **终端界面重做**（视觉规格见 docs/tui-design.md）：带框启动头（模型 / 目录 / 模式 / 已加载资源，窄屏去框）；
+  工具调用改 `⏺ 工具名 摘要` + `⎿ 一行结果摘要` + 缩进正文三级层级，相邻调用不空行，运行中摘要行带 spinner 与秒数，
+  diff 带行号；思考块 `✻ 思考 · N token`，`Ctrl+O` 同时展开思考；运行中动词（思考中 / 回复中 · ↓≈N / 运行 bash /
+  等待确认 / 重试 / 压缩上下文）；输入框 `›` 提示符与占位；状态栏两区（左模式 + `shift+tab 切换`，右用量，
+  模型名按宽度缩写）；审批对话框编号选项（1–3 / ↑↓ Enter，危险命令缺省选中拒绝，边框随严重度着色）；
+  `/session` `/cache` `/permissions` 改为左竖条面板；退出时留一行会话摘要与 `ama --resume <id>`。
+  新配置 `ui.theme: "auto"`、`ui.ascii`（`AMA_ASCII=1`）、`ui.compact`、`ui.animation`。
+- **破坏性变更（`@armadra/agent/tui` 与界面文本）**：`SemanticColor` 增加 `muted` / `link` / `selection`，`Theme`
+  增加必填的 `glyphs`——自己实现 `Theme` 的宿主需补这 3 个颜色与字形表（可用 `UNICODE_GLYPHS`）；`Loader` 渲染从
+  `⠋ 消息 (12s)` 改为 `⠋ 动词 · 12s · 附加项`；粘贴折叠标记从 `[paste #N +M lines]` 改为 `[粘贴 #N · M 行]`；
+  状态栏不再有 `mode:` / `think:` / `preset:` 前缀（模式移到最左，`preset` 只在非 default 时出现），按 `mode:` 解析
+  状态栏的脚本需改为取最左一项；排队消息标签 `↳ steer` / `↳ followUp` / `↳ host` 改为 `↳ 插话` / `↳ 之后` / `↳ 宿主`
+  （会话文件里的 `origin` 不变）；`/permission` 选择器标题 `Mode` 改为「权限模式」。
+
 - **auto 权限模式**：`--permission-mode auto`（界面显示名 Auto）由 ama 判断每一步——规则层不调模型，危险命令、
   网络命令、删除类命令、机密文件与项目外写入一律询问；静态判定放行只读工具、项目内写入与安全名单里的命令
   （`ls`、`grep`、`git status/diff/log`、`npm test`、`tsc --noEmit`、`cargo test` 等，`permission.autoSafeCommands` 追加）；

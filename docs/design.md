@@ -901,10 +901,10 @@ export interface Component {
   invalidate(): void;                       // 主题 / 状态变化清缓存
 }
 export interface Focusable { focused: boolean }        // 获焦组件在光标处输出 CURSOR_MARKER（APC "\x1b_ama:c\x07"），TUI 据此摆硬件光标
-export interface Theme { fg(name: SemanticColor, s: string): string; bg(...): string; bold/dim/italic/underline(s): string; readonly caps: { colors: 0 | 16 | 256 | 16_777_216 } }
+export interface Theme { fg(name: SemanticColor, s: string): string; bg(...): string; bold/dim/italic/underline(s): string; readonly caps: { colors: 0 | 16 | 256 | 16_777_216 }; readonly glyphs: Glyphs }
 ```
 
-无布局引擎；`Container` 纵向拼接。内置组件：`Container, Text, TruncatedText, Markdown, Editor, SelectList, Box, Spacer, Loader, Overlay(center|bottom)`。
+无布局引擎；`Container` 纵向拼接。内置组件：`Container, Text, TruncatedText, Markdown, Editor, SelectList, Box, Card, Spacer, Loader, KeyValue, Meter, Overlay(center|bottom)`。视觉规格（配色、字形、逐屏样稿）见 [tui-design.md](tui-design.md)。
 
 ### §12.2 差分渲染（`tui/tui.ts`，主屏模式）
 
@@ -920,29 +920,33 @@ export interface Theme { fg(name: SemanticColor, s: string): string; bg(...): st
 
 - `StdinBuffer`：攒完整转义序列；括号粘贴 `ESC[200~ … ESC[201~` 跨 data 块累积为一次 `paste` 事件；孤立 ESC 判定超时 `AMA_TUI_ESC_TIMEOUT`（SSH / tmux 100 ms，本地 10 ms）。
 - `keys.ts`：解析 CSI / SS3、修饰键参数、Alt 前缀、`\r` / `\n`、Shift+Enter 的常见变体（`\x1b[13;2u`、`\x1b[27;2;13~`）、Ctrl 组合；**不查询 Kitty 协议**（tmux 下回包会污染输入）。
-- 键位（固定表 + `keybindings.json` 覆盖）：`Enter` 提交；`Shift+Enter` / `Ctrl+J` 换行；`Esc` 中断（clear_queue → abort，队列文本回填）；`Ctrl+C` 清输入，再按退出；`Ctrl+D` 空输入退出；`Alt+Enter` 以 followUp 提交；`Alt+Up` 取回队列末条；`Shift+Tab` 循环权限模式；`Ctrl+O` 展开 / 折叠工具输出；`Ctrl+L` 模型选择；`Ctrl+T` 思考级别；`Up/Down` 历史（单行时）/ 行移动；`Tab` 接受补全；`Ctrl+U/K/W` 行编辑。
+- 键位（固定表 + `keybindings.json` 覆盖）：`Enter` 提交；`Shift+Enter` / `Ctrl+J` 换行；`Esc` 中断（clear_queue → abort，队列文本回填）；`Ctrl+C` 清输入，再按退出；`Ctrl+D` 空输入退出；`Alt+Enter` 以 followUp 提交；`Alt+Up` 取回队列末条；`Shift+Tab` 循环权限模式；`Ctrl+O` 展开 / 折叠工具输出与思考块；`Ctrl+L` 模型选择；`Ctrl+T` 思考级别；`Up/Down` 历史（单行时）/ 行移动；`Tab` 接受补全；`Ctrl+U/K/W` 行编辑。
 
 ### §12.4 编辑器（`components/editor*.ts`）
 
-多行、单词导航、撤销栈（50 步）、历史（会话内 + `~/.local/share/ama/history`，500 条）；大粘贴 **> 10 行或 > 1 000 字符**折叠为 `[paste #N +M lines]` 不可分割段，提交时展开；补全：`/` 命令与模板与 `/skill:`，`@` 文件（`glob` 实现，相对 cwd，最多 50 项）；`disableSubmit` 用于审批对话框期间。括号粘贴期间不触发补全；粘贴结束后紧随的 `\r` 正常提交（Armadra 路径）。
+多行、单词导航、撤销栈（50 步）、历史（会话内 + `~/.local/share/ama/history`，500 条）；大粘贴 **> 10 行或 > 1 000 字符**折叠为 `[粘贴 #N · M 行]` 不可分割段，提交时展开；补全：`/` 命令与模板与 `/skill:`，`@` 文件（`glob` 实现，相对 cwd，最多 50 项）；`disableSubmit` 用于审批对话框期间。括号粘贴期间不触发补全；粘贴结束后紧随的 `\r` 正常提交（Armadra 路径）。
 
 ### §12.5 消息区（`message-view.ts`、`tool-view.ts`）
 
-- 助手文本：Markdown 渲染（标题、列表、代码块加边框与语言标签、引用、行内样式；表格降级等宽）；流式时只重渲染末块，按 (width, text) 缓存。
-- 思考块：缺省折叠一行 `thinking… (N tokens)`，`ui.showThinking: full|collapsed|hidden`。
-- 工具调用：一行标题 `● bash  git status` + 状态图标；折叠显示结果前 3 行与行数；`Ctrl+O` 展开当前 / 全部；`edit` 显示 diff（+/− 着色）；`bash` 流式显示尾部 8 行；错误红色。
-- 用户消息、steer（标 `↳ steer`）、宿主注入（标 `↳ host`）、压缩摘要卡、重试提示、Hook 阻止提示。
+三级层级用缩进表达（颜色只做第二通道）：第 0 列用户 `›`、工具 `⏺`、提示符号；第 2 列结果连接符 `⎿` 与续行；第 4 列工具输出正文。相邻工具调用之间不空行，回合之间空一行；`ui.compact` 全部不空行。
+
+- 助手文本：Markdown 渲染（h1/h2 accent 粗体、列表符号 muted、全宽代码块加边框与语言标签且正文为正文色、`▎` 引用、链接 link 色加 ` (url)`、表格列间两空格加表头规则线）；流式时只重渲染末块，按 (width, text) 缓存。
+- 思考块：缺省折叠一行 `✻ 思考 · N token`（流式中 `✻ 思考中…`），`Ctrl+O` 展开为缩进正文（最多 60 行）；`ui.showThinking: full|collapsed|hidden`。
+- 工具调用：标题 `⏺ bash git status`（运行中 accent、成功 success、失败 error）+ `⎿` 一行结果摘要（读取 N 行、N 处修改 · +a −b、退出码 · 耗时 · 行数、匹配数 · 文件数……）；正文折叠显示前 3 行；`Ctrl+O` 展开全部；`edit` 显示 diff（+/− 着色，≥ 60 列带行号）；`bash` 运行中摘要行带与 Loader 同帧的 spinner，流式显示尾部 8 行；错误红色。
+- 用户消息（续行缩进 2 列）、插话（`↳ 插话`）、之后（`↳ 之后`）、宿主注入（`↳ 宿主`）、压缩摘要左竖条卡片、重试提示、Hook 阻止提示；退出前追加会话摘要与 `ama --resume <id>`。
 - 滚动由终端回滚承担；TUI 只维护「视口内的尾部」：超出屏幕高度的历史行已经由终端滚出，不再重绘（这是主屏模式能差分的前提）。
 
 ### §12.6 状态栏、审批、选择列表
 
-- 状态栏一行：`provider/model · think:medium · ↑12.3k ↓1.2k · cache 80% · $0.12 · ctx 34% · queue 1 · mode:default · [host 状态]`；`ctx ?` 表示无窗口；运行中显示 Loader 与已用时。
-- 审批对话框（覆盖层 bottom）：工具名、输入（bash 显示命令全文，文件工具显示路径与 diff 摘要）、reason（mode / dangerous / hook+文本）；按键 `y` 允许、`n` 拒绝、`a` 本会话允许同类、`v` 展开完整输入；10 分钟超时 deny。
-- 选择列表：模型（按供应商分组，标 key 状态）、会话（时间、名字、首条提示）、树（缩进显示分支，选中 user 消息回填编辑器）、权限模式。
+- 状态栏一行、永远是最后一行，两区：左区权限模式 + `shift+tab 切换`，右区 `模型 · 思考 · ↑12.3k ↓1.2k · cache 80% · $0.12 · ctx 34% · queue 1 · codemode on · preset x · [host 状态]`（顺序与 ` · ` 分隔固定）；`ctx ?` 表示无窗口；窄屏按优先级丢项，模式永不丢。运行中 Loader 显示动词（等待确认 / 运行 bash / 重试 / 压缩上下文 / 回复中 · ↓≈N / 思考中）与已用时。
+- 审批对话框（覆盖层 bottom）：标题为原因（需要确认 / 危险命令 / Hook 要求确认），边框随预览严重度着色；工具名、输入（bash 显示命令全文，文件工具显示路径与 diff 摘要）、执行前预览；编号选项 `1. 允许 y / 2. 本会话允许同类 a / 3. 拒绝 n Esc`，数字、↑↓ Enter 与字母键都可用，危险命令缺省选中拒绝；`v` 展开完整输入；10 分钟超时 deny。
+- 选择列表：模型（按供应商分组，标 key 状态，当前模型 ✓）、会话（时间、名字、首条提示）、树（缩进显示分支，选中 user 消息回填编辑器）、权限模式（标题「权限模式」）；底部一行按键提示。`/session`、`/cache`、`/permissions` 是消息区的左竖条面板。
 
 ### §12.7 主题与能力
 
-`dark` / `light` 两套语义色（`text, dim, accent, success, warning, error, user, assistant, tool, border, code`）；`NO_COLOR` 或 `caps.colors = 0` 全部降为无色；256 色与 16 色近似表；不探测终端背景。
+`dark` / `light` 两套语义色，14 个（`text, muted, dim, accent, success, warning, error, user, assistant, tool, border, code, link, selection`），取值都落在 xterm 256 色立方 / 灰阶上（256 色回退无损），16 色按内置索引表；`selection` 只在 ≥ 256 色时作选中行底色，更少时退化为 accent 粗体；`NO_COLOR` 或 `caps.colors = 0` 全部降为无色；`ui.theme: "auto"` 只看 `COLORFGBG`，不探测终端背景。
+
+字形挂在 `Theme.glyphs`（`tui/glyphs.ts`）：`› ⏺ ⎿ ✓ ✗ ✻ ↳ ↻ ▎ ▸ ▾ ♨ • ◦ ▪ ▮ ▯`、圆角框线、10 帧盲文 spinner，全部 1 列宽；ASCII 回退表（`> * L v x ~ -> @ | # .`、`+ - |`、4 帧 spinner）在 `ui.ascii` / `AMA_ASCII=1`、区域设置不含 UTF-8、`TERM=linux`、旧 conhost 时启用。
 
 ### §12.8 在 Armadra 终端节点（tmux）里的可用性保证
 
@@ -967,7 +971,7 @@ Pi 1.0 把 TUI 默认改为全屏（备用屏），并以 `tuiMode: "regular"` �
 | 项         | ama 决定                                                                                                                                                                                  | 理由                                                                                                                           |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | 显示模式   | 第一期**只有主屏模式**（相当于 Pi 的 `regular`）；配置键 `ui.tuiMode` 与参数 `--tui-mode` 预留，取值 `regular`，`fullscreen` 记为后置（§12.9 砍掉清单）                                  | 嵌入 Armadra 时 core 要用 tmux 读屏、对话要进回滚供 `context_terminal` 读取、Eco 休眠后 resume 要能看到历史；备用屏会让三者都变差 |
-| 启动画面   | `ui.quietStartup`：`normal`（标题行 + 模型 / 信任 / 已加载资源清单）、`header`（只留版本与按键提示的标题行）、`silent`（不输出）；参数 `--quiet-startup <档>`                                | 与 Pi 1.0 的 `quietStartup` 同义                                                                                                |
+| 启动画面   | `ui.quietStartup`：`normal`（带框启动头：模型 / 目录与信任 / 模式 / 已加载资源 / 警告；窄屏或 `ui.compact` 去框）、`header`（一行 `✻ ama 版本 · 模型 · 模式 · /help`）、`silent`（不输出）；参数 `--quiet-startup <档>` | 与 Pi 1.0 的 `quietStartup` 同义                                                                                                |
 | 嵌入缺省   | profile.config 缺省 `ui.quietStartup: "header"`                                                                                                                                           | 画布节点窄，资源清单由画布自己展示                                                                                              |
 
 ## §13 SDK 与 RPC
