@@ -13,7 +13,7 @@
 启动后先发 `hello`，再发当前会话的 `session_start`：
 
 ```json
-{"type":"hello","protocolVersion":1,"agent":"ama","version":"0.1.0","capabilities":["approvals","images","hooks"]}
+{"type":"hello","protocolVersion":1,"agent":"ama","version":"0.1.0","capabilities":["approvals","images","hooks","plans"]}
 {"type":"session_start","sessionId":"…","cwd":"/work","reason":"startup"}
 ```
 
