@@ -26,10 +26,30 @@ export const CONFIG_FILE_VERSION = 1 as const;
  * 自定义模型条目；缺省 maxTokens 8192、reasoning false、input ["text"]，不猜 contextWindow。
  * `api` 缺省沿用供应商的协议。
  */
-export type ModelConfig = Partial<Omit<Model, "id" | "provider">> & { id: string };
+export type ModelConfig = Partial<Omit<Model, "id" | "provider" | "channel" | "channels">> & {
+  id: string;
+  /** 挂载的渠道名，第一个是首选；缺省 `defaultChannel`（docs/providers.md「渠道」）。 */
+  channels?: string[];
+  /** models.dev 条目 `provider/model`（显式匹配）；false 关闭 models.dev 补全。 */
+  modelsDev?: string | false;
+};
 
-/** 只改元数据的覆盖项（含模型级 `api`）。 */
-export type ModelOverride = Partial<Omit<Model, "id" | "provider">> & { id: string };
+/** 只改元数据的覆盖项（含模型级 `api` 与 `channels`）。 */
+export type ModelOverride = ModelConfig;
+
+/** 渠道：协议 + 地址（+ 可选 key / headers / compat），缺省继承供应商级。 */
+export interface ChannelConfig {
+  api: Api;
+  baseUrl: string;
+  /** 同供应商级 `apiKey` 的写法；缺省用供应商的 key。 */
+  apiKey?: string;
+  authHeader?: AuthHeader;
+  headers?: Record<string, string>;
+  compat?: ProviderCompat;
+}
+
+/** 渠道名：不含 `/` 与 `@`（`provider/model@channel`）。 */
+export const CHANNEL_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$/;
 
 export interface ProviderConfig {
   name?: string;
@@ -43,6 +63,10 @@ export interface ProviderConfig {
   headers?: Record<string, string>;
   compat?: ProviderCompat;
   requiresApiKey?: boolean;
+  /** 多渠道（docs/providers.md「渠道」）；不写时 `api` + `baseUrl` 是隐式的 `default` 渠道。 */
+  channels?: Record<string, ChannelConfig>;
+  /** 缺省 `channels` 的第一个键。 */
+  defaultChannel?: string;
   models?: ModelConfig[];
   modelOverrides?: ModelOverride[];
 }

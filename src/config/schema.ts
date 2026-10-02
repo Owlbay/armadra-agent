@@ -11,7 +11,12 @@ import type { HookConfig } from "../hooks/types.js";
 import { HOOK_EVENTS } from "../hooks/types.js";
 import { PERMISSION_MODES_STRICT_FIRST } from "../permissions/types.js";
 import { WARMING_MODES } from "../ai/cache/types.js";
-import { CACHE_RETENTIONS, CODEMODE_MODES, TOOLS_PRESETS_STRICT_FIRST } from "./types.js";
+import {
+  CACHE_RETENTIONS,
+  CHANNEL_NAME_PATTERN,
+  CODEMODE_MODES,
+  TOOLS_PRESETS_STRICT_FIRST,
+} from "./types.js";
 
 export type {
   AmaConfig,
@@ -33,6 +38,7 @@ export type {
   CacheConfig,
   ModelConfig,
   ModelOverride,
+  ChannelConfig,
 } from "./types.js";
 export { CONFIG_FILE_VERSION } from "./types.js";
 export type { HookConfig } from "../hooks/types.js";
@@ -167,9 +173,13 @@ const PROVIDER_KEYS = [
   "headers",
   "compat",
   "requiresApiKey",
+  "channels",
+  "defaultChannel",
   "models",
   "modelOverrides",
 ] as const;
+
+const CHANNEL_KEYS = ["api", "baseUrl", "apiKey", "authHeader", "headers", "compat"] as const;
 
 /** 第三波 §1.3 的缓存兼容开关（其余 compat 字段按协议各异，只查是对象）。 */
 const CACHE_COMPAT_FLAGS = [
@@ -179,7 +189,12 @@ const CACHE_COMPAT_FLAGS = [
   "supportsExplicitPromptCacheMode",
 ] as const;
 
-function checkModels(c: Checker, value: unknown, path: string): void {
+function checkModels(
+  c: Checker,
+  value: unknown,
+  path: string,
+  channels: ReadonlySet<string> | undefined,
+): void {
   if (value === undefined) return;
   if (!Array.isArray(value)) {
     c.error(path, "应为数组");
@@ -196,6 +211,27 @@ function checkModels(c: Checker, value: unknown, path: string): void {
     c.string(item, "api", p);
     c.string(item, "baseUrl", p);
     c.stringRecord(item, "headers", p);
+    const modelsDev = item["modelsDev"];
+    if (
+      modelsDev !== undefined &&
+      modelsDev !== false &&
+      (typeof modelsDev !== "string" || !/^[^/]+\/.+$/.test(modelsDev))
+    ) {
+      c.error(join(p, "modelsDev"), `应为 "provider/model" 或 false`);
+    }
+    c.stringArray(item, "channels", p);
+    const used = item["channels"];
+    if (Array.isArray(used)) {
+      used.forEach((name: unknown, i) => {
+        if (typeof name !== "string") return;
+        if (channels === undefined) c.error(join(join(p, "channels"), i), "供应商没有 channels");
+        else if (!channels.has(name))
+          c.error(
+            join(join(p, "channels"), i),
+            `渠道 "${name}" 不存在（可用：${[...channels].join(", ")}）`,
+          );
+      });
+    }
     const promptCache = item["promptCache"];
     if (promptCache !== undefined && c.object(promptCache, join(p, "promptCache"))) {
       const pp = join(p, "promptCache");
@@ -212,6 +248,45 @@ function checkModels(c: Checker, value: unknown, path: string): void {
   });
 }
 
+function checkCompat(c: Checker, compat: unknown, path: string): void {
+  if (compat === undefined || !c.object(compat, path)) return;
+  for (const key of CACHE_COMPAT_FLAGS) c.boolean(compat, key, path);
+  c.oneOf(compat, "cacheReporting", path, ["auto", "silent", "reported"]);
+}
+
+/** 返回合法的渠道名集合；没有 `channels` 时 undefined。 */
+function checkChannels(c: Checker, value: Obj, path: string): Set<string> | undefined {
+  const channels = value["channels"];
+  if (channels === undefined) return undefined;
+  const cp = join(path, "channels");
+  if (!c.object(channels, cp)) return new Set();
+  const names = new Set<string>();
+  for (const [name, channel] of Object.entries(channels)) {
+    const p = join(cp, name);
+    if (!CHANNEL_NAME_PATTERN.test(name)) {
+      c.error(p, "渠道名只能含字母、数字、_ 与 -（不含 / 与 @），最长 32");
+      continue;
+    }
+    names.add(name);
+    if (!c.object(channel, p)) continue;
+    c.keys(channel, p, CHANNEL_KEYS);
+    c.string(channel, "api", p, true);
+    c.string(channel, "baseUrl", p, true);
+    c.string(channel, "apiKey", p);
+    c.stringRecord(channel, "headers", p);
+    if (channel["authHeader"] !== undefined) c.object(channel["authHeader"], join(p, "authHeader"));
+    checkCompat(c, channel["compat"], join(p, "compat"));
+  }
+  if (names.size === 0 && Object.keys(channels).length === 0) c.error(cp, "至少要有一个渠道");
+  const preferred = value["defaultChannel"];
+  if (preferred !== undefined) {
+    if (typeof preferred !== "string") c.error(join(path, "defaultChannel"), "应为字符串");
+    else if (!names.has(preferred))
+      c.error(join(path, "defaultChannel"), `渠道 "${preferred}" 不存在`);
+  }
+  return names;
+}
+
 function checkProvider(c: Checker, value: unknown, path: string): void {
   if (!c.object(value, path)) return;
   c.keys(value, path, PROVIDER_KEYS);
@@ -219,15 +294,13 @@ function checkProvider(c: Checker, value: unknown, path: string): void {
   c.stringArray(value, "envKeys", path);
   c.stringRecord(value, "headers", path);
   c.boolean(value, "requiresApiKey", path);
-  const compat = value["compat"];
-  if (compat !== undefined && c.object(compat, join(path, "compat"))) {
-    const cp = join(path, "compat");
-    for (const key of CACHE_COMPAT_FLAGS) c.boolean(compat, key, cp);
-    c.oneOf(compat, "cacheReporting", cp, ["auto", "silent", "reported"]);
-  }
+  checkCompat(c, value["compat"], join(path, "compat"));
   if (value["authHeader"] !== undefined) c.object(value["authHeader"], join(path, "authHeader"));
-  checkModels(c, value["models"], join(path, "models"));
-  checkModels(c, value["modelOverrides"], join(path, "modelOverrides"));
+  const channels = checkChannels(c, value, path);
+  if (channels === undefined && value["defaultChannel"] !== undefined)
+    c.error(join(path, "defaultChannel"), "没有 channels 时不能设 defaultChannel");
+  checkModels(c, value["models"], join(path, "models"), channels);
+  checkModels(c, value["modelOverrides"], join(path, "modelOverrides"), channels);
 }
 
 function checkSection(
