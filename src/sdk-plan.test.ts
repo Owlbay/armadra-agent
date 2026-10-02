@@ -84,3 +84,39 @@ describe("SDK plan", () => {
     await session.dispose();
   });
 });
+
+describe("规划 / 执行分模型（plan.model，§6.4）", () => {
+  it("plan 下的首个提示切到规划模型，批准时切回执行模型；只切这两次", async () => {
+    const { fake, apis } = fakeApis([{ text: "thinking" }, { text: PLAN_REPLY }, { text: "done" }]);
+    const session = await createAgentSession({
+      model: "fake/echo",
+      thinkingLevel: "low",
+      apis,
+      tools: "none",
+      plan: {
+        model: "fake/reasoning",
+        thinkingLevel: "high",
+        onProposed: async () => ({ decision: "approve" }),
+      },
+    });
+    const changed: string[] = [];
+    session.subscribe((e) => {
+      if (e.type === "model_changed") changed.push(e.model.id);
+    });
+    // 只经过 plan（如 Shift+Tab 循环）不切模型
+    session.setPermissionMode("plan");
+    session.setPermissionMode("auto");
+    session.setPermissionMode("plan");
+    await session.prompt("explore");
+    await session.prompt("now plan");
+    await idle(session);
+    expect(fake.calls.map((c) => c.model.id)).toEqual(["reasoning", "reasoning", "echo"]);
+    expect(changed).toEqual(["reasoning", "echo"]);
+    expect(session.state.thinkingLevel).toBe("low");
+    const state = session.entries
+      .filter((e) => e.type === "custom" && e.customType === "ama.plan_state")
+      .map((e) => (e as { data: { active: boolean; executionModel?: string } }).data);
+    expect(state.some((d) => d.active && d.executionModel === "fake/echo")).toBe(true);
+    await session.dispose();
+  });
+});
