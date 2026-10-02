@@ -39,6 +39,7 @@ import { expandPromptCommand, type PromptTemplate } from "../skills/templates.js
 import { PresetToolRegistry } from "../tools/presets.js";
 import type { ToolDefinition } from "../tools/types.js";
 import { openSession } from "./compose-store.js";
+import { composeExtensions } from "./compose-extensions.js";
 import type { SessionAssembly } from "./deps.js";
 import { ExitCode } from "./exit-codes.js";
 import type { Runtime } from "./runtime.js";
@@ -319,6 +320,8 @@ function buildSession(
     log: record.log,
     cache: cacheSettingsFrom(config, process.env, (message) => record.log("warn", message)),
     warmingDecider: () => assembly.host.warmingDecider?.(),
+    // [W5-C0] 会话扩展（组装表在 compose-extensions.ts）
+    extensions: composeExtensions({ assembly, env: process.env, log: record.log }),
   };
   const maxTurns = assembly.overrides?.maxTurns;
   if (maxTurns !== undefined) options.maxTurns = maxTurns;

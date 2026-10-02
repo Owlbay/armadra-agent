@@ -23,6 +23,7 @@ import type { Agent } from "./agent.js";
 import type { StreamFn } from "./loop.js";
 import type { SessionCacheController } from "./session-cache.js";
 import type { CheckpointBackendFactory } from "../checkpoints/index.js";
+import type { SessionExtensionFactory } from "./session-extensions.js";
 import type { SystemPromptInput } from "./system-prompt.js";
 import type {
   CacheSettings,
@@ -87,6 +88,11 @@ export interface AgentSessionOptions {
    * 并结束 run（实现归 W5-H2 的 limits 扩展，C0 只透传）。
    */
   limits?: SessionLimits;
+  /**
+   * [W5-C0] 会话扩展的工厂（session-extensions.ts）：每个会话实例（含 fork 与 task 子会话）各调一次；
+   * 组装根从 `cli/compose-extensions.ts` 的表取得。缺省无扩展。
+   */
+  extensions?: readonly SessionExtensionFactory[];
   /** [W5-C0] 回退模型 `provider/model[@channel]`（config `fallbackModel`，实现归 W5-H2）。 */
   fallbackModel?: string;
   /** 子 Agent 并发上限，缺省 4；`false` 关闭 spawnSubagent。 */
