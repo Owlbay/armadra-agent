@@ -373,6 +373,20 @@ anthropic/<model-id> · think:medium · ↑412k ↓8.1k · cache 83% ♨ · $0.8
 
 退出码：0 正常 · 1 运行期错误 · 2 用法错误 · 3 配置错误 · 4 无可用模型或 key · 5 会话错误 · 6 宿主 / Hook 启动失败 · 78 宿主 API 版本不匹配 · 130 / 143 信号。
 
+### 会话统计、检索与复用
+
+会话是 `<数据目录>/sessions` 下的 JSONL，下面这些命令只读不写（缺省看当前目录的会话，`--all` 看全部）：
+
+```sh
+ama stats --since 7d --by model           # 请求、token、缓存命中率、费用、工具调用 Top N（--json 可用）
+ama sessions search "parser" --role user  # 跨会话全文检索，/正则/ 也行
+ama sessions show 3f9a1c2e                # 末尾列出用户消息编号
+ama -p --from 3f9a1c2e#2 --model packy/kimi-k2.5   # 用那条消息（含图片）换个模型再问
+ama sessions export 3f9a1c2e --format md --output s.md   # md / json / jsonl，导出前脱敏
+```
+
+统计口径（命中率只算报告缓存的端点、费用只加有价请求等）与导出格式见 [docs/sessions.md](docs/sessions.md)。
+
 ### RPC
 
 `ama --mode rpc` 在 stdin / stdout 上说 JSONL：先发 `hello` 与 `session_start`，之后收 `prompt`、`steer`、`abort`、`set_model`、`get_session_stats`、`fork` 等命令，推送流事件与审批请求。
@@ -437,6 +451,7 @@ Armadra 以 `ama --profile <path>` 启动 ama。profile 是一个 JSON 文件，
 | [docs/host-api.md](docs/host-api.md)                                                                 | 宿主适配器 API                                          |
 | [docs/rpc.md](docs/rpc.md)                                                                           | RPC 协议（stdio JSONL）                                 |
 | [docs/session-format.md](docs/session-format.md)                                                     | 会话文件格式                                            |
+| [docs/sessions.md](docs/sessions.md)                                                                 | 会话统计、检索、`--from` 复用与导出                     |
 | [docs/extensions.md](docs/extensions.md)                                                             | 本地扩展（设计草案，未实现）                            |
 | [docs/design.md](docs/design.md)                                                                     | 总体设计与决策记录                                      |
 | [docs/benchmarks/](docs/benchmarks/)                                                                 | 三预设基准与缓存验收实验（报告与原始数据）              |
@@ -466,7 +481,7 @@ pnpm 10 起 `pnpm ci` 是内置的「清理后安装」，跑检查要写 `pnpm 
 
 **约束**：运行时依赖必须为零，`src/` 只允许 `node:` 内置模块与相对路径（`pnpm check:deps` 守住）。`src/` 按层分目录（`ai` 模型接入、`agent` 循环、`session` 会话树、`tools`、`codemode`、`permissions`、`hooks`、`host` 宿主契约、`tui` 组件库、`modes` 各入口、`cli` 启动），各目录的 `types.ts` 是模块之间的契约。
 
-**发布**：改 `package.json` 版本与 [CHANGELOG.md](CHANGELOG.md)，合入 main 后打 `v<版本>` tag。CI 全绿后 release job 生成 GitHub Release（`ama.cjs`、`ama-sandbox.cjs`、`package.tgz`、`SHA256SUMS`），再以 provenance 发布到 npm（需要仓库 secret `NPM_TOKEN`，没有时跳过）。`pnpm release:check` 检查 tag 与版本一致，协议常量变化要求破坏性版本升级。
+**发布**：改 `package.json` 版本与 [CHANGELOG.md](CHANGELOG.md)，合入 main 后打 `v<版本>` tag。CI 全绿后 release job 生成 GitHub Release（`ama.cjs`、`ama-sandbox.cjs`、`package.tgz`、`SHA256SUMS`），再以 provenance 发布到 npm：优先用 OIDC 可信发布（trusted publishing，npm ≥ 11.5.1，job 内自动升级），在 npmjs.com 的 `@armadra/agent` 包设置 → Trusted Publisher 添加 GitHub Actions（组织 `Owlbay`、仓库 `armadra-agent`、工作流 `ci.yml`、环境留空）即可，不需要长期 token；仓库 secret `NPM_TOKEN` 保留为回退，两者都没有时 job 失败并提示。`pnpm release:check` 检查 tag 与版本一致，协议常量变化要求破坏性版本升级。
 
 ## 更新记录
 

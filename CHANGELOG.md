@@ -17,6 +17,17 @@
   流里出现首个内容事件即判可用并断开，单次超时缩到 15 s（`--probe-timeout`）；429 时降并发并重试一次，
   连续 429 才停止。实测 22 个模型、60 次探测从预计 20–30 分钟降到约 85 s。
 
+- **会话统计**：`ama stats` 只读扫描会话，汇总请求（对话、保温、权限分类、压缩分开计）、回合与平均耗时、
+  token、缓存命中率（只算报告缓存的端点）、费用（只加有价请求）、错误与重试、工具调用 Top N；
+  `--since` / `--until` / `--by day|week|month|provider|channel|model|project` / `--json`；
+  增量索引 `<数据目录>/stats-index.json`，1000 个会话冷扫描约 160 ms。
+- **会话检索与导出**：`ama sessions search <关键词|/正则/>`（`--role`、`--since`、`--limit`，TTY 高亮）；
+  `ama sessions export <id> --format md|json|jsonl [--branch leaf|all] [--output]`，导出前脱敏 key / token。
+- **复用**：`ama sessions show` 列出用户消息编号；`--from <id>[#编号]` 用那条消息作新提示（`-p` 时连图片），
+  可配合 `--model` 换模型重问。见 docs/sessions.md。
+- **发布**：release job 优先用 npm 可信发布（OIDC，npm ≥ 11.5.1），`NPM_TOKEN` 只作回退；需要在 npmjs.com
+  为 `@armadra/agent` 添加 Trusted Publisher（Owlbay / armadra-agent / ci.yml）。
+
 ## 0.3.0（2026-10-02）
 
 自定义供应商与多渠道、models.dev 模型元数据、图像输入、默认配置目录。
