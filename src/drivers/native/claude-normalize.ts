@@ -79,10 +79,10 @@ export function claudePermissionMode(
   manualName: "manual" | "default",
 ): string {
   switch (mode) {
+    // allowlist 也按 plan：Claude 的 dontAsk 会放行它自己配置里的 allow 规则（可能含写操作）
     case "plan":
-      return "plan";
     case "allowlist":
-      return "dontAsk";
+      return "plan";
     case "default":
       return manualName;
     case "auto-edit":

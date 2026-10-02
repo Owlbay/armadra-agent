@@ -5,6 +5,10 @@ import { AcpDriver } from "./acp/driver.js";
 import { runFakeAcpAgent } from "./acp/testing/fake-agent.js";
 import { ExternalAgents } from "./agents.js";
 import { DriverPool } from "./pool.js";
+import { claudeArgs } from "./native/claude-stream.js";
+import { codexPolicy } from "./native/codex-normalize.js";
+import { oneshotArgs } from "./native/oneshot.js";
+import { clampMode } from "./permissions.js";
 import { createProcessRunner, type ProcessRunnerDeps } from "./runner.js";
 import { AGENT_SESSION_CUSTOM, AGENT_USAGE_CUSTOM, createAgentStore } from "./store.js";
 import { memoryTransport, spawnRecorder } from "./test-support.js";
@@ -300,5 +304,76 @@ describe("ExternalAgents", () => {
     expect(list.map((a) => a.name)).toEqual(
       expect.arrayContaining(["claude", "codex", "gemini", "ama"]),
     );
+  });
+});
+
+describe("父会话 plan / allowlist 时外部 Agent 只能只读（真值表）", () => {
+  const MODES = ["plan", "allowlist", "default", "auto-edit", "auto", "full-auto"] as const;
+  // [父模式, 请求模式] → 实际模式（maxMode 未设）
+  const TABLE: [(typeof MODES)[number], (typeof MODES)[number], (typeof MODES)[number]][] = [];
+  for (const parent of MODES)
+    for (const requested of MODES) {
+      const order = (m: string) => MODES.indexOf(m as (typeof MODES)[number]);
+      const strict = order(requested) <= order(parent) ? requested : parent;
+      TABLE.push([parent, requested, strict === "allowlist" ? "plan" : strict]);
+    }
+
+  it.each(TABLE)("父 %s，请求 %s → %s", (parent, requested, expected) => {
+    expect(clampMode(requested, parent, undefined)).toBe(expected);
+    if (parent === "plan" || parent === "allowlist") expect(expected).toBe("plan");
+  });
+
+  it.each(["plan", "allowlist"] as const)("父 %s：各驱动的只读启动参数", (parent) => {
+    const mode = clampMode("full-auto", parent, undefined);
+    const claude = claudeArgs({ mode }, "s");
+    expect(claude[claude.indexOf("--permission-mode") + 1]).toBe("plan");
+    expect(codexPolicy(mode, false)).toEqual({ approvalPolicy: "never", sandbox: "read-only" });
+    expect(oneshotArgs("claude", {}, { id: "s", resume: false }, "p")).toEqual(
+      expect.arrayContaining(["--permission-mode", "plan"]),
+    );
+    expect(oneshotArgs("codex", {}, { id: "s", resume: false }, "p")).toContain(
+      'sandbox_mode="read-only"',
+    );
+  });
+
+  it.each(["plan", "allowlist"] as const)(
+    "父 %s：ACP 选只读模式；没有只读模式的 Agent 拒绝启动",
+    async (parent) => {
+      const { runner, rec } = setup(async () => "allow", { parentMode: () => parent });
+      const handle = await runner.start(request("hi", { mode: "auto" }).req);
+      cleanups.push(() => handle.stop());
+      await handle.wait();
+      expect(
+        rec.last()!.wire.find((w) => w.msg["method"] === "session/set_mode")?.msg,
+      ).toMatchObject({
+        params: { modeId: "plan" },
+      });
+
+      const minimal = spawnRecorder(() =>
+        memoryTransport((i, o) => runFakeAcpAgent(i, o, { minimal: true })),
+      );
+      const strict = createProcessRunner(
+        new AcpDriver(
+          "acp:min",
+          { kind: "acp", program: "min", args: [] },
+          { spawn: minimal.spawn },
+        ),
+        {
+          approve: async () => "allow",
+          pool: new DriverPool(),
+          env: {},
+          trusted: () => true,
+          parentMode: () => parent,
+        },
+      );
+      await expect(strict.start(request("hi", { mode: "default" }).req)).rejects.toMatchObject({
+        code: "agent_mode_unsupported",
+      });
+    },
+  );
+
+  it("maxMode 只放宽到它自己（用户级显式配置）", () => {
+    expect(clampMode("auto", "plan", "default")).toBe("default");
+    expect(clampMode("auto", "default", "plan")).toBe("plan");
   });
 });

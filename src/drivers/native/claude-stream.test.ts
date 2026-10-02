@@ -70,7 +70,7 @@ describe("claudeArgs", () => {
 
   it("模式映射：full-auto 不给 bypassPermissions", () => {
     expect(claudePermissionMode("plan", "manual")).toBe("plan");
-    expect(claudePermissionMode("allowlist", "manual")).toBe("dontAsk");
+    expect(claudePermissionMode("allowlist", "manual")).toBe("plan");
     expect(claudePermissionMode("default", "default")).toBe("default");
     expect(claudePermissionMode("auto-edit", "manual")).toBe("acceptEdits");
     expect(claudePermissionMode("full-auto", "manual")).toBe("auto");

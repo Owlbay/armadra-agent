@@ -102,7 +102,8 @@ export function stricterMode(a: PermissionMode, b: PermissionMode): PermissionMo
 
 /**
  * 外部 Agent 实际使用的模式：请求的模式夹到上限之内；上限 = `maxMode`（用户显式配置）或父会话
- * 当前模式。
+ * 当前模式。结果为 `allowlist` 时按 `plan` 运行：外部 Agent 的放行规则来自它自己的配置，与 ama 的
+ * allowlist 不等价，父会话在 plan / allowlist 时外部 Agent 只能只读。
  */
 export function clampMode(
   requested: PermissionMode,
@@ -110,7 +111,8 @@ export function clampMode(
   maxMode: PermissionMode | undefined,
 ): PermissionMode {
   const bound = maxMode ?? parent;
-  return bound === undefined ? requested : stricterMode(requested, bound);
+  const mode = bound === undefined ? requested : stricterMode(requested, bound);
+  return mode === "allowlist" ? "plan" : mode;
 }
 
 /** 驱动支持的模式里，不宽于 `mode` 的最宽的一个；没有返回 undefined。 */

@@ -106,8 +106,10 @@ export function pickModeId(
   candidate: CatalogCandidate,
   state: AcpSessionModeState | null | undefined,
 ): string | undefined {
-  const wanted = candidate.modes?.[mode] ?? mode;
-  return state?.availableModes.some((m) => m.id === wanted) === true ? wanted : undefined;
+  const wanted = [candidate.modes?.[mode] ?? mode];
+  // allowlist 在外部 Agent 那边没有等价物：退到只读的 plan
+  if (mode === "allowlist") wanted.push(candidate.modes?.plan ?? "plan");
+  return wanted.find((id) => state?.availableModes.some((m) => m.id === id) === true);
 }
 
 export class AcpDriver implements AgentDriver {
