@@ -3,16 +3,20 @@
  * 更新：`AMA_UPDATE_GOLDEN=1 pnpm vitest run src/modes/interactive src/tui`，逐个审阅 diff。
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { composeHarness } from "../../../test/helpers/compose-harness.js";
 import type { SessionEvent } from "../../agent/types.js";
+import { sharedCacheReporting } from "../../ai/cache/reporting.js";
 import type { FakeResponse } from "../../ai/fake/fake-script.js";
 import { MemoryTerminal, TUI, plainTheme, type Component } from "../../tui.js";
+import { AMA_VERSION } from "../../version.js";
 import { MessageView } from "./message-view.js";
 import { cleanupStarted, golden, snapshot, start, started } from "./test-support.js";
 import { ToolTracker } from "./tool-view.js";
 
 afterEach(cleanupStarted);
+// 端点的缓存报告状态是进程级的：每个用例从零开始，帧与运行顺序无关
+beforeEach(() => sharedCacheReporting.clear());
 
 /** 建 harness 并把 HOME 指向临时根，让会话目录显示为 `~/work`（黄金与机器无关）。 */
 function harnessWithTildeCwd(script: FakeResponse[]): void {
@@ -220,6 +224,76 @@ describe("面板", () => {
     shot = shot.replace(/~\S*\.jsonl|~\S*…/, "<file>");
     expect(shown.endsWith(".jsonl")).toBe(true);
     golden("panel-session-80x24", shot);
+    s.handle.exit(0);
+    await s.done;
+  });
+});
+
+describe("提示", () => {
+  it("错误 / 重试 / 压缩卡 / 缓存未命中 / 上下文 / Hook 阻止 80x24", () => {
+    const view = new MessageView({ theme: plainTheme() });
+    view.addNotice("error", "模型调用失败：401 invalid x-api-key（anthropic）");
+    view.addRetry(1, 3, 2000, "429 rate_limit_error");
+    view.addCompaction({
+      summary:
+        "用户要求检查差分渲染与 resize 行为；已修改 diff() 并补测试\n第二行\n第三行\n第四行\n第五行",
+      tokensBefore: 128_000,
+      tokensAfter: 24_000,
+    });
+    view.addNotice("warn", "缓存未命中（空闲 7 分钟后）：重计费 38.2k token（约 $0.11）");
+    view.addNotice("warn", "上下文已用 72%，约剩 9 回合（按最近 5 回合均值）");
+    view.addHookBlocked("pre-tool-use 拒绝了 bash（禁止 force push）");
+    view.addNotice("info", "已拒绝 bash");
+    golden("notices-80x24", screen(view, 80, 24));
+  });
+});
+
+const ASCII_SCRIPT: FakeResponse[] = [
+  {
+    steps: [
+      { thinking: "I should read the file first." },
+      { text: "Reading it." },
+      { toolCall: { name: "read", arguments: { path: "README.md" }, id: "call_read" } },
+    ],
+    usage: { input: 1200, output: 40 },
+  },
+  { text: "The README describes **Demo**.", usage: { input: 300, output: 12, cacheRead: 1200 } },
+];
+
+describe("ASCII 模式", () => {
+  it("AMA_ASCII=1 整条 run 序列 80x24", async () => {
+    const s = await start(ASCII_SCRIPT, {
+      theme: plainTheme({ ascii: true }),
+      files: { "README.md": "# Demo\n\nA tiny project.\nMore.\nAnd more.\n" },
+    });
+    const frames = [snapshot(s.terminal, "startup")];
+    const toolStarted = s.until((e) => e.type === "tool_execution_start");
+    s.type("读一下 README");
+    s.terminal.sendInput("\r");
+    await toolStarted;
+    frames.push(snapshot(s.terminal, "tool running"));
+    await s.until((e) => e.type === "agent_settled");
+    frames.push(snapshot(s.terminal, "settled"));
+    s.type("\x04");
+    expect(await s.done).toBe(0);
+    frames.push(snapshot(s.terminal, "exit"));
+    golden("ascii-run-80x24", frames.join("\n"));
+  });
+});
+
+describe("ui.compact", () => {
+  it("块间不空行、启动头无框", async () => {
+    harnessWithTildeCwd([{ text: "好的。" }]);
+    started.h!.home.write("home/.config/ama/config.json", { version: 1, ui: { compact: true } });
+    const s = await start([], { keepHarness: true, quietStartup: "normal" });
+    const settled = s.until((e) => e.type === "agent_settled");
+    s.type("你好");
+    s.terminal.sendInput("\r");
+    await settled;
+    const screenText = s.terminal.viewport();
+    expect(screenText[0]).toBe("✻ ama " + AMA_VERSION);
+    const at = screenText.indexOf("› 你好");
+    expect(screenText[at + 1]).toBe("好的。");
     s.handle.exit(0);
     await s.done;
   });

@@ -1,0 +1,26 @@
+# viewport 80x24 cursor=16,11
+|✗ 模型调用失败：401 invalid x-api-key（anthropic）
+|
+|↻ 重试 1/3（2s 后）：429 rate_limit_error
+|
+|▎ 上下文已压缩  128k → 24k token
+|▎ 用户要求检查差分渲染与 resize 行为；已修改 diff() 并补测试
+|▎ 第二行
+|▎ 第三行
+|▎ … 另 2 行
+|
+|! 缓存未命中（空闲 7 分钟后）：重计费 38.2k token（约 $0.11）
+|
+|! 上下文已用 72%，约剩 9 回合（按最近 5 回合均值）
+|
+|⛔ Hook 阻止：pre-tool-use 拒绝了 bash（禁止 force push）
+|
+|已拒绝 bash
+|
+|
+|
+|
+|
+|
+|
+# scrollback 0 lines
