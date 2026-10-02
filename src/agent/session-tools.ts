@@ -9,13 +9,13 @@
 
 import { randomUUID } from "node:crypto";
 import type { ToolCallBlock } from "../ai/types.js";
+import { DEFAULT_APPROVAL_TIMEOUT_MS } from "../permissions/broker.js";
 import type { ApprovalDecision, ApprovalRequest, Decision } from "../permissions/types.js";
 import type { ToolContext, ToolResult } from "../tools/types.js";
 import type { SessionCore } from "./session-core.js";
 import { runSingleToolCall, type ToolRunnerOptions } from "./tool-runner.js";
 import type { NestedCallInfo, ToolCallGate, ToolCallGateContext } from "./types.js";
 
-export const DEFAULT_APPROVAL_TIMEOUT_MS = 10 * 60 * 1000;
 /** 外层是这个工具时，嵌套调用的 Hook 输入带 `viaCodemode: true`。 */
 const CODEMODE_TOOL_NAME = "codemode";
 
