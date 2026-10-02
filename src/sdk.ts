@@ -10,6 +10,9 @@
  *   summarizeFrom / summarizeUpTo / undoAbortedTurn`，内存会话只能仅对话）。
  *
  * 两者共用组装根（cli/compose*.ts），审批链、系统提示装配、工具预设与缓存行为与 CLI 一致。
+ * - [W5-F] 计划（docs/plan.md）：`CreateSessionOptions.plan`（plan.* 配置 + `onProposed` 审批回调）；
+ *   返回的会话带 `plan.current() / respond() / todos()`。没有 `onProposed` 时按 `plan.unattended`
+ *   （缺省 stop：计划落盘后停下，不替人批准）。
  */
 
 import { resolve } from "node:path";
@@ -18,6 +21,14 @@ import { ProviderRegistry } from "./ai/providers/registry.js";
 import type { KeyResolverOptions } from "./ai/providers/auth.js";
 import type { ModelThinkingLevel, ProviderData } from "./ai/types.js";
 import type { AgentSessionImpl } from "./agent/session.js";
+import {
+  planController,
+  type PlanDecision,
+  type PlanResponse,
+  type PlanResponseResult,
+} from "./agent/session-plan.js";
+import type { PlanData, TodoItemView } from "./agent/types.js";
+import type { PlanConfig } from "./config/types-w5.js";
 import { parseArgs, type ParsedArgs } from "./cli/args.js";
 import { bootstrap } from "./cli/bootstrap.js";
 import { withExtraProviders } from "./cli/compose-providers.js";
@@ -107,6 +118,28 @@ export async function createRuntime(options: RuntimeOptions = {}): Promise<Runti
   return bootstrap(args, createRuntimeDeps({ env, ...options.compose }), io);
 }
 
+/** [W5-F] 计划：类型与 RPC 同形（`plan_proposed` / `plan_response`）。 */
+export type { PlanData, PlanDecision, PlanResponse, PlanResponseResult, TodoItemView };
+
+/** [W5-F] `CreateSessionOptions.plan`：plan.* 配置 + 审批回调。 */
+export interface SessionPlanOptions extends PlanConfig {
+  /**
+   * 计划待审批时调用（运行结束后；不阻塞运行）。返回回答即生效；返回 undefined 留待
+   * `session.plan.respond()`。不给时按 `unattended`（缺省 stop）。
+   */
+  onProposed?(plan: PlanData): Promise<PlanDecision | undefined>;
+}
+
+/** [W5-F] `session.plan`。 */
+export interface SessionPlanApi {
+  /** 分支上最近的计划；没有为 null。 */
+  current(): PlanData | null;
+  respond(response: PlanResponse): Promise<PlanResponseResult>;
+  todos(): TodoItemView[];
+}
+
+export type SdkAgentSession = AgentSessionImpl & { readonly plan: SessionPlanApi };
+
 export type SessionAuth =
   | { kind: "file"; path: string }
   | { kind: "env" }
@@ -150,6 +183,8 @@ export interface CreateSessionOptions {
   /** 命令式 Hook（缺省不加载文件系统里的 hooks.json）。 */
   hooks?: HookConfig | false;
   config?: Partial<AmaConfig>;
+  /** [W5-F] 计划（plan.* 配置与审批回调），见 docs/plan.md。 */
+  plan?: SessionPlanOptions;
   unattended?: boolean;
   onWarning?: (message: string) => void;
   log?: LogFn;
@@ -172,10 +207,12 @@ function keyOptions(auth: SessionAuth | undefined): KeyResolverOptions {
 
 export async function createAgentSession(
   options: CreateSessionOptions = {},
-): Promise<AgentSessionImpl> {
+): Promise<SdkAgentSession> {
   const cwd = resolve(options.cwd ?? process.cwd());
   const warn = options.onWarning ?? (() => undefined);
   let config = mergeConfig(DEFAULT_CONFIG as AmaConfig, options.config);
+  const { onProposed, ...planConfig } = options.plan ?? {};
+  if (options.plan !== undefined) config = { ...config, plan: { ...config.plan, ...planConfig } };
   if (options.toolsPreset !== undefined)
     config = mergeConfig(config, { tools: { preset: options.toolsPreset } });
   const providers = new ProviderRegistry({
@@ -298,5 +335,23 @@ export async function createAgentSession(
     warn,
   };
   session = composeSession(assembly, state, { log: options.log ?? (() => undefined) });
-  return session;
+  return withPlanApi(session, onProposed);
+}
+
+/** SDK 会话：审批交给 `onProposed`（没有则无人值守策略），并挂上 `session.plan`。 */
+function withPlanApi(
+  session: AgentSessionImpl,
+  onProposed: SessionPlanOptions["onProposed"],
+): SdkAgentSession {
+  const controller = planController(session);
+  controller?.setAttendance(onProposed === undefined ? "unattended" : "callback", onProposed);
+  const missing = (): never => {
+    throw new AmaError("not_implemented", "该会话没有装配 plan 扩展");
+  };
+  const plan: SessionPlanApi = {
+    current: () => controller?.current() ?? null,
+    respond: (response) => (controller ?? missing()).respond(response),
+    todos: () => controller?.todos() ?? [],
+  };
+  return Object.assign(session, { plan });
 }
