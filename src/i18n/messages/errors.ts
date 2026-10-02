@@ -30,6 +30,10 @@ export const en = {
     `${model ?? "The current model"} does not accept image input (the model's input has no image); switch to a model that supports images ` +
     `(marked "image" in ama models list, or give the model "input": ["text", "image"] in the config)`,
   /** [W6-I3] SDK（`createRuntime` / `createAgentSession`）。 */
+  /** [W6-I5] 端点拒收缓存参数后自动去掉重发（`ai/apis/cache-params.ts`）。 */
+  cacheParamsStripped: (key: string, field: string, suggestion: string | undefined) =>
+    `${key}: the endpoint does not support ${field}; resent without cache parameters automatically; ` +
+    `you can set ${suggestion ?? "the matching compat switch"} in the config`,
   sdk: {
     noSubcommand: "createRuntime does not accept subcommands",
     modelNotFound: (ref: string) => `model not found: ${ref}`,
@@ -125,6 +129,8 @@ export const zh = {
   imageUnsupported: (model) =>
     `${model ?? "当前模型"} 不接受图片输入（模型 input 没有 image）；换一个支持图像的模型再试` +
     `（ama models list 里标「图片」的，或在配置里给该模型写 "input": ["text", "image"]）`,
+  cacheParamsStripped: (key, field, suggestion) =>
+    `${key}：该端点不支持 ${field}，已自动去掉缓存参数重发；可在 config 里设 ${suggestion ?? "相应的 compat 开关"}`,
   sdk: {
     noSubcommand: "createRuntime 不接受子命令",
     modelNotFound: (ref) => `模型不存在：${ref}`,

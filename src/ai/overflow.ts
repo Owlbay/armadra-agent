@@ -12,29 +12,32 @@
 
 import type { AssistantMessage } from "./types.js";
 
-/** [正则, 来源说明]。 */
+/** [正则, 来源说明]。来源说明只是给维护者看的出处记录（不显示、不发给模型），统一写英文。 */
 export const OVERFLOW_PATTERNS: readonly (readonly [RegExp, string])[] = [
   [/prompt is too long/i, "Anthropic: prompt is too long: N tokens > M maximum"],
   [/request_too_large/i, "Anthropic: 413 request_too_large"],
   [/exceeds the context window/i, "OpenAI: Your input exceeds the context window of this model"],
   [/maximum context length is \d+ tokens/i, "OpenAI / OpenRouter / DeepSeek"],
-  [/exceeds (?:the )?(?:model'?s )?maximum context length/i, "OpenAI 兼容网关（vLLM / LiteLLM）"],
+  [
+    /exceeds (?:the )?(?:model'?s )?maximum context length/i,
+    "OpenAI-compatible gateways (vLLM / LiteLLM)",
+  ],
   [/input token count.*exceeds the maximum/i, "Google Gemini"],
   [
     /exceeds the maximum number of tokens allowed/i,
-    "Google Gemini（无 input token count 前缀的变体）",
+    "Google Gemini (variant without the input token count prefix)",
   ],
   [/maximum prompt length is \d+/i, "xAI"],
   [/reduce the length of the messages/i, "Groq"],
   [/too large for model with \d+ maximum context length/i, "Mistral"],
   [/exceeded model token limit/i, "Moonshot / Kimi"],
-  [/prompt (?:too long|exceeds max length)/i, "智谱 GLM（code 1261）/ Ollama"],
+  [/prompt (?:too long|exceeds max length)/i, "Zhipu GLM (code 1261) / Ollama"],
   [/range of input length should be/i, "DashScope / Qwen"],
   [/greater than the context length/i, "LM Studio"],
   [/exceeds the available context size/i, "llama.cpp server"],
-  [/context[_ ]length[_ ]exceeded/i, "通用：context_length_exceeded"],
-  [/model_context_window_exceeded/i, "通用：finish_reason 文本化"],
-  [/token limit exceeded/i, "通用"],
+  [/context[_ ]length[_ ]exceeded/i, "generic: context_length_exceeded"],
+  [/model_context_window_exceeded/i, "generic: finish_reason as text"],
+  [/token limit exceeded/i, "generic"],
 ];
 
 /** 命中这些的不算溢出（限流 / 配额）。 */
