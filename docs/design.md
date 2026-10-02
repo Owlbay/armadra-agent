@@ -46,6 +46,19 @@
 | 图像、剪贴板、状态行、界面集成        | [providers.md](providers.md)「图像输入」、[tui.md](tui.md)、[tui-design.md](tui-design.md) | §12                            |
 | 退出码 8 / 9                          | 下文 §11.3                                                                                | §11.3                          |
 
+### 第六波增补（0.6.0，实施中）
+
+第六波的决定表、契约与批次在 [wave6-plan.md](wave6-plan.md)，调研依据在 [research/wave6/](research/wave6/README.md)；本文不逐节回写，只记与本文约定的关系：
+
+| 主题                                   | 设计章节                              | 涉及本文                                                                 |
+| -------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------ |
+| Agent 栏与全屏子 Agent 视图            | [wave6-plan.md](wave6-plan.md) §1     | §12（主屏约束下的覆盖层；`Ctrl+B` 只在输入为空时生效）                   |
+| 轨迹（`ama.trace`、`/trace`、HTML、`get_trace`） | [wave6-plan.md](wave6-plan.md) §2 | §8（`custom` 条目不进上下文）、§13.2                                     |
+| Memory（缺省关闭）                     | [wave6-plan.md](wave6-plan.md) §3     | §9.1（节顺序加 `memory`，位于 `skills` 之后；关闭时字节不变）、§7、§10.2 |
+| ChatGPT 登录（SIWC 缺省、codex 备用）  | [wave6-plan.md](wave6-plan.md) §4     | §3.5（`KeySource` 加 `oauth`）、§10.1（`auth.json` 的 oauth 条目）       |
+| 中英双语                               | [wave6-plan.md](wave6-plan.md) §5、[i18n.md](i18n.md) | §2（零依赖消息目录；给模型的文本固定英文）                 |
+| `/config` 面板与 `ama config get \| set` | [wave6-plan.md](wave6-plan.md) §6   | §10.2（项目级只能收紧由同一函数判定）                                    |
+
 ## §1 架构与目录树
 
 ### §1.1 依赖方向
