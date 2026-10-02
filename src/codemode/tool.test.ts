@@ -277,16 +277,22 @@ describe("工厂", () => {
     sourceOf: () => "builtin",
   };
 
-  it("off 不注册；codemode 预设 / 显式 on 注册", () => {
+  it("off 不注册；跟随预设：default 只在 strict 时注册，codemode-only 总注册；显式 on 注册", () => {
     const warnings: string[] = [];
     const factory = codemodeToolFactory({ capability: strict });
+    const nonStrict = codemodeToolFactory({ capability: loose });
     const ctx = (config: object) => ({ config, registry, warn: (m: string) => warnings.push(m) });
-    expect(factory(ctx({}))).toBeUndefined();
+    expect(factory(ctx({}))?.name).toBe("codemode");
+    expect(nonStrict(ctx({}))).toBeUndefined();
+    expect(factory(ctx({ tools: { preset: "minimal" } }))).toBeUndefined();
+    expect(factory(ctx({ tools: { preset: "coordinator" } }))).toBeUndefined();
     expect(
       factory(ctx({ codemode: { mode: "off" }, tools: { preset: "codemode" } })),
     ).toBeUndefined();
     expect(factory(ctx({ tools: { preset: "codemode" } }))?.name).toBe("codemode");
+    expect(nonStrict(ctx({ tools: { preset: "codemode-only" } }))?.name).toBe("codemode");
     expect(factory(ctx({ codemode: { mode: "on" } }))?.description).toContain("read(args");
+    expect(nonStrict(ctx({ codemode: { mode: "on" } }))?.permission).toBe("execute");
     expect(warnings).toEqual([]);
   });
 

@@ -145,7 +145,7 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
   --exclude-tools <a,b,…>      禁用这些工具
   --tools-preset <名>          工具预设：default（缺省）| minimal | codemode-only | coordinator
                                （codemode 是 codemode-only 的旧名，仍可用）
-  --codemode <模式>            codemode 调用方式：off | on | only
+  --codemode <模式>            codemode 调用方式：off | on | only（缺省随预设）
 
 子命令
   ama auth set <provider>      从 stdin 读取 key 写入 auth.json（0600）

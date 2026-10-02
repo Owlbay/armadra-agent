@@ -1,9 +1,17 @@
 /**
  * 组装根测试装配：临时 HOME + 真实 `createRuntimeDeps()` + 进程内 FakeProvider（记录每次请求）。
  * B6 的 compose / 模式 / SDK 测试共用。
+ *
+ * 沙箱能力固定为 Node 24（非 strict，与 CI 的 Node 22 / 24 一致）：default 预设跟随预设时不开
+ * codemode，测试结果不随本机 Node 版本变化。测 strict 行为的用例在 boot / run 的 options 里给
+ * `sandboxCapability`。
  */
 
+/** 测试缺省的沙箱能力（Node 24：网络未隔离）。 */
+export const HARNESS_CAPABILITY = detectSandboxCapability("24.0.0");
+
 import { createDefaultApiRegistry } from "../../src/ai/apis/api.js";
+import { detectSandboxCapability } from "../../src/codemode/capability.js";
 import { FakeProvider } from "../../src/ai/fake/fake-provider.js";
 import type { FakeResponse } from "../../src/ai/fake/fake-script.js";
 import { parseArgs } from "../../src/cli/args.js";
@@ -53,7 +61,14 @@ export function composeHarness(
   const make = (options: ComposeOptions = {}): RuntimeDeps => {
     const apis = createDefaultApiRegistry();
     apis.register(fake.api);
-    last = createRuntimeDeps({ apis, env, probeLocal: false, log: () => undefined, ...options });
+    last = createRuntimeDeps({
+      apis,
+      env,
+      probeLocal: false,
+      log: () => undefined,
+      sandboxCapability: HARNESS_CAPABILITY,
+      ...options,
+    });
     return last;
   };
   return {

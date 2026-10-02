@@ -13,13 +13,18 @@
  * - `tools.default`：`+name` / `-name` 在预设上增减；不带前缀的名字整组替换预设的内置工具，
  *   之后再应用带前缀的项。未注册的名字记 warning 并忽略。
  * - `codemode` 是 `codemode-only` 的旧名（0.3.0），配置合并与命令行解析时折成规范名。
- * - codemode 开关跟随预设：`codemode-only` 预设 → `only`，其余 → `off`；`codemode.mode` 显式配置覆盖。
- * - codemode 工具由 B10 经组装根的 `toolFactories` 注册（`codemode.mode` 为 off 时不注册）；不可用
+ * - codemode 开关跟随预设（`presetCodemodeMode`）：`default` → `on`（只在沙箱 strict，即 Node ≥ 25 隔离
+ *   网络时；Node 22 / 24 → `off`），`codemode-only` → `only`，`minimal` / `coordinator` → `off`。
+ *   `codemode.mode` 显式配置覆盖（缺省配置不写这个键，以后调整映射能惠及老用户）。
+ * - `coordinator` 预设即使显式 `on`，脚本里能调用的工具也只限活动集（read + 宿主工具），见
+ *   `codemodeCallableFilter`：协调者「不写文件、不跑 bash」的约定不能经 codemode 绕过。
+ * - codemode 工具由 B10 经组装根的 `toolFactories` 注册（生效模式为 off 时不注册）；不可用
  *   （例如 `codemode.requireStrict` 而运行时 Node 不隔离网络）时 codemode-only 预设**回退到 default 并
- *   warning**（不报错：零配置用户不应因此起不来），`on` 同样忽略。
+ *   warning**（不报错：零配置用户不应因此起不来），显式 `on` 同样忽略；跟随预设得到的 `on` 静默回退。
  * - `only` 模式活动集独占：宿主 / SDK 工具也不直接暴露，只能在脚本里调用（`exclusive`）。
  */
 
+import { detectSandboxCapability } from "../codemode/capability.js";
 import {
   canonicalPreset,
   type AmaConfig,
@@ -39,11 +44,55 @@ export const PRESET_TOOLS: Readonly<Record<ToolsPreset, readonly string[]>> = Ob
   coordinator: ["read"],
 });
 
-/** 生效的 codemode 模式：显式配置优先，否则跟随预设。 */
-export function effectiveCodemodeMode(config: Pick<AmaConfig, "tools" | "codemode">): CodemodeMode {
+/**
+ * 预设对应的 codemode 模式（没有显式 `codemode.mode` 时）。`default` 只在沙箱 strict（Node ≥ 25，
+ * 权限模型同时隔离网络）时开 `on`：Node 22 / 24 下 codemode 属 execute 类，每次都要审批，`-p` 下
+ * 直接被拒，所以缺省关闭（启动时提示一次，见 cli/codemode-notice.ts）。
+ */
+export function presetCodemodeMode(preset: ToolsPreset, strict: boolean): CodemodeMode {
+  switch (preset) {
+    case "codemode-only":
+      return "only";
+    case "default":
+      return strict ? "on" : "off";
+    default:
+      return "off";
+  }
+}
+
+export interface CodemodeModeResolution {
+  mode: CodemodeMode;
+  /** `config`：显式 `codemode.mode`；`preset`：跟随预设。 */
+  source: "config" | "preset";
+  preset: ToolsPreset;
+  strict: boolean;
+}
+
+/** 生效的 codemode 模式及其来源；`strict` 缺省按运行时探测（测试与组装根可注入）。 */
+export function resolveCodemodeMode(
+  config: Pick<AmaConfig, "tools" | "codemode">,
+  strict: boolean = detectSandboxCapability().strict,
+): CodemodeModeResolution {
+  const preset = canonicalPreset(config.tools?.preset) ?? "default";
   const explicit = config.codemode?.mode;
-  if (explicit !== undefined) return explicit;
-  return canonicalPreset(config.tools?.preset) === "codemode-only" ? "only" : "off";
+  if (explicit !== undefined) return { mode: explicit, source: "config", preset, strict };
+  return { mode: presetCodemodeMode(preset, strict), source: "preset", preset, strict };
+}
+
+/** 生效的 codemode 模式：显式配置优先，否则跟随预设。 */
+export function effectiveCodemodeMode(
+  config: Pick<AmaConfig, "tools" | "codemode">,
+  strict?: boolean,
+): CodemodeMode {
+  return resolveCodemodeMode(config, strict).mode;
+}
+
+/**
+ * codemode 脚本里可调用工具的范围：`coordinator` 预设只能调活动集里的工具（`"active"`），其它预设
+ * 不限（`undefined`；`on` 模式下脚本还能调没直接暴露的 ls / task / todo 等）。
+ */
+export function codemodeCallableFilter(config: Pick<AmaConfig, "tools">): "active" | undefined {
+  return canonicalPreset(config.tools?.preset) === "coordinator" ? "active" : undefined;
 }
 
 /**
@@ -79,10 +128,17 @@ export function resolvePreset(input: {
   config: Pick<AmaConfig, "tools" | "codemode">;
   /** 该名字是否已注册（且未禁用）。 */
   available(name: string): boolean;
+  /** 沙箱是否 strict；缺省按运行时探测。 */
+  strict?: boolean;
 }): PresetResolution {
   const warnings: string[] = [];
-  let preset: ToolsPreset = canonicalPreset(input.config.tools?.preset) ?? "default";
-  let codemode = effectiveCodemodeMode(input.config);
+  const resolved = resolveCodemodeMode(input.config, input.strict);
+  let preset: ToolsPreset = resolved.preset;
+  let codemode = resolved.mode;
+  // 跟随预设得到的 on（default 预设）在 codemode 不可用时静默回退：零配置不该因此出 warning。
+  if (codemode === "on" && resolved.source === "preset" && !input.available(CODEMODE_TOOL)) {
+    codemode = "off";
+  }
   if (codemode !== "off" && !input.available(CODEMODE_TOOL)) {
     warnings.push(
       preset === "codemode-only"

@@ -4,6 +4,7 @@ import { createDefaultApiRegistry } from "./ai/apis/api.js";
 import { FakeProvider } from "./ai/fake/fake-provider.js";
 import type { FakeResponse } from "./ai/fake/fake-script.js";
 import { AgentSessionImpl } from "./agent/session.js";
+import { detectSandboxCapability } from "./codemode/capability.js";
 import * as sdk from "./index.js";
 import { createAgentSession, createRuntime, type SessionCacheStats } from "./sdk.js";
 import type { ToolDefinition } from "./tools/types.js";
@@ -87,8 +88,11 @@ describe("SDK", () => {
       extraTools: [hello as ToolDefinition],
       permission: { ask: async (request) => (asked.push(request.toolName), "deny") },
     });
+    // default 预设跟随预设：沙箱 strict（Node ≥ 25）时带 codemode，否则不带
+    const codemode = detectSandboxCapability().strict ? ["codemode"] : [];
     expect(session.getTools().map((t) => t.name)).toEqual([
       "bash",
+      ...codemode,
       "edit",
       "glob",
       "grep",

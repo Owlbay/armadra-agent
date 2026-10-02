@@ -17,8 +17,9 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { canonicalPreset } from "../config/types.js";
+import type { AmaConfig } from "../config/types.js";
 import type { BashStructured } from "../tools/bash.js";
+import { codemodeCallableFilter, resolveCodemodeMode } from "../tools/presets.js";
 import type { ToolContext, ToolDefinition, ToolResult } from "../tools/types.js";
 import {
   codemodeAvailability,
@@ -264,6 +265,8 @@ export function createCodemodeTool(options: CodemodeToolOptions): ToolDefinition
         name: t.name,
         declaration: toolDeclaration(declarable(t), textResult ? {} : { textResult: false }),
       }));
+      // 只有清单里的工具可调（coordinator 预设的清单只含活动集）；脚本拼出别的名字也不放行。
+      const callable = new Set(tools.map((t) => t.name));
       let tail = "";
       const run = await runSandbox({
         script: input.script,
@@ -273,8 +276,10 @@ export function createCodemodeTool(options: CodemodeToolOptions): ToolDefinition
         signal: ctx.signal,
         ...(options.entry !== undefined ? { entry: options.entry } : {}),
         ...(options.nodePath !== undefined ? { nodePath: options.nodePath } : {}),
-        callTool: async (name, args, signal) =>
-          toScriptValue(name, await ctx.tools.executeTool(name, args, { signal })),
+        callTool: async (name, args, signal) => {
+          if (!callable.has(name)) throw new Error(`Tool ${name} is not available in codemode`);
+          return toScriptValue(name, await ctx.tools.executeTool(name, args, { signal }));
+        },
         onOutput: (text) => {
           tail = `${tail}${tail === "" ? "" : "\n"}${text}`.slice(-TAIL_CHARS);
           ctx.onUpdate(tail);
@@ -328,45 +333,46 @@ export function createCodemodeTool(options: CodemodeToolOptions): ToolDefinition
 
 /** 组装根用：从 ToolFactoryContext 的形状取所需（避免 codemode → cli 的依赖）。 */
 export interface CodemodeFactoryContext {
-  config: {
-    codemode?: { mode?: "off" | "on" | "only"; inlineBudget?: number; requireStrict?: boolean };
-    tools?: { preset?: string; maxToolResultChars?: number };
-  };
+  config: Pick<AmaConfig, "tools" | "codemode">;
   registry: {
     list(): readonly string[];
     get(name: string): ToolDefinition | undefined;
-  } & { sourceOf?(name: string): string | undefined };
+  } & {
+    sourceOf?(name: string): string | undefined;
+    /** 活动集（coordinator 预设下脚本只能调这些）。 */
+    active?(): readonly { name: string }[];
+  };
   warn(message: string): void;
 }
 
 /**
- * codemode 工具工厂：`codemode.mode` 生效值为 off → 不注册；`requireStrict` 而运行时不隔离网络
- * → 不注册并 warning（预设随之回退到 default）。
+ * codemode 工具工厂：生效模式（显式 `codemode.mode`，否则跟随预设，见 tools/presets.ts）为 off →
+ * 不注册；`requireStrict` 而运行时不隔离网络 → 不注册并 warning（预设随之回退到 default）。
+ * `coordinator` 预设下脚本可调用的工具限于活动集（不含 codemode 本身）。
  */
 export function codemodeToolFactory(
   overrides: Partial<Pick<CodemodeToolOptions, "capability" | "entry" | "nodePath">> = {},
 ): (ctx: CodemodeFactoryContext) => ToolDefinition | undefined {
   return (ctx) => {
-    const explicit = ctx.config.codemode?.mode;
-    const mode =
-      explicit ?? (canonicalPreset(ctx.config.tools?.preset) === "codemode-only" ? "only" : "off");
+    const capability = overrides.capability ?? detectSandboxCapability();
+    const mode = resolveCodemodeMode(ctx.config, capability.strict).mode;
     if (mode === "off") return undefined;
-    const availability = codemodeAvailability(
-      ctx.config.codemode?.requireStrict,
-      overrides.capability ?? detectSandboxCapability(),
-    );
+    const availability = codemodeAvailability(ctx.config.codemode?.requireStrict, capability);
     if (!availability.available) {
       ctx.warn(availability.warning);
       return undefined;
     }
     const registry = ctx.registry;
+    const onlyActive = codemodeCallableFilter(ctx.config) === "active";
+    const allowed = (name: string): boolean =>
+      !onlyActive || (registry.active?.() ?? []).some((tool) => tool.name === name);
     const options: CodemodeToolOptions = {
       capability: availability.capability,
       exclusive: mode === "only",
       listTools: () =>
         registry
           .list()
-          .filter((name) => name !== CODEMODE_TOOL_NAME)
+          .filter((name) => name !== CODEMODE_TOOL_NAME && allowed(name))
           .map((name) => registry.get(name))
           .filter((t): t is ToolDefinition => t !== undefined)
           .map((t) => ({

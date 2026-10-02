@@ -203,7 +203,12 @@ export async function bootstrap(
   const thinkingLevel = thinkingOf(args, sessionManager, config.thinkingLevel);
   // 12. 工具注册表
   const tools = await step(ExitCode.RuntimeError, "工具", () =>
-    deps.tools.create({ config, cwd: sessionCwd, mode }),
+    deps.tools.create({
+      config,
+      cwd: sessionCwd,
+      mode,
+      paths: { configDir: paths.configDir, dataDir: paths.dataDir },
+    }),
   );
   for (const name of config.tools?.disabled ?? []) {
     if (tools.get(name) === undefined) warn(`config tools.disabled：未知工具 ${name}，已忽略`);
