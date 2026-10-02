@@ -1,0 +1,35 @@
+info:/help  List commands
+/new  Start a new session
+/resume [id]  Resume a session (pick one when no id)
+/fork [entry id]  Fork a new session from an entry
+/compact [instructions]  Compact the context
+/rewind [n] [both|conversation|code|summarize-from|summarize-up-to]  Rewind the conversation and code to before a message
+/model [provider/id]  Switch model
+/thinking [level]  Thinking level off | minimal | low | medium | high | xhigh
+/permission [mode]  Permission mode plan | default | auto-edit | full-auto
+/tools [names…]  List / set active tools
+/hooks  List loaded hooks
+/session  Session info, usage and cache
+/cache [warm off|streaming|idle | fingerprint]  Cache stats; switch warming for this session; print the prefix fingerprint
+/statusline [full|compact]  Footer info two lines / one line (Ctrl+G)
+/plan [goal] | approve [mode|fresh] | reject  Show the plan and status; with a goal, enter Plan mode; approve / discard a pending plan
+/tasks [id] | stop <id>  Sub-agent tasks: status, output, stop
+/agents  Sub-agent types and external agents (installed, version)
+/paste  Paste an image from the clipboard (Ctrl+V)
+/exit  Exit
+/config [key=value]  Settings panel; key=value sets one item directly (user level)
+/trace [task id]  Trace: timing and usage of turns, requests and tools
+/memory [show|edit|rm <name> | on|off | reload]  Cross-session memory (needs memory.enabled)
+/skill:<name> [args]  Use a skill
+/<template> [args]  Expand a prompt template
+/tree  Browse the session tree and rewrite from before a message
+/permissions  Permission mode, decision order and rules
+
+Enter send (while running = steer)  Alt+Enter queue after this turn  Shift+Enter / Ctrl+J newline
+Esc interrupt (queued messages go back to the editor)  Alt+↑ take back the last queued message
+Idle Esc Esc: empty input = rewind (/rewind), with text = clear (↑ to restore)
+Shift+Tab / Tab (empty input) cycle permission mode (confirm before Bypass)  Ctrl+L model  Ctrl+T thinking level  Ctrl+O expand tool output and thinking
+Approval: 1–3 or ↑↓ Enter to choose, y allow  a allow for this session  n / Esc deny  v full input
+Plan approval: 1 approve  2 run in a fresh context  3 keep revising  4 reject and leave Plan  e edit plan  Esc stay in Plan
+Ctrl+V paste a clipboard image (inserts @path)  Ctrl+G footer two rows / one row
+Ctrl+C clear input (again to quit)  Ctrl+D quit on empty input  Tab complete  @ reference a file

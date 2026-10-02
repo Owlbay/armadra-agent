@@ -5,13 +5,7 @@ import { currentSession, switchSession } from "../../cli/compose-session.js";
 import type { Runtime } from "../../cli/runtime.js";
 import { setLocale } from "../../i18n/index.js";
 import type { SelectItem } from "../../tui.js";
-import {
-  ALL_COMMANDS,
-  INTERACTIVE_COMMANDS,
-  keyHints,
-  runInteractiveCommand,
-  type CommandUi,
-} from "./commands.js";
+import { ALL_COMMANDS, keyHints, runInteractiveCommand, type CommandUi } from "./commands.js";
 import { golden } from "./test-support.js";
 import type { PickerSpec } from "./pickers.js";
 
@@ -249,11 +243,13 @@ describe("交互命令", () => {
   });
 });
 
-describe("/help 的交互部分（en）", () => {
+describe("/help（en）", () => {
   afterEach(() => setLocale("zh"));
-  it("/tree、/permissions 与按键说明", () => {
+  it("/help 全文", async () => {
     setLocale("en");
-    const extra = INTERACTIVE_COMMANDS.map((c) => `/${c.name}  ${c.description}`);
-    golden("en/help-interactive", [...extra, "", keyHints()].join("\n") + "\n");
+    const rt = await boot();
+    const { ui, notices } = recordingUi(rt);
+    expect(await runInteractiveCommand("/help", ui)).toBe(true);
+    golden("en/help", `${notices[0]}\n`);
   });
 });
