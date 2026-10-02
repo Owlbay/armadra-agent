@@ -103,6 +103,8 @@ describe("会话遥测", () => {
     expect(live.outputTokens).toBe(510);
     // 窗口 2 s 内 5 个样本（含边界）= 250 token / 2 s
     expect(live.tps).toBeCloseTo(125, 5);
+    // 进行中：last 指向当前请求（有 ttft、没有 doneAt）
+    expect(r.ext.snapshot().last).toEqual({ requestAt: 1_000, firstTokenAt: 2_400, ttftMs: 1_400 });
     r.advance(500);
     await push(r.done(546));
     const snap = r.ext.snapshot();

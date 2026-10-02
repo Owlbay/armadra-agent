@@ -11,7 +11,8 @@
  * - 流式中经 `emit` 发 `telemetry_tick`，两次间隔 ≥ 500 ms（≤ 2 Hz，只由增量驱动、不起计时器）；
  *   `ticks: false`（`ui.animation: false`）时不发，界面在 message_end 时刷新。
  *
- * 数据从 `getStats().telemetry` 取（`contributeStats`）；`sessionStartedAt` 是扩展创建（本进程打开会话）的时刻。
+ * 数据从 `getStats().telemetry` 取（`contributeStats`）：进行中的请求出了首 token 后 `last` 即指向它（只有
+ * `requestAt / firstTokenAt / ttftMs`），结束后补齐 `doneAt / outputTokens / tps`；`sessionStartedAt` 是扩展创建（本进程打开会话）的时刻。
  */
 
 import type { AssistantEvent, AssistantEventStream, AssistantMessage } from "../ai/types.js";
@@ -207,7 +208,9 @@ export function createTelemetryExtension(deps: TelemetryDeps = {}): TelemetryExt
 
   const snapshot = (): SessionTelemetry => {
     const out: SessionTelemetry = { sessionStartedAt };
-    if (last !== undefined) out.last = { ...last };
+    // 进行中的请求有了首 token 就算「最近一次」（没有 doneAt / tps），之前仍显示上一次
+    const recent = current?.record.firstTokenAt !== undefined ? current.record : last;
+    if (recent !== undefined) out.last = { ...recent };
     const live = current?.live(now());
     if (live !== undefined) out.live = live;
     if (sumMs > 0) out.avgTps = sumOutput / (sumMs / 1000);
