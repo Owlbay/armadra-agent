@@ -41,7 +41,7 @@ packy/deepseek-v4-flash         1     3     1  4.6k   980      2k       0   30.8
 | 回合        | 一条非 `steer` 的用户消息开始一个回合，到下一条为止；至少有一条 assistant 才计。耗时 = 最后一条 assistant 的落盘时间 − 用户消息的落盘时间                                                                             |
 | token       | `input` 不含缓存部分（同会话层）；缓存读 / 写分开列                                                                                                                                                                   |
 | 缓存命中率  | cacheRead /（input + cacheRead + cacheWrite），只算**报告缓存**的端点：同一 `provider/model@channel` 在扫描范围内出现过任何非零缓存读写才算；其余端点不进分母（与会话层三态一致，不报缓存的中转不会把命中率拉成 0）   |
-| 费用        | 只加带 `usage.cost` 的请求（模型有价格）；无价请求数单独报，全部无价时只给 token                                                                                                                                      |
+| 费用        | 只加带 `usage.cost` 的请求（模型有价格）；无价请求数单独报，全部无价时只给 token；订阅计费（ChatGPT 登录，`usage.billing: "subscription"`）的请求另起「订阅」一行计数，不进费用、不算无价                             |
 | 工具调用    | assistant 里的工具调用块按名字计；codemode 脚本内的调用不展开                                                                                                                                                         |
 | 错误 / 重试 | `stopReason: "error"` 的 assistant；`context_edit{reason:"retry"}`（自动重试剔除的失败尝试）                                                                                                                          |
 | 渠道        | 最近一条 `model_change` 与请求同 provider / model 时取它的 `channel`                                                                                                                                                  |
