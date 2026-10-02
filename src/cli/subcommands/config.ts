@@ -8,6 +8,7 @@
  * （模型级 `api` 生效后的值）。
  */
 
+import { metadataOf, modelFlags, sourcesLine } from "./model-meta.js";
 import { loadConfigFile } from "../../config/load.js";
 import { DEFAULT_CONFIG, PROFILE_DEFAULTS, mergeProjectAndCli } from "../../config/merge.js";
 import { CONFIG_FILE, projectFile } from "../../config/paths.js";
@@ -93,8 +94,16 @@ export interface ProviderDescription {
   baseUrl: string;
   /** baseUrl 来自的环境变量。 */
   baseUrlEnv?: string;
-  /** config 里列出的模型及其生效协议。 */
-  models: { id: string; api: Api }[];
+  /** 渠道（多渠道供应商）。 */
+  channels?: { name: string; api: Api; baseUrl: string }[];
+  /** config 里列出的模型及其生效协议、渠道与元数据来源。 */
+  models: {
+    id: string;
+    api: Api;
+    channels?: string[];
+    flags: string;
+    sources?: string;
+  }[];
 }
 
 /** config 里出现的供应商 + baseUrl 来自环境变量的内置供应商。 */
@@ -114,7 +123,27 @@ export function describeProviders(
       api: provider.api,
       baseUrl: provider.baseUrl,
       ...(env !== undefined ? { baseUrlEnv: env } : {}),
-      models: provider.models.filter((m) => ids.has(m.id)).map((m) => ({ id: m.id, api: m.api })),
+      ...(provider.channels !== undefined
+        ? {
+            channels: provider.channels.map((c) => ({
+              name: c.name,
+              api: c.api,
+              baseUrl: c.baseUrl,
+            })),
+          }
+        : {}),
+      models: provider.models
+        .filter((m) => ids.has(m.id))
+        .map((m) => {
+          const sources = sourcesLine(metadataOf(registry, provider.id, m.id));
+          return {
+            id: m.id,
+            api: m.api,
+            ...(m.channels !== undefined ? { channels: [...m.channels] } : {}),
+            flags: modelFlags(m),
+            ...(sources !== undefined ? { sources } : {}),
+          };
+        }),
     });
   }
   return out;
@@ -126,7 +155,11 @@ function providerLines(providers: readonly ProviderDescription[]): string[] {
   for (const p of providers) {
     const env = p.baseUrlEnv !== undefined ? `（baseUrl 来自环境变量 ${p.baseUrlEnv}）` : "";
     lines.push(`  ${p.id}  ${p.api}  ${p.baseUrl}${env}`);
-    for (const m of p.models) lines.push(`    ${p.id}/${m.id}  ${m.api}`);
+    for (const c of p.channels ?? []) lines.push(`    @${c.name}  ${c.api}  ${c.baseUrl}`);
+    for (const m of p.models) {
+      lines.push(`    ${p.id}/${m.id}  ${m.api}  ${m.flags}`);
+      if (m.sources !== undefined) lines.push(`      ${m.sources}`);
+    }
   }
   return lines;
 }

@@ -57,5 +57,6 @@ export async function buildRegistry(
     cwd: io.cwd,
     authFile: level.authFile,
     authEnv: level.profile?.authEnv ?? true,
+    dataDir: level.dataDir,
   });
 }

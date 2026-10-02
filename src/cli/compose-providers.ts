@@ -12,6 +12,7 @@
  */
 
 import type { ApiRegistry } from "../ai/apis/api.js";
+import { loadModelsDevIndex } from "../ai/providers/models-dev-cache.js";
 import { ProviderRegistry, discoverLocalModels } from "../ai/providers/registry.js";
 import type { ProviderData } from "../ai/types.js";
 import type { AmaConfig, ModelConfig, ProviderConfig } from "../config/types.js";
@@ -70,6 +71,7 @@ export async function buildProviderRegistry(
   options: ProviderComposeOptions = {},
 ): Promise<ProviderRegistry> {
   const config = withExtraProviders(input.config, options.providers);
+  const dataDir = input.dataDir;
   const make = (cliApiKey?: { provider: string; apiKey: string }): ProviderRegistry =>
     new ProviderRegistry({
       config,
@@ -83,6 +85,7 @@ export async function buildProviderRegistry(
         env: options.env,
       },
       onWarning: options.warn,
+      ...(dataDir !== undefined ? { modelsDev: () => loadModelsDevIndex(dataDir) } : {}),
     });
   let registry = make();
   const cli = input.cliApiKey;
