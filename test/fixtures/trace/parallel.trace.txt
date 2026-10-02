@@ -1,0 +1,7 @@
+轨迹 · 1 回合 · 2 请求 · 3 次工具 · 12s · ↑8.1k ↓240 · 缓存 70% · ttft p50 0.8s / p90 0.9s · 120 tok/s
+#1 跑测试并找出 TODO  12s  ↑8.1k ↓240  70%
+  请求 claude-sonnet-4-5 · ttft 0.8s · 167 tok/s  1.7s  ↑3.9k ↓150  46%
+    bash pnpm test  8.0s
+    grep TODO  0.3s
+    ⛔ write notes.md  2.2s
+  请求 claude-sonnet-4-5 · ttft 0.9s · 82 tok/s  2.0s  ↑4.2k ↓90  93%
