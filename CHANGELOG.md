@@ -1,5 +1,9 @@
 # 更新记录
 
+## 未发布
+
+- **Tab 切换权限模式**：输入为空、补全未打开时按 Tab 与 Shift+Tab 一样循环权限模式；有输入时 Tab 仍是补全。可在 `keybindings.json` 的 `app.permission.cycle` 改回只用 `shift+tab`。
+
 ## 0.5.0（2026-10-03）
 
 第五波：回滚与检查点、操作系统沙箱、子 Agent、外部 Agent 与 ACP、Plan 模式、压缩与 harness 修订、模型元数据快照与内置渠道、

@@ -40,7 +40,7 @@ export const DEFAULT_KEYBINDINGS = {
   "app.exit": ["ctrl+d"],
   "app.message.followUp": ["alt+enter"],
   "app.message.dequeue": ["alt+up"],
-  "app.permission.cycle": ["shift+tab"],
+  "app.permission.cycle": ["shift+tab", "tab"],
   "app.tools.expand": ["ctrl+o"],
   "app.model.select": ["ctrl+l"],
   "app.thinking.select": ["ctrl+t"],

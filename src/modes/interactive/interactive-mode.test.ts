@@ -162,6 +162,18 @@ describe("交互模式", () => {
     await s.done;
   });
 
+  it("Tab：输入为空时循环权限模式，有输入时仍是补全", async () => {
+    const s = await start([{ text: "ok" }]);
+    s.type("\t");
+    expect(currentSession(s.rt).state.permissionMode).toBe("auto-edit");
+    s.type("/mod");
+    s.type("\t");
+    expect(currentSession(s.rt).state.permissionMode).toBe("auto-edit");
+    expect(s.terminal.viewport().join("\n")).toContain("/model");
+    s.handle.exit(0);
+    await s.done;
+  });
+
   it("Shift+Tab 循环权限模式；括号粘贴后的 \\r 提交；/model 选择器切换模型", async () => {
     const s = await start([{ text: "收到粘贴" }], { env: { AMA_SHOW_FAKE: "1" } });
     s.type("\x1b[Z");

@@ -346,7 +346,7 @@ Accept edits     claude-opus-5-5 medium | Ctx 34.0% | proj ⎇ main 5ae9e54 (+12
 
 ## 安全
 
-**权限模式**（`--permission-mode`、配置 `permission.mode`、`/permission` 选择器、交互模式 `Shift+Tab` 循环）：
+**权限模式**（`--permission-mode`、配置 `permission.mode`、`/permission` 选择器、交互模式 `Shift+Tab` 或输入为空时 `Tab` 循环）：
 
 | 模式        | 显示名             | 读  | 写                                                     | 执行（bash 等）                |
 | ----------- | ------------------ | --- | ------------------------------------------------------ | ------------------------------ |
@@ -433,7 +433,7 @@ line 模式用 `/plan approve [模式|fresh]` / `/plan reject`；RPC 声明 `pla
 | Shift+Enter / Ctrl+J | 换行                                                           |
 | Esc                  | 中断当前运行                                                   |
 | Esc Esc（空闲）      | 输入框为空：打开回滚列表（同 `/rewind`）；有字：清空并存进历史 |
-| Shift+Tab            | 循环权限模式                                                   |
+| Shift+Tab / Tab      | 循环权限模式（Tab 只在输入为空时；有输入时是补全）             |
 | Ctrl+O               | 展开 / 折叠工具输出                                            |
 | Ctrl+L / Ctrl+T      | 选择模型 / 思考级别                                            |
 | Ctrl+G               | 底部信息行 两行 ↔ 一行（同 `/statusline`）                     |

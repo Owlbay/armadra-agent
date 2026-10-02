@@ -54,7 +54,7 @@ export const KEY_HINTS = [
   "Enter 发送（运行中 = 插话）  Alt+Enter 排到本轮之后  Shift+Enter / Ctrl+J 换行",
   "Esc 中断（排队消息回填编辑器）  Alt+↑ 取回最后一条排队消息",
   "空闲时 Esc Esc：输入框为空 = 回滚（/rewind），有字 = 清空（↑ 取回）",
-  "Shift+Tab 切换权限模式  Ctrl+L 模型  Ctrl+T 思考级别  Ctrl+O 展开工具输出与思考",
+  "Shift+Tab / Tab（输入为空时）切换权限模式  Ctrl+L 模型  Ctrl+T 思考级别  Ctrl+O 展开工具输出与思考",
   "审批：1–3 或 ↑↓ Enter 选择，y 允许  a 本会话允许同类  n / Esc 拒绝  v 完整输入",
   "计划审批：1 批准  2 新上下文执行  3 继续修改  4 放弃并退出 Plan  e 编辑计划  Esc 留在 Plan",
   "Ctrl+V 粘贴剪贴板图片（插入 @路径）  Ctrl+G 底部信息行两行 / 一行",
