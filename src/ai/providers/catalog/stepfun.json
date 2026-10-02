@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "provider": "stepfun",
+  "modelsDev": "stepfun",
+  "models": [
+    {
+      "id": "step-5-preview"
+    },
+    {
+      "id": "step-3.7-flash",
+      "channels": ["messages", "chat", "messages-intl", "chat-intl"]
+    },
+    {
+      "id": "step-3.5-flash",
+      "channels": ["messages", "chat", "messages-intl", "chat-intl"]
+    }
+  ]
+}

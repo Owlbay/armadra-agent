@@ -347,6 +347,13 @@ describe("新增内置供应商", () => {
       "anthropic-messages",
       "https://api.minimax.io/anthropic",
     ],
+    ["stepfun/step-5-preview", "messages", "anthropic-messages", "https://api.stepfun.com"],
+    [
+      "stepfun/step-5-preview@responses",
+      "responses",
+      "openai-responses",
+      "https://api.stepfun.com/v1",
+    ],
   ])("%s → %s", (ref, channel, api, baseUrl) => {
     expect(model(registry(), ref)).toMatchObject({ channel, api, baseUrl });
   });
@@ -359,5 +366,6 @@ describe("新增内置供应商", () => {
       reason: "channel_not_found",
     });
     expect(model(r, "minimax/MiniMax-M3").authHeader).toBe("authorization-bearer");
+    expect(model(r, "stepfun/step-3.5-flash").channels).not.toContain("responses");
   });
 });

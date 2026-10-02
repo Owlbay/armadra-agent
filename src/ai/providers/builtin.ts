@@ -201,6 +201,23 @@ export const BUILTIN_PROVIDERS: readonly BuiltinProvider[] = [
     requiresApiKey: true,
   },
   {
+    id: "stepfun",
+    name: "StepFun",
+    api: "openai-completions",
+    baseUrl: "https://api.stepfun.com/v1",
+    // 自动前缀缓存；Responses 按模型开放（目录标注）
+    channels: [
+      ch("messages", MESSAGES, "https://api.stepfun.com", BEARER),
+      ch("chat", CHAT, "https://api.stepfun.com/v1"),
+      ch("responses", RESPONSES, "https://api.stepfun.com/v1"),
+      ch("messages-intl", MESSAGES, "https://api.stepfun.ai", BEARER),
+      ch("chat-intl", CHAT, "https://api.stepfun.ai/v1"),
+    ],
+    defaultChannel: "messages",
+    envKeys: ["STEPFUN_API_KEY", "STEP_API_KEY", "AMA_API_KEY_STEPFUN"],
+    requiresApiKey: true,
+  },
+  {
     id: "ollama",
     name: "Ollama (local)",
     api: "openai-completions",

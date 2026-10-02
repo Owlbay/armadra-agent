@@ -72,6 +72,7 @@ const TRUTH: Row[] = [
   ["xai", "grok-4.7", { maxTokensField: "max_completion_tokens", supportsReasoningEffort: true }],
   ["mistral", "mistral-large-latest", { thinkingFormat: "none", requiresToolResultName: true }],
   ["minimax", "MiniMax-M2.7", {}],
+  ["stepfun", "step-5-preview", {}],
   ["ollama", "llama3", {}],
   ["lmstudio", "qwen", {}],
 ];

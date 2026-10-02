@@ -36,6 +36,7 @@ describe("ProviderRegistry", () => {
       "xai",
       "mistral",
       "minimax",
+      "stepfun",
       "ollama",
       "lmstudio",
       "fake",

@@ -121,6 +121,7 @@ export const INFERENCE_RULES: readonly InferenceRule[] = [
     patch: () => ({ thinkingFormat: "none", requiresToolResultName: true }),
   },
   { provider: "minimax", baseUrl: "minimax", patch: () => ({}) },
+  { provider: "stepfun", baseUrl: "stepfun", patch: () => ({}) },
   { provider: "ollama", baseUrl: ":11434", patch: () => ({}) },
   { provider: "lmstudio", baseUrl: ":1234", patch: () => ({}) },
 ];
