@@ -6,7 +6,8 @@
  * 行内 `code` / **粗体** / *斜体* / ~~删除线~~ / [链接](url) / <自动链接> / 反斜杠转义。
  * 表格降级为等宽对齐文本（不换行、超宽截断）；不做语法高亮（§12.9）。
  *
- * 缓存：按块缓存渲染结果（键 = 宽度 + 块源文本），流式追加时只有末块重新渲染。
+ * 缓存：按块缓存渲染结果（键 = 宽度 + 块源文本），流式追加时只有末块重新渲染；解析也是增量的
+ * （`Markdown.append` 只从尾部可能变化的块重新解析）。
  */
 
 import type { Component, Theme } from "../component.js";
@@ -47,11 +48,32 @@ function isBlockStart(line: string): boolean {
   );
 }
 
+function splitLines(source: string): string[] {
+  return source.replace(/\r\n?/g, "\n").split("\n");
+}
+
+/** 块占的行区间 [start, end)（行号，相对整篇）。 */
+export interface BlockSpan {
+  start: number;
+  end: number;
+}
+
 /** 把源文本切成块。 */
 export function parseMarkdown(source: string): MarkdownBlock[] {
-  const lines = source.replace(/\r\n?/g, "\n").split("\n");
-  const blocks: MarkdownBlock[] = [];
-  let i = 0;
+  return parseLines(splitLines(source), 0, [], []);
+}
+
+/**
+ * 从第 `from` 行起解析，块与行区间分别追加到 `blocks` / `spans`。块与块之间不带状态（空行跳过），
+ * 所以从任一块的起始行重新解析，结果与全量解析的对应部分相同（增量解析的前提）。
+ */
+function parseLines(
+  lines: string[],
+  from: number,
+  blocks: MarkdownBlock[],
+  spans: BlockSpan[],
+): MarkdownBlock[] {
+  let i = from;
   while (i < lines.length) {
     const line = lines[i]!;
     if (line.trim() === "") {
@@ -59,66 +81,74 @@ export function parseMarkdown(source: string): MarkdownBlock[] {
       continue;
     }
     const start = i;
-    const fence = FENCE_RE.exec(line);
-    if (fence) {
-      const marker = fence[1]!;
-      const body: string[] = [];
-      i++;
-      while (i < lines.length && !lines[i]!.trimStart().startsWith(marker)) body.push(lines[i++]!);
-      if (i < lines.length) i++;
-      const src = lines.slice(start, i).join("\n");
-      blocks.push({ kind: "code", lang: fence[2] ?? "", lines: body, source: src });
-      continue;
-    }
-    const heading = HEADING_RE.exec(line);
-    if (heading) {
-      blocks.push({
-        kind: "heading",
-        level: heading[1]!.length,
-        text: heading[2] ?? "",
-        source: line,
-      });
-      i++;
-      continue;
-    }
-    if (HR_RE.test(line)) {
-      blocks.push({ kind: "hr", source: line });
-      i++;
-      continue;
-    }
-    if (TABLE_RE.test(line)) {
-      const rows: string[][] = [];
-      while (i < lines.length && TABLE_RE.test(lines[i]!)) {
-        const row = lines[i++]!;
-        if (TABLE_SEP_RE.test(row)) continue;
-        rows.push(splitTableRow(row));
-      }
-      blocks.push({ kind: "table", rows, source: lines.slice(start, i).join("\n") });
-      continue;
-    }
-    if (QUOTE_RE.test(line)) {
-      const body: string[] = [];
-      while (i < lines.length && QUOTE_RE.test(lines[i]!))
-        body.push(QUOTE_RE.exec(lines[i++]!)![1]!);
-      blocks.push({
-        kind: "quote",
-        text: body.join("\n"),
-        source: lines.slice(start, i).join("\n"),
-      });
-      continue;
-    }
-    if (LIST_RE.test(line)) {
-      i = parseList(lines, i, blocks);
-      continue;
-    }
-    const body: string[] = [line];
-    i++;
-    while (i < lines.length && lines[i]!.trim() !== "" && !isBlockStart(lines[i]!)) {
-      body.push(lines[i++]!);
-    }
-    blocks.push({ kind: "paragraph", text: joinSoftBreaks(body), source: body.join("\n") });
+    const before = blocks.length;
+    i = parseBlock(lines, i, blocks);
+    for (let k = before; k < blocks.length; k++) spans.push({ start, end: i });
   }
   return blocks;
+}
+
+/** 解析从 `i` 起（非空行）的一个块，返回下一行号。 */
+function parseBlock(lines: string[], i: number, blocks: MarkdownBlock[]): number {
+  const line = lines[i]!;
+  const start = i;
+  const fence = FENCE_RE.exec(line);
+  if (fence) {
+    const marker = fence[1]!;
+    const body: string[] = [];
+    i++;
+    while (i < lines.length && !lines[i]!.trimStart().startsWith(marker)) body.push(lines[i++]!);
+    if (i < lines.length) i++;
+    const src = lines.slice(start, i).join("\n");
+    blocks.push({ kind: "code", lang: fence[2] ?? "", lines: body, source: src });
+    return i;
+  }
+  const heading = HEADING_RE.exec(line);
+  if (heading) {
+    blocks.push({
+      kind: "heading",
+      level: heading[1]!.length,
+      text: heading[2] ?? "",
+      source: line,
+    });
+    i++;
+    return i;
+  }
+  if (HR_RE.test(line)) {
+    blocks.push({ kind: "hr", source: line });
+    i++;
+    return i;
+  }
+  if (TABLE_RE.test(line)) {
+    const rows: string[][] = [];
+    while (i < lines.length && TABLE_RE.test(lines[i]!)) {
+      const row = lines[i++]!;
+      if (TABLE_SEP_RE.test(row)) continue;
+      rows.push(splitTableRow(row));
+    }
+    blocks.push({ kind: "table", rows, source: lines.slice(start, i).join("\n") });
+    return i;
+  }
+  if (QUOTE_RE.test(line)) {
+    const body: string[] = [];
+    while (i < lines.length && QUOTE_RE.test(lines[i]!)) body.push(QUOTE_RE.exec(lines[i++]!)![1]!);
+    blocks.push({
+      kind: "quote",
+      text: body.join("\n"),
+      source: lines.slice(start, i).join("\n"),
+    });
+    return i;
+  }
+  if (LIST_RE.test(line)) {
+    return parseList(lines, i, blocks);
+  }
+  const body: string[] = [line];
+  i++;
+  while (i < lines.length && lines[i]!.trim() !== "" && !isBlockStart(lines[i]!)) {
+    body.push(lines[i++]!);
+  }
+  blocks.push({ kind: "paragraph", text: joinSoftBreaks(body), source: body.join("\n") });
+  return i;
 }
 
 function parseList(lines: string[], start: number, blocks: MarkdownBlock[]): number {
@@ -367,17 +397,23 @@ export interface MarkdownOptions {
 
 export class Markdown implements Component {
   private blocks: MarkdownBlock[] = [];
+  /** 与 blocks 一一对应的行区间（增量解析用）。 */
+  private spans: BlockSpan[] = [];
+  /** 规范化（\r\n → \n）后的行。 */
+  private lines: string[] = [];
   private cacheWidth = -1;
   private readonly blockCache = new Map<string, string[]>();
   private lastLines: string[] | null = null;
   private readonly theme: Theme;
+  /** 累计解析过的行数（诊断与测试：流式追加应只重解析尾部）。 */
+  parsedLines = 0;
 
   constructor(
     private text = "",
     private readonly options: MarkdownOptions = {},
   ) {
     this.theme = options.theme ?? plainTheme();
-    this.blocks = parseMarkdown(text);
+    this.reparseFrom(0, splitLines(text));
   }
 
   getText(): string {
@@ -386,14 +422,49 @@ export class Markdown implements Component {
 
   setText(text: string): void {
     if (text === this.text) return;
+    if (text.startsWith(this.text) && this.text !== "") {
+      this.append(text.slice(this.text.length));
+      return;
+    }
     this.text = text;
-    this.blocks = parseMarkdown(text);
-    this.lastLines = null;
+    this.reparseFrom(0, splitLines(text));
   }
 
-  /** 流式追加。 */
+  /**
+   * 流式追加：只有最后一行会变长，此前的行不变。一个块的结束取决于它之后的一行（列表再多看一行），
+   * 所以「结束行 + 1」早于旧的最后一行的块保持不变，从第一个不满足的块的起始行重新解析
+   * （未闭合的围栏就是从围栏起点）。含 `\r` 时回落全量（`\r\n` 可能被拆在两次追加之间）。
+   */
   append(delta: string): void {
-    this.setText(this.text + delta);
+    if (delta === "") return;
+    const previous = this.text;
+    this.text = previous + delta;
+    if (delta.includes("\r") || previous.endsWith("\r")) {
+      this.reparseFrom(0, splitLines(this.text));
+      return;
+    }
+    const lines = this.lines;
+    const oldLast = lines.length - 1;
+    const pieces = delta.split("\n");
+    lines[oldLast] = (lines[oldLast] ?? "") + pieces[0]!;
+    for (let k = 1; k < pieces.length; k++) lines.push(pieces[k]!);
+    let keep = this.spans.findIndex((span) => span.end + 1 >= oldLast);
+    if (keep === -1) keep = this.spans.length;
+    const from = keep < this.spans.length ? this.spans[keep]!.start : (this.spans.at(-1)?.end ?? 0);
+    this.blocks.length = keep;
+    this.spans.length = keep;
+    this.reparseFrom(from, lines);
+  }
+
+  private reparseFrom(from: number, lines: string[]): void {
+    if (from === 0) {
+      this.blocks = [];
+      this.spans = [];
+    }
+    this.lines = lines;
+    parseLines(lines, from, this.blocks, this.spans);
+    this.parsedLines += lines.length - from;
+    this.lastLines = null;
   }
 
   render(width: number): string[] {

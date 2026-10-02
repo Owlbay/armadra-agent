@@ -134,6 +134,74 @@ describe("Markdown 组件", () => {
     expect(md.render(40)).toBe(after);
   });
 
+  it("增量解析：各种切分下追加 1000 次后块数组与全量解析一致", () => {
+    const doc = [
+      "# Title",
+      "para line one",
+      "continues  ",
+      "hard break",
+      "",
+      "- a",
+      "  cont",
+      "",
+      "- b",
+      "  1. nested",
+      "",
+      "> quote",
+      "> more",
+      "",
+      "```ts",
+      "const x = 1;",
+      "",
+      "```",
+      "| h1 | h2 |",
+      "| -- | -- |",
+      "| c | d |",
+      "***",
+      "tail para",
+      "- list right after",
+      "",
+      "",
+      "end",
+    ].join("\n");
+    const text = doc.repeat(8).slice(0, 4000);
+    let seed = 7;
+    const rand = () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31;
+    const md = new Markdown("");
+    let at = 0;
+    for (let n = 0; n < 1000 && at < text.length; n++) {
+      const size = 1 + Math.floor(rand() * 7);
+      md.append(text.slice(at, at + size));
+      at += size;
+      expect(md["blocks"]).toEqual(parseMarkdown(text.slice(0, at)));
+    }
+    md.append(text.slice(at));
+    expect(md["blocks"]).toEqual(parseMarkdown(text));
+    expect(md.render(50)).toEqual(new Markdown(text).render(50));
+  });
+
+  it("增量解析：只重解析尾部——100 KB 按 20 字符追加，解析行数线性", () => {
+    const unit = "## h\n\nsome words here\nand more\n\n- item\n- item\n\n```\ncode\n```\n\n";
+    const text = unit.repeat(Math.ceil(100_000 / unit.length));
+    const md = new Markdown("");
+    for (let at = 0; at < text.length; at += 20) md.append(text.slice(at, at + 20));
+    const lineCount = text.split("\n").length;
+    // 全量重解析会是 (n / 20) × 平均行数 ≈ 数亿行；增量只与追加次数 × 末块行数成正比
+    expect(md.parsedLines).toBeLessThan(lineCount * 4);
+    expect(md["blocks"]).toEqual(parseMarkdown(text));
+  });
+
+  it("setText 以旧文本为前缀时走增量；含 \\r 回落全量", () => {
+    const md = new Markdown("a\n\nb");
+    md.setText("a\n\nb c");
+    expect(plain(md.render(20))).toEqual(["a", "", "b c"]);
+    md.append("\r");
+    md.append("\nd");
+    expect(md["blocks"]).toEqual(parseMarkdown("a\n\nb c\r\nd"));
+    md.setText("x");
+    expect(plain(md.render(20))).toEqual(["x"]);
+  });
+
   it("代码块长行硬断，表格超宽截断", () => {
     const md = new Markdown("```\n" + "x".repeat(30) + "\n```\n\n| " + "y".repeat(40) + " |");
     const lines = md.render(20);
