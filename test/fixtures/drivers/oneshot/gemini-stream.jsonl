@@ -1,0 +1,6 @@
+// gemini -p --output-format stream-json（手写，按官方 headless 文档；未实测）
+{"dir":"out","msg":{"type":"init","session_id":"g-1","model":"gemini-3-pro"}}
+{"dir":"out","msg":{"type":"tool_use","tool_name":"read_file","tool_id":"t1","parameters":{"path":"a.ts"}}}
+{"dir":"out","msg":{"type":"tool_result","tool_id":"t1","status":"success"}}
+{"dir":"out","msg":{"type":"message","role":"assistant","content":"a.ts exports foo","delta":true}}
+{"dir":"out","msg":{"type":"result","status":"success","stats":{"total_tokens":60,"input_tokens":50,"output_tokens":10}}}
