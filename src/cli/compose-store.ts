@@ -2,7 +2,7 @@
  * 组装根：会话存储（实施计划 §1.1 `sessions.*`）。[B6]
  *
  * 会话根目录 `sessionDir` 下按 cwd 分子目录（`sessionDirForCwd`）。
- * - `new` → 延迟落盘新建；`continue` → 本目录最近一条（没有则新建）；
+ * - `new` → 延迟落盘新建；`memory`（`--no-session`）→ 内存会话，从不落盘；`continue` → 本目录最近一条（没有则新建）；
  * - `resume{id}` / `fork{id}`：先在本目录、再在全部子目录里按 id 或唯一前缀找文件；找不到 →
  *   `session_not_found`，前缀不唯一 → `invalid_arguments` 并列出候选；
  * - `session-id{id}`：找到则打开，否则以该 id 新建；
@@ -79,6 +79,8 @@ export function openSession(
   switch (request.kind) {
     case "new":
       return SessionManager.create(dir, cwd);
+    case "memory":
+      return SessionManager.inMemory(cwd);
     case "continue":
       return SessionManager.continueRecent(dir, cwd);
     case "resume":

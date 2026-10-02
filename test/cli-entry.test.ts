@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { main } from "../src/cli/main.js";
 import { AMA_VERSION } from "../src/version.js";
@@ -37,6 +38,37 @@ describe("cli 入口", () => {
       expect(await main(["sessions", "list"], { io, processHooks: false })).toBe(0);
       expect(out.join("")).toContain("没有会话");
       expect(err.join("")).not.toContain("尚未装配");
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("只读子命令不创建配置目录；进入对话的命令首次运行才自动初始化", async () => {
+    const home = createTmpHome();
+    const configDir = join(home.root, "fresh-config");
+    try {
+      const io = {
+        stdout: () => undefined,
+        stderr: () => undefined,
+        env: { ...home.env, AMA_CONFIG_DIR: configDir, AMA_NO_LOCAL_PROBE: "1", AMA_NO_INIT: "" },
+        cwd: home.cwd,
+        stdinIsTTY: false,
+        readStdin: async () => "",
+        stdinKind: () => "null" as const,
+      };
+      for (const argv of [
+        ["config", "show"],
+        ["config", "path"],
+        ["doctor"],
+        ["models", "list"],
+        ["providers", "list"],
+        ["auth", "list"],
+      ]) {
+        await main(argv, { io, processHooks: false });
+        expect(existsSync(configDir), argv.join(" ")).toBe(false);
+      }
+      expect(await main(["-p", "hi", "--model", "fake/echo"], { io, processHooks: false })).toBe(0);
+      expect(existsSync(join(configDir, "config.json"))).toBe(true);
     } finally {
       home.cleanup();
     }

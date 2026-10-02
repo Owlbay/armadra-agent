@@ -181,6 +181,14 @@ export const DEFAULT_CACHE_CONFIG: Readonly<Required<CacheConfig>> = Object.free
   warmSubagents: false,
 });
 
+/**
+ * 模型请求（W4-C）。只认用户级 / profile；环境变量 `AMA_IDLE_TIMEOUT_MS` 覆盖 `idleTimeoutMs`。
+ */
+export interface RequestConfig {
+  /** 等响应头与流中两块数据之间的最长间隔（毫秒），收到任何字节即重新计时；缺省 300 000，0 关闭。 */
+  idleTimeoutMs?: number;
+}
+
 /** config.json（用户级 / 项目级 / profile.config 同形状；项目级只接受受限字段，§10.2）。 */
 export interface AmaConfig {
   version: typeof CONFIG_FILE_VERSION;
@@ -197,6 +205,7 @@ export interface AmaConfig {
   ui?: UiConfig;
   skills?: SkillsConfig;
   cache?: CacheConfig;
+  request?: RequestConfig;
 }
 
 /** auth.json（0600）。 */

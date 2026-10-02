@@ -164,6 +164,7 @@ describe("ProbeScheduler", () => {
     const scheduler = new ProbeScheduler(registry, "sk-test", {
       concurrency: 4,
       retryDelayMs: 50,
+      recoverAfter: 100,
       onThrottle: (n) => throttled.push(n),
     });
     const results = await scheduler.run(4, (i) =>
@@ -174,6 +175,23 @@ describe("ProbeScheduler", () => {
     expect(throttled).toEqual([2]);
     expect(scheduler.concurrency).toBe(2);
     expect(scheduler.stopped).toBeUndefined();
+  });
+
+  it("429 后加法增：连续 recoverAfter 次没被限流就 +1，回到初始并发为止；再遇 429 重新减半", async () => {
+    const changes: string[] = [];
+    const scheduler = new ProbeScheduler(registry, "sk-test", {
+      concurrency: 4,
+      retryDelayMs: 10,
+      recoverAfter: 2,
+      onThrottle: (n) => changes.push(`-${n}`),
+      onRecover: (n) => changes.push(`+${n}`),
+    });
+    const ids = (i: number): string => (i === 0 ? "limited-once" : `hold-${i}`);
+    const results = await scheduler.run(16, (i) => scheduler.probe(model(ids(i))));
+    expect(results.every((r) => r?.error === undefined)).toBe(true);
+    expect(changes).toEqual(["-2", "+3", "+4"]);
+    expect(scheduler.concurrency).toBe(4);
+    expect(scheduler.peak).toBeLessThanOrEqual(4);
   });
 
   it("连续 429：停止，不再发新请求", async () => {

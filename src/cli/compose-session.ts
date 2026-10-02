@@ -133,6 +133,9 @@ function systemInput(
   active: readonly string[],
 ): NonNullable<AgentSessionOptions["system"]> {
   const system: NonNullable<AgentSessionOptions["system"]> = { contextFiles: contextFiles(record) };
+  const override = record.assembly.overrides?.systemPrompt;
+  if (override?.mode === "replace") system.preamble = override.text;
+  else if (override !== undefined) system.extraRules = [override.text];
   const index = formatSkillIndex(record.state.skills, {
     hasSkillTool: false,
     hasReadTool: active.includes("read"),
@@ -193,6 +196,24 @@ export function cacheSettingsFrom(
     else warn(`AMA_CACHE_RETENTION=${retention} 无效（none | short | long），已忽略`);
   }
   return settings;
+}
+
+/**
+ * 模型请求的空闲超时：`AMA_IDLE_TIMEOUT_MS` > config `request.idleTimeoutMs`；都没有 → undefined
+ * （协议层取缺省 300 000）。0 关闭；非法的环境变量值忽略并 warning。
+ */
+export function idleTimeoutFrom(
+  config: Pick<AmaConfig, "request">,
+  env: NodeJS.ProcessEnv = process.env,
+  warn: (message: string) => void = () => undefined,
+): number | undefined {
+  const raw = env["AMA_IDLE_TIMEOUT_MS"];
+  if (raw !== undefined && raw.trim() !== "") {
+    const value = Number(raw);
+    if (Number.isFinite(value) && value >= 0) return value;
+    warn(`AMA_IDLE_TIMEOUT_MS=${raw} 无效（应为不小于 0 的毫秒数），已忽略`);
+  }
+  return config.request?.idleTimeoutMs;
 }
 
 /** §1.4：SessionEvent → AgentEvents。 */
@@ -298,6 +319,10 @@ function buildSession(
     cache: cacheSettingsFrom(config, process.env, (message) => record.log("warn", message)),
     warmingDecider: () => assembly.host.warmingDecider?.(),
   };
+  const maxTurns = assembly.overrides?.maxTurns;
+  if (maxTurns !== undefined) options.maxTurns = maxTurns;
+  const idle = idleTimeoutFrom(config, process.env, (message) => record.log("warn", message));
+  if (idle !== undefined) options.idleTimeoutMs = idle;
   const autoModel = config.permission?.autoModel;
   if (autoModel !== undefined) options.permissionClassifier = { model: autoModel };
   const maxChars = config.tools?.maxToolResultChars;
@@ -407,7 +432,10 @@ export async function switchSession(
   let source: "new" | "resume" | "fork";
   switch (request.kind) {
     case "new":
-      manager = SessionManager.create(sessionDirForCwd(sessionDir, old.cwd), old.cwd);
+      manager =
+        assembly.overrides?.noSession === true
+          ? SessionManager.inMemory(old.cwd)
+          : SessionManager.create(sessionDirForCwd(sessionDir, old.cwd), old.cwd);
       source = "new";
       break;
     case "open":

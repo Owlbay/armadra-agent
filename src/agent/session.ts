@@ -145,9 +145,12 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
       getThinkingLevel: () => this.currentThinking,
       streamOptions: async () => {
         const apiKey = await this.resolveApiKey();
-        return apiKey === undefined
-          ? { sessionId: this.manager.id }
-          : { apiKey, sessionId: this.manager.id };
+        const idle = options.idleTimeoutMs;
+        return {
+          sessionId: this.manager.id,
+          ...(apiKey === undefined ? {} : { apiKey }),
+          ...(idle === undefined ? {} : { idleTimeoutMs: idle }),
+        };
       },
       beforeRequest: async () => {
         this.syncSystem();

@@ -23,8 +23,9 @@
 - `ama init`：建目录（0700）并补齐缺失的 `config.json` 与 `config.schema.json`，逐个打印「已创建」或
   「已存在，未改动」；已存在的 `config.json` 一律不覆盖（`--force` 也不），`config.schema.json` 不是用户文件，
   每次 `init` 都重写为当前版本；不创建空的 `auth.json`。
-- **首次运行自动初始化**：CLI 启动时若配置目录不存在，静默建目录并写最小 `config.json` 与 schema
-  （`AMA_NO_INIT=1` 关闭；SDK 与测试不触发）。
+- **首次运行自动初始化**：进入对话的命令（交互、`-p`、`--mode rpc`）与 `ama providers add` 启动时若配置目录不存在，
+  静默建目录并写最小 `config.json` 与 schema（`AMA_NO_INIT=1` 关闭；SDK 与测试不触发）。只读子命令（`config show` /
+  `path`、`doctor`、`models list`、`providers list`、`auth list`、`sessions` 等）不创建也不改写配置目录。
 - 最小 `config.json`：
 
   ```json

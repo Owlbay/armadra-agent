@@ -5,20 +5,23 @@
  * - 设 `AMA=1`、`AI_AGENT=ama`；直接执行时装 `uncaughtException` / `unhandledRejection` →
  *   stderr 一行 + 退出码 1；SIGINT / SIGTERM 交给当前模式。
  * - `--version` / `--help` 短路；子命令 `auth / sessions / models / providers / doctor / config /
- *   init` 分派后返回；其余命令启动前若配置目录不存在则静默初始化（`AMA_NO_INIT=1` 关闭）；
+ *   init` 分派后返回；进入对话的命令（与 `providers add`）启动前若配置目录不存在则静默初始化
+ *   （`AMA_NO_INIT=1` 关闭），只读子命令（`config show`、`doctor`、`models list` 等）不写配置目录；
  *   其余交给 `runCli()`（bootstrap → 模式）。
+ * - 设了 HTTPS_PROXY / HTTP_PROXY 时启用 Node 内置的环境变量代理（cli/proxy.ts）；不支持的 Node
+ *   版本在会联网的命令里提示一次。
  * - 运行时实现（RuntimeDeps）：`MainOptions.deps` > `registerRuntimeDeps()` > 组装根
  *   `createRuntimeDeps()`（cli/compose.ts，动态 import）。
  * - 签名 `main(argv): Promise<number>` 与「直接执行才自动运行」判定保持不变：
  *   src/bundle.ts 显式调用 `main()`。
  */
 
-import { realpathSync } from "node:fs";
+import { fstatSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { AMA_VERSION } from "../version.js";
 import { parseArgs } from "./args.js";
 import { reportError, runCli } from "./bootstrap.js";
-import type { CliIo, RuntimeDeps } from "./deps.js";
+import type { CliIo, RuntimeDeps, StdinKind } from "./deps.js";
 import { ExitCode } from "./exit-codes.js";
 import { runAuth } from "./subcommands/auth.js";
 import { runConfig } from "./subcommands/config.js";
@@ -30,6 +33,7 @@ import { autoInitConfigDir } from "../config/init.js";
 import { resolveConfigDir } from "../config/paths.js";
 import { runSessions } from "./subcommands/sessions.js";
 import { runStats } from "./subcommands/stats.js";
+import { enableEnvProxy, proxyHint } from "./proxy.js";
 
 declare const __AMA_BUNDLED__: boolean | undefined;
 
@@ -86,6 +90,20 @@ export function readStdinDefault(): Promise<string> {
   });
 }
 
+/** fd 0 的类型；fstat 失败（已关闭）按 `null` 处理。 */
+export function stdinKindDefault(): StdinKind {
+  try {
+    const stat = fstatSync(0);
+    if (stat.isFile()) return "file";
+    if (stat.isFIFO()) return "fifo";
+    if (stat.isSocket()) return "socket";
+    if (stat.isCharacterDevice()) return process.stdin.isTTY === true ? "tty" : "null";
+    return "other";
+  } catch {
+    return "null";
+  }
+}
+
 export function defaultIo(): CliIo {
   return {
     stdout: (text) => void process.stdout.write(text),
@@ -95,6 +113,7 @@ export function defaultIo(): CliIo {
     env: process.env,
     cwd: process.cwd(),
     readStdin: readStdinDefault,
+    stdinKind: stdinKindDefault,
   };
 }
 
@@ -138,7 +157,18 @@ export async function main(argv: readonly string[], options: MainOptions = {}): 
     if (parsed.kind !== "subcommand") noTui = parsed.args.noTui;
     const informational =
       parsed.kind === "run" ? parsed.args.help || parsed.args.version : parsed.name === "init";
-    if (!informational) autoInitConfigDir(resolveConfigDir({ env: io.env }), io.env);
+    // 首次自动初始化只在会进入对话的命令（和接入供应商）里做；只读子命令不写配置目录
+    const startsWork =
+      parsed.kind === "run" || (parsed.name === "providers" && parsed.argv[0] === "add");
+    if (!informational && startsWork) autoInitConfigDir(resolveConfigDir({ env: io.env }), io.env);
+    // 进程级副作用（全局 dispatcher）：只在真正的进程入口做，测试里调 main() 不碰
+    if (!informational && options.processHooks !== false) {
+      const proxy = enableEnvProxy(io.env);
+      const online =
+        parsed.kind === "run" || parsed.name === "models" || parsed.name === "providers";
+      const hint = online ? proxyHint(proxy) : undefined;
+      if (hint !== undefined) io.stderr(hint);
+    }
     if (parsed.kind === "subcommand") {
       switch (parsed.name) {
         case "auth":

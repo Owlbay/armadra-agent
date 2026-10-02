@@ -17,6 +17,8 @@ export const ExitCode = {
   Session: 5,
   /** 宿主 / Hook 加载或启动失败。 */
   HostOrHook: 6,
+  /** `-p` 运行中有工具调用被拒（无人审批、deny 规则、plan 等），要求的动作没有完成。 */
+  ToolDenied: 7,
   /** HOST_API_VERSION 不匹配。 */
   HostVersion: 78,
   /** SIGINT 退出（两次 Ctrl+C）。 */
@@ -36,6 +38,7 @@ export const EXIT_CODE_DESCRIPTIONS: Readonly<Record<ExitCode, string>> = {
   4: "无可用模型或密钥",
   5: "会话不存在 / 损坏 / cwd 不匹配",
   6: "宿主 / Hook 加载或启动失败",
+  7: "-p 运行中有工具调用被拒（没有人审批）",
   78: "HOST_API_VERSION 不匹配",
   130: "SIGINT 退出（两次 Ctrl+C）",
   143: "SIGTERM",

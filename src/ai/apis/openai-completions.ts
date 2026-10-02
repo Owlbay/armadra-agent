@@ -15,7 +15,14 @@
  */
 
 import { AssistantEventStreamImpl } from "../event-stream.js";
-import { USER_AGENT, authHeaders, describeErrorJson, joinUrl, mergeHeaders } from "../http.js";
+import {
+  authHeaders,
+  describeErrorJson,
+  idleTimeoutOf,
+  joinUrl,
+  mergeHeaders,
+  USER_AGENT,
+} from "../http.js";
 import { readSseEvents } from "../sse.js";
 import type {
   ApiImplementation,
@@ -238,6 +245,7 @@ async function run(
       body: replaced === undefined ? request.body : replaced,
       signal: options.signal,
       timeoutMs: options.timeoutMs,
+      idleTimeoutMs: idleTimeoutOf(options),
       onResponse: options.onResponse,
     });
     stream.push({ type: "start", partial: tracker.output });
@@ -251,7 +259,7 @@ async function run(
       sawDone: false,
     };
     const body = response.body as ReadableStream<Uint8Array>;
-    for await (const sse of readSseEvents(body, options.signal)) {
+    for await (const sse of readSseEvents(body, options.signal, idleTimeoutOf(options))) {
       const data = sse.data.trim();
       if (data === "") continue;
       if (data === "[DONE]") {

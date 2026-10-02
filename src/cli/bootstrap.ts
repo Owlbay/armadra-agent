@@ -40,6 +40,7 @@ import {
   toStartupError,
 } from "./startup-steps.js";
 import type { LoadedResources, Runtime } from "./runtime.js";
+import { resolveSystemPromptArg } from "./system-prompt-arg.js";
 
 /** §11.1 第 3–14 步。 */
 export async function bootstrap(
@@ -312,6 +313,14 @@ export async function bootstrap(
       unattended,
       warn,
     };
+    const overrides: NonNullable<SessionAssembly["overrides"]> = {};
+    if (args.maxTurns !== undefined) overrides.maxTurns = args.maxTurns;
+    if (args.noSession) overrides.noSession = true;
+    const systemPrompt = await step(ExitCode.Config, "--system-prompt", () =>
+      resolveSystemPromptArg(args.systemPrompt, args.systemPromptMode, io.cwd),
+    );
+    if (systemPrompt !== undefined) overrides.systemPrompt = systemPrompt;
+    if (Object.keys(overrides).length > 0) assembly.overrides = overrides;
     session = await step(ExitCode.RuntimeError, "会话组装", () => deps.session.create(assembly));
     const active = session;
     let disposed: Promise<void> | undefined;
