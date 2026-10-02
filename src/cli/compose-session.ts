@@ -135,6 +135,11 @@ function contextFiles(record: SessionRecord): { path: string; content: string }[
   return [...resources.contextFiles, ...extra.filter((f) => f.content.trim() !== "")];
 }
 
+/** [W6-S] D22：回复语言规则（发给模型，固定英文）。 */
+export function replyLanguageRule(language: string): string {
+  return `Reply to the user in ${language}.`;
+}
+
 function systemInput(
   record: SessionRecord,
   active: readonly string[],
@@ -143,6 +148,9 @@ function systemInput(
   const override = record.assembly.overrides?.systemPrompt;
   if (override?.mode === "replace") system.preamble = override.text;
   else if (override !== undefined) system.extraRules = [override.text];
+  // [W6-S] D22 ui.replyLanguage：会话开始在 rules 节末尾追加一句英文规则；不设时零字节变化
+  const reply = record.assembly.config.ui?.replyLanguage?.trim();
+  if (reply) system.extraRules = [...(system.extraRules ?? []), replyLanguageRule(reply)];
   const index = formatSkillIndex(record.state.skills, {
     hasSkillTool: false,
     hasReadTool: active.includes("read"),
