@@ -2,6 +2,12 @@
 
 ## 未发布
 
+- **操作系统级沙箱**（docs/sandbox.md）：新模块 `src/sandbox/` 探测 macOS `sandbox-exec`、Linux bubblewrap（退而
+  `unshare -r -n`），用目标配置跑一次最小探针确认真能用（嵌套沙箱、无用户命名空间会降级），结果进程内缓存。codemode
+  子进程经它启动，内核拒绝网络（含 DNS）与一切写入：**Node 22 / 24 在有操作系统沙箱时与 Node ≥ 25 一样网络隔离**——
+  `codemode` 按只读类、`default` 预设缺省开启、状态栏不再标 `net!`；没有时（Windows 等）保持原样。Node ≥ 25 叠加作纵深
+  防御。新配置 `sandbox.enabled`（`auto` | `off`，只认用户级 / profile，`AMA_SANDBOX=off` 覆盖）；`ama doctor` 显示沙箱
+  能力，`ama config show` 写明网络由谁隔离。bash 沙箱与「沙箱内命令免审批」是第二阶段。
 - **图像能力**（第五波 W5-I，docs/providers.md「图像输入」）：单图上限改按 base64 后计算并按端点分档（官方 Anthropic
   10 MB、Gemini / OpenAI 20 MB、中转与未知 5 MB，原来按原始字节 5 MB），任一边超 8000 px 拒绝；超限时按
   `images.resize`（缺省 `auto`）用 `sips` / ImageMagick 缩放。请求图片总量超预算（Anthropic 32 MB、其它 20 MB）时把
