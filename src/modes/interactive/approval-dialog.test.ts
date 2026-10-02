@@ -1,6 +1,8 @@
-import { join } from "node:path";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import type { ApprovalDecision, ApprovalRequest } from "../../permissions/types.js";
+import type { ActionPreview, ApprovalDecision, ApprovalRequest } from "../../permissions/types.js";
 import { Editor, MemoryTerminal, TUI, Text, plainTheme } from "../../tui.js";
 import { ApprovalDialogBroker, approvalOutcomeText, describeRequest } from "./approval-dialog.js";
 
@@ -179,4 +181,104 @@ describe("审批对话框", () => {
     expect(approvalOutcomeText(r, "allow_session")).toContain("本会话同类不再询问");
     expect(approvalOutcomeText(r, "deny")).toBe("已拒绝 [task] bash");
   });
+});
+
+const FIXTURES = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "..",
+  "test",
+  "fixtures",
+);
+
+/** 帧黄金（与 src/tui/tui-frames.test.ts 同格式）；更新：AMA_UPDATE_GOLDEN=1。 */
+function golden(name: string, terminal: MemoryTerminal): void {
+  const { row, col } = terminal.screen.cursor;
+  const actual =
+    [
+      `# viewport ${terminal.columns}x${terminal.rows} cursor=${row},${col}`,
+      ...terminal.viewport().map((l) => `|${l}`),
+    ].join("\n") + "\n";
+  const file = join(FIXTURES, "tui", `${name}.txt`);
+  if (process.env["AMA_UPDATE_GOLDEN"] === "1" || (!existsSync(file) && !process.env["CI"])) {
+    writeFileSync(file, actual);
+  }
+  expect(actual).toBe(readFileSync(file, "utf8"));
+}
+
+const RM_PREVIEW: ActionPreview = {
+  kind: "bash",
+  lines: [
+    "删除 build/：目录，132 个文件，1.2 MB",
+    "删除 dist/*.map：含通配符或变量，未展开，实际范围可能更大",
+    "覆盖写入 out.log：文件，4.0 KB",
+  ],
+  severity: "danger",
+  affected: [{ path: "build/", exists: true, files: 132, bytes: 1_258_291 }],
+};
+
+describe("审批对话框：执行前预览", () => {
+  it("预览行在输入摘要之后、原因之前；other 类不重复显示；过长截断", () => {
+    const shown = describeRequest(
+      req({ input: { command: "rm -rf build dist/*.map > out.log" }, preview: RM_PREVIEW }),
+      theme,
+      { permissionMode: "default" },
+    );
+    expect(shown).toEqual([
+      "bash  需要确认",
+      "$ rm -rf build dist/*.map > out.log",
+      ...RM_PREVIEW.lines,
+      "权限模式 default 下需要确认",
+    ]);
+    const other = describeRequest(
+      req({
+        toolName: "canvas_write",
+        input: { name: "节点 A" },
+        preview: { kind: "other", lines: ["节点 A"], severity: "info" },
+      }),
+      theme,
+    );
+    expect(other).toEqual(["canvas_write  需要确认", "节点 A"]);
+    const long: ActionPreview = {
+      kind: "bash",
+      lines: Array.from({ length: 14 }, (_, i) => `删除 f${i}：文件，1 B`),
+      severity: "warn",
+    };
+    const clipped = describeRequest(req({ preview: long }), theme);
+    expect(clipped).toContain("… 另 5 行");
+    expect(clipped).not.toContain("删除 f9：文件，1 B");
+  });
+
+  it("danger 红、warn 黄（主题着色）", () => {
+    const colored: typeof theme = Object.assign(Object.create(theme) as typeof theme, {
+      fg: (c: string, t: string) => `<${c}>${t}`,
+    });
+    const line = (severity: ActionPreview["severity"]) =>
+      describeRequest(
+        req({ preview: { kind: "bash", lines: ["删除 a：文件，1 B"], severity } }),
+        colored,
+      ).find((l) => l.includes("删除 a"));
+    expect(line("danger")).toBe("<error>删除 a：文件，1 B");
+    expect(line("warn")).toBe("<warning>删除 a：文件，1 B");
+    expect(line("info")).toBe("<dim>删除 a：文件，1 B");
+  });
+
+  for (const columns of [80, 40]) {
+    it(`帧黄金：危险命令带预览 ${columns}x24`, async () => {
+      const { terminal, broker, screen } = setup(columns);
+      const answer = broker.ask(
+        req({
+          input: { command: "rm -rf build dist/*.map > out.log" },
+          reason: "dangerous",
+          preview: RM_PREVIEW,
+        }),
+        new AbortController().signal,
+      );
+      screen();
+      golden(`approval-preview-${columns}x24`, terminal);
+      terminal.sendInput("n");
+      expect(await answer).toBe("deny");
+    });
+  }
 });

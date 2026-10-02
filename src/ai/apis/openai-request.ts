@@ -11,7 +11,9 @@
  * - requiresToolResultName / requiresAssistantAfterToolResult / supportsMidConvoSystemMessages；
  * - cacheControlFormat "anthropic"：system 末、最后一个工具、最后一条 user / tool 消息打
  *   cache_control（OpenRouter 上的 anthropic/* 模型）。
- * prompt_cache_key = sessionId 只发给 OpenAI 官方端点（其它端点未验证，§3.3 告诫）。
+ * 缓存（第三波 §1.3）：`prompt_cache_key = sessionId` 只在 `sendPromptCacheKey`（官方端点缺省开）时发；
+ * `long` 在 `supportsLongCacheRetention` 时发 `prompt_cache_retention: "24h"`，否则降为 short；
+ * 保留层级未指定时读 `AMA_CACHE_RETENTION`。`toolChoice: "none"`（有工具时）→ `tool_choice: "none"`。
  */
 
 import {
@@ -41,6 +43,11 @@ import type {
   UserMessage,
 } from "../types.js";
 import { cacheControlFor } from "./anthropic-request.js";
+import {
+  effectiveRetention,
+  resolveCacheRetention,
+  resolvePromptCacheCompat,
+} from "./cache-params.js";
 import { detectCompat } from "./openai-compat.js";
 
 type Json = Record<string, unknown>;
@@ -337,10 +344,14 @@ export function buildOpenAIRequest(
   if (options.temperature !== undefined) body["temperature"] = options.temperature;
   const tools = normalized.tools.length > 0 ? convertTools(normalized.tools, compat) : undefined;
   if (tools) body["tools"] = tools;
-  const retention = options.cacheRetention ?? "short";
-  const baseUrl = model.baseUrl ?? "";
-  if (options.sessionId && retention !== "none" && baseUrl.includes("api.openai.com")) {
+  if (tools && options.toolChoice === "none") body["tool_choice"] = "none";
+  const cacheCompat = resolvePromptCacheCompat(model, "openai-completions");
+  const retention = effectiveRetention(resolveCacheRetention(options.cacheRetention), cacheCompat);
+  if (options.sessionId && retention !== "none" && cacheCompat.sendPromptCacheKey) {
     body["prompt_cache_key"] = options.sessionId.slice(0, 64);
+  }
+  if (retention === "long" && compat.cacheControlFormat !== "anthropic") {
+    body["prompt_cache_retention"] = "24h";
   }
   const cacheControl = cacheControlFor(retention);
   if (compat.cacheControlFormat === "anthropic" && cacheControl) {

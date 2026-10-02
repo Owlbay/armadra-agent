@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateCost, emptyUsage, finalizeUsage } from "./cost.js";
+import { calculateCost, emptyUsage, finalizeUsage, priceTokens } from "./cost.js";
 
 const cost = {
   input: 3,
@@ -56,5 +56,22 @@ describe("calculateCost", () => {
     );
     expect(usage.totalTokens).toBe(10);
     expect(usage.cost).toBeUndefined();
+  });
+});
+
+describe("priceTokens", () => {
+  it("按目录价估价：缺省字段为 0，与 calculateCost 同一阶梯", () => {
+    expect(priceTokens({ cost }, { cacheRead: 50_000 })).toBeCloseTo(0.015, 12);
+    expect(priceTokens({ cost }, { input: 1000, output: 500 })).toBeCloseTo(0.003 + 0.0075, 12);
+    // 全部输入 150k 落到 100k 档：读价 0.4
+    expect(priceTokens({ cost }, { cacheRead: 150_000 })).toBeCloseTo(0.06, 12);
+    expect(priceTokens({ cost }, { cacheWrite: 1_000_000 })).toBeCloseTo(7.5, 12);
+  });
+
+  it("无价格 → undefined；价格为 0 → 0", () => {
+    expect(priceTokens({}, { input: 1000 })).toBeUndefined();
+    const free = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+    expect(priceTokens({ cost: free }, { input: 1000, cacheRead: 5000 })).toBe(0);
+    expect(priceTokens({ cost }, {})).toBe(0);
   });
 });

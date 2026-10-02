@@ -12,6 +12,8 @@
  * - `compaction` / `branch_summary` 的 details 统一为 `FileOpsDetails`。
  * - 补全 `SessionTreeNode`、`SessionListItem` 与 B6 / B7 需要的 `SessionManagerApi`。
  *   `append()` 同步：返回带 id 的条目并把叶子移到它（落盘可延迟到首条提示，§11.1 第 16 步）。
+ * - （W3-C0）第三波 §1.7 / A7：新增 `usage` 条目（保温等不进上下文的请求用量，计入统计）与
+ *   非条目的 `leaf` 行（`/tree` 位置落盘）；都是 v1 可选行，格式版本不升。
  */
 
 import type { ContentBlock, Message, ModelThinkingLevel, Usage } from "../ai/types.js";
@@ -113,6 +115,21 @@ export interface SessionInfoEntry extends EntryBase {
   name?: string;
 }
 
+/** 不进上下文的请求用量的来源；第一期只有缓存保温。 */
+export type UsageEntryKind = "cache_warm" | (string & {});
+
+/**
+ * [W3-C0] 不进上下文的请求用量（第三波 §1.7）：计入 `/session` 费用与 RPC 统计，投影跳过。
+ */
+export interface UsageEntry extends EntryBase {
+  type: "usage";
+  kind: UsageEntryKind;
+  provider: string;
+  /** 模型 id（不含 provider）。 */
+  model: string;
+  usage: Usage;
+}
+
 export type SessionEntry =
   | MessageEntry
   | CompactionEntry
@@ -123,7 +140,8 @@ export type SessionEntry =
   | CustomEntry
   | CustomMessageEntry
   | LabelEntry
-  | SessionInfoEntry;
+  | SessionInfoEntry
+  | UsageEntry;
 
 export type SessionEntryType = SessionEntry["type"];
 
@@ -132,8 +150,20 @@ type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K>
 /** `append()` 的入参：id / parentId / timestamp 由管理器填。 */
 export type SessionEntryInput = DistributiveOmit<SessionEntry, keyof EntryBase>;
 
-/** JSONL 一行：首行是头，其后是条目。 */
-export type SessionLine = SessionHeader | SessionEntry;
+/**
+ * [W3-C0] `/tree` 换叶子的落盘记录（第三波 A7）：不是条目，`getEntries` / 树不返回它；
+ * 最后一条 `leaf` 行若晚于最后一条条目，打开文件时作为叶子。fork 不复制。
+ */
+export interface LeafLine {
+  type: "leaf";
+  /** 叶子条目 id；null = 回到根之前（空分支）。 */
+  id: string | null;
+  /** ISO 8601。 */
+  timestamp: string;
+}
+
+/** JSONL 一行：首行是头，其后是条目（以及可选的 `leaf` 行）。 */
+export type SessionLine = SessionHeader | SessionEntry | LeafLine;
 
 // ---------------------------------------------------------------------------
 // 投影后的上下文消息

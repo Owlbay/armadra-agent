@@ -8,10 +8,14 @@
  * - 嵌套：带 `parentToolCallId` 的调用（codemode 脚本里的 `tools.*`，B10）挂在外层调用下；折叠时只列
  *   内层调用的标题（最近 5 个），展开时完整显示。
  * - 工具输出先去掉 ANSI 与控制字符、Tab 换成空格，避免打乱布局。
+ * - 自定义渲染（W3-B9a-2，`ToolDefinition.renderCall / renderResult`）：`getTool` 能取到定义时，标题摘要
+ *   优先取 `renderCall(input, width)` 的第一行（codemode 显示脚本首行）；成功的结果优先用
+ *   `renderResult(result, width, expanded)`（去控制字符、按宽截断、上限 400 行）；自定义渲染抛错或返回
+ *   空时回到缺省显示；错误结果始终用缺省的红色显示。
  */
 
 import { isAbsolute, relative } from "node:path";
-import type { ToolResult } from "../../tools/types.js";
+import type { ToolDefinition, ToolResult } from "../../tools/types.js";
 import {
   stripAnsi,
   truncateToWidth,
@@ -31,6 +35,8 @@ export interface ToolViewOptions {
   theme: Theme;
   /** 摘要里的路径相对它显示。 */
   cwd?: string;
+  /** 取工具定义（自定义渲染用）；缺省或取不到时用内置摘要与结果显示。 */
+  getTool?(name: string): ToolDefinition | undefined;
 }
 
 type ToolState = "running" | "done" | "error";
@@ -86,7 +92,16 @@ export function toolSummary(name: string, args: unknown, cwd?: string): string {
       return flat(str("description") ?? str("prompt") ?? "");
     default:
       if (path !== undefined) return displayPath(path, cwd);
-      for (const key of ["command", "pattern", "description", "query", "url", "name", "code"]) {
+      for (const key of [
+        "command",
+        "pattern",
+        "description",
+        "query",
+        "url",
+        "name",
+        "code",
+        "script",
+      ]) {
         const value = str(key);
         if (value !== undefined) return flat(value);
       }
@@ -184,9 +199,40 @@ export class ToolView implements Component {
         : this.state === "error"
           ? theme.fg("error", "●")
           : theme.fg("success", "●");
-    const summary = toolSummary(this.toolName, this.args, this.options.cwd);
+    const summary =
+      this.customCall(width) ?? toolSummary(this.toolName, this.args, this.options.cwd);
     const title = `${dot} ${theme.bold(theme.fg("tool", this.toolName))}`;
     return truncateToWidth(summary === "" ? title : `${title}  ${summary}`, width);
+  }
+
+  private custom<T>(render: (tool: ToolDefinition) => T): T | undefined {
+    const tool = this.options.getTool?.(this.toolName);
+    if (tool === undefined) return undefined;
+    try {
+      return render(tool);
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** `renderCall` 的第一行（去控制字符、折叠空白）；没有或为空时 undefined。 */
+  private customCall(width: number): string | undefined {
+    const first = this.custom((tool) => tool.renderCall?.(this.args, width)?.[0]);
+    if (typeof first !== "string") return undefined;
+    const line = flat(cleanLines(first).join(" "));
+    return line === "" ? undefined : line;
+  }
+
+  /** 成功结果的 `renderResult` 行；没有或为空时 undefined。 */
+  private customResult(width: number): string[] | undefined {
+    const result = this.result;
+    if (result === undefined || this.state !== "done") return undefined;
+    const inner = Math.max(1, width - 2);
+    const rendered = this.custom((tool) => tool.renderResult?.(result, inner, this.expanded));
+    if (!Array.isArray(rendered) || rendered.length === 0) return undefined;
+    return rendered
+      .slice(0, EXPANDED_MAX_LINES)
+      .map((line) => "  " + truncateToWidth(cleanLines(String(line)).join(" "), inner));
   }
 
   private indent(lines: readonly string[], width: number, color?: "dim" | "error"): string[] {
@@ -227,6 +273,11 @@ export class ToolView implements Component {
         const tail = this.expanded ? all.slice(-EXPANDED_MAX_LINES) : all.slice(-BASH_TAIL_LINES);
         out.push(...this.indent(tail, width, "dim"));
       }
+      return out;
+    }
+    const custom = this.customResult(width);
+    if (custom !== undefined) {
+      out.push(...custom);
       return out;
     }
     const diff = this.state === "done" ? diffOf(this.result) : undefined;

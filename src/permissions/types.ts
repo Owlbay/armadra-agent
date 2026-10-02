@@ -6,6 +6,9 @@
  *   §1.2 又把 ApprovalRequest 列在本文件。统一定义在这里，host/types.ts 再导出。
  * - 设计只写了 `Rule、Mode、Decision`；补全 `RuleSource`、`PermissionCheckInput`、
  *   `PermissionVerdict`（带决定来自哪一步）与 Runtime 需要的 `PermissionPipelineApi`。
+ * - （W3-C0）执行前预览（第三波 §2.2）：`ActionPreview` 定义在这里，`ApprovalRequest.preview`
+ *   与 `permission_request` 事件携带；`ApprovalRequestContext.readFiles` 供 write 预览判断
+ *   「覆盖未读过的文件」。`previewAction()` 实现归 W3-B9a-2。
  */
 
 import type { ToolPermission } from "../tools/types.js";
@@ -44,6 +47,8 @@ export interface ApprovalRequest {
   input: unknown;
   reason: ApprovalReason;
   hookReason?: string;
+  /** [W3-C0] 执行前预览（只读、有上限）；预览超时或未实现时缺省。 */
+  preview?: ActionPreview;
   /**
    * 发起方上下文：`depth > 0` 表示来自 `task` 子 Agent（对话框标 `[task]`）；codemode 内层
    * 调用带外层调用的 `parentToolCallId`。由子会话包装的 broker 填入，缺省视为主会话。
@@ -54,6 +59,26 @@ export interface ApprovalRequest {
 export interface ApprovalRequestContext {
   depth: number;
   parentToolCallId?: string;
+  /** [W3-C0] 本会话已 read 过的路径（`ToolContext.readFiles`），由 `gateToolCall` 填入。 */
+  readFiles?: ReadonlySet<string>;
+}
+
+/** [W3-C0] 预览涉及的路径（bash 的 rm / mv / 重定向目标，write / edit 的目标文件）。 */
+export interface ActionPreviewTarget {
+  path: string;
+  exists: boolean;
+  bytes?: number;
+  /** 目录递归计数（上限外不再计）。 */
+  files?: number;
+}
+
+/** [W3-C0] 审批时「这一步会碰到什么」（第三波 §2.2）。线上形状，可 JSON 序列化。 */
+export interface ActionPreview {
+  kind: "bash" | "write" | "edit" | "other";
+  /** 已排好的人读文本（不含颜色）。 */
+  lines: string[];
+  severity: "info" | "warn" | "danger";
+  affected?: ActionPreviewTarget[];
 }
 
 export type ApprovalDecision = "allow" | "deny" | "allow_session";

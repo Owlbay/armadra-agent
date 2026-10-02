@@ -32,6 +32,11 @@
         "medium": "medium",
         "high": "high",
         "xhigh": "xhigh"
+      },
+      "promptCache": {
+        "short": 300,
+        "long": 86400,
+        "minTokens": 1024
       }
     },
     {
@@ -64,6 +69,11 @@
         "medium": "medium",
         "high": "high",
         "xhigh": "xhigh"
+      },
+      "promptCache": {
+        "short": 300,
+        "long": 86400,
+        "minTokens": 1024
       }
     },
     {
@@ -96,6 +106,11 @@
         "medium": "medium",
         "high": "high",
         "xhigh": "xhigh"
+      },
+      "promptCache": {
+        "short": 300,
+        "long": 86400,
+        "minTokens": 1024
       }
     },
     {
@@ -128,6 +143,11 @@
         "medium": "medium",
         "high": "high",
         "xhigh": "xhigh"
+      },
+      "promptCache": {
+        "short": 300,
+        "long": 86400,
+        "minTokens": 1024
       }
     },
     {
@@ -160,6 +180,11 @@
         "medium": "medium",
         "high": "high",
         "xhigh": "xhigh"
+      },
+      "promptCache": {
+        "short": 300,
+        "long": 86400,
+        "minTokens": 1024
       }
     },
     {
@@ -192,6 +217,11 @@
         "medium": "medium",
         "high": "high",
         "xhigh": "xhigh"
+      },
+      "promptCache": {
+        "short": 300,
+        "long": 86400,
+        "minTokens": 1024
       }
     },
     {
@@ -215,6 +245,11 @@
         "medium": "medium",
         "high": "high",
         "xhigh": "xhigh"
+      },
+      "promptCache": {
+        "short": 300,
+        "long": 86400,
+        "minTokens": 1024
       }
     },
     {
@@ -238,6 +273,11 @@
         "medium": "medium",
         "high": "high",
         "xhigh": "xhigh"
+      },
+      "promptCache": {
+        "short": 300,
+        "long": 86400,
+        "minTokens": 1024
       }
     },
     {
@@ -261,6 +301,11 @@
         "medium": "medium",
         "high": "high",
         "xhigh": null
+      },
+      "promptCache": {
+        "short": 300,
+        "long": 86400,
+        "minTokens": 1024
       }
     },
     {
@@ -284,6 +329,11 @@
         "medium": "medium",
         "high": "high",
         "xhigh": null
+      },
+      "promptCache": {
+        "short": 300,
+        "long": 86400,
+        "minTokens": 1024
       }
     },
     {
@@ -298,6 +348,11 @@
         "output": 8,
         "cacheRead": 0.5,
         "cacheWrite": 0
+      },
+      "promptCache": {
+        "short": 300,
+        "long": 86400,
+        "minTokens": 1024
       }
     },
     {
@@ -312,6 +367,11 @@
         "output": 10,
         "cacheRead": 1.25,
         "cacheWrite": 0
+      },
+      "promptCache": {
+        "short": 300,
+        "long": 86400,
+        "minTokens": 1024
       }
     },
     {
@@ -326,6 +386,11 @@
         "output": 0.6,
         "cacheRead": 0.075,
         "cacheWrite": 0
+      },
+      "promptCache": {
+        "short": 300,
+        "long": 86400,
+        "minTokens": 1024
       }
     },
     {
@@ -349,6 +414,11 @@
         "medium": "medium",
         "high": "high",
         "xhigh": null
+      },
+      "promptCache": {
+        "short": 300,
+        "long": 86400,
+        "minTokens": 1024
       }
     },
     {
@@ -372,6 +442,11 @@
         "medium": "medium",
         "high": "high",
         "xhigh": null
+      },
+      "promptCache": {
+        "short": 300,
+        "long": 86400,
+        "minTokens": 1024
       }
     }
   ]

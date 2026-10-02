@@ -11,6 +11,7 @@ import type {
   AssistantMessage,
   AuthHeader,
   Model,
+  ProviderCompat,
   ProviderData,
   StreamOptions,
   ToolCallBlock,
@@ -18,12 +19,24 @@ import type {
 } from "./ai/types.js";
 import type {
   AgentSession,
+  CacheSettings,
   EnqueueOptions,
   LoopHooks,
   PromptOptions,
+  SessionCacheStats,
   SessionEvent,
+  SessionStats,
 } from "./agent/types.js";
 import type { MessageOrigin } from "./ai/types.js";
+import type {
+  CacheMiss,
+  RequestRecord,
+  WarmDecision,
+  WarmerStatus,
+  WarmingDecisionHandler,
+} from "./ai/cache/types.js";
+import { CACHE_MISS_REASONS, WARMING_MODES } from "./ai/cache/types.js";
+import type * as Sdk from "./index.js";
 import type {
   HookCommonContext,
   HookContextOverrides,
@@ -33,6 +46,7 @@ import type {
   HookOutcome,
 } from "./hooks/types.js";
 import type {
+  ActionPreview,
   AgentEvents,
   ApprovalBroker,
   ApprovalRequest,
@@ -40,13 +54,19 @@ import type {
   HostApi,
   HostModule,
 } from "./host/types.js";
-import type { SessionEntry, SessionEntryInput, SessionHeader } from "./session/types.js";
+import type {
+  LeafLine,
+  SessionEntry,
+  SessionEntryInput,
+  SessionHeader,
+  SessionLine,
+} from "./session/types.js";
 import type { Component, Focusable, Theme } from "./tui/component.js";
-import type { ToolContext, ToolDefinition, ToolResult } from "./tools/types.js";
+import type { SubagentResult, ToolContext, ToolDefinition, ToolResult } from "./tools/types.js";
 import type { Runtime } from "./cli/runtime.js";
 import type { RuntimeDeps, SessionAssembly } from "./cli/deps.js";
 import type { HostApiBinding } from "./host/api-impl.js";
-import type { AmaConfig, PermissionConfig } from "./config/types.js";
+import type { AmaConfig, ModelConfig, ModelOverride, PermissionConfig } from "./config/types.js";
 import type { ParsedArgs } from "./cli/args.js";
 import type { RpcCommand, RpcEvent } from "./rpc.js";
 import { HOST_API_VERSION } from "./host/types.js";
@@ -111,6 +131,71 @@ describe("ai 契约（B1 追加）", () => {
   it("Model.authHeader / Model.requiresApiKey：registry 从 ProviderData 物化", () => {
     expectTypeOf<Model["authHeader"]>().toEqualTypeOf<AuthHeader | undefined>();
     expectTypeOf<Model["requiresApiKey"]>().toEqualTypeOf<boolean | undefined>();
+  });
+});
+
+describe("ai 契约（W3-C0 ①：缓存）", () => {
+  it("Usage.cacheReported、StreamOptions.purpose / toolChoice、promptCache.minTokens", () => {
+    expectTypeOf<AssistantMessage["usage"]["cacheReported"]>().toEqualTypeOf<boolean | undefined>();
+    expectTypeOf<StreamOptions["purpose"]>().toEqualTypeOf<
+      "turn" | "summary" | "warm" | "probe" | undefined
+    >();
+    expectTypeOf<StreamOptions["toolChoice"]>().toEqualTypeOf<"none" | undefined>();
+    expectTypeOf<NonNullable<Model["promptCache"]>>().toEqualTypeOf<{
+      short?: number;
+      long?: number;
+      minTokens?: number;
+    }>();
+  });
+
+  it("ProviderCompat 的五个缓存开关全部可选", () => {
+    expectTypeOf<ProviderCompat["sendPromptCacheKey"]>().toEqualTypeOf<boolean | undefined>();
+    expectTypeOf<ProviderCompat["sendSessionAffinityHeaders"]>().toEqualTypeOf<
+      boolean | undefined
+    >();
+    expectTypeOf<ProviderCompat["supportsLongCacheRetention"]>().toEqualTypeOf<
+      boolean | undefined
+    >();
+    expectTypeOf<ProviderCompat["supportsExplicitPromptCacheMode"]>().toEqualTypeOf<
+      boolean | undefined
+    >();
+    expectTypeOf<ProviderCompat["cacheReporting"]>().toEqualTypeOf<
+      "auto" | "silent" | "reported" | undefined
+    >();
+    const compat: ProviderCompat = { sendPromptCacheKey: true, cacheReporting: "silent" };
+    const options: Omit<StreamOptions, "signal"> = { purpose: "summary", toolChoice: "none" };
+    expect([compat.cacheReporting, options.purpose]).toEqual(["silent", "summary"]);
+  });
+});
+
+describe("会话层缓存共享类型（W3-C0 ②）", () => {
+  it("RequestRecord / CacheMiss / 三态 / 保温决策", () => {
+    expectTypeOf<RequestRecord["purpose"]>().toEqualTypeOf<NonNullable<StreamOptions["purpose"]>>();
+    expectTypeOf<RequestRecord["options"]>().toEqualTypeOf<Omit<StreamOptions, "signal">>();
+    expectTypeOf<RequestRecord["fingerprint"]>().toEqualTypeOf<{
+      system: string;
+      tools: string;
+      model: string;
+    }>();
+    expectTypeOf<CacheMiss["missedCost"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<CacheMiss["detail"]>().toEqualTypeOf<"system" | "tools" | undefined>();
+    expectTypeOf<WarmerStatus["state"]>().toEqualTypeOf<"inactive" | "scheduled" | "stopped">();
+    expectTypeOf<WarmDecision["action"]>().toEqualTypeOf<"warm" | "stop">();
+    expectTypeOf<ReturnType<WarmingDecisionHandler>>().toEqualTypeOf<
+      "warm" | "stop" | Promise<"warm" | "stop">
+    >();
+    // SDK 公开面同名再导出
+    expectTypeOf<Sdk.RequestRecord>().toEqualTypeOf<RequestRecord>();
+    expectTypeOf<Sdk.WarmerStatus>().toEqualTypeOf<WarmerStatus>();
+    expectTypeOf<Sdk.CacheReporting>().toEqualTypeOf<"unknown" | "reported" | "silent">();
+    expect(WARMING_MODES).toEqual(["off", "streaming", "idle"]);
+    expect(CACHE_MISS_REASONS).toEqual([
+      "prefix_changed",
+      "model_changed",
+      "idle",
+      "subtask",
+      "evicted",
+    ]);
   });
 });
 
@@ -195,6 +280,19 @@ describe("宿主契约", () => {
     expectTypeOf<Parameters<HostApi["tools"]["register"]>[0]>().toEqualTypeOf<ToolDefinition>();
   });
 
+  it("AgentEvents 两个缓存事件与可选的 cache.onWarmingDecision（W3-C0 ③）", () => {
+    expectTypeOf<AgentEvents["cache_miss"]["reason"]>().toEqualTypeOf<
+      "prefix_changed" | "model_changed" | "idle" | "subtask" | "evicted"
+    >();
+    expectTypeOf<AgentEvents["context_pressure"]["threshold"]>().toEqualTypeOf<70 | 90>();
+    type Register = NonNullable<HostApi["cache"]>["onWarmingDecision"];
+    expectTypeOf<Parameters<Register>[0]>().toEqualTypeOf<WarmingDecisionHandler>();
+    expectTypeOf<ReturnType<Register>>().toEqualTypeOf<() => void>();
+    expectTypeOf<ReturnType<HostApiBinding["warmingDecider"]>>().toEqualTypeOf<
+      WarmingDecisionHandler | undefined
+    >();
+  });
+
   it("HostApiBinding.setNotify（契约 A8）", () => {
     expectTypeOf<Parameters<HostApiBinding["setNotify"]>>().toEqualTypeOf<
       [fn?: (message: string, level: "info" | "warn" | "error") => void]
@@ -203,7 +301,7 @@ describe("宿主契约", () => {
 
   it("ApprovalRequest.context（契约 A3）", () => {
     expectTypeOf<ApprovalRequest["context"]>().toEqualTypeOf<
-      { depth: number; parentToolCallId?: string } | undefined
+      { depth: number; parentToolCallId?: string; readFiles?: ReadonlySet<string> } | undefined
     >();
     const request: ApprovalRequest = {
       requestId: "r1",
@@ -213,6 +311,30 @@ describe("宿主契约", () => {
       context: { depth: 1 },
     };
     expect(request.context?.depth).toBe(1);
+  });
+});
+
+describe("执行前预览（W3-C0 ③）", () => {
+  it("ApprovalRequest.preview / context.readFiles 与 permission_request.preview", () => {
+    expectTypeOf<ApprovalRequest["preview"]>().toEqualTypeOf<ActionPreview | undefined>();
+    expectTypeOf<ActionPreview["severity"]>().toEqualTypeOf<"info" | "warn" | "danger">();
+    expectTypeOf<Extract<SessionEvent, { type: "permission_request" }>["preview"]>().toEqualTypeOf<
+      ActionPreview | undefined
+    >();
+    const request: ApprovalRequest = {
+      requestId: "r2",
+      toolName: "write",
+      input: { path: "a.ts", content: "x" },
+      reason: "mode",
+      context: { depth: 0, readFiles: new Set(["b.ts"]) },
+      preview: {
+        kind: "write",
+        lines: ["覆盖 a.ts（未读过）：12 行 → 1 行"],
+        severity: "warn",
+        affected: [{ path: "a.ts", exists: true, bytes: 340 }],
+      },
+    };
+    expect(JSON.parse(JSON.stringify(request.preview))).toEqual(request.preview);
   });
 });
 
@@ -227,6 +349,20 @@ describe("配置契约", () => {
     expectTypeOf<NonNullable<AmaConfig["tools"]>["preset"]>().toEqualTypeOf<
       "default" | "minimal" | "codemode" | "coordinator" | undefined
     >();
+  });
+
+  it("cache 段与模型级 api（W3-C0 ③）", () => {
+    expectTypeOf<NonNullable<AmaConfig["cache"]>>().toEqualTypeOf<{
+      warming?: "off" | "streaming" | "idle";
+      retention?: "none" | "short" | "long";
+      minSavingsUsd?: number;
+      missNotices?: boolean;
+      warmSubagents?: boolean;
+    }>();
+    expectTypeOf<ModelConfig["api"]>().toEqualTypeOf<Model["api"] | undefined>();
+    expectTypeOf<ModelOverride["api"]>().toEqualTypeOf<Model["api"] | undefined>();
+    const entry: ModelConfig = { id: "MiniMax-M2.7", api: "anthropic-messages" };
+    expect(entry.api).toBe("anthropic-messages");
   });
 
   it("--codemode / --tools-preset（契约 A7）", () => {
@@ -285,6 +421,7 @@ describe("会话契约", () => {
       | "custom_message"
       | "label"
       | "session_info"
+      | "usage"
     >();
     const input: SessionEntryInput = {
       type: "context_edit",
@@ -297,6 +434,23 @@ describe("会话契约", () => {
     expectTypeOf<Extract<SessionEntry, { type: "message" }>["message"]["role"]>().toEqualTypeOf<
       "system" | "user" | "assistant" | "toolResult"
     >();
+  });
+});
+
+describe("会话契约（W3-C0 ③：usage 条目与 leaf 行）", () => {
+  it("usage 条目可 append；leaf 行不是条目", () => {
+    const warm: SessionEntryInput = {
+      type: "usage",
+      kind: "cache_warm",
+      provider: "anthropic",
+      model: "claude-sonnet-5-5",
+      usage: { input: 0, output: 1, cacheRead: 40_000, cacheWrite: 0, totalTokens: 40_001 },
+    };
+    const leaf: LeafLine = { type: "leaf", id: null, timestamp: "2026-10-02T00:00:00.000Z" };
+    expectTypeOf<LeafLine>().toMatchTypeOf<SessionLine>();
+    expectTypeOf<Extract<SessionEntry, { type: "leaf" }>>().toBeNever();
+    expectTypeOf<LeafLine["id"]>().toEqualTypeOf<string | null>();
+    expect([warm.type, leaf.type]).toEqual(["usage", "leaf"]);
   });
 });
 
@@ -345,6 +499,51 @@ describe("循环、SDK、RPC、Runtime 契约", () => {
       parentToolCallId: "c1",
     };
     expect(inner.type).toBe("tool_execution_start");
+  });
+
+  it("缓存事件、SessionStats.cache、SubagentResult.cache、CacheSettings（W3-C0 ②）", () => {
+    type Miss = Extract<SessionEvent, { type: "cache_miss" }>;
+    expectTypeOf<Miss["reason"]>().toEqualTypeOf<
+      "prefix_changed" | "model_changed" | "idle" | "subtask" | "evicted"
+    >();
+    expectTypeOf<Miss["missedCost"]>().toEqualTypeOf<number | undefined>();
+    type Warm = Extract<SessionEvent, { type: "cache_warm" }>;
+    expectTypeOf<Warm["phase"]>().toEqualTypeOf<"scheduled" | "sent" | "stopped">();
+    type Pressure = Extract<SessionEvent, { type: "context_pressure" }>;
+    expectTypeOf<Pressure["threshold"]>().toEqualTypeOf<70 | 90>();
+    // RpcEvent 由 SessionEvent 派生，三个事件自动上线
+    expectTypeOf<Extract<RpcEvent, { type: "cache_warm" }>>().toEqualTypeOf<Warm>();
+    expectTypeOf<Extract<RpcEvent, { type: "context_pressure" }>>().toEqualTypeOf<Pressure>();
+    expectTypeOf<SessionStats["cache"]>().toEqualTypeOf<SessionCacheStats | undefined>();
+    expectTypeOf<SessionCacheStats["reporting"]>().toEqualTypeOf<
+      "unknown" | "reported" | "silent"
+    >();
+    expectTypeOf<SessionCacheStats["warming"]["mode"]>().toEqualTypeOf<
+      "off" | "streaming" | "idle"
+    >();
+    expectTypeOf<SubagentResult["cache"]>().toEqualTypeOf<
+      { hitRate?: number; reBilledTokens: number } | undefined
+    >();
+    const settings: CacheSettings = {
+      warming: "streaming",
+      retention: "short",
+      minSavingsUsd: 0.05,
+      missNotices: true,
+      warmSubagents: false,
+    };
+    const miss: SessionEvent = {
+      type: "cache_miss",
+      missedTokens: 38_200,
+      reason: "idle",
+      idleMs: 420_000,
+    };
+    const stats: SessionCacheStats = {
+      reporting: "silent",
+      reBilledTokens: 0,
+      misses: { count: 0, byReason: {} },
+      warming: { mode: settings.warming, state: "inactive" },
+    };
+    expect([miss.type, stats.reporting]).toEqual(["cache_miss", "silent"]);
   });
 
   it("RPC 线上 message_update 是纯增量", () => {

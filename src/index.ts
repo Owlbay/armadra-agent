@@ -20,6 +20,7 @@ export type { SchemaError, SchemaErrorKeyword } from "./agent/schema.js";
 
 // 契约类型
 export type * from "./ai/types.js";
+export type * from "./ai/cache/types.js";
 export type * from "./agent/types.js";
 export type * from "./session/types.js";
 export type * from "./tools/types.js";

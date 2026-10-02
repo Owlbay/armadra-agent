@@ -10,7 +10,8 @@ import type { AmaConfig, AuthFile, ProfileFile, TrustFile } from "./types.js";
 import type { HookConfig } from "../hooks/types.js";
 import { HOOK_EVENTS } from "../hooks/types.js";
 import { PERMISSION_MODES_STRICT_FIRST } from "../permissions/types.js";
-import { CODEMODE_MODES, TOOLS_PRESETS_STRICT_FIRST } from "./types.js";
+import { WARMING_MODES } from "../ai/cache/types.js";
+import { CACHE_RETENTIONS, CODEMODE_MODES, TOOLS_PRESETS_STRICT_FIRST } from "./types.js";
 
 export type {
   AmaConfig,
@@ -29,6 +30,7 @@ export type {
   HooksSettings,
   UiConfig,
   SkillsConfig,
+  CacheConfig,
   ModelConfig,
   ModelOverride,
 } from "./types.js";
@@ -151,6 +153,7 @@ const CONFIG_KEYS = [
   "hooks",
   "ui",
   "skills",
+  "cache",
   "$schema",
 ] as const;
 
@@ -168,6 +171,14 @@ const PROVIDER_KEYS = [
   "modelOverrides",
 ] as const;
 
+/** 第三波 §1.3 的缓存兼容开关（其余 compat 字段按协议各异，只查是对象）。 */
+const CACHE_COMPAT_FLAGS = [
+  "sendPromptCacheKey",
+  "sendSessionAffinityHeaders",
+  "supportsLongCacheRetention",
+  "supportsExplicitPromptCacheMode",
+] as const;
+
 function checkModels(c: Checker, value: unknown, path: string): void {
   if (value === undefined) return;
   if (!Array.isArray(value)) {
@@ -182,8 +193,15 @@ function checkModels(c: Checker, value: unknown, path: string): void {
     c.number(item, "contextWindow", p, 1);
     c.number(item, "maxTokens", p, 1);
     c.boolean(item, "reasoning", p);
+    c.string(item, "api", p);
     c.string(item, "baseUrl", p);
     c.stringRecord(item, "headers", p);
+    const promptCache = item["promptCache"];
+    if (promptCache !== undefined && c.object(promptCache, join(p, "promptCache"))) {
+      const pp = join(p, "promptCache");
+      c.keys(promptCache, pp, ["short", "long", "minTokens"]);
+      for (const key of ["short", "long", "minTokens"]) c.number(promptCache, key, pp);
+    }
     const input = item["input"];
     if (
       input !== undefined &&
@@ -201,7 +219,12 @@ function checkProvider(c: Checker, value: unknown, path: string): void {
   c.stringArray(value, "envKeys", path);
   c.stringRecord(value, "headers", path);
   c.boolean(value, "requiresApiKey", path);
-  if (value["compat"] !== undefined) c.object(value["compat"], join(path, "compat"));
+  const compat = value["compat"];
+  if (compat !== undefined && c.object(compat, join(path, "compat"))) {
+    const cp = join(path, "compat");
+    for (const key of CACHE_COMPAT_FLAGS) c.boolean(compat, key, cp);
+    c.oneOf(compat, "cacheReporting", cp, ["auto", "silent", "reported"]);
+  }
   if (value["authHeader"] !== undefined) c.object(value["authHeader"], join(path, "authHeader"));
   checkModels(c, value["models"], join(path, "models"));
   checkModels(c, value["modelOverrides"], join(path, "modelOverrides"));
@@ -299,6 +322,19 @@ export function validateConfig(value: unknown): Diagnostic[] {
     },
   );
   checkSection(c, value, "skills", ["dirs"], (s, p) => c.stringArray(s, "dirs", p));
+  checkSection(
+    c,
+    value,
+    "cache",
+    ["warming", "retention", "minSavingsUsd", "missNotices", "warmSubagents"],
+    (s, p) => {
+      c.oneOf(s, "warming", p, WARMING_MODES);
+      c.oneOf(s, "retention", p, CACHE_RETENTIONS);
+      c.number(s, "minSavingsUsd", p, 0);
+      c.boolean(s, "missNotices", p);
+      c.boolean(s, "warmSubagents", p);
+    },
+  );
   return c.diagnostics;
 }
 

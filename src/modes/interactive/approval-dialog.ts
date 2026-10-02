@@ -4,6 +4,8 @@
  * - 标题行：`[task]`（`request.context.depth > 0`，子 Agent 发起）+ 工具名 + 原因标签；
  * - 输入：bash 显示命令全文，write 显示路径与行数，edit 显示路径与每处修改的 −/+ 摘要，其它显示
  *   一行摘要；`v` 展开 / 收起完整输入（JSON）；
+ * - 执行前预览（W3-B9a-2，`request.preview`）：输入摘要之后列出会碰到的路径与规模，danger 红、
+ *   warn 黄、info 暗色；`other` 类预览与输入摘要重复，不显示；
  * - 原因：mode（当前权限模式需要确认）/ dangerous / hook + Hook 给的文本；
  * - 按键：`y` 允许、`n` / Esc / Ctrl+C 拒绝、`a` 本会话允许同类；
  * - 超时与中断：broker 链在超时（缺省 10 分钟）或运行被中断时 abort `signal`，对话框关闭并返回
@@ -12,6 +14,7 @@
  * broker 链本身串行化审批，所以同一时刻最多一个对话框。
  */
 
+import { previewDisplayLines } from "../../permissions/preview.js";
 import type { ApprovalBroker, ApprovalDecision, ApprovalRequest } from "../../permissions/types.js";
 import {
   Box,
@@ -107,6 +110,9 @@ export function describeRequest(
     const summary = toolSummary(request.toolName, input, options.cwd);
     if (summary !== "") out.push(summary);
   }
+  const severity = request.preview?.severity;
+  const color = severity === "danger" ? "error" : severity === "warn" ? "warning" : "dim";
+  out.push(...previewDisplayLines(request.preview).map((l) => theme.fg(color, l)));
   if (request.reason === "hook") {
     out.push(theme.fg("warning", `Hook：${request.hookReason ?? "（无说明）"}`));
   } else if (request.reason === "dangerous") {

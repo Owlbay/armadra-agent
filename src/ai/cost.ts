@@ -5,7 +5,8 @@
  *   整单按该档计价；
  * - `Usage.input` 不含缓存部分；
  * - 1 小时缓存写入（`cacheWrite1h`，已包含在 `cacheWrite` 中）按 2× 基础输入价计；
- * - 模型无 `cost` → 不写 `usage.cost`（界面显示 `$?`）。
+ * - 模型无 `cost` → 不写 `usage.cost`（界面显示 `$?`）；
+ * - `priceTokens` 给假想用量估价（保温经济性、未命中重计费、cache-probe 预估，第三波 §3.2）。
  */
 
 import type { Model, ModelCost, Usage, UsageCost } from "./types.js";
@@ -45,6 +46,19 @@ export function calculateCost(model: Pick<Model, "cost">, usage: Usage): UsageCo
   cost.total = cost.input + cost.output + cost.cacheRead + cost.cacheWrite;
   usage.cost = cost;
   return cost;
+}
+
+/**
+ * [W3-C1a] 按目录价给一组假想 token 估价（美元）：与 `calculateCost` 同一套阶梯与 1h 写入规则，
+ * 缺省字段按 0；模型无 `cost` → undefined（价格为 0 时返回 0，「不可算」由调用方判断）。
+ */
+export function priceTokens(
+  model: Pick<Model, "cost">,
+  tokens: Partial<Pick<Usage, "input" | "output" | "cacheRead" | "cacheWrite">>,
+): number | undefined {
+  if (!model.cost) return undefined;
+  const usage: Usage = { ...emptyUsage(), ...tokens };
+  return calculateCost(model, usage)?.total;
 }
 
 /** 重新计算 totalTokens（各家多数不直接给，或给的口径不同）。 */
