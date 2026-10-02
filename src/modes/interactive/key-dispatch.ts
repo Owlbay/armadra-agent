@@ -3,7 +3,8 @@
  *
  * 编辑器之前的输入监听：Ctrl+C 清空输入 / 再按退出、Esc 中断（clearQueue 回填编辑器后 abort）、
  * Ctrl+D 空输入退出、Alt+Enter followUp、Alt+↑ 取回最后一条排队消息、Shift+Tab 循环权限模式、
- * Ctrl+O 展开工具输出与思考块、Ctrl+L 模型、Ctrl+T 思考级别、Ctrl+G 底部信息行 full ↔ compact（W5-A）。
+ * Ctrl+O 展开工具输出与思考块、Ctrl+L 模型、Ctrl+T 思考级别、Ctrl+G 底部信息行 full ↔ compact（W5-A）、
+ * Ctrl+V 粘贴剪贴板图片（`app.paste.image`，W5-U）。
  * 键位由 `keybindings.json` 覆盖。
  *
  * [RW-C] 空闲时双击 Esc（`app.rewind`，double-esc.ts）：输入框为空打开回滚列表，有字则清空并存进
@@ -38,6 +39,8 @@ export interface KeyDispatchDeps {
   onExpandToggle?(expanded: boolean): void;
   /** Ctrl+G：切换底部信息行，返回切换后的布局。 */
   onStatusLineToggle?(): "full" | "compact";
+  /** Ctrl+V：粘贴剪贴板图片（W5-U）。 */
+  onPasteImage?(): void;
   submit(text: string, via: "followUp"): void;
   runCommand(line: string): void;
   exit(code: number): void;
@@ -167,6 +170,10 @@ export function createKeyDispatch(deps: KeyDispatchDeps): (data: string) => bool
     }
     if (is("app.thinking.select")) {
       deps.runCommand("/thinking");
+      return true;
+    }
+    if (is("app.paste.image") && deps.onPasteImage !== undefined) {
+      deps.onPasteImage();
       return true;
     }
     if (is("app.statusLine.toggle") && deps.onStatusLineToggle !== undefined) {

@@ -16,6 +16,7 @@ import type { FakeResponse } from "../../ai/fake/fake-script.js";
 import { parseArgs } from "../../cli/args.js";
 import type { ModeContext } from "../../cli/deps.js";
 import type { Runtime } from "../../cli/runtime.js";
+import type { ClipboardDeps } from "../../tools/clipboard-image.js";
 import { MemoryTerminal, plainTheme, stripAnsi, type Component, type Theme } from "../../tui.js";
 import { AMA_VERSION } from "../../version.js";
 import { runInteractiveMode, type InteractiveHandle } from "./interactive-mode.js";
@@ -120,6 +121,8 @@ export async function start(
     env?: Record<string, string>;
     /** 底部布局，缺省 compact。 */
     statusLine?: "full" | "compact";
+    /** 剪贴板读取的注入（W5-U；缺省不允许调系统命令）。 */
+    clipboard?: ClipboardDeps;
   } = {},
 ): Promise<Started> {
   if (options.keepHarness !== true || started.h === undefined)
@@ -148,6 +151,10 @@ export async function start(
     // 速率行的数值随真实时钟变；既有帧黄金固定单行布局，full 布局见 status-line / interactive-statusline 测试
     statusLine: options.statusLine ?? "compact",
     historyFile: false,
+    // 测试从不读真实剪贴板：缺省给一个「没有剪贴板命令」的执行器
+    clipboard: options.clipboard ?? {
+      run: async () => ({ code: null, stdout: Buffer.alloc(0), stderr: "", missing: true }),
+    },
     onReady: (x) => (handle = x),
   });
   if (handle === undefined) throw new Error("not ready");

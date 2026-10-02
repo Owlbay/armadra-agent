@@ -11,6 +11,7 @@
  */
 
 import { promptImages, sessionModel } from "../../image-input.js";
+import { taskRegistryView } from "../../../agent/subagent-registry.js";
 import type { AgentSession } from "../../../agent/types.js";
 import { currentSession, switchSession } from "../../../cli/compose-session.js";
 import type { ModeContext } from "../../../cli/deps.js";
@@ -85,6 +86,11 @@ export async function runLineMode(
           editor.buffer = draft;
           editor.cursor = draft.length;
         }
+        // /plan approve 开了新回合：跑完再收下一行（与直接发提示一致）
+        if (result.wait === true) {
+          await session.waitForIdle();
+          printer.endLine();
+        }
       }
     } catch (error) {
       printer.endLine();
@@ -94,11 +100,13 @@ export async function runLineMode(
     return undefined;
   };
   const prompt = async (target: AgentSession, text: string): Promise<void> => {
+    const resize = runtime.config.images?.resize;
     const images = await promptImages(
       text,
       [],
       target.state.cwd,
       sessionModel(runtime.providers, target),
+      resize !== undefined ? { resize } : {},
     );
     await target.prompt(text, images.length > 0 ? { images } : {});
     printer.endLine();
@@ -130,7 +138,11 @@ export async function runLineMode(
         if (signal.aborted) return resolve(undefined);
         signal.addEventListener("abort", () => resolve(undefined), { once: true });
         const preview = previewDisplayLines(request.preview).map((l) => `  ${l}\n`);
-        void ed.ask(`\n${preview.join("")}${approvalQuestion(request)}`, "n").then((answer) => {
+        const question = approvalQuestion(
+          request,
+          (taskId) => taskRegistryView(session.state.sessionId)?.get(taskId)?.agent,
+        );
+        void ed.ask(`\n${preview.join("")}${question}`, "n").then((answer) => {
           resolve(answer === "y" ? "allow" : answer === "a" ? "allow_session" : "deny");
           if (!busy) ed.render();
         });

@@ -25,13 +25,28 @@ import {
   parsePermissionMode,
   permissionModeLabel,
 } from "../permissions/modes.js";
+import { pasteImage } from "./interactive/clipboard-paste.js";
+import { planCommand } from "./interactive/plan-command.js";
 import { rewindCommand } from "./interactive/rewind-command.js";
+import {
+  describeAgents,
+  describeTaskOutput,
+  describeTasks,
+  stopTask,
+} from "./interactive/tasks-report.js";
 import { describeCache, describeFingerprint, describeSession } from "./session-report.js";
 
 export { describeSession } from "./session-report.js";
 
 export type CommandResult =
-  | { kind: "handled"; message?: string; draft?: RewindDraftText; reload?: boolean }
+  | {
+      kind: "handled";
+      message?: string;
+      draft?: RewindDraftText;
+      reload?: boolean;
+      /** [W5-U] 命令开了一个新回合（`/plan approve`）：line 模式等它跑完再收下一行。 */
+      wait?: boolean;
+    }
   | { kind: "prompt"; text: string }
   | { kind: "pick"; what: "model" | "session" | "tree" | "permission" | "thinking" }
   | { kind: "exit" };
@@ -80,6 +95,14 @@ export const BUILTIN_COMMANDS: readonly CommandInfo[] = [
     description: "缓存统计；切换本会话保温；打印前缀指纹",
   },
   { name: "statusline", args: "[full|compact]", description: "底部信息行两行 / 一行（Ctrl+G）" },
+  {
+    name: "plan",
+    args: "[目标] | approve [模式|fresh] | reject",
+    description: "查看计划与状态；带目标进入 Plan 模式；批准 / 放弃待审批的计划",
+  },
+  { name: "tasks", args: "[id] | stop <id>", description: "子 Agent 任务：状态、输出、停止" },
+  { name: "agents", description: "子 Agent 类型与外部 Agent（安装状态、版本）" },
+  { name: "paste", description: "粘贴剪贴板里的图片（Ctrl+V）" },
   { name: "exit", description: "退出" },
 ];
 
@@ -123,6 +146,19 @@ function cacheCommand(session: AgentSession, args: string): string {
     return `保温：${session.cache.mode()}（本会话）`;
   }
   throw new AmaError("invalid_arguments", "用法：/cache [warm off|streaming|idle | fingerprint]");
+}
+
+/** `/tasks`、`/tasks <id>`、`/tasks stop <id>`。 */
+async function tasksCommand(sessionId: string, args: string): Promise<string> {
+  const [first, second, extra] = args.split(/\s+/).filter((s) => s !== "");
+  const now = Date.now();
+  if (first === undefined) return describeTasks(sessionId, now);
+  if (first === "stop" && second !== undefined && extra === undefined) {
+    await stopTask(sessionId, second);
+    return `已停止 ${second}`;
+  }
+  if (second === undefined) return describeTaskOutput(sessionId, first, now);
+  throw new AmaError("invalid_arguments", "用法：/tasks [id] | /tasks stop <id>");
 }
 
 export async function runSlashCommand(
@@ -214,6 +250,22 @@ export async function runSlashCommand(
       return { kind: "handled", message: cacheCommand(session, args) };
     case "rewind":
       return { kind: "handled", ...(await rewindCommand(session, args)) };
+    case "plan":
+      return planCommand(session, args, ctx);
+    case "tasks":
+      return { kind: "handled", message: await tasksCommand(session.state.sessionId, args) };
+    case "agents":
+      return { kind: "handled", message: describeAgents(session.state.sessionId) };
+    case "paste": {
+      const pasted = await pasteImage(ctx.runtime.paths.dataDir);
+      return pasted.ok
+        ? {
+            kind: "handled",
+            message: `已粘贴图片：${pasted.path}`,
+            draft: { text: `${pasted.ref} ` },
+          }
+        : { kind: "handled", message: pasted.message };
+    }
     case "statusline":
       // [W5-A] 交互界面在 commands-core 之前自己处理；line 模式没有底部信息行
       return { kind: "handled", message: "/statusline 只在交互界面可用" };

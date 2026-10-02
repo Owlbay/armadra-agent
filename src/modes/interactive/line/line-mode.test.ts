@@ -212,3 +212,58 @@ describe("行式界面：/rewind", () => {
     await runtime.dispose();
   });
 });
+
+describe("行式界面：/plan（W5-U）", () => {
+  const PLAN_REPLY = [
+    "先看了代码。",
+    "<proposed_plan>",
+    "# 给状态栏加回退显示",
+    "## 步骤",
+    "- [ ] S1 读 status-bar.ts",
+    "- [ ] S2 加 → 回退模型",
+    "## 验证",
+    "pnpm test",
+    "</proposed_plan>",
+  ].join("\n");
+
+  it("/plan 查看、/plan approve <模式> 批准并执行（跑完再收下一行）", async () => {
+    h = composeHarness([{ text: PLAN_REPLY }, { text: "按计划改完了" }]);
+    const runtime = await h.boot(["--model", "fake/echo", "--permission-mode", "plan"]);
+    const stdin = new PassThrough();
+    const done = runLineMode(
+      runtime,
+      { args: emptyArgs(), prompt: undefined, io: h.io },
+      { stdin },
+    );
+    stdin.end("规划一下\n/plan\n/plan approve auto-edit\n/plan\n/session\n");
+    expect(await done).toBe(0);
+    const out = h.stdout();
+    expect(out).toContain("◇ 计划 v1 待审批");
+    expect(out).toContain("计划 v1 · 待审批 · 给状态栏加回退显示");
+    expect(out).toContain("  S2 加 → 回退模型");
+    expect(out).toContain("已批准计划 v1，以 Accept edits 执行");
+    expect(out).toContain("按计划改完了");
+    expect(out).toContain("计划 v1 · 已批准 · 给状态栏加回退显示");
+    expect(out).toContain("模式：Accept edits");
+    // 执行回合的请求带交接消息（计划全文）
+    expect(h.fake.calls).toHaveLength(2);
+    expect(JSON.stringify(h.fake.calls[1]?.context.messages)).toContain("给状态栏加回退显示");
+    await runtime.dispose();
+  });
+
+  it("/plan reject；没有待审批的计划时报错", async () => {
+    h = composeHarness([{ text: PLAN_REPLY }]);
+    const runtime = await h.boot(["--model", "fake/echo", "--permission-mode", "plan"]);
+    const stdin = new PassThrough();
+    const done = runLineMode(
+      runtime,
+      { args: emptyArgs(), prompt: undefined, io: h.io },
+      { stdin },
+    );
+    stdin.end("规划一下\n/plan reject\n/plan reject\n");
+    expect(await done).toBe(1);
+    expect(h.stdout()).toContain("已放弃计划 v1（仍在 Plan 模式）");
+    expect(h.stderr()).toContain("没有待审批的计划");
+    await runtime.dispose();
+  });
+});

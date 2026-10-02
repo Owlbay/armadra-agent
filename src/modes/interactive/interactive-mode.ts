@@ -14,6 +14,8 @@
  * - 回滚（RW-C）：`/rewind` 与空闲双击 Esc 走 rewind-flow.ts；回填的原消息图片暂存，随下一条消息发送。
  * - 底部（W5-A，status-area.ts）：`ui.statusLine` full 时状态栏上方多一行速率行；Ctrl+G / `/statusline`
  *   切换（只影响本会话）。
+ * - 第五波（W5-U，agent-ui.ts）：计划审批框、子 Agent 折叠视图、`/tasks` `/agents` `/paste` 与 Ctrl+V、审批来源
+ *   标注与外部 Agent 首次运行的合并确认（approval-merge.ts）、harness 提示。
  * - 启动头按 `ui.quietStartup`（startup-header.ts）：normal 框 + 模型 / 目录 / 模式 / 资源清单（窄屏或
  *   `ui.compact` 去框），header 一行，silent 不输出。
  */
@@ -21,15 +23,17 @@
 import { promptImages, sessionModel } from "../image-input.js";
 import { join } from "node:path";
 import { AgentSessionImpl } from "../../agent/session.js";
+import { taskRegistryView } from "../../agent/subagent-registry.js";
 import type { AgentSession, RewindDraftText, SessionEvent } from "../../agent/types.js";
 import type { ImageBlock } from "../../ai/types.js";
 import { currentSession, switchSession, type SwitchRequest } from "../../cli/compose-session.js";
 import type { ModeContext } from "../../cli/deps.js";
 import type { Runtime } from "../../cli/runtime.js";
-import { startupInfo, startupScreenLevel } from "../../cli/startup-screen.js";
+import { startupInfo, startupScreenLevel, tildePath } from "../../cli/startup-screen.js";
 import { KEYBINDINGS_FILE } from "../../config/paths.js";
 import { AmaError, isAmaError } from "../../errors.js";
 import type { StatusLineMode } from "../../config/types.js";
+import type { ClipboardDeps } from "../../tools/clipboard-image.js";
 import {
   Container,
   Editor,
@@ -48,9 +52,10 @@ import {
   type Terminal,
   type Theme,
 } from "../../tui.js";
-import { cacheEventNotice, cacheNoticesEnabled } from "../session-report.js";
 import { onTerminationSignals } from "../shared.js";
+import { AgentUi } from "./agent-ui.js";
 import { ApprovalDialogBroker, approvalOutcomeText } from "./approval-dialog.js";
+import { mergingBroker } from "./approval-merge.js";
 import { ALL_COMMANDS, runInteractiveCommand, type CommandUi } from "./commands.js";
 import { InteractiveCompletion } from "./completion.js";
 import { createKeyDispatch } from "./key-dispatch.js";
@@ -59,9 +64,10 @@ import { openPicker } from "./pickers.js";
 import { createRewindFlow } from "./rewind-flow.js";
 import { StartupHeader } from "./startup-header.js";
 import { QueueView, RunIndicator } from "./run-indicator.js";
-import { compactionErrorText, ImageBudgetNotices } from "./event-notices.js";
 import { StatusArea, statusLineSlash } from "./status-area.js";
 import type { StatusBar } from "./status-bar.js";
+import { createSessionEventHandler } from "./session-events.js";
+import { SubagentTracker } from "./subagent-view.js";
 import { ToolTracker } from "./tool-view.js";
 
 const HINT_MS = 2500;
@@ -82,6 +88,8 @@ export interface InteractiveModeOptions {
   statusLine?: StatusLineMode;
   /** 界面就绪后回调（测试驱动用）。 */
   onReady?(handle: InteractiveHandle): void;
+  /** 剪贴板读取的注入（测试；缺省调系统命令）。 */
+  clipboard?: ClipboardDeps;
 }
 
 export interface InteractiveHandle {
@@ -136,12 +144,14 @@ export function runInteractiveMode(
     ...(ui.markdown !== undefined ? { markdown: ui.markdown } : {}),
     ...(ui.compact === true ? { compact: true } : {}),
   });
+  const subagents = new SubagentTracker(now);
   const tools = new ToolTracker({
     theme,
     cwd: session.state.cwd,
     getTool: (name) => session.getTools().find((tool) => tool.name === name),
     now,
     spinner: () => loader.frame,
+    subagent: (toolCallId) => subagents.forToolCall(toolCallId),
   });
   const queueView = new QueueView(theme);
   const loaderSlot = new Container();
@@ -228,83 +238,18 @@ export function runInteractiveMode(
 
   // ---- 会话事件 -------------------------------------------------------------
 
-  const images = new ImageBudgetNotices((text) => notice("info", text));
-  const onEvent = (event: SessionEvent): void => {
-    if (area.onEvent(event)) return render();
-    images.onEvent(event);
-    switch (event.type) {
-      case "agent_settled":
-        if (event.warning !== undefined) view.addNotice("warn", event.warning);
-        status.refresh();
-        break;
-      case "message_start": {
-        const message = event.message;
-        if (message.role === "user") view.addUser(message);
-        else if (message.role === "assistant") view.startAssistant(message);
-        else if (message.role === "custom" && message.display) {
-          view.addNotice("info", typeof message.content === "string" ? message.content : "");
-        }
-        break;
-      }
-      case "message_update":
-        view.updateAssistant(event.message);
-        break;
-      case "message_end":
-        if (event.message.role === "assistant") {
-          view.endAssistant(event.message);
-          status.refresh();
-        }
-        break;
-      case "tool_execution_start": {
-        const started = tools.start(event);
-        if (started.topLevel) view.addTool(started.view);
-        break;
-      }
-      case "tool_execution_update":
-        tools.update(event.toolCallId, event.partial);
-        render();
-        return;
-      case "tool_execution_end":
-        tools.end(event.toolCallId, event.result, event.isError);
-        break;
-      case "queue_update":
-        setQueue(event.steering, event.followUp);
-        return;
-      case "compaction_end":
-        if (event.result !== undefined) view.addCompaction(event.result);
-        else if (event.error !== undefined)
-          view.addNotice("error", `压缩失败：${compactionErrorText(event.error)}`);
-        else if (event.aborted) view.addNotice("info", "压缩已取消");
-        status.refresh();
-        break;
-      case "auto_retry_start":
-        view.addRetry(event.attempt, event.maxAttempts, event.delayMs, event.errorMessage);
-        break;
-      case "auto_retry_end":
-        if (!event.success) view.addRetryFailed(event.finalError);
-        break;
-      case "cache_miss":
-      case "context_pressure": {
-        const shown = cacheEventNotice(event, cacheNoticesEnabled(session));
-        if (shown !== undefined) view.addNotice(shown.level, shown.text);
-        status.refresh();
-        render();
-        return;
-      }
-      case "cache_warm":
-      case "permission_mode_changed":
-      case "model_changed":
-      case "thinking_level_changed":
-      case "session_changed":
-        status.refresh();
-        render();
-        return;
-      default:
-        break;
-    }
-    indicator.onEvent(event);
-    render();
-  };
+  const onEvent = createSessionEventHandler({
+    view,
+    tools,
+    status,
+    area,
+    agentUi: () => agentUi,
+    indicator,
+    session: () => session,
+    setQueue,
+    notice,
+    render,
+  });
   let unsubscribe = session.subscribe(onEvent);
 
   const startupLevel = startupScreenLevel(runtime);
@@ -346,6 +291,7 @@ export function runInteractiveMode(
     replay();
     setQueue([], []);
     area.rebind();
+    agentUi.attach(next);
     indicator.reset();
     if (next instanceof AgentSessionImpl) next.announceStart(reason);
   };
@@ -357,6 +303,8 @@ export function runInteractiveMode(
    * 仍然撞上运行中（极少）就排到本轮之后。
    */
   let draftImages: ImageBlock[] = [];
+  const resize = runtime.config.images?.resize;
+  const imageResize = resize !== undefined ? { resize } : {};
   const startPrompt = (text: string): void => {
     const target = session;
     const carried = draftImages;
@@ -371,6 +319,7 @@ export function runInteractiveMode(
             [],
             target.state.cwd,
             sessionModel(runtime.providers, target),
+            imageResize,
           )),
         ];
         return target.prompt(text, images.length > 0 ? { images } : {});
@@ -447,6 +396,7 @@ export function runInteractiveMode(
     reload: reloadView,
     exit: (code) => exit(code),
     now,
+    extra: (name, args) => agentUi.command(name, args),
   };
 
   const runCommand = (line: string): Promise<boolean> =>
@@ -490,6 +440,7 @@ export function runInteractiveMode(
       showHint,
       onExpandToggle: (expanded) => view.setThinkingExpanded(expanded),
       onStatusLineToggle: () => area.toggle(),
+      onPasteImage: () => void agentUi.paste(),
       submit: (text, via) => submit(text, via),
       runCommand: (line) => void runCommand(line),
       exit: (code) => exit(code),
@@ -499,12 +450,8 @@ export function runInteractiveMode(
 
   // ---- 晚绑定 ---------------------------------------------------------------
 
-  const broker = new ApprovalDialogBroker({
-    theme,
-    keybindings: keys,
-    cwd: session.state.cwd,
-    permissionMode: () => session.state.permissionMode,
-    showOverlay: (component) => tui.showOverlay(component, { anchor: "bottom" }),
+  const overlayHooks = {
+    showOverlay: (component: Component) => tui.showOverlay(component, { anchor: "bottom" }),
     onOpen: () => {
       editor.disableSubmit = true;
       tools.setAwaiting(true);
@@ -515,12 +462,50 @@ export function runInteractiveMode(
       tools.setAwaiting(false);
       indicator.setApproval(false);
     },
-    report: (request, outcome) => {
-      if (outcome === "deny" || outcome === "cancelled") {
-        notice(outcome === "deny" ? "info" : "warn", approvalOutcomeText(request, outcome));
-      }
-    },
+  };
+  const agentUi = new AgentUi({
+    theme,
+    tui,
+    editor,
+    tools: () => tools,
+    subagents,
+    session: () => session,
+    dataDir: runtime.paths.dataDir,
+    env,
+    now,
+    notice,
+    panel: (component) => commandUi.panel?.(component),
+    pick: (spec) => openPicker(pickerHost, spec),
+    hint: (text) => showHint(text),
+    render,
+    switchSession: (request) => commandUi.switchSession(request),
+    prompt: (text) => startPrompt(text),
+    dialog: { theme, keybindings: keys, ...overlayHooks },
+    displayPath: (path) => tildePath(path, home),
+    ...(options.clipboard !== undefined ? { clipboard: options.clipboard } : {}),
   });
+  const taskAgent = (taskId: string): string | undefined =>
+    taskRegistryView(session.state.sessionId)?.get(taskId)?.agent;
+  const broker = mergingBroker(
+    new ApprovalDialogBroker({
+      theme,
+      keybindings: keys,
+      cwd: session.state.cwd,
+      permissionMode: () => session.state.permissionMode,
+      taskAgent,
+      externalRunner: (agent) => agentUi.merge.externalRunner(agent),
+      ...overlayHooks,
+      report: (request, outcome) => {
+        if (outcome === "deny" || outcome === "cancelled") {
+          const text = approvalOutcomeText(request, outcome, taskAgent);
+          notice(outcome === "deny" ? "info" : "warn", text);
+        }
+      },
+    }),
+    agentUi.merge,
+    (request) =>
+      notice("info", `${approvalOutcomeText(request, "allow", taskAgent)}（随上一次确认）`),
+  );
 
   // ---- 启动与退出 -----------------------------------------------------------
 
@@ -536,6 +521,7 @@ export function runInteractiveMode(
     tui.clear();
     tui.addChild(view);
     offSignals();
+    agentUi.detach();
     runtime.approvals.setUiBroker(undefined);
     runtime.notifier.set(undefined);
     tui.stop();
@@ -571,6 +557,7 @@ export function runInteractiveMode(
     }
     runtime.approvals.setUiBroker(broker);
     runtime.notifier.set((message, level) => notice(level, message));
+    agentUi.attach(session);
     offSignals = onTerminationSignals((code) => exit(code));
     tui.setFocus(editor);
     options.onReady?.({

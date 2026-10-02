@@ -1,0 +1,25 @@
+# /plan · viewport 80x24
+|
+|步骤
+|
+|• [ ] S1 读 status-bar.ts
+|• [ ] S2 加 → 回退模型
+|
+|验证
+|
+|pnpm test
+|
+|已放弃计划 v1，回到 Manual
+|
+|▎ 计划 v1  ~/.local/share/ama/plans/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxv1.md
+|▎ 给状态栏加回退显示
+|▎ 状态  已放弃
+|▎ 模式  Manual
+|▎ 步骤（2）
+|▎   S1 读 status-bar.ts
+|▎   S2 加 → 回退模型
+|
+|────────────────────────────────────────────────────────────────────────────────
+|› 输入消息，/ 命令，@ 文件，Shift+Enter 换行
+|────────────────────────────────────────────────────────────────────────────────
+|Manual         echo · medium · ↑1.6k ↓32 · cache — · $0.002 · ctx 1% · work · 0s
