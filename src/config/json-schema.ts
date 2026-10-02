@@ -221,6 +221,7 @@ function buildBaseSchema(): Schema {
         missNotices: bool(),
         warmSubagents: bool(),
       }),
+      request: object({ idleTimeoutMs: num(0) }),
     }),
     required: ["version"],
   };

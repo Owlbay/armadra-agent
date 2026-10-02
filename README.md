@@ -135,10 +135,11 @@ ama -p "列出 TODO" --model deepseek/deepseek-v4-pro --output-format json
 
 ## 配置
 
-一个文件 `~/.config/ama/config.json`。第一次运行 ama 时自动建好目录（0700）、最小的 `config.json` 与给编辑器用的
-`config.schema.json`；也可以 `ama init` 手动建（已有文件不覆盖）。生成的 `config.json` 只有 `$schema`、`version` 与空
-`providers`，不写死缺省值——以后缺省值调整时老配置同样跟着变。`ama config path` 打印各文件位置，`ama config edit`
-用 `$VISUAL` / `$EDITOR` 打开，`config.schema.json` 给每个键带了说明与缺省值，编辑器悬停可见。常用的只有五个键：
+一个文件 `~/.config/ama/config.json`。第一次进入对话（交互、`-p`、RPC）或 `ama providers add` 时自动建好目录（0700）、
+最小的 `config.json` 与给编辑器用的 `config.schema.json`；`config show`、`doctor`、`models list` 等只读命令不写配置目录。
+也可以 `ama init` 手动建（已有文件不覆盖）。生成的 `config.json` 只有 `$schema`、`version` 与空 `providers`，不写死缺省值——以后
+缺省值调整时老配置同样跟着变。`ama config path` 打印各文件位置，`ama config edit` 用 `$VISUAL` / `$EDITOR` 打开，
+`config.schema.json` 给每个键带了说明与缺省值，编辑器悬停可见。常用的只有五个键：
 
 ```json
 {
@@ -152,7 +153,15 @@ ama -p "列出 TODO" --model deepseek/deepseek-v4-pro --output-format json
 }
 ```
 
-其余（`compaction`、`retry`、`codemode`、`hooks`、`ui`、`skills`、`cache`）都有缺省，`ama config show` 列出每一项的生效值与来源（default / user / profile / project / cli），也接受 `--tools-preset` / `--codemode` 看覆盖后的效果。
+其余（`compaction`、`retry`、`codemode`、`hooks`、`ui`、`skills`、`cache`、`request`）都有缺省，`ama config show` 列出每一项的生效值与来源（default / user / profile / project / cli），也接受 `--tools-preset` / `--codemode` 看覆盖后的效果。
+
+**请求超时**：模型请求有空闲超时，缺省 300 s——等响应头、以及流里两块数据之间超过这个时间就判定卡住，按可重试错误
+走 `retry` 的退避重试（收到任何字节即重新计时，长回答不受影响）。用 `request.idleTimeoutMs`（只认用户级）或环境变量
+`AMA_IDLE_TIMEOUT_MS` 调整，0 关闭。
+
+**代理**：设了 `HTTPS_PROXY` / `HTTP_PROXY`（`NO_PROXY` 排除）时，ama 启动时调用 Node 内置的环境变量代理（等价于
+`NODE_USE_ENV_PROXY=1`，零依赖）。Node 24+ 直接可用；Node 22 只有 22.21+ 设 `NODE_USE_ENV_PROXY=1` 才行，更早的版本会提示一次
+并直连。`ama doctor` 的「代理」一节显示当前状态（代理地址里的账号密码打码）。
 
 ### 文件位置与层级
 
@@ -369,10 +378,40 @@ anthropic/<model-id> · think:medium · ↑412k ↓8.1k · cache 83% ♨ · $0.8
 | `json`            | 一个 `result` 对象：会话 id、模型、`stopReason`、`text`、用量、费用、缓存统计 |
 | `stream-json`     | 每行一个事件，与 RPC 事件同形状                                               |
 
+**stdin**：没有提示参数时读 stdin 作为提示（`git diff | ama -p`）；有提示参数时不等 stdin——父进程留着不关的管道不会让
+`-p` 挂起；要把管道内容拼在提示后面，在末尾加 `-`（`cat log.txt | ama -p "找出报错原因" -`）。`< 文件` 重定向总会读取。
+
 `--image <文件>` 可重复，随提示发送图片（PNG / JPEG / GIF / WebP，单张 ≤ 5 MB）；提示里的 `@图片路径` 同样作为附件。当前
 模型不收图片时直接退出 2，不发请求。
 
-退出码：0 正常 · 1 运行期错误 · 2 用法错误 · 3 配置错误 · 4 无可用模型或 key · 5 会话错误 · 6 宿主 / Hook 启动失败 · 78 宿主 API 版本不匹配 · 130 / 143 信号。
+`--max-turns N` 限制一次运行最多 N 轮（一次模型请求加它的工具执行算一轮），到上限仍在调用工具时提前结束，退出码 1，
+`json` 结果带 `maxTurnsReached: true`。
+
+`--system-prompt <文本|@文件>` 补充系统提示（任何模式都可用）：缺省作为最后一条规则追加，preamble 与工具表这段最长的
+缓存前缀不变；`--system-prompt-mode replace` 改为替换开头的角色说明，工具表、规则与 AGENTS.md 仍然保留。
+
+`--no-session` 让会话只留在内存里、不写会话文件（适合 CI 与一次性调用；之后无法 `--resume`），交互模式里 `/new` 切出的
+新会话同样不落盘。
+
+**无人值守**：`-p` 没有人审批，缺省权限模式下需要询问的调用（写文件、跑命令）一律拒绝。被拒时 stderr 一行汇总被拒的
+工具与原因，`json` 结果带 `deniedTools`，`stream-json` 的 `tool_execution_end` 带 `denied: true`，退出码 7。需要放行时用
+`--permission-mode auto-edit`（放行写入）/ `auto`（ama 判断每一步），或 `--allow "bash(npm test*)"` 按规则放行。
+
+退出码：0 正常 · 1 运行期错误 · 2 用法错误 · 3 配置错误 · 4 无可用模型或 key · 5 会话错误 · 6 宿主 / Hook 启动失败 · 7 `-p` 有工具调用被拒 · 78 宿主 API 版本不匹配 · 130 / 143 信号。
+
+### 会话统计、检索与复用
+
+会话是 `<数据目录>/sessions` 下的 JSONL，下面这些命令只读不写（缺省看当前目录的会话，`--all` 看全部）：
+
+```sh
+ama stats --since 7d --by model           # 请求、token、缓存命中率、费用、工具调用 Top N（--json 可用）
+ama sessions search "parser" --role user  # 跨会话全文检索，/正则/ 也行
+ama sessions show 3f9a1c2e                # 末尾列出用户消息编号
+ama -p --from 3f9a1c2e#2 --model packy/kimi-k2.5   # 用那条消息（含图片）换个模型再问
+ama sessions export 3f9a1c2e --format md --output s.md   # md / json / jsonl，导出前脱敏
+```
+
+统计口径（命中率只算报告缓存的端点、费用只加有价请求等）与导出格式见 [docs/sessions.md](docs/sessions.md)。
 
 ### RPC
 
@@ -438,6 +477,7 @@ Armadra 以 `ama --profile <path>` 启动 ama。profile 是一个 JSON 文件，
 | [docs/host-api.md](docs/host-api.md)                                                                 | 宿主适配器 API                                          |
 | [docs/rpc.md](docs/rpc.md)                                                                           | RPC 协议（stdio JSONL）                                 |
 | [docs/session-format.md](docs/session-format.md)                                                     | 会话文件格式                                            |
+| [docs/sessions.md](docs/sessions.md)                                                                 | 会话统计、检索、`--from` 复用与导出                     |
 | [docs/extensions.md](docs/extensions.md)                                                             | 本地扩展（设计草案，未实现）                            |
 | [docs/design.md](docs/design.md)                                                                     | 总体设计与决策记录                                      |
 | [docs/benchmarks/](docs/benchmarks/)                                                                 | 三预设基准与缓存验收实验（报告与原始数据）              |
@@ -467,7 +507,7 @@ pnpm 10 起 `pnpm ci` 是内置的「清理后安装」，跑检查要写 `pnpm 
 
 **约束**：运行时依赖必须为零，`src/` 只允许 `node:` 内置模块与相对路径（`pnpm check:deps` 守住）。`src/` 按层分目录（`ai` 模型接入、`agent` 循环、`session` 会话树、`tools`、`codemode`、`permissions`、`hooks`、`host` 宿主契约、`tui` 组件库、`modes` 各入口、`cli` 启动），各目录的 `types.ts` 是模块之间的契约。
 
-**发布**：改 `package.json` 版本与 [CHANGELOG.md](CHANGELOG.md)，合入 main 后打 `v<版本>` tag。CI 全绿后 release job 生成 GitHub Release（`ama.cjs`、`ama-sandbox.cjs`、`package.tgz`、`SHA256SUMS`），再以 provenance 发布到 npm（需要仓库 secret `NPM_TOKEN`，没有时跳过）。`pnpm release:check` 检查 tag 与版本一致，协议常量变化要求破坏性版本升级。
+**发布**：改 `package.json` 版本与 [CHANGELOG.md](CHANGELOG.md)，合入 main 后打 `v<版本>` tag。CI 全绿后 release job 生成 GitHub Release（`ama.cjs`、`ama-sandbox.cjs`、`package.tgz`、`SHA256SUMS`），再以 provenance 发布到 npm：优先用 OIDC 可信发布（trusted publishing，npm ≥ 11.5.1，job 内自动升级），在 npmjs.com 的 `@armadra/agent` 包设置 → Trusted Publisher 添加 GitHub Actions（组织 `Owlbay`、仓库 `armadra-agent`、工作流 `ci.yml`、环境留空）即可，不需要长期 token；仓库 secret `NPM_TOKEN` 保留为回退，两者都没有时 job 失败并提示。`pnpm release:check` 检查 tag 与版本一致，协议常量变化要求破坏性版本升级。
 
 ## 更新记录
 

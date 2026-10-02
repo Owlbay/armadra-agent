@@ -7,7 +7,12 @@ import {
 import type { HostApi } from "../host/types.js";
 import type { ApprovalRequest } from "../permissions/types.js";
 import type { AgentSessionImpl } from "../agent/session.js";
-import { cacheSettingsFrom, currentSession, switchSession } from "./compose-session.js";
+import {
+  cacheSettingsFrom,
+  currentSession,
+  idleTimeoutFrom,
+  switchSession,
+} from "./compose-session.js";
 
 let h: ComposeHarness;
 afterEach(() => h?.cleanup());
@@ -172,5 +177,31 @@ describe("缓存设置与事件桥接（第三波 §1.10 / §1.12）", () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+});
+
+describe("请求空闲超时（W4-C）", () => {
+  it("idleTimeoutFrom：AMA_IDLE_TIMEOUT_MS > request.idleTimeoutMs；非法值 warning 后回落", () => {
+    const warnings: string[] = [];
+    const config = { request: { idleTimeoutMs: 90_000 } };
+    expect(idleTimeoutFrom({}, {})).toBeUndefined();
+    expect(idleTimeoutFrom(config, {})).toBe(90_000);
+    expect(idleTimeoutFrom(config, { AMA_IDLE_TIMEOUT_MS: "0" })).toBe(0);
+    expect(idleTimeoutFrom(config, { AMA_IDLE_TIMEOUT_MS: "abc" }, (m) => warnings.push(m))).toBe(
+      90_000,
+    );
+    expect(warnings[0]).toContain("AMA_IDLE_TIMEOUT_MS=abc");
+  });
+
+  it("配置的空闲超时随每次请求的 StreamOptions 下发", async () => {
+    h = composeHarness([{ text: "ok" }]);
+    h.home.write(
+      "home/.config/ama/config.json",
+      JSON.stringify({ version: 1, request: { idleTimeoutMs: 45_000 } }),
+    );
+    const runtime = await h.boot(["--model", "fake/echo"]);
+    await runtime.session.prompt("hi");
+    expect(h.fake.calls[0]?.options).toMatchObject({ idleTimeoutMs: 45_000 });
+    await runtime.dispose();
   });
 });

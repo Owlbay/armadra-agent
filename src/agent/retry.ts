@@ -2,7 +2,7 @@
  * 会话层重试（设计 §3.6「重试」「溢出」）。[B2]
  *
  * 判定顺序：上下文溢出（不重试，走压缩）→ 不可重试（配额 / 计费 / key / 401 / 403，快速失败）→
- * 可重试（429、5xx、overloaded、网络错误、断流）→ 其它（不重试）。
+ * 可重试（429、5xx、overloaded、网络错误、断流、空闲超时）→ 其它（不重试）。
  * 延迟 `baseDelayMs × 2^(attempt−1)`，上限 `maxDelayMs`；`sleep` 可被 abort 打断。
  * 协议层自身不重试。溢出文案识别只有一份：ai/overflow.ts 的 `isOverflowErrorText`（缺省），可注入替换。
  */
@@ -46,6 +46,7 @@ const RETRYABLE_PATTERNS: readonly RegExp[] = [
   /bad gateway/i,
   /gateway timeout/i,
   /timed? ?out/i,
+  /idle timeout/i,
   /network/i,
   /fetch failed/i,
   /ECONNRESET|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|EPIPE/,

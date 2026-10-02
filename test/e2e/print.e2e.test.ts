@@ -1,7 +1,8 @@
+import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { createTmpHome, type TmpHome } from "../helpers/tmp-home.js";
-import { hasBundle, runAma } from "./spawn.js";
+import { BUNDLE, hasBundle, runAma } from "./spawn.js";
 
 let home: TmpHome | undefined;
 afterEach(() => {
@@ -36,7 +37,7 @@ describe.skipIf(!hasBundle)("e2e：ama -p（bundle 子进程）", () => {
     home = createTmpHome();
     const r = await runAma(
       home,
-      ["-p", "q", "--model", "fake/echo", "--output-format", "stream-json"],
+      ["-p", "q", "-", "--model", "fake/echo", "--output-format", "stream-json"],
       {
         input: "from stdin",
       },
@@ -63,5 +64,33 @@ describe.skipIf(!hasBundle)("e2e：ama -p（bundle 子进程）", () => {
     const doctor = await runAma(home, ["doctor"], { env });
     expect(doctor.stdout).toMatch(/将使用的模型：anthropic\//);
     expect(doctor.stdout + show.stdout).not.toContain("sk-ant-e2e-fake");
+  });
+
+  it("有提示参数时 stdin 保持打开（父进程不关管道）也立即返回", async () => {
+    home = createTmpHome();
+    const h = home;
+    const started = Date.now();
+    const result = await new Promise<{ code: number | null; stdout: string }>((resolve, reject) => {
+      const child = spawn(process.execPath, [BUNDLE, "-p", "hi", "--model", "fake/echo"], {
+        cwd: h.cwd,
+        env: { ...h.env, AMA_NO_LOCAL_PROBE: "1" },
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      let stdout = "";
+      child.stdout.on("data", (d: Buffer) => (stdout += d.toString("utf8")));
+      const timer = setTimeout(() => {
+        child.kill("SIGKILL");
+        reject(new Error("ama -p 在 stdin 未关闭时挂起"));
+      }, 10_000);
+      child.on("close", (code) => {
+        clearTimeout(timer);
+        child.stdin.destroy();
+        resolve({ code, stdout });
+      });
+      // 故意不 end stdin
+    });
+    expect(result.code).toBe(0);
+    expect(result.stdout).toBe("hi\n");
+    expect(Date.now() - started).toBeLessThan(10_000);
   });
 });

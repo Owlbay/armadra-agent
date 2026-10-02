@@ -161,6 +161,7 @@ const CONFIG_KEYS = [
   "ui",
   "skills",
   "cache",
+  "request",
   "$schema",
 ] as const;
 
@@ -399,6 +400,9 @@ export function validateConfig(value: unknown): Diagnostic[] {
     },
   );
   checkSection(c, value, "skills", ["dirs"], (s, p) => c.stringArray(s, "dirs", p));
+  checkSection(c, value, "request", ["idleTimeoutMs"], (s, p) => {
+    c.number(s, "idleTimeoutMs", p, 0);
+  });
   checkSection(
     c,
     value,

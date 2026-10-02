@@ -74,6 +74,8 @@ export interface ToolBatchResult {
 
 /** 门禁给出的 auto 判定，随 tool_execution_end 发出（按调用对象记，调用结束后随之回收）。 */
 const autoDecisions = new WeakMap<ToolCallBlock, AutoDecision>();
+/** 门禁拒绝（gate.block）而没有执行的调用：tool_execution_end 带 `denied`。 */
+const deniedCalls = new WeakSet<ToolCallBlock>();
 
 interface Prepared {
   kind: "prepared";
@@ -154,6 +156,7 @@ async function prepare(
     if (gate.autoDecision !== undefined) autoDecisions.set(call, gate.autoDecision);
     if (signal.aborted) return { kind: "immediate", call, result: errorResult(ABORTED_TOOL_TEXT) };
     if (gate.block === true) {
+      deniedCalls.add(call);
       return {
         kind: "immediate",
         call,
@@ -287,6 +290,7 @@ async function emitEnd(call: ToolCallBlock, result: ToolResult, emit: LoopEmit):
   };
   const auto = autoDecisions.get(call);
   if (auto !== undefined) event.autoDecision = auto;
+  if (deniedCalls.has(call)) event.denied = true;
   await emit(event);
 }
 

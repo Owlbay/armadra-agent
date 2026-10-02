@@ -7,6 +7,8 @@
  * 事件也会分派。
  */
 
+import { IdleTimeoutError } from "./http.js";
+
 export interface SseEvent {
   /** `event:` 字段；缺省时为 undefined（规范上视为 "message"）。 */
   event: string | undefined;
@@ -103,10 +105,15 @@ export class SseParser {
   }
 }
 
-/** 从字节流读 SSE 事件；`signal` 中止时停止读取（调用方据此产出 aborted）。 */
+/**
+ * 从字节流读 SSE 事件；`signal` 中止时停止读取（调用方据此产出 aborted）。
+ * `idleTimeoutMs`：等待下一块字节的上限，每收到一块即重新计时（消费者处理事件的时间不计）；
+ * 超时取消底层流并抛 `IdleTimeoutError`（phase `stream`）。
+ */
 export async function* readSseEvents(
   body: ReadableStream<Uint8Array>,
   signal?: AbortSignal,
+  idleTimeoutMs?: number,
 ): AsyncGenerator<SseEvent> {
   const reader = body.getReader();
   const decoder = new TextDecoder("utf-8");
@@ -116,10 +123,22 @@ export async function* readSseEvents(
   };
   signal?.addEventListener("abort", onAbort, { once: true });
   let drained = false;
+  let idle: ReturnType<typeof setTimeout> | undefined;
+  let stalled = false;
+  const arm = (): void => {
+    if (idleTimeoutMs === undefined || idleTimeoutMs <= 0) return;
+    idle = setTimeout(() => {
+      stalled = true;
+      reader.cancel().catch(() => undefined);
+    }, idleTimeoutMs);
+  };
   try {
     while (true) {
       if (signal?.aborted) return;
+      arm();
       const { value, done } = await reader.read();
+      clearTimeout(idle);
+      if (stalled && !signal?.aborted) throw new IdleTimeoutError(idleTimeoutMs ?? 0, "stream");
       if (done) break;
       if (signal?.aborted) return;
       for (const event of parser.feed(decoder.decode(value, { stream: true }))) yield event;
@@ -128,6 +147,7 @@ export async function* readSseEvents(
     for (const event of parser.feed(decoder.decode())) yield event;
     for (const event of parser.flush()) yield event;
   } finally {
+    clearTimeout(idle);
     signal?.removeEventListener("abort", onAbort);
     // 消费者提前退出（读到终止事件即 break）或中止：取消底层流，释放连接
     if (!drained) await reader.cancel().catch(() => undefined);
