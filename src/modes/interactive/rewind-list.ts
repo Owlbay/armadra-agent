@@ -7,6 +7,7 @@
  */
 
 import type { RewindPoint, RewindResult } from "../../checkpoints/types.js";
+import { msg } from "../../i18n/index.js";
 import { Box, SelectList, type SelectItem } from "../../tui.js";
 import { PICKER_FOOTER, type PickerHost } from "./pickers.js";
 import { badgeText, hasCodeChanges, oneLine, rewindErrorText } from "./rewind-text.js";
@@ -60,11 +61,11 @@ export function rewindListItems(
     const text = oneLine(point.text, 60, ascii ? "..." : "…");
     const item: SelectItem = {
       value: point.entryId,
-      label: text === "" ? "（空）" : text,
+      label: text === "" ? msg().rewind.command.emptyText : text,
       description: relativeTime(new Date(point.timestamp).toISOString(), now),
     };
     if (!point.hasCheckpoint) {
-      item.badge = "仅对话";
+      item.badge = msg().rewind.badge.conversationOnly;
       item.badgeColor = "dim";
     } else if (point.entryId === highlighted) {
       const state = cache.get(point.entryId);
@@ -76,7 +77,7 @@ export function rewindListItems(
         item.badgeColor = "dim";
       } else {
         const code = state.result.code;
-        item.badge = code === undefined ? "无代码改动" : badgeText(code, ascii);
+        item.badge = code === undefined ? msg().rewind.badge.noCode : badgeText(code, ascii);
         item.badgeColor = hasCodeChanges(code) ? "accent" : "dim";
       }
     }
@@ -135,7 +136,7 @@ export function openRewindList(
     if (highlighted !== undefined) list.selectValue(highlighted);
     const width = Math.max(20, Math.min(host.columns() - 2, 72));
     const handle = host.showOverlay(
-      new Box(list, { title: "回滚到哪条消息之前", theme: host.theme }),
+      new Box(list, { title: msg().rewind.list.title, theme: host.theme }),
       {
         anchor: "center",
         width,

@@ -11,6 +11,7 @@
 import { AgentSessionImpl } from "../../agent/session.js";
 import type { AgentSession, RewindDraftText } from "../../agent/types.js";
 import type { RewindPoint, RewindResult } from "../../checkpoints/types.js";
+import { msg } from "../../i18n/index.js";
 import type { OverlayHandle } from "../../tui.js";
 import type { NoticeLevel } from "./message-view.js";
 import { PreviewCache, openRewindList, type RewindListHost } from "./rewind-list.js";
@@ -30,8 +31,6 @@ export interface RewindFlowHost extends RewindListHost {
   /** 终端行数（面板放不下时紧凑排版）。 */
   rows?(): number;
 }
-
-export const REFILLED = "原消息已放回输入框";
 
 /** 打开确认面板（底部覆盖层）；返回选择或 undefined（取消）。 */
 export function openRewindPanel(
@@ -58,7 +57,8 @@ export function openRewindPanel(
 
 function draftNote(draft: RewindDraftText): string {
   const images = draft.images?.length ?? 0;
-  return images > 0 ? `${REFILLED}（${images} 张图片随下一条消息发送）` : REFILLED;
+  const m = msg().rewind.flow;
+  return images > 0 ? m.refilledImages(images) : m.refilled;
 }
 
 /** 执行面板里的选择，结果与错误都写成通知。 */
@@ -68,12 +68,13 @@ export async function executeRewind(
   choice: RewindChoice,
 ): Promise<void> {
   const session = host.session();
+  const m = msg().rewind.flow;
   try {
     switch (choice.action) {
       case "both":
       case "conversation":
       case "code": {
-        host.hint("回滚中…");
+        host.hint(m.rewinding);
         const result: RewindResult = await session.rewind({
           entryId: point.entryId,
           mode: choice.action,
@@ -88,9 +89,7 @@ export async function executeRewind(
         if (choice.action === "conversation") delete shown.gitHint;
         const lines = rewindResultLines(shown, {
           overwrite: choice.onConflict === "overwrite",
-          ...(draft !== undefined
-            ? { conversation: `对话已回到这条消息之前，${draftNote(draft)}` }
-            : {}),
+          ...(draft !== undefined ? { conversation: m.conversationBack(draftNote(draft)) } : {}),
         });
         const code = result.code;
         const nothing =
@@ -101,18 +100,20 @@ export async function executeRewind(
         break;
       }
       case "summarize-from": {
-        host.hint("正在为离开的部分写摘要…");
+        host.hint(m.summarizingFrom);
         const result = await session.summarizeFrom(point.entryId, choice.instructions);
         host.reload();
         host.setDraft(result.draft);
-        host.notice("info", `已从这里分叉，离开的部分写成了摘要；${draftNote(result.draft)}`);
+        host.notice("info", m.summarizedFrom(draftNote(result.draft)));
         break;
       }
       case "summarize-up-to": {
-        host.hint("正在摘要…");
+        host.hint(m.summarizing);
         const result = await session.summarizeUpTo(point.entryId, choice.instructions);
-        const after = result.tokensAfter !== undefined ? ` → ${result.tokensAfter}` : "";
-        host.notice("info", `已摘要到这里：${result.tokensBefore}${after} token`);
+        host.notice(
+          "info",
+          msg().rewind.command.summarizedUpTo(result.tokensBefore, result.tokensAfter),
+        );
         break;
       }
     }
@@ -134,7 +135,7 @@ export function createRewindFlow(host: RewindFlowHost): RewindFlow {
     async open() {
       const session = host.session();
       if (session.state.isStreaming) {
-        host.notice("warn", "正在运行，不能回滚（先按 Esc 中断）");
+        host.notice("warn", msg().rewind.flow.busy);
         return;
       }
       if (opening) return;
@@ -142,7 +143,7 @@ export function createRewindFlow(host: RewindFlowHost): RewindFlow {
       try {
         const points = session.rewindPoints();
         if (points.length === 0) {
-          host.notice("info", "还没有可回滚的消息");
+          host.notice("info", msg().rewind.flow.empty);
           return;
         }
         const cache = new PreviewCache((entryId) =>
@@ -173,7 +174,7 @@ export function createRewindFlow(host: RewindFlowHost): RewindFlow {
         if (draft === undefined) return;
         host.reload();
         host.setDraft(draft);
-        host.notice("info", `已撤回被中断的消息，${draftNote(draft)}`);
+        host.notice("info", msg().rewind.flow.undone(draftNote(draft)));
       } catch (error) {
         host.notice("error", rewindErrorText(error));
       }

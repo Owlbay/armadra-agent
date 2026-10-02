@@ -5,23 +5,21 @@
  * - 结果：`已恢复 N 个文件，跳过 M 个（冲突 1、符号链接 1）` / `没有文件被恢复…` / `代码没有变化`，
  *   之后最多 5 行跳过明细。
  * - git：HEAD 与记录不同时给两条命令（只显示，不执行）。
- * - 错误码 `busy / no_checkpoint / rewind_failed` 换成中文说明。
+ * - 错误码 `busy / no_checkpoint / rewind_failed` 换成界面语言的说明。
+ * - 文案在 `msg().rewind`（[W6-I2]）。
  */
 
 import type { CodeRestoreResult, RewindResult, RewindSkipReason } from "../../checkpoints/types.js";
 import { isAmaError } from "../../errors.js";
+import { msg } from "../../i18n/index.js";
 
 /** 明细最多列出的文件数。 */
 export const REWIND_DETAIL_MAX = 5;
 
-export const SKIP_REASON_TEXT: Readonly<Record<RewindSkipReason, string>> = {
-  symlink: "符号链接",
-  hardlink: "硬链接",
-  not_regular: "不是普通文件",
-  parent_moved: "父目录被移动",
-  too_large: "文件过大未备份",
-  backup_missing: "备份缺失",
-};
+/** 跳过原因的说明（随界面语言）。 */
+export function skipReasonText(reason: RewindSkipReason): string {
+  return msg().rewind.skip.reason(reason);
+}
 
 /** 一行文本：空白压成一个空格，超长截断。 */
 export function oneLine(text: string, max = 60, ellipsis = "…"): string {
@@ -45,17 +43,18 @@ export function diffStat(code: CodeRestoreResult, ascii = false): string {
 
 /** 列表高亮行右侧的徽标。 */
 export function badgeText(code: CodeRestoreResult, ascii = false): string {
-  if (!hasCodeChanges(code)) return "无代码改动";
-  if (codeFileCount(code) === 0) return `冲突 ${code.conflicts.length} 个`;
-  return `${codeFileCount(code)} 文件 ${diffStat(code, ascii)}`;
+  const m = msg().rewind.badge;
+  if (!hasCodeChanges(code)) return m.noCode;
+  if (codeFileCount(code) === 0) return m.conflicts(code.conflicts.length);
+  return m.files(codeFileCount(code), diffStat(code, ascii));
 }
 
 /** 面板里代码类选项的预览。 */
 export function restorePreview(code: CodeRestoreResult, ascii = false): string {
+  const m = msg().rewind.restorePreview;
   const conflicts = code.conflicts.length;
-  if (codeFileCount(code) === 0) return `只有冲突文件 ${conflicts} 个（缺省跳过）`;
-  const suffix = conflicts > 0 ? `，冲突 ${conflicts} 个` : "";
-  return `将恢复 ${codeFileCount(code)} 个文件 ${diffStat(code, ascii)}${suffix}`;
+  if (codeFileCount(code) === 0) return m.onlyConflicts(conflicts);
+  return m.files(codeFileCount(code), diffStat(code, ascii), conflicts);
 }
 
 /** [W6-C0] 跳过原因按码分组（不按文案前缀判断，文案会随界面语言变）。 */
@@ -69,7 +68,7 @@ interface Skip {
 }
 
 function skipLabel(code: SkipCode): string {
-  return code === "conflict" ? "冲突" : code === "failed" ? "失败" : SKIP_REASON_TEXT[code];
+  return msg().rewind.skip.reason(code);
 }
 
 function skips(code: CodeRestoreResult, overwrite: boolean): Skip[] {
@@ -85,7 +84,7 @@ function skips(code: CodeRestoreResult, overwrite: boolean): Skip[] {
     ...code.failed.map((f) => ({
       path: f.path,
       code: "failed" as const,
-      reason: `失败：${f.message}`,
+      reason: msg().rewind.skip.failed(f.message),
     })),
   ];
 }
@@ -93,14 +92,15 @@ function skips(code: CodeRestoreResult, overwrite: boolean): Skip[] {
 function reasonCounts(list: readonly Skip[]): string {
   const counts = new Map<SkipCode, number>();
   for (const skip of list) counts.set(skip.code, (counts.get(skip.code) ?? 0) + 1);
-  return [...counts].map(([code, n]) => `${skipLabel(code)} ${n}`).join("、");
+  return msg().rewind.skip.counts([...counts]);
 }
 
 /** 跳过明细（最多 5 行，其余计数）。 */
 export function skipDetailLines(code: CodeRestoreResult, overwrite = false): string[] {
   const list = skips(code, overwrite);
-  const lines = list.slice(0, REWIND_DETAIL_MAX).map((s) => `  ${s.path}：${s.reason}`);
-  if (list.length > REWIND_DETAIL_MAX) lines.push(`  … 另 ${list.length - REWIND_DETAIL_MAX} 个`);
+  const m = msg().rewind.skip;
+  const lines = list.slice(0, REWIND_DETAIL_MAX).map((s) => m.detail(s.path, s.reason));
+  if (list.length > REWIND_DETAIL_MAX) lines.push(m.more(list.length - REWIND_DETAIL_MAX));
   return lines;
 }
 
@@ -109,15 +109,15 @@ export function codeResultText(code: CodeRestoreResult, overwrite = false): stri
   const done = overwrite
     ? new Set([...code.restored, ...code.deleted, ...code.conflicts]).size
     : codeFileCount(code);
+  const m = msg().rewind.result;
   const skipped = skips(code, overwrite);
-  const why = skipped.length > 0 ? `（${reasonCounts(skipped)}）` : "";
   if (done > 0) {
     return skipped.length > 0
-      ? `已恢复 ${done} 个文件，跳过 ${skipped.length} 个${why}`
-      : `已恢复 ${done} 个文件`;
+      ? m.restoredSkipped(done, skipped.length, reasonCounts(skipped))
+      : m.restored(done);
   }
-  if (skipped.length > 0) return `没有文件被恢复，跳过 ${skipped.length} 个${why}`;
-  return "代码没有变化";
+  if (skipped.length > 0) return m.noneRestored(skipped.length, reasonCounts(skipped));
+  return m.unchanged;
 }
 
 /** 结果通知（多行）：代码结果 + 明细 + 对话说明 + git 提示。 */
@@ -150,26 +150,25 @@ export function gitHintLines(
   const recorded = short(hint.recordedHead, 12);
   const change = `${short(hint.recordedHead, 7)} ${ascii ? "->" : "→"} ${short(hint.currentHead, 7)}`;
   return [
-    `git HEAD 已变化：${change}${brief ? "" : "（ama 不动 git）"}`,
+    msg().rewind.gitHint(change, brief),
     `  git log --oneline ${recorded}..HEAD`,
     `  git reset --soft ${recorded}`,
   ];
 }
 
-/** 回滚接口的错误 → 中文说明。 */
+/** 回滚接口的错误 → 界面语言的说明。 */
 export function rewindErrorText(error: unknown): string {
   if (isAmaError(error)) {
+    const m = msg().rewind.error;
     switch (error.code) {
       case "busy":
-        return "正在运行，不能回滚（先按 Esc 中断）";
+        return m.busy;
       case "no_checkpoint":
-        return "这条消息没有代码检查点，只能恢复对话";
+        return m.noCheckpoint;
       case "rewind_failed": {
         const detail = error.detail as Partial<CodeRestoreResult> | undefined;
-        const failed = (detail?.failed ?? []).map((f) => `${f.path}：${f.message}`);
-        return failed.length > 0
-          ? `没有文件被恢复：${failed.slice(0, REWIND_DETAIL_MAX).join("；")}`
-          : "没有文件被恢复";
+        const failed = (detail?.failed ?? []).map((f) => [f.path, f.message] as const);
+        return failed.length > 0 ? m.failedFiles(failed.slice(0, REWIND_DETAIL_MAX)) : m.failed;
       }
       default:
         return error.message;
