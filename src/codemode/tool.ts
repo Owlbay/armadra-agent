@@ -58,6 +58,8 @@ export interface CodemodeToolOptions {
   capability?: SandboxCapability;
   /** 会话的单条工具结果上限（runner 会再截一次；这里先按它收紧，避免二次截断丢掉尾部）。 */
   maxResultChars?: number;
+  /** `only` 模式：其它工具不直接暴露，系统提示的工具行与规则写明只能在脚本里调用。 */
+  exclusive?: boolean;
   /** 子进程入口（测试 / 嵌入方覆盖）。 */
   entry?: string;
   nodePath?: string;
@@ -217,6 +219,10 @@ function saveFullOutput(ctx: ToolContext, text: string): string | undefined {
 
 const TAIL_CHARS = 4000;
 
+/** `only` 模式的系统提示规则（实测模型仍会先直接调用 read / edit / bash）。 */
+export const CODEMODE_ONLY_GUIDELINE =
+  "read, edit, write, bash and the other tools are not callable directly here: every tool call goes inside a codemode script as tools.<name>(args); batch related calls in one script.";
+
 export function createCodemodeTool(options: CodemodeToolOptions): ToolDefinition<CodemodeInput> {
   const capability = options.capability ?? detectSandboxCapability();
   const inlineBudget = options.inlineBudget ?? DEFAULT_INLINE_BUDGET;
@@ -241,7 +247,11 @@ export function createCodemodeTool(options: CodemodeToolOptions): ToolDefinition
     // 类（default 模式免审批）；不隔离网络时脚本逃出 vm 就能联网，仍按 execute。
     permission: capability.strict ? "read" : "execute",
     executionMode: "sequential",
-    promptSnippet: "codemode: run a JavaScript script that calls tools; only its output returns",
+    promptSnippet:
+      options.exclusive === true
+        ? "codemode: your only tool; run a JavaScript script that calls the other tools as tools.<name>(args); only its output returns"
+        : "codemode: run a JavaScript script that calls tools; only its output returns",
+    ...(options.exclusive === true ? { promptGuidelines: [CODEMODE_ONLY_GUIDELINE] } : {}),
     async execute(input, ctx) {
       let scriptOptions;
       try {
@@ -350,6 +360,7 @@ export function codemodeToolFactory(
     const registry = ctx.registry;
     const options: CodemodeToolOptions = {
       capability: availability.capability,
+      exclusive: mode === "only",
       listTools: () =>
         registry
           .list()

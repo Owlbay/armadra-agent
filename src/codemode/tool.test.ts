@@ -11,6 +11,7 @@ import { detectSandboxCapability } from "./capability.js";
 import { codemodeHint, withCodemodeHint } from "./modes.js";
 import { STORE_CUSTOM_TYPE } from "./store.js";
 import {
+  CODEMODE_ONLY_GUIDELINE,
   buildCodemodeDescription,
   codemodeToolFactory,
   createCodemodeTool,
@@ -287,6 +288,17 @@ describe("工厂", () => {
     expect(factory(ctx({ tools: { preset: "codemode" } }))?.name).toBe("codemode");
     expect(factory(ctx({ codemode: { mode: "on" } }))?.description).toContain("read(args");
     expect(warnings).toEqual([]);
+  });
+
+  it("only 模式：系统提示的工具行与规则写明其它工具只能在脚本里调用；on 模式不加", () => {
+    const factory = codemodeToolFactory({ capability: strict });
+    const warn = () => undefined;
+    const only = factory({ config: { tools: { preset: "codemode" } }, registry, warn });
+    expect(only?.promptSnippet).toContain("your only tool");
+    expect(only?.promptGuidelines).toEqual([CODEMODE_ONLY_GUIDELINE]);
+    const on = factory({ config: { codemode: { mode: "on" } }, registry, warn });
+    expect(on?.promptSnippet).not.toContain("only tool");
+    expect(on?.promptGuidelines).toBeUndefined();
   });
 
   it("requireStrict 而运行时不隔离网络 → 不注册并 warning；不要求则可用", () => {
