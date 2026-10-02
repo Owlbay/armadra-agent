@@ -43,6 +43,8 @@ function makeModel(provider: string, id: string, extra: Partial<Model> = {}): Mo
 
 const openai = makeModel("openai", "gpt-5.4", { reasoning: true, input: ["text", "image"] });
 const deepseek = makeModel("deepseek", "deepseek-v4-pro", { reasoning: true });
+/** 中转站（`test/fixtures/sse/README.md`「实录」）上的 DeepSeek。 */
+const relay = makeModel("packy", "deepseek-v4-flash", { reasoning: true });
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -53,13 +55,27 @@ const opts = (extra: Partial<StreamOptions> = {}): StreamOptions => ({
 });
 
 describe("openai-completions：SSE 样本黄金", () => {
-  it("text：usage 的 prompt_tokens_details.cached_tokens（OpenAI）", async () => {
-    const run = await runFixture(openAICompletionsApi, API, "text", openai);
+  it("text（中转 DeepSeek 实录）：reasoning_content 与 content 同块出现，空 content 不开文本块；usage 重复两次", async () => {
+    const run = await runFixture(openAICompletionsApi, API, "text", relay);
     expect(run.terminal).toMatchObject({ type: "done", reason: "stop" });
-    expect(run.final.content).toEqual([{ type: "text", text: "Hello, 世界 👋" }]);
-    expect(run.final.responseId).toBe("chatcmpl-text1");
-    expect(run.final.usage).toMatchObject({ input: 176, output: 9, cacheRead: 1024, reasoning: 0 });
-    expect(run.final.usage.totalTokens).toBe(1209);
+    expect(run.final.content).toEqual([
+      {
+        type: "thinking",
+        thinking:
+          'We need to respond with a short sentence containing "世界" (world) and greeting. Keep it terse. Example: "你好，世界！" That\'s a standard greeting.',
+        thinkingSignature: "reasoning_content",
+      },
+      { type: "text", text: "你好，世界！" },
+    ]);
+    expect(run.final.responseId).toBe("0217909067979272d60f60bba313662d1f7bb8a224af9f4cc692f");
+    expect(run.final.usage).toMatchObject({
+      input: 104,
+      output: 42,
+      cacheRead: 0,
+      reasoning: 37,
+      cacheReported: true,
+    });
+    expect(run.final.usage.totalTokens).toBe(146);
   });
 
   it("reasoning-deepseek：reasoning_content → 思考块（记字段名），prompt_cache_hit_tokens", async () => {
@@ -75,13 +91,18 @@ describe("openai-completions：SSE 样本黄金", () => {
     expect(run.final.usage).toMatchObject({ input: 32, cacheRead: 768, output: 60, reasoning: 40 });
   });
 
-  it("tool-single：首块带 id/name，参数跨块拼接", async () => {
-    const run = await runFixture(openAICompletionsApi, API, "tool-single", openai);
+  it("tool-single（中转 DeepSeek 实录）：思考后首块带 id/name，参数跨块拼接", async () => {
+    const run = await runFixture(openAICompletionsApi, API, "tool-single", relay);
     expect(run.terminal).toMatchObject({ type: "done", reason: "toolUse" });
     expect(run.final.content).toEqual([
       {
+        type: "thinking",
+        thinking: "The user wants me to read README.md using the read tool. Let me do that.",
+        thinkingSignature: "reasoning_content",
+      },
+      {
         type: "toolCall",
-        id: "call_DdmNjhvTr1LwHJ8bCzKAxqPa",
+        id: "call_f7dmpjep0vpd9hvftdmbun88",
         name: "read",
         arguments: { path: "README.md" },
       },
@@ -164,6 +185,59 @@ describe("openai-completions：SSE 样本黄金", () => {
       makeModel("groq", "llama-3.3-70b-versatile"),
     );
     expect(run.final.usage).toMatchObject({ input: 48, output: 4, cacheRead: 0, totalTokens: 52 });
+  });
+
+  it("proxy-reasoning-deepseek（中转实录）：usage 被改写成 prompt_tokens_details，无 prompt_cache_hit_tokens", async () => {
+    const run = await runFixture(openAICompletionsApi, API, "proxy-reasoning-deepseek", relay);
+    expect(run.final.content.map((b) => b.type)).toEqual(["thinking", "text"]);
+    expect(run.final.content[1]).toEqual({ type: "text", text: "9.9 is larger than 9.11." });
+    expect(run.final.usage).toMatchObject({
+      input: 114,
+      output: 70,
+      reasoning: 58,
+      cacheRead: 0,
+      cacheReported: true,
+    });
+  });
+
+  it("proxy-tool-multi（中转实录）：三个工具调用顺序到达（index 0 / 1 / 2），思考块先关闭", async () => {
+    const run = await runFixture(openAICompletionsApi, API, "proxy-tool-multi", relay);
+    expect(run.terminal).toMatchObject({ type: "done", reason: "toolUse" });
+    const calls = run.final.content.flatMap((b) =>
+      b.type === "toolCall" ? [{ name: b.name, arguments: b.arguments }] : [],
+    );
+    expect(calls).toEqual([
+      { name: "read", arguments: { path: "a.ts" } },
+      { name: "read", arguments: { path: "b.ts" } },
+      { name: "ls", arguments: { dir: "src" } },
+    ]);
+    const thinkingEnd = run.events.findIndex((e) => e.type === "thinking_end");
+    const firstTool = run.events.findIndex((e) => e.type === "toolcall_start");
+    expect(thinkingEnd).toBeLessThan(firstTool);
+    expect(run.final.usage).toMatchObject({ input: 428, output: 181, reasoning: 78 });
+  });
+
+  it("proxy-length（中转实录）：max_tokens 16 只限正文，思考另计——finish=length 时 output 521", async () => {
+    const run = await runFixture(openAICompletionsApi, API, "proxy-length", relay);
+    expect(run.terminal).toMatchObject({ type: "done", reason: "length" });
+    expect(run.final.content.map((b) => b.type)).toEqual(["thinking", "text"]);
+    expect(run.final.usage).toMatchObject({ input: 99, output: 521, reasoning: 504 });
+  });
+
+  it("proxy-usage-kimi（中转实录）：usage 在末尾空 choices 块，prompt_tokens_details.cached_tokens 为读", async () => {
+    const run = await runFixture(
+      openAICompletionsApi,
+      API,
+      "proxy-usage-kimi",
+      makeModel("packy", "kimi-k2.5"),
+    );
+    expect(run.final.content).toEqual([{ type: "text", text: "ok" }]);
+    expect(run.final.usage).toMatchObject({
+      input: 25,
+      cacheRead: 4480,
+      output: 2,
+      cacheReported: true,
+    });
   });
 
   it("rate-limit-429：error 文案以 429 开头，不算溢出", async () => {

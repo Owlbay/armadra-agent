@@ -1,0 +1,54 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 0,
+    "delta": "ok"
+  },
+  {
+    "type": "text_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "done",
+    "reason": "stop",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "ok"
+        }
+      ],
+      "api": "openai-completions",
+      "provider": "packy",
+      "model": "kimi-k2.5",
+      "usage": {
+        "input": 25,
+        "output": 2,
+        "cacheRead": 4480,
+        "cacheWrite": 0,
+        "totalTokens": 4507,
+        "cacheReported": true,
+        "cost": {
+          "input": 0.000025,
+          "output": 0.000008,
+          "cacheRead": 0.000448,
+          "cacheWrite": 0,
+          "total": 0.000481
+        }
+      },
+      "stopReason": "stop",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "responseId": "chatcmpl-948775ef-2223-961e-b537-1e3635220bab",
+      "rawStopReason": "stop"
+    }
+  }
+]

@@ -19,77 +19,7 @@
   {
     "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": " to"
-  },
-  {
-    "type": "thinking_delta",
-    "contentIndex": 0,
-    "delta": " respond"
-  },
-  {
-    "type": "thinking_delta",
-    "contentIndex": 0,
-    "delta": " with"
-  },
-  {
-    "type": "thinking_delta",
-    "contentIndex": 0,
-    "delta": " a"
-  },
-  {
-    "type": "thinking_delta",
-    "contentIndex": 0,
-    "delta": " short"
-  },
-  {
-    "type": "thinking_delta",
-    "contentIndex": 0,
-    "delta": " sentence"
-  },
-  {
-    "type": "thinking_delta",
-    "contentIndex": 0,
-    "delta": " containing"
-  },
-  {
-    "type": "thinking_delta",
-    "contentIndex": 0,
-    "delta": " \""
-  },
-  {
-    "type": "thinking_delta",
-    "contentIndex": 0,
-    "delta": "世界"
-  },
-  {
-    "type": "thinking_delta",
-    "contentIndex": 0,
-    "delta": "\""
-  },
-  {
-    "type": "thinking_delta",
-    "contentIndex": 0,
-    "delta": " ("
-  },
-  {
-    "type": "thinking_delta",
-    "contentIndex": 0,
-    "delta": "world"
-  },
-  {
-    "type": "thinking_delta",
-    "contentIndex": 0,
-    "delta": ")"
-  },
-  {
-    "type": "thinking_delta",
-    "contentIndex": 0,
-    "delta": " and"
-  },
-  {
-    "type": "thinking_delta",
-    "contentIndex": 0,
-    "delta": " greeting"
+    "delta": " answer"
   },
   {
     "type": "thinking_delta",
@@ -99,22 +29,37 @@
   {
     "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": " Keep"
+    "delta": " Need"
   },
   {
     "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": " it"
+    "delta": " think"
   },
   {
     "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": " t"
+    "delta": " through"
   },
   {
     "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": "erse"
+    "delta": " but"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " final"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " one"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " line"
   },
   {
     "type": "thinking_delta",
@@ -124,7 +69,17 @@
   {
     "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": " Example"
+    "delta": " Need"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " be"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " careful"
   },
   {
     "type": "thinking_delta",
@@ -134,57 +89,207 @@
   {
     "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": " \""
+    "delta": " "
   },
   {
     "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": "你好"
+    "delta": "9"
   },
   {
     "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": "，"
+    "delta": "."
   },
   {
     "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": "世界"
+    "delta": "11"
   },
   {
     "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": "！"
+    "delta": " vs"
   },
   {
     "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": "\""
+    "delta": " "
   },
   {
     "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": " That"
+    "delta": "9"
   },
   {
     "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": "'s"
+    "delta": "."
   },
   {
     "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": " a"
+    "delta": "9"
   },
   {
     "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": " standard"
+    "delta": " numerical"
   },
   {
     "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": " greeting"
+    "delta": " comparison"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "."
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " "
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "9"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "."
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "9"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " ="
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " "
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "9"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "."
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "90"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ","
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " "
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "9"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "."
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "11"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " ="
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " "
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "9"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "."
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "11"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ","
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " so"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " "
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "9"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "."
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "9"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " larger"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "."
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " One"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " line"
   },
   {
     "type": "thinking_delta",
@@ -202,22 +307,57 @@
   {
     "type": "text_delta",
     "contentIndex": 1,
-    "delta": "你好"
+    "delta": "9"
   },
   {
     "type": "text_delta",
     "contentIndex": 1,
-    "delta": "，"
+    "delta": "."
   },
   {
     "type": "text_delta",
     "contentIndex": 1,
-    "delta": "世界"
+    "delta": "9"
   },
   {
     "type": "text_delta",
     "contentIndex": 1,
-    "delta": "！"
+    "delta": " is"
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 1,
+    "delta": " larger"
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 1,
+    "delta": " than"
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 1,
+    "delta": " "
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 1,
+    "delta": "9"
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 1,
+    "delta": "."
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 1,
+    "delta": "11"
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 1,
+    "delta": "."
   },
   {
     "type": "text_end",
@@ -231,37 +371,37 @@
       "content": [
         {
           "type": "thinking",
-          "thinking": "We need to respond with a short sentence containing \"世界\" (world) and greeting. Keep it terse. Example: \"你好，世界！\" That's a standard greeting.",
+          "thinking": "We need answer. Need think through but final one line. Need be careful: 9.11 vs 9.9 numerical comparison. 9.9 = 9.90, 9.11 = 9.11, so 9.9 larger. One line.",
           "thinkingSignature": "reasoning_content"
         },
         {
           "type": "text",
-          "text": "你好，世界！"
+          "text": "9.9 is larger than 9.11."
         }
       ],
       "api": "openai-completions",
       "provider": "packy",
       "model": "deepseek-v4-flash",
       "usage": {
-        "input": 104,
-        "output": 42,
+        "input": 114,
+        "output": 70,
         "cacheRead": 0,
         "cacheWrite": 0,
-        "totalTokens": 146,
+        "totalTokens": 184,
         "cacheReported": true,
-        "reasoning": 37,
+        "reasoning": 58,
         "cost": {
-          "input": 0.000104,
-          "output": 0.000168,
+          "input": 0.000114,
+          "output": 0.00028,
           "cacheRead": 0,
           "cacheWrite": 0,
-          "total": 0.000272
+          "total": 0.000394
         }
       },
       "stopReason": "stop",
       "timestamp": 0,
       "thinkingLevel": "off",
-      "responseId": "0217909067979272d60f60bba313662d1f7bb8a224af9f4cc692f",
+      "responseId": "0217909068002492d60f60bba313662d1f7bb8a224af9f42a2f4a",
       "rawStopReason": "stop"
     }
   }

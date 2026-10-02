@@ -1,0 +1,12 @@
+#status 200
+#header content-type: text/event-stream
+data: {"model":"kimi-k2.5","id":"chatcmpl-948775ef-2223-961e-b537-1e3635220bab","created":1790906837,"object":"chat.completion.chunk","usage":null,"choices":[{"logprobs":null,"index":0,"delta":{"content":"","role":"assistant"},"finish_reason":null}]}
+
+data: {"model":"kimi-k2.5","id":"chatcmpl-948775ef-2223-961e-b537-1e3635220bab","choices":[{"delta":{"content":"ok"},"index":0,"finish_reason":null,"logprobs":null}],"created":1790906837,"object":"chat.completion.chunk","usage":null}
+
+data: {"model":"kimi-k2.5","id":"chatcmpl-948775ef-2223-961e-b537-1e3635220bab","choices":[{"delta":{"content":""},"index":0,"finish_reason":"stop","logprobs":null}],"created":1790906837,"object":"chat.completion.chunk","usage":null}
+
+data: {"choices":[],"created":1790906837,"id":"chatcmpl-948775ef-2223-961e-b537-1e3635220bab","model":"kimi-k2.5","object":"chat.completion.chunk","usage":{"completion_tokens":2,"completion_tokens_details":{"text_tokens":2},"prompt_tokens":4505,"prompt_tokens_details":{"cached_tokens":4480,"text_tokens":4505},"total_tokens":4507}}
+
+data: [DONE]
+
