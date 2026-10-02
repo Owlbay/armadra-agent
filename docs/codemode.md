@@ -14,17 +14,19 @@
 
 `codemode.mode` 不写时**跟随预设**：
 
-| 预设                      | Node ≥ 25（沙箱隔离网络） | Node 22 / 24                                                           |
-| ------------------------- | ------------------------- | ---------------------------------------------------------------------- |
-| `default`                 | `on`                      | `off`，启动时提示一次（每个配置目录一次，记在数据目录 `notices.json`） |
-| `codemode-only`           | `only`                    | `only`（`execute` 类，见下）                                           |
-| `minimal` / `coordinator` | `off`                     | `off`                                                                  |
+| 预设                      | 网络隔离（Node ≥ 25，或 Node 22 / 24 + 操作系统沙箱） | Node 22 / 24 且没有操作系统沙箱                                        |
+| ------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------- |
+| `default`                 | `on`                                                  | `off`，启动时提示一次（每个配置目录一次，记在数据目录 `notices.json`） |
+| `codemode-only`           | `only`                                                | `only`（`execute` 类，见下）                                           |
+| `minimal` / `coordinator` | `off`                                                 | `off`                                                                  |
 
-缺省配置里不写 `codemode.mode`（`ama init` 生成的 `config.json` 也不写），所以这张映射以后调整时老用户同样生效。`ama config show` / `ama doctor` 显示生效模式与原因（跟随哪个预设、Node 是否隔离网络）。
+操作系统沙箱指 macOS 的 `sandbox-exec`、Linux 的 bubblewrap（退而 `unshare -r -n`），见下文沙箱与 [sandbox.md](sandbox.md)；Windows 没有，Node 22 / 24 上行为同右列。
+
+缺省配置里不写 `codemode.mode`（`ama init` 生成的 `config.json` 也不写），所以这张映射以后调整时老用户同样生效。`ama config show` / `ama doctor` 显示生效模式与原因（跟随哪个预设、网络由 Node 还是操作系统沙箱隔离）；`ama doctor` 另列操作系统沙箱能力。
 
 `coordinator` 预设即使显式 `on`，脚本里能调用的工具也只限它的活动集（read 与宿主工具）：`tools.bash`、`tools.write` 在脚本里同样不存在，协调者「不写文件、不跑 bash」的约定不能经 codemode 绕过。
 
-`codemode` 本身的权限类随沙箱能力：网络隔离（Node ≥ 25，见下文沙箱）时是 `read` 类，`default` 权限模式下免审批——脚本只能经 `tools.*` 做事，每次内层调用仍逐个经过权限管线；网络未隔离（Node 22 / 24）时是 `execute` 类，`default` 模式下每次都要审批，`-p` 等无人值守场景直接拒绝，此时常用做法是在配置里放行它：
+`codemode` 本身的权限类随沙箱能力：网络隔离（Node ≥ 25，或有操作系统沙箱，见下文沙箱）时是 `read` 类，`default` 权限模式下免审批——脚本只能经 `tools.*` 做事，每次内层调用仍逐个经过权限管线；网络未隔离（Node 22 / 24 且没有操作系统沙箱）时是 `execute` 类，`default` 模式下每次都要审批，`-p` 等无人值守场景直接拒绝，此时常用做法是在配置里放行它：
 
 ```json
 { "version": 1, "tools": { "preset": "codemode-only" }, "permission": { "allow": ["codemode"] } }
@@ -96,7 +98,8 @@
 - 空环境启动，拿不到密钥、会话文件与环境变量（Windows 上 libuv 会从父进程补入 PATH、SYSTEMROOT、USERPROFILE 等系统变量，不含密钥）；不授予文件写、子进程、worker、addon、inspector 权限；Node 22.0–22.12 用 `--experimental-permission`；嵌入 Electron 时设 `ELECTRON_RUN_AS_NODE=1`。
 - 子进程里用 `node:vm` 建只含 ECMAScript 内建对象的上下文（`codeGeneration: { strings: false, wasm: false }`，沙箱对象空原型）；全局函数都在上下文内定义，只经一个宿主函数交换 JSON 字符串；子进程主 realm 也禁止字符串生成代码，经构造器链逃逸拿不到 `Function("return process")`。
 - `tools.*` 经 stdin / stdout 的 JSON 行协议回调父进程执行。
-- 网络：Node ≥ 25 的权限模型同时拒绝网络（strict）；Node 22 / 24 不管网络，脚本若逃出 `vm` 就能联网——此时工具描述标注 `network not isolated`，`codemode.requireStrict: true` 时直接不注册 `codemode` 并给出 warning（codemode-only 预设随之回退到 default）。
+- 操作系统沙箱（[sandbox.md](sandbox.md)）：探测到可用的 macOS `sandbox-exec` / Linux `bwrap`（退而 `unshare -r -n`）时，上面整条命令行经它启动，内核拒绝网络（含 DNS）与一切写入。探测是启动时跑一次最小探针（嵌套在别的沙箱里、容器里没有用户命名空间都会失败），结果进程内缓存；`sandbox.enabled: "off"`（只认用户级 / profile）或 `AMA_SANDBOX=off` 关闭。
+- 网络：Node ≥ 25 的权限模型同时拒绝网络（strict），操作系统沙箱叠加作纵深防御；Node 22 / 24 的权限模型不管网络，有操作系统沙箱时由它拒绝（strict，子进程必须经它启动，包装不了直接报错）；两者都没有时脚本若逃出 `vm` 就能联网——此时工具描述标注 `network not isolated`、状态栏标 `net!`，`codemode.requireStrict: true` 时直接不注册 `codemode` 并给出 warning（codemode-only 预设随之回退到 default）。
 
 | 实测（`--permission` + 只读入口） | Node 22.19 | Node 24.21 | Node 26.10 |
 | --------------------------------- | ---------- | ---------- | ---------- |
@@ -104,6 +107,7 @@
 | 写文件                            | 拒绝       | 拒绝       | 拒绝       |
 | 起子进程 / worker                 | 拒绝       | 拒绝       | 拒绝       |
 | 联网（fetch / TCP）               | **允许**   | **允许**   | 拒绝       |
+| 联网，经 macOS `sandbox-exec`     | 拒绝       | 拒绝       | 拒绝       |
 
 沙箱防的是脚本**绕过权限管线**，不是对抗性的代码执行环境；脚本能造成的副作用都来自它调用的工具，而工具调用照常受 Hook、权限与审批约束。
 

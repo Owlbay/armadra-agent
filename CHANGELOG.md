@@ -2,6 +2,12 @@
 
 ## 未发布
 
+- **操作系统级沙箱**（docs/sandbox.md）：新模块 `src/sandbox/` 探测 macOS `sandbox-exec`、Linux bubblewrap（退而
+  `unshare -r -n`），用目标配置跑一次最小探针确认真能用（嵌套沙箱、无用户命名空间会降级），结果进程内缓存。codemode
+  子进程经它启动，内核拒绝网络（含 DNS）与一切写入：**Node 22 / 24 在有操作系统沙箱时与 Node ≥ 25 一样网络隔离**——
+  `codemode` 按只读类、`default` 预设缺省开启、状态栏不再标 `net!`；没有时（Windows 等）保持原样。Node ≥ 25 叠加作纵深
+  防御。新配置 `sandbox.enabled`（`auto` | `off`，只认用户级 / profile，`AMA_SANDBOX=off` 覆盖）；`ama doctor` 显示沙箱
+  能力，`ama config show` 写明网络由谁隔离。bash 沙箱与「沙箱内命令免审批」是第二阶段。
 - **系统提示维护**：规则节加两条通用规则——破坏性命令（`rm -rf`、`git reset --hard`、强推、删分支）除非用户要求否则先问；
   独立的只读工具调用放在同一轮（只在 read 可直接调用时出现）。edit 描述写明多处修改用一次调用的 `edits[]`、`oldText` 按原文件
   匹配、唯一、尽量短、不重叠。新增内置 Skill `ama-docs`（配置速查，按需读取，同名时用户的优先）；Skill 索引改为每条一行、

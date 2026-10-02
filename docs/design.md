@@ -538,7 +538,7 @@ ama 不知道画布；Armadra 适配器经 `HostApi.tools.register` 注册 `canv
 1. 每次执行起一个子进程：`<node> --permission --allow-fs-read=<沙箱入口文件> <沙箱入口>`；嵌入 Electron 时以 `ELECTRON_RUN_AS_NODE=1` 运行同一可执行文件。子进程**不授予**文件写、子进程、worker、addon、inspector 权限。
 2. 子进程里用 `node:vm` 建一个只含 ECMAScript 内建对象的上下文，注入上表的全局函数，`codeGeneration: { strings: false, wasm: false }`；超时由父进程强杀子进程树。
 3. `tools.*` 经 stdin / stdout 的 JSON 行协议回调父进程，由父进程的 `tool-runner` 执行；子进程本身拿不到任何密钥、会话文件或环境变量（以空环境启动）。
-4. 网络：Node ≥ 25 的权限模型同时拒绝网络（本机 Node 26 实测：`--permission` 下 `fetch` 返回 `ERR_ACCESS_DENIED`）；**Node 22 / 24 的权限模型不管网络**，脚本若逃出 `vm` 就能联网。所以：运行时 Node ≥ 25 → `strict`；Node 22 / 24 → `codemode` 仍可用但状态栏与工具描述标注「网络未隔离」，`config.codemode.requireStrict: true` 时直接禁用该工具。
+4. 网络：Node ≥ 25 的权限模型同时拒绝网络（本机 Node 26 实测：`--permission` 下 `fetch` 返回 `ERR_ACCESS_DENIED`）；**Node 22 / 24 的权限模型不管网络**，脚本若逃出 `vm` 就能联网。所以：运行时 Node ≥ 25 → `strict`；Node 22 / 24 → `codemode` 仍可用但状态栏与工具描述标注「网络未隔离」，`config.codemode.requireStrict: true` 时直接禁用该工具。（S2 起：子进程另经操作系统沙箱启动，Node 22 / 24 有 `sandbox-exec` / bwrap / unshare 时同样 `strict`，见 [sandbox.md](sandbox.md)。）
 5. 声明：沙箱防的是脚本**绕过权限管线**，不是对抗性的代码执行环境；脚本能造成的副作用都来自它调用的工具，而工具调用照常受 Hook、权限与审批约束。
 
 **模式**（`config.codemode.mode`，命令行 `--codemode off|on|only`）：

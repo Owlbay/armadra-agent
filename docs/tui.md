@@ -65,7 +65,7 @@ Accept edits · shift+tab 切换     sonnet-4-5 · medium · ↑12k ↓1.2k · c
 | `♨`             | 保温计时中（工具长时间运行时按 TTL 重放前缀，`/cache warm` 可切换）                                                 |
 | `rebill $0.11`  | 本会话缓存未命中导致的重计费金额；模型没有价格时显示 token 数；为 0 不显示                                          |
 | `ctx 72%`       | 上下文占用，< 70% 绿色、≥ 70% 黄色、≥ 90% 红色；`ctx ?` 表示模型没有窗口信息                                        |
-| `codemode only` | codemode 生效（`on` / `only`）；运行时 Node 的权限模型不隔离网络（Node 22 / 24）时追加红色 `net!`                   |
+| `codemode only` | codemode 生效（`on` / `only`）；网络未隔离（Node 22 / 24 且没有操作系统沙箱，见 sandbox.md）时追加红色 `net!`       |
 
 消息区（line 模式写 stderr，前缀 `ama: `）只在两种情况下提示一行，`cache.missNotices: false` 可关：
 
