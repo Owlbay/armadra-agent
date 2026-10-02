@@ -12,10 +12,22 @@
  * - 线上事件 = 进程内 `SessionEvent`，但 `message_update` 换成纯增量（去掉 partial / 累计消息，
  *   附最新 usage）；stream-json 输出同一形状。
  * - 类型定义直接放在本文件（B6 实现 import 它），避免子路径入口依赖实现文件。
+ * - [W5-C0] 第五波（docs/wave5-plan.md §6.5、§7.5）：命令 `plan_response / get_plan / get_todos /
+ *   get_tasks / get_agents`（返回形状见 `RpcW5Results`），客户端能力 `plans`（声明后计划审批交客户端）；
+ *   新事件由 `SessionEvent` 派生自动包含。命令实现归 W5-F（C0 时返回 `not_implemented`），
+ *   `RPC_PROTOCOL_VERSION` 不变。
  */
 
 import type { AssistantEvent, ImageBlock, ModelThinkingLevel, Usage } from "./ai/types.js";
-import type { QueueMode, SessionEvent } from "./agent/types.js";
+import type {
+  PlanData,
+  PlanDecisionKind,
+  QueueMode,
+  SessionEvent,
+  TodoItemView,
+} from "./agent/types.js";
+import type { AgentInfo } from "./agents/types.js";
+import type { TaskInfo } from "./tools/types.js";
 import type { RewindRequest } from "./checkpoints/types.js";
 import type { ApprovalDecision, PermissionMode } from "./permissions/types.js";
 
@@ -23,7 +35,8 @@ export type { SessionEvent } from "./agent/types.js";
 
 export const RPC_PROTOCOL_VERSION = 1 as const;
 
-export type RpcCapability = "approvals" | "images" | "hooks";
+/** `plans`（W5-C0）：客户端声明后计划审批交给客户端（`plan_proposed` → `plan_response`）。 */
+export type RpcCapability = "approvals" | "images" | "hooks" | "plans";
 
 export interface RpcHello {
   type: "hello";
@@ -89,6 +102,33 @@ export interface RpcCommandMap {
   set_permission_mode: { mode: PermissionMode };
   get_commands: NoParams;
   get_skills: NoParams;
+  // [W5-C0] 计划 / 任务（docs/wave5-plan.md §6.5、§7.5）
+  plan_response: RpcPlanResponse;
+  get_plan: { planId?: string };
+  get_todos: NoParams;
+  get_tasks: NoParams;
+  get_agents: NoParams;
+}
+
+/** [W5-C0] 计划审批的回答（与 `permission_response` 同构）。 */
+export interface RpcPlanResponse {
+  planId: string;
+  decision: PlanDecisionKind;
+  /** `approve` 时指定执行模式（缺省回到进入 plan 前的模式）。 */
+  mode?: PermissionMode;
+  /** `revise`：修改意见（作为普通 user 消息，留在 plan）。 */
+  feedback?: string;
+  /** 客户端改过的计划全文（version + 1）。 */
+  editedMarkdown?: string;
+}
+
+/** [W5-C0] 第五波命令成功时的 `data` 形状。 */
+export interface RpcW5Results {
+  plan_response: { planId: string; decision: PlanDecisionKind };
+  get_plan: PlanData | null;
+  get_todos: { items: TodoItemView[] };
+  get_tasks: { tasks: TaskInfo[] };
+  get_agents: { agents: AgentInfo[] };
 }
 
 export type RpcCommandType = keyof RpcCommandMap;

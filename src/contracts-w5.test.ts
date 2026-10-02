@@ -21,7 +21,8 @@ import type {
   SubagentStatus,
 } from "./agent/types.js";
 import type { AgentSessionOptions } from "./agent/session-core.js";
-import type { RpcEvent } from "./rpc.js";
+import type { RpcCapability, RpcCommand, RpcCommandType, RpcEvent, RpcW5Results } from "./rpc.js";
+import { RPC_PROTOCOL_VERSION } from "./rpc.js";
 import type {
   RunnerHandle,
   SubagentRequest,
@@ -322,5 +323,24 @@ describe("第五波 ④：runner / 驱动 / 定义文件、审批来源、宿主
     expectTypeOf<HookInput["tokensAfter"]>().toEqualTypeOf<number | undefined>();
     expect(HOOK_EVENTS).toContain("PostCompact");
     expect(blockingDecision("PostCompact")).toBeUndefined();
+  });
+});
+
+describe("第五波 ⑥：RPC 计划 / 任务命令与 plans 能力", () => {
+  it("命令登记、参数形状、能力位；协议版本不变", () => {
+    expectTypeOf<
+      "plan_response" | "get_plan" | "get_todos" | "get_tasks" | "get_agents"
+    >().toExtend<RpcCommandType>();
+    expectTypeOf<"plans">().toExtend<RpcCapability>();
+    const command: RpcCommand = {
+      id: "1",
+      type: "plan_response",
+      planId: "p1",
+      decision: "approve",
+      mode: "auto-edit",
+    };
+    expectTypeOf<RpcW5Results["get_plan"]>().toEqualTypeOf<PlanData | null>();
+    expect(command.type).toBe("plan_response");
+    expect(RPC_PROTOCOL_VERSION).toBe(1);
   });
 });
