@@ -176,7 +176,15 @@ export interface RuntimeDeps {
     }): Promise<{ moved: string[] }>;
   };
   /** B3：ToolRegistry（内置工具已注册）。 */
-  tools: { create(input: { config: AmaConfig; cwd: string; mode: RuntimeMode }): ToolRegistryApi };
+  tools: {
+    create(input: {
+      config: AmaConfig;
+      cwd: string;
+      mode: RuntimeMode;
+      /** CLI 启动时给出（一次性提示记在数据目录）；SDK 不给。 */
+      paths?: { configDir: string; dataDir: string };
+    }): ToolRegistryApi;
+  };
   /** B3：权限管线。 */
   permissions: {
     create(input: {

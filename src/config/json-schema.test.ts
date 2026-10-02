@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { buildConfigJsonSchema, configSchemaText } from "./json-schema.js";
+import {
+  CONFIG_KEY_DOCS,
+  DISPLAY_DEFAULTS,
+  DYNAMIC_DEFAULTS,
+  defaultFor,
+  documentedLeaves,
+} from "./key-docs.js";
+import { DEFAULT_CONFIG } from "./merge.js";
+import { DEFAULT_CACHE_CONFIG } from "./types.js";
 import { validateConfig } from "./schema.js";
 
 type Schema = Record<string, unknown>;
@@ -142,5 +151,68 @@ describe("config.schema.json 与 validateConfig 一致", () => {
     expect(SCHEMA["$schema"]).toBe("http://json-schema.org/draft-07/schema#");
     expect(configSchemaText()).toMatch(/^\{\n {2}"\$schema"/);
     expect(configSchemaText().endsWith("}\n")).toBe(true);
+  });
+});
+
+/** schema 里顶层与各段的键路径（供应商内部不算）；`leaf` 为 false 的是段落。 */
+function schemaKeys(): { path: string; schema: Schema; leaf: boolean }[] {
+  const out: { path: string; schema: Schema; leaf: boolean }[] = [];
+  const walk = (properties: Record<string, Schema>, prefix: string): void => {
+    for (const [key, schema] of Object.entries(properties)) {
+      const path = prefix === "" ? key : `${prefix}.${key}`;
+      const nested = schema["properties"] as Record<string, Schema> | undefined;
+      out.push({ path, schema, leaf: nested === undefined || path === "providers" });
+      if (nested !== undefined && path !== "providers") walk(nested, path);
+    }
+  };
+  walk(SCHEMA["properties"] as Record<string, Schema>, "");
+  return out;
+}
+
+describe("config.schema.json 的说明与缺省值（key-docs.ts）", () => {
+  it("每个键都有 description；表里的键与 schema 一一对应", () => {
+    const keys = schemaKeys();
+    for (const { path, schema } of keys) {
+      expect(schema["description"], path).toBe(CONFIG_KEY_DOCS[path]);
+      expect(typeof schema["description"], path).toBe("string");
+    }
+    expect(keys.map((k) => k.path).sort()).toEqual(Object.keys(CONFIG_KEY_DOCS).sort());
+    expect(
+      keys
+        .filter((k) => k.leaf)
+        .map((k) => k.path)
+        .sort(),
+    ).toEqual(documentedLeaves().sort());
+  });
+
+  it("每个叶子都有 default（运行时决定的除外），与 DEFAULT_CONFIG / DEFAULT_CACHE_CONFIG 相同", () => {
+    for (const { path, schema, leaf } of schemaKeys()) {
+      if (!leaf) continue;
+      if (DYNAMIC_DEFAULTS[path] !== undefined) {
+        expect(schema["default"], path).toBeUndefined();
+        continue;
+      }
+      expect(schema["default"], path).toEqual(defaultFor(path));
+      expect(schema["default"], path).toBeDefined();
+      // 缺省值本身合法
+      expect(valid(schema, schema["default"]), path).toBe(true);
+    }
+    const props = SCHEMA["properties"] as Record<string, Schema>;
+    const section = (name: string) => (props[name]?.["properties"] ?? {}) as Record<string, Schema>;
+    expect(section("tools")["preset"]?.["default"]).toBe(DEFAULT_CONFIG.tools?.preset);
+    expect(section("compaction")["reserveTokens"]?.["default"]).toBe(
+      DEFAULT_CONFIG.compaction?.reserveTokens,
+    );
+    expect(section("cache")["warming"]?.["default"]).toBe(DEFAULT_CACHE_CONFIG.warming);
+    expect(section("codemode")["inlineBudget"]?.["default"]).toBe(3000);
+    expect(section("codemode")["mode"]?.["default"]).toBeUndefined();
+  });
+
+  it("DISPLAY_DEFAULTS 合法、覆盖全部有缺省值的叶子", () => {
+    expect(validateConfig(DISPLAY_DEFAULTS)).toEqual([]);
+    expect(valid(SCHEMA, DISPLAY_DEFAULTS)).toBe(true);
+    for (const path of documentedLeaves()) {
+      if (DYNAMIC_DEFAULTS[path] === undefined) expect(defaultFor(path), path).toBeDefined();
+    }
   });
 });

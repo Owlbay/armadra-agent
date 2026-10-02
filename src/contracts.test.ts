@@ -349,7 +349,7 @@ describe("配置契约", () => {
       requireStrict?: boolean;
     }>();
     expectTypeOf<NonNullable<AmaConfig["tools"]>["preset"]>().toEqualTypeOf<
-      "default" | "minimal" | "codemode" | "coordinator" | undefined
+      "default" | "minimal" | "codemode-only" | "coordinator" | "codemode" | undefined
     >();
   });
 
@@ -369,8 +369,9 @@ describe("配置契约", () => {
 
   it("--codemode / --tools-preset（契约 A7）", () => {
     expectTypeOf<ParsedArgs["codemode"]>().toEqualTypeOf<"off" | "on" | "only" | undefined>();
+    // 命令行解析后只有规范名（`codemode` 别名折成 `codemode-only`）。
     expectTypeOf<ParsedArgs["toolsPreset"]>().toEqualTypeOf<
-      NonNullable<AmaConfig["tools"]>["preset"]
+      "default" | "minimal" | "codemode-only" | "coordinator" | undefined
     >();
   });
 });

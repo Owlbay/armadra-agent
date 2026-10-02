@@ -170,6 +170,13 @@ describe("ama providers add", () => {
       /MiniMax-M2\.7\s+chat\s+205k\s+66k\s+否.*未探测\s+原厂 minimax\/MiniMax-M2\.7/,
     );
     expect(existsAuth()).toBe(false);
+    // 还没有 defaultModel：探测通过的模型里按「支持工具、上下文 ≥ 64k、输入价最低」挑
+    expect(config().defaultModel).toBe("relay/deepseek-flash");
+    expect(text).toContain("；defaultModel → relay/deepseek-flash");
+    expect(text).toContain(
+      "选 deepseek-flash：支持工具调用、上下文 ≥ 64k 且有价格的模型里输入价最低（$0.15/M 输入，上下文 1M）",
+    );
+    expect(text).toContain('试试：ama -p "hi" --model relay/deepseek-flash');
   });
 
   it("key 从 stdin 读、存 auth.json（0600）；不探测时按提示挂渠道；非 TTY 没有 --yes → 退出 2 不写", async () => {
@@ -189,6 +196,8 @@ describe("ama providers add", () => {
       "messages",
     ]);
     expect(relay?.models?.find((m) => m.id === "deepseek-flash")?.channels).toEqual(["chat"]);
+    // 没探测：全部候选里挑（qwen3-vl-flash $0.05、262k、支持工具）
+    expect(config().defaultModel).toBe("relay/qwen3-vl-flash");
     const auth = join(home.configDir, "auth.json");
     expect(JSON.parse(readFileSync(auth, "utf8")).providers.relay.apiKey).toBe("sk-from-stdin");
     if (process.platform !== "win32") expect(statSync(auth).mode & 0o777).toBe(0o600);
@@ -198,6 +207,7 @@ describe("ama providers add", () => {
   it("对已存在的供应商再 add：只追加，不改手改的条目；refresh 提示已下架的", async () => {
     home.write("home/.config/ama/config.json", {
       version: 1,
+      defaultModel: "relay/kimi-k2.5",
       providers: {
         relay: {
           apiKey: "$RELAY_KEY",
@@ -221,6 +231,9 @@ describe("ama providers add", () => {
     expect(relay?.models?.map((m) => m.id)).not.toContain("grok-4.7");
     expect(Object.keys(relay?.channels ?? {})).toEqual(["chat"]);
     expect(out.join("")).toContain("上游已不再列出（未删除）：retired");
+    // 已有 defaultModel：不改
+    expect(config().defaultModel).toBe("relay/kimi-k2.5");
+    expect(out.join("")).not.toContain("defaultModel →");
     expect(readFileSync(join(home.configDir, "config.json.bak"), "utf8")).toContain("retired");
   });
 

@@ -5,7 +5,6 @@ import { createTools, type ToolFactory } from "../cli/compose.js";
 import type { AmaConfig } from "../config/types.js";
 import { CODEMODE_TOOL } from "../tools/presets.js";
 import type { ToolDefinition } from "../tools/types.js";
-import { codemodeHint, decorateForMode, withCodemodeHint } from "./modes.js";
 
 /** 桩 codemode 工厂：模式为 off 时不注册（与真实工厂同一约定）。 */
 const stubCodemode: ToolFactory = (ctx) => {
@@ -45,7 +44,7 @@ describe("codemode 模式", () => {
     expect(registry.active().map((t) => t.name)).toEqual([CODEMODE_TOOL]);
   });
 
-  it("on：预设工具 + codemode，其它工具描述末尾追加提示", () => {
+  it("on：预设工具 + codemode，其它工具描述不变（不再追加提示）", () => {
     const { registry } = tools({ codemode: { mode: "on" } }, [host()]);
     expect(registry.active().map((t) => t.name)).toEqual([
       "bash",
@@ -57,9 +56,8 @@ describe("codemode 模式", () => {
       "read",
       "write",
     ]);
-    const read = registry.get("read");
-    expect(read?.description.endsWith(`\n${codemodeHint("read")}`)).toBe(true);
-    expect(registry.get("canvas_send")?.description).toContain(codemodeHint("canvas_send"));
+    expect(registry.get("read")?.description).not.toContain("codemode");
+    expect(registry.get("canvas_send")?.description).toBe("canvas_send test tool");
     expect(registry.get(CODEMODE_TOOL)?.description).toBe("codemode test tool");
   });
 
@@ -72,17 +70,5 @@ describe("codemode 模式", () => {
     );
     expect(registry.active().map((t) => t.name)).toContain("grep");
     expect(state.warnings.join("\n")).toMatch(/不可用.*回退到 default/);
-  });
-
-  it("withCodemodeHint 保留方法与其它字段，不改原对象；非 on 模式原样返回", async () => {
-    const original = stubTool({ name: "read", run: () => ({ content: "R" }) });
-    const wrapped = withCodemodeHint(original);
-    expect(wrapped).not.toBe(original);
-    expect(original.description).toBe("read test tool");
-    expect(wrapped.parameters).toBe(original.parameters);
-    expect(wrapped.permission).toBe("read");
-    expect(await wrapped.execute({}, {} as never)).toEqual({ content: "R" });
-    expect(decorateForMode("only")(original)).toBe(original);
-    expect(decorateForMode("off")(original)).toBe(original);
   });
 });

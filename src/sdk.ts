@@ -28,7 +28,7 @@ import type { Runtime } from "./cli/runtime.js";
 import { findContextFiles } from "./config/context-files.js";
 import { DEFAULT_CONFIG, mergeConfig } from "./config/merge.js";
 import { resolveConfigDir, resolveDataDir } from "./config/paths.js";
-import type { AmaConfig, ToolsPreset } from "./config/types.js";
+import { canonicalPreset, type AmaConfig, type ToolsPresetInput } from "./config/types.js";
 import { AmaError } from "./errors.js";
 import { hooksFromConfig } from "./hooks/config.js";
 import { HookDispatcher } from "./hooks/dispatcher.js";
@@ -59,7 +59,8 @@ export interface RuntimeOptions {
   model?: string;
   thinkingLevel?: ModelThinkingLevel;
   permissionMode?: PermissionMode;
-  toolsPreset?: ToolsPreset;
+  /** `codemode` 是 `codemode-only` 的别名。 */
+  toolsPreset?: ToolsPresetInput;
   /** 信任项目（项目级 Hook / Skill / 提示模板）。 */
   trust?: boolean;
   sessionDir?: string;
@@ -79,7 +80,7 @@ export async function createRuntime(options: RuntimeOptions = {}): Promise<Runti
   if (options.model !== undefined) args.model = options.model;
   if (options.thinkingLevel !== undefined) args.thinking = options.thinkingLevel;
   if (options.permissionMode !== undefined) args.permissionMode = options.permissionMode;
-  if (options.toolsPreset !== undefined) args.toolsPreset = options.toolsPreset;
+  if (options.toolsPreset !== undefined) args.toolsPreset = canonicalPreset(options.toolsPreset);
   if (options.trust !== undefined) args.trust = options.trust;
   if (options.sessionDir !== undefined) args.sessionDir = options.sessionDir;
   if (options.profile !== undefined) args.profile = options.profile;
@@ -117,7 +118,8 @@ export interface CreateSessionOptions {
   sessionManager?: SessionManager;
   /** `default`（缺省，按预设）/ `none` / 指定工具全集。 */
   tools?: "default" | "none" | ToolDefinition[];
-  toolsPreset?: ToolsPreset;
+  /** `codemode` 是 `codemode-only` 的别名。 */
+  toolsPreset?: ToolsPresetInput;
   extraTools?: ToolDefinition[];
   disableTools?: string[];
   /** 进系统提示 host 节。 */

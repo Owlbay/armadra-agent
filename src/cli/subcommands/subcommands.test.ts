@@ -31,8 +31,17 @@ function io(extra: Partial<CliIo> = {}): Partial<CliIo> {
 /** 不经 main（main 缺省会装上组装根）：直接以「未装配」调用子命令。 */
 const fullIo = (extra: Partial<CliIo> = {}): CliIo => ({ ...defaultIo(), ...io(extra) });
 
-const ama = (argv: string[], deps?: RuntimeDeps) =>
-  main(argv, { io: io(), processHooks: false, ...(deps !== undefined ? { deps } : {}) });
+// 桩注册表的供应商就叫 fake：列表类子命令缺省藏起 fake，这里用 AMA_SHOW_FAKE=1 照列
+const ama = (
+  argv: string[],
+  deps?: RuntimeDeps,
+  env: Record<string, string> = { AMA_SHOW_FAKE: "1" },
+) =>
+  main(argv, {
+    io: io({ env: { ...home.env, ...env } }),
+    processHooks: false,
+    ...(deps !== undefined ? { deps } : {}),
+  });
 
 beforeEach(() => {
   home = createTmpHome();
@@ -229,6 +238,19 @@ describe("ama doctor（临时 HOME）", () => {
 });
 
 describe("ama models / sessions（依赖注入）", () => {
+  it("列表类子命令缺省不列 fake；显式引用 fake/echo 照常可用", async () => {
+    expect(await ama(["models", "list"], stubDeps(), {})).toBe(0);
+    expect(out.join("")).not.toContain("fake/echo");
+    out = [];
+    expect(await ama(["doctor"], stubDeps(), {})).toBe(0);
+    expect(out.join("")).not.toMatch(/^\s*fake\s/m);
+    expect(await ama(["models", "check", "fake/echo"], stubDeps(), {})).toBe(0);
+    expect(out.join("")).toMatch(/fake\/echo 可用/);
+    out = [];
+    expect(await ama(["models", "list"], stubDeps(), { AMA_FAKE_SCRIPT: "/x/s.json" })).toBe(0);
+    expect(out.join("")).toContain("fake/echo");
+  });
+
   it("models list / check", async () => {
     expect(await ama(["models", "list"], stubDeps())).toBe(0);
     expect(out.join("")).toMatch(/fake\/echo\s+ctx 128k/);

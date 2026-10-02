@@ -8,7 +8,6 @@ import { builtinTools } from "../tools/registry.js";
 import type { ToolDefinition } from "../tools/types.js";
 import { sandboxEntryForTests } from "../../test/helpers/codemode-sandbox.js";
 import { detectSandboxCapability } from "./capability.js";
-import { codemodeHint, withCodemodeHint } from "./modes.js";
 import { STORE_CUSTOM_TYPE } from "./store.js";
 import {
   CODEMODE_ONLY_GUIDELINE,
@@ -224,11 +223,42 @@ describe("描述与缓存稳定", () => {
     expect(a).not.toContain("Sandbox:");
   });
 
-  it("Node 22 / 24：描述标注网络未隔离；on 模式的提示不进声明", () => {
-    const read = withCodemodeHint(stubTool({ name: "read" }) as ToolDefinition);
-    const text = buildCodemodeDescription([{ tool: read, textResult: true }], 3000, loose);
-    expect(text).toContain("Sandbox: Node 24: network not isolated");
-    expect(text).not.toContain(codemodeHint("read"));
+  it("Node 22 / 24：描述标注网络未隔离（两种写法都标）", () => {
+    const read = stubTool({ name: "read" }) as ToolDefinition;
+    const list = [{ tool: read, textResult: true, direct: true }];
+    expect(buildCodemodeDescription(list, 3000, loose)).toContain(
+      "Sandbox: Node 24: network not isolated",
+    );
+    expect(buildCodemodeDescription(list, 3000, loose, "on")).toContain(
+      "Sandbox: Node 24: network not isolated",
+    );
+  });
+
+  it("on 写法：直接工具与仅脚本工具都只列名字，不内联声明；bash 可调时带 BashResult", () => {
+    const list = builtinTools().map((tool) => ({
+      tool,
+      textResult: true,
+      direct: ["bash", "edit", "glob", "grep", "read", "write"].includes(tool.name),
+    }));
+    const text = buildCodemodeDescription(list, 3000, strict, "on");
+    expect(text).toContain(
+      "Your direct tools are callable here too, same arguments: bash, edit, glob, grep, read, write (tools.bash resolves to BashResult; the others to text).",
+    );
+    expect(text).toContain("interface BashResult");
+    expect(text).toContain("Callable only from scripts: ls, task, todo.");
+    expect(text).not.toContain("declare const tools");
+    expect(text).not.toMatch(/\b(bash|read|ls)\(args/);
+    // 只依赖工具名：顺序无关、字节稳定
+    expect(buildCodemodeDescription([...list].reverse(), 3000, strict, "on")).toBe(text);
+    const readOnly = buildCodemodeDescription(
+      [{ tool: stubTool({ name: "read" }) as ToolDefinition, textResult: true, direct: true }],
+      3000,
+      strict,
+      "on",
+    );
+    expect(readOnly).toContain("same arguments: read.");
+    expect(readOnly).not.toContain("BashResult");
+    expect(readOnly).not.toContain("Callable only from scripts");
   });
 });
 
@@ -277,16 +307,25 @@ describe("工厂", () => {
     sourceOf: () => "builtin",
   };
 
-  it("off 不注册；codemode 预设 / 显式 on 注册", () => {
+  it("off 不注册；跟随预设：default 只在 strict 时注册，codemode-only 总注册；显式 on 注册", () => {
     const warnings: string[] = [];
     const factory = codemodeToolFactory({ capability: strict });
+    const nonStrict = codemodeToolFactory({ capability: loose });
     const ctx = (config: object) => ({ config, registry, warn: (m: string) => warnings.push(m) });
-    expect(factory(ctx({}))).toBeUndefined();
+    expect(factory(ctx({}))?.name).toBe("codemode");
+    expect(nonStrict(ctx({}))).toBeUndefined();
+    expect(factory(ctx({ tools: { preset: "minimal" } }))).toBeUndefined();
+    expect(factory(ctx({ tools: { preset: "coordinator" } }))).toBeUndefined();
     expect(
       factory(ctx({ codemode: { mode: "off" }, tools: { preset: "codemode" } })),
     ).toBeUndefined();
     expect(factory(ctx({ tools: { preset: "codemode" } }))?.name).toBe("codemode");
-    expect(factory(ctx({ codemode: { mode: "on" } }))?.description).toContain("read(args");
+    expect(nonStrict(ctx({ tools: { preset: "codemode-only" } }))?.name).toBe("codemode");
+    expect(factory(ctx({ codemode: { mode: "on" } }))?.description).toContain(
+      "Callable only from scripts: read.",
+    );
+    expect(factory(ctx({ tools: { preset: "codemode" } }))?.description).toContain("read(args");
+    expect(nonStrict(ctx({ codemode: { mode: "on" } }))?.permission).toBe("execute");
     expect(warnings).toEqual([]);
   });
 

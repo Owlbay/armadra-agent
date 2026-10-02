@@ -38,20 +38,20 @@ ama
 
 ## 特性一览
 
-| 方面           | 内容                                                                                                                                                                  |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 多协议与供应商 | 4 条协议线、13 家内置供应商（Anthropic、OpenAI、Google、DeepSeek、Moonshot、智谱、通义、OpenRouter、Groq、xAI、Mistral、Ollama、LM Studio）、自定义供应商、模型级协议 |
-| 零配置与中转站 | 有 key 就选第一个可用的供应商；识别 `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`；`ama providers add` 只给 baseUrl 与 key 一键接入：列模型、探测渠道、写回配置            |
-| 模型元数据     | 上下文、输出上限、图像输入、推理、价格缺省从 models.dev 补（本地缓存，启动不联网）；一个供应商可挂多个渠道（Chat / Responses / Messages），`provider/model@渠道`      |
-| 图像输入       | `-p --image`、界面里 `@图片路径`；四条协议都映射；模型不收图片时直接拒绝并提示换模型                                                                                  |
-| 工具与预设     | read / edit / write / bash / grep / glob，另有 ls、todo、task（子 Agent）、codemode；四个预设 `default` / `minimal` / `codemode` / `coordinator`                      |
-| codemode       | 模型写一段 JS，在受 Node 权限模型约束的子进程里编排多次工具调用，只有输出回到模型                                                                                     |
-| Skill          | `SKILL.md` 目录，模型按索引自行读取，用户用 `/skill:<名字>` 调用；另有提示模板                                                                                        |
-| 两层 Hook      | 命令式 Hook（`hooks.json`，9 个事件，用户策略）与进程内宿主适配器 HostApi（嵌入方）                                                                                   |
-| 权限           | 四种模式、allow / deny 规则、危险命令识别（穿透 `sh -c` / `eval` / `xargs` / `find -exec`）、项目信任、审批时的执行前预览                                             |
-| 缓存           | 前缀稳定、缓存字段与兼容开关、未命中归因、「报 / 不报缓存」三态、长工具运行时保温、压缩摘要按会话前缀续写                                                             |
-| 会话           | JSONL 条目树，分叉与 `/tree` 回溯；两档压缩（裁剪大工具结果 → 摘要）与熔断                                                                                            |
-| 入口           | 差分渲染终端界面、`--no-tui` 行式、`-p`（text / json / stream-json）、`--mode rpc`、SDK                                                                               |
+| 方面           | 内容                                                                                                                                                                                     |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 多协议与供应商 | 4 条协议线、13 家内置供应商（Anthropic、OpenAI、Google、DeepSeek、Moonshot、智谱、通义、OpenRouter、Groq、xAI、Mistral、Ollama、LM Studio）、自定义供应商、模型级协议                    |
+| 零配置与中转站 | 有 key 就选第一个可用的供应商（中转站按价格规则挑缺省模型）；识别 `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`；`ama providers add` 只给 baseUrl 与 key 一键接入：列模型、探测渠道、写回配置 |
+| 模型元数据     | 上下文、输出上限、图像输入、推理、价格缺省从 models.dev 补（本地缓存，启动不联网）；一个供应商可挂多个渠道（Chat / Responses / Messages），`provider/model@渠道`                         |
+| 图像输入       | `-p --image`、界面里 `@图片路径`；四条协议都映射；模型不收图片时直接拒绝并提示换模型                                                                                                     |
+| 工具与预设     | read / edit / write / bash / grep / glob，另有 ls、todo、task（子 Agent）、codemode；四个预设 `default` / `minimal` / `codemode-only` / `coordinator`                                    |
+| codemode       | 模型写一段 JS，在受 Node 权限模型约束的子进程里编排多次工具调用，只有输出回到模型                                                                                                        |
+| Skill          | `SKILL.md` 目录，模型按索引自行读取，用户用 `/skill:<名字>` 调用；另有提示模板                                                                                                           |
+| 两层 Hook      | 命令式 Hook（`hooks.json`，9 个事件，用户策略）与进程内宿主适配器 HostApi（嵌入方）                                                                                                      |
+| 权限           | 四种模式、allow / deny 规则、危险命令识别（穿透 `sh -c` / `eval` / `xargs` / `find -exec`）、项目信任、审批时的执行前预览                                                                |
+| 缓存           | 前缀稳定、缓存字段与兼容开关、未命中归因、「报 / 不报缓存」三态、长工具运行时保温、压缩摘要按会话前缀续写                                                                                |
+| 会话           | JSONL 条目树，分叉与 `/tree` 回溯；两档压缩（裁剪大工具结果 → 摘要）与熔断                                                                                                               |
+| 入口           | 差分渲染终端界面、`--no-tui` 行式、`-p`（text / json / stream-json）、`--mode rpc`、SDK                                                                                                  |
 
 ## 安装
 
@@ -87,16 +87,16 @@ node dist/bundle/ama.cjs --version
 
 ### Node 版本与 codemode
 
-| Node    | codemode 沙箱                                                                                |
-| ------- | -------------------------------------------------------------------------------------------- |
-| ≥ 25    | 文件系统与网络都隔离；`codemode` 按只读类工具处理，`default` 权限模式下免审批                |
-| 22 / 24 | 隔离文件系统，**不隔离网络**；`codemode` 按执行类处理，每次都要审批（状态栏显示红色 `net!`） |
+| Node    | codemode 沙箱                                                                                                                                                         |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ≥ 25    | 文件系统与网络都隔离；`codemode` 按只读类工具处理，`default` 权限模式下免审批；`default` 预设**缺省开启** codemode                                                    |
+| 22 / 24 | 隔离文件系统，**不隔离网络**；`codemode` 按执行类处理，每次都要审批（状态栏显示红色 `net!`）；`default` 预设缺省**不开** codemode，启动时提示一次（每个配置目录一次） |
 
-其余功能在 Node 22 起都一样。`codemode.requireStrict: true` 可以在网络未隔离时直接禁用 codemode。
+其余功能在 Node 22 起都一样。Node 22 / 24 想用 codemode 就显式开：`--codemode on` 或 config 写 `"codemode": { "mode": "on" }`。`codemode.requireStrict: true` 可以在网络未隔离时直接禁用 codemode。
 
 ## 快速开始
 
-**零配置**：设好任一家的标准环境变量就能用，ama 按内置顺序选第一个有 key 的供应商和它的缺省模型。
+**零配置**：设好任一家的标准环境变量就能用，ama 按内置顺序选第一个有 key 的供应商和它的缺省模型（`ama config show` 说明选了谁、为什么）。没有任何 key 时启动会提示怎么配，不会落到测试用的 `fake` 供应商上。
 
 ```sh
 export ANTHROPIC_API_KEY=sk-...        # 或 OPENAI_API_KEY、GEMINI_API_KEY、DEEPSEEK_API_KEY、MOONSHOT_API_KEY ……
@@ -131,14 +131,15 @@ ama -p "列出 TODO" --model deepseek/deepseek-v4-pro --output-format json
 | `--tools-preset <名>`                                   | 工具预设（见下文）                             |
 | `--allow <规则>` / `--deny <规则>`                      | 追加权限规则，可重复                           |
 
-本地 Ollama / LM Studio 不需要 key：`ama --model ollama/<模型名>`。`ama --help` 列出全部参数与子命令；测试或排查时可用不花钱的 `--model fake/echo`（回显最后一条用户消息）。
+本地 Ollama / LM Studio 不需要 key：`ama --model ollama/<模型名>`。`ama --help` 列出全部参数与子命令；测试或排查时可用不花钱的 `--model fake/echo`（回显最后一条用户消息；模型选择器、`models list`、`doctor` 缺省不列这个测试供应商，`AMA_SHOW_FAKE=1` 时列出）。
 
 ## 配置
 
 一个文件 `~/.config/ama/config.json`。第一次进入对话（交互、`-p`、RPC）或 `ama providers add` 时自动建好目录（0700）、
 最小的 `config.json` 与给编辑器用的 `config.schema.json`；`config show`、`doctor`、`models list` 等只读命令不写配置目录。
-也可以 `ama init` 手动建（已有文件不覆盖）。`ama config path` 打印各文件位置，`ama config edit`
-用 `$VISUAL` / `$EDITOR` 打开。常用的只有五个键：
+也可以 `ama init` 手动建（已有文件不覆盖）。生成的 `config.json` 只有 `$schema`、`version` 与空 `providers`，不写死缺省值——以后
+缺省值调整时老配置同样跟着变。`ama config path` 打印各文件位置，`ama config edit` 用 `$VISUAL` / `$EDITOR` 打开，
+`config.schema.json` 给每个键带了说明与缺省值，编辑器悬停可见。常用的只有五个键：
 
 ```json
 {
@@ -152,7 +153,7 @@ ama -p "列出 TODO" --model deepseek/deepseek-v4-pro --output-format json
 }
 ```
 
-其余（`compaction`、`retry`、`codemode`、`hooks`、`ui`、`skills`、`cache`、`request`）都有缺省，`ama config show` 会列出来。
+其余（`compaction`、`retry`、`codemode`、`hooks`、`ui`、`skills`、`cache`、`request`）都有缺省，`ama config show` 列出每一项的生效值与来源（default / user / profile / project / cli），也接受 `--tools-preset` / `--codemode` 看覆盖后的效果。
 
 **请求超时**：模型请求有空闲超时，缺省 300 s——等响应头、以及流里两块数据之间超过这个时间就判定卡住，按可重试错误
 走 `retry` 的退避重试（收到任何字节即重新计时，长回答不受影响）。用 `request.idleTimeoutMs`（只认用户级）或环境变量
@@ -265,20 +266,20 @@ ama models cache-probe packy/grok-4.7                  # 这个端点报不报�
 
 ## 工具与预设
 
-| 预设          | 模型直接看到的工具                  | 适合                                       |
-| ------------- | ----------------------------------- | ------------------------------------------ |
-| `default`     | read、edit、write、bash、grep、glob | 缺省                                       |
-| `minimal`     | read、edit、write、bash             | 小模型、小上下文；`full-auto`              |
-| `codemode`    | 只有 `codemode`                     | 长流程、工具调用密集的任务                 |
-| `coordinator` | read 与宿主注册的画布工具           | 嵌入 Armadra 的协调者：不写文件、不跑 bash |
+| 预设            | 模型直接看到的工具                                               | 适合                                                                                        |
+| --------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `default`       | read、edit、write、bash、grep、glob；Node ≥ 25 时另加 `codemode` | 缺省                                                                                        |
+| `minimal`       | read、edit、write、bash                                          | 小模型、小上下文；`full-auto`                                                               |
+| `codemode-only` | 只有 `codemode`                                                  | 长流程、工具调用密集的任务                                                                  |
+| `coordinator`   | read 与宿主注册的画布工具                                        | 嵌入 Armadra 的协调者：不写文件、不跑 bash；codemode 缺省关，显式开了脚本里也只能调这些工具 |
 
-- `--tools-preset <名>` 或 `tools.preset` 选预设。
+- `--tools-preset <名>` 或 `tools.preset` 选预设。`codemode` 是 `codemode-only` 的旧名（0.3.0），配置、命令行、RPC、SDK 都还认，`ama config show` 显示规范名并提示。
 - `tools.default` 在预设上微调：`["+todo", "+task", "-glob"]`；不带前缀的名字整组替换。
 - 另有 `--tools a,b,c`（只启用这些）、`--exclude-tools a,b`、交互模式的 `/tools`。
 
-**codemode** 让模型写一段 JavaScript，用 `tools.<name>(args)` 编排多次工具调用（可以 `Promise.all` 并发），只有脚本输出回到模型。`--tools-preset codemode` 只留它，`--codemode on` 在现有工具之外加上它。脚本跑在 `node --permission` 子进程的 vm 里：没有 `require` / `import` / `process` / `fetch`，每次内层调用仍逐个经过 Hook、权限与审批。
+**codemode** 让模型写一段 JavaScript，用 `tools.<name>(args)` 编排多次工具调用（可以 `Promise.all` 并发），只有脚本输出回到模型。脚本跑在 `node --permission` 子进程的 vm 里：没有 `require` / `import` / `process` / `fetch`，每次内层调用仍逐个经过 Hook、权限与审批。
 
-**什么时候用 codemode**：[三预设基准](docs/benchmarks/presets-2026-10-02.md)（三个模型 × 三类小任务）里，codemode 每组输入 token 比 default 多约 45%（工具声明每轮都在前缀里），顶层轮数却没有明显减少——这些任务本来只需要 2–4 次调用。所以缺省保持 `default`，只读检索多、调用次数多的长流程再用 codemode。
+**缺省开放**：`codemode.mode` 不写时跟随预设——`default` → `on`（六个工具 + codemode，只在 Node ≥ 25 的网络隔离沙箱里；Node 22 / 24 → `off`），`codemode-only` → `only`，`minimal` / `coordinator` → `off`。显式的 `--codemode off|on|only` 或 `codemode.mode` 优先，项目级只能写 `off`。`on` 模式下 codemode 的描述只用一行列出可在脚本里调用的直接工具（参数相同）与仅脚本可调的工具名，不重复声明，前缀只多约 400 token（[三预设基准](docs/benchmarks/presets-2026-10-02.md)测的是去重前的 codemode 预设：小任务输入多约 45%、轮数不减）。只读检索多、调用次数多的长流程可以用 `codemode-only`。
 
 ## 缓存
 

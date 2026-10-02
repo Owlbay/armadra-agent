@@ -127,8 +127,11 @@ describe("parseArgs", () => {
     expect(usage(["--tui-mode", "fullscreen"])).toMatch(/fullscreen/);
     expect(usage(["--mode", "json"])).toMatch(/rpc/);
     expect(usage(["--tools-preset", "tiny"])).toMatch(
-      /--tools-preset 的取值应为 default \| minimal \| codemode \| coordinator/,
+      /--tools-preset 的取值应为 default \| minimal \| codemode-only \| coordinator \| codemode/,
     );
+    // 别名折成规范名
+    const alias = parseArgs(["--tools-preset", "codemode"]);
+    expect(alias.kind === "run" && alias.args.toolsPreset).toBe("codemode-only");
     expect(usage(["--codemode", "always"])).toMatch(/--codemode 的取值应为 off \| on \| only/);
     expect(usage(["--codemode"])).toMatch(/需要一个值/);
     expect(usage(["--model"])).toMatch(/需要一个值/);

@@ -10,6 +10,7 @@ import { mergeBaseLayers, type MergeResult } from "../../config/merge.js";
 import { CONFIG_FILE, resolveConfigDir, resolveDataDir, userFile } from "../../config/paths.js";
 import { loadProfile, type ProfileOptions } from "../../config/profile.js";
 import type { CliIo, RuntimeDeps } from "../deps.js";
+import { hideFakeProvider } from "../fake-visibility.js";
 
 export interface UserLevel {
   configDir: string;
@@ -52,11 +53,13 @@ export async function buildRegistry(
   io: CliIo,
   deps: Pick<RuntimeDeps, "providers">,
 ): Promise<ProviderRegistryApi> {
-  return deps.providers.create({
+  // 列表类子命令（doctor / models list / providers list / config show）缺省不列 fake
+  const registry = await deps.providers.create({
     config: level.merged.config,
     cwd: io.cwd,
     authFile: level.authFile,
     authEnv: level.profile?.authEnv ?? true,
     dataDir: level.dataDir,
   });
+  return hideFakeProvider(registry, io.env);
 }
