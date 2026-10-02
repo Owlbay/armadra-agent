@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BUILTIN_COMMANDS } from "../commands-core.js";
 import { Editor, plainTheme, type AutocompleteResult } from "../../tui.js";
 import { InteractiveCompletion, fileScore } from "./completion.js";
@@ -118,9 +118,11 @@ describe("补全", () => {
     expect(editor.getText()).toBe("/model");
     editor.clear();
     for (const ch of "@READ") editor.handleInput(ch);
-    await new Promise((r) => setTimeout(r, 20));
-    expect(renders).toBeGreaterThan(0);
-    expect(editor.isCompletionOpen).toBe(true);
+    // 异步文件扫描在负载高的机器上可能超过固定等待；等到列表出现为止
+    await vi.waitFor(() => {
+      expect(renders).toBeGreaterThan(0);
+      expect(editor.isCompletionOpen).toBe(true);
+    });
     editor.handleInput("\t");
     expect(editor.getText()).toBe("@README.md");
   });
