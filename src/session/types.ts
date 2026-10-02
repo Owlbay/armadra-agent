@@ -220,6 +220,8 @@ export interface SessionListItem {
   modifiedAt: string;
   firstPrompt?: string;
   messageCount: number;
+  /** 子 Agent（task）会话：继续 / 恢复选择器缺省跳过。 */
+  subagent?: true;
 }
 
 export interface SessionManagerApi {

@@ -16,6 +16,7 @@ import {
   readFileSync,
   readdirSync,
   renameSync,
+  readSync,
   rmSync,
   statSync,
   truncateSync,
@@ -207,6 +208,55 @@ export function listSessionFiles(dir: string): string[] {
     .sort()
     .reverse()
     .map((name) => join(dir, name));
+}
+
+/** 子 Agent（task）会话第一条条目的 customType（与 agents/task-record.ts 同值）。 */
+export const TASK_SESSION_CUSTOM_TYPE = "ama.task";
+
+/**
+ * 子 Agent 会话：头有 `parentSession`，且第一条条目是 `custom{ama.task}`（fork / clone 也带
+ * `parentSession`，但第一条不是任务记录，不算）。
+ */
+export function isSubagentSession(
+  header: { parentSession?: string } | undefined,
+  first: unknown,
+): boolean {
+  if (header?.parentSession === undefined) return false;
+  const entry = first as { type?: unknown; customType?: unknown } | undefined;
+  return entry?.type === "custom" && entry.customType === TASK_SESSION_CUSTOM_TYPE;
+}
+
+const HEAD_CHUNK = 16 * 1024;
+const HEAD_LIMIT = 1024 * 1024;
+
+/** 只读文件开头的前两行（头 + 第一条条目）判断是否子 Agent 会话；读不了 / 解析不了 → false。 */
+export function isSubagentSessionFile(file: string): boolean {
+  let fd: number | undefined;
+  try {
+    fd = openSync(file, "r");
+    const chunks: Buffer[] = [];
+    let size = 0;
+    let newlines = 0;
+    while (newlines < 2 && size < HEAD_LIMIT) {
+      const buffer = Buffer.alloc(HEAD_CHUNK);
+      const read = readSync(fd, buffer, 0, HEAD_CHUNK, size);
+      if (read === 0) break;
+      const chunk = buffer.subarray(0, read);
+      for (const byte of chunk) if (byte === 0x0a) newlines++;
+      chunks.push(chunk);
+      size += read;
+    }
+    const [header, first] = Buffer.concat(chunks).toString("utf8").split("\n", 2);
+    if (header === undefined || first === undefined || first.trim() === "") return false;
+    return isSubagentSession(
+      JSON.parse(header) as { parentSession?: string },
+      JSON.parse(first) as unknown,
+    );
+  } catch {
+    return false;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
 }
 
 /** 移到 `<sessionsRoot>/.trash/<删除时间毫秒>__<编码目录>__<文件名>`，返回新路径。 */

@@ -21,6 +21,8 @@ import { migrateSessionLines } from "./migrate.js";
 import {
   acquireLock,
   appendLines,
+  isSubagentSession,
+  isSubagentSessionFile,
   listSessionFiles,
   readSessionLines,
   sessionDirForCwd,
@@ -141,9 +143,9 @@ export class SessionManager implements SessionManagerApi {
     }
   }
 
-  /** `--continue`：本目录最近一条；没有则新建（延迟落盘）。 */
+  /** `--continue`：本目录最近一条（跳过子 Agent 会话，只读文件头两行）；没有则新建（延迟落盘）。 */
   static continueRecent(dir: string, cwd: string): SessionManager {
-    const [latest] = listSessionFiles(dir);
+    const latest = listSessionFiles(dir).find((file) => !isSubagentSessionFile(file));
     return latest === undefined ? this.create(dir, cwd) : this.open(latest);
   }
 
@@ -177,6 +179,7 @@ export class SessionManager implements SessionManagerApi {
           messageCount,
         };
         if (name !== undefined) item.name = name;
+        if (isSubagentSession(header, entries[0])) item.subagent = true;
         if (firstPrompt !== undefined) item.firstPrompt = firstPrompt.slice(0, 200);
         items.push(item);
       } catch {
