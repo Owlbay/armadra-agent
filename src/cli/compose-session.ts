@@ -329,6 +329,8 @@ function buildSession(
   if (maxChars !== undefined) options.maxToolResultChars = maxChars;
   const hostId = assembly.host.handle?.adapter.id;
   if (hostId !== undefined) options.hostId = hostId;
+  // [RW-B] 中断即撤回；检查点后端（options.checkpoints）待 RW-A 的 createCheckpointBackendFactory 接入
+  if (config.ui?.restoreOnCancel === false) options.restoreOnCancel = false;
   session = new AgentSessionImpl(options);
   session.subscribe((event) => bridgeEvent(event, assembly.events));
   records.set(session, record);

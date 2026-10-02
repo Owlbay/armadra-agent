@@ -215,6 +215,7 @@ function buildBaseSchema(): Schema {
         ascii: bool(),
         compact: bool(),
         animation: bool(),
+        restoreOnCancel: bool(),
       }),
       skills: object({ dirs: strings }),
       cache: object({

@@ -179,6 +179,8 @@ export interface UiConfig {
   compact?: boolean;
   /** false：运行中 spinner 固定为 `·`，缺省 true。 */
   animation?: boolean;
+  /** 运行中 Esc 中断、本回合还没有任何输出时撤回该回合并回填原消息，缺省 true。 */
+  restoreOnCancel?: boolean;
 }
 
 export interface SkillsConfig {
