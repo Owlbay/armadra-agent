@@ -7,6 +7,8 @@
  * - **有界并发**：同时在途 ≤ `concurrency`；结果按任务下标交回，调用方自己按顺序输出。
  * - **限流**：429 时并发减半（至少 1），等 `retryDelayMs` 后重试该请求一次；重试仍 429 → 停止；
  *   401 / 403 → 立即停止。停止后不再发新请求，并中止在途的请求（它们的结果标记为 aborted）。
+ * - **恢复（加法增、乘法减）**：降并发之后，每连续 `recoverAfter`（缺省 4）次没被限流的请求，并发 +1，
+ *   直到回到初始并发；中途再遇 429 重新减半、计数清零。
  *
  * `ama models check` 不走这里：它只发一次，要看到完整回复与耗时。
  */
@@ -19,6 +21,8 @@ export const DEFAULT_PROBE_CONCURRENCY = 6;
 export const MAX_PROBE_CONCURRENCY = 16;
 export const PROBE_SETTLE_MS = 1_000;
 export const RATE_LIMIT_RETRY_MS = 2_000;
+/** 降并发后，连续多少次没被限流才 +1。 */
+export const RECOVER_AFTER = 4;
 
 /** 鉴权失败或限流：继续只会浪费请求。 */
 export const FATAL_STATUS = /^(?:HTTP )?(?:401|403|429)\b/;
@@ -120,6 +124,10 @@ export interface SchedulerOptions extends ProbeTuning {
   retryDelayMs?: number | undefined;
   /** 429 降并发时回调（新的并发数）。 */
   onThrottle?: (concurrency: number) => void;
+  /** 连续多少次没被限流后并发 +1（缺省 RECOVER_AFTER）。 */
+  recoverAfter?: number | undefined;
+  /** 并发回升时回调（新的并发数）。 */
+  onRecover?: (concurrency: number) => void;
 }
 
 /**
@@ -127,6 +135,9 @@ export interface SchedulerOptions extends ProbeTuning {
  */
 export class ProbeScheduler {
   private limit: number;
+  private readonly initial: number;
+  /** 上次降并发以来连续没被限流的请求数。 */
+  private streak = 0;
   private readonly controller = new AbortController();
   private stopReason: string | undefined;
   private active = 0;
@@ -139,6 +150,7 @@ export class ProbeScheduler {
     private readonly options: SchedulerOptions = {},
   ) {
     this.limit = options.concurrency ?? DEFAULT_PROBE_CONCURRENCY;
+    this.initial = this.limit;
   }
 
   get stopped(): string | undefined {
@@ -161,6 +173,7 @@ export class ProbeScheduler {
     let outcome = await probeOnce(this.registry, model, this.apiKey, this.options, this.signal);
     if (outcome.error !== undefined && RATE_LIMITED.test(outcome.error)) {
       this.limit = Math.max(1, Math.floor(this.limit / 2));
+      this.streak = 0;
       this.options.onThrottle?.(this.limit);
       await sleep(this.options.retryDelayMs ?? RATE_LIMIT_RETRY_MS, this.signal);
       if (this.stopReason !== undefined) return { aborted: true };
@@ -171,7 +184,18 @@ export class ProbeScheduler {
       }
     }
     if (outcome.error !== undefined && FATAL_STATUS.test(outcome.error)) this.stop(outcome.error);
+    else if (outcome.aborted !== true) this.recover();
     return outcome;
+  }
+
+  /** 一次没被限流的请求：攒够 recoverAfter 次就并发 +1（不超过初始值）。 */
+  private recover(): void {
+    if (this.limit >= this.initial) return;
+    this.streak++;
+    if (this.streak < (this.options.recoverAfter ?? RECOVER_AFTER)) return;
+    this.streak = 0;
+    this.limit++;
+    this.options.onRecover?.(this.limit);
   }
 
   /** 并发执行 `count` 个任务；`onDone` 按完成顺序回调。停止后未开始的任务不执行（结果为 undefined）。 */
