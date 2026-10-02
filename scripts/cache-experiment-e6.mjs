@@ -4,6 +4,8 @@
  * 模型窗口改小到 `--e6-window`（缺省 40k），一条提示里逐个读 12 个约 12 KB 的文件（单提示长任务，
  * 第五波 G1 的形态），停 `--e6-pause` 秒（缺省 330，> 用户自填 TTL `--ttl`）后再读一个。
  * `--e6-variant`：`baseline`（配 `--dist` 指向改动前构建）、`c1c2`（关掉冷时提前裁）、`c1c2c3`。
+ * `--e6-files` 改文件数，`--e6-keep` 设 `compaction.prune.keepResults`（例如 3 个文件 + keep 1：
+ * 第一条提示停在档一阈值以下，专看停顿后冷时提前裁）。
  */
 
 import { fmt, table } from "./real-budget.mjs";
@@ -22,14 +24,16 @@ function mediumText(tag) {
   return bigText(tag).slice(0, 12_000);
 }
 
-const E6_FILES = 12;
-
 export async function caseE6(ctx, model) {
   const variant = ctx.values["e6-variant"];
   const window = Number(ctx.values["e6-window"]);
+  const fileCount = Number(ctx.values["e6-files"]);
+  const keep = ctx.values["e6-keep"];
+  const compaction =
+    keep === undefined ? {} : { compaction: { prune: { keepResults: Number(keep) } } };
   const ttl = Number(ctx.values.ttl);
   const files = {};
-  for (let n = 1; n <= E6_FILES + 1; n++) files[`part${n}.txt`] = mediumText(`part${n}`);
+  for (let n = 1; n <= fileCount + 1; n++) files[`part${n}.txt`] = mediumText(`part${n}`);
   const s = await Session.open({
     ...ctx,
     model,
@@ -38,7 +42,7 @@ export async function caseE6(ctx, model) {
     // 窗口改小，让 12 个文件跨过档一 / 档二阈值；TTL 用户自填（中转目录没有）
     patch: (config) =>
       patchModel(config, model, { contextWindow: window, promptCache: { short: ttl } }),
-    extra: { cache: { warming: "off" } },
+    extra: { cache: { warming: "off" }, ...compaction },
   });
   // c1c2：关掉冷时提前裁（C3），其余同 c1c2c3
   if (variant === "c1c2") s.runtime.session.cache.isCold = () => false;
@@ -61,16 +65,16 @@ export async function caseE6(ctx, model) {
       prunes.push(at);
   });
   await s.prompt(
-    `Read part1.txt through part${E6_FILES}.txt with the read tool in order, ONE file per reply ` +
+    `Read part1.txt through part${fileCount}.txt with the read tool in order, ONE file per reply ` +
       "(never several files at once, no other tools). After reading all of them, reply with only the last line of " +
-      `part${E6_FILES}.txt.`,
+      `part${fileCount}.txt.`,
   );
   const pauseAt = s.requests().length;
   const pause = Number(ctx.values["e6-pause"]);
   if (!ctx.budget.stopped && pause > 0) await sleep(pause * 1000);
   if (!ctx.budget.stopped)
     await s.prompt(
-      `Read part${E6_FILES + 1}.txt with the read tool and reply with only its last line.`,
+      `Read part${fileCount + 1}.txt with the read tool and reply with only its last line.`,
     );
   const batches = [];
   for (const at of prunes) {
@@ -83,6 +87,8 @@ export async function caseE6(ctx, model) {
     model,
     variant,
     label: ctx.values.label,
+    files: fileCount,
+    keepResults: keep === undefined ? undefined : Number(keep),
     window,
     ttl,
     pause,
@@ -110,7 +116,8 @@ export function renderE6(runs) {
         "请求（回合 / 摘要）",
         "输入合计",
         "cacheRead 合计（占比）",
-        "重写 token",
+        "全价输入（输入 − 读）",
+        "归因未命中",
         "费用（Kimi 名义价）",
         "预算口径",
         "摘要压缩",
@@ -132,6 +139,7 @@ export function renderE6(runs) {
           `${r.requests.length}（${turns} / ${r.requests.length - turns}）`,
           fmt.k(prompt),
           `${fmt.k(read)}（${fmt.pct(prompt > 0 ? read / prompt : 0)}）`,
+          fmt.k(prompt - read),
           fmt.k(r.stats?.reBilledTokens ?? 0),
           `$${nominal.toFixed(4)}`,
           `$${(r.usd ?? 0).toFixed(4)}`,
@@ -147,7 +155,7 @@ export function renderE6(runs) {
   );
   for (const r of runs)
     out.push(
-      `- ${r.label ?? r.variant}：窗口 ${fmt.k(r.window)}、TTL ${r.ttl}s、停顿 ${r.pause}s；请求（读 / 输入）${r.requests
+      `- ${r.label ?? r.variant}：窗口 ${fmt.k(r.window)}、${r.files ?? 12} 个文件${r.keepResults === undefined ? "" : `、keepResults ${r.keepResults}`}、TTL ${r.ttl}s、停顿 ${r.pause}s；请求（读 / 输入）${r.requests
         .map(
           (q) =>
             `${q.purpose === "turn" ? "" : `${q.purpose}:`}${fmt.k(q.cacheRead)}/${fmt.k(q.prompt)}`,

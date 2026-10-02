@@ -499,6 +499,8 @@ async function main() {
       "e6-variant": { type: "string", default: "c1c2c3" },
       "e6-window": { type: "string", default: "40000" },
       "e6-pause": { type: "string", default: "330" },
+      "e6-files": { type: "string", default: "12" },
+      "e6-keep": { type: "string" },
       seed: { type: "string" },
       dist: { type: "string" },
       label: { type: "string", default: "改进后" },
