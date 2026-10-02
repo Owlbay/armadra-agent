@@ -11,6 +11,7 @@
  * | resources.discover   | skills / 提示模板发现，完整对象存进闭包状态                          |
  * | session.create       | compose-session.ts                                                   |
  * | modes                | line / print / rpc 懒加载；interactive 在 B7 之前回落到 line         |
+ * | ui                   | 传了 io 时：终端 → 迷你 TUI（懒加载），否则文本问答；stdin 非 TTY 不问 |
  *
  * **工具注册点（给 B10 等）**：`ComposeOptions.toolFactories` 与 `DEFAULT_TOOL_FACTORIES`。工厂在
  * 第 12 步建注册表时调用，产物以 `builtin` 来源注册（受预设管理）；工厂拿不到会话对象本身，执行期
@@ -39,9 +40,11 @@ import {
   type LogFn,
 } from "./compose-session.js";
 import { createSessionStore } from "./compose-store.js";
-import type { InteractiveUi, ModeRunner, RuntimeDeps } from "./deps.js";
+import type { CliIo, InteractiveUi, ModeRunner, RuntimeDeps } from "./deps.js";
 import type { RuntimeMode } from "./runtime.js";
 import { defaultSendUser } from "./startup-steps.js";
+import type { StartupUiOptions } from "../modes/interactive/startup-ui.js";
+import type { TextUiIo } from "../modes/startup-ui-text.js";
 
 export interface ToolFactoryContext {
   config: AmaConfig;
@@ -68,6 +71,7 @@ export interface ComposeOptions {
   extraTools?: ToolDefinition[];
   /** 缺省 DEFAULT_TOOL_FACTORIES。 */
   toolFactories?: readonly ToolFactory[];
+  /** 覆盖启动期问答；缺省见 `defaultStartupUi`。 */
   ui?: InteractiveUi;
   modes?: Partial<Record<RuntimeMode, ModeRunner>>;
   /** key 发现用的环境（缺省 process.env）。 */
@@ -166,7 +170,45 @@ export function buildRules(
   return rules;
 }
 
-export function createRuntimeDeps(options: ComposeOptions = {}): RuntimeDeps {
+type UiIo = Pick<CliIo, "stdinIsTTY" | "stdoutIsTTY" | "env">;
+
+/** 回调先于模式运行；终端界面只在加载时 import，文本回退不加载终端组件库。 */
+function lazyUi(load: () => Promise<Required<InteractiveUi>>): Required<InteractiveUi> {
+  let ui: Promise<Required<InteractiveUi>> | undefined;
+  const get = (): Promise<Required<InteractiveUi>> => (ui ??= load());
+  return {
+    promptTrust: async (cwd, resources) => (await get()).promptTrust(cwd, resources),
+    pickSession: async (items) => (await get()).pickSession(items),
+    pickModel: async (providers, reason) => (await get()).pickModel(providers, reason),
+    askCwd: async (missing) => (await get()).askCwd(missing),
+  };
+}
+
+/**
+ * CLI 缺省的启动期问答（第 7 / 8 / 11 步，只在 interactive / line 模式被调用）：
+ * stdin 非 TTY 时不问（管道里的输入留给行式界面，保持非交互分支）；stdout 也是终端、
+ * `TERM` 不是 dumb 且没有 `--no-tui` 时用迷你 TUI，否则写 stderr、从 stdin 读一行。
+ */
+export function defaultStartupUi(
+  io: UiIo,
+  options: { noTui?: boolean | undefined; tui?: StartupUiOptions; text?: TextUiIo } = {},
+): InteractiveUi | undefined {
+  if (!io.stdinIsTTY) return undefined;
+  if (io.stdoutIsTTY && io.env["TERM"] !== "dumb" && options.noTui !== true) {
+    return lazyUi(async () =>
+      (await import("../modes/interactive/startup-ui.js")).createStartupUi(options.tui),
+    );
+  }
+  return lazyUi(async () =>
+    (await import("../modes/startup-ui-text.js")).createTextStartupUi(
+      options.text ?? { stdin: process.stdin, write: (text) => process.stderr.write(text) },
+    ),
+  );
+}
+
+export function createRuntimeDeps(
+  options: ComposeOptions & { io?: UiIo; noTui?: boolean | undefined } = {},
+): RuntimeDeps {
   const state = emptyComposeState();
   const deps: RuntimeDeps = {
     providers: {
@@ -235,6 +277,9 @@ export function createRuntimeDeps(options: ComposeOptions = {}): RuntimeDeps {
     modes: { ...DEFAULT_MODES, ...options.modes },
     sendUser: defaultSendUser,
   };
-  if (options.ui !== undefined) deps.ui = options.ui;
+  const ui =
+    options.ui ??
+    (options.io !== undefined ? defaultStartupUi(options.io, { noTui: options.noTui }) : undefined);
+  if (ui !== undefined) deps.ui = ui;
   return deps;
 }
