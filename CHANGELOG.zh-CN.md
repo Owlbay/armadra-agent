@@ -27,6 +27,12 @@
 - **CLI 英文界面**（W6-I1）：`ama --help`、启动画面与启动报错、退出码说明、`ama providers` / `models` / `stats` /
   `sessions export` · `search` / `init` 的输出与报错随界面语言（`AMA_LANG=en` / `--lang en`）；中文输出逐字不变。
   `ama models cache-probe --json` 的 `advice` 是人读文本，也随界面语言。
+- **`/config` 设置面板**（W6-S）：分组列出标量设置与生效值、来源（default / user / profile / project / cli / env）和生效档（即时 / 新会话 / 重启），
+  ↑↓ Enter / 空格修改、`/` 搜索、Tab 切写入层（项目级只许收紧）、被覆盖的项标锁定；改动立即写盘（写前重读、只改一项、留 `.bak`），
+  即时项当场作用于本会话，关闭时汇总。`/config key=value` 直接改一项（line 模式也可用）。
+- **`ama config get | set | unset | list`**：`--project` 写项目级、`--json-value` 传列表 / 对象；未知键、非法值、项目级放宽退出码 3；
+  持久化 `permission.mode full-auto` 在终端里先确认，非终端需 `--yes`。
+- **`ui.replyLanguage`**：设置后会话开始在系统提示 `rules` 节末尾追加 `Reply to the user in <语言>.`；不设时请求零字节变化。
 - **双语文档与配置说明**（W6-I4）：`README.md` 与 `CHANGELOG.md` 改为英文（npm 包页显示），中文移到 `README.zh-CN.md` 与
   `CHANGELOG.zh-CN.md`（0.1–0.5.1 的记录整体在此）；`docs/en/` 新增 `tui`、`permissions`、`providers`、`rpc`、`host-api`、`sessions`
   六篇英文版，中文原路径不动。配置键说明、校验诊断与 `ama init` 输出跟随界面语言；`config.schema.json` 的说明按当前界面语言写，

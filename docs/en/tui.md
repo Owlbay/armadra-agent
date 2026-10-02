@@ -2,7 +2,7 @@
 
 English · [简体中文](../tui.md)
 
-> Translated from the Chinese [docs/tui.md](../tui.md) as of commit `ee89edb`. When the two differ, the Chinese version is
+> Translated from the Chinese [docs/tui.md](../tui.md) as of commit `ed2c792`. When the two differ, the Chinese version is
 > authoritative. Screens below are illustrative; the exact interface wording follows the interface language
 > (`ui.language`, `--lang`, `AMA_LANG`).
 
@@ -367,6 +367,47 @@ The `ui` section of `config.json` (settable at project level too):
 - **ASCII mode**: `AMA_ASCII=1` (or `ui.ascii: true`) forces it on, `AMA_ASCII=0` forces it off; auto-detection turns it on when the locale (`LC_ALL` > `LC_CTYPE` > `LANG`) is set but lacks UTF-8, with `TERM=linux`, or on Windows without `WT_SESSION` or `TERM_PROGRAM` (legacy conhost). Windows Terminal uses Unicode.
 - **Misaligned characters**: `⏺` (U+23FA), `⎿` and `▎` render two cells wide in some fonts (emoji fallback fonts in particular), while width is computed per wcwidth (one cell), causing misaligned columns or ghosting; switch to a monospace font or set `AMA_ASCII=1`.
 - **Colors**: no color with `NO_COLOR` or `TERM=dumb`; 16-color terminals take the nearest color from a built-in table and mark the selected row with accent bold instead of a background; on light terminals set `ui.theme: "light"`.
+
+### The `/config` settings panel and `ama config`
+
+`/config` opens the settings panel (a bottom overlay): about 60 scalar settings listed by group, each row "label · effective value · when it takes effect · source".
+
+```text
+▎ Settings  writing to: user level ~/.config/ama/config.json  [Tab to switch]
+▎ / search
+▎ Interface
+▎ › Theme                     light             restart          source user
+▎   Markdown rendering        true              immediate
+▎ Permissions
+▎   Permission mode           plan              immediate        [locked] project
+▎ ────────────────────────────────────────────────────────────
+▎ Color theme: dark, light, or auto (…)
+▎ ↑↓ select · Enter/Space change · / search · Tab user/project · Backspace reset · Esc close
+```
+
+- **Keys**: ↑↓ move; Enter / Space: toggles booleans, cycles enums of ≤ 4 values, opens a picker for longer enums (thinking level, permission mode …) and models, and inline input for numbers and text (invalid values stay in the box in red, Esc gives up); `/` searches key names, labels, enum values and descriptions, Esc clears the search first and then closes; pressing Backspace / Delete twice removes the key from the target layer (falling back to the value below).
+- **Target layer**: writes go to the user-level `~/.config/ama/config.json` by default; Tab switches to the project-level `.ama/config.json`, which may only tighten (the same check as the merge rules), with user-level-only items greyed out and Enter explaining why. Changes are **written to disk immediately** (the file is re-read before writing, only this key changes, it is validated, a `.bak` is kept); there is no "save" button and no file lock, so when `ama config edit` changes the same key concurrently, the last writer wins for that key. Hand-made formatting is normalized to 2-space indentation.
+- **Source and locking**: the source is default / user / profile / project / cli / env; items overridden by a higher layer (profile, project level, command-line flags, environment variables such as `AMA_CACHE_WARMING`) are marked `[locked]`, the description line gives the reason, and they cannot be changed. In an embedding host (with a profile) the title notes that writes go to the user-level config.
+- **When it takes effect**: "immediate" items apply to this session and the interface right away (`ui` display items except the theme, `defaultModel`, `thinkingLevel`, `permission.mode`, `compaction.enabled`, `retry.enabled`, `cache.warming`); "new session" items apply after `/new` / `/resume`; "restart" items (tool preset, codemode, sandbox, `ui.theme`, `ui.ascii`, `ui.language` …) apply at the next start. The panel = persistence; `/model` `/thinking` `/permission` `/statusline` still change only this session.
+- **Cache**: items marked as affecting the cache change the cache prefix; the first time such an item is changed after the conversation already has replies, the bottom of the panel notes once that the next request will be billed as a miss.
+- Setting `permission.mode` to `full-auto` in the panel first shows the Bypass confirmation, explaining that it will apply on every start from now on.
+- On close, the message area gets a summary such as "Theme: dark → light (user level)", with items that need a restart / new session on a separate line; nothing is shown without changes.
+- List and object keys are not in the panel; the last group, "change elsewhere", gives the entry points (`ama providers`, `/permissions`, `ama config edit`, `--json-value` …).
+
+`/config key=value` (or `/config key value`) writes one user-level key without opening the panel, echoing like the command line; it works in line mode too, and without arguments lists all settings.
+
+Command line (sharing the editing core with the panel):
+
+```text
+ama config get <key> [--json]                              effective value, source, when it takes effect
+ama config set <key> <value> [--project] [--json-value] [--yes]
+ama config unset <key> [--project]
+ama config list [prefix] [--json] [--all]                  by default only the settings shown in the panel
+```
+
+Values are parsed by type: `true/false/on/off/1/0`, numbers (`30_000` allowed), enums case-insensitively, `none` / `unset` = delete; lists and objects use `--json-value` (e.g. `ama config set tools.disabled '["bash"]' --json-value`). Unknown keys, invalid values and loosening rejected at project level all exit with 3 and leave the file alone; `get` / `list` never create the config directory. `ama config set permission.mode full-auto` asks for confirmation in a terminal and needs `--yes` otherwise.
+
+The optional `ui.replyLanguage` (e.g. `Chinese`): at session start one English rule, `Reply to the user in Chinese.`, is appended to the end of the system prompt's `rules` section; requests are byte-identical when unset; user level / profile only.
 
 ## Component library (`@armadra/agent/tui`)
 

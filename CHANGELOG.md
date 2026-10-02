@@ -35,6 +35,16 @@ Wave 6 (docs/wave6-plan.md) contracts and infrastructure (W6-C0):
   output and errors of `ama providers` / `models` / `stats` / `sessions export` · `search` / `init` follow the interface
   language (`AMA_LANG=en` / `--lang en`); Chinese output is unchanged word for word. The `advice` of
   `ama models cache-probe --json` is human-readable text and follows the interface language too.
+- **`/config` settings panel** (W6-S): lists scalar settings by group with their effective value, source (default / user /
+  profile / project / cli / env) and when a change takes effect (immediately / new session / restart); ↑↓ Enter / Space to
+  change, `/` to search, Tab to switch the target layer (project level may only tighten), and overridden items are marked
+  locked. Changes are written to disk at once (re-read before writing, one key only, `.bak` kept); immediate items apply to
+  the current session right away, with a summary on close. `/config key=value` sets a single key (line mode too).
+- **`ama config get | set | unset | list`**: `--project` writes the project level, `--json-value` passes lists / objects;
+  unknown keys, invalid values and loosening at project level exit with 3; persisting `permission.mode full-auto` asks for
+  confirmation in a terminal and needs `--yes` otherwise.
+- **`ui.replyLanguage`**: when set, `Reply to the user in <language>.` is appended to the end of the system prompt's
+  `rules` section at session start; requests are byte-identical when unset.
 - **Bilingual docs and config descriptions** (W6-I4): `README.md` and `CHANGELOG.md` are now English (shown on the npm page);
   the Chinese versions moved to `README.zh-CN.md` and `CHANGELOG.zh-CN.md` (which keeps the full 0.1–0.5.1 history).
   `docs/en/` adds English versions of `tui`, `permissions`, `providers`, `rpc`, `host-api` and `sessions`; the Chinese docs keep

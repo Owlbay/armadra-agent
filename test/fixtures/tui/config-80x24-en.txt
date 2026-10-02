@@ -1,0 +1,25 @@
+# config · en · viewport 80x24 cursor=20,79
+|▎ Settings  Write: user ~/.config/ama/config.json  [Tab switch]
+|▎ / to search
+|▎ Interface
+|▎ › Theme                     dark              restart
+|▎   Render Markdown           true              now
+|▎   Thinking display          collapsed         now
+|▎   Compact layout            false             now
+|▎   Spinner animation         true              now
+|▎   Status line               (unset)           now
+|▎   Restore on cancel         true              new session
+|▎   Startup screen            header            restart              [locked] c…
+|▎   ASCII glyphs              auto (false)      restart
+|▎   Interface language        zh                restart              [locked] A…
+|▎   Reply language            (unset)           new session · cache
+|▎   Agent bar                 (unset)           restart
+|▎ Model
+|▎   Default model             (unset)           now · cache
+|▎ ──────────────────────────────────────────────────────────────────────────────
+|▎ Color theme: dark, light, or auto (guessed from COLORFGBG without querying the
+|▎ terminal; dark when unsure)
+|▎ ↑↓ select · Enter/Space change · / search · Tab user/project · Backspace rese…
+|
+|
+|

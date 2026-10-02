@@ -21,6 +21,7 @@ import {
   keyDoc,
 } from "./key-docs.js";
 import { parseJsonText } from "./load.js";
+import { settingDefault, settingDoc, settingDynamicDefault } from "./settings-registry.js";
 import { validateConfig } from "./schema.js";
 
 const CJK = /[㐀-鿿豈-﫿]/;
@@ -72,6 +73,22 @@ describe("keyDoc(path)", () => {
     setLocale("en");
     expect(isDynamicDefault("defaultModel")).toBe(true);
     expect(documentedLeaves()).toEqual(zhLeaves);
+  });
+});
+
+describe("/config 面板的键说明（settings-registry）", () => {
+  it("settingDoc / settingDynamicDefault 按界面语言；settingDefault 与语言无关", () => {
+    expect(settingDoc("ui.theme")).toBe(keyDoc("ui.theme"));
+    expect(settingDynamicDefault("defaultModel")).toBe("零配置自动选择");
+    const zhDefault = settingDefault("tools.preset");
+    setLocale("en");
+    expect(settingDoc("ui.theme")).toMatch(/^Color theme: dark, light, or auto/);
+    expect(settingDynamicDefault("defaultModel")).toBe(
+      "picked automatically with zero configuration",
+    );
+    expect(settingDynamicDefault("toString")).toBeUndefined();
+    expect(settingDefault("tools.preset")).toEqual(zhDefault);
+    expect(settingDefault("defaultModel")).toBeUndefined();
   });
 });
 
