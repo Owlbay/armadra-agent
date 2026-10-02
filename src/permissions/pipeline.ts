@@ -30,6 +30,7 @@
  */
 
 import { dirname, sep } from "node:path";
+import { isBackgroundJobQuery } from "../tools/background-jobs.js";
 import type {
   ApprovalReason,
   AutoAuditEntry,
@@ -249,7 +250,11 @@ export class PermissionPipeline implements PermissionPipelineApi {
     return [...this.audit];
   }
 
-  check(input: PermissionCheckInput): PermissionVerdict {
+  check(request: PermissionCheckInput): PermissionVerdict {
+    // [W5-H2] 后台 bash 的查询（bash{job, action}，不带 command）只读 / 结束本会话自己启动的任务：按 read
+    const input: PermissionCheckInput = isBackgroundJobQuery(request.toolName, request.input)
+      ? { ...request, permission: "read" }
+      : request;
     const verdict = this.evaluate(input);
     if (this.currentMode === "auto" && verdict.auto === undefined) {
       verdict.auto = {
