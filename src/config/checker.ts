@@ -2,6 +2,8 @@
  * 配置校验的诊断收集器（从 schema.ts 抽出，schema-w5.ts 共用）。[W5-C0]
  */
 
+import { msg } from "../i18n/index.js";
+
 export interface Diagnostic {
   severity: "error" | "warning";
   /** 字段路径；文件级问题为 ""。 */
@@ -26,42 +28,43 @@ export class Checker {
 
   object(value: unknown, path: string): value is Obj {
     if (typeof value === "object" && value !== null && !Array.isArray(value)) return true;
-    this.error(path, "应为对象");
+    this.error(path, msg().config.schema.object);
     return false;
   }
 
   /** 未知字段只警告（前向兼容）。 */
   keys(value: Obj, path: string, allowed: readonly string[]): void {
     for (const key of Object.keys(value)) {
-      if (!allowed.includes(key)) this.warn(join(path, key), "未知字段，已忽略");
+      if (!allowed.includes(key)) this.warn(join(path, key), msg().config.schema.unknownKey);
     }
   }
 
   version(value: Obj, path: string): void {
-    if (value["version"] !== 1) this.error(join(path, "version"), "version 必须为 1");
+    if (value["version"] !== 1) this.error(join(path, "version"), msg().config.schema.version);
   }
 
   string(value: Obj, key: string, path: string, required = false): void {
     const v = value[key];
     if (v === undefined) {
-      if (required) this.error(join(path, key), "缺少必填字符串");
+      if (required) this.error(join(path, key), msg().config.schema.requiredString);
       return;
     }
-    if (typeof v !== "string") this.error(join(path, key), "应为字符串");
+    if (typeof v !== "string") this.error(join(path, key), msg().config.schema.string);
   }
 
   boolean(value: Obj, key: string, path: string): void {
     const v = value[key];
-    if (v !== undefined && typeof v !== "boolean") this.error(join(path, key), "应为布尔值");
+    if (v !== undefined && typeof v !== "boolean")
+      this.error(join(path, key), msg().config.schema.boolean);
   }
 
   number(value: Obj, key: string, path: string, min = 0, max = Number.MAX_SAFE_INTEGER): void {
     const v = value[key];
     if (v === undefined) return;
     if (typeof v !== "number" || !Number.isFinite(v)) {
-      this.error(join(path, key), "应为数字");
+      this.error(join(path, key), msg().config.schema.number);
     } else if (v < min || v > max) {
-      this.error(join(path, key), `应在 ${min}–${max} 之间`);
+      this.error(join(path, key), msg().config.schema.range(min, max));
     }
   }
 
@@ -69,7 +72,7 @@ export class Checker {
     const v = value[key];
     if (v === undefined) return;
     if (typeof v !== "string" || !choices.includes(v)) {
-      this.error(join(path, key), `取值应为 ${choices.join(" | ")}`);
+      this.error(join(path, key), msg().config.schema.oneOf(choices));
     }
   }
 
@@ -77,7 +80,7 @@ export class Checker {
     const v = value[key];
     if (v === undefined) return;
     if (!Array.isArray(v) || v.some((item) => typeof item !== "string")) {
-      this.error(join(path, key), "应为字符串数组");
+      this.error(join(path, key), msg().config.schema.stringArray);
     }
   }
 
@@ -86,7 +89,8 @@ export class Checker {
     if (v === undefined) return;
     if (!this.object(v, join(path, key))) return;
     for (const [k, item] of Object.entries(v)) {
-      if (typeof item !== "string") this.error(join(join(path, key), k), "应为字符串");
+      if (typeof item !== "string")
+        this.error(join(join(path, key), k), msg().config.schema.string);
     }
   }
 }

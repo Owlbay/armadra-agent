@@ -7,6 +7,7 @@
  */
 
 import { isAbsolute } from "node:path";
+import { msg } from "../i18n/index.js";
 import type { AmaConfig, AuthFile, ProfileFile, TrustFile } from "./types.js";
 import {
   Checker,
@@ -142,7 +143,7 @@ function checkModels(
 ): void {
   if (value === undefined) return;
   if (!Array.isArray(value)) {
-    c.error(path, "应为数组");
+    c.error(path, msg().config.schema.array);
     return;
   }
   value.forEach((item: unknown, index) => {
@@ -162,18 +163,19 @@ function checkModels(
       modelsDev !== false &&
       (typeof modelsDev !== "string" || !/^[^/]+\/.+$/.test(modelsDev))
     ) {
-      c.error(join(p, "modelsDev"), `应为 "provider/model" 或 false`);
+      c.error(join(p, "modelsDev"), msg().config.schema.modelsDev);
     }
     c.stringArray(item, "channels", p);
     const used = item["channels"];
     if (Array.isArray(used)) {
       used.forEach((name: unknown, i) => {
         if (typeof name !== "string") return;
-        if (channels === undefined) c.error(join(join(p, "channels"), i), "供应商没有 channels");
+        if (channels === undefined)
+          c.error(join(join(p, "channels"), i), msg().config.schema.noChannels);
         else if (!channels.has(name))
           c.error(
             join(join(p, "channels"), i),
-            `渠道 "${name}" 不存在（可用：${[...channels].join(", ")}）`,
+            msg().config.schema.unknownChannelOf(name, [...channels]),
           );
       });
     }
@@ -188,7 +190,7 @@ function checkModels(
       input !== undefined &&
       (!Array.isArray(input) || input.some((m) => m !== "text" && m !== "image"))
     ) {
-      c.error(join(p, "input"), `应为 ("text" | "image")[]`);
+      c.error(join(p, "input"), msg().config.schema.modelInput);
     }
   });
 }
@@ -221,7 +223,7 @@ function checkChannels(
   for (const [name, channel] of Object.entries(channels)) {
     const p = join(cp, name);
     if (!CHANNEL_NAME_PATTERN.test(name)) {
-      c.error(p, "渠道名只能含字母、数字、_ 与 -（不含 / 与 @），最长 32");
+      c.error(p, msg().config.schema.channelName);
       continue;
     }
     names.add(name);
@@ -234,7 +236,8 @@ function checkChannels(
     if (channel["authHeader"] !== undefined) c.object(channel["authHeader"], join(p, "authHeader"));
     checkCompat(c, channel["compat"], join(p, "compat"));
   }
-  if (names.size === 0 && Object.keys(channels).length === 0) c.error(cp, "至少要有一个渠道");
+  if (names.size === 0 && Object.keys(channels).length === 0)
+    c.error(cp, msg().config.schema.atLeastOneChannel);
   checkDefaultChannel(c, value, path, names);
   return names;
 }
@@ -242,9 +245,10 @@ function checkChannels(
 function checkDefaultChannel(c: Checker, value: Obj, path: string, names: Set<string>): void {
   const preferred = value["defaultChannel"];
   if (preferred === undefined) return;
-  if (typeof preferred !== "string") c.error(join(path, "defaultChannel"), "应为字符串");
+  if (typeof preferred !== "string")
+    c.error(join(path, "defaultChannel"), msg().config.schema.string);
   else if (!names.has(preferred))
-    c.error(join(path, "defaultChannel"), `渠道 "${preferred}" 不存在`);
+    c.error(join(path, "defaultChannel"), msg().config.schema.unknownChannel(preferred));
 }
 
 function checkProvider(c: Checker, value: unknown, path: string, id: string): void {
@@ -259,7 +263,7 @@ function checkProvider(c: Checker, value: unknown, path: string, id: string): vo
   const builtin = BUILTIN_PROVIDERS.find((p) => p.id === id)?.channels?.map((ch) => ch.name);
   const channels = checkChannels(c, value, path, builtin ?? []);
   if (channels === undefined && value["defaultChannel"] !== undefined)
-    c.error(join(path, "defaultChannel"), "没有 channels 时不能设 defaultChannel");
+    c.error(join(path, "defaultChannel"), msg().config.schema.defaultChannelWithoutChannels);
   checkModels(c, value["models"], join(path, "models"), channels);
   checkModels(c, value["modelOverrides"], join(path, "modelOverrides"), channels);
 }
@@ -290,7 +294,7 @@ export function validateConfig(value: unknown): Diagnostic[] {
       typeof builtinDeny !== "boolean" &&
       (!Array.isArray(builtinDeny) || builtinDeny.some((item) => typeof item !== "string"))
     ) {
-      c.error(join(p, "builtinDeny"), "应为布尔值或字符串数组");
+      c.error(join(p, "builtinDeny"), msg().config.schema.builtinDeny);
     }
   });
   const compactionKeys = ["enabled", "reserveTokens", "keepRecentTokens", ...W5_COMPACTION_KEYS];
@@ -382,7 +386,7 @@ export function validateConfig(value: unknown): Diagnostic[] {
     if (Array.isArray(writable))
       writable.forEach((item, i) => {
         if (typeof item === "string" && !isAbsolute(item) && item !== "~" && !item.startsWith("~/"))
-          c.warn(`${p}.writable[${i}]`, "应为绝对路径或 ~/…，已忽略");
+          c.warn(`${p}.writable[${i}]`, msg().config.schema.writablePath);
       });
   });
   checkSection(
@@ -414,7 +418,7 @@ export function validateAuthFile(value: unknown): Diagnostic[] {
   c.keys(value, "", ["version", "providers"]);
   const providers = value["providers"];
   if (providers === undefined) {
-    c.error("providers", "缺少 providers");
+    c.error("providers", msg().config.schema.providersMissing);
     return c.diagnostics;
   }
   if (!c.object(providers, "providers")) return c.diagnostics;
@@ -476,7 +480,7 @@ export function validateTrustFile(value: unknown): Diagnostic[] {
   c.version(value, "");
   const entries = value["entries"];
   if (!Array.isArray(entries)) {
-    c.error("entries", "应为数组");
+    c.error("entries", msg().config.schema.array);
     return c.diagnostics;
   }
   entries.forEach((entry: unknown, index) => {
@@ -484,7 +488,8 @@ export function validateTrustFile(value: unknown): Diagnostic[] {
     if (!c.object(entry, p)) return;
     c.string(entry, "path", p, true);
     c.string(entry, "at", p, true);
-    if (typeof entry["trusted"] !== "boolean") c.error(join(p, "trusted"), "应为布尔值");
+    if (typeof entry["trusted"] !== "boolean")
+      c.error(join(p, "trusted"), msg().config.schema.boolean);
   });
   return c.diagnostics;
 }
@@ -500,11 +505,11 @@ export function validateHookConfig(value: unknown): Diagnostic[] {
   for (const [event, groups] of Object.entries(hooks)) {
     const p = join("hooks", event);
     if (!(HOOK_EVENTS as readonly string[]).includes(event)) {
-      c.error(p, `未知事件（可用：${HOOK_EVENTS.join(", ")}）`);
+      c.error(p, msg().config.schema.hookEvent(HOOK_EVENTS));
       continue;
     }
     if (!Array.isArray(groups)) {
-      c.error(p, "应为数组");
+      c.error(p, msg().config.schema.array);
       continue;
     }
     groups.forEach((group: unknown, gi) => {
@@ -514,17 +519,17 @@ export function validateHookConfig(value: unknown): Diagnostic[] {
       c.string(group, "matcher", gp);
       const commands = group["hooks"];
       if (!Array.isArray(commands)) {
-        c.error(join(gp, "hooks"), "应为数组");
+        c.error(join(gp, "hooks"), msg().config.schema.array);
         return;
       }
       commands.forEach((command: unknown, ci) => {
         const cp = join(join(gp, "hooks"), ci);
         if (!c.object(command, cp)) return;
         c.keys(command, cp, ["type", "command", "timeoutMs"]);
-        if (command["type"] !== "command") c.error(join(cp, "type"), `type 必须为 "command"`);
+        if (command["type"] !== "command") c.error(join(cp, "type"), msg().config.schema.hookType);
         c.string(command, "command", cp, true);
         if (typeof command["command"] === "string" && command["command"].trim() === "") {
-          c.error(join(cp, "command"), "命令为空");
+          c.error(join(cp, "command"), msg().config.schema.hookCommandEmpty);
         }
         c.number(command, "timeoutMs", cp, 1, HOOK_TIMEOUT_MAX_MS);
       });

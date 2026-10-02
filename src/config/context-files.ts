@@ -11,6 +11,7 @@
 
 import { readFileSync, realpathSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { msg } from "../i18n/index.js";
 import { ancestorsOf } from "./trust.js";
 
 export const CONTEXT_FILE_NAMES = ["AGENTS.override.md", "AGENTS.md", "AGENTS.MD"] as const;
@@ -71,12 +72,12 @@ export function findContextFiles(input: FindContextFilesInput): FindContextFiles
     try {
       content = readFileSync(path, "utf8");
     } catch (error) {
-      warnings.push(`${path}: 读取失败（${(error as Error).message}）`);
+      warnings.push(msg().config.context.readFailed(path, (error as Error).message));
       return;
     }
     if (Buffer.byteLength(content) > maxBytes) {
       content = Buffer.from(content).subarray(0, maxBytes).toString("utf8");
-      warnings.push(`${path}: 超过 ${maxBytes} 字节，已截断`);
+      warnings.push(msg().config.context.truncated(path, maxBytes));
     }
     if (seenContent.has(content)) return;
     seenContent.add(content);
