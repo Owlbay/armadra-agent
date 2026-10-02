@@ -234,8 +234,8 @@ describe("RPC 模式：stdin 结束", () => {
 });
 
 describe("RPC 命令表", () => {
-  it("33 条命令都有处理器；状态 / 模型 / 工具 / 会话类命令往返成功", async () => {
-    expect(RPC_COMMAND_TYPES).toHaveLength(33);
+  it("37 条命令都有处理器；状态 / 模型 / 工具 / 会话类命令往返成功", async () => {
+    expect(RPC_COMMAND_TYPES).toHaveLength(37);
     const { lines } = await drive([{ text: "one" }, { text: "two" }], async (d) => {
       d.send({ id: "p", type: "prompt", message: "hello" });
       await d.waitFor(settled);
@@ -287,6 +287,48 @@ describe("RPC 命令表", () => {
     expect(byId("q14")).toEqual({ names: ["grep", "read"] });
     expect(byId("s")).toMatchObject({ permissionMode: "plan", messageCount: 0 });
     expect(lines.filter((l) => l["type"] === "session_start")).toHaveLength(3);
+  });
+});
+
+describe("RPC 回滚", () => {
+  it("黄金记录：get_rewind_points → rewind（仅对话）→ session_rewound；无检查点时代码回滚报 no_checkpoint", async () => {
+    const { lines } = await drive([{ text: "one" }, { text: "two" }], async (d) => {
+      d.send({ id: "p1", type: "prompt", message: "first" });
+      await d.waitFor(settled);
+      d.send({ id: "p2", type: "prompt", message: "second" });
+      await d.waitFor((l) => settled(l) && d.lines.filter(settled).length === 2);
+      d.send({ id: "pts", type: "get_rewind_points" });
+      const points = (await d.waitFor((l) => l["id"] === "pts"))["data"] as {
+        points: { entryId: string }[];
+      };
+      const target = points.points[1]?.entryId;
+      d.send({ id: "code", type: "rewind", entryId: target, mode: "code" });
+      await d.waitFor((l) => l["id"] === "code");
+      d.send({ id: "rw", type: "rewind", entryId: target, mode: "conversation" });
+      await d.waitFor((l) => l["id"] === "rw");
+      d.send({ id: "bad", type: "summarize_up_to", entryId: "missing" });
+      await d.waitFor((l) => l["id"] === "bad");
+      d.send({ id: "after", type: "get_rewind_points" });
+      await d.waitFor((l) => l["id"] === "after");
+    });
+    expect(lines.find((l) => l["id"] === "code")).toMatchObject({
+      success: false,
+      code: "no_checkpoint",
+    });
+    expect(lines.find((l) => l["id"] === "rw")).toMatchObject({
+      success: true,
+      data: { conversation: { draft: { text: "second" } } },
+    });
+    expect(lines.find((l) => l["id"] === "bad")).toMatchObject({ code: "invalid_arguments" });
+    const from = lines.findIndex((l) => l["id"] === "pts");
+    golden(
+      "rewind.out.jsonl",
+      lines
+        .slice(from)
+        .filter((l) => l["type"] !== "entry_appended")
+        .map((l) => normalize(l, h.home.root))
+        .join("\n") + "\n",
+    );
   });
 });
 

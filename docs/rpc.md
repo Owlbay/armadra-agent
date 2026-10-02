@@ -90,6 +90,19 @@
 | `set_session_name` †  | `name: string`           | `{ name }`                                                                                  |
 | `get_fork_messages` † | —                        | `{ messages: { entryId, text }[] }`（活动分支上的用户消息，`fork` 的候选）                  |
 
+### 回滚
+
+详见 [rewind-plan.md](rewind-plan.md) §3。回滚点是活动路径上开启新回合的用户消息（运行中插话、排队消息并入当前回合，不单列）。运行中调用回 `busy`。
+
+| 命令                | 参数                                                                                                      | `data`                                                                                                                                                                          |
+| ------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `get_rewind_points` | —                                                                                                         | `{ points: { entryId, text, timestamp, hasCheckpoint }[] }`，从旧到新；`hasCheckpoint: false`（内存会话、检查点关闭、超出保留数）时只能仅对话                                   |
+| `rewind`            | `entryId`、`mode: both \| conversation \| code`、`dryRun?: boolean`、`onConflict?: "skip" \| "overwrite"` | `RewindResult`：`conversation?: { leafId, draft: { text, images? } }`、`code?: CodeRestoreResult`、`gitHint?: { recordedHead, currentHead }`；`dryRun` 只返回预览，不改任何东西 |
+| `summarize_from`    | `entryId`、`instructions?: string`                                                                        | `{ leafId, draft, summary? }`：回到该消息之前，为离开的分支写 `branch_summary`，并回填原消息                                                                                    |
+| `summarize_up_to`   | `entryId`、`instructions?: string`                                                                        | `CompactionResult`：以该消息为切点压缩之前的上下文（`firstKeptEntryId` = 该消息），停在末尾                                                                                     |
+
+`CodeRestoreResult`：`restored` / `deleted` / `conflicts`（`skip` 时未动，`overwrite` 时已覆盖）/ `skipped: { path, reason }[]`（`symlink` / `hardlink` / `not_regular` / `parent_moved` / `too_large` / `backup_missing`）/ `failed: { path, message }[]` / `insertions` / `deletions`；路径在 cwd 内为相对路径（`/` 分隔）。错误码：没有检查点却要恢复代码 → `no_checkpoint`；全部失败且无一恢复 → `rewind_failed`（对话不动）；条目不是活动路径上的回滚点 → `invalid_arguments`。仅对话或仅代码时，下一次提示前会在上下文末尾追加一条 `custom_message{customType: "ama.rewind-note"}` 告诉模型哪些文件与对话不一致。
+
 换会话后服务端重新订阅事件，并为新会话发 `session_start`（`reason` 为 `new` / `resume` / `fork`）。`new_session` 目前不使用 `parentSession` 参数。条目形状见 [session-format.md](session-format.md)。
 
 ### 审批
@@ -109,7 +122,7 @@
 | `get_commands`        | —                                                                      | `{ commands: { name, description?, source: "builtin" \| "template" \| "skill" }[] }`；Skill 名写作 `skill:<名>`     |
 | `get_skills`          | —                                                                      | `{ skills: { name, description, location, … }[] }`（已发现的 Skill；`location` 是 SKILL.md 路径）                   |
 
-合计 33 条命令，名字即 `RpcCommandMap` 的键。
+合计 37 条命令，名字即 `RpcCommandMap` 的键。
 
 ## 事件
 
@@ -119,6 +132,7 @@
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `session_start`                                      | `sessionId`、`sessionFile?`、`cwd`、`reason: startup \| resume \| new \| fork`                                                                                                                                                                   |
 | `session_changed`                                    | `sessionId`、`sessionFile?`                                                                                                                                                                                                                      |
+| `session_rewound`                                    | `entryId`、`mode`、`restored`、`deleted`、`conflicts`、`skipped`（回滚完成；`dryRun` 不发，仅对话时文件清单为空）                                                                                                                                |
 | `before_agent_start`                                 | `prompt`（经 UserPromptSubmit Hook 与模板展开之后）                                                                                                                                                                                              |
 | `agent_start` / `turn_start` / `agent_before_settle` | —                                                                                                                                                                                                                                                |
 | `turn_end`                                           | `message`（助手消息）、`toolResults`                                                                                                                                                                                                             |
@@ -244,7 +258,7 @@
 
 ## 示例
 
-`test/fixtures/rpc/prompt.out.jsonl` 是一次完整往返的黄金文件（fake 供应商；`prompt` → `get_last_assistant_text`，会话 id、时间戳与路径已归一化）：`hello` → `session_start` → `entry_appended`（模型、思考级别、首条 system 消息）→ `before_agent_start` → `agent_start` → `turn_start` → `prompt` 的响应 → 用户消息 → 助手消息的 `message_update` 增量 → `turn_end` → `agent_end` → `agent_before_settle` → `agent_settled` → 第二条命令的响应。改协议后由 `src/modes/rpc/rpc-mode.test.ts` 用 `UPDATE_GOLDEN=1` 更新并审阅差异。
+`test/fixtures/rpc/prompt.out.jsonl` 是一次完整往返的黄金文件（fake 供应商；`prompt` → `get_last_assistant_text`，会话 id、时间戳与路径已归一化）：`hello` → `session_start` → `entry_appended`（模型、思考级别、首条 system 消息）→ `before_agent_start` → `agent_start` → `turn_start` → `prompt` 的响应 → 用户消息 → 助手消息的 `message_update` 增量 → `turn_end` → `agent_end` → `agent_before_settle` → `agent_settled` → 第二条命令的响应。改协议后由 `src/modes/rpc/rpc-mode.test.ts` 用 `UPDATE_GOLDEN=1` 更新并审阅差异。`test/fixtures/rpc/rewind.out.jsonl` 记回滚的往返（不含 `entry_appended`）：`get_rewind_points` → 无检查点时 `rewind{mode:"code"}` 回 `no_checkpoint` → `rewind{mode:"conversation"}` 先发 `session_rewound` 再回 `RewindResult` → 非回滚点的 `summarize_up_to` 回 `invalid_arguments` → 回滚后的 `get_rewind_points`。
 
 最小会话（stdin 关闭即撤下审批，所以管道方式只适合不需要审批的提示；要回答审批，保持 stdin 打开并先发 `set_client_capabilities`）：
 
