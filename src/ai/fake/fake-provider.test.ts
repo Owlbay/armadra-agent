@@ -1,4 +1,4 @@
-import { readdirSync, writeFileSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
@@ -137,6 +137,45 @@ describe("FakeProvider", () => {
     expect(final.errorMessage).toMatch(/^401 /);
     expect(statuses).toEqual([401]);
     expect(payloads).toHaveLength(1);
+  });
+
+  it("录制开关：每次请求追加一行 { system, tools, messagesCount }（缺省实例读 AMA_FAKE_RECORD，由 bundle e2e 覆盖）", async () => {
+    const home = createTmpHome("ama-fake-record-");
+    try {
+      const file = home.path("record.jsonl");
+      const fake = new FakeProvider(undefined, { recordFile: file });
+      const withTools: TranscriptContext = {
+        messages: [
+          {
+            role: "system",
+            sections: { preamble: "p" },
+            toolsAdded: [{ name: "read", description: "Read", parameters: { type: "object" } }],
+            timestamp: 0,
+          },
+          ...context.messages.slice(1),
+        ],
+      };
+      await collectEvents(fake.api.stream(echo, withTools, opts()));
+      await collectEvents(fake.api.stream(echo, context, opts({ purpose: "warm" })));
+      const lines = readFileSync(file, "utf8")
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l) as Record<string, unknown>);
+      expect(lines).toHaveLength(2);
+      expect(lines[0]).toMatchObject({
+        index: 0,
+        purpose: "turn",
+        model: "fake/echo",
+        system: "p",
+        messagesCount: 1,
+      });
+      expect(lines[0]?.["tools"]).toEqual([
+        { name: "read", description: "Read", parameters: { type: "object" } },
+      ]);
+      expect(lines[1]).toMatchObject({ index: 1, purpose: "warm", tools: [] });
+    } finally {
+      home.cleanup();
+    }
   });
 });
 

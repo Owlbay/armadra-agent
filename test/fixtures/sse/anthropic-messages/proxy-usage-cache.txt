@@ -1,0 +1,38 @@
+#status 200
+#header content-type: text/event-stream
+event: ping
+data: {"type":"ping"}
+
+
+event: message_start
+data: {"message":{"model":"MiniMax/MiniMax-M2.7","id":"731d1eaa-835a-4a97-8b5b-587dd17423a9","role":"assistant","type":"message","content":[],"usage":{"input_tokens":3911,"output_tokens":0}},"type":"message_start"}
+
+
+event: content_block_start
+data: {"type":"content_block_start","content_block":{"type":"thinking","signature":"","thinking":""},"index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":"The"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" user is asking me to reply with \"ok\". This is a"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"signature_delta","signature":""},"type":"content_block_delta","index":0}
+
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+
+event: message_delta
+data: {"delta":{"stop_reason":"max_tokens"},"type":"message_delta","usage":{"output_tokens":16,"cache_creation_input_tokens":0,"input_tokens":32,"cache_read_input_tokens":4475,"prompt_tokens_details":{"cached_tokens":4475}}}
+
+
+event: message_stop
+data: {"type":"message_stop"}
+
+

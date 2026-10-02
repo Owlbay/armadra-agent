@@ -1,0 +1,482 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "thinking_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "The"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " user asks"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " which"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " is larger"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ", 9."
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "11 or 9"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ".9. They"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " want"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " the"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " answer."
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " They"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " say"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " \"Think"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " it through,"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " then answer in one"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " line.\"\n\n"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "Thus"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " the"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " assistant"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " should"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " think"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " through"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " the comparison"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "."
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " Since"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " both"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " are decimal"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " numbers, "
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "9.11"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " vs"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " 9.9"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ". 9."
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "9 is greater"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " because"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " 9.9"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " >"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " 9.11"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ".\n\n"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "But"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " the"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " instruction"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " from"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " system"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ": \"You"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " are a ters"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "e assistant.\" So"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " we"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " should"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " be concise. Provide"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " a"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " one-line"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " answer"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ". Probably"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " \"9"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ".9 is larger"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ".\"\n\n"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "Thus"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " answer"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ": \"9."
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "9 is larger.\"\n\n"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "But the"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " user"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " wants us"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " to think through"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " then"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " answer in"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " one line. The"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " assistant"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "'s"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " reasoning is not"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " needed"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ","
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " only"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " answer"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ".\n\n"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "Thus"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " final"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ":"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " \"9"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ".9 is larger"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ".\"\n"
+  },
+  {
+    "type": "thinking_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 1
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 1,
+    "delta": "\n\n9"
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 1,
+    "delta": ".9 is larger"
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 1,
+    "delta": "."
+  },
+  {
+    "type": "text_end",
+    "contentIndex": 1
+  },
+  {
+    "type": "done",
+    "reason": "stop",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking": "The user asks which is larger, 9.11 or 9.9. They want the answer. They say \"Think it through, then answer in one line.\"\n\nThus the assistant should think through the comparison. Since both are decimal numbers, 9.11 vs 9.9. 9.9 is greater because 9.9 > 9.11.\n\nBut the instruction from system: \"You are a terse assistant.\" So we should be concise. Provide a one-line answer. Probably \"9.9 is larger.\"\n\nThus answer: \"9.9 is larger.\"\n\nBut the user wants us to think through then answer in one line. The assistant's reasoning is not needed, only answer.\n\nThus final: \"9.9 is larger.\"\n",
+          "thinkingSignature": ""
+        },
+        {
+          "type": "text",
+          "text": "\n\n9.9 is larger."
+        }
+      ],
+      "api": "anthropic-messages",
+      "provider": "packy",
+      "model": "MiniMax-M2.7",
+      "usage": {
+        "input": 47,
+        "output": 165,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 212,
+        "cacheReported": true,
+        "cost": {
+          "input": 0.000014099999999999999,
+          "output": 0.000198,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0.00021209999999999998
+        }
+      },
+      "stopReason": "stop",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "responseId": "bed5ef59-bf4c-4a4a-8d00-24bb038a80e8",
+      "rawStopReason": "end_turn"
+    }
+  }
+]

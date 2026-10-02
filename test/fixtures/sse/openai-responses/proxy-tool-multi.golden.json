@@ -1,0 +1,251 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "thinking_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "The"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " user wants two"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " independent"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " read"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " calls plus an ls"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " of"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " src directory. All"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " three calls are independent"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ", so"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " I should batch them"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " in one"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " block."
+  },
+  {
+    "type": "thinking_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 1,
+    "id": "call_7395b5759c7d4e538d76de54",
+    "name": "read"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "{\"path\": "
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "\"a.ts"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "\""
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "}"
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 1,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "call_7395b5759c7d4e538d76de54",
+      "name": "read",
+      "arguments": {
+        "path": "a.ts"
+      },
+      "thoughtSignature": "msg_fb3ee14e-97d3-46fb-937c-4c401d5aa8f8"
+    }
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 2,
+    "id": "call_7c3b5c533fb04fa6a9dbeb40",
+    "name": "read"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 2,
+    "delta": "{\"path\": \"b"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 2,
+    "delta": ".ts"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 2,
+    "delta": "\""
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 2,
+    "delta": "}"
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 2,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "call_7c3b5c533fb04fa6a9dbeb40",
+      "name": "read",
+      "arguments": {
+        "path": "b.ts"
+      },
+      "thoughtSignature": "msg_aacb4e13-200b-4752-96bd-70c56dd21b9a"
+    }
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 3,
+    "id": "call_d0bc6998ca514437aef40b5e",
+    "name": "ls"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 3,
+    "delta": "{\"dir\": \"src"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 3,
+    "delta": "\""
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 3,
+    "delta": "}"
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 3,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "call_d0bc6998ca514437aef40b5e",
+      "name": "ls",
+      "arguments": {
+        "dir": "src"
+      },
+      "thoughtSignature": "msg_1cb49848-816b-4b27-a371-78f32b7e6499"
+    }
+  },
+  {
+    "type": "done",
+    "reason": "toolUse",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking": "The user wants two independent read calls plus an ls of src directory. All three calls are independent, so I should batch them in one block.",
+          "thinkingSignature": "{\"summary\":[{\"type\":\"summary_text\",\"text\":\"The user wants two independent read calls plus an ls of src directory. All three calls are independent, so I should batch them in one block.\"}],\"type\":\"reasoning\",\"id\":\"msg_85a071e3-ddfd-4c03-80a3-24cb881fa75a\"}"
+        },
+        {
+          "type": "toolCall",
+          "id": "call_7395b5759c7d4e538d76de54",
+          "name": "read",
+          "arguments": {
+            "path": "a.ts"
+          },
+          "thoughtSignature": "msg_fb3ee14e-97d3-46fb-937c-4c401d5aa8f8"
+        },
+        {
+          "type": "toolCall",
+          "id": "call_7c3b5c533fb04fa6a9dbeb40",
+          "name": "read",
+          "arguments": {
+            "path": "b.ts"
+          },
+          "thoughtSignature": "msg_aacb4e13-200b-4752-96bd-70c56dd21b9a"
+        },
+        {
+          "type": "toolCall",
+          "id": "call_d0bc6998ca514437aef40b5e",
+          "name": "ls",
+          "arguments": {
+            "dir": "src"
+          },
+          "thoughtSignature": "msg_1cb49848-816b-4b27-a371-78f32b7e6499"
+        }
+      ],
+      "api": "openai-responses",
+      "provider": "packy",
+      "model": "qwen3.8-flash",
+      "usage": {
+        "input": 387,
+        "output": 107,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 494,
+        "cacheReported": true,
+        "reasoning": 29,
+        "cost": {
+          "input": 0.001935,
+          "output": 0.00321,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0.005145
+        }
+      },
+      "stopReason": "toolUse",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "providerThinkingLevel": "none",
+      "responseId": "resp_b987b93b-04fc-9daf-9e0d-9c7364df5679",
+      "rawStopReason": "completed"
+    }
+  }
+]

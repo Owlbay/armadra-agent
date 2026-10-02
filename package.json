@@ -55,7 +55,10 @@
     "fmt": "prettier --write .",
     "fmt:check": "prettier --check .",
     "check:deps": "node scripts/check-no-deps.mjs",
-    "ci": "pnpm typecheck && pnpm fmt:check && pnpm check:deps && pnpm test && pnpm build && node dist/bundle/ama.cjs --version"
+    "release:check": "node scripts/release-check.mjs",
+    "bench:presets": "node scripts/bench-presets.mjs",
+    "bench:cache": "node scripts/cache-experiment.mjs",
+    "ci": "pnpm typecheck && pnpm fmt:check && pnpm check:deps && pnpm release:check && pnpm test && pnpm build && node dist/bundle/ama.cjs --version"
   },
   "dependencies": {},
   "devDependencies": {

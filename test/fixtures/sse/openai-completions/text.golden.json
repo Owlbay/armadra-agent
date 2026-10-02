@@ -3,22 +3,225 @@
     "type": "start"
   },
   {
-    "type": "text_start",
+    "type": "thinking_start",
     "contentIndex": 0
   },
   {
-    "type": "text_delta",
+    "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": "Hello"
+    "delta": "We"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " need"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " to"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " respond"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " with"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " a"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " short"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " sentence"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " containing"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " \""
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "世界"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "\""
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " ("
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "world"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ")"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " and"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " greeting"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "."
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " Keep"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " it"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " t"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "erse"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "."
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " Example"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ":"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " \""
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "你好"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "，"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "世界"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "！"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "\""
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " That"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "'s"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " a"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " standard"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " greeting"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "."
+  },
+  {
+    "type": "thinking_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 1
   },
   {
     "type": "text_delta",
-    "contentIndex": 0,
-    "delta": ", 世界 👋"
+    "contentIndex": 1,
+    "delta": "你好"
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 1,
+    "delta": "，"
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 1,
+    "delta": "世界"
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 1,
+    "delta": "！"
   },
   {
     "type": "text_end",
-    "contentIndex": 0
+    "contentIndex": 1
   },
   {
     "type": "done",
@@ -27,33 +230,38 @@
       "role": "assistant",
       "content": [
         {
+          "type": "thinking",
+          "thinking": "We need to respond with a short sentence containing \"世界\" (world) and greeting. Keep it terse. Example: \"你好，世界！\" That's a standard greeting.",
+          "thinkingSignature": "reasoning_content"
+        },
+        {
           "type": "text",
-          "text": "Hello, 世界 👋"
+          "text": "你好，世界！"
         }
       ],
       "api": "openai-completions",
-      "provider": "openai",
-      "model": "gpt-5.4",
+      "provider": "packy",
+      "model": "deepseek-v4-flash",
       "usage": {
-        "input": 176,
-        "output": 9,
-        "cacheRead": 1024,
+        "input": 104,
+        "output": 42,
+        "cacheRead": 0,
         "cacheWrite": 0,
-        "totalTokens": 1209,
+        "totalTokens": 146,
         "cacheReported": true,
-        "reasoning": 0,
+        "reasoning": 37,
         "cost": {
-          "input": 0.000176,
-          "output": 0.000036,
-          "cacheRead": 0.00010240000000000001,
+          "input": 0.000104,
+          "output": 0.000168,
+          "cacheRead": 0,
           "cacheWrite": 0,
-          "total": 0.0003144
+          "total": 0.000272
         }
       },
       "stopReason": "stop",
       "timestamp": 0,
       "thinkingLevel": "off",
-      "responseId": "chatcmpl-text1",
+      "responseId": "0217909067979272d60f60bba313662d1f7bb8a224af9f4cc692f",
       "rawStopReason": "stop"
     }
   }

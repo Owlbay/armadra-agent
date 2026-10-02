@@ -3,32 +3,145 @@
     "type": "start"
   },
   {
-    "type": "toolcall_start",
+    "type": "thinking_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "thinking_delta",
     "contentIndex": 0,
-    "id": "call_DdmNjhvTr1LwHJ8bCzKAxqPa",
+    "delta": "The"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " user"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " wants"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " me"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " to"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " read"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " READ"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "ME"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ".md"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " using"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " the"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " read"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " tool"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "."
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " Let"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " me"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " do"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " that"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "."
+  },
+  {
+    "type": "thinking_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 1,
+    "id": "call_f7dmpjep0vpd9hvftdmbun88",
     "name": "read"
   },
   {
     "type": "toolcall_delta",
-    "contentIndex": 0,
-    "delta": "{\""
+    "contentIndex": 1,
+    "delta": "{\"path\": \""
   },
   {
     "type": "toolcall_delta",
-    "contentIndex": 0,
-    "delta": "path\":\"README"
+    "contentIndex": 1,
+    "delta": "README"
   },
   {
     "type": "toolcall_delta",
-    "contentIndex": 0,
-    "delta": ".md\"}"
+    "contentIndex": 1,
+    "delta": ".md"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "\""
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "}"
   },
   {
     "type": "toolcall_end",
-    "contentIndex": 0,
+    "contentIndex": 1,
     "toolCall": {
       "type": "toolCall",
-      "id": "call_DdmNjhvTr1LwHJ8bCzKAxqPa",
+      "id": "call_f7dmpjep0vpd9hvftdmbun88",
       "name": "read",
       "arguments": {
         "path": "README.md"
@@ -42,8 +155,13 @@
       "role": "assistant",
       "content": [
         {
+          "type": "thinking",
+          "thinking": "The user wants me to read README.md using the read tool. Let me do that.",
+          "thinkingSignature": "reasoning_content"
+        },
+        {
           "type": "toolCall",
-          "id": "call_DdmNjhvTr1LwHJ8bCzKAxqPa",
+          "id": "call_f7dmpjep0vpd9hvftdmbun88",
           "name": "read",
           "arguments": {
             "path": "README.md"
@@ -51,28 +169,28 @@
         }
       ],
       "api": "openai-completions",
-      "provider": "openai",
-      "model": "gpt-5.4",
+      "provider": "packy",
+      "model": "deepseek-v4-flash",
       "usage": {
-        "input": 300,
-        "output": 18,
+        "input": 427,
+        "output": 63,
         "cacheRead": 0,
         "cacheWrite": 0,
-        "totalTokens": 318,
+        "totalTokens": 490,
         "cacheReported": true,
-        "reasoning": 0,
+        "reasoning": 19,
         "cost": {
-          "input": 0.0003,
-          "output": 0.000072,
+          "input": 0.000427,
+          "output": 0.000252,
           "cacheRead": 0,
           "cacheWrite": 0,
-          "total": 0.000372
+          "total": 0.000679
         }
       },
       "stopReason": "toolUse",
       "timestamp": 0,
       "thinkingLevel": "off",
-      "responseId": "chatcmpl-tool1",
+      "responseId": "0217909068031012d60f60bba313662d1f7bb8a224af9f4a108e3",
       "rawStopReason": "tool_calls"
     }
   }

@@ -1,23 +1,38 @@
 #status 200
-#header content-type: text/event-stream; charset=utf-8
+#header content-type: text/event-stream
 event: response.created
-data: {"type":"response.created","sequence_number":0,"response":{"id":"resp_len1","object":"response","created_at":1767225600,"status":"in_progress","model":"gpt-5.5","output":[],"usage":null,"incomplete_details":null,"error":null}}
+data: {"sequence_number":0,"type":"response.created","response":{"top_logprobs":0,"instructions":"You are a terse assistant.","metadata":{},"presence_penalty":0.0,"created_at":1790906922,"store":false,"tools":[],"output":[],"top_p":1.0,"completed_at":1790906922,"frequency_penalty":0.0,"parallel_tool_calls":true,"background":false,"temperature":1.0,"tool_choice":"auto","model":"qwen3.8-flash","service_tier":"default","id":"resp_31f4efd3-b8ac-9413-ab06-e21ac29fbb57","max_output_tokens":16,"object":"response","status":"queued"}}
 
 event: response.in_progress
-data: {"type":"response.in_progress","sequence_number":1,"response":{"id":"resp_len1","object":"response","created_at":1767225600,"status":"in_progress","model":"gpt-5.5","output":[],"usage":null,"incomplete_details":null,"error":null}}
+data: {"sequence_number":1,"type":"response.in_progress","response":{"top_logprobs":0,"instructions":"You are a terse assistant.","metadata":{},"presence_penalty":0.0,"created_at":1790906922,"store":false,"tools":[],"output":[],"top_p":1.0,"completed_at":1790906922,"frequency_penalty":0.0,"parallel_tool_calls":true,"background":false,"temperature":1.0,"tool_choice":"auto","model":"qwen3.8-flash","service_tier":"default","id":"resp_31f4efd3-b8ac-9413-ab06-e21ac29fbb57","max_output_tokens":16,"object":"response","status":"in_progress"}}
 
 event: response.output_item.added
-data: {"type":"response.output_item.added","sequence_number":2,"output_index":0,"item":{"id":"msg_len1","type":"message","status":"in_progress","content":[],"role":"assistant"}}
+data: {"sequence_number":2,"item":{"summary":[],"type":"reasoning","id":"msg_fd603f72-a722-42c8-9b8b-4094be18ed4f"},"output_index":0,"type":"response.output_item.added"}
 
-event: response.content_part.added
-data: {"type":"response.content_part.added","sequence_number":3,"item_id":"msg_len1","output_index":0,"content_index":0,"part":{"type":"output_text","annotations":[],"text":""}}
+event: response.reasoning_text.delta
+data: {"delta":"We","sequence_number":3,"output_index":0,"type":"response.reasoning_text.delta","content_index":0,"item_id":"msg_fd603f72-a722-42c8-9b8b-4094be18ed4f"}
 
-event: response.output_text.delta
-data: {"type":"response.output_text.delta","sequence_number":4,"item_id":"msg_len1","output_index":0,"content_index":0,"delta":"Once upon a time, a lighthouse keeper"}
+event: response.reasoning_text.delta
+data: {"delta":" need answer","sequence_number":4,"output_index":0,"type":"response.reasoning_text.delta","content_index":0,"item_id":"msg_fd603f72-a722-42c8-9b8b-4094be18ed4f"}
 
-event: response.output_text.delta
-data: {"type":"response.output_text.delta","sequence_number":5,"item_id":"msg_len1","output_index":0,"content_index":0,"delta":" named"}
+event: response.reasoning_text.delta
+data: {"delta":" user:","sequence_number":5,"output_index":0,"type":"response.reasoning_text.delta","content_index":0,"item_id":"msg_fd603f72-a722-42c8-9b8b-4094be18ed4f"}
+
+event: response.reasoning_text.delta
+data: {"delta":" \"Write a long","sequence_number":6,"output_index":0,"type":"response.reasoning_text.delta","content_index":0,"item_id":"msg_fd603f72-a722-42c8-9b8b-4094be18ed4f"}
+
+event: response.reasoning_text.delta
+data: {"delta":" story about a l","sequence_number":7,"output_index":0,"type":"response.reasoning_text.delta","content_index":0,"item_id":"msg_fd603f72-a722-42c8-9b8b-4094be18ed4f"}
+
+event: response.reasoning_text.delta
+data: {"delta":"ighthouse keeper.\"","sequence_number":8,"output_index":0,"type":"response.reasoning_text.delta","content_index":0,"item_id":"msg_fd603f72-a722-42c8-9b8b-4094be18ed4f"}
+
+event: response.reasoning_text.done
+data: {"sequence_number":9,"text":"We need answer user: \"Write a long story about a lighthouse keeper.\"","output_index":0,"type":"response.reasoning_text.done","content_index":0,"item_id":"msg_fd603f72-a722-42c8-9b8b-4094be18ed4f"}
+
+event: response.output_item.done
+data: {"sequence_number":10,"item":{"summary":[{"type":"summary_text","text":"We need answer user: \"Write a long story about a lighthouse keeper.\""}],"type":"reasoning","id":"msg_fd603f72-a722-42c8-9b8b-4094be18ed4f"},"output_index":0,"type":"response.output_item.done"}
 
 event: response.incomplete
-data: {"type":"response.incomplete","sequence_number":6,"response":{"id":"resp_len1","object":"response","created_at":1767225600,"status":"incomplete","model":"gpt-5.5","output":[],"usage":{"input_tokens":20,"input_tokens_details":{"cached_tokens":0},"output_tokens":16,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":36},"incomplete_details":{"reason":"max_output_tokens"},"error":null}}
+data: {"sequence_number":11,"type":"response.incomplete","response":{"top_logprobs":0,"instructions":"You are a terse assistant.","metadata":{},"presence_penalty":0.0,"usage":{"total_tokens":117,"input_tokens_details":{"cached_tokens":0},"output_tokens":16,"input_tokens":101,"output_tokens_details":{"reasoning_tokens":16},"x_details":[{"total_tokens":117,"x_billing_type":"response_api","output_tokens":16,"input_tokens":101,"output_tokens_details":{"reasoning_tokens":16},"prompt_tokens_details":{"cached_tokens":0}}]},"created_at":1790906922,"store":false,"tools":[],"output":[{"summary":[{"type":"summary_text","text":"We need answer user: \"Write a long story about a lighthouse keeper.\""}],"type":"reasoning","id":"msg_fd603f72-a722-42c8-9b8b-4094be18ed4f"}],"top_p":1.0,"completed_at":1790906922,"frequency_penalty":0.0,"parallel_tool_calls":true,"background":false,"temperature":1.0,"tool_choice":"auto","model":"qwen3.8-flash","service_tier":"default","id":"resp_31f4efd3-b8ac-9413-ab06-e21ac29fbb57","incomplete_details":{"reason":"max_output_tokens"},"max_output_tokens":16,"object":"response","status":"incomplete"}}
 

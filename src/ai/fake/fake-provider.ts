@@ -9,11 +9,16 @@
  * - 测试：`const fake = new FakeProvider([...])`，把 `fake.api` 注册进 ApiRegistry（或直接
  *   `fake.api.stream(...)`），`fake.calls` 记录每次调用的上下文与选项；
  * - CLI：`--provider fake`；`AMA_FAKE_SCRIPT=<path.json>` 指定脚本（首次调用时读取）。
+ * - 录制（第三波 §2.4，bundle 级缓存测试）：`AMA_FAKE_RECORD=<file>` 时每次请求向文件追加一行
+ *   JSON `{ index, purpose, model, system, tools, messagesCount }`——`system` 是折叠后的系统提示
+ *   原文，`tools` 是发给供应商的工具表（按注册顺序），与真实协议请求体的前缀同口径。
  */
+
+import { appendFileSync } from "node:fs";
 
 import { AssistantEventStreamImpl } from "../event-stream.js";
 import { BlockTracker, createOutput, finishDone, finishError } from "../apis/shared.js";
-import { contentText } from "../context.js";
+import { contentText, normalizeContext } from "../context.js";
 import type {
   ApiImplementation,
   AssistantEventStream,
@@ -34,6 +39,22 @@ import {
 export const FAKE_PROVIDER_ID = "fake";
 export const FAKE_API_ID = "fake";
 export const FAKE_SCRIPT_ENV = "AMA_FAKE_SCRIPT";
+export const FAKE_RECORD_ENV = "AMA_FAKE_RECORD";
+
+/** `AMA_FAKE_RECORD` 文件的一行。 */
+export interface FakeRecordLine {
+  index: number;
+  purpose: string;
+  model: string;
+  system: string;
+  tools: unknown[];
+  messagesCount: number;
+}
+
+export interface FakeProviderOptions {
+  /** 录制文件路径（每次请求取一次；undefined = 不录）。 */
+  recordFile?: string | (() => string | undefined);
+}
 
 const FAKE_MODEL_BASE = {
   provider: FAKE_PROVIDER_ID,
@@ -125,10 +146,16 @@ export class FakeProvider {
   private script: FakeScript | undefined;
   private readonly scriptLoader: (() => FakeScript | undefined) | undefined;
   private loaded = false;
+  private readonly recordFile: () => string | undefined;
 
-  constructor(script?: FakeScript | FakeResponse[] | (() => FakeScript | undefined)) {
+  constructor(
+    script?: FakeScript | FakeResponse[] | (() => FakeScript | undefined),
+    options: FakeProviderOptions = {},
+  ) {
     if (typeof script === "function") this.scriptLoader = script;
     else if (script !== undefined) this.setScript(script);
+    const record = options.recordFile;
+    this.recordFile = typeof record === "function" ? record : () => record;
   }
 
   readonly api: ApiImplementation = {
@@ -180,12 +207,38 @@ export class FakeProvider {
     const index = this.calls.length;
     const { signal: _s, onPayload: _p, onResponse: _r, ...rest } = options;
     this.calls.push({ index, model, context, options: rest });
+    this.record(index, model, context, options);
     const response = this.responseFor(index) ?? {
       text: lastUserText(context) || "(no input)",
     };
     const events = new AssistantEventStreamImpl();
     void this.run(events, model, context, options, response).finally(() => events.end());
     return events;
+  }
+
+  /** 录制一行；写失败不影响请求（测试会因缺行而失败）。 */
+  private record(
+    index: number,
+    model: Model,
+    context: TranscriptContext,
+    options: StreamOptions,
+  ): void {
+    const file = this.recordFile();
+    if (!file) return;
+    const normalized = normalizeContext(context);
+    const line: FakeRecordLine = {
+      index,
+      purpose: options.purpose ?? "turn",
+      model: `${model.provider}/${model.id}`,
+      system: normalized.systemPrompt,
+      tools: normalized.tools,
+      messagesCount: normalized.messages.length,
+    };
+    try {
+      appendFileSync(file, `${JSON.stringify(line)}\n`);
+    } catch {
+      // 录制只服务测试；路径不可写时静默。
+    }
   }
 
   private async run(
@@ -278,10 +331,13 @@ export class FakeProvider {
   }
 }
 
-/** 进程级缺省实例（`--provider fake`）：脚本来自 AMA_FAKE_SCRIPT。 */
-export const defaultFakeProvider = new FakeProvider(() => {
-  const path = process.env[FAKE_SCRIPT_ENV];
-  return path ? loadFakeScript(path) : undefined;
-});
+/** 进程级缺省实例（`--provider fake`）：脚本来自 AMA_FAKE_SCRIPT，录制到 AMA_FAKE_RECORD。 */
+export const defaultFakeProvider = new FakeProvider(
+  () => {
+    const path = process.env[FAKE_SCRIPT_ENV];
+    return path ? loadFakeScript(path) : undefined;
+  },
+  { recordFile: () => process.env[FAKE_RECORD_ENV] || undefined },
+);
 
 export const fakeApi: ApiImplementation = defaultFakeProvider.api;

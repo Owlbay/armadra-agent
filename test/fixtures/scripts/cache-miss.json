@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "responses": [
+    {
+      "steps": [{ "toolCall": { "name": "read", "arguments": { "path": "README.md" } } }],
+      "usage": { "input": 0, "cacheWrite": 30000, "output": 10 }
+    },
+    {
+      "steps": [{ "toolCall": { "name": "read", "arguments": { "path": "README.md" } } }],
+      "usage": { "input": 500, "cacheRead": 30000, "output": 10 }
+    },
+    { "text": "Done after a cache miss.", "usage": { "input": 31000, "output": 8 } }
+  ]
+}

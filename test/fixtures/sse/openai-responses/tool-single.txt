@@ -1,29 +1,62 @@
 #status 200
-#header content-type: text/event-stream; charset=utf-8
+#header content-type: text/event-stream
 event: response.created
-data: {"type":"response.created","sequence_number":0,"response":{"id":"resp_tool1","object":"response","created_at":1767225600,"status":"in_progress","model":"gpt-5.5","output":[],"usage":null,"incomplete_details":null,"error":null}}
+data: {"sequence_number":0,"type":"response.created","response":{"top_logprobs":0,"instructions":"You are a terse assistant.","metadata":{},"presence_penalty":0.0,"reasoning":{"summary":"auto","effort":"medium"},"created_at":1790906885,"store":false,"tools":[{"name":"read","description":"Read a text file from the workspace.","strict":false,"type":"function","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Relative path"}},"required":["path"]}},{"name":"ls","description":"List a directory.","strict":false,"type":"function","parameters":{"type":"object","properties":{"dir":{"type":"string"}},"required":["dir"]}}],"output":[],"top_p":1.0,"completed_at":1790906885,"frequency_penalty":0.0,"parallel_tool_calls":true,"background":false,"temperature":1.0,"tool_choice":"auto","model":"qwen3.8-flash","service_tier":"default","id":"resp_308f0417-c3cd-91ff-b894-c9f21a079ba1","max_output_tokens":1024,"object":"response","status":"queued"}}
 
 event: response.in_progress
-data: {"type":"response.in_progress","sequence_number":1,"response":{"id":"resp_tool1","object":"response","created_at":1767225600,"status":"in_progress","model":"gpt-5.5","output":[],"usage":null,"incomplete_details":null,"error":null}}
+data: {"sequence_number":1,"type":"response.in_progress","response":{"top_logprobs":0,"instructions":"You are a terse assistant.","metadata":{},"presence_penalty":0.0,"reasoning":{"summary":"auto","effort":"medium"},"created_at":1790906885,"store":false,"tools":[{"name":"read","description":"Read a text file from the workspace.","strict":false,"type":"function","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Relative path"}},"required":["path"]}},{"name":"ls","description":"List a directory.","strict":false,"type":"function","parameters":{"type":"object","properties":{"dir":{"type":"string"}},"required":["dir"]}}],"output":[],"top_p":1.0,"completed_at":1790906885,"frequency_penalty":0.0,"parallel_tool_calls":true,"background":false,"temperature":1.0,"tool_choice":"auto","model":"qwen3.8-flash","service_tier":"default","id":"resp_308f0417-c3cd-91ff-b894-c9f21a079ba1","max_output_tokens":1024,"object":"response","status":"in_progress"}}
 
 event: response.output_item.added
-data: {"type":"response.output_item.added","sequence_number":2,"output_index":0,"item":{"id":"fc_tool1","type":"function_call","status":"in_progress","arguments":"","call_id":"call_DdmNjhvTr1LwHJ8bCzKAxqPa","name":"read"}}
+data: {"sequence_number":2,"item":{"summary":[],"type":"reasoning","id":"msg_e2445f64-3aa4-4ac6-8a87-7cb319baf2b6"},"output_index":0,"type":"response.output_item.added"}
 
-event: response.function_call_arguments.delta
-data: {"type":"response.function_call_arguments.delta","sequence_number":3,"item_id":"fc_tool1","output_index":0,"delta":"{\"pa"}
+event: response.reasoning_text.delta
+data: {"delta":"The","sequence_number":3,"output_index":0,"type":"response.reasoning_text.delta","content_index":0,"item_id":"msg_e2445f64-3aa4-4ac6-8a87-7cb319baf2b6"}
 
-event: response.function_call_arguments.delta
-data: {"type":"response.function_call_arguments.delta","sequence_number":4,"item_id":"fc_tool1","output_index":0,"delta":"th\":\"READ"}
+event: response.reasoning_text.delta
+data: {"delta":" user is asking me","sequence_number":4,"output_index":0,"type":"response.reasoning_text.delta","content_index":0,"item_id":"msg_e2445f64-3aa4-4ac6-8a87-7cb319baf2b6"}
 
-event: response.function_call_arguments.delta
-data: {"type":"response.function_call_arguments.delta","sequence_number":5,"item_id":"fc_tool1","output_index":0,"delta":"ME.md\"}"}
+event: response.reasoning_text.delta
+data: {"delta":" to read README","sequence_number":5,"output_index":0,"type":"response.reasoning_text.delta","content_index":0,"item_id":"msg_e2445f64-3aa4-4ac6-8a87-7cb319baf2b6"}
 
-event: response.function_call_arguments.done
-data: {"type":"response.function_call_arguments.done","sequence_number":6,"item_id":"fc_tool1","output_index":0,"arguments":"{\"path\":\"README.md\"}"}
+event: response.reasoning_text.delta
+data: {"delta":".md using","sequence_number":6,"output_index":0,"type":"response.reasoning_text.delta","content_index":0,"item_id":"msg_e2445f64-3aa4-4ac6-8a87-7cb319baf2b6"}
+
+event: response.reasoning_text.delta
+data: {"delta":" the read tool.","sequence_number":7,"output_index":0,"type":"response.reasoning_text.delta","content_index":0,"item_id":"msg_e2445f64-3aa4-4ac6-8a87-7cb319baf2b6"}
+
+event: response.reasoning_text.delta
+data: {"delta":"","sequence_number":8,"output_index":0,"type":"response.reasoning_text.delta","content_index":0,"item_id":"msg_e2445f64-3aa4-4ac6-8a87-7cb319baf2b6"}
+
+event: response.reasoning_text.done
+data: {"sequence_number":9,"text":"The user is asking me to read README.md using the read tool.","output_index":0,"type":"response.reasoning_text.done","content_index":0,"item_id":"msg_e2445f64-3aa4-4ac6-8a87-7cb319baf2b6"}
 
 event: response.output_item.done
-data: {"type":"response.output_item.done","sequence_number":7,"output_index":0,"item":{"id":"fc_tool1","type":"function_call","status":"completed","arguments":"{\"path\":\"README.md\"}","call_id":"call_DdmNjhvTr1LwHJ8bCzKAxqPa","name":"read"}}
+data: {"sequence_number":10,"item":{"summary":[{"type":"summary_text","text":"The user is asking me to read README.md using the read tool."}],"type":"reasoning","id":"msg_e2445f64-3aa4-4ac6-8a87-7cb319baf2b6"},"output_index":0,"type":"response.output_item.done"}
+
+event: response.output_item.added
+data: {"sequence_number":11,"item":{"name":"read","arguments":"","id":"msg_4f174008-1efc-493e-ab74-4f64a92bf64e","type":"function_call","call_id":"call_26472a1bf2dd4abd88d1b232","status":"in_progress"},"output_index":1,"type":"response.output_item.added"}
+
+event: response.function_call_arguments.delta
+data: {"delta":"","sequence_number":12,"output_index":1,"type":"response.function_call_arguments.delta","item_id":"msg_4f174008-1efc-493e-ab74-4f64a92bf64e"}
+
+event: response.function_call_arguments.delta
+data: {"delta":"{\"path\": ","sequence_number":13,"output_index":1,"type":"response.function_call_arguments.delta","item_id":"msg_4f174008-1efc-493e-ab74-4f64a92bf64e"}
+
+event: response.function_call_arguments.delta
+data: {"delta":"\"README.md","sequence_number":14,"output_index":1,"type":"response.function_call_arguments.delta","item_id":"msg_4f174008-1efc-493e-ab74-4f64a92bf64e"}
+
+event: response.function_call_arguments.delta
+data: {"delta":"\"","sequence_number":15,"output_index":1,"type":"response.function_call_arguments.delta","item_id":"msg_4f174008-1efc-493e-ab74-4f64a92bf64e"}
+
+event: response.function_call_arguments.delta
+data: {"delta":"}","sequence_number":16,"output_index":1,"type":"response.function_call_arguments.delta","item_id":"msg_4f174008-1efc-493e-ab74-4f64a92bf64e"}
+
+event: response.function_call_arguments.done
+data: {"name":"read","sequence_number":17,"arguments":"{\"path\": \"README.md\"}","output_index":1,"type":"response.function_call_arguments.done","item_id":"msg_4f174008-1efc-493e-ab74-4f64a92bf64e"}
+
+event: response.output_item.done
+data: {"sequence_number":18,"item":{"name":"read","arguments":"{\"path\": \"README.md\"}","id":"msg_4f174008-1efc-493e-ab74-4f64a92bf64e","type":"function_call","call_id":"call_26472a1bf2dd4abd88d1b232","status":"completed"},"output_index":1,"type":"response.output_item.done"}
 
 event: response.completed
-data: {"type":"response.completed","sequence_number":8,"response":{"id":"resp_tool1","object":"response","created_at":1767225600,"status":"completed","model":"gpt-5.5","output":[{"id":"fc_tool1","type":"function_call","status":"completed","arguments":"{\"path\":\"README.md\"}","call_id":"call_DdmNjhvTr1LwHJ8bCzKAxqPa","name":"read"}],"usage":{"input_tokens":150,"input_tokens_details":{"cached_tokens":0},"output_tokens":20,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":170},"incomplete_details":null,"error":null}}
+data: {"sequence_number":19,"type":"response.completed","response":{"top_logprobs":0,"instructions":"You are a terse assistant.","metadata":{},"presence_penalty":0.0,"reasoning":{"summary":"auto","effort":"medium"},"usage":{"total_tokens":426,"input_tokens_details":{"cached_tokens":0},"output_tokens":41,"input_tokens":385,"output_tokens_details":{"reasoning_tokens":14},"x_details":[{"total_tokens":426,"x_billing_type":"response_api","output_tokens":41,"input_tokens":385,"output_tokens_details":{"reasoning_tokens":14},"prompt_tokens_details":{"cached_tokens":0}}]},"created_at":1790906885,"store":false,"tools":[{"name":"read","description":"Read a text file from the workspace.","strict":false,"type":"function","parameters":{"type":"object","properties":{"path":{"type":"string","description":"Relative path"}},"required":["path"]}},{"name":"ls","description":"List a directory.","strict":false,"type":"function","parameters":{"type":"object","properties":{"dir":{"type":"string"}},"required":["dir"]}}],"output":[{"summary":[{"type":"summary_text","text":"The user is asking me to read README.md using the read tool."}],"type":"reasoning","id":"msg_e2445f64-3aa4-4ac6-8a87-7cb319baf2b6"},{"name":"read","arguments":"{\"path\": \"README.md\"}","id":"msg_4f174008-1efc-493e-ab74-4f64a92bf64e","type":"function_call","call_id":"call_26472a1bf2dd4abd88d1b232","status":"completed"}],"top_p":1.0,"completed_at":1790906885,"frequency_penalty":0.0,"parallel_tool_calls":true,"background":false,"temperature":1.0,"tool_choice":"auto","model":"qwen3.8-flash","service_tier":"default","id":"resp_308f0417-c3cd-91ff-b894-c9f21a079ba1","max_output_tokens":1024,"object":"response","status":"completed"}}
 

@@ -32,6 +32,9 @@ function model(provider: string, id: string, extra: Partial<Model> = {}): Model 
 }
 
 const gpt = model("openai", "gpt-5.5");
+/** 中转站上的 Grok / Qwen（`test/fixtures/sse/README.md`「实录」）。 */
+const relayGrok = model("packy", "grok-4.7", { baseUrl: "https://relay.example.test/v1" });
+const relayQwen = model("packy", "qwen3.8-flash", { baseUrl: "https://relay.example.test/v1" });
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -42,15 +45,34 @@ const opts = (extra: Partial<StreamOptions> = {}): StreamOptions => ({
 });
 
 describe("openai-responses：SSE 样本黄金", () => {
-  it("text：message item → 文本块，textSignature 记 item id；usage", async () => {
-    const run = await runFixture(openAIResponsesApi, API, "text", gpt);
+  it("text（中转 Grok 实录）：summary 思考块签名是完整 reasoning item（含 encrypted_content），message item → 文本块；usage 的 cached_tokens", async () => {
+    const run = await runFixture(openAIResponsesApi, API, "text", relayGrok);
     expect(run.terminal).toMatchObject({ type: "done", reason: "stop" });
-    expect(run.final.content).toEqual([
-      { type: "text", text: "Hello, 世界 👋", textSignature: '{"v":1,"id":"msg_text1"}' },
-    ]);
-    expect(run.final.responseId).toBe("resp_text1");
+    const [thinking, text] = run.final.content;
+    expect(thinking).toMatchObject({
+      type: "thinking",
+      thinking: "Preparing a short greeting that includes the Chinese word 世界.",
+    });
+    const item = JSON.parse((thinking as { thinkingSignature: string }).thinkingSignature) as {
+      type: string;
+      encrypted_content?: string;
+    };
+    expect(item.type).toBe("reasoning");
+    expect(item.encrypted_content).toMatch(/^vCpei2/);
+    expect(text).toEqual({
+      type: "text",
+      text: "Hello, 世界!",
+      textSignature: '{"v":1,"id":"msg_b34ea031-19eb-9c85-b766-3a513d4e4e6c"}',
+    });
+    expect(run.final.responseId).toBe("b34ea031-19eb-9c85-b766-3a513d4e4e6c");
     expect(run.final.rawStopReason).toBe("completed");
-    expect(run.final.usage).toMatchObject({ input: 30, output: 6, cacheRead: 0, totalTokens: 36 });
+    expect(run.final.usage).toMatchObject({
+      input: 113,
+      cacheRead: 1152,
+      output: 80,
+      totalTokens: 1345,
+      cacheReported: true,
+    });
   });
 
   it("reasoning-summary：两段 summary 空行相接；思考块签名是完整 reasoning item；phase 记入文本签名", async () => {
@@ -96,18 +118,20 @@ describe("openai-responses：SSE 样本黄金", () => {
     ]);
   });
 
-  it("tool-single：参数跨块拼接；id 是 call_id，fc id 记在 thoughtSignature", async () => {
-    const run = await runFixture(openAIResponsesApi, API, "tool-single", gpt);
+  it("tool-single（中转 Qwen 实录）：reasoning_text 流成思考块；id 是 call_id，fc id 记在 thoughtSignature", async () => {
+    const run = await runFixture(openAIResponsesApi, API, "tool-single", relayQwen);
     expect(run.terminal).toMatchObject({ type: "done", reason: "toolUse" });
-    expect(run.final.content).toEqual([
-      {
-        type: "toolCall",
-        id: "call_DdmNjhvTr1LwHJ8bCzKAxqPa",
-        name: "read",
-        arguments: { path: "README.md" },
-        thoughtSignature: "fc_tool1",
-      },
-    ]);
+    expect(run.final.content[0]).toMatchObject({
+      type: "thinking",
+      thinking: "The user is asking me to read README.md using the read tool.",
+    });
+    expect(run.final.content[1]).toEqual({
+      type: "toolCall",
+      id: "call_26472a1bf2dd4abd88d1b232",
+      name: "read",
+      arguments: { path: "README.md" },
+      thoughtSignature: "msg_4f174008-1efc-493e-ab74-4f64a92bf64e",
+    });
   });
 
   it("tool-multi：按 output_index 交错拼接；done 的全文补齐未流出的尾巴", async () => {
@@ -136,13 +160,25 @@ describe("openai-responses：SSE 样本黄金", () => {
     expect(run.final.usage).toMatchObject({ input: 256, cacheRead: 256 });
   });
 
-  it("length：incomplete + max_output_tokens → length", async () => {
-    const run = await runFixture(openAIResponsesApi, API, "length", gpt);
+  it("length（中转 Qwen 实录）：思考中途 incomplete + max_output_tokens → length", async () => {
+    const run = await runFixture(openAIResponsesApi, API, "length", relayQwen);
     expect(run.terminal).toMatchObject({ type: "done", reason: "length" });
     expect(run.final.rawStopReason).toBe("max_output_tokens");
-    expect(run.final.content).toEqual([
-      { type: "text", text: "Once upon a time, a lighthouse keeper named" },
+    expect(run.final.content.map((b) => b.type)).toEqual(["thinking"]);
+  });
+
+  it("proxy-tool-multi（中转 Qwen 实录）：三个函数调用顺序到达，各自 done 收尾", async () => {
+    const run = await runFixture(openAIResponsesApi, API, "proxy-tool-multi", relayQwen);
+    expect(run.terminal).toMatchObject({ type: "done", reason: "toolUse" });
+    const calls = run.final.content.flatMap((b) =>
+      b.type === "toolCall" ? [{ name: b.name, arguments: b.arguments }] : [],
+    );
+    expect(calls).toEqual([
+      { name: "read", arguments: { path: "a.ts" } },
+      { name: "read", arguments: { path: "b.ts" } },
+      { name: "ls", arguments: { dir: "src" } },
     ]);
+    expect(run.final.usage).toMatchObject({ input: 387, output: 107, cacheRead: 0 });
   });
 
   it("usage-cache：input_tokens_details.cached_tokens → cacheRead，成本按缓存价", async () => {

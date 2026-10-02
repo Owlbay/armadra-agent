@@ -1,0 +1,190 @@
+#status 200
+#header content-type: text/event-stream
+event: ping
+data: {"type":"ping"}
+
+
+event: message_start
+data: {"message":{"model":"MiniMax/MiniMax-M2.7","id":"347b9f08-4054-44c3-938a-ef19c05215ad","role":"assistant","type":"message","content":[],"usage":{"input_tokens":93,"output_tokens":0}},"type":"message_start"}
+
+
+event: content_block_start
+data: {"type":"content_block_start","content_block":{"type":"thinking","signature":"","thinking":""},"index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":"The"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" user wants me"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" to read two"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" files ("},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":"a.ts and"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" b.ts) in"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" parallel,"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" and also"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" list the src directory"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":". I can"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" do all"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" three operations"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" at"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" once"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" since"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" they're"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" independent"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" of"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" each other"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"signature_delta","signature":""},"type":"content_block_delta","index":0}
+
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+
+event: content_block_start
+data: {"type":"content_block_start","content_block":{"type":"text","text":""},"index":1}
+
+
+event: content_block_delta
+data: {"delta":{"type":"text_delta","text":"\n\n\n"},"type":"content_block_delta","index":1}
+
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":1}
+
+
+event: content_block_start
+data: {"type":"content_block_start","content_block":{"name":"read","input":{},"id":"toolu_01b2c8f5443a40d4999f72de","type":"tool_use"},"index":2}
+
+
+event: content_block_delta
+data: {"delta":{"partial_json":"","type":"input_json_delta"},"type":"content_block_delta","index":2}
+
+
+event: content_block_delta
+data: {"delta":{"partial_json":"{\"path\": \"a","type":"input_json_delta"},"type":"content_block_delta","index":2}
+
+
+event: content_block_delta
+data: {"delta":{"partial_json":".ts\"","type":"input_json_delta"},"type":"content_block_delta","index":2}
+
+
+event: content_block_delta
+data: {"delta":{"partial_json":"}","type":"input_json_delta"},"type":"content_block_delta","index":2}
+
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":2}
+
+
+event: content_block_start
+data: {"type":"content_block_start","content_block":{"name":"read","input":{},"id":"toolu_cc4a33366f5244dab72f8715","type":"tool_use"},"index":3}
+
+
+event: content_block_delta
+data: {"delta":{"partial_json":"","type":"input_json_delta"},"type":"content_block_delta","index":3}
+
+
+event: content_block_delta
+data: {"delta":{"partial_json":"{\"path\": \"b","type":"input_json_delta"},"type":"content_block_delta","index":3}
+
+
+event: content_block_delta
+data: {"delta":{"partial_json":".ts\"","type":"input_json_delta"},"type":"content_block_delta","index":3}
+
+
+event: content_block_delta
+data: {"delta":{"partial_json":"}","type":"input_json_delta"},"type":"content_block_delta","index":3}
+
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":3}
+
+
+event: content_block_start
+data: {"type":"content_block_start","content_block":{"name":"ls","input":{},"id":"toolu_f4cbb8127b5341549aae7e8f","type":"tool_use"},"index":4}
+
+
+event: content_block_delta
+data: {"delta":{"partial_json":"","type":"input_json_delta"},"type":"content_block_delta","index":4}
+
+
+event: content_block_delta
+data: {"delta":{"partial_json":"{\"dir\": \"src","type":"input_json_delta"},"type":"content_block_delta","index":4}
+
+
+event: content_block_delta
+data: {"delta":{"partial_json":"\"","type":"input_json_delta"},"type":"content_block_delta","index":4}
+
+
+event: content_block_delta
+data: {"delta":{"partial_json":"}","type":"input_json_delta"},"type":"content_block_delta","index":4}
+
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":4}
+
+
+event: message_delta
+data: {"delta":{"stop_reason":"tool_use"},"type":"message_delta","usage":{"output_tokens":105,"cache_creation_input_tokens":0,"input_tokens":246,"cache_read_input_tokens":0,"prompt_tokens_details":{"cached_tokens":0}}}
+
+
+event: message_stop
+data: {"type":"message_stop"}
+
+

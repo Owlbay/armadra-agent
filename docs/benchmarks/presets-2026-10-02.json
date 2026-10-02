@@ -1,0 +1,499 @@
+{
+  "meta": {
+    "date": "2026-10-02",
+    "models": ["packy/kimi-k2.5", "packy/MiniMax-M2.7", "packy/deepseek-v4-flash"],
+    "presets": ["default", "minimal", "codemode"],
+    "tasks": ["fix-bug", "search-summarize", "multi-file-refactor"],
+    "runs": 1,
+    "requests": 120,
+    "maxRequests": 120,
+    "usd": 0.2943920000000001,
+    "budgetUsd": 3,
+    "stopped": "请求数达到上限 120"
+  },
+  "results": [
+    {
+      "model": "packy/kimi-k2.5",
+      "preset": "default",
+      "task": "fix-bug",
+      "run": 1,
+      "requests": 6,
+      "toolCalls": 7,
+      "nestedCalls": 0,
+      "usage": {
+        "input": 2945,
+        "cacheRead": 6016,
+        "cacheWrite": 0,
+        "output": 397
+      },
+      "promptTokens": 8961,
+      "estUsd": 0.0051346000000000004,
+      "budgetUsd": 0.010549000000000001,
+      "wallMs": 13110,
+      "ok": true,
+      "detail": "node test.js → ok"
+    },
+    {
+      "model": "packy/kimi-k2.5",
+      "preset": "minimal",
+      "task": "fix-bug",
+      "run": 1,
+      "requests": 7,
+      "toolCalls": 8,
+      "nestedCalls": 0,
+      "usage": {
+        "input": 2174,
+        "cacheRead": 6784,
+        "cacheWrite": 0,
+        "output": 368
+      },
+      "promptTokens": 8958,
+      "estUsd": 0.0043244,
+      "budgetUsd": 0.010430000000000002,
+      "wallMs": 12468,
+      "ok": true,
+      "detail": "node test.js → ok"
+    },
+    {
+      "model": "packy/kimi-k2.5",
+      "preset": "codemode",
+      "task": "fix-bug",
+      "run": 1,
+      "requests": 5,
+      "toolCalls": 4,
+      "nestedCalls": 8,
+      "usage": {
+        "input": 3318,
+        "cacheRead": 7936,
+        "cacheWrite": 0,
+        "output": 831
+      },
+      "promptTokens": 11254,
+      "estUsd": 0.0074356000000000005,
+      "budgetUsd": 0.014578,
+      "wallMs": 19103,
+      "ok": true,
+      "detail": "node test.js → ok"
+    },
+    {
+      "model": "packy/MiniMax-M2.7",
+      "preset": "default",
+      "task": "fix-bug",
+      "run": 1,
+      "requests": 6,
+      "toolCalls": 7,
+      "nestedCalls": 0,
+      "usage": {
+        "input": 4118,
+        "cacheRead": 8487,
+        "cacheWrite": 0,
+        "output": 1210
+      },
+      "promptTokens": 12605,
+      "estUsd": 0.009806700000000002,
+      "budgetUsd": 0.017445,
+      "wallMs": 25504,
+      "ok": true,
+      "detail": "node test.js → ok"
+    },
+    {
+      "model": "packy/MiniMax-M2.7",
+      "preset": "minimal",
+      "task": "fix-bug",
+      "run": 1,
+      "requests": 7,
+      "toolCalls": 8,
+      "nestedCalls": 0,
+      "usage": {
+        "input": 7937,
+        "cacheRead": 4550,
+        "cacheWrite": 0,
+        "output": 1271
+      },
+      "promptTokens": 12487,
+      "estUsd": 0.013476,
+      "budgetUsd": 0.017571000000000003,
+      "wallMs": 23962,
+      "ok": true,
+      "detail": "node test.js → ok"
+    },
+    {
+      "model": "packy/MiniMax-M2.7",
+      "preset": "codemode",
+      "task": "fix-bug",
+      "run": 1,
+      "requests": 8,
+      "toolCalls": 7,
+      "nestedCalls": 7,
+      "usage": {
+        "input": 5896,
+        "cacheRead": 16093,
+        "cacheWrite": 0,
+        "output": 1250
+      },
+      "promptTokens": 21989,
+      "estUsd": 0.012505299999999999,
+      "budgetUsd": 0.026989000000000003,
+      "wallMs": 29186,
+      "ok": true,
+      "detail": "node test.js → ok"
+    },
+    {
+      "model": "packy/deepseek-v4-flash",
+      "preset": "default",
+      "task": "fix-bug",
+      "run": 1,
+      "requests": 5,
+      "toolCalls": 6,
+      "nestedCalls": 0,
+      "usage": {
+        "input": 8408,
+        "cacheRead": 2048,
+        "cacheWrite": 0,
+        "output": 907
+      },
+      "promptTokens": 10456,
+      "estUsd": 0.0122408,
+      "budgetUsd": 0.014084,
+      "wallMs": 13101,
+      "ok": true,
+      "detail": "node test.js → ok"
+    },
+    {
+      "model": "packy/deepseek-v4-flash",
+      "preset": "minimal",
+      "task": "fix-bug",
+      "run": 1,
+      "requests": 7,
+      "toolCalls": 7,
+      "nestedCalls": 0,
+      "usage": {
+        "input": 7325,
+        "cacheRead": 8192,
+        "cacheWrite": 0,
+        "output": 871
+      },
+      "promptTokens": 15517,
+      "estUsd": 0.0116282,
+      "budgetUsd": 0.019001,
+      "wallMs": 15922,
+      "ok": true,
+      "detail": "node test.js → ok"
+    },
+    {
+      "model": "packy/deepseek-v4-flash",
+      "preset": "codemode",
+      "task": "fix-bug",
+      "run": 1,
+      "requests": 5,
+      "toolCalls": 4,
+      "nestedCalls": 10,
+      "usage": {
+        "input": 6745,
+        "cacheRead": 6144,
+        "cacheWrite": 0,
+        "output": 1087
+      },
+      "promptTokens": 12889,
+      "estUsd": 0.0117074,
+      "budgetUsd": 0.017237,
+      "wallMs": 20870,
+      "ok": true,
+      "detail": "node test.js → ok"
+    },
+    {
+      "model": "packy/kimi-k2.5",
+      "preset": "default",
+      "task": "search-summarize",
+      "run": 1,
+      "requests": 3,
+      "toolCalls": 2,
+      "nestedCalls": 0,
+      "usage": {
+        "input": 919,
+        "cacheRead": 2048,
+        "cacheWrite": 0,
+        "output": 185
+      },
+      "promptTokens": 2967,
+      "estUsd": 0.0018637999999999999,
+      "budgetUsd": 0.003707,
+      "wallMs": 6131,
+      "ok": true,
+      "detail": "5 / 5"
+    },
+    {
+      "model": "packy/kimi-k2.5",
+      "preset": "minimal",
+      "task": "search-summarize",
+      "run": 1,
+      "requests": 5,
+      "toolCalls": 4,
+      "nestedCalls": 0,
+      "usage": {
+        "input": 957,
+        "cacheRead": 3456,
+        "cacheWrite": 0,
+        "output": 358
+      },
+      "promptTokens": 4413,
+      "estUsd": 0.0027346,
+      "budgetUsd": 0.0058449999999999995,
+      "wallMs": 11971,
+      "ok": true,
+      "detail": "5 / 5"
+    },
+    {
+      "model": "packy/kimi-k2.5",
+      "preset": "codemode",
+      "task": "search-summarize",
+      "run": 1,
+      "requests": 4,
+      "toolCalls": 3,
+      "nestedCalls": 3,
+      "usage": {
+        "input": 783,
+        "cacheRead": 6528,
+        "cacheWrite": 0,
+        "output": 286
+      },
+      "promptTokens": 7311,
+      "estUsd": 0.0025798,
+      "budgetUsd": 0.008455,
+      "wallMs": 8767,
+      "ok": true,
+      "detail": "5 / 5"
+    },
+    {
+      "model": "packy/MiniMax-M2.7",
+      "preset": "default",
+      "task": "search-summarize",
+      "run": 1,
+      "requests": 3,
+      "toolCalls": 2,
+      "nestedCalls": 0,
+      "usage": {
+        "input": 4241,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 452
+      },
+      "promptTokens": 4241,
+      "estUsd": 0.006049,
+      "budgetUsd": 0.006049,
+      "wallMs": 8014,
+      "ok": true,
+      "detail": "5 / 5"
+    },
+    {
+      "model": "packy/MiniMax-M2.7",
+      "preset": "minimal",
+      "task": "search-summarize",
+      "run": 1,
+      "requests": 3,
+      "toolCalls": 2,
+      "nestedCalls": 0,
+      "usage": {
+        "input": 3607,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 395
+      },
+      "promptTokens": 3607,
+      "estUsd": 0.005187,
+      "budgetUsd": 0.005187000000000001,
+      "wallMs": 7768,
+      "ok": true,
+      "detail": "5 / 5"
+    },
+    {
+      "model": "packy/MiniMax-M2.7",
+      "preset": "codemode",
+      "task": "search-summarize",
+      "run": 1,
+      "requests": 5,
+      "toolCalls": 4,
+      "nestedCalls": 3,
+      "usage": {
+        "input": 4522,
+        "cacheRead": 6202,
+        "cacheWrite": 0,
+        "output": 708
+      },
+      "promptTokens": 10724,
+      "estUsd": 0.007974199999999999,
+      "budgetUsd": 0.013555999999999999,
+      "wallMs": 13329,
+      "ok": true,
+      "detail": "5 / 5"
+    },
+    {
+      "model": "packy/deepseek-v4-flash",
+      "preset": "default",
+      "task": "search-summarize",
+      "run": 1,
+      "requests": 5,
+      "toolCalls": 7,
+      "nestedCalls": 0,
+      "usage": {
+        "input": 7173,
+        "cacheRead": 2048,
+        "cacheWrite": 0,
+        "output": 613
+      },
+      "promptTokens": 9221,
+      "estUsd": 0.0098298,
+      "budgetUsd": 0.011673000000000001,
+      "wallMs": 12062,
+      "ok": true,
+      "detail": "5 / 5"
+    },
+    {
+      "model": "packy/deepseek-v4-flash",
+      "preset": "minimal",
+      "task": "search-summarize",
+      "run": 1,
+      "requests": 5,
+      "toolCalls": 6,
+      "nestedCalls": 0,
+      "usage": {
+        "input": 7410,
+        "cacheRead": 2048,
+        "cacheWrite": 0,
+        "output": 951
+      },
+      "promptTokens": 9458,
+      "estUsd": 0.0114188,
+      "budgetUsd": 0.013262,
+      "wallMs": 15360,
+      "ok": true,
+      "detail": "5 / 5"
+    },
+    {
+      "model": "packy/deepseek-v4-flash",
+      "preset": "codemode",
+      "task": "search-summarize",
+      "run": 1,
+      "requests": 4,
+      "toolCalls": 3,
+      "nestedCalls": 4,
+      "usage": {
+        "input": 5359,
+        "cacheRead": 4096,
+        "cacheWrite": 0,
+        "output": 639
+      },
+      "promptTokens": 9455,
+      "estUsd": 0.0083246,
+      "budgetUsd": 0.012010999999999999,
+      "wallMs": 10405,
+      "ok": true,
+      "detail": "5 / 5"
+    },
+    {
+      "model": "packy/kimi-k2.5",
+      "preset": "default",
+      "task": "multi-file-refactor",
+      "run": 1,
+      "requests": 6,
+      "toolCalls": 11,
+      "nestedCalls": 0,
+      "usage": {
+        "input": 2261,
+        "cacheRead": 7552,
+        "cacheWrite": 0,
+        "output": 914
+      },
+      "promptTokens": 9813,
+      "estUsd": 0.0066722,
+      "budgetUsd": 0.013469,
+      "wallMs": 22571,
+      "ok": true,
+      "detail": "4 个文件、输出不变"
+    },
+    {
+      "model": "packy/kimi-k2.5",
+      "preset": "minimal",
+      "task": "multi-file-refactor",
+      "run": 1,
+      "requests": 6,
+      "toolCalls": 11,
+      "nestedCalls": 0,
+      "usage": {
+        "input": 1541,
+        "cacheRead": 5376,
+        "cacheWrite": 0,
+        "output": 597
+      },
+      "promptTokens": 6917,
+      "estUsd": 0.0044666,
+      "budgetUsd": 0.009305,
+      "wallMs": 16611,
+      "ok": true,
+      "detail": "4 个文件、输出不变"
+    },
+    {
+      "model": "packy/kimi-k2.5",
+      "preset": "codemode",
+      "task": "multi-file-refactor",
+      "run": 1,
+      "requests": 6,
+      "toolCalls": 5,
+      "nestedCalls": 14,
+      "usage": {
+        "input": 2786,
+        "cacheRead": 13440,
+        "cacheWrite": 0,
+        "output": 1544
+      },
+      "promptTokens": 16226,
+      "estUsd": 0.010306,
+      "budgetUsd": 0.022402,
+      "wallMs": 35128,
+      "ok": true,
+      "detail": "4 个文件、输出不变"
+    },
+    {
+      "model": "packy/MiniMax-M2.7",
+      "preset": "default",
+      "task": "multi-file-refactor",
+      "run": 1,
+      "requests": 6,
+      "toolCalls": 11,
+      "nestedCalls": 0,
+      "usage": {
+        "input": 3778,
+        "cacheRead": 8935,
+        "cacheWrite": 0,
+        "output": 1077
+      },
+      "promptTokens": 12713,
+      "estUsd": 0.0089795,
+      "budgetUsd": 0.017020999999999998,
+      "wallMs": 24369,
+      "ok": true,
+      "detail": "4 个文件、输出不变"
+    },
+    {
+      "model": "packy/MiniMax-M2.7",
+      "preset": "minimal",
+      "task": "multi-file-refactor",
+      "run": 1,
+      "requests": 3,
+      "toolCalls": 6,
+      "nestedCalls": 0,
+      "usage": {
+        "input": 3314,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 313
+      },
+      "promptTokens": 3314,
+      "estUsd": 0.004566,
+      "budgetUsd": 0.004566000000000001,
+      "wallMs": 6185,
+      "ok": false,
+      "detail": "budget_exceeded: 请求数达到上限 120"
+    }
+  ]
+}

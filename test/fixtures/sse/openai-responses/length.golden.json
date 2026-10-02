@@ -3,21 +3,41 @@
     "type": "start"
   },
   {
-    "type": "text_start",
+    "type": "thinking_start",
     "contentIndex": 0
   },
   {
-    "type": "text_delta",
+    "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": "Once upon a time, a lighthouse keeper"
+    "delta": "We"
   },
   {
-    "type": "text_delta",
+    "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": " named"
+    "delta": " need answer"
   },
   {
-    "type": "text_end",
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " user:"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " \"Write a long"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " story about a l"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "ighthouse keeper.\""
+  },
+  {
+    "type": "thinking_end",
     "contentIndex": 0
   },
   {
@@ -27,34 +47,35 @@
       "role": "assistant",
       "content": [
         {
-          "type": "text",
-          "text": "Once upon a time, a lighthouse keeper named"
+          "type": "thinking",
+          "thinking": "We need answer user: \"Write a long story about a lighthouse keeper.\"",
+          "thinkingSignature": "{\"summary\":[{\"type\":\"summary_text\",\"text\":\"We need answer user: \\\"Write a long story about a lighthouse keeper.\\\"\"}],\"type\":\"reasoning\",\"id\":\"msg_fd603f72-a722-42c8-9b8b-4094be18ed4f\"}"
         }
       ],
       "api": "openai-responses",
-      "provider": "openai",
-      "model": "gpt-5.5",
+      "provider": "packy",
+      "model": "qwen3.8-flash",
       "usage": {
-        "input": 20,
+        "input": 101,
         "output": 16,
         "cacheRead": 0,
         "cacheWrite": 0,
-        "totalTokens": 36,
+        "totalTokens": 117,
         "cacheReported": true,
-        "reasoning": 0,
+        "reasoning": 16,
         "cost": {
-          "input": 0.0001,
+          "input": 0.000505,
           "output": 0.00048,
           "cacheRead": 0,
           "cacheWrite": 0,
-          "total": 0.00058
+          "total": 0.000985
         }
       },
       "stopReason": "length",
       "timestamp": 0,
       "thinkingLevel": "off",
       "providerThinkingLevel": "none",
-      "responseId": "resp_len1",
+      "responseId": "resp_31f4efd3-b8ac-9413-ab06-e21ac29fbb57",
       "rawStopReason": "max_output_tokens"
     }
   }

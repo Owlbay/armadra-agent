@@ -1,0 +1,374 @@
+#status 200
+#header content-type: text/event-stream
+event: ping
+data: {"type":"ping"}
+
+
+event: message_start
+data: {"message":{"model":"MiniMax/MiniMax-M2.7","id":"bed5ef59-bf4c-4a4a-8d00-24bb038a80e8","role":"assistant","type":"message","content":[],"usage":{"input_tokens":24,"output_tokens":0}},"type":"message_start"}
+
+
+event: content_block_start
+data: {"type":"content_block_start","content_block":{"type":"thinking","signature":"","thinking":""},"index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":"The"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" user asks"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" which"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" is larger"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":", 9."},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":"11 or 9"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":".9. They"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" want"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" the"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" answer."},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" They"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" say"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" \"Think"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" it through,"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" then answer in one"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" line.\"\n\n"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":"Thus"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" the"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" assistant"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" should"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" think"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" through"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" the comparison"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":"."},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" Since"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" both"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" are decimal"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" numbers, "},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":"9.11"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" vs"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" 9.9"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":". 9."},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":"9 is greater"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" because"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" 9.9"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" >"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" 9.11"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":".\n\n"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":"But"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" the"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" instruction"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" from"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" system"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":": \"You"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" are a ters"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":"e assistant.\" So"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" we"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" should"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" be concise. Provide"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" a"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" one-line"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" answer"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":". Probably"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" \"9"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":".9 is larger"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":".\"\n\n"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":"Thus"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" answer"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":": \"9."},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":"9 is larger.\"\n\n"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":"But the"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" user"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" wants us"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" to think through"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" then"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" answer in"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" one line. The"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" assistant"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":"'s"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" reasoning is not"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" needed"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":","},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" only"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" answer"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":".\n\n"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":"Thus"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" final"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":":"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":" \"9"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":".9 is larger"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"thinking_delta","thinking":".\"\n"},"type":"content_block_delta","index":0}
+
+
+event: content_block_delta
+data: {"delta":{"type":"signature_delta","signature":""},"type":"content_block_delta","index":0}
+
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+
+event: content_block_start
+data: {"type":"content_block_start","content_block":{"type":"text","text":""},"index":1}
+
+
+event: content_block_delta
+data: {"delta":{"type":"text_delta","text":"\n\n9"},"type":"content_block_delta","index":1}
+
+
+event: content_block_delta
+data: {"delta":{"type":"text_delta","text":".9 is larger"},"type":"content_block_delta","index":1}
+
+
+event: content_block_delta
+data: {"delta":{"type":"text_delta","text":"."},"type":"content_block_delta","index":1}
+
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":1}
+
+
+event: message_delta
+data: {"delta":{"stop_reason":"end_turn"},"type":"message_delta","usage":{"output_tokens":165,"cache_creation_input_tokens":0,"input_tokens":47,"cache_read_input_tokens":0,"prompt_tokens_details":{"cached_tokens":0}}}
+
+
+event: message_stop
+data: {"type":"message_stop"}
+
+

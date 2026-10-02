@@ -3,49 +3,43 @@
     "type": "start"
   },
   {
-    "type": "text_start",
+    "type": "thinking_start",
     "contentIndex": 0
   },
   {
-    "type": "text_delta",
+    "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": "I'll read the file."
+    "delta": "The user"
   },
   {
-    "type": "text_end",
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " wants me to read the README.md file. I should use the read tool to do this."
+  },
+  {
+    "type": "thinking_end",
     "contentIndex": 0
   },
   {
     "type": "toolcall_start",
     "contentIndex": 1,
-    "id": "toolu_01A09q90qw90lq917835lq9",
+    "id": "toolu_function_3t97y4a8pst6_1",
     "name": "read"
   },
   {
     "type": "toolcall_delta",
     "contentIndex": 1,
-    "delta": "{\"path\": \"src/ma"
-  },
-  {
-    "type": "toolcall_delta",
-    "contentIndex": 1,
-    "delta": "in.ts\", \"limit\": 20"
-  },
-  {
-    "type": "toolcall_delta",
-    "contentIndex": 1,
-    "delta": "0}"
+    "delta": "{\"path\": \"README.md\"}"
   },
   {
     "type": "toolcall_end",
     "contentIndex": 1,
     "toolCall": {
       "type": "toolCall",
-      "id": "toolu_01A09q90qw90lq917835lq9",
+      "id": "toolu_function_3t97y4a8pst6_1",
       "name": "read",
       "arguments": {
-        "path": "src/main.ts",
-        "limit": 200
+        "path": "README.md"
       }
     }
   },
@@ -56,41 +50,41 @@
       "role": "assistant",
       "content": [
         {
-          "type": "text",
-          "text": "I'll read the file."
+          "type": "thinking",
+          "thinking": "The user wants me to read the README.md file. I should use the read tool to do this.",
+          "thinkingSignature": ""
         },
         {
           "type": "toolCall",
-          "id": "toolu_01A09q90qw90lq917835lq9",
+          "id": "toolu_function_3t97y4a8pst6_1",
           "name": "read",
           "arguments": {
-            "path": "src/main.ts",
-            "limit": 200
+            "path": "README.md"
           }
         }
       ],
       "api": "anthropic-messages",
-      "provider": "anthropic",
-      "model": "claude-sonnet-4-6",
+      "provider": "packy",
+      "model": "MiniMax-M2.7",
       "usage": {
-        "input": 472,
-        "output": 89,
+        "input": 242,
+        "output": 48,
         "cacheRead": 0,
         "cacheWrite": 0,
-        "totalTokens": 561,
+        "totalTokens": 290,
         "cacheReported": true,
         "cost": {
-          "input": 0.001416,
-          "output": 0.001335,
+          "input": 0.00007259999999999999,
+          "output": 0.0000576,
           "cacheRead": 0,
           "cacheWrite": 0,
-          "total": 0.002751
+          "total": 0.0001302
         }
       },
       "stopReason": "toolUse",
       "timestamp": 0,
       "thinkingLevel": "off",
-      "responseId": "msg_01ToolSingle",
+      "responseId": "e4263dc3-1401-4b8c-8837-91a8996eaac3",
       "rawStopReason": "tool_use"
     }
   }

@@ -1,0 +1,589 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "thinking_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "The"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " user"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " wants"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " me"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " to"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " read"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " a"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ".ts"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " and"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " b"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ".ts"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " in"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " parallel"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ","
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " and"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " list"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " the"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " src"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " directory"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "."
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " Let"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " me"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " first"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " check"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " if"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " these"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " files"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " exist"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "."
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " I"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "'ll"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " make"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " the"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " calls"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " in"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " parallel"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " since"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " they"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "'re"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " independent"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "."
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " But"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " I"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " need"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " to"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " know"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " paths"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "."
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " Let"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " me"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " just"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " call"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " read"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " a"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ".ts"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ","
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " read"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " b"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ".ts"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ","
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " and"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " ls"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " src"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " directory"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "."
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " They"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " are"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " independent"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ","
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " so"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " I"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " can"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " call"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " them"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " in"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " one"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " block"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "."
+  },
+  {
+    "type": "thinking_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 1,
+    "id": "call_4y3dbmk46o9l3ff7p4n1dn8v",
+    "name": "read"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "{\"path\": \""
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "a"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": ".ts"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "\""
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "}"
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 2,
+    "id": "call_ckfz6eeoys6l5s9vyatn8ibw",
+    "name": "read"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 2,
+    "delta": "{\"path\": \""
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 2,
+    "delta": "b"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 2,
+    "delta": ".ts"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 2,
+    "delta": "\""
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 2,
+    "delta": "}"
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 3,
+    "id": "call_b9slcolwh5lfwehmqvq1f654",
+    "name": "ls"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 3,
+    "delta": "{\"dir\": \""
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 3,
+    "delta": "src"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 3,
+    "delta": "\""
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 3,
+    "delta": "}"
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 1,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "call_4y3dbmk46o9l3ff7p4n1dn8v",
+      "name": "read",
+      "arguments": {
+        "path": "a.ts"
+      }
+    }
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 2,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "call_ckfz6eeoys6l5s9vyatn8ibw",
+      "name": "read",
+      "arguments": {
+        "path": "b.ts"
+      }
+    }
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 3,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "call_b9slcolwh5lfwehmqvq1f654",
+      "name": "ls",
+      "arguments": {
+        "dir": "src"
+      }
+    }
+  },
+  {
+    "type": "done",
+    "reason": "toolUse",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking": "The user wants me to read a.ts and b.ts in parallel, and list the src directory. Let me first check if these files exist. I'll make the calls in parallel since they're independent. But I need to know paths. Let me just call read a.ts, read b.ts, and ls src directory. They are independent, so I can call them in one block.",
+          "thinkingSignature": "reasoning_content"
+        },
+        {
+          "type": "toolCall",
+          "id": "call_4y3dbmk46o9l3ff7p4n1dn8v",
+          "name": "read",
+          "arguments": {
+            "path": "a.ts"
+          }
+        },
+        {
+          "type": "toolCall",
+          "id": "call_ckfz6eeoys6l5s9vyatn8ibw",
+          "name": "read",
+          "arguments": {
+            "path": "b.ts"
+          }
+        },
+        {
+          "type": "toolCall",
+          "id": "call_b9slcolwh5lfwehmqvq1f654",
+          "name": "ls",
+          "arguments": {
+            "dir": "src"
+          }
+        }
+      ],
+      "api": "openai-completions",
+      "provider": "packy",
+      "model": "deepseek-v4-flash",
+      "usage": {
+        "input": 428,
+        "output": 181,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 609,
+        "cacheReported": true,
+        "reasoning": 78,
+        "cost": {
+          "input": 0.000428,
+          "output": 0.000724,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0.001152
+        }
+      },
+      "stopReason": "toolUse",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "responseId": "0217909068209062d60f60bba313662d1f7bb8a224af9f42b1054",
+      "rawStopReason": "tool_calls"
+    }
+  }
+]

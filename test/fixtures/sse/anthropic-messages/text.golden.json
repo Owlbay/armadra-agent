@@ -3,27 +3,320 @@
     "type": "start"
   },
   {
-    "type": "text_start",
+    "type": "thinking_start",
     "contentIndex": 0
   },
   {
-    "type": "text_delta",
+    "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": "Hello"
+    "delta": "The"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " user wants a"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " short"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " greeting"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " that includes"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " the Chinese word 世界"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " (world"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ")."
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " This should"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " be one"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " short sentence"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " in"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " Chinese.\n\n"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "A"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " simple"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " greeting"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " could"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " be:\n- 你"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "好"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "，世界"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "！"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " ("
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "Hello, world"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "!)\n"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "- 世界"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "，你"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "好！ ("
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "World"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ", hello"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "!)\n"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "- 欢迎"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "来到"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "世界 ("
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "Welcome"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " to the world)\n\n"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "The"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " most natural"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " and"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " common"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " would"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " be \""
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "你好"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "，世界"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "！\""
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " which"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " directly"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " translates"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " to"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " \"Hello, world"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "!\" -"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " it's"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " also"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " a"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " famous"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " phrase"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " in programming"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ".\n"
+  },
+  {
+    "type": "thinking_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 1
   },
   {
     "type": "text_delta",
-    "contentIndex": 0,
-    "delta": ", 世界"
+    "contentIndex": 1,
+    "delta": "\n\n你好"
   },
   {
     "type": "text_delta",
-    "contentIndex": 0,
-    "delta": " 👋!"
+    "contentIndex": 1,
+    "delta": "，世界"
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 1,
+    "delta": "！"
   },
   {
     "type": "text_end",
-    "contentIndex": 0
+    "contentIndex": 1
   },
   {
     "type": "done",
@@ -32,32 +325,37 @@
       "role": "assistant",
       "content": [
         {
+          "type": "thinking",
+          "thinking": "The user wants a short greeting that includes the Chinese word 世界 (world). This should be one short sentence in Chinese.\n\nA simple greeting could be:\n- 你好，世界！ (Hello, world!)\n- 世界，你好！ (World, hello!)\n- 欢迎来到世界 (Welcome to the world)\n\nThe most natural and common would be \"你好，世界！\" which directly translates to \"Hello, world!\" - it's also a famous phrase in programming.\n",
+          "thinkingSignature": ""
+        },
+        {
           "type": "text",
-          "text": "Hello, 世界 👋!"
+          "text": "\n\n你好，世界！"
         }
       ],
       "api": "anthropic-messages",
-      "provider": "anthropic",
-      "model": "claude-sonnet-4-6",
+      "provider": "packy",
+      "model": "MiniMax-M2.7",
       "usage": {
-        "input": 25,
-        "output": 12,
+        "input": 36,
+        "output": 96,
         "cacheRead": 0,
         "cacheWrite": 0,
-        "totalTokens": 37,
+        "totalTokens": 132,
         "cacheReported": true,
         "cost": {
-          "input": 0.000075,
-          "output": 0.00018,
+          "input": 0.000010799999999999998,
+          "output": 0.0001152,
           "cacheRead": 0,
           "cacheWrite": 0,
-          "total": 0.000255
+          "total": 0.000126
         }
       },
       "stopReason": "stop",
       "timestamp": 0,
       "thinkingLevel": "off",
-      "responseId": "msg_01TextSample",
+      "responseId": "db3432e7-dd2d-4b7c-9eaf-beae41efe757",
       "rawStopReason": "end_turn"
     }
   }

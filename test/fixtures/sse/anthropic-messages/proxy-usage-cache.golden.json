@@ -1,0 +1,60 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "thinking_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "The"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " user is asking me to reply with \"ok\". This is a"
+  },
+  {
+    "type": "thinking_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "done",
+    "reason": "length",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking": "The user is asking me to reply with \"ok\". This is a",
+          "thinkingSignature": ""
+        }
+      ],
+      "api": "anthropic-messages",
+      "provider": "packy",
+      "model": "MiniMax-M2.7",
+      "usage": {
+        "input": 32,
+        "output": 16,
+        "cacheRead": 4475,
+        "cacheWrite": 0,
+        "totalTokens": 4523,
+        "cacheReported": true,
+        "cost": {
+          "input": 0.0000096,
+          "output": 0.0000192,
+          "cacheRead": 0.0002685,
+          "cacheWrite": 0,
+          "total": 0.0002973
+        }
+      },
+      "stopReason": "length",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "responseId": "731d1eaa-835a-4a97-8b5b-587dd17423a9",
+      "rawStopReason": "max_tokens"
+    }
+  }
+]

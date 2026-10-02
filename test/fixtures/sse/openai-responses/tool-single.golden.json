@@ -3,37 +3,75 @@
     "type": "start"
   },
   {
-    "type": "toolcall_start",
+    "type": "thinking_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "thinking_delta",
     "contentIndex": 0,
-    "id": "call_DdmNjhvTr1LwHJ8bCzKAxqPa",
+    "delta": "The"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " user is asking me"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " to read README"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ".md using"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " the read tool."
+  },
+  {
+    "type": "thinking_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 1,
+    "id": "call_26472a1bf2dd4abd88d1b232",
     "name": "read"
   },
   {
     "type": "toolcall_delta",
-    "contentIndex": 0,
-    "delta": "{\"pa"
+    "contentIndex": 1,
+    "delta": "{\"path\": "
   },
   {
     "type": "toolcall_delta",
-    "contentIndex": 0,
-    "delta": "th\":\"READ"
+    "contentIndex": 1,
+    "delta": "\"README.md"
   },
   {
     "type": "toolcall_delta",
-    "contentIndex": 0,
-    "delta": "ME.md\"}"
+    "contentIndex": 1,
+    "delta": "\""
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 1,
+    "delta": "}"
   },
   {
     "type": "toolcall_end",
-    "contentIndex": 0,
+    "contentIndex": 1,
     "toolCall": {
       "type": "toolCall",
-      "id": "call_DdmNjhvTr1LwHJ8bCzKAxqPa",
+      "id": "call_26472a1bf2dd4abd88d1b232",
       "name": "read",
       "arguments": {
         "path": "README.md"
       },
-      "thoughtSignature": "fc_tool1"
+      "thoughtSignature": "msg_4f174008-1efc-493e-ab74-4f64a92bf64e"
     }
   },
   {
@@ -43,39 +81,44 @@
       "role": "assistant",
       "content": [
         {
+          "type": "thinking",
+          "thinking": "The user is asking me to read README.md using the read tool.",
+          "thinkingSignature": "{\"summary\":[{\"type\":\"summary_text\",\"text\":\"The user is asking me to read README.md using the read tool.\"}],\"type\":\"reasoning\",\"id\":\"msg_e2445f64-3aa4-4ac6-8a87-7cb319baf2b6\"}"
+        },
+        {
           "type": "toolCall",
-          "id": "call_DdmNjhvTr1LwHJ8bCzKAxqPa",
+          "id": "call_26472a1bf2dd4abd88d1b232",
           "name": "read",
           "arguments": {
             "path": "README.md"
           },
-          "thoughtSignature": "fc_tool1"
+          "thoughtSignature": "msg_4f174008-1efc-493e-ab74-4f64a92bf64e"
         }
       ],
       "api": "openai-responses",
-      "provider": "openai",
-      "model": "gpt-5.5",
+      "provider": "packy",
+      "model": "qwen3.8-flash",
       "usage": {
-        "input": 150,
-        "output": 20,
+        "input": 385,
+        "output": 41,
         "cacheRead": 0,
         "cacheWrite": 0,
-        "totalTokens": 170,
+        "totalTokens": 426,
         "cacheReported": true,
-        "reasoning": 0,
+        "reasoning": 14,
         "cost": {
-          "input": 0.00075,
-          "output": 0.0006,
+          "input": 0.001925,
+          "output": 0.00123,
           "cacheRead": 0,
           "cacheWrite": 0,
-          "total": 0.00135
+          "total": 0.003155
         }
       },
       "stopReason": "toolUse",
       "timestamp": 0,
       "thinkingLevel": "off",
       "providerThinkingLevel": "none",
-      "responseId": "resp_tool1",
+      "responseId": "resp_308f0417-c3cd-91ff-b894-c9f21a079ba1",
       "rawStopReason": "completed"
     }
   }
