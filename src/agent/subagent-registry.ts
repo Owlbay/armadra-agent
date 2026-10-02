@@ -56,6 +56,7 @@ import { ZERO_USAGE } from "./loop.js";
 import type { SessionCore } from "./session-core.js";
 import type { SessionTaskStats } from "./types.js";
 import { createWorktree, finishWorktree } from "./worktree.js";
+import { appendTraceEntry } from "./session-trace-writer.js";
 
 export const DEFAULT_SUBAGENT_CONCURRENCY = 4;
 export const DEFAULT_MAX_PENDING = 16;
@@ -412,6 +413,7 @@ export class SubagentRegistry implements TaskControl {
       emit: (event) => this.host.emit(event),
       log: (level, message) => this.host.log(level, message),
       now: () => this.now(),
+      appendTrace: (data) => appendTraceEntry(this.host, data), // [W6-C0]
     };
   }
 

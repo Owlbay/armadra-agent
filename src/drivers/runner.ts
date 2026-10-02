@@ -37,6 +37,7 @@ import type {
   DriverSession,
   DriverTurnResult,
 } from "./types.js";
+import type { TraceExternalTool } from "../trace/types.js";
 
 export const RUN_TIMEOUT_MS = 30 * 60 * 1000;
 export const IDLE_CLOSE_MS = 10 * 60 * 1000;
@@ -60,6 +61,8 @@ export interface ProcessRunnerDeps {
   timeoutMs?: number;
   idleMs?: number;
   setTimer?(fn: () => void, ms: number): () => void;
+  /** [W6-C0] 轨迹计时的时钟（测试注入）；缺省 Date.now。 */
+  now?(): number;
   log?(level: "debug" | "info" | "warn", message: string): void;
 }
 
@@ -218,6 +221,8 @@ class ProcessHandle implements RunnerHandle {
   private readonly lifetime = new AbortController();
   private clearIdle: (() => void) | undefined;
   private readonly agent: string;
+  /** [W6-C0] 本回合工具的骨架（id → 种类 / 状态 / 起止），回合结束写 `turn_trace`。 */
+  private turnTools = new Map<string, TraceExternalTool>();
 
   constructor(
     private readonly runner: ProcessRunner,
@@ -318,7 +323,18 @@ class ProcessHandle implements RunnerHandle {
       case "thought_delta":
         this.emit({ type: "thought", delta: event.text });
         return;
-      case "tool_call":
+      case "tool_call": {
+        const at = this.now();
+        const skeleton = this.turnTools.get(event.id) ?? {
+          kind: event.kind,
+          status: "in_progress" as const,
+          startedAt: at,
+        };
+        if (event.status === "completed" || event.status === "failed") {
+          skeleton.status = event.status;
+          skeleton.endedAt = at;
+        }
+        this.turnTools.set(event.id, skeleton);
         if (event.status === "pending") return;
         this.emit({
           type: "tool",
@@ -329,8 +345,11 @@ class ProcessHandle implements RunnerHandle {
               : event.status === "failed"
                 ? "failed"
                 : "completed",
+          id: event.id,
+          at,
         });
         return;
+      }
       case "notice":
         this.emit({ type: "notice", level: event.level, text: event.text });
         return;
@@ -358,6 +377,29 @@ class ProcessHandle implements RunnerHandle {
     }
   }
 
+  private now(): number {
+    return (this.deps.now ?? Date.now)();
+  }
+
+  /** [W6-C0] 回合骨架：只有种类、状态、时间与计数（不含工具标题、命令行、路径）。 */
+  private emitTurnTrace(startedAt: number, stopReason: string, filesTouched: number): void {
+    const tools = [...this.turnTools.values()];
+    this.turnTools = new Map();
+    this.emit({
+      type: "turn_trace",
+      trace: {
+        sessionId: this.sessionId,
+        turn: this.turns,
+        startedAt,
+        endedAt: this.now(),
+        stopReason,
+        tools,
+        toolCount: tools.length,
+        filesTouched,
+      },
+    });
+  }
+
   /** 关掉空闲进程后再续聊：能续接的以 resume 重开。 */
   private async ensureSession(): Promise<DriverSession> {
     if (this.session !== undefined) return this.session;
@@ -376,11 +418,14 @@ class ProcessHandle implements RunnerHandle {
     let release: (() => void) | undefined;
     const setTimer = this.deps.setTimer ?? defaultSetTimer;
     let timedOut = false;
+    let turnStartedAt: number | undefined;
     try {
       release = await this.deps.pool.acquire(this.agent, this.lifetime.signal);
       const session = this.session ?? (await this.ensureSession());
       this.busy = true;
       this.turns += 1;
+      turnStartedAt = this.now();
+      this.turnTools = new Map();
       this.emit({ type: "turn", turn: this.turns });
       const turnCost = { usd: 0 };
       const cancel = (): void => void session.cancel();
@@ -430,6 +475,11 @@ class ProcessHandle implements RunnerHandle {
         this.emit({ type: "usage", usage, unit, amount });
       }
       const status = statusOf(turn, timedOut, this.stopped);
+      this.emitTurnTrace(
+        turnStartedAt,
+        timedOut ? "timeout" : turn.stopReason,
+        turn.filesTouched.length,
+      );
       this.armIdle();
       return {
         text: timedOut
@@ -442,6 +492,8 @@ class ProcessHandle implements RunnerHandle {
         sessionRef: { runner: this.runner.id, sessionId: this.sessionId },
       };
     } catch (error) {
+      if (turnStartedAt !== undefined)
+        this.emitTurnTrace(turnStartedAt, this.stopped ? "cancelled" : "error", 0);
       if (this.stopped)
         return {
           ...failed(`${this.agent} stopped`, this.sessionId, this.runner.id),

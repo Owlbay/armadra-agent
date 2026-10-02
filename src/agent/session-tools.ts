@@ -58,11 +58,14 @@ function requestContext(
     if (typeof data?.taskId === "string") taskId = data.taskId;
   }
   const origin = source?.origin;
-  if (depth === 0 && taskId === undefined && origin === undefined) return undefined;
+  const toolCallId = source?.toolCallId;
+  if (depth === 0 && taskId === undefined && origin === undefined && toolCallId === undefined)
+    return undefined;
   const context: PermissionRequestContext = {};
   if (depth > 0) context.depth = depth;
   if (taskId !== undefined) context.taskId = taskId;
   if (origin !== undefined) context.origin = origin;
+  if (toolCallId !== undefined) context.toolCallId = toolCallId;
   return context;
 }
 
@@ -232,7 +235,7 @@ export async function gateToolCall(
       toolName: call.name,
       input,
       reason: approvalReason,
-      context: { depth: core.depth, readFiles: core.readFiles },
+      context: { depth: core.depth, readFiles: core.readFiles, toolCallId: call.id },
     };
     if (hookReason !== undefined) request.hookReason = hookReason;
     if (autoDecision !== undefined) request.autoDecision = autoDecision;

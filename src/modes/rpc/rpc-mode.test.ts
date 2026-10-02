@@ -71,10 +71,21 @@ async function drive(
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
+/** [W6-C0] `ama.trace` 的计时字段（epoch ms / 速率），随机器与时序变化。 */
+const TRACE_TIME_KEYS = new Set([
+  "requestAt",
+  "firstTokenAt",
+  "doneAt",
+  "startedAt",
+  "endedAt",
+  "tps",
+]);
+
 /** 归一化时间戳、id、版本、临时路径（实施计划 R7）。 */
 function normalize(line: Line, root: string): string {
   return JSON.stringify(line, (key, value: unknown) => {
     if (key === "timestamp" || key === "durationMs") return 0;
+    if (TRACE_TIME_KEYS.has(key) && typeof value === "number") return 0;
     if (key === "version" && typeof value === "string") return "<version>";
     if (typeof value !== "string") return value;
     if (UUID.test(value)) return "<uuid>";

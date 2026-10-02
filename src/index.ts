@@ -30,6 +30,10 @@ export type * from "./permissions/types.js";
 export type * from "./host/types.js";
 export type * from "./config/types.js";
 export type * from "./checkpoints/types.js";
+// [W6-C0] 轨迹（docs/wave6-plan.md §2.1）与界面语言
+export type * from "./trace/types.js";
+export { TRACE_CUSTOM_TYPE } from "./trace/types.js";
+export type { Locale } from "./i18n/index.js";
 export type { AmaErrorOptions, ErrorCode, KnownErrorCode } from "./errors.js";
 export type {
   Runtime,

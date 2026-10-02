@@ -98,6 +98,8 @@ export interface ApprovalRequestContext {
    * 无人值守拒绝），auto 分类器与模型都不参与；RPC `permission_request` 原样带出。
    */
   origin?: ExternalPermissionOrigin;
+  /** [W6-C0] 触发审批的工具调用 id（`gateToolCall` 填；轨迹据此算 `approvalMs`）。 */
+  toolCallId?: string;
 }
 
 /** [W5-C0] 外部 Agent 权限选项的种类（ACP 词汇）。 */
@@ -124,6 +126,8 @@ export interface PermissionRequestContext {
   taskId?: string;
   /** 外部 Agent 的权限请求（对话框标 `[claude · 会话 abc1]`）。 */
   origin?: ExternalPermissionOrigin;
+  /** [W6-C0] 触发审批的工具调用 id（本会话的 toolCallId；外部 Agent 的请求不带）。 */
+  toolCallId?: string;
 }
 
 /** [W3-C0] 预览涉及的路径（bash 的 rm / mv / 重定向目标，write / edit 的目标文件）。 */

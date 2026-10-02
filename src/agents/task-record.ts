@@ -5,6 +5,8 @@
  */
 
 import type { SubagentUpdateEvent } from "../agent/types-w5.js";
+import type { SessionEvent } from "../agent/types.js";
+import type { TraceExternalTurnData } from "../trace/types.js";
 import type { Worktree, WorktreeOutcome } from "../agent/worktree.js";
 import { AmaError } from "../errors.js";
 import type { SessionEntry } from "../session/types.js";
@@ -72,11 +74,32 @@ export interface AmaRunnerSpec {
   isolated: boolean;
 }
 
-/** runner 句柄的可选扩展（ama 子会话提供）。 */
+/**
+ * [W6-C0] 外部 Agent 的展示事件（`DriverEvent` 派生，子 Agent 视图用）：只在内存环形缓冲里（≤ 2000 条 /
+ * 1 MB），不落盘（docs/wave6-plan.md §1.2、D2）。
+ */
+export interface ExternalDisplayEvent {
+  at: number;
+  kind: "text" | "thought" | "tool" | "notice" | "turn";
+  text?: string;
+  toolName?: string;
+  toolId?: string;
+  status?: "started" | "completed" | "failed";
+  level?: "info" | "warn";
+  turn?: number;
+}
+
+/** runner 句柄的可选扩展（ama 子会话提供；[W6-C0] 视图钩子由 W6-A 实现）。 */
 export type TaskHandle = RunnerHandle & {
   readonly sessionFile?: string;
   readonly model?: string;
   dispose?(): Promise<void>;
+  /** [W6-C0] ama 子会话的实时事件（子 Agent 视图跟随）；返回取消订阅。 */
+  observe?(listener: (event: SessionEvent) => void): () => void;
+  /** [W6-C0] ama 子会话当前分支的条目（视图全量渲染）。 */
+  entries?(): readonly SessionEntry[];
+  /** [W6-C0] 外部 Agent 的环形缓冲（W6-A）。 */
+  recent?(): readonly ExternalDisplayEvent[];
 };
 
 export interface TaskRecord {
@@ -113,6 +136,8 @@ export interface ProgressSink {
   emit(event: SubagentUpdateEvent): void;
   log(level: "info" | "warn", message: string): void;
   now(): number;
+  /** [W6-C0] 写父会话的 `ama.trace`（外部 Agent 回合骨架）。 */
+  appendTrace?(data: TraceExternalTurnData): void;
 }
 
 export function flushText(record: TaskRecord, sink: ProgressSink): void {
@@ -171,6 +196,14 @@ export function applyRunnerEvent(
       return;
     case "notice":
       sink.log(event.level, `[task ${taskId}] ${event.text}`);
+      return;
+    case "turn_trace":
+      sink.appendTrace?.({
+        kind: "external_turn",
+        taskId,
+        agent: record.info.agent,
+        ...event.trace,
+      });
       return;
     default:
       return;
