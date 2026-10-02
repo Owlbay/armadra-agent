@@ -92,7 +92,7 @@ describe("第六波 ③：Memory", () => {
     expectTypeOf<CliConfigOverrides["memory"]>().toEqualTypeOf<boolean | undefined>();
     expectTypeOf<SystemPromptInput["memory"]>().toEqualTypeOf<string | undefined>();
     expect(SECTION_ORDER.indexOf("memory")).toBe(SECTION_ORDER.indexOf("skills") + 1);
-    expectTypeOf<"memory">().toExtend<ToolPermission>();
+    expectTypeOf<ToolPermission>().toEqualTypeOf<"read" | "write" | "execute" | "memory">();
   });
 });
 
