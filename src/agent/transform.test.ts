@@ -172,6 +172,9 @@ describe("retry", () => {
     expect(classifyFailure(failed("529 overloaded_error"))).toBe("retryable");
     expect(classifyFailure(failed("fetch failed: ECONNRESET"))).toBe("retryable");
     expect(classifyFailure(failed("weird"))).toBe("other");
+    // 缺省用 ai/overflow.ts 的同一张表：Kimi 文案算溢出，限流文案不算
+    expect(classifyFailure(failed("exceeded model token limit: 262144"))).toBe("overflow");
+    expect(classifyFailure(failed("429 rate limit: token limit exceeded"))).toBe("retryable");
     expect(
       classifyFailure(assistant({ stopReason: "length", content: [{ type: "text", text: "…" }] })),
     ).toBe("overflow");
