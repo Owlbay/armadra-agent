@@ -32,9 +32,10 @@ export interface ProviderComposeOptions {
   warn?: ((message: string) => void) | undefined;
 }
 
-function modelConfigOf(model: ProviderData["models"][number]): ModelConfig {
-  const { provider: _p, api: _a, ...rest } = model;
-  return rest;
+/** 模型协议与供应商不同时保留模型级 `api`（同一中转下的模型可走不同协议）。 */
+function modelConfigOf(model: ProviderData["models"][number], providerApi: string): ModelConfig {
+  const { provider: _p, api, ...rest } = model;
+  return api !== providerApi ? { ...rest, api } : rest;
 }
 
 export function providerConfigOf(provider: ProviderData): ProviderConfig {
@@ -44,7 +45,7 @@ export function providerConfigOf(provider: ProviderData): ProviderConfig {
     baseUrl: provider.baseUrl,
     envKeys: [...provider.envKeys],
     requiresApiKey: provider.requiresApiKey,
-    models: provider.models.map(modelConfigOf),
+    models: provider.models.map((model) => modelConfigOf(model, provider.api)),
   };
   if (provider.authHeader !== undefined) config.authHeader = provider.authHeader;
   if (provider.headers !== undefined) config.headers = { ...provider.headers };

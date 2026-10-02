@@ -151,6 +151,33 @@ describe("ProviderRegistry", () => {
     ]);
   });
 
+  it("模型级 api：同一中转下的模型各走各的协议，缺省沿用供应商；modelOverrides 也可改协议", () => {
+    const r = registry({
+      version: 1,
+      providers: {
+        relay: {
+          baseUrl: "https://relay.example/v1",
+          models: [
+            { id: "deepseek-v4-flash" },
+            { id: "grok-4.7", api: "openai-responses" },
+            { id: "MiniMax-M2.7", api: "anthropic-messages" },
+          ],
+        },
+        deepseek: { modelOverrides: [{ id: "deepseek-flash", api: "anthropic-messages" }] },
+      },
+    });
+    const api = (ref: string): string | undefined => {
+      const found = r.findModel(ref);
+      return found.ok ? found.model.api : undefined;
+    };
+    expect(api("relay/deepseek-v4-flash")).toBe("openai-completions");
+    expect(api("relay/grok-4.7")).toBe("openai-responses");
+    expect(api("relay/MiniMax-M2.7")).toBe("anthropic-messages");
+    expect(api("deepseek/deepseek-flash")).toBe("anthropic-messages");
+    const minimax = r.findModel("relay/MiniMax-M2.7");
+    expect(minimax.ok && minimax.model.baseUrl).toBe("https://relay.example/v1");
+  });
+
   it("resolveApiKey：config 的 $ENV 走 key 发现；auth.json 的 baseUrl 覆盖供应商", async () => {
     tmp.write(
       "home/.config/ama/auth.json",

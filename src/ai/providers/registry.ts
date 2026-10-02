@@ -3,7 +3,8 @@
  * `provider/model` 解析、key 解析、协议实现查找。实现 B0 契约 `ProviderRegistryApi`。
  *
  * 合并顺序：内置（builtin.ts + catalog）← config.json `providers.<id>`（字段覆盖；`headers` /
- * `compat` 合并；`models[]` 同 id 整条替换、新 id 追加；`modelOverrides[]` 只改元数据）←
+ * `compat` 合并；`models[]` 同 id 整条替换、新 id 追加；`modelOverrides[]` 只改元数据；两者都可带
+ * 模型级 `api`，缺省沿用供应商的协议）←
  * auth.json 条目的 `baseUrl`。之后「物化」每个模型：补 baseUrl / headers / compat /
  * authHeader / requiresApiKey，让协议实现只看 Model 就能发请求。
  *
@@ -147,7 +148,8 @@ export class ProviderRegistry implements ProviderRegistryApi {
     if (config.compat) provider.compat = { ...provider.compat, ...config.compat };
     if (config.requiresApiKey !== undefined) provider.requiresApiKey = config.requiresApiKey;
     for (const entry of config.models ?? []) {
-      const model = withCustomDefaults(entry, id, provider.api);
+      // 模型级 api（第三波 §2.3）：同一中转下不同模型走不同协议；缺省沿用供应商的。
+      const model = withCustomDefaults(entry, id, entry.api ?? provider.api);
       const index = provider.models.findIndex((m) => m.id === entry.id);
       if (index >= 0) provider.models[index] = model;
       else provider.models.push(model);
@@ -160,7 +162,8 @@ export class ProviderRegistry implements ProviderRegistryApi {
         this.warn(`modelOverrides: "${id}/${override.id}" not found; ignored`);
         continue;
       }
-      provider.models[index] = applyModelOverride(current, override);
+      const next = applyModelOverride(current, override);
+      provider.models[index] = override.api !== undefined ? { ...next, api: override.api } : next;
     }
     this.providers.set(id, provider);
   }
