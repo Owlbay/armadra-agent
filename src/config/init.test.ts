@@ -72,7 +72,12 @@ describe("ama init", () => {
     const io = {
       stdout: (t: string) => void out.push(t),
       stderr: () => undefined,
-      env: { AMA_CONFIG_DIR: dir, AMA_DATA_DIR: join(dir, "..", "data"), HOME: join(dir, "..") },
+      env: {
+        AMA_CONFIG_DIR: dir,
+        AMA_DATA_DIR: join(dir, "..", "data"),
+        HOME: join(dir, ".."),
+        AMA_LANG: "zh",
+      },
       stdinIsTTY: false,
       stdoutIsTTY: false,
     };

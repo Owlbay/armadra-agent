@@ -10,6 +10,7 @@ import { accessSync, constants, mkdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { StartupError } from "../errors.js";
+import { msg } from "../i18n/index.js";
 import type { ResolvedPaths } from "../cli/runtime.js";
 
 /** 与 cli/exit-codes.ts 的 Config 相同；config 层不反向依赖 cli 的值。 */
@@ -102,12 +103,16 @@ export function resolvePaths(input: ResolvePathsInput): ResolvedPaths {
 export function ensureDir(dir: string, label: string): void {
   try {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
-    if (!statSync(dir).isDirectory()) throw new Error("不是目录");
+    if (!statSync(dir).isDirectory()) throw new Error(msg().config.paths.notDirectory);
     accessSync(dir, constants.W_OK);
   } catch (error) {
     throw new StartupError(
       "config_invalid",
-      `${label}不可写：${dir}（${error instanceof Error ? error.message : String(error)}）`,
+      msg().config.paths.notWritable(
+        label,
+        dir,
+        error instanceof Error ? error.message : String(error),
+      ),
       EXIT_CONFIG,
       { cause: error },
     );
@@ -116,9 +121,9 @@ export function ensureDir(dir: string, label: string): void {
 
 /** 第 5 步：建 configDir / dataDir / sessionDir。 */
 export function ensurePaths(paths: ResolvedPaths): void {
-  ensureDir(paths.configDir, "配置目录");
-  ensureDir(paths.dataDir, "数据目录");
-  ensureDir(paths.sessionDir, "会话目录");
+  ensureDir(paths.configDir, msg().config.paths.configDir);
+  ensureDir(paths.dataDir, msg().config.paths.dataDir);
+  ensureDir(paths.sessionDir, msg().config.paths.sessionDir);
 }
 
 export function userFile(paths: Pick<ResolvedPaths, "configDir">, name: string): string {

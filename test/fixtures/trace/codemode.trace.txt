@@ -1,0 +1,8 @@
+轨迹 · 1 回合 · 2 请求 · 1 次工具 · 6.4s · ↑7.8k ↓330 · 缓存 35% · ttft p50 0.7s / p90 0.7s · 183 tok/s
+#1 用脚本统计 src 下的文件  6.4s  ↑7.8k ↓330  35%
+  请求 claude-sonnet-4-5 · ttft 0.7s · 231 tok/s  2.0s  ↑4.9k ↓300  0%
+    codemode const f = await tools.glob({pattern:'src/**'}); ...  3.1s
+      glob  0.3s
+      read  1.3s
+      ✗ grep  1.1s
+  请求 claude-sonnet-4-5 · ttft 0.7s · 60 tok/s  1.1s  ↑2.9k ↓30  93%

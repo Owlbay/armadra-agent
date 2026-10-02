@@ -48,6 +48,11 @@ export const DEFAULT_KEYBINDINGS = {
   "app.statusLine.toggle": ["ctrl+g"],
   /** [W5-U] 粘贴剪贴板图片（写进数据目录，输入框插入 `@路径`）。 */
   "app.paste.image": ["ctrl+v"],
+  /**
+   * [W6-A] 进入 Agent 栏：只在输入为空时生效（有字时 `Ctrl+B` 仍是光标左移、`↓` 仍是下移 / 历史）；
+   * `↓` 另要求栏可见。tmux 缺省前缀吃掉 `Ctrl+B` 时用 `↓`。
+   */
+  "app.agents.focus": ["ctrl+b", "down"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type ActionId = keyof typeof DEFAULT_KEYBINDINGS;

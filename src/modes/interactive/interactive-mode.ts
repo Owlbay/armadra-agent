@@ -54,7 +54,7 @@ import {
 } from "../../tui.js";
 import { BYPASS_MODE, createBypassGate } from "../../permissions/bypass.js";
 import { onTerminationSignals } from "../shared.js";
-import { AgentUi } from "./agent-ui.js";
+import { AgentUi, agentCommandHooks } from "./agent-ui.js";
 import { ApprovalDialogBroker, approvalOutcomeText } from "./approval-dialog.js";
 import { mergingBroker } from "./approval-merge.js";
 import { ALL_COMMANDS, runInteractiveCommand, type CommandUi } from "./commands.js";
@@ -65,6 +65,7 @@ import { createKeyDispatch } from "./key-dispatch.js";
 import { MessageView, exitSummaryLines, type NoticeLevel } from "./message-view.js";
 import { openPicker } from "./pickers.js";
 import { createRewindFlow } from "./rewind-flow.js";
+import { openTraceView } from "./trace-view.js";
 import { StartupHeader } from "./startup-header.js";
 import { QueueView, RunIndicator } from "./run-indicator.js";
 import { StatusArea, statusLineSlash } from "./status-area.js";
@@ -407,7 +408,10 @@ export function runInteractiveMode(
     exit: (code) => exit(code),
     now,
     extra: (name, args) => agentUi.command(name, args),
+    ...agentCommandHooks(() => agentUi),
     configPanel: (args) => configUi.open(args),
+    traceView: (id) =>
+      openTraceView({ ...pickerHost, session: () => session, now, notice, render }, id),
   };
 
   const runCommand = (line: string): Promise<boolean> =>
@@ -457,6 +461,7 @@ export function runInteractiveMode(
       runCommand: (line) => void runCommand(line),
       exit: (code) => exit(code),
       onInterrupted: (empty) => void rewind.afterInterrupt(empty),
+      agents: () => agentUi.keys,
     }),
   );
 
@@ -495,6 +500,7 @@ export function runInteractiveMode(
     dialog: { theme, keybindings: keys, ...overlayHooks },
     displayPath: (path) => tildePath(path, home),
     ...(options.clipboard !== undefined ? { clipboard: options.clipboard } : {}),
+    area,
   });
   const taskAgent = (taskId: string): string | undefined =>
     taskRegistryView(session.state.sessionId)?.get(taskId)?.agent;

@@ -1,0 +1,328 @@
+{
+  "version": 1,
+  "sessionId": "sess-sub",
+  "cwd": "/work/proj",
+  "startedAt": 1791014400000,
+  "totals": {
+    "requests": 2,
+    "input": 2900,
+    "output": 220,
+    "cacheRead": 2700,
+    "cacheWrite": 2500,
+    "toolCalls": 2,
+    "cost": 0.015899999999999997,
+    "durationMs": 10500,
+    "ttftP50": 550,
+    "ttftP90": 600,
+    "avgTps": 129.4,
+    "cacheHitRatio": 0.3333333333333333
+  },
+  "turns": [
+    {
+      "id": "su004",
+      "kind": "turn",
+      "status": "ok",
+      "entryIds": [
+        "su004"
+      ],
+      "steps": [
+        {
+          "id": "su005",
+          "kind": "step",
+          "status": "ok",
+          "entryIds": [
+            "su005",
+            "su011"
+          ],
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "attempt": 1,
+          "usage": {
+            "input": 2600,
+            "output": 160,
+            "cacheRead": 0,
+            "cacheWrite": 2500,
+            "totalTokens": 5260,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0136
+            }
+          },
+          "stopReason": "toolUse",
+          "tools": [
+            {
+              "id": "c_task1",
+              "kind": "tool",
+              "name": "task",
+              "status": "ok",
+              "isError": false,
+              "entryIds": [
+                "su005",
+                "su009"
+              ],
+              "children": [
+                {
+                  "id": "t1",
+                  "kind": "subagent",
+                  "taskId": "t1",
+                  "agent": "explore",
+                  "runner": "ama",
+                  "background": false,
+                  "status": "ok",
+                  "entryIds": [
+                    "su008"
+                  ],
+                  "startedAt": 1791014402520,
+                  "endedAt": 1791014410000,
+                  "usage": {
+                    "input": 5000,
+                    "output": 400,
+                    "cacheRead": 3000,
+                    "cacheWrite": 0,
+                    "totalTokens": 8400
+                  },
+                  "costUsd": 0.0231,
+                  "turns": 2,
+                  "childRef": {
+                    "sessionId": "sess-child",
+                    "sessionFile": "/data/sessions/--work-proj--/subagent-child.jsonl"
+                  },
+                  "child": {
+                    "version": 1,
+                    "sessionId": "sess-child",
+                    "cwd": "/work/proj",
+                    "startedAt": 1791014400000,
+                    "totals": {
+                      "requests": 2,
+                      "input": 5000,
+                      "output": 400,
+                      "cacheRead": 3000,
+                      "cacheWrite": 0,
+                      "toolCalls": 1,
+                      "durationMs": 7395,
+                      "ttftP50": 480,
+                      "ttftP90": 850,
+                      "avgTps": 70.2,
+                      "cacheHitRatio": 0.375
+                    },
+                    "turns": [
+                      {
+                        "id": "ch003",
+                        "kind": "turn",
+                        "status": "ok",
+                        "entryIds": [
+                          "ch003"
+                        ],
+                        "steps": [
+                          {
+                            "id": "ch004",
+                            "kind": "step",
+                            "status": "ok",
+                            "entryIds": [
+                              "ch004",
+                              "ch006"
+                            ],
+                            "provider": "anthropic",
+                            "model": "claude-haiku-4-5",
+                            "attempt": 1,
+                            "usage": {
+                              "input": 2000,
+                              "output": 80,
+                              "cacheRead": 0,
+                              "cacheWrite": 0,
+                              "totalTokens": 2080
+                            },
+                            "stopReason": "toolUse",
+                            "tools": [
+                              {
+                                "id": "k_glob",
+                                "kind": "tool",
+                                "name": "glob",
+                                "status": "ok",
+                                "isError": false,
+                                "entryIds": [
+                                  "ch004",
+                                  "ch005"
+                                ],
+                                "children": [],
+                                "startedAt": 1791014403735,
+                                "endedAt": 1791014404015
+                              }
+                            ],
+                            "thinkingLevel": "medium",
+                            "cacheHitRatio": 0,
+                            "requestAt": 1791014402545,
+                            "startedAt": 1791014402545,
+                            "firstTokenAt": 1791014403025,
+                            "ttftMs": 480,
+                            "doneAt": 1791014403725,
+                            "endedAt": 1791014403725,
+                            "tps": 114.3
+                          },
+                          {
+                            "id": "ch007",
+                            "kind": "step",
+                            "status": "ok",
+                            "entryIds": [
+                              "ch007",
+                              "ch008"
+                            ],
+                            "provider": "anthropic",
+                            "model": "claude-haiku-4-5",
+                            "attempt": 1,
+                            "usage": {
+                              "input": 3000,
+                              "output": 320,
+                              "cacheRead": 3000,
+                              "cacheWrite": 0,
+                              "totalTokens": 6320
+                            },
+                            "stopReason": "stop",
+                            "tools": [],
+                            "thinkingLevel": "medium",
+                            "cacheHitRatio": 0.5,
+                            "requestAt": 1791014404075,
+                            "startedAt": 1791014404075,
+                            "firstTokenAt": 1791014404925,
+                            "ttftMs": 850,
+                            "doneAt": 1791014409925,
+                            "endedAt": 1791014409925,
+                            "tps": 64
+                          }
+                        ],
+                        "usage": {
+                          "requests": 2,
+                          "input": 5000,
+                          "output": 400,
+                          "cacheRead": 3000,
+                          "cacheWrite": 0,
+                          "toolCalls": 1,
+                          "durationMs": 7395,
+                          "ttftP50": 480,
+                          "ttftP90": 850,
+                          "avgTps": 70.2,
+                          "cacheHitRatio": 0.375
+                        },
+                        "startedAt": 1791014402530,
+                        "endedAt": 1791014409925
+                      }
+                    ],
+                    "aux": [],
+                    "partial": false,
+                    "sessionFile": "/data/sessions/--work-proj--/subagent-child.jsonl",
+                    "endedAt": 1791014409925
+                  }
+                }
+              ],
+              "startedAt": 1791014402510,
+              "endedAt": 1791014410005
+            },
+            {
+              "id": "c_task2",
+              "kind": "tool",
+              "name": "task",
+              "status": "ok",
+              "isError": false,
+              "entryIds": [
+                "su005",
+                "su010"
+              ],
+              "children": [
+                {
+                  "id": "t2",
+                  "kind": "subagent",
+                  "taskId": "t2",
+                  "agent": "explore",
+                  "runner": "ama",
+                  "background": true,
+                  "status": "error",
+                  "entryIds": [
+                    "su014"
+                  ],
+                  "startedAt": 1791014402520,
+                  "endedAt": 1791014441000,
+                  "turns": 1,
+                  "childRef": {
+                    "sessionId": "sess-gone",
+                    "sessionFile": "/data/sessions/--work-proj--/gone.jsonl"
+                  },
+                  "childMissing": true
+                }
+              ],
+              "startedAt": 1791014402512,
+              "endedAt": 1791014402540
+            }
+          ],
+          "thinkingLevel": "medium",
+          "cacheHitRatio": 0,
+          "requestAt": 1791014401100,
+          "startedAt": 1791014401100,
+          "firstTokenAt": 1791014401700,
+          "ttftMs": 600,
+          "doneAt": 1791014402500,
+          "endedAt": 1791014402500,
+          "tps": 200
+        },
+        {
+          "id": "su012",
+          "kind": "step",
+          "status": "ok",
+          "entryIds": [
+            "su012",
+            "su013"
+          ],
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "attempt": 1,
+          "usage": {
+            "input": 300,
+            "output": 60,
+            "cacheRead": 2700,
+            "cacheWrite": 0,
+            "totalTokens": 3060,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0023
+            }
+          },
+          "stopReason": "stop",
+          "tools": [],
+          "thinkingLevel": "medium",
+          "cacheHitRatio": 0.9,
+          "requestAt": 1791014410050,
+          "startedAt": 1791014410050,
+          "firstTokenAt": 1791014410600,
+          "ttftMs": 550,
+          "doneAt": 1791014411500,
+          "endedAt": 1791014411500,
+          "tps": 66.7
+        }
+      ],
+      "usage": {
+        "requests": 2,
+        "input": 2900,
+        "output": 220,
+        "cacheRead": 2700,
+        "cacheWrite": 2500,
+        "toolCalls": 2,
+        "cost": 0.015899999999999997,
+        "durationMs": 10500,
+        "ttftP50": 550,
+        "ttftP90": 600,
+        "avgTps": 129.4,
+        "cacheHitRatio": 0.3333333333333333
+      },
+      "startedAt": 1791014401000,
+      "endedAt": 1791014411500
+    }
+  ],
+  "aux": [],
+  "partial": false,
+  "endedAt": 1791014411500
+}

@@ -1,7 +1,7 @@
 {
   "name": "@armadra/agent",
   "version": "0.5.1",
-  "description": "可独立使用、可嵌入 Armadra 的编码 / 协调 Agent",
+  "description": "A coding and coordination agent that runs standalone or embedded in Armadra",
   "type": "module",
   "keywords": [
     "coding-agent",
@@ -73,7 +73,11 @@
     "docs/tui-design.md",
     "docs/session-format.md",
     "docs/sessions.md",
+    "docs/memory.md",
+    "docs/en/*.md",
+    "README.zh-CN.md",
     "CHANGELOG.md",
+    "CHANGELOG.zh-CN.md",
     "THIRD_PARTY_NOTICES.md"
   ],
   "sideEffects": [

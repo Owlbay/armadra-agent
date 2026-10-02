@@ -1,4 +1,4 @@
-# config · en · viewport 80x24 cursor=19,79
+# config · en · viewport 80x24 cursor=20,79
 |▎ Settings  Write: user ~/.config/ama/config.json  [Tab switch]
 |▎ / to search
 |▎ Interface
@@ -17,9 +17,9 @@
 |▎ Model
 |▎   Default model             (unset)           now · cache
 |▎ ──────────────────────────────────────────────────────────────────────────────
-|▎ 配色主题：dark、light，或 auto（按 COLORFGBG 猜，不发终端查询，猜不出用 dark）
+|▎ Color theme: dark, light, or auto (guessed from COLORFGBG without querying the
+|▎ terminal; dark when unsure)
 |▎ ↑↓ select · Enter/Space change · / search · Tab user/project · Backspace rese…
-|
 |
 |
 |

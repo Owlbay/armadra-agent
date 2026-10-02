@@ -12,6 +12,7 @@
  * - 结果 > 50 KB 保留头尾并全文落 `outputs/`；轮数耗尽加说明；worktree 隔离；
  * - 事件 `subagent_start / update / end`；父会话 `custom{ama.task}` 记任务快照（带 `status`），
  *   resume 时据此重建（未完成标 `interrupted`）。
+ * - [W6-A] 子 Agent 视图的 `live()` / `message()`（实现在 subagent-direct.ts）。
  */
 
 import { tmpdir } from "node:os";
@@ -44,6 +45,7 @@ import {
   type AmaRunnerSpec,
   type ProgressSink,
   type TaskHandle,
+  type TaskLive,
   type TaskRecord,
 } from "../agents/task-record.js";
 import {
@@ -57,6 +59,7 @@ import type { SessionCore } from "./session-core.js";
 import type { SessionTaskStats } from "./types.js";
 import { createWorktree, finishWorktree } from "./worktree.js";
 import { appendTraceEntry } from "./session-trace-writer.js";
+import { directMessage, drainDirect, liveOf } from "./subagent-direct.js";
 
 export const DEFAULT_SUBAGENT_CONCURRENCY = 4;
 export const DEFAULT_MAX_PENDING = 16;
@@ -83,6 +86,8 @@ export type RegistryHost = Pick<
 > & {
   followUp?(text: string, options?: { origin?: string }): Promise<unknown>;
   waitForIdle?(): Promise<void>;
+  /** [W6-A] 视图里续聊已结束的任务（AgentSessionImpl 的方法，经 runSubagent 拿到 ama runner 工厂）。 */
+  spawnSubagent?(request: SubagentRequest): Promise<SubagentResult>;
 };
 
 const registries = new Map<string, SubagentRegistry>();
@@ -195,6 +200,19 @@ export class SubagentRegistry implements TaskControl {
     }
   }
 
+  /** [W6-A] 子 Agent 视图读的实时数据；未知任务 undefined。 */
+  live(taskId: string): TaskLive | undefined {
+    const record = this.tasks.get(taskId);
+    return record === undefined ? undefined : liveOf(record);
+  }
+
+  /** [W6-A] 人在子 Agent 视图里发的消息（subagent-direct.ts）。 */
+  async message(taskId: string, text: string): Promise<"steered" | "queued" | "resumed"> {
+    const record = this.tasks.get(taskId);
+    if (record === undefined) throw new AmaError("task_not_found", `unknown task ${taskId}`);
+    return directMessage(record, text, this.host);
+  }
+
   async stop(taskId: string): Promise<SubagentResult | undefined> {
     const record = this.tasks.get(taskId);
     if (record === undefined) throw new AmaError("task_not_found", `unknown task ${taskId}`);
@@ -286,6 +304,7 @@ export class SubagentRegistry implements TaskControl {
       parentSignal?.removeEventListener("abort", onParentAbort);
       delete record.running;
       delete record.controller;
+      if (!this.disposed) drainDirect(record, this.host);
     });
     record.running = running;
     if (!background) return running;
@@ -315,11 +334,14 @@ export class SubagentRegistry implements TaskControl {
     ama: AmaRunnerFactory,
     signal: AbortSignal,
   ): Promise<SubagentResult> {
+    record.queued = true;
     try {
       await this.pool.acquire(signal);
     } catch {
+      delete record.queued;
       return this.finish(record, { ...failed("aborted by user"), status: "aborted" });
     }
+    delete record.queued;
     try {
       if (record.isolation === "worktree" && record.worktree === undefined) {
         // 名字带会话 id 前缀：不同会话的 t1 不会撞到同一个 worktree / 分支
@@ -351,10 +373,13 @@ export class SubagentRegistry implements TaskControl {
     signal: AbortSignal,
   ): Promise<TaskHandle> {
     const live = record.handle;
+    const direct = record.directNext === true;
+    delete record.directNext;
     if (live !== undefined) {
       this.touch(record.info.taskId);
       this.emitStart(record, live);
-      await live.send(request.prompt);
+      if (direct && live.message !== undefined) await live.message(request.prompt, "send");
+      else await live.send(request.prompt);
       return live;
     }
     const ref = record.info.sessionRef;
@@ -368,6 +393,7 @@ export class SubagentRegistry implements TaskControl {
             cwd: record.cwd,
             ...(ref?.sessionFile === undefined ? {} : { resumeFile: ref.sessionFile }),
             isolated: record.worktree !== undefined,
+            ...(direct ? { origin: "direct" } : {}),
           })
         : this.env.runners?.(record.agent);
     if (runner === undefined) throw new Error(`runner ${record.agent.runner} is not available`);
