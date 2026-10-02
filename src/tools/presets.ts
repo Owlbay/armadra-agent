@@ -3,7 +3,7 @@
  *
  * | 预设          | 模型直接看到                              |
  * | ------------- | ----------------------------------------- |
- * | `default`     | read、edit、write、bash、grep、glob、todo |
+ * | `default`     | read、edit、write、bash、grep、glob       |
  * | `minimal`     | read、edit、write、bash                   |
  * | `codemode-only` | 只有 codemode（其余工具在脚本里调用）   |
  * | `coordinator` | read + 宿主注册的工具                     |
@@ -12,9 +12,10 @@
  *   `--tools a,b,c` 整组替换（之后只用列出的名字）。
  * - `tools.default`：`+name` / `-name` 在预设上增减；不带前缀的名字整组替换预设的内置工具，
  *   之后再应用带前缀的项。未注册的名字记 warning 并忽略。
- * - （W5-C0，D20）`default` 加 `todo`：会话开始时随工具表固定，不中途开启；约 150 token 进缓存前缀。
- *   **是否保留以 W5-H2 的 `bench-presets default,default+todo` 复测为门**（费用增幅 ≤ 5% 且成功率
- *   不降），不达标就撤回，退回「plan 交接时用 `[DONE:n]` 文本标记」。
+ * - （D20）`todo` 不在 `default` 里：W5-C0 曾把它加进来，以 `bench-presets` 复测为门（费用增幅 ≤ 5% 且
+ *   成功率不降）；W5-Z 用多步长任务复测（docs/benchmarks/presets-todo-2026-10-03.md）成功数下降 1、估价
+ *   +4.6%、保守计价 +11.3%，按门撤回。计划批准后的进度改用 `[DONE:n]` 文本标记（plan/done-markers.ts）；
+ *   要 todo 就 `tools.default: ["+todo"]`。
  * - （W5-C0）`task_ctl` 与 `task` 同进退：`+task` 一起暴露、`-task` 一起去掉（`pairCompanions`）。
  * - `codemode` 是 `codemode-only` 的旧名（0.3.0），配置合并与命令行解析时折成规范名。
  * - codemode 开关跟随预设（`presetCodemodeMode`）：`default` → `on`（只在沙箱 strict，即 Node ≥ 25 隔离
@@ -42,8 +43,8 @@ export const CODEMODE_TOOL = "codemode";
 
 /** 各预设下模型直接看到的内置工具（codemode-only 预设见 `resolvePreset`）。 */
 export const PRESET_TOOLS: Readonly<Record<ToolsPreset, readonly string[]>> = Object.freeze({
-  // [W5-C0] todo 进 default（D20，门槛见文件头）
-  default: ["bash", "edit", "glob", "grep", "read", "todo", "write"],
+  // D20：todo 不在 default（W5-Z 复测未过门，见文件头）
+  default: ["bash", "edit", "glob", "grep", "read", "write"],
   minimal: ["bash", "edit", "read", "write"],
   "codemode-only": [CODEMODE_TOOL],
   coordinator: ["read"],

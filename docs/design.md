@@ -581,14 +581,14 @@ ama 不知道画布；Armadra 适配器经 `HostApi.tools.register` 注册 `canv
 
 | 预设          | 模型直接看到                                         | 脚本内可调用（codemode）              | 用途                                         |
 | ------------- | ---------------------------------------------------- | ------------------------------------- | -------------------------------------------- |
-| `default`     | read、edit、write、bash、grep、glob、todo（第五波 D20，以基准复测为门）；Node ≥ 25 另加 codemode | 全部内置工具（含 ls、todo、task）      | 独立编码，缺省                               |
+| `default`     | read、edit、write、bash、grep、glob（第五波 D20 曾加 todo，0.5.0 复测未过门撤回）；网络隔离时另加 codemode | 全部内置工具（含 ls、todo、task）      | 独立编码，缺省                               |
 | `minimal`     | read、edit、write、bash                              | —（显式 `on` 时全部内置工具）          | 与 Pi 一致；适合 `full-auto`                 |
 | `codemode-only` | codemode                                           | 全部内置工具（含 ls、todo、task）      | 长流程、工具密集任务                         |
 | `coordinator` | read、宿主注册的 canvas_* / context_*（codemode 可选） | 只有活动集：read 与 canvas_* 等       | 嵌入 Armadra 的协调者：不写文件、不跑 bash   |
 
 - 预设名：`codemode-only` 是 2026-10 起的规范名，0.3.0 的 `codemode` 作别名保留（配置、命令行、RPC 的 argv、SDK、schema 都接受；配置合并与命令行解析后只见规范名，`ama config show` 显示规范名并提示）。项目级「只能更严」按规范名比较。
 
-- 逐个工具：`ls` 默认关（glob 已覆盖，且诱导逐层翻目录）；`todo` 默认关（每次更新多一次往返；长任务在脚本里用；第五波改为进 `default` 预设，以预设基准复测为门，见 [wave5-plan.md](wave5-plan.md) D20）；`task` 默认关（`+task` 打开；嵌入 Armadra 时禁用）；**删除 `skill` 工具**（Skill 正文用 `read` 读，`/skill:` 命令保留）；Windows 上若没有 bash，`default` 预设自动退化为 PowerShell 版 bash，grep / glob 照常可用。
+- 逐个工具：`ls` 默认关（glob 已覆盖，且诱导逐层翻目录）；`todo` 默认关（每次更新多一次往返；长任务在脚本里用；第五波曾进 `default` 预设，0.5.0 用多步长任务复测未过门撤回，计划交接改用 `[DONE:n]` 文本标记，见 [wave5-plan.md](wave5-plan.md) D20 与 docs/benchmarks/presets-todo-2026-10-03.md）；`task` 默认关（`+task` 打开；嵌入 Armadra 时禁用）；**删除 `skill` 工具**（Skill 正文用 `read` 读，`/skill:` 命令保留）；Windows 上若没有 bash，`default` 预设自动退化为 PowerShell 版 bash，grep / glob 照常可用。
 - 配置：`tools.preset`（缺省 `default`）+ `tools.default` 的 `+name` / `-name` 微调；命令行 `--tools-preset <名>`、`--tools a,b,c`（整组替换）。
 - 预设在会话开始时确定并写进首条 system 消息；会话中途改预设按工具表补丁处理（§9.1）。
 - 描述精简：每个工具的描述 + 参数控制在 150 token 内（已落实：内置工具合计 1548 → 1186 token，`src/tools/descriptions.test.ts` 守住）。

@@ -50,7 +50,7 @@ ama
 | 零配置与中转站  | 有 key 就选第一个可用的供应商（中转站按价格规则挑缺省模型）；识别 `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`；`ama providers add` 只给 baseUrl 与 key 一键接入：列模型、探测渠道、写回配置                                                               |
 | 模型元数据      | 上下文、输出上限、图像输入、推理、价格来自随包的 models.dev 内置快照（启动与运行都不联网，`ama models refresh` 显式刷新）；一个供应商可挂多个渠道（Chat / Responses / Messages），`provider/model@渠道`                                                |
 | 图像输入        | `-p --image`、界面里 `@图片路径`、`Ctrl+V` / `/paste` 粘贴剪贴板图片；按端点分档的单图上限、超限自动缩放；模型不收图片时直接拒绝并提示换模型                                                                                                           |
-| 工具与预设      | read / edit / write / bash / grep / glob / todo，另有 ls、task / task_ctl（子 Agent）、codemode；四个预设 `default` / `minimal` / `codemode-only` / `coordinator`                                                                                      |
+| 工具与预设      | read / edit / write / bash / grep / glob，另有 ls、todo、task / task_ctl（子 Agent）、codemode；四个预设 `default` / `minimal` / `codemode-only` / `coordinator`                                                                                       |
 | Plan 与子 Agent | Plan 模式只读调研、出计划后审批执行；`task` 委派子 Agent（内置 general / explore / plan，可自定义类型，前台 / 后台 / 续聊 / worktree 隔离）                                                                                                            |
 | 外部 Agent      | `task(agent="claude" \| "codex" \| "acp:<程序>")` 以各 CLI 自己的登录驱动外部编码 Agent，审批只交给人；`ama --mode acp` 把 ama 暴露为 ACP Agent                                                                                                        |
 | 回滚与沙箱      | 每回合检查点，`/rewind` / 双击 Esc 回到任一条消息之前（代码、对话或两者）；macOS / Linux 的操作系统沙箱隔离 codemode 与（可选）bash                                                                                                                    |
@@ -281,20 +281,20 @@ ama models cache-probe packy/grok-4.7                  # 这个端点报不报�
 
 ## 工具与预设
 
-| 预设            | 模型直接看到的工具                                                   | 适合                                                                                        |
-| --------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `default`       | read、edit、write、bash、grep、glob、todo；网络隔离时另加 `codemode` | 缺省（`todo` 自 0.5.0 起在内）                                                              |
-| `minimal`       | read、edit、write、bash                                              | 小模型、小上下文；`full-auto`                                                               |
-| `codemode-only` | 只有 `codemode`                                                      | 长流程、工具调用密集的任务                                                                  |
-| `coordinator`   | read 与宿主注册的画布工具                                            | 嵌入 Armadra 的协调者：不写文件、不跑 bash；codemode 缺省关，显式开了脚本里也只能调这些工具 |
+| 预设            | 模型直接看到的工具                                             | 适合                                                                                        |
+| --------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `default`       | read、edit、write、bash、grep、glob；网络隔离时另加 `codemode` | 缺省（要 todo 就 `tools.default: ["+todo"]`）                                               |
+| `minimal`       | read、edit、write、bash                                        | 小模型、小上下文；`full-auto`                                                               |
+| `codemode-only` | 只有 `codemode`                                                | 长流程、工具调用密集的任务                                                                  |
+| `coordinator`   | read 与宿主注册的画布工具                                      | 嵌入 Armadra 的协调者：不写文件、不跑 bash；codemode 缺省关，显式开了脚本里也只能调这些工具 |
 
 - `--tools-preset <名>` 或 `tools.preset` 选预设。`codemode` 是 `codemode-only` 的旧名（0.3.0），配置、命令行、RPC、SDK 都还认，`ama config show` 显示规范名并提示。
-- `tools.default` 在预设上微调：`["+task", "-todo", "-glob"]`；不带前缀的名字整组替换。`task` 与 `task_ctl` 同进退（`+task` 一起加）。
+- `tools.default` 在预设上微调：`["+task", "+todo", "-glob"]`；不带前缀的名字整组替换。`task` 与 `task_ctl` 同进退（`+task` 一起加）。
 - 另有 `--tools a,b,c`（只启用这些）、`--exclude-tools a,b`、交互模式的 `/tools`。
 
 **codemode** 让模型写一段 JavaScript，用 `tools.<name>(args)` 编排多次工具调用（可以 `Promise.all` 并发），只有脚本输出回到模型。脚本跑在 `node --permission` 子进程的 vm 里：没有 `require` / `import` / `process` / `fetch`，每次内层调用仍逐个经过 Hook、权限与审批。
 
-**缺省开放**：`codemode.mode` 不写时跟随预设——`default` → `on`（七个工具 + codemode，只在网络隔离的沙箱里：Node ≥ 25，或 Node 22 / 24 + 操作系统沙箱；否则 `off`），`codemode-only` → `only`，`minimal` / `coordinator` → `off`。显式的 `--codemode off|on|only` 或 `codemode.mode` 优先，项目级只能写 `off`。`on` 模式下 codemode 的描述只用一行列出可在脚本里调用的直接工具（参数相同）与仅脚本可调的工具名，不重复声明，前缀只多约 400 token（[三预设基准](https://github.com/Owlbay/armadra-agent/blob/main/docs/benchmarks/presets-2026-10-02.md)测的是去重前的 codemode 预设：小任务输入多约 45%、轮数不减）。只读检索多、调用次数多的长流程可以用 `codemode-only`。
+**缺省开放**：`codemode.mode` 不写时跟随预设——`default` → `on`（六个工具 + codemode，只在网络隔离的沙箱里：Node ≥ 25，或 Node 22 / 24 + 操作系统沙箱；否则 `off`），`codemode-only` → `only`，`minimal` / `coordinator` → `off`。显式的 `--codemode off|on|only` 或 `codemode.mode` 优先，项目级只能写 `off`。`on` 模式下 codemode 的描述只用一行列出可在脚本里调用的直接工具（参数相同）与仅脚本可调的工具名，不重复声明，前缀只多约 400 token（[三预设基准](https://github.com/Owlbay/armadra-agent/blob/main/docs/benchmarks/presets-2026-10-02.md)测的是去重前的 codemode 预设：小任务输入多约 45%、轮数不减）。只读检索多、调用次数多的长流程可以用 `codemode-only`。
 
 ## 缓存
 
@@ -384,7 +384,7 @@ macOS 用 `sandbox-exec`，Linux 用 bubblewrap（退而 `unshare -r -n`，只�
 
 Plan 模式（`Shift+Tab`、`/permission plan`、`/plan <目标>`、`--permission-mode plan`）下模型只读调研——只放行读工具、只读命令（`ls`、`rg`、`git log / diff` 等）与只读子 Agent——最后输出 `<proposed_plan>` 计划块。ama 提取步骤、把计划落到 `<数据目录>/plans/`，弹出审批框：
 
-- **批准并执行** / **批准，在新上下文执行**（新建会话，以计划全文开场），接着选执行模式（回到进入前的模式 / Accept edits / Auto）；步骤变成 todo，逐步推进；
+- **批准并执行** / **批准，在新上下文执行**（新建会话，以计划全文开场），接着选执行模式（回到进入前的模式 / Accept edits / Auto）；步骤变成待办，逐步推进（有 todo 工具时用 `todo update`，没有时模型每完成一步写一行 `[DONE:S1]`）；
 - **继续修改**（意见发给模型重写计划）/ **放弃并退出 Plan**；`e` 在外部编辑器里改计划，Esc 放弃但留在 Plan。
 
 line 模式用 `/plan approve [模式|fresh]` / `/plan reject`；RPC 声明 `plans` 能力后由客户端审批；SDK 用 `createAgentSession({ plan: { onProposed } })`。**ama 不替人批准**：`-p` 缺省停在「计划待审批」并退出 9，用户级配置 `"plan": { "unattended": "approve" }` 才在无人值守时自动批准执行。`plan.model` 可让规划与执行用不同模型。见 [docs/plan.md](docs/plan.md)。
