@@ -3,6 +3,8 @@
  * 选择器在行式界面里退化为列出候选、提示带参数重发。
  */
 
+import { msg } from "../../../i18n/index.js";
+import type { LineApprovalWhy } from "../../../i18n/messages/interactive-line.js";
 import type { AgentSession, SessionEvent } from "../../../agent/types.js";
 import { THINKING_LEVELS } from "../../../ai/thinking.js";
 import { listSessions } from "../../../cli/compose-store.js";
@@ -37,28 +39,28 @@ export function argsSummary(args: unknown): string {
 }
 
 export function approvalQuestion(request: ApprovalRequest, taskAgent?: TaskAgentLookup): string {
+  const m = msg().interactive.line;
   const label = sourceLabel(request, taskAgent);
   const task = label === undefined ? "" : `${label} `;
   const origin = request.context?.origin;
   if (origin !== undefined) {
-    const where = origin.toolCall.locations?.[0];
-    return `${task}允许 ${origin.toolCall.title}${where !== undefined ? ` ${where}` : ""}？[y 允许 / a 本会话都允许 / N 拒绝] `;
+    return m.approvalOrigin(task, origin.toolCall.title, origin.toolCall.locations?.[0]);
   }
   if (isFirstRunRequest(request)) {
     const input = request.input as Record<string, unknown>;
-    return `${task}${String(input["note"])} 允许？[y 允许 / N 拒绝] `;
+    return m.approvalFirstRun(task, String(input["note"]));
   }
   const summary = argsSummary(request.input);
   const auto = request.autoDecision;
-  const why =
+  const why: LineApprovalWhy | undefined =
     request.reason === "dangerous"
-      ? "（危险命令）"
+      ? { kind: "dangerous" }
       : request.hookReason !== undefined
-        ? `（${request.hookReason}）`
+        ? { kind: "hook", reason: request.hookReason }
         : auto !== undefined
-          ? `（Auto ${autoLayerText(auto.layer)}：${auto.reason}）`
-          : "";
-  return `${task}允许 ${request.toolName}${summary !== "" ? ` ${summary}` : ""}${why}？[y 允许 / a 本会话都允许 / N 拒绝] `;
+          ? { kind: "auto", layer: autoLayerText(auto.layer), reason: auto.reason }
+          : undefined;
+  return m.approvalTool(task, request.toolName, summary, why);
 }
 
 /** [W3-C2] 缓存提示的开关（line 模式由 runLineMode 传入）。 */
@@ -115,7 +117,8 @@ export class EventPrinter {
         if (event.message.role === "assistant") {
           this.endLine();
           if (event.message.stopReason === "error")
-            this.pendingError = event.message.errorMessage ?? "模型调用失败";
+            this.pendingError =
+              event.message.errorMessage ?? msg().interactive.view.message.modelError;
         }
         return;
       case "agent_end":
@@ -138,15 +141,21 @@ export class EventPrinter {
         return;
       case "auto_retry_start":
         this.line(
-          `↻ 重试 ${event.attempt}/${event.maxAttempts}（${Math.round(event.delayMs / 1000)}s）：${event.errorMessage}`,
+          msg().interactive.line.retry(
+            event.attempt,
+            event.maxAttempts,
+            Math.round(event.delayMs / 1000),
+            event.errorMessage,
+          ),
           true,
         );
         return;
       case "compaction_start":
-        this.line("… 压缩上下文", true);
+        this.line(msg().interactive.line.compacting, true);
         return;
       case "compaction_end":
-        if (event.error !== undefined) this.line(`压缩失败：${event.error}`, true);
+        if (event.error !== undefined)
+          this.line(msg().interactive.events.compactionFailed(event.error), true);
         return;
       case "cache_miss":
       case "context_pressure": {
@@ -165,7 +174,7 @@ export class EventPrinter {
         this.pendingError = undefined;
         if (error !== undefined) {
           this.failures++;
-          this.line(`ama: 错误：${error}`, true);
+          this.line(msg().interactive.line.error(error), true);
         }
         // 失败时 warning 就是同一条错误文本，不再重复打印；预算到限已由 limit_reached 说明
         if (
@@ -178,14 +187,17 @@ export class EventPrinter {
       }
       // [W5-U] 第五波事件
       case "plan_proposed": {
-        const file = event.filePath !== undefined ? `（${event.filePath}）` : "";
-        this.line(
-          `◇ 计划 v${event.version} 待审批${file}：/plan approve [模式|fresh] 批准 · /plan reject 放弃 · 直接输入修改意见`,
-        );
+        this.line(msg().interactive.line.planProposed(event.version, event.filePath));
         return;
       }
       case "subagent_start":
-        this.line(`  ↳ ${event.taskId} ${event.agent}${event.background ? "（后台）" : ""} 开始`);
+        this.line(
+          msg().interactive.line.subagentStart(
+            event.taskId,
+            event.agent,
+            event.background === true,
+          ),
+        );
         return;
       case "subagent_end":
         this.line(`  ↳ ${event.taskId} ${taskStatusText(event.status)}`);
@@ -219,13 +231,13 @@ export async function pickHint(
         if (provider.requiresApiKey && key.apiKey === undefined) continue;
         for (const model of provider.models) refs.push(`  ${provider.id}/${model.id}`);
       }
-      return ["可用模型（/model <provider/id>）：", ...refs.slice(0, 40)].join("\n");
+      return [msg().interactive.line.modelsHeading, ...refs.slice(0, 40)].join("\n");
     }
     case "session": {
       const items = listSessions({ sessionDir: runtime.paths.sessionDir, cwd: session.state.cwd });
-      if (items.length === 0) return "本目录没有会话";
+      if (items.length === 0) return msg().interactive.line.noSessions;
       return [
-        "最近的会话（/resume <id>）：",
+        msg().interactive.line.sessionsHeading,
         ...items
           .slice(0, 15)
           .map(
@@ -238,9 +250,9 @@ export async function pickHint(
       const users = session.entries.filter(
         (e) => e.type === "message" && e.message.role === "user",
       );
-      if (users.length === 0) return "还没有可分叉的消息";
+      if (users.length === 0) return msg().interactive.line.noForkable;
       return [
-        "可分叉的位置（/fork <条目 id>）：",
+        msg().interactive.line.forkHeading,
         ...users.slice(-15).map((e) => {
           const message = e.type === "message" ? e.message : undefined;
           const content = message?.role === "user" ? message.content : "";
@@ -254,13 +266,16 @@ export async function pickHint(
     }
     case "permission":
       return [
-        "Mode（/permission <模式>）：",
+        msg().interactive.line.modeHeading,
         ...permissionModeLines(
           session.state.permissionMode,
           runtime.config.permission?.mode ?? "default",
         ).map((line) => `  ${line}`),
       ].join("\n");
     case "thinking":
-      return `思考级别（/thinking <级别>）：${THINKING_LEVELS.join(" | ")}；当前 ${session.state.thinkingLevel}`;
+      return msg().interactive.line.thinking(
+        THINKING_LEVELS.join(" | "),
+        session.state.thinkingLevel,
+      );
   }
 }

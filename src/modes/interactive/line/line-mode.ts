@@ -12,6 +12,7 @@
  *   `/rewind <n> …` 执行，回到的单行原消息放回编辑行。
  */
 
+import { msg } from "../../../i18n/index.js";
 import { promptImages, sessionModel } from "../../image-input.js";
 import { taskRegistryView } from "../../../agent/subagent-registry.js";
 import type { AgentSession } from "../../../agent/types.js";
@@ -144,9 +145,7 @@ export async function runLineMode(
   const ed = editor;
   if (runtime.config.ui?.quietStartup !== "silent") {
     const model = session.state.model;
-    io.stdout(
-      `ama ${AMA_VERSION} · ${model?.provider}/${model?.id} · /help 查看命令，Ctrl+D 退出\n`,
-    );
+    io.stdout(`${msg().interactive.line.banner(AMA_VERSION, `${model?.provider}/${model?.id}`)}\n`);
   }
   // /permission full-auto：进入 Bypass 前文本确认一次（管道里没有这一步，命令本身就是显式选择）
   commands.confirmPermissionMode = createBypassGate(() => {
@@ -212,12 +211,12 @@ export async function runLineMode(
         if (action.kind === "interrupt") {
           if (busy) {
             void session.abort();
-            err("^C 已中断\n");
+            err(`${msg().interactive.line.interrupted}\n`);
           } else if (Date.now() - lastInterrupt < DOUBLE_INTERRUPT_MS) {
             return finish(ExitCode.Sigint);
           } else {
             lastInterrupt = Date.now();
-            io.stdout("\n（再按一次 Ctrl+C 退出）\n");
+            io.stdout(`\n${msg().interactive.line.ctrlCAgain}\n`);
             ed.render();
           }
           continue;
@@ -225,7 +224,7 @@ export async function runLineMode(
         if (busy) {
           if (action.text.trim() !== "") {
             void session.steer(action.text).catch(() => undefined);
-            out(`↳ steer：${action.text}\n`);
+            out(`${msg().interactive.line.steer(action.text)}\n`);
           }
           continue;
         }
