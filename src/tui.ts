@@ -146,3 +146,9 @@ export {
 // ---- W3-B9a-2 组件 ----
 export { KeyValue, type KeyValueRow, type KeyValueOptions } from "./tui/components/key-value.js";
 export { Meter, METER_FULL, METER_EMPTY, type MeterOptions } from "./tui/components/meter.js";
+// ---- W6-S 组件 ----
+export {
+  SettingsList,
+  type SettingsRow,
+  type SettingsListOptions,
+} from "./tui/components/settings-list.js";

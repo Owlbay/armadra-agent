@@ -17,6 +17,7 @@ import { CHANNEL_NAME_PATTERN } from "../../config/types.js";
 import { padToWidth, visibleWidth } from "../../tui/ansi.js";
 import { UsageError } from "../args.js";
 import { compactTokens } from "./model-meta.js";
+import { msg } from "../../i18n/index.js";
 
 export const PROBE_APIS: readonly Api[] = [
   "openai-completions",
@@ -37,13 +38,14 @@ const API_CHOICES: readonly string[] = [...PROBE_APIS, "google-generative-ai"];
 /** `--channel name=api@baseUrl`。 */
 export function parseChannelSpec(spec: string): CandidateChannel {
   const m = /^([^=]+)=([^@]+)@(.+)$/.exec(spec.trim());
-  if (!m) throw new UsageError(`--channel 应为 <名字>=<协议>@<地址>：${spec}`);
+  if (!m) throw new UsageError(msg().subcommands.providersPlan.channelSpec(spec));
   const [, name = "", api = "", baseUrl = ""] = m;
-  if (!CHANNEL_NAME_PATTERN.test(name)) throw new UsageError(`渠道名不合法：${name}`);
+  if (!CHANNEL_NAME_PATTERN.test(name))
+    throw new UsageError(msg().subcommands.providersPlan.channelName(name));
   if (!API_CHOICES.includes(api))
-    throw new UsageError(`--channel 的协议应为 ${API_CHOICES.join(" | ")}（收到 ${api}）`);
+    throw new UsageError(msg().subcommands.providersPlan.channelApi(API_CHOICES, api));
   if (!/^https?:\/\//.test(baseUrl))
-    throw new UsageError(`--channel 的地址应为 http(s) URL：${baseUrl}`);
+    throw new UsageError(msg().subcommands.providersPlan.channelUrl(baseUrl));
   return { name, api: api as Api, baseUrl: baseUrl.replace(/\/+$/, "") };
 }
 
@@ -58,7 +60,9 @@ export function defaultChannels(baseUrl: string, api?: string): CandidateChannel
   ];
   if (api === undefined || api === "auto") return all;
   if (!API_CHOICES.includes(api))
-    throw new UsageError(`--api 的取值应为 ${[...PROBE_APIS, "auto"].join(" | ")}（收到 ${api}）`);
+    throw new UsageError(
+      msg().subcommands.common.invalidChoice("--api", [...PROBE_APIS, "auto"], api),
+    );
   const one = all.find((c) => c.api === api);
   return [one ?? { name: apiShortName(api as Api), api: api as Api, baseUrl: base }];
 }
@@ -223,35 +227,33 @@ export function mergeProvider(
   return { config, addedChannels, addedModels };
 }
 
-const STATUS_TEXT: Record<ModelStatus, string> = {
-  ok: "探测通过",
-  unprobed: "未探测",
-  failed: "探测失败，不写入",
-  "no-tools": "不支持工具调用，不写入",
-  "no-channel": "候选渠道都不支持，不写入",
-  existing: "已存在，未改动",
-};
+function statusText(status: ModelStatus): string {
+  const t = msg().subcommands.providersPlan.status;
+  return status === "no-tools" ? t.noTools : status === "no-channel" ? t.noChannel : t[status];
+}
 
 function cost(fields: ModelsDevFields): string {
   return fields.cost !== undefined ? `$${fields.cost.input}/${fields.cost.output}` : "—";
 }
 
 function yesNo(value: boolean | undefined): string {
-  return value === undefined ? "?" : value ? "是" : "否";
+  const t = msg().subcommands.providersPlan;
+  return value === undefined ? "?" : value ? t.yes : t.no;
 }
 
 /** 表格：id、渠道、上下文、输出、图像、推理、工具、价格（$/M 入/出）、状态、models.dev 匹配。 */
 export function renderTable(plans: readonly ModelPlan[]): string {
+  const h = msg().subcommands.providersPlan.head;
   const head = [
-    "模型",
-    "渠道",
-    "上下文",
-    "输出",
-    "图像",
-    "推理",
-    "工具",
-    "价格$/M",
-    "状态",
+    h.model,
+    h.channel,
+    h.context,
+    h.output,
+    h.image,
+    h.reasoning,
+    h.tools,
+    h.price,
+    h.status,
     "models.dev",
   ];
   const rows = plans.map((p) => [
@@ -259,11 +261,11 @@ export function renderTable(plans: readonly ModelPlan[]): string {
     p.channels.length > 0 ? p.channels.join(",") : "—",
     compactTokens(p.fields.contextWindow),
     compactTokens(p.fields.maxTokens),
-    p.fields.input === undefined ? "?" : p.fields.input.includes("image") ? "是" : "否",
+    p.fields.input === undefined ? "?" : yesNo(p.fields.input.includes("image")),
     yesNo(p.fields.reasoning),
     yesNo(p.fields.toolCall),
     cost(p.fields),
-    STATUS_TEXT[p.status],
+    statusText(p.status),
     matchLabel(p.match),
   ]);
   const widths = head.map((h, i) =>

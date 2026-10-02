@@ -18,6 +18,7 @@ import { noModelGuidance, pickDefaultModel } from "./default-model.js";
 import { hideFakeProvider } from "./fake-visibility.js";
 import type { CliIo, RuntimeDeps, SessionAssembly, SessionRequest } from "./deps.js";
 import { ExitCode } from "./exit-codes.js";
+import { msg } from "../i18n/index.js";
 import type { Runtime, RuntimeMode } from "./runtime.js";
 
 /** 把非 StartupError 包成指定退出码；StartupError / UsageError 原样透传。 */
@@ -54,7 +55,12 @@ export function toStartupError(error: unknown, exitCode: number, label: string):
     return new StartupError(error.code, error.message, mapped, { cause: error });
   }
   const message = error instanceof Error ? error.message : String(error);
-  return new StartupError("startup_failed", `${label}：${message}`, exitCode, { cause: error });
+  return new StartupError(
+    "startup_failed",
+    msg().cli.startupSteps.stepFailed(label, message),
+    exitCode,
+    { cause: error },
+  );
 }
 
 /** 第 4 步。 */
@@ -134,9 +140,7 @@ export async function resolveModel(
   env: Readonly<Record<string, string | undefined>> = {},
 ): Promise<ModelChoice> {
   if (args.provider !== undefined && args.model === undefined) {
-    throw new UsageError(
-      `--provider ${args.provider} 需要同时给出 --model（不回退到该供应商的缺省模型）`,
-    );
+    throw new UsageError(msg().cli.startupSteps.providerNeedsModel(args.provider));
   }
   const lookup = (ref: string, label: string): ModelChoice => {
     const found = registry.findModel(ref);
@@ -184,13 +188,7 @@ export async function resolveModel(
   if (choice.provider.requiresApiKey) {
     const key = await registry.resolveApiKey(choice.provider.id);
     if (key.apiKey === undefined) {
-      const envs =
-        choice.provider.envKeys.length > 0
-          ? `，或设置环境变量 ${choice.provider.envKeys.join(" / ")}`
-          : "";
-      return pick(
-        `供应商 ${choice.provider.id} 没有 API key：运行 \`ama auth set ${choice.provider.id}\`${envs}`,
-      );
+      return pick(msg().cli.startupSteps.noApiKey(choice.provider.id, choice.provider.envKeys));
     }
   }
   return choice;
@@ -213,9 +211,7 @@ export function applyToolFilters(args: ParsedArgs, runtimeTools: Runtime["tools"
     (n) => runtimeTools.get(n) === undefined,
   );
   if (unknown.length > 0) {
-    throw new UsageError(
-      `未知工具：${unknown.join(", ")}（可用：${runtimeTools.list().join(", ")}）`,
-    );
+    throw new UsageError(msg().cli.startupSteps.unknownTools(unknown, runtimeTools.list()));
   }
   if (args.tools !== undefined) runtimeTools.setActive(args.tools);
   for (const name of args.excludeTools ?? []) runtimeTools.disable(name);
@@ -233,7 +229,7 @@ export function instructionSources(paths: readonly string[], cwd: string): Instr
     if (!ok)
       throw new StartupError(
         "config_invalid",
-        `--instructions 文件不存在：${abs}`,
+        msg().cli.startupSteps.instructionsMissing(abs),
         ExitCode.Config,
       );
     return { kind: "file", path: abs };

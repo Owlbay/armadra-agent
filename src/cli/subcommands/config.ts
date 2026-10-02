@@ -62,6 +62,11 @@ import { ExitCode } from "../exit-codes.js";
 import { buildRegistry, loadUserLevel, type UserLevel } from "./context.js";
 import { osSandboxStatus } from "../../sandbox/detect.js";
 import { resolveBashSandbox } from "../../sandbox/bash.js";
+import { msg } from "../../i18n/index.js";
+import { CONFIG_EDIT_ACTIONS, runConfigEdit, type ConfigEditAction } from "./config-set.js";
+
+const isEditAction = (value: string | undefined): value is ConfigEditAction =>
+  (CONFIG_EDIT_ACTIONS as readonly (string | undefined)[]).includes(value);
 
 export const CONFIG_USAGE = `用法：ama config show [--json] [--profile <文件>] [--auth-file <文件>]
                         [--tools-preset <名>] [--codemode off|on|only]
@@ -376,6 +381,10 @@ export async function runConfig(
   io: CliIo,
   deps: Pick<RuntimeDeps, "providers"> | undefined,
 ): Promise<number> {
+  // [W6-S] get / set / unset / list（config-set.ts）
+  const edit = argv.findIndex((a) => !a.startsWith("-"));
+  if (edit !== -1 && isEditAction(argv[edit]))
+    return runConfigEdit(argv[edit], [...argv.slice(0, edit), ...argv.slice(edit + 1)], io);
   const { positionals, values, flags } = parseSubArgs(
     argv,
     ["profile", "auth-file", "tools-preset", "codemode"],
@@ -383,7 +392,7 @@ export async function runConfig(
   );
   const action = positionals[0] ?? "show";
   if (flags.has("help")) {
-    io.stdout(CONFIG_USAGE);
+    io.stdout(`${CONFIG_USAGE}${msg().settings.cli.usage}`);
     return ExitCode.Ok;
   }
   if (action === "path") return showPaths(io);

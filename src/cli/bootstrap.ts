@@ -22,7 +22,7 @@ import { HookDispatcher } from "../hooks/dispatcher.js";
 import { AgentEventBus, createHostApi } from "../host/api-impl.js";
 import { activateHost, disposeHost } from "../host/loader.js";
 import type { ApprovalBroker, HostAdapterHandle } from "../host/types.js";
-import { HELP_TEXT, parseArgs, UsageError, type ParsedArgs } from "./args.js";
+import { helpText, parseArgs, UsageError, type ParsedArgs } from "./args.js";
 import { applyFromOption } from "./from-prompt.js";
 import type { CliIo, RuntimeDeps, SessionAssembly } from "./deps.js";
 import { ExitCode } from "./exit-codes.js";
@@ -41,7 +41,7 @@ import {
 } from "./startup-steps.js";
 import type { LoadedResources, Runtime } from "./runtime.js";
 import { resolveSystemPromptArg } from "./system-prompt-arg.js";
-import { resolveLocale, setLocale } from "../i18n/index.js";
+import { msg, resolveLocale, setLocale } from "../i18n/index.js";
 
 /** §11.1 第 3–14 步。 */
 export async function bootstrap(
@@ -49,6 +49,8 @@ export async function bootstrap(
   deps: RuntimeDeps,
   io: CliIo,
 ): Promise<Runtime> {
+  // 文案按调用时的语言取（第 9 步可能按 profile / 项目级 ui.language 补定语言）
+  const m = (): ReturnType<typeof msg>["cli"]["bootstrap"] => msg().cli.bootstrap;
   const warnings: string[] = [];
   const warn = (message: string): void => {
     warnings.push(message);
@@ -66,13 +68,13 @@ export async function bootstrap(
   const mode = decideMode(args, io);
   const interactive = mode === "interactive" || mode === "line";
   // 5. 目录
-  const paths = await step(ExitCode.Config, "目录", () => {
+  const paths = await step(ExitCode.Config, m().steps.dirs, () => {
     const resolved = resolvePaths({ env: io.env, cwd: io.cwd, sessionDirFlag: args.sessionDir });
     ensurePaths(resolved);
     return resolved;
   });
   // 6. 用户级 + profile.config
-  const base = await step(ExitCode.Config, "配置", () => {
+  const base = await step(ExitCode.Config, m().steps.config, () => {
     const user = loadConfigFile("config", userFile(paths, CONFIG_FILE));
     if (user !== undefined) warnings.push(...user.warnings);
     return mergeBaseLayers({
@@ -85,20 +87,20 @@ export async function bootstrap(
   let request = sessionRequestOf(args);
   if (request === "pick") {
     if (!interactive || deps.ui?.pickSession === undefined || deps.sessions.list === undefined) {
-      throw new UsageError("--resume 在非交互模式下需要会话 id");
+      throw new UsageError(m().resumeNeedsId);
     }
     const items = await step(
       ExitCode.Session,
-      "会话列表",
+      m().steps.sessionList,
       () => deps.sessions.list?.({ sessionDir: paths.sessionDir, cwd: paths.cwd }) ?? [],
     );
     const id = await deps.ui.pickSession(items);
     if (id === undefined)
-      throw new StartupError("session_not_found", "未选择会话", ExitCode.Session);
+      throw new StartupError("session_not_found", m().noSessionPicked, ExitCode.Session);
     request = { kind: "resume", id };
   }
   const sessionRequest = request;
-  const sessionManager = await step(ExitCode.Session, "会话", () =>
+  const sessionManager = await step(ExitCode.Session, m().steps.session, () =>
     deps.sessions.open(sessionRequest, { sessionDir: paths.sessionDir, cwd: paths.cwd }),
   );
   let sessionCwd = sessionManager.cwd;
@@ -107,7 +109,7 @@ export async function bootstrap(
     if (replacement === undefined) {
       throw new StartupError(
         "session_corrupt",
-        `会话的工作目录不存在：${sessionCwd}`,
+        m().sessionCwdMissing(sessionCwd),
         ExitCode.Session,
       );
     }
@@ -115,7 +117,7 @@ export async function bootstrap(
   }
   const runtimePaths = { ...paths, cwd: sessionCwd };
   // 8. 信任（以会话 cwd 为准）
-  const trust = await step(ExitCode.Config, "信任", () =>
+  const trust = await step(ExitCode.Config, m().steps.trust, () =>
     decideTrust({
       cwd: sessionCwd,
       configDir: paths.configDir,
@@ -126,7 +128,7 @@ export async function bootstrap(
     }),
   );
   // 9. 项目级配置（只能收紧）+ 命令行
-  const merged = await step(ExitCode.Config, "项目配置", () => {
+  const merged = await step(ExitCode.Config, m().steps.projectConfig, () => {
     const project = loadConfigFile("config", projectFile(sessionCwd, CONFIG_FILE));
     if (project !== undefined) warnings.push(...project.warnings);
     return mergeProjectAndCli(base, project?.value, {
@@ -155,7 +157,7 @@ export async function bootstrap(
       ? { skills: [], prompts: [], warnings: [] }
       : await step(
           ExitCode.Config,
-          "Skill 发现",
+          m().steps.skillDiscovery,
           () =>
             deps.resources?.discover({
               cwd: sessionCwd,
@@ -185,7 +187,7 @@ export async function bootstrap(
     instructions,
   };
   // 11. 供应商与模型
-  const providers = await step(ExitCode.Config, "供应商", () =>
+  const providers = await step(ExitCode.Config, m().steps.providers, () =>
     deps.providers.create({
       config,
       cwd: sessionCwd,
@@ -206,12 +208,12 @@ export async function bootstrap(
         : {}),
     }),
   );
-  const { model, provider } = await step(ExitCode.NoModel, "模型", () =>
+  const { model, provider } = await step(ExitCode.NoModel, m().steps.model, () =>
     resolveModel(args, providers, sessionManager, config.defaultModel, deps, interactive, io.env),
   );
   const thinkingLevel = thinkingOf(args, sessionManager, config.thinkingLevel);
   // 12. 工具注册表
-  const tools = await step(ExitCode.RuntimeError, "工具", () =>
+  const tools = await step(ExitCode.RuntimeError, m().steps.tools, () =>
     deps.tools.create({
       config,
       cwd: sessionCwd,
@@ -220,14 +222,14 @@ export async function bootstrap(
     }),
   );
   for (const name of config.tools?.disabled ?? []) {
-    if (tools.get(name) === undefined) warn(`config tools.disabled：未知工具 ${name}，已忽略`);
+    if (tools.get(name) === undefined) warn(m().unknownDisabledTool(name));
     else tools.disable(name);
   }
   // 13. 宿主适配器
   let session: AgentSession | undefined;
   const events = new AgentEventBus((level, message, detail) => {
     if (level === "warn" || level === "error")
-      warn(`${message}${detail instanceof Error ? `：${detail.message}` : ""}`);
+      warn(m().eventWarning(message, detail instanceof Error ? detail.message : undefined));
   });
   const binding = createHostApi({
     mode,
@@ -241,7 +243,7 @@ export async function bootstrap(
     tools,
     bus: events,
     sendUser: (text, origin) => {
-      if (session === undefined) return Promise.reject(new AmaError("busy", "会话尚未就绪"));
+      if (session === undefined) return Promise.reject(new AmaError("busy", m().sessionNotReady));
       return (deps.sendUser ?? defaultSendUser)(session, text, origin);
     },
     stderr: io.stderr,
@@ -250,7 +252,7 @@ export async function bootstrap(
   const hostSpec = args.host;
   let host: HostAdapterHandle | undefined;
   if (hostSpec !== undefined) {
-    host = await step(ExitCode.HostOrHook, "宿主适配器", () =>
+    host = await step(ExitCode.HostOrHook, m().steps.host, () =>
       activateHost({ module: hostSpec, binding, cwd: io.cwd }),
     );
   }
@@ -261,7 +263,7 @@ export async function bootstrap(
     const unattended = mode === "print";
     const builtinDeny = config.permission?.builtinDeny;
     const autoSafeCommands = config.permission?.autoSafeCommands;
-    const permission = await step(ExitCode.Config, "权限", () =>
+    const permission = await step(ExitCode.Config, m().steps.permission, () =>
       deps.permissions.create({
         mode: config.permission?.mode ?? "default",
         rules: merged.ruleSpecs,
@@ -336,14 +338,16 @@ export async function bootstrap(
     );
     if (systemPrompt !== undefined) overrides.systemPrompt = systemPrompt;
     if (Object.keys(overrides).length > 0) assembly.overrides = overrides;
-    session = await step(ExitCode.RuntimeError, "会话组装", () => deps.session.create(assembly));
+    session = await step(ExitCode.RuntimeError, m().steps.assembly, () =>
+      deps.session.create(assembly),
+    );
     const active = session;
     let disposed: Promise<void> | undefined;
     shutdown = (reason) => {
       disposed ??= (async () => {
         await events.emit("session_shutdown", {});
         await hooks.run("SessionEnd", { reason }).catch(() => undefined);
-        await disposeHost(host, (e) => warn(`宿主适配器 dispose 失败：${String(e)}`));
+        await disposeHost(host, (e) => warn(m().hostDisposeFailed(String(e))));
         // 会话被替换过时 dispose 当前那个（旧会话由替换方负责）
         await (session ?? active).dispose();
       })();
@@ -359,7 +363,7 @@ export async function bootstrap(
     if (outcome.decision === "block") {
       throw new StartupError(
         "hook_failed",
-        `SessionStart Hook 阻止启动：${outcome.reason ?? "（无原因）"}`,
+        m().sessionStartBlocked(outcome.reason),
         ExitCode.HostOrHook,
       );
     }
@@ -368,7 +372,11 @@ export async function bootstrap(
     return {
       mode,
       paths: runtimePaths,
-      config,
+      // [W6-S] /config 换配置：getter 跟随 assembly.config（/new 组装会话读它）
+      get config() {
+        return assembly.config;
+      },
+      replaceConfig: (next) => void (assembly.config = next),
       trust,
       resources,
       providers,
@@ -392,7 +400,7 @@ export async function bootstrap(
   } catch (error) {
     if (shutdown !== undefined) await shutdown("exit").catch(() => undefined);
     else await disposeHost(host);
-    throw toStartupError(error, ExitCode.RuntimeError, "启动");
+    throw toStartupError(error, ExitCode.RuntimeError, m().steps.startup);
   }
 }
 
@@ -420,20 +428,20 @@ export async function runCli(
   let args: ParsedArgs;
   try {
     const parsed = parseArgs(argv);
-    if (parsed.kind !== "run") throw new UsageError("子命令应由 main 分派");
+    if (parsed.kind !== "run") throw new UsageError(msg().cli.bootstrap.subcommandNotDispatched);
     args = parsed.args;
   } catch (error) {
     return reportError(error, io);
   }
   if (args.help) {
-    io.stdout(HELP_TEXT);
+    io.stdout(helpText());
     return ExitCode.Ok;
   }
   // [W5-E] --mode acp：装配同 rpc（宿主看到的 mode 也是 rpc），分派到 ACP 服务端
   const acp = args.mode === "acp";
   if (acp) args = { ...args, mode: "rpc" };
   if (deps === undefined) {
-    io.stderr("ama: 运行时尚未装配（集成批次通过 registerRuntimeDeps 注入实现）\n");
+    io.stderr(msg().cli.bootstrap.runtimeNotAssembled);
     return ExitCode.RuntimeError;
   }
   let runtime: Runtime;
@@ -447,7 +455,7 @@ export async function runCli(
   let cleanupFrom = (): void => undefined;
   try {
     if (runtime.mode !== "interactive")
-      for (const w of runtime.warnings) io.stderr(`ama: 警告：${w}\n`);
+      for (const w of runtime.warnings) io.stderr(msg().cli.bootstrap.warning(w));
     // [W4-D] --from：旧会话的一条用户消息作提示（-p 时连图片，临时文件在 finally 删除）。
     const from = applyFromOption(args, runtime, io);
     cleanupFrom = from.cleanup;
@@ -456,14 +464,16 @@ export async function runCli(
       ? (await import("../modes/acp/acp-mode.js")).runAcpMode
       : deps.modes[runtime.mode];
     if (runner === undefined)
-      throw new AmaError("not_implemented", `模式 ${runtime.mode} 尚未装配`, { exitCode: 1 });
+      throw new AmaError("not_implemented", msg().cli.bootstrap.modeNotAssembled(runtime.mode), {
+        exitCode: 1,
+      });
     try {
       return await runner(runtime, context);
     } catch (error) {
       const line = deps.modes.line;
       if (runtime.mode !== "interactive" || !isTerminalInitError(error) || line === undefined)
         throw error;
-      io.stderr(`ama: 警告：终端初始化失败，降级为行式界面（${(error as Error).message}）\n`);
+      io.stderr(msg().cli.bootstrap.terminalFallback((error as Error).message));
       return await line(runtime, context);
     }
   } catch (error) {
@@ -481,7 +491,7 @@ export function reportError(
   fallback: number = ExitCode.RuntimeError,
 ): number {
   if (error instanceof UsageError) {
-    io.stderr(`ama: ${error.message}\n（ama --help 查看用法）\n`);
+    io.stderr(msg().cli.bootstrap.usageError(error.message));
     return ExitCode.Usage;
   }
   const message = error instanceof Error ? error.message : String(error);

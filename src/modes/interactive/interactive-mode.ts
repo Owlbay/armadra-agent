@@ -60,6 +60,7 @@ import { mergingBroker } from "./approval-merge.js";
 import { ALL_COMMANDS, runInteractiveCommand, type CommandUi } from "./commands.js";
 import { InteractiveCompletion } from "./completion.js";
 import { confirmBypass } from "./confirm-dialog.js";
+import { configUiFor } from "./config-ui.js";
 import { createKeyDispatch } from "./key-dispatch.js";
 import { MessageView, exitSummaryLines, type NoticeLevel } from "./message-view.js";
 import { openPicker } from "./pickers.js";
@@ -376,6 +377,7 @@ export function runInteractiveMode(
     editorEmpty: () => editor.isEmpty(),
   });
 
+  const configUi = configUiFor(pickerHost, { runtime, context, view, loader, area, tui, notice });
   const commandUi: CommandUi = {
     runtime,
     session: () => session,
@@ -406,6 +408,7 @@ export function runInteractiveMode(
     now,
     extra: (name, args) => agentUi.command(name, args),
     ...agentCommandHooks(() => agentUi),
+    configPanel: (args) => configUi.open(args),
   };
 
   const runCommand = (line: string): Promise<boolean> =>

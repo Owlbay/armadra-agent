@@ -7,7 +7,7 @@ import type { SessionListItem } from "../../session/types.js";
 import type { CliIo, RuntimeDeps } from "../deps.js";
 import { defaultIo, main } from "../main.js";
 import { runDoctor } from "./doctor.js";
-import { MODELS_ACTIONS, MODELS_USAGE, runModels } from "./models.js";
+import { MODELS_ACTIONS, modelsUsage, runModels } from "./models.js";
 import { runSessions } from "./sessions.js";
 
 let home: TmpHome;
@@ -271,11 +271,11 @@ describe("ama models / sessions（依赖注入）", () => {
       "refresh",
       "refresh-catalog",
     ]);
-    expect(MODELS_USAGE).toMatch(
+    expect(modelsUsage()).toMatch(
       /^用法：ama models list \[--provider <id>\]\n {6}ama models check <provider\/id>\n {6}ama models discover /,
     );
     expect(await ama(["models", "--help"], stubDeps())).toBe(0);
-    expect(out.join("")).toContain(MODELS_USAGE);
+    expect(out.join("")).toContain(modelsUsage());
     expect(await ama(["models", "frob"], stubDeps())).toBe(2);
     expect(await ama(["models", "toString"], stubDeps())).toBe(2);
     expect(await ama(["models", "list", "--json"], stubDeps())).toBe(2);

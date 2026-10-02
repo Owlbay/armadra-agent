@@ -46,6 +46,7 @@ import { composeExtensions } from "./compose-extensions.js";
 import type { SessionAssembly } from "./deps.js";
 import { ExitCode } from "./exit-codes.js";
 import type { Runtime } from "./runtime.js";
+import { msg } from "../i18n/index.js";
 
 /** createRuntimeDeps 闭包里跨步骤共享的状态。 */
 export interface ComposeState {
@@ -113,7 +114,10 @@ function sourceText(source: InstructionSource, cache: Map<string, string>, log: 
   try {
     text = readFileSync(source.path, "utf8");
   } catch (error) {
-    log("warn", `读取指令文件失败：${source.path}：${(error as Error).message}`);
+    log(
+      "warn",
+      msg().cli.composeSession.instructionsReadFailed(source.path, (error as Error).message),
+    );
   }
   cache.set(source.path, text);
   return text;
@@ -135,6 +139,11 @@ function contextFiles(record: SessionRecord): { path: string; content: string }[
   return [...resources.contextFiles, ...extra.filter((f) => f.content.trim() !== "")];
 }
 
+/** [W6-S] D22：回复语言规则（发给模型，固定英文）。 */
+export function replyLanguageRule(language: string): string {
+  return `Reply to the user in ${language}.`;
+}
+
 function systemInput(
   record: SessionRecord,
   active: readonly string[],
@@ -143,6 +152,9 @@ function systemInput(
   const override = record.assembly.overrides?.systemPrompt;
   if (override?.mode === "replace") system.preamble = override.text;
   else if (override !== undefined) system.extraRules = [override.text];
+  // [W6-S] D22 ui.replyLanguage：会话开始在 rules 节末尾追加一句英文规则；不设时零字节变化
+  const reply = record.assembly.config.ui?.replyLanguage?.trim();
+  if (reply) system.extraRules = [...(system.extraRules ?? []), replyLanguageRule(reply)];
   const index = formatSkillIndex(record.state.skills, {
     hasSkillTool: false,
     hasReadTool: active.includes("read"),
@@ -173,8 +185,10 @@ async function expandPrompt(
   refreshSystem(record, session);
   const skill = await expandSkillCommand(text, record.state.skills);
   if (skill?.kind === "unknown") {
-    const hint = skill.available.length > 0 ? `（可用：${skill.available.join(", ")}）` : "";
-    throw new AmaError("skill_not_found", `未知 Skill：${skill.name}${hint}`);
+    throw new AmaError(
+      "skill_not_found",
+      msg().cli.composeSession.unknownSkill(skill.name, skill.available),
+    );
   }
   if (skill?.kind === "expanded") return { text: skill.text };
   const template = await expandPromptCommand(text, record.state.templates);
@@ -194,13 +208,13 @@ export function cacheSettingsFrom(
   const warming = env["AMA_CACHE_WARMING"];
   if (warming !== undefined && warming !== "") {
     if (WARMING_MODES.includes(warming as WarmingMode)) settings.warming = warming as WarmingMode;
-    else warn(`AMA_CACHE_WARMING=${warming} 无效（off | streaming | idle），已忽略`);
+    else warn(msg().cli.composeSession.invalidCacheWarming(warming));
   }
   const retention = env["AMA_CACHE_RETENTION"];
   if (retention !== undefined && retention !== "") {
     const value = retention as CacheSettings["retention"];
     if (CACHE_RETENTIONS.includes(value)) settings.retention = value;
-    else warn(`AMA_CACHE_RETENTION=${retention} 无效（none | short | long），已忽略`);
+    else warn(msg().cli.composeSession.invalidCacheRetention(retention));
   }
   return settings;
 }
@@ -218,7 +232,7 @@ export function idleTimeoutFrom(
   if (raw !== undefined && raw.trim() !== "") {
     const value = Number(raw);
     if (Number.isFinite(value) && value >= 0) return value;
-    warn(`AMA_IDLE_TIMEOUT_MS=${raw} 无效（应为不小于 0 的毫秒数），已忽略`);
+    warn(msg().cli.composeSession.invalidIdleTimeout(raw));
   }
   return config.request?.idleTimeoutMs;
 }
@@ -389,17 +403,17 @@ export function composeSession(
 ): AgentSessionImpl {
   const manager = assembly.sessionManager;
   if (!(manager instanceof SessionManager)) {
-    throw new AmaError(
-      "invalid_arguments",
-      "组装根只接受 SessionManager 实例（由 sessions.open 创建）",
-    );
+    throw new AmaError("invalid_arguments", msg().cli.composeSession.notSessionManager);
   }
   const { model } = assembly;
   if (assembly.providers.getApi(model.api) === undefined) {
-    const via = model.api === "google-generative-ai" ? "；过渡期请经 openrouter 调用" : "";
     throw new StartupError(
       "provider_not_found",
-      `模型 ${model.provider}/${model.id} 的协议 ${model.api} 尚未实现${via}`,
+      msg().cli.composeSession.apiNotImplemented(
+        `${model.provider}/${model.id}`,
+        model.api,
+        model.api === "google-generative-ai",
+      ),
       ExitCode.NoModel,
     );
   }
@@ -433,7 +447,10 @@ export function composeSession(
       try {
         record.current.addTool(tool, active);
       } catch (error) {
-        record.log("warn", `追加工具 ${tool.name} 失败：${(error as Error).message}`);
+        record.log(
+          "warn",
+          msg().cli.composeSession.appendToolFailed(tool.name, (error as Error).message),
+        );
       }
     });
   }
@@ -468,9 +485,10 @@ export async function switchSession(
 ): Promise<AgentSessionImpl> {
   const record = recordOf(target);
   if (record === undefined)
-    throw new AmaError("not_implemented", "该会话不是由组装根创建的，不能切换");
+    throw new AmaError("not_implemented", msg().cli.composeSession.notComposed);
   const old = record.current;
-  if (old.state.isStreaming) throw new AmaError("busy", "运行中不能切换会话");
+  if (old.state.isStreaming)
+    throw new AmaError("busy", msg().cli.composeSession.switchWhileStreaming);
   const { assembly } = record;
   const sessionDir = assembly.paths.sessionDir;
   let manager: SessionManager;
