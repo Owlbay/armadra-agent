@@ -44,6 +44,8 @@ export const DEFAULT_KEYBINDINGS = {
   "app.tools.expand": ["ctrl+o"],
   "app.model.select": ["ctrl+l"],
   "app.thinking.select": ["ctrl+t"],
+  /** [W5-A] 底部信息行 full ↔ compact（只影响本会话）。 */
+  "app.statusLine.toggle": ["ctrl+g"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type ActionId = keyof typeof DEFAULT_KEYBINDINGS;

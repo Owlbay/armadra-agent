@@ -12,6 +12,8 @@
  *   退出时撤下。
  * - 键位：Enter 发送（运行中 = steer），其余应用级键位见 `key-dispatch.ts`。
  * - 回滚（RW-C）：`/rewind` 与空闲双击 Esc 走 rewind-flow.ts；回填的原消息图片暂存，随下一条消息发送。
+ * - 底部（W5-A，status-area.ts）：`ui.statusLine` full 时状态栏上方多一行速率行；Ctrl+G / `/statusline`
+ *   切换（只影响本会话）。
  * - 启动头按 `ui.quietStartup`（startup-header.ts）：normal 框 + 模型 / 目录 / 模式 / 资源清单（窄屏或
  *   `ui.compact` 去框），header 一行，silent 不输出。
  */
@@ -27,8 +29,7 @@ import type { Runtime } from "../../cli/runtime.js";
 import { startupInfo, startupScreenLevel } from "../../cli/startup-screen.js";
 import { KEYBINDINGS_FILE } from "../../config/paths.js";
 import { AmaError, isAmaError } from "../../errors.js";
-import { detectSandboxCapability } from "../../codemode/capability.js";
-import { effectiveCodemodeMode } from "../../tools/presets.js";
+import type { StatusLineMode } from "../../config/types.js";
 import {
   Container,
   Editor,
@@ -43,7 +44,6 @@ import {
   resolveAscii,
   resolveThemeName,
   loadKeybindingsFile,
-  truncateToWidth,
   type Component,
   type Terminal,
   type Theme,
@@ -59,7 +59,9 @@ import { openPicker } from "./pickers.js";
 import { createRewindFlow } from "./rewind-flow.js";
 import { StartupHeader } from "./startup-header.js";
 import { QueueView, RunIndicator } from "./run-indicator.js";
-import { StatusBar } from "./status-bar.js";
+import { compactionErrorText, ImageBudgetNotices } from "./event-notices.js";
+import { StatusArea, statusLineSlash } from "./status-area.js";
+import type { StatusBar } from "./status-bar.js";
 import { ToolTracker } from "./tool-view.js";
 
 const HINT_MS = 2500;
@@ -76,6 +78,8 @@ export interface InteractiveModeOptions {
   spinnerIntervalMs?: number;
   /** 输入历史文件；false 不读写（缺省 `<dataDir>/history`）。 */
   historyFile?: string | false;
+  /** 底部布局（缺省按 `ui.statusLine`；测试固定）。 */
+  statusLine?: StatusLineMode;
   /** 界面就绪后回调（测试驱动用）。 */
   onReady?(handle: InteractiveHandle): void;
 }
@@ -86,6 +90,7 @@ export interface InteractiveHandle {
   readonly view: MessageView;
   readonly tools: ToolTracker;
   readonly status: StatusBar;
+  readonly area: StatusArea;
   session(): AgentSession;
   exit(code: number): void;
 }
@@ -102,21 +107,6 @@ function loadKeys(runtime: Runtime, warn: (m: string) => void): Keybindings {
   const parsed = loadKeybindingsFile(join(runtime.paths.configDir, KEYBINDINGS_FILE));
   for (const w of parsed.warnings) warn(`keybindings.json：${w}`);
   return new Keybindings(parsed.overrides);
-}
-
-/** 一行提示；空时不占行。 */
-class HintLine implements Component {
-  private text = "";
-
-  setText(text: string): void {
-    this.text = text;
-  }
-
-  render(width: number): string[] {
-    return this.text === "" ? [] : [truncateToWidth(this.text, width)];
-  }
-
-  invalidate(): void {}
 }
 
 export function runInteractiveMode(
@@ -163,22 +153,16 @@ export function runInteractiveMode(
     ...(options.spinnerIntervalMs !== undefined ? { intervalMs: options.spinnerIntervalMs } : {}),
   });
   loader.onFrame(() => tools.tick());
-  const hint = new HintLine();
-  let sandboxStrict: boolean | undefined;
-  const status = new StatusBar(
-    {
-      session: () => session,
-      preset: () => runtime.config.tools?.preset ?? "default",
-      hostStatus: () => runtime.host?.status(),
-      codemode: () => {
-        const mode = effectiveCodemodeMode(runtime.config);
-        const active = session.getTools().some((tool) => tool.name === "codemode");
-        return mode === "off" || !active ? undefined : mode;
-      },
-      sandboxStrict: () => (sandboxStrict ??= detectSandboxCapability().strict),
-    },
+  const area = new StatusArea({
+    runtime,
     theme,
-  );
+    session: () => session,
+    now,
+    render: () => tui.requestRender(),
+    env,
+    ...(options.statusLine !== undefined ? { layout: options.statusLine } : {}),
+  });
+  const { hint, bar: status } = area;
   const historyFile =
     options.historyFile === false
       ? undefined
@@ -207,6 +191,7 @@ export function runInteractiveMode(
   tui.addChild(loaderSlot);
   tui.addChild(editor);
   tui.addChild(hint);
+  tui.addChild(area.rate);
   tui.addChild(status);
 
   // ---- 小工具 ---------------------------------------------------------------
@@ -242,7 +227,10 @@ export function runInteractiveMode(
 
   // ---- 会话事件 -------------------------------------------------------------
 
+  const images = new ImageBudgetNotices((text) => notice("info", text));
   const onEvent = (event: SessionEvent): void => {
+    if (area.onEvent(event)) return render();
+    images.onEvent(event);
     switch (event.type) {
       case "agent_settled":
         if (event.warning !== undefined) view.addNotice("warn", event.warning);
@@ -283,7 +271,8 @@ export function runInteractiveMode(
         return;
       case "compaction_end":
         if (event.result !== undefined) view.addCompaction(event.result);
-        else if (event.error !== undefined) view.addNotice("error", `压缩失败：${event.error}`);
+        else if (event.error !== undefined)
+          view.addNotice("error", `压缩失败：${compactionErrorText(event.error)}`);
         else if (event.aborted) view.addNotice("info", "压缩已取消");
         status.refresh();
         break;
@@ -355,7 +344,7 @@ export function runInteractiveMode(
     tools.clear();
     replay();
     setQueue([], []);
-    status.refresh();
+    area.rebind();
     indicator.reset();
     if (next instanceof AgentSessionImpl) next.announceStart(reason);
   };
@@ -403,6 +392,7 @@ export function runInteractiveMode(
     tools.clear();
     replay();
     status.refresh();
+    area.refreshGit();
     tui.forceFullRedraw();
   };
   const setDraft = (draft: RewindDraftText): void => {
@@ -459,7 +449,10 @@ export function runInteractiveMode(
   };
 
   const runCommand = (line: string): Promise<boolean> =>
-    runInteractiveCommand(line, commandUi).finally(() => {
+    (statusLineSlash(area, line, notice)
+      ? Promise.resolve(true)
+      : runInteractiveCommand(line, commandUi)
+    ).finally(() => {
       status.refresh();
       render();
     });
@@ -495,6 +488,7 @@ export function runInteractiveMode(
       now,
       showHint,
       onExpandToggle: (expanded) => view.setThinkingExpanded(expanded),
+      onStatusLineToggle: () => area.toggle(),
       submit: (text, via) => submit(text, via),
       runCommand: (line) => void runCommand(line),
       exit: (code) => exit(code),
@@ -535,6 +529,7 @@ export function runInteractiveMode(
     finished = true;
     if (hintTimer !== undefined) clearTimeout(hintTimer);
     loader.stop();
+    area.dispose();
     // 退出摘要留在回滚里；输入框、状态栏等底部区域撤掉，屏幕停在摘要下面
     view.addExitSummary(exitSummaryLines(session.getStats(), now() - startedAt, theme));
     tui.clear();
@@ -583,6 +578,7 @@ export function runInteractiveMode(
       view,
       tools,
       status,
+      area,
       session: () => session,
       exit,
     });

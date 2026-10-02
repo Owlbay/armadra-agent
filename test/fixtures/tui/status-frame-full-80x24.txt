@@ -1,11 +1,11 @@
-# startup header · viewport 80x24 cursor=3,2
+# status full · viewport 80x24 cursor=3,2
 |✻ ama <version> · fake/echo · Manual · /help
 |
 |────────────────────────────────────────────────────────────────────────────────
 |› 输入消息，/ 命令，@ 文件，Shift+Enter 换行
 |────────────────────────────────────────────────────────────────────────────────
-|Manual · shift+tab 切换                       echo · medium · ctx 0% · work · 0s
-|
+|tps —                                                                        [-]
+|Manual · shift+tab 切换                       echo medium · ctx 0.0% · work · 0s
 |
 |
 |

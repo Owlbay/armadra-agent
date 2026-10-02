@@ -79,6 +79,7 @@ export const BUILTIN_COMMANDS: readonly CommandInfo[] = [
     args: "[warm off|streaming|idle | fingerprint]",
     description: "缓存统计；切换本会话保温；打印前缀指纹",
   },
+  { name: "statusline", args: "[full|compact]", description: "底部信息行两行 / 一行（Ctrl+G）" },
   { name: "exit", description: "退出" },
 ];
 
@@ -213,6 +214,9 @@ export async function runSlashCommand(
       return { kind: "handled", message: cacheCommand(session, args) };
     case "rewind":
       return { kind: "handled", ...(await rewindCommand(session, args)) };
+    case "statusline":
+      // [W5-A] 交互界面在 commands-core 之前自己处理；line 模式没有底部信息行
+      return { kind: "handled", message: "/statusline 只在交互界面可用" };
     default:
       return undefined;
   }

@@ -118,6 +118,8 @@ export async function start(
     theme?: Theme;
     /** 追加到临时 HOME 环境上的变量。 */
     env?: Record<string, string>;
+    /** 底部布局，缺省 compact。 */
+    statusLine?: "full" | "compact";
   } = {},
 ): Promise<Started> {
   if (options.keepHarness !== true || started.h === undefined)
@@ -143,6 +145,8 @@ export async function start(
     theme: options.theme ?? plainTheme(),
     now: () => 0,
     spinnerIntervalMs: 1e9,
+    // 速率行的数值随真实时钟变；既有帧黄金固定单行布局，full 布局见 status-line / interactive-statusline 测试
+    statusLine: options.statusLine ?? "compact",
     historyFile: false,
     onReady: (x) => (handle = x),
   });
