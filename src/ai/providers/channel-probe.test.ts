@@ -76,7 +76,7 @@ function smartFake(behavior: Behavior = {}): ApiImplementation & { calls: number
           .join("");
         out.content.push({ type: "text", text: phrase });
       } else if (prompt.includes("read tool")) {
-        const paths = [...prompt.matchAll(/(\/\S+?\.txt)/g)].map((m) => m[1]);
+        const paths = [...prompt.matchAll(/(\S+\.txt)/g)].map((m) => m[1]);
         for (const path of paths)
           out.content.push({
             type: "toolCall",
