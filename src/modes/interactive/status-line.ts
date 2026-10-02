@@ -2,11 +2,12 @@
  * 速率行（第五波 §1.1，D1、D2）：`ui.statusLine: "full"` 时在状态栏上方多一行。[W5-A]
  *
  * ```text
- * tps 100 tok/s · 546 tok / 5.5s · avg 100 · ttft 1.4s                  ↑12.3k ↓1.2k · cache 83% ♨ · [-]
+ * tps: 100 tok/s • 546 tok / 5.5s (avg 100 · ttft 1.4s)                ↑12.3k ↓1.2k · cache 83% ♨ · [-]
  * ```
  *
- * - 左区：`tps <速率>`（流式中是最近 2 s 窗口的瞬时值、前缀 accent；结束后是该请求的平均值；还没有请求
- *   时 `tps —`）· `<输出 token> tok / <耗时>`（首 token 起算）· `avg <会话均速>` · `ttft <首 token 延迟>`；
+ * - 左区（用户样例）：`tps: <速率>`（流式中是最近 2 s 窗口的瞬时值、前缀 accent；结束后是该请求的平均值；
+ *   还没有请求时 `tps: —`）• `<输出 token> tok / <耗时>`（首 token 起算）`(avg <会话均速> · ttft <首 token 延迟>)`；
+ *   `•` 走字形表（ASCII `*`）；
  * - 右区：从状态栏迁来的用量类项 `↑ ↓` · cache · rebill · queue · codemode · 预设 · [宿主]，行尾 `[-]`
  *   （折叠提示：Ctrl+G 或 `/statusline compact`）；
  * - 数据：`StatusBar.current()` 的 `telemetry` 与用量（同一次 getStats）；流式中 `telemetry_tick` 时刷新；
@@ -21,6 +22,7 @@ import {
   layoutRow,
   usageItems,
   type Part,
+  type RowStyle,
   type StatusBar,
   type StatusBarSource,
 } from "./status-bar.js";
@@ -38,8 +40,8 @@ export function formatSeconds(ms: number): string {
   return `${Math.floor(whole / 60)}m${String(whole % 60).padStart(2, "0")}s`;
 }
 
-/** 占位宽度（常见的最宽形状）：`tps 999 tok/s`、`1.2k tok / 59.9s`、`avg 999`、`ttft 9.9s`。 */
-const RESERVE = { tps: 13, amount: 16, avg: 7, ttft: 9 } as const;
+/** 占位宽度（常见的最宽形状）：`tps: 999 tok/s`、`1.2k tok / 59.9s`、`avg 999`、`ttft 9.9s`。 */
+const RESERVE = { tps: 14, amount: 16, avg: 7, ttft: 9 } as const;
 
 const PRIORITY = {
   ttft: 1,
@@ -56,6 +58,9 @@ const PRIORITY = {
 
 export const COLLAPSE_HINT = "[-]";
 
+/** 用户样例：`tps: 100 tok/s • 546 tok / 5.5s (avg 100 · ttft 1.4s)`；右区用量项仍以 ` · ` 分隔。 */
+const RATE_STYLE: RowStyle = { groups: { stats: { glue: " · ", open: "(", close: ")" } } };
+
 export class StatusLine implements Component {
   constructor(
     private readonly bar: StatusBar,
@@ -71,13 +76,12 @@ export class StatusLine implements Component {
     const live = telemetry?.live;
     const last = telemetry?.last;
     const parts: Part[] = [];
-    const left = (text: string, priority: number | undefined, reserve?: number): void =>
-      void parts.push({
-        text,
-        priority,
-        zone: "left",
-        ...(reserve !== undefined ? { reserve } : {}),
-      });
+    const left = (
+      text: string,
+      priority: number | undefined,
+      reserve: number,
+      extra: Partial<Part> = {},
+    ): void => void parts.push({ text, priority, zone: "left", reserve, ...extra });
     const right = (text: string | undefined, priority: number | undefined): void => {
       if (text !== undefined) parts.push({ text, priority, zone: "right" });
     };
@@ -93,18 +97,21 @@ export class StatusLine implements Component {
         amount = `${formatTokens(last.outputTokens)} tok / ${formatSeconds(last.doneAt - last.firstTokenAt)}`;
       }
     }
-    const label = live !== undefined ? theme.fg("accent", "tps") : dim("tps");
+    const label = live !== undefined ? theme.fg("accent", "tps:") : dim("tps:");
     left(
       `${label} ${dim(tps === undefined ? "—" : `${formatRate(tps)} tok/s`)}`,
       undefined,
       RESERVE.tps,
     );
-    if (amount !== undefined) left(dim(amount), PRIORITY.amount, RESERVE.amount);
+    if (amount !== undefined) {
+      left(dim(amount), PRIORITY.amount, RESERVE.amount, { lead: ` ${theme.glyphs.dot} ` });
+    }
+    const stat = { group: "stats", lead: " " };
     if (telemetry?.avgTps !== undefined) {
-      left(dim(`avg ${formatRate(telemetry.avgTps)}`), PRIORITY.avg, RESERVE.avg);
+      left(dim(`avg ${formatRate(telemetry.avgTps)}`), PRIORITY.avg, RESERVE.avg, stat);
     }
     if (last?.ttftMs !== undefined) {
-      left(dim(`ttft ${formatSeconds(last.ttftMs)}`), PRIORITY.ttft, RESERVE.ttft);
+      left(dim(`ttft ${formatSeconds(last.ttftMs)}`), PRIORITY.ttft, RESERVE.ttft, stat);
     }
 
     const usage = usageItems(stats, this.bar.queued(), this.source, theme);
@@ -121,7 +128,7 @@ export class StatusLine implements Component {
 
   render(width: number): string[] {
     if (this.bar.layout() !== "full") return [];
-    return [truncateToWidth(layoutRow(this.parts(), width, this.theme), width)];
+    return [truncateToWidth(layoutRow(this.parts(), width, this.theme, RATE_STYLE), width)];
   }
 
   invalidate(): void {}

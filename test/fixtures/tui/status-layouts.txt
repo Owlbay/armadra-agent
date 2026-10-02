@@ -1,15 +1,15 @@
 # full 40
-|tps 99 tok/s · ttft 1.4s             [-]|
-|Manual            claude-opus · ctx 3.0%|
+|tps: 99 tok/s (ttft 1.4s)            [-]|
+|Manual            claude-opus | Ctx 3.0%|
 # full 60
-|tps 99 tok/s · avg 100 · ttft 1.4s         cache 83% ♨ · [-]|
-|Manual            claude-opus-5-5 · ctx 3.0% · $0.26 · 2h24m|
+|tps: 99 tok/s (avg 100 · ttft 1.4s)        cache 83% ♨ · [-]|
+|Manual            claude-opus-5-5 | Ctx 3.0% | $0.26 | 2h24m|
 # full 80
-|tps 99 tok/s · avg 100 · ttft 1.4s                ↑12k ↓1.2k · cache 83% ♨ · [-]|
-|Manual               claude-opus-5-5 · ctx 3.0% · ⎇ main 5ae9e54 · $0.26 · 2h24m|
+|tps: 99 tok/s (avg 100 · ttft 1.4s)               ↑12k ↓1.2k · cache 83% ♨ · [-]|
+|Manual               claude-opus-5-5 | Ctx 3.0% | ⎇ main 5ae9e54 | $0.26 | 2h24m|
 # full 110
-|tps 99 tok/s · 546 tok / 5.5s · avg 100 · ttft 1.4s                             ↑12k ↓1.2k · cache 83% ♨ · [-]|
-|Manual         anthropic/claude-opus-5-5 · ctx ▯▯▯▯▯▯▯▯▯▯ 3% · vitaweave ⎇ main 5ae9e54 +12 −3 · $0.26 · 2h24m|
+|tps: 99 tok/s • 546 tok / 5.5s (avg 100 · ttft 1.4s)                            ↑12k ↓1.2k · cache 83% ♨ · [-]|
+|Manual         anthropic/claude-opus-5-5 medium | Ctx 3.0% | vitaweave ⎇ main 5ae9e54 (+12,-3) | $0.26 | 2h24m|
 # compact 40
 |Manual      claude-opus · ctx 3% · 2h24m|
 # compact 60

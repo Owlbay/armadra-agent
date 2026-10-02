@@ -396,11 +396,11 @@ resize    一屏
 
 > 第五波 W5-A（wave5-plan §1）起分两种布局：`ui.statusLine: "full"`（独立终端缺省，两行）与 `"compact"`（有 profile 的嵌入宿主缺省，一行）；`Ctrl+G`（`app.statusLine.toggle`）或 `/statusline [full|compact]` 切换，只影响本会话。实现：`status-line.ts`（速率行）、`status-bar.ts`（状态栏）、`status-area.ts`（装配）。
 
-`full`，宽屏：
+`full`，宽屏（按用户样例：速率行 `•` 与括号，状态栏 `|` 分隔）：
 
 ```
-tps 100 tok/s · 546 tok / 5.5s · avg 100 · ttft 1.4s                  ↑12k ↓1.2k · cache 83% ♨ · [-]
-Manual · shift+tab 切换        claude-opus-5-5 medium · ctx 3.0% · vitaweave ⎇ main 5ae9e54 +12 −3 · $0.26 · 2h24m
+tps: 100 tok/s • 546 tok / 5.5s (avg 100 · ttft 1.4s)                 ↑12k ↓1.2k · cache 83% ♨ · [-]
+Manual | shift+tab 切换        claude-opus-5-5 medium | Ctx 3.0% | vitaweave ⎇ main 5ae9e54 (+12,-3) | $0.26 | 2h24m
 ```
 
 `compact`，80 列（原单行状态栏 + git 与时长）：
@@ -409,13 +409,13 @@ Manual · shift+tab 切换        claude-opus-5-5 medium · ctx 3.0% · vitaweav
 Manual        claude-opus-5-5 · ctx 3% · vitaweave ⎇ main 5ae9e54 +12 −3 · 2h24m
 ```
 
-超宽（≥ 110 列）时 ctx 换成小表：`ctx ▮▮▮▯▯▯▯▯▯▯ 34%`。
+`compact` 超宽（≥ 110 列）时 ctx 换成小表：`ctx ▮▮▮▯▯▯▯▯▯▯ 34%`；`full` 总是 `Ctx 3.0%`。
 
-- 两区：左区「模式 + 切换提示」，右区信息，中间用空格撑开；装不下时退回单区 `·` 连接。同组项以空格相连：`full` 下行的「模型 思考级别」，以及「目录 ⎇ 分支 短提交 +a −b」。
-- **速率行**（只在 `full`）：`tps` 流式中取最近 2 s 窗口的瞬时值、前缀 `accent`，结束后是该请求的平均值（生成不足 0.25 s 的整块回复记 `—`）；`N tok / T`（从首 token 起）；`avg` 会话均速；`ttft` 首 token 延迟。右区是从状态栏迁来的用量类项，行尾 `[-]`。流式中由 `telemetry_tick`（≤ 2 Hz）刷新，只有这一行随流变化；状态栏仍只在事件时刷新。
+- 两区：左区「模式 + 切换提示」，右区信息，中间用空格撑开；装不下时退回单区。分隔符：`compact` 固定 `·`；`full` 状态栏 `|`、速率行 `tps: … • … (avg · ttft)` 加右区 `·`。同组项以空格相连：`full` 下行的「模型 思考级别」，以及「目录 ⎇ 分支 短提交 +a −b / (+a,-d)」。
+- **速率行**（只在 `full`）：`tps:` 流式中取最近 2 s 窗口的瞬时值、前缀 `accent`，结束后是该请求的平均值（生成不足 0.25 s 的整块回复记 `—`）；`N tok / T`（从首 token 起）；`avg` 会话均速；`ttft` 首 token 延迟。右区是从状态栏迁来的用量类项，行尾 `[-]`。流式中由 `telemetry_tick`（≤ 2 Hz）刷新，只有这一行随流变化；状态栏仍只在事件时刷新。
 - 整行基色 `dim`；模式名 `text`（Bypass permissions → `warning`，Plan → `accent`）；模型 `accent`；`think` 级别只显示值；`ctx` 按阈值 `success`/`warning`/`error`（`full` 保留一位小数）；`rebill $x` `warning`；`queue 1` `warning`；codemode 后的 `net!` `error`（Node 权限模型与 OS 沙箱都不隔离网络时）；宿主状态 `[…]` `dim`。
 - 模型名缩写：`width < 100` 去掉供应商前缀；`< 60` 再去掉 `@渠道`；`< 48` 去掉 `-4-5` 之类版本后缀（按 `-\d` 截）。
-- ASCII：`⎇` → `git`、`−` → `-`、`♨` → `~`；无色时信息不丢。
+- ASCII（字形表）：`⎇` → `git`（`branch`）、`•` → `*`（`dot`）、`−` → `-`、`♨` → `~`；无色时信息不丢。
 - 会变的数字（tps、输出量 / 耗时、avg、ttft、`full` 的 ctx、时长）在判断放不放得下时按最宽形状占位，数值变化不会让某项时有时无（40 列不抖动）。
 
 丢弃顺序（宽度不够时先丢优先级数字大的）：
@@ -440,11 +440,11 @@ Manual        claude-opus-5-5 · ctx 3% · vitaweave ⎇ main 5ae9e54 +12 −3 �
 40 列（`full`）：
 
 ```
-tps 99 tok/s · ttft 1.4s             [-]
-Manual            claude-opus · ctx 3.0%
+tps: 99 tok/s (ttft 1.4s)            [-]
+Manual            claude-opus | Ctx 3.0%
 ```
 
-tmux 节点里宿主要解析最后一行：字段顺序固定、分隔符固定为 `·`，模式永远在最左；嵌入缺省 `compact`，布局与第五波之前相同（输入框在倒数第 3 行）；`full` 时输入框在倒数第 4 行。
+tmux 节点里宿主要解析最后一行：嵌入缺省 `compact`，字段顺序固定、分隔符固定为 `·`，模式永远在最左，布局与第五波之前相同（输入框在倒数第 3 行）；`full` 时输入框在倒数第 4 行。
 
 ### 3.11 审批对话框
 

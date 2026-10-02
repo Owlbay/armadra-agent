@@ -30,7 +30,7 @@ describe("底部信息行（交互界面）", () => {
     it(`full ${columns}x${rows}：状态栏上方多一行速率行，状态栏仍是最后一行`, async () => {
       const s = await start([], { columns, rows, statusLine: "full" });
       const [rate, bar] = tail(s.terminal, 2);
-      expect(rate).toMatch(/^tps — +\[-\]$/);
+      expect(rate).toMatch(/^tps: — +\[-\]$/);
       expect(bar).toMatch(/^Manual/);
       golden(`status-frame-full-${columns}x${rows}`, snapshot(s.terminal, "status full"));
       s.handle.exit(0);
@@ -73,8 +73,10 @@ describe("底部信息行（交互界面）", () => {
     await s.until((e) => e.type === "agent_settled");
     const [rate, bar] = tail(s.terminal, 2);
     // 假供应商整块到达：没有速率（tps —），但有输出量与 ttft
-    expect(rate).toMatch(/^tps — · 17 tok \/ [\d.]+s · ttft [\d.]+s +↑900 ↓17 · cache — · \[-\]$/);
-    expect(bar).toMatch(/ echo medium · ctx \d+\.\d% · work · \$0\.001 · 0s$/);
+    expect(rate).toMatch(
+      /^tps: — • 17 tok \/ [\d.]+s \(ttft [\d.]+s\) +↑900 ↓17 · cache — · \[-\]$/,
+    );
+    expect(bar).toMatch(/ echo medium \| Ctx \d+\.\d% \| work \| \$0\.001 \| 0s$/);
     s.handle.exit(0);
     await s.done;
   });
@@ -131,9 +133,9 @@ describe("StatusArea", () => {
     expect(stats).toBe(before + 1);
     expect(area.onEvent({ type: "agent_settled" } as SessionEvent)).toBe(false);
     now = 90_000;
-    expect(area.bar.render(80)[0]).toContain("· 1m");
+    expect(area.bar.render(80)[0]).toContain("| 1m");
     area.rebind();
-    expect(area.bar.render(80)[0]).toContain("· 0s");
+    expect(area.bar.render(80)[0]).toContain("| 0s");
     area.dispose();
   });
 });

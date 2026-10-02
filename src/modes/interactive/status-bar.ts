@@ -1,15 +1,16 @@
 /**
  * 状态栏（设计 §12.6；终端界面视觉设计 v1 §3.10；第五波 §1）：编辑器下方，永远是最后一行。[B7][W5-A]
  *
- * 两区：左区「权限模式 · shift+tab 切换」，右区信息，中间用空格撑开；空隙不足 4 列时退回单区（` · ` 连接）。
- * 分隔符固定为 ` · `、模式永远在最左（tmux 宿主可按此解析）；同组项（模型与思考级别、目录与 git）以空格相连。
+ * 两区：左区「权限模式 + shift+tab 切换」，右区信息，中间用空格撑开；空隙不足 4 列时退回单区。模式永远在最左；
+ * 同组项（模型与思考级别、目录与 git）以空格相连。compact 分隔符固定为 ` · `（tmux 宿主按此解析），full 按用户
+ * 样例用 ` | `。
  *
  * 两种布局（`ui.statusLine`，§1.1）：
  * - `compact`（嵌入宿主缺省，即原单行状态栏）：
  *   `Manual · shift+tab 切换    sonnet-4-5 · medium · ↑12.3k ↓1.2k · cache 80% ♨ · $0.12 · ctx 34% · proj ⎇ main 5ae9e54 +12 −3 · 2h24m`
  *   右区顺序：模型 · 思考 · `↑ ↓` · cache · 费用 · rebill · ctx · git · 时长 · queue · codemode · 预设 · [宿主]。
- * - `full`（独立终端缺省）：用量类项移到上方速率行（status-line.ts），本行只留
- *   `模型 思考 · ctx 3.0% · 目录 ⎇ 分支 短提交 +a −b · $费用 · 会话时长`；ctx 保留一位小数。
+ * - `full`（独立终端缺省，用户样例）：用量类项移到上方速率行（status-line.ts），本行为
+ *   `Manual | 模型 思考 | Ctx 3.0% | 目录 ⎇ 分支 短提交 (+a,-d) | $费用 | 会话时长`；Ctx 一位小数、不换余量表。
  *
  * - 用量来自 `session.getStats()`，只在 `refresh()` 时读取（事件驱动），渲染只拼字符串；时长按渲染时刻算。
  * - [W3-C2] `cache` 是**最近一次**请求的命中率；端点三态 `cache —` / `cache 未报告`；保温中追加 `♨`；
@@ -19,7 +20,7 @@
  * - 着色：整行 dim；模式名正文色（Bypass permissions warning、Plan accent）；模型 accent；ctx 按阈值
  *   success / warning / error；rebill、queue warning；`net!` error。宽 ≥ 110 时 ctx 用余量表。
  * - 模型名缩写：宽 < 100 去掉供应商前缀，< 60 再去掉 `@渠道`，< 48 去掉版本后缀（第一个 `-数字` 起）。
- * - ASCII：`⎇` → `git`、`−` → `-`、`♨` → `~`。
+ * - ASCII：`⎇` → `git`（字形表 `branch`）、`−` → `-`、`♨` → `~`。
  * - 宽度不够时按优先级丢弃（数字大的先丢，表见 §1.2）；会变的数字按最宽形状占位（`reserve`），
  *   数字变化不会让某项时有时无（40 列不抖动）。
  */
@@ -106,10 +107,19 @@ export interface Part {
   /** 越小越重要（最后丢）；undefined = 永不丢。 */
   priority: number | undefined;
   zone: "left" | "right";
-  /** 同组相邻项以空格相连（否则 ` · `）。 */
+  /** 同组相邻项连成一段（组内用 `RowStyle.groups[组].glue`，缺省空格）。 */
   group?: string;
+  /** 这一段前面的连接符（缺省行分隔符）；段首项的值生效。 */
+  lead?: string;
   /** 判断放不放得下时按这个宽度算（会变的数字取最宽形状，避免抖动）。 */
   reserve?: number;
+}
+
+export interface RowStyle {
+  /** 段间分隔符，缺省 ` · `。 */
+  sep?: string;
+  /** 组的连接方式：组内连接符与包围（如 `(avg 100 · ttft 1.4s)`）。 */
+  groups?: Readonly<Record<string, { glue?: string; open?: string; close?: string }>>;
 }
 
 /** 两区之间至少留的空格；不足时退回单区。 */
@@ -117,29 +127,48 @@ const MIN_GAP = 4;
 /** ctx 改用余量表的最小宽度。 */
 const METER_WIDTH = 110;
 
-/** 按优先级丢弃后排成一行（两区 / 单区）。 */
-export function layoutRow(parts: readonly Part[], width: number, theme: Theme): string {
-  const sep = theme.fg("dim", " · ");
-  const join = (list: readonly Part[], measure: boolean): string => {
+/** 按优先级丢弃后排成一行（两区 / 单区）；连接符都是 dim。 */
+export function layoutRow(
+  parts: readonly Part[],
+  width: number,
+  theme: Theme,
+  style: RowStyle = {},
+): string {
+  const sep = style.sep ?? " · ";
+  const dim = (text: string): string => (text === "" ? "" : theme.fg("dim", text));
+  /** 返回 [文本, 占位宽度]。 */
+  const join = (list: readonly Part[]): [string, number] => {
     let out = "";
     let size = 0;
+    const add = (text: string, measured = visibleWidth(text)): void => {
+      out += text;
+      size += measured;
+    };
     list.forEach((p, i) => {
-      const glue = i === 0 ? "" : p.group !== undefined && p.group === list[i - 1]!.group;
-      if (i > 0) {
-        out += glue ? " " : sep;
-        size += glue ? 1 : 3;
+      const prev = i === 0 ? undefined : list[i - 1];
+      const group = p.group === undefined ? undefined : style.groups?.[p.group];
+      const continues = prev !== undefined && p.group !== undefined && p.group === prev.group;
+      if (continues) add(dim(group?.glue ?? " "));
+      else {
+        if (prev !== undefined) {
+          const prevGroup = prev.group === undefined ? undefined : style.groups?.[prev.group];
+          add(dim(prevGroup?.close ?? ""));
+          add(dim(p.lead ?? sep));
+        }
+        add(dim(group?.open ?? ""));
       }
-      out += p.text;
-      size += Math.max(visibleWidth(p.text), measure ? (p.reserve ?? 0) : 0);
+      add(p.text, Math.max(visibleWidth(p.text), p.reserve ?? 0));
     });
-    return measure ? String(size) : out;
+    const last = list[list.length - 1];
+    if (last?.group !== undefined) add(dim(style.groups?.[last.group]?.close ?? ""));
+    return [out, size];
   };
   let kept = [...parts];
   const zone = (z: Part["zone"]): Part[] => kept.filter((p) => p.zone === z);
   const fits = (): boolean => {
-    const l = Number(join(zone("left"), true));
+    const l = join(zone("left"))[1];
     const right = zone("right");
-    return l + (right.length === 0 ? 0 : 3 + Number(join(right, true))) <= width;
+    return l + (right.length === 0 ? 0 : sep.length + join(right)[1]) <= width;
   };
   while (!fits()) {
     const droppable = kept.filter((p) => p.priority !== undefined);
@@ -147,10 +176,10 @@ export function layoutRow(parts: readonly Part[], width: number, theme: Theme): 
     const drop = droppable.reduce((worst, p) => (p.priority! > worst.priority! ? p : worst));
     kept = kept.filter((p) => p !== drop);
   }
-  const l = join(zone("left"), false);
-  const r = join(zone("right"), false);
+  const l = join(zone("left"))[0];
+  const r = join(zone("right"))[0];
   const gap = width - visibleWidth(l) - visibleWidth(r);
-  const line = r === "" ? l : gap >= MIN_GAP ? l + " ".repeat(gap) + r : l + sep + r;
+  const line = r === "" ? l : gap >= MIN_GAP ? l + " ".repeat(gap) + r : l + dim(sep) + r;
   return truncateToWidth(line, width);
 }
 
@@ -256,6 +285,8 @@ const COMPACT = {
 /** full 布局本行的优先级（§1.2 下行表）。 */
 const FULL = { model: 0, ctx: 1, cost: 2, duration: 3, branch: 4, dir: 5, diff: 6, thinking: 7 };
 const FULL_HINT = 12;
+/** full 状态栏（用户样例）：段间 ` | `。 */
+const FULL_STYLE: RowStyle = { sep: " | " };
 
 export class StatusBar implements Component {
   private stats: SessionStats | undefined;
@@ -330,7 +361,7 @@ export class StatusBar implements Component {
     if (usage.cost !== undefined) right(usage.cost, COMPACT.cost);
     if (usage.rebill !== undefined) right(usage.rebill, COMPACT.rebill);
     right(this.ctxText(stats.contextPercent, width, full), p.ctx, full ? { reserve: 10 } : {});
-    this.gitParts(p).forEach((part) => parts.push(part));
+    this.gitParts(p, full).forEach((part) => parts.push(part));
     if (full) {
       const cost = statusCost(stats);
       const used = stats.tokens.input + stats.tokens.output + stats.tokens.cacheRead > 0;
@@ -350,11 +381,11 @@ export class StatusBar implements Component {
   }
 
   /** `目录 ⎇ 分支 短提交 +a −b`：三项同组、各自按优先级丢弃。 */
-  private gitParts(p: { branch: number; dir: number; diff: number }): Part[] {
+  private gitParts(p: { branch: number; dir: number; diff: number }, full: boolean): Part[] {
     const git = this.source.git?.();
     if (git === undefined) return [];
     const theme = this.theme;
-    const ascii = theme.glyphs.ascii;
+    const g = theme.glyphs;
     const dim = (text: string): string => theme.fg("dim", text);
     const out: Part[] = [];
     const add = (text: string, priority: number): void =>
@@ -363,27 +394,30 @@ export class StatusBar implements Component {
     const info = git.info;
     if (info === undefined) return out;
     const head = [info.branch, info.shortHead].filter((s) => s !== undefined).join(" ");
-    if (head !== "") add(`${ascii ? "git" : "⎇"} ${head}`, p.branch);
+    if (head !== "") add(`${g.branch} ${head}`, p.branch);
     if (info.insertions !== undefined && info.deletions !== undefined) {
-      add(`+${info.insertions} ${ascii ? "-" : "−"}${info.deletions}`, p.diff);
+      const { insertions: a, deletions: d } = info;
+      add(full ? `(+${a},-${d})` : `+${a} ${g.ascii ? "-" : "−"}${d}`, p.diff);
     }
     return out;
   }
 
   private ctxText(percent: number | undefined, width: number, decimal: boolean): string {
     const theme = this.theme;
-    if (percent === undefined) return theme.fg("dim", "ctx ?");
+    if (percent === undefined) return theme.fg("dim", decimal ? "Ctx ?" : "ctx ?");
     const color = levelColor(percent / 100);
-    if (width >= METER_WIDTH) {
+    // full 按用户样例总是 `Ctx 3.0%`；compact 宽屏换余量表（现状）
+    if (!decimal && width >= METER_WIDTH) {
       const meter = new Meter(percent / 100, { label: theme.fg("dim", "ctx"), theme });
       return meter.render(80)[0] ?? "";
     }
-    const value = decimal ? percent.toFixed(1) : String(Math.round(percent));
-    return theme.fg("dim", "ctx ") + theme.fg(color, `${value}%`);
+    if (decimal) return theme.fg("dim", "Ctx ") + theme.fg(color, `${percent.toFixed(1)}%`);
+    return theme.fg("dim", "ctx ") + theme.fg(color, `${Math.round(percent)}%`);
   }
 
   render(width: number): string[] {
-    return [layoutRow(this.parts(width), width, this.theme)];
+    const style = this.layout() === "full" ? FULL_STYLE : {};
+    return [layoutRow(this.parts(width), width, this.theme, style)];
   }
 
   invalidate(): void {
