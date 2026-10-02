@@ -15,6 +15,7 @@ import {
   codemodeToolFactory,
   createCodemodeTool,
   formatCodemodeResult,
+  scriptErrorHint,
   toScriptValue,
 } from "./tool.js";
 
@@ -147,6 +148,24 @@ throw new Error("boom");`),
     );
   });
 
+  it("脚本里 require / 直接调工具名：失败原因后补正确写法", async () => {
+    const { tools } = fixture();
+    const h = createHarness({
+      script: [
+        call(`const fs = require("fs");`, "c1"),
+        call(`return await read({ path: "x" });`, "c2"),
+        { text: "done" },
+      ],
+      tools,
+      activeTools: ["codemode"],
+    });
+    await h.session.prompt("go");
+    const [first, second] = toolResults(h).map((m) => String(m.content));
+    expect(first).toContain("ReferenceError: require is not defined");
+    expect(first).toContain("Only tools.<name>(args) is available in codemode scripts");
+    expect(second).toContain("Call tools as tools.read({...}), not read(...).");
+  });
+
   it("非法 @options → 错误结果，不起子进程", async () => {
     const { codemode } = fixture();
     const h = createHarness({
@@ -209,6 +228,44 @@ describe("描述与缓存稳定", () => {
     const text = buildCodemodeDescription([{ tool: read, textResult: true }], 3000, loose);
     expect(text).toContain("Sandbox: Node 24: network not isolated");
     expect(text).not.toContain(codemodeHint("read"));
+  });
+});
+
+describe("描述规则与权限类", () => {
+  it("描述快照：规则段 + 6 行示例 + 内置工具声明", () => {
+    const list = builtinTools().map((tool) => ({ tool, textResult: true }));
+    const text = buildCodemodeDescription(list, 3000, strict);
+    expect(text.split("\n").slice(0, 11).join("\n")).toMatchSnapshot();
+    expect(text).toContain(
+      "Only tools.<name>(args) is available. There is no require, import, process, fetch or timers; do not call tools directly as functions.",
+    );
+  });
+
+  it("权限类随沙箱能力：网络隔离 read，未隔离 execute", () => {
+    const listTools = () => [];
+    expect(createCodemodeTool({ listTools, capability: strict }).permission).toBe("read");
+    expect(createCodemodeTool({ listTools, capability: loose }).permission).toBe("execute");
+  });
+
+  it("scriptErrorHint：import / 动态 import / process / 工具名；其它原样", () => {
+    const names = ["read", "bash"];
+    const only = "Only tools.<name>(args) is available";
+    expect(
+      scriptErrorHint("SyntaxError: Cannot use import statement outside a module", names),
+    ).toContain(only);
+    expect(
+      scriptErrorHint("TypeError: A dynamic import callback was not specified.", names),
+    ).toContain(only);
+    expect(scriptErrorHint("ReferenceError: process is not defined (line 2)", names)).toContain(
+      only,
+    );
+    expect(scriptErrorHint("ReferenceError: bash is not defined", names)).toContain(
+      "tools.bash({...})",
+    );
+    expect(scriptErrorHint("ReferenceError: foo is not defined", names)).toBe(
+      "ReferenceError: foo is not defined",
+    );
+    expect(scriptErrorHint("Error: boom", names)).toBe("Error: boom");
   });
 });
 
