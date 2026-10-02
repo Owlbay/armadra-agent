@@ -6,9 +6,13 @@ import { BUILTIN_PROVIDERS } from "./builtin.js";
 import {
   applyModelOverride,
   checkCatalogModel,
+  inheritedFields,
   loadBuiltinCatalog,
   parseCatalogFile,
+  redundantFields,
   toModel,
+  type CatalogEntry,
+  type CatalogSourceFile,
 } from "./catalog.js";
 import { CATALOG_SOURCES } from "./catalog-data.js";
 import { inlineJsonModule } from "../../../scripts/lib/inline-json.mjs";
@@ -38,16 +42,53 @@ function generate(files: Map<string, unknown>): string {
   });
 }
 
+/** 条目里与快照相同的覆盖项（`cost.input` 这样的路径）。 */
+function redundancy(file: CatalogSourceFile): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const entry of file.models) {
+    const found = redundantFields(entry, inheritedFields(file, entry));
+    if (found.length > 0) out.set(entry.id, found);
+  }
+  return out;
+}
+
+/** UPDATE_CATALOG=1：删掉冗余字段写回 catalog/<id>.json（之后跑 prettier）。 */
+function prune(id: string, file: CatalogSourceFile): CatalogSourceFile {
+  const redundant = redundancy(file);
+  if (redundant.size === 0) return file;
+  for (const entry of file.models) {
+    for (const path of redundant.get(entry.id) ?? []) {
+      const [key, sub] = path.split(".") as [keyof CatalogEntry, string | undefined];
+      if (sub === undefined) delete entry[key];
+      else if (entry.cost !== undefined) {
+        delete (entry.cost as Record<string, unknown>)[sub];
+        if (Object.keys(entry.cost).length === 0) delete entry.cost;
+      }
+    }
+  }
+  writeFileSync(join(catalogDir, `${id}.json`), `${JSON.stringify(file, null, 2)}\n`);
+  return file;
+}
+
 describe("模型目录", () => {
   it("catalog-data.ts 与 catalog/*.json 一致", () => {
     const files = jsonFiles();
     if (process.env["UPDATE_CATALOG"] === "1") {
+      for (const [id, value] of files) files.set(id, prune(id, value as CatalogSourceFile));
       writeFileSync(join(here, "catalog-data.ts"), generate(files));
       return;
     }
     expect(Object.keys(CATALOG_SOURCES).sort()).toEqual([...files.keys()]);
     for (const [id, value] of files)
       expect(JSON.parse(CATALOG_SOURCES[id] ?? "null"), id).toEqual(value);
+  });
+
+  it("快照 ⊕ 覆盖：目录条目里与快照取值相同的字段视为冗余（UPDATE_CATALOG=1 自动删）", () => {
+    for (const [id, value] of jsonFiles()) {
+      const file = value as CatalogSourceFile;
+      if (file.modelsDev === undefined) continue;
+      expect(Object.fromEntries(redundancy(file)), `catalog/${id}.json`).toEqual({});
+    }
   });
 
   it("每家一份，文件名即供应商 id；有目录的每家 2–15 条", () => {
