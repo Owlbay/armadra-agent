@@ -130,7 +130,7 @@ Accept edits     claude-opus-5-5 medium | Ctx 3.0% | proj ⎇ main 5ae9e54 (+12,
 | ↑ / ↓                | 单行时浏览历史（`<数据目录>/history`，500 条）                                                                                                                   |
 | Ctrl+B / ↓（空输入） | 进入 Agent 栏（有子 Agent 任务时；有字时 Ctrl+B 仍是光标左移，tmux 里用 ↓），见「子 Agent」（第六波 W6-A 起）                                                    |
 
-按键可在 `~/.config/ama/keybindings.json` 覆盖，键是动作 id（`app.interrupt`、`app.rewind`、`app.message.followUp`、`app.statusLine.toggle`、`app.paste.image`、`tui.editor.newLine` ……），值是按键或按键数组，空数组表示禁用。`app.rewind` 是空闲时双击的那个键（缺省 Esc，两次间隔 ≤ 800 ms）。
+按键可在 `~/.config/ama/keybindings.json` 覆盖，键是动作 id（`app.interrupt`、`app.rewind`、`app.message.followUp`、`app.statusLine.toggle`、`app.paste.image`、`app.agents.focus`、`tui.editor.newLine` ……），值是按键或按键数组，空数组表示禁用。`app.rewind` 是空闲时双击的那个键（缺省 Esc，两次间隔 ≤ 800 ms）。
 
 ## 回滚
 
@@ -187,7 +187,7 @@ Accept edits     claude-opus-5-5 medium | Ctx 3.0% | proj ⎇ main 5ae9e54 (+12,
 - `/statusline [full|compact]`：切换底部信息行（无参数时在两者间切换，同 `Ctrl+G`），只影响本会话；line 模式没有底部信息行。
 - `/session`、`/cache`：会话用量与缓存统计面板（见上文「缓存与上下文」）；`/permissions` 同样是面板，allow 绿、deny 红，判定顺序折行对齐。`/session` 有子 Agent 任务时多一行「子 Agent」（任务数与各状态），用过外部 Agent 时多一段「外部 Agent」（每个 Agent 的运行次数与用量，美元 / token / 请求数按各自单位，不换算）。
 - `/plan`：当前计划面板（见下文「Plan 审批」）；`/plan <目标>` 进入 Plan 模式并发出目标；`/plan approve [模式|fresh]`、`/plan reject` 不开对话框直接批准 / 放弃。
-- `/tasks`：子 Agent 任务列表；`/agents`：可用的子 Agent 类型（见下文「子 Agent」）。
+- `/tasks`：聚焦 Agent 栏，`/tasks <id>` 打开子 Agent 视图；`/agents`：可用的子 Agent 类型（见下文「子 Agent」）。
 - `/paste`：同 `Ctrl+V`。
 
 ## 进入 Bypass
@@ -306,9 +306,48 @@ Plan 模式（Shift+Tab、`/permission plan`、`/plan <目标>`、`--permission-
 ```
 
 - 状态行是类型（外部 Agent 写 `claude（claude）` 这类 runner）、状态与耗时、轮数、最近 3 个工具、用量；前台任务结束后换成结果摘要。后台任务（`background: true`）的工具调用立即返回，下面多一行跟随状态（运行中每秒刷新）；完成后模型收到的 `<task-notification>` 在消息区只显示一行「↳ 子 Agent 通知 t2 explore 完成 · 7 轮 · /tasks 查看输出」，失败或被停止时另有一行黄色提示。
-- `/tasks`：任务选择器（新的在上；一行是任务 id、类型、状态、耗时、轮数、用量、费用、后台、描述），Enter 查看输出（运行中是已有输出；截断时给全文文件）；运行中的任务可以选择停止。line 模式 `/tasks` 列表、`/tasks <id>` 输出、`/tasks stop <id>` 停止。
+- `/tasks`：聚焦 Agent 栏（见下）；`/tasks <id>` 直接打开该任务的子 Agent 视图；`/tasks stop <id>` 停止。`ui.agentBar: "off"`（嵌入宿主缺省）时 `/tasks` 仍是任务选择器（新的在上，Enter 查看输出、运行中可停止）。line 模式 `/tasks` 列表、`/tasks <id>` 输出、`/tasks stop <id>` 停止。
 - `/agents`：可用类型——名字、runner、来源（内置 / 用户 / 项目 / profile / 宿主），外部 Agent 带「已安装 版本」或「未安装」，再加一行说明。
 - 外部 Agent 自己报告的提示（预算用尽、超时、模式降级等）在消息区显示为一行 `[claude · t3] …`。
+
+### Agent 栏
+
+状态行上方（提示行之下）列出子 Agent 任务，每个任务一行，最多 3 行，多出的给一行「另 N 个」：
+
+```
+⏺ t1 explore · 运行中 1m05s · 3 轮 · grep  找出 src/tui 的测试缺口
+⏺ t2 codex · 等待审批 40s  review the diff
+⏺ t3 explore · 排队  排队中的任务
+另 1 个
+```
+
+- 状态：排队（并发池满）/ 运行中（用时、轮数、最近一个工具）/ 等待审批（审批框里正有它的请求）/ 完成 / 失败 / 已停止（以及轮数耗尽、已中断）；`⏺` 运行中强调色、完成绿、失败红、其余黄 / 暗；ASCII 下是 `*`。
+- 什么时候显示：有排队、运行中或等审批的任务；本会话里结束、还没在视图里看过的任务保留到看过为止，最多 10 分钟。resume 进来时已经结束的任务不显示（`/tasks` 里能看到）。
+- 进入：输入框为空时 `Ctrl+B`（有任务即可），或 `↓`（栏可见时）——tmux 的缺省前缀会吃掉 `Ctrl+B`，这时用 `↓`；输入框有字时 `Ctrl+B` 仍是光标左移、`↓` 仍是下移 / 历史。键位动作 `app.agents.focus`，可在 `keybindings.json` 改。
+- 栏里：`↑` `↓` 选（列出本会话全部任务，窗口跟着滚；在第一项再按 `↑` 回到输入框），Enter 打开子 Agent 视图，Esc / `Ctrl+B` 回到输入框；直接打字则回到输入框并把字填进去。末行是按键提示。
+- 嵌入宿主（有 profile）缺省 `ui.agentBar: "off"`：不显示栏，`Ctrl+B` / `↓` 照常交给编辑器。
+
+### 子 Agent 视图
+
+栏里 Enter 或 `/tasks <id>` 打开。它是主屏上的底部覆盖层，高度是终端行数 − 1（不切备用屏），关掉之后消息区与回滚历史原样：
+
+```
+t2 explore · 运行中 1m05s · 3 轮 · ↑12k ↓3.4k · Esc 返回 · /tasks stop t2 停止
+› 找出 src/tui 的测试缺口
+
+⏺ grep "describe(" src/tui
+  ⎿ 14 处匹配 · 6 个文件
+…
+────────────────────────────────────────
+› 发给 t2
+────────────────────────────────────────
+```
+
+- 正文实时跟随：ama 子 Agent 显示子会话的全部消息与工具调用（与消息区同样的渲染）；子会话句柄已被释放（保留上限 16 个）或会话是 resume 进来的，就只读加载子会话文件，任务再次运行时接上实时事件。外部 Agent（claude / codex / ACP）显示本进程内存里的实时输出（文本、思考、工具起止、回合、提示；最多 2000 条 / 1 MB，不落盘）；ama 重启后只剩一行说明「用原 CLI resume <会话 id> 查看全文」。
+- 输入框为空时：`↑` / PgUp 上翻（暂停跟随，底部提示「已暂停跟随 · End 继续」），`↓` / PgDn 下翻，End（暂停时也可按 `f`）回到跟随；`←` `→` 切到上一个 / 下一个任务；Esc 返回主界面。输入框有字时 Esc 先清空。
+- Enter 把输入发给这个子 Agent（会话里记为 `origin: "direct"` 的 user 消息，见 [session-format.md](session-format.md)）：ama 子 Agent 运行中 → 排到它本轮结束时送达；外部 Agent 运行中或任务还在排队 → 等本次运行结束后续聊；已结束 → 后台续聊（同 `task_ctl send`，完成后主会话照常收到 `<task-notification>`）。底部一行提示发送结果。父会话的模型不知道你直接和子 Agent 说过话，结果经结束通知自然带回。
+- 视图里不中断任何东西：Esc 只是返回。停止子任务用 `/tasks stop <id>`——在视图输入框里也能用（视图里只认这一条命令）。
+- 正在看的任务等审批时标题显示「等待审批」，审批框照常弹在视图上面（带 `[task:<类型>]` 来源）。
 
 审批框的来源标注：
 
@@ -322,7 +361,40 @@ Plan 模式（Shift+Tab、`/permission plan`、`/plan <目标>`、`--permission-
 
 ## 轨迹
 
-（第六波 W6-T1：`/trace` 覆盖层。）
+`/trace` 打开当前会话的轨迹：按回合 → 请求 → 工具 → 子调用 / 子 Agent 分层，每行显示耗时、token 与缓存命中，
+看清一次回答慢在哪里（首 token、解码、工具、审批、重试、压缩）。`/trace t2` 直接看任务 t2：ama 子 Agent 显示它
+自己的子轨迹，外部 Agent（claude / codex …）只有回合骨架（种类、状态、时间与计数，没有命令行与路径）。
+
+覆盖层在主屏底部、高 `行数 − 1`，退出后消息区不变：
+
+```text
+轨迹 · 1 回合 · 2 请求 · 3 次工具 · 12s · ↑8.1k ↓240 · 缓存 70% · ttft p50 0.8s / p90 0.9s · 120 tok/s
+ ▾ #1 跑测试并找出 TODO                                    12s ▕██░░░░░░░▒██▏ ↑8.1k ↓240     70%
+   ▾ 请求 claude-sonnet-4-5 · ttft 0.8s · 167 tok/s       1.7s ▕██░░░░░░░░  ▏ ↑3.9k ↓150     46%
+       bash pnpm test                                     8.0s ▕ ░░░░░░░░░  ▏
+       grep TODO                                          0.3s ▕ ░░         ▏
+       ⛔ write notes.md                                  2.2s ▕ ░░░░       ▏
+›    请求 claude-sonnet-4-5 · ttft 0.9s · 82 tok/s        2.0s ▕         ▒██▏ ↑4.2k ↓90      93%
+↑↓ 移动 · → 展开 · ← 折叠 · Enter 详情 · f 跟随 · Esc 关闭
+```
+
+- **条形**是所在回合的相对时间轴：`▒` 首 token 等待（TTFT）、`█` 解码、`░` 工具；进行中的节点只画起点 `│`，不编造时长。
+  ASCII（`ui.ascii` / `AMA_ASCII=1`）或无色（`NO_COLOR`）时降级为 `[==..--]`（`.` TTFT、`=` 解码、`-` 工具、`|` 起点）。
+- **列**：↑ 是提示 token（含缓存读写），↓ 是输出 token，百分比是缓存命中（缓存读 / 提示 token）。宽 < 60 列只留标签与耗时，40 列可用。
+- **记号**：`✗` 失败、`⛔` 被拒、`↻` 被重试掉的请求、`!` 中断或未完成、`·` 进行中；耗时前的 `≈`（ASCII `~`）表示**推算**——
+  0.6 之前的会话没有计时记录，按条目时间估出，首 token 与吞吐不显示，汇总的 ttft 分位只用精确值。
+- **按键**：`↑↓` / `PgUp` `PgDn` / `Home` `End` 移动；`→` 展开（子 Agent 展开时读它的子会话）或进到第一个子行，`←` 折叠或回到父行；
+  `Enter` 详情卡片（类型、状态、开始时刻、耗时、模型与尝试次数、回退来源、TTFT、吞吐、token 与缓存、费用、审批等待；回合的提示、
+  请求的回复文字、工具参数（截到 500 字符）与结果（截到 2000 字符）），卡片里 `↑↓` 滚动、`Esc` / `Enter` 返回；`f` 跟随开关；
+  `Esc` 先关详情再关视图。
+- **长会话**：先显示最后 50 个回合，顶部一行「更早的 N 个回合」上按 `Enter`（或在第一行继续按 `↑`）再往前加载 50 个；只渲染可见行。
+- **运行中**：轨迹随会话事件刷新（最多每秒 2 次）；有进行中的节点时自动跟随最新一行，手动上移即暂停（标题右侧显示「已暂停跟随」），
+  `End` 或 `f` 恢复。
+- 保温与权限分类等辅助请求收在末尾「辅助请求 N 次」一组，缺省折叠。
+- line 模式（`--ui line`、管道）里 `/trace [任务 id]` 打印同一棵树的文本（全部展开、不画条形）。
+
+计时来自会话文件里的 `custom{customType:"ama.trace"}` 条目（[session-format.md](session-format.md)），只有 id、时间与计数；
+提示、参数、结果的预览从会话条目按需读取，不进轨迹本身。
 
 ## Memory
 

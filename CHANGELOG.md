@@ -29,6 +29,19 @@
 - **CLI 英文界面**（W6-I1）：`ama --help`、启动画面与启动报错、退出码说明、`ama providers` / `models` / `stats` /
   `sessions export` · `search` / `init` 的输出与报错随界面语言（`AMA_LANG=en` / `--lang en`）；中文输出逐字不变。
   `ama models cache-probe --json` 的 `advice` 是人读文本，也随界面语言。
+- **`/trace` 轨迹**（W6-T1）：交互模式打开轨迹覆盖层——回合 → 请求 → 工具 → 子调用 / 子 Agent，每行耗时、TTFT / 解码 / 工具条形、
+  token 与缓存命中，Enter 看详情，子 Agent 可展开到子会话，长会话尾部先加载、运行中自动跟随；`/trace <任务 id>` 看单个任务；
+  line 模式打印文本树。老会话没有计时记录时按条目时间推算并标 `≈`，不改会话文件。SDK 导出纯函数 `buildTrace()`。见 [docs/tui.md](docs/tui.md)「轨迹」。
+
+Agent 栏与子 Agent 视图（W6-A，[docs/tui.md](docs/tui.md)「子 Agent」）：
+
+- **Agent 栏**：状态行上方列出子 Agent 任务（排队 / 运行中 · 用时 · 轮数 · 最近工具 / 等待审批 / 完成 / 失败 / 已停止），最多 3 行 +「另 N 个」；
+  结束后保留到在视图里看过为止，最多 10 分钟。输入为空时 `Ctrl+B` 或 `↓` 进入（`app.agents.focus`；有字时 `Ctrl+B` 仍是光标左移，tmux 里用 `↓`），
+  ↑↓ 选、Enter 打开。嵌入宿主缺省不显示（`ui.agentBar: "off"`）。
+- **子 Agent 视图**：主屏上的全屏覆盖层（行数 − 1），实时跟随子会话的消息与工具调用（句柄被释放或 resume 后只读加载子会话文件）；外部 Agent
+  显示内存里的实时输出（≤ 2000 条 / 1 MB，不落盘）。输入框直接发给子 Agent：运行中排到本轮结束、外部 Agent 等本次运行结束、已结束则后台续聊；
+  子会话里记为 `origin: "direct"`。Esc 返回（不中断），子 Agent 的审批在视图上弹出并标来源。
+- **`/tasks` 改为聚焦 Agent 栏**，`/tasks <id>` 直接打开视图（`ui.agentBar: "off"` 时仍是原来的选择器；line 模式不变）。
 
 记忆（W6-M，[docs/memory.md](docs/memory.md)）：
 

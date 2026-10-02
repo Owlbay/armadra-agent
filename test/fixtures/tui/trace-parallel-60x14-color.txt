@@ -1,0 +1,79 @@
+# list · cursor at tail · viewport 60x14
+|轨迹 · 1 回合 · 2 请求 · 3 次工具 · 12s · ↑8.1k ↓240 · 缓存…
+| ▾ #1 跑测试并找出 TO…     12s ▕██░░░░▒█▏ ↑8.1k ↓240     70%
+|   ▾ 请求 claude-sonn…    1.7s ▕██░░░░░ ▏ ↑3.9k ↓150     46%
+|       bash pnpm test     8.0s ▕ ░░░░░░ ▏
+|       grep TODO          0.3s ▕ ░      ▏
+|       ⛔ write notes…    2.2s ▕ ░░     ▏
+|›    请求 claude-sonn…    2.0s ▕      ▒█▏ ↑4.2k ↓90      93%
+|
+|
+|
+|
+|
+|↑↓ 移动 · → 展开 · ← 折叠 · Enter 详情 · f 跟随 · Esc 关闭
+|
+
+# after ↑↑↑ (bash) · viewport 60x14
+|轨迹 · 1 回合 · 2 请求 · 3 次工具 · 12s · ↑8.1k ↓240 · 缓存…
+| ▾ #1 跑测试并找出 TO…     12s ▕██░░░░▒█▏ ↑8.1k ↓240     70%
+|   ▾ 请求 claude-sonn…    1.7s ▕██░░░░░ ▏ ↑3.9k ↓150     46%
+|›      bash pnpm test     8.0s ▕ ░░░░░░ ▏
+|       grep TODO          0.3s ▕ ░      ▏
+|       ⛔ write notes…    2.2s ▕ ░░     ▏
+|     请求 claude-sonn…    2.0s ▕      ▒█▏ ↑4.2k ↓90      93%
+|
+|
+|
+|
+|
+|↑↓ 移动 · → 展开 · ← 折叠 · Enter 详情 · f 跟随 · Esc 关闭
+|
+
+# detail · viewport 60x14
+|轨迹 · 1 回合 · 2 请求 · 3 次工具 · 12s · ↑8.1k ↓240 · 缓存…
+| bash pnpm test
+| 类型      tool
+| 状态      完成
+| 开始      +1.8s
+| 耗时      8.0s
+| 等待审批  3.2s
+|
+| 参数
+| {
+|   "command": "pnpm test"
+| }
+|↑↓ 滚动 · Esc 返回
+|
+
+# detail closed · viewport 60x14
+|轨迹 · 1 回合 · 2 请求 · 3 次工具 · 12s · ↑8.1k ↓240 · 缓存…
+| ▾ #1 跑测试并找出 TO…     12s ▕██░░░░▒█▏ ↑8.1k ↓240     70%
+|   ▾ 请求 claude-sonn…    1.7s ▕██░░░░░ ▏ ↑3.9k ↓150     46%
+|›      bash pnpm test     8.0s ▕ ░░░░░░ ▏
+|       grep TODO          0.3s ▕ ░      ▏
+|       ⛔ write notes…    2.2s ▕ ░░     ▏
+|     请求 claude-sonn…    2.0s ▕      ▒█▏ ↑4.2k ↓90      93%
+|
+|
+|
+|
+|
+|↑↓ 移动 · → 展开 · ← 折叠 · Enter 详情 · f 跟随 · Esc 关闭
+|
+
+# view closed · viewport 60x14
+|先前的对话
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
