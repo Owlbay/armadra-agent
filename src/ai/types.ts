@@ -12,6 +12,9 @@
  * - `GoogleCompat` / `OpenAIResponsesCompat` 只列出已知字段，B8 按需追加（走契约变更流程）。
  * - `ProviderRegistryApi` / `ApiKeyResolution` 是 Runtime（cli/runtime.ts）需要的最小接口，
  *   B1 的 `ProviderRegistry` 类实现它。
+ * - [W3-C0] 第三波 §1.3 的五个缓存兼容开关单列为 `PromptCacheCompat`（各协议共用），只并入
+ *   `ProviderCompat`（全部可选），不改各协议 compat 接口——`detectCompat` 的返回形状不变，
+ *   缺省值由 C1a 在协议层按端点推断。
  */
 
 // ---------------------------------------------------------------------------
@@ -26,6 +29,13 @@ export type ModelThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" |
 /** 除 off 以外的级别。 */
 export type ThinkingLevel = Exclude<ModelThinkingLevel, "off">;
 export type CacheRetention = "none" | "short" | "long";
+
+/**
+ * [W3-C0] 一次请求的用途（第三波 §1.2）：会话层按用途分开记录请求链——`turn` 是循环里的
+ * 真实回合，`summary` 是压缩 / 分支摘要，`warm` 是缓存保温重放，`probe` 是 `models check` /
+ * `cache-probe` 一类的探测。缺省视为 `turn`。协议层只透传，不改变请求体。
+ */
+export type RequestPurpose = "turn" | "summary" | "warm" | "probe";
 
 /** `provider/model-id` 拆开后的引用。 */
 export interface ModelRef {
@@ -118,6 +128,11 @@ export interface Usage {
   totalTokens: number;
   /** 由 ai/cost.ts 写回；模型无 cost 时缺省。 */
   cost?: UsageCost;
+  /**
+   * [W3-C0] 原始响应里**出现过**任何缓存字段（即使值为 0）为 true；字段缺失为 false；
+   * 协议尚未解析该标记时缺省（第三波 §1.6，「值为 0」与「不报」由此区分）。
+   */
+  cacheReported?: boolean;
 }
 
 export type StopReason = "stop" | "length" | "toolUse" | "aborted" | "error";
@@ -243,8 +258,34 @@ export interface OpenAIResponsesCompat {
   supportsStore: boolean;
 }
 
+/**
+ * [W3-C0] 供应商不报缓存时的处理（第三波 §1.6）：`auto` 按响应自动判定三态；`silent` /
+ * `reported` 强制（`ama models cache-probe` 给出建议写法）。
+ */
+export type CacheReportingSetting = "auto" | "silent" | "reported";
+
+/**
+ * [W3-C0] 缓存相关的兼容开关（第三波 §1.3），各协议共用；这里是解析后的完整形状，
+ * `ProviderCompat` 里全部可选。缺省值由协议层按端点推断（官方端点开、自定义供应商关）。
+ */
+export interface PromptCacheCompat {
+  /** 发 `prompt_cache_key`（OpenAI 系）；官方端点缺省 true，其余缺省 false。 */
+  sendPromptCacheKey: boolean;
+  /** 发 `x-session-affinity` / `x-client-request-id`（OpenRouter 为 `x-session-id`）亲和头。 */
+  sendSessionAffinityHeaders: boolean;
+  /** `cacheRetention: "long"` 可用（Anthropic 1h、OpenAI 24h）；不支持时降为 short。 */
+  supportsLongCacheRetention: boolean;
+  /** Responses 的 `prompt_cache_options`（30m 显式缓存）。 */
+  supportsExplicitPromptCacheMode: boolean;
+  cacheReporting: CacheReportingSetting;
+}
+
 export type ProviderCompat = Partial<
-  OpenAICompletionsCompat & AnthropicMessagesCompat & GoogleCompat & OpenAIResponsesCompat
+  OpenAICompletionsCompat &
+    AnthropicMessagesCompat &
+    GoogleCompat &
+    OpenAIResponsesCompat &
+    PromptCacheCompat
 >;
 
 // ---------------------------------------------------------------------------
@@ -272,6 +313,16 @@ export interface ModelCost {
   tiers?: CostTier[];
 }
 
+/** 模型目录 `promptCache`：只写有公开依据的值，留空 = 不承诺（不保温、归因用启发值）。 */
+export interface ModelPromptCache {
+  /** `short` 档 TTL（秒）。 */
+  short?: number;
+  /** `long` 档 TTL（秒）。 */
+  long?: number;
+  /** [W3-C0] 最小可缓存长度（token）；未命中检测的噪声下限取 max(1024, minTokens)。 */
+  minTokens?: number;
+}
+
 export interface Model {
   id: string;
   name: string;
@@ -287,8 +338,8 @@ export interface Model {
   contextWindow?: number;
   maxTokens: number;
   cost?: ModelCost;
-  /** 各档缓存的 TTL（秒）。 */
-  promptCache?: { short?: number; long?: number };
+  /** 各档缓存的 TTL（秒）与最小可缓存长度（第三波 §1.4）。 */
+  promptCache?: ModelPromptCache;
   headers?: Record<string, string>;
   samplingParams?: Record<string, unknown>;
   compat?: ProviderCompat;
@@ -342,6 +393,14 @@ export interface StreamOptions {
   thinkingLevel?: ModelThinkingLevel;
   cacheRetention?: CacheRetention;
   sessionId?: string;
+  /** [W3-C0] 请求用途（第三波 §1.2）；缺省 `turn`。协议层只透传给观测方，不进请求体。 */
+  purpose?: RequestPurpose;
+  /**
+   * [W3-C0] `"none"`：本次请求带工具表但禁止调用（压缩摘要走会话前缀续写，第三波 §1.8）。
+   * 映射：Anthropic `tool_choice:{type:"none"}`、Completions / Responses `tool_choice:"none"`、
+   * Google `toolConfig.functionCallingConfig.mode:"NONE"`。缺省不发。
+   */
+  toolChoice?: "none";
   /** 观测 / 替换请求体：返回非 undefined 即替换。 */
   onPayload?(payload: unknown): unknown;
   onResponse?(status: number, headers: Headers): void;

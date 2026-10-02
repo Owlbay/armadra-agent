@@ -83,6 +83,8 @@ const ALL_EVENTS: { [K in AgentEventName]: AgentEvents[K] } = {
   tool_approval_resolved: { requestId: "r1", decision: "allow" },
   hook_executed: { event: "Stop", command: "x", exitCode: 0, durationMs: 1 },
   session_shutdown: {},
+  cache_miss: { missedTokens: 38_200, missedCost: 0.11, reason: "idle", idleMs: 420_000 },
+  context_pressure: { percent: 72, threshold: 70, estimatedTurnsLeft: 9 },
 };
 
 describe("HostApi 实现", () => {
@@ -194,6 +196,32 @@ describe("HostApi 实现", () => {
     printing.api.ui.notify("7");
     expect(late).toEqual(["error:2", "5"]);
     expect(err).toEqual(["ama: [host] 4\n", "ama: [host] 6\n", "ama: [host] 7\n"]);
+  });
+});
+
+describe("HostApi.cache（W3-C0）", () => {
+  it("onWarmingDecision：最后注册的生效，注销后回到前一个；非函数报错", async () => {
+    const binding = createHostApi(deps());
+    const cache = binding.api.cache;
+    expect(cache).toBeDefined();
+    expect(binding.warmingDecider()).toBeUndefined();
+    const first = cache!.onWarmingDecision(() => "warm");
+    const offSecond = cache!.onWarmingDecision(async (d) => (d.probability < 1 ? "stop" : "warm"));
+    const decision = {
+      action: "warm" as const,
+      phase: "idle" as const,
+      promptTokens: 40_000,
+      warmCost: 0.012,
+      missCost: 0.5,
+      probability: 0.15,
+    };
+    expect(await binding.warmingDecider()?.(decision)).toBe("stop");
+    offSecond();
+    offSecond();
+    expect(await binding.warmingDecider()?.(decision)).toBe("warm");
+    first();
+    expect(binding.warmingDecider()).toBeUndefined();
+    expect(() => cache!.onWarmingDecision("warm" as never)).toThrow(/需要函数/);
   });
 });
 

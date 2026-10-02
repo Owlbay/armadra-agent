@@ -11,6 +11,7 @@
  *   AgentSession（B2）在构造 ToolContext 时提供；子 Agent（depth ≥ 1）里为 undefined。
  * - `defineTool()` 是恒等函数，只为推断 `I`；放在契约文件里供 SDK 再导出。
  * - `ToolRegistryApi` 是 Runtime 需要的最小接口，B3 的 `ToolRegistry` 实现它。
+ * - （W3-C0）`SubagentResult.cache` 可选：子会话的命中率与重计费 token。
  */
 
 import type { ContentBlock, JsonSchema, ModelRef, ModelThinkingLevel, Usage } from "../ai/types.js";
@@ -81,6 +82,11 @@ export interface SubagentResult {
   usage: Usage;
   stopReason: string;
   isError: boolean;
+  /**
+   * [W3-C0] 子会话自己的缓存统计（第三波 §1.9），供 task 结果 details 与 `/session` 的
+   * 「子任务」行；子会话未接缓存控制器时缺省。
+   */
+  cache?: { hitRate?: number; reBilledTokens: number };
 }
 
 export interface ToolContext {
