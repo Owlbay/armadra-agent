@@ -8,7 +8,7 @@
  * thinking：`adaptiveThinking` 模型发 `{type:"adaptive"}` + `output_config.effort`；
  * 其余推理模型按预算发 `{type:"enabled", budget_tokens}`，预算计入 max_tokens；off 发
  * `{type:"disabled"}`（映射表 off 为 null 的模型不发）。思考开启时不发 temperature，
- * 除非 `supportsTemperatureWithThinking`。
+ * 除非 `supportsTemperatureWithThinking`。`toolChoice: "none"`（有工具时）→ `tool_choice:{type:"none"}`。
  */
 
 import { contentText, normalizeContext, sanitizeText } from "../context.js";
@@ -279,6 +279,7 @@ export function buildAnthropicRequest(
   if (system.length > 0) body["system"] = system;
   body["messages"] = messages;
   if (tools.length > 0) body["tools"] = tools;
+  if (tools.length > 0 && options.toolChoice === "none") body["tool_choice"] = { type: "none" };
   const providerLevel = applyThinking(
     body,
     model,

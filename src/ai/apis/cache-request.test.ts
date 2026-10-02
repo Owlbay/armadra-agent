@@ -5,7 +5,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BASIC_CONTEXT } from "../../../test/ai/golden.js";
 import { loadFixture, stubFetchWithFixture } from "../../../test/ai/fixture-fetch.js";
-import type { Api, Model, StreamOptions } from "../types.js";
+import type { Api, Model, StreamOptions, TranscriptContext } from "../types.js";
+import { buildAnthropicRequest } from "./anthropic-request.js";
+import { buildGoogleRequest } from "./google-request.js";
 import { buildOpenAIRequest } from "./openai-request.js";
 import { openAICompletionsApi } from "./openai-completions.js";
 import { buildResponsesRequest } from "./openai-responses-request.js";
@@ -140,5 +142,55 @@ describe("openai-responses 缓存字段", () => {
     const on = model("openai-responses", RELAY, { sendSessionAffinityHeaders: true });
     await openAIResponsesApi.stream(on, BASIC_CONTEXT, opts()).result();
     expect(captured[0]?.headers["x-session-affinity"]).toBe("sess-1");
+  });
+});
+
+describe("toolChoice: none 四协议映射（有工具才发）", () => {
+  const TOOLS_CONTEXT: TranscriptContext = {
+    messages: [
+      {
+        role: "system",
+        sections: { preamble: "Be brief." },
+        toolsAdded: [
+          { name: "read", description: "Read", parameters: { type: "object", properties: {} } },
+        ],
+        timestamp: 1,
+      },
+      { role: "user", content: "summarize", timestamp: 2 },
+    ],
+  };
+  const none = opts({ toolChoice: "none" });
+
+  it("Anthropic tool_choice:{type:none}、Completions / Responses tool_choice:none、Google NONE", () => {
+    const anthropic = buildAnthropicRequest(model("anthropic-messages", "x"), TOOLS_CONTEXT, none);
+    expect(anthropic.body["tool_choice"]).toEqual({ type: "none" });
+    const chat = buildOpenAIRequest(model("openai-completions", RELAY), TOOLS_CONTEXT, none);
+    expect(chat.body["tool_choice"]).toBe("none");
+    const responses = buildResponsesRequest(model("openai-responses", RELAY), TOOLS_CONTEXT, none);
+    expect(responses.body["tool_choice"]).toBe("none");
+    const google = buildGoogleRequest(model("google-generative-ai", "x"), TOOLS_CONTEXT, none);
+    expect(google.body["toolConfig"]).toEqual({ functionCallingConfig: { mode: "NONE" } });
+  });
+
+  it("缺省不发；没有工具时也不发", () => {
+    const plain = opts();
+    expect(
+      buildAnthropicRequest(model("anthropic-messages", "x"), TOOLS_CONTEXT, plain).body,
+    ).not.toHaveProperty("tool_choice");
+    expect(
+      buildOpenAIRequest(model("openai-completions", RELAY), TOOLS_CONTEXT, plain).body,
+    ).not.toHaveProperty("tool_choice");
+    expect(
+      buildGoogleRequest(model("google-generative-ai", "x"), TOOLS_CONTEXT, plain).body,
+    ).not.toHaveProperty("toolConfig");
+    for (const body of [
+      buildAnthropicRequest(model("anthropic-messages", "x"), BASIC_CONTEXT, none).body,
+      buildOpenAIRequest(model("openai-completions", RELAY), BASIC_CONTEXT, none).body,
+      buildResponsesRequest(model("openai-responses", RELAY), BASIC_CONTEXT, none).body,
+      buildGoogleRequest(model("google-generative-ai", "x"), BASIC_CONTEXT, none).body,
+    ]) {
+      expect(body).not.toHaveProperty("tool_choice");
+      expect(body).not.toHaveProperty("toolConfig");
+    }
   });
 });

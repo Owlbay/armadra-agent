@@ -13,7 +13,7 @@
  *   cache_control（OpenRouter 上的 anthropic/* 模型）。
  * 缓存（第三波 §1.3）：`prompt_cache_key = sessionId` 只在 `sendPromptCacheKey`（官方端点缺省开）时发；
  * `long` 在 `supportsLongCacheRetention` 时发 `prompt_cache_retention: "24h"`，否则降为 short；
- * 保留层级未指定时读 `AMA_CACHE_RETENTION`。
+ * 保留层级未指定时读 `AMA_CACHE_RETENTION`。`toolChoice: "none"`（有工具时）→ `tool_choice: "none"`。
  */
 
 import {
@@ -344,6 +344,7 @@ export function buildOpenAIRequest(
   if (options.temperature !== undefined) body["temperature"] = options.temperature;
   const tools = normalized.tools.length > 0 ? convertTools(normalized.tools, compat) : undefined;
   if (tools) body["tools"] = tools;
+  if (tools && options.toolChoice === "none") body["tool_choice"] = "none";
   const cacheCompat = resolvePromptCacheCompat(model, "openai-completions");
   const retention = effectiveRetention(resolveCacheRetention(options.cacheRetention), cacheCompat);
   if (options.sessionId && retention !== "none" && cacheCompat.sendPromptCacheKey) {

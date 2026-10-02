@@ -16,7 +16,8 @@
  * - 缓存（第三波 §1.3）：`prompt_cache_key = sessionId` 只在 `sendPromptCacheKey`（官方端点缺省开）
  *   时发，`cacheRetention: "none"` 不发；`long` 在 `supportsExplicitPromptCacheMode` 时发
  *   `prompt_cache_options: {ttl:"30m"}`，否则在 `supportsLongCacheRetention` 时发
- *   `prompt_cache_retention: "24h"`，两者都不支持按 short。
+ *   `prompt_cache_retention: "24h"`，两者都不支持按 short；
+ * - `toolChoice: "none"`（有工具时）→ `tool_choice: "none"`。
  */
 
 import { contentText, normalizeContext, sanitizeText } from "../context.js";
@@ -297,7 +298,10 @@ export function buildResponsesRequest(
     body["store"] = false;
     if (model.reasoning) body["include"] = ["reasoning.encrypted_content"];
   }
-  if (normalized.tools.length > 0) body["tools"] = convertTools(normalized.tools);
+  if (normalized.tools.length > 0) {
+    body["tools"] = convertTools(normalized.tools);
+    if (options.toolChoice === "none") body["tool_choice"] = "none";
+  }
   if (options.temperature !== undefined) body["temperature"] = options.temperature;
   const cacheCompat = resolvePromptCacheCompat(model, RESPONSES_API);
   const retention = resolveCacheRetention(options.cacheRetention);
