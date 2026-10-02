@@ -17,6 +17,8 @@
  * - （W3-C0）缓存可观测性（第三波 §1.10）：`SessionEvent` 加 `cache_miss` / `cache_warm` /
  *   `context_pressure`，`SessionStats.cache`（可选，C1b 填）；`CacheSettings` 是
  *   `SessionCacheController` 的解析后设置（来自 config `cache` 段与环境变量）。
+ * - （W5-C0）第五波事件与统计（遥测、子 Agent、计划 / todo、预算、回退、后台命令）定义在
+ *   agent/types-w5.ts，这里并入 `SessionEvent` / `SessionStats` 并再导出。
  */
 
 import type {
@@ -58,6 +60,9 @@ import type {
   RewindSkipReason,
 } from "../checkpoints/types.js";
 import type { ToolDefinition, ToolResult } from "../tools/types.js";
+import type { SessionEventW5, SessionStatsW5 } from "./types-w5.js";
+
+export type * from "./types-w5.js";
 
 export type {
   AssistantContentBlock,
@@ -322,7 +327,9 @@ export type SessionEvent =
       remainingTokens?: number;
       /** 按最近 5 回合均值估算。 */
       estimatedTurnsLeft?: number;
-    };
+    }
+  /** [W5-C0] 第五波事件（agent/types-w5.ts）。 */
+  | SessionEventW5;
 
 export type SessionEventType = SessionEvent["type"];
 
@@ -364,7 +371,8 @@ export interface SessionState {
   autoRetry: boolean;
 }
 
-export interface SessionStats {
+/** [W5-C0] `telemetry? / external? / tasks?` 见 `SessionStatsW5`。 */
+export interface SessionStats extends SessionStatsW5 {
   sessionId: string;
   sessionFile: string | undefined;
   userMessages: number;
