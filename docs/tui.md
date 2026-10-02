@@ -111,23 +111,23 @@ Accept edits     claude-opus-5-5 medium | Ctx 3.0% | proj ⎇ main 5ae9e54 (+12,
 
 ## 按键
 
-| 按键                 | 作用                                                                  |
-| -------------------- | --------------------------------------------------------------------- |
-| Enter                | 发送；运行中 = steer（插到当前轮）                                    |
-| Alt+Enter            | 运行中排到本轮之后（followUp）；空闲时等同 Enter                      |
-| Shift+Enter / Ctrl+J | 换行                                                                  |
-| Esc                  | 中断：排队的消息回填到输入框，然后停止当前运行；补全打开时先关补全    |
-| Esc Esc（空闲）      | 输入框为空：打开回滚列表（同 `/rewind`）；有字：清空并存进输入历史    |
-| Alt+↑                | 取回最后一条排队消息                                                  |
-| Shift+Tab            | 循环权限模式 Manual → Accept edits → Plan → Auto → Bypass permissions |
-| Ctrl+O               | 展开 / 折叠工具输出与思考块                                           |
-| Ctrl+L / Ctrl+T      | 选择模型 / 思考级别                                                   |
-| Ctrl+G               | 底部信息行 两行（full）↔ 一行（compact），只影响本会话                |
-| Ctrl+V               | 粘贴剪贴板里的图片：存进数据目录，光标处插入 `@<路径>`（同 `/paste`） |
-| Ctrl+C               | 清空输入；输入为空时 1.5 秒内再按一次退出（退出码 130）               |
-| Ctrl+D               | 输入为空时退出                                                        |
-| Tab                  | 补全                                                                  |
-| ↑ / ↓                | 单行时浏览历史（`<数据目录>/history`，500 条）                        |
+| 按键                 | 作用                                                                                                                  |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Enter                | 发送；运行中 = steer（插到当前轮）                                                                                    |
+| Alt+Enter            | 运行中排到本轮之后（followUp）；空闲时等同 Enter                                                                      |
+| Shift+Enter / Ctrl+J | 换行                                                                                                                  |
+| Esc                  | 中断：排队的消息回填到输入框，然后停止当前运行；补全打开时先关补全                                                    |
+| Esc Esc（空闲）      | 输入框为空：打开回滚列表（同 `/rewind`）；有字：清空并存进输入历史                                                    |
+| Alt+↑                | 取回最后一条排队消息                                                                                                  |
+| Shift+Tab / Tab      | 循环权限模式 Manual → Accept edits → Plan → Auto → Bypass permissions（Tab 只在输入为空、补全未打开时，否则仍是补全） |
+| Ctrl+O               | 展开 / 折叠工具输出与思考块                                                                                           |
+| Ctrl+L / Ctrl+T      | 选择模型 / 思考级别                                                                                                   |
+| Ctrl+G               | 底部信息行 两行（full）↔ 一行（compact），只影响本会话                                                                |
+| Ctrl+V               | 粘贴剪贴板里的图片：存进数据目录，光标处插入 `@<路径>`（同 `/paste`）                                                 |
+| Ctrl+C               | 清空输入；输入为空时 1.5 秒内再按一次退出（退出码 130）                                                               |
+| Ctrl+D               | 输入为空时退出                                                                                                        |
+| Tab                  | 补全                                                                                                                  |
+| ↑ / ↓                | 单行时浏览历史（`<数据目录>/history`，500 条）                                                                        |
 
 按键可在 `~/.config/ama/keybindings.json` 覆盖，键是动作 id（`app.interrupt`、`app.rewind`、`app.message.followUp`、`app.statusLine.toggle`、`app.paste.image`、`tui.editor.newLine` ……），值是按键或按键数组，空数组表示禁用。`app.rewind` 是空闲时双击的那个键（缺省 Esc，两次间隔 ≤ 800 ms）。
 

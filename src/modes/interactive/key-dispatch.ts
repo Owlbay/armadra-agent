@@ -154,7 +154,11 @@ export function createKeyDispatch(deps: KeyDispatchDeps): (data: string) => bool
       dequeue();
       return true;
     }
-    if (is("app.permission.cycle")) {
+    // 与补全共用的键（缺省 Tab）只在输入为空、补全未打开时切换模式；有输入时照常交给编辑器补全
+    if (
+      is("app.permission.cycle") &&
+      (!is("tui.editor.complete") || (editor.isEmpty() && !editor.isCompletionOpen))
+    ) {
       cyclePermission();
       return true;
     }
