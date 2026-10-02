@@ -139,7 +139,13 @@ describe.skipIf(!hasDist)("e2e：交互模式（dist 构建产物 + MemoryTermin
         `# ${label} · viewport ${terminal.columns}x${terminal.rows} cursor=${row},${col}`,
       ];
       out.push(...terminal.viewport().map((l) => `|${l}`));
-      return out.join("\n").replaceAll(version.AMA_VERSION, "<version>") + "\n";
+      return (
+        out
+          .join("\n")
+          .replaceAll(version.AMA_VERSION, "<version>")
+          // 退出摘要里的会话 id 每次不同（与 test-support.ts 的 snapshot 一致）
+          .replace(/(会话 |--resume )[0-9A-Za-z_-]{8}/g, "$1<id>") + "\n"
+      );
     };
 
     frame();
