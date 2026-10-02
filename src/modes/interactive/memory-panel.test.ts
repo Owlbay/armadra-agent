@@ -5,6 +5,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { setLocale } from "../../i18n/index.js";
 import type { AgentSession } from "../../agent/types.js";
 import { memoryOf } from "../../cli/compose-memory.js";
 import type { Runtime } from "../../cli/runtime.js";
@@ -177,6 +178,29 @@ describe("交互面板", () => {
     expect(notices.pop()).toBe("已保存 /memories/user/test-db-reset.md，下次会话起出现在索引。");
     await panel("show nothing");
     expect(notices.pop()).toBe("没有名为 nothing 的记忆");
+    s.handle.exit(0);
+    await s.done;
+  });
+});
+
+describe("交互面板（en）", () => {
+  afterEach(() => setLocale("zh"));
+  it("/memory 面板 80x24", async () => {
+    setLocale("en");
+    const s = await start([], { argv: ["--memory", "--trust"], quietStartup: "silent" });
+    const dir = join(started.h!.home.env["AMA_DATA_DIR"]!, "memory", "user");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "prefers-pnpm.md"),
+      "---\nname: prefers-pnpm\ndescription: use pnpm, not npm\ntype: user\nupdated: 2026-10-01\n---\n\nUse pnpm.\n",
+    );
+    writeFileSync(
+      join(dir, "old-style.md"),
+      "---\nname: old-style\ndescription: old code style rules\ntype: feedback\nupdated: 2025-01-02\n---\n\nTwo-space indent.\n",
+    );
+    s.type("/memory");
+    await press(s, "\r");
+    golden("en/memory-panel-80x24", snapshot(s.terminal, "/memory"));
     s.handle.exit(0);
     await s.done;
   });

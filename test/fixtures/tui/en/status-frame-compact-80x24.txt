@@ -1,0 +1,25 @@
+# status compact · viewport 80x24 cursor=3,2
+|✻ ama <version> · fake/echo · Manual · /help
+|
+|────────────────────────────────────────────────────────────────────────────────
+|› Type a message, / for commands, @ for files, Shift+Enter for newline
+|────────────────────────────────────────────────────────────────────────────────
+|Status line: compact (one row)
+|Manual · shift+tab to cycle                   echo · medium · ctx 0% · work · 0s
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|

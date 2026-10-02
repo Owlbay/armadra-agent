@@ -42,7 +42,7 @@ export const en = {
   dialog: {
     title: "Plan awaiting approval",
     optionApprove: "Approve and run",
-    optionApproveFresh: "Approve and run in a fresh context",
+    optionApproveFresh: "Approve, run in fresh context",
     optionRevise: (ellipsis: string) => `Keep revising${ellipsis}`,
     optionReject: "Reject and leave Plan mode",
     modeBack: (mode: string) => `Back to the previous mode (${mode})`,

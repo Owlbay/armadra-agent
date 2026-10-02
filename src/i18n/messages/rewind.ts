@@ -141,7 +141,8 @@ export const en = {
     moreLines: (ellipsis: string, n: number) => `  ${ellipsis} ${plural(n, "more line")}`,
     instructions: (text: string) => `  instructions: ${text}`,
     instructionsHint: "  type instructions",
-    fileJoin: (files: readonly string[]) => files.join(", "),
+    /** 紧凑排版：标题与文件清单并成一行。 */
+    tightList: (head: string, files: readonly string[]) => `${head} ${files.join(", ")}`,
     moreFiles: (ellipsis: string, n: number) => `  ${ellipsis} ${n} more`,
     noCheckpoint: "Conversation only: this message has no code checkpoint",
     previewFailed: (error: string) => `Code preview failed: ${error}`,
@@ -240,7 +241,7 @@ export const zh = {
     moreLines: (ellipsis, n) => `  ${ellipsis} 另 ${n} 行`,
     instructions: (text) => `  说明：${text}`,
     instructionsHint: "  可输入说明",
-    fileJoin: (files) => files.join("、"),
+    tightList: (head, files) => `${head}${files.join("、")}`,
     moreFiles: (ellipsis, n) => `  ${ellipsis} 另 ${n} 个`,
     noCheckpoint: "仅对话：这条消息没有代码检查点",
     previewFailed: (error) => `代码预览失败：${error}`,

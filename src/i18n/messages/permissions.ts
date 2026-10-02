@@ -54,7 +54,7 @@ export const en = {
   modeDescription: {
     default: "Ask before writing files or running commands",
     autoEdit: "Accept file edits automatically; still ask before commands",
-    plan: "Read-only research and read-only commands; approve the plan before it runs",
+    plan: "Read-only research and commands; approve the plan to run",
     auto: "ama judges each step: safe ones run, risky ones ask",
     fullAuto: "Allow everything (dangerous commands still ask)",
     allowlist: "Allow only what allow rules match; deny the rest, never ask",

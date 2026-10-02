@@ -3,8 +3,16 @@ import { composeHarness, type ComposeHarness } from "../../../test/helpers/compo
 import type { AgentSession } from "../../agent/types.js";
 import { currentSession, switchSession } from "../../cli/compose-session.js";
 import type { Runtime } from "../../cli/runtime.js";
+import { setLocale } from "../../i18n/index.js";
 import type { SelectItem } from "../../tui.js";
-import { ALL_COMMANDS, keyHints, runInteractiveCommand, type CommandUi } from "./commands.js";
+import {
+  ALL_COMMANDS,
+  INTERACTIVE_COMMANDS,
+  keyHints,
+  runInteractiveCommand,
+  type CommandUi,
+} from "./commands.js";
+import { golden } from "./test-support.js";
 import type { PickerSpec } from "./pickers.js";
 
 let h: ComposeHarness;
@@ -238,5 +246,14 @@ describe("交互命令", () => {
     ]);
     await runInteractiveCommand("/quit", ui);
     expect(state.exit).toBe(0);
+  });
+});
+
+describe("/help 的交互部分（en）", () => {
+  afterEach(() => setLocale("zh"));
+  it("/tree、/permissions 与按键说明", () => {
+    setLocale("en");
+    const extra = INTERACTIVE_COMMANDS.map((c) => `/${c.name}  ${c.description}`);
+    golden("en/help-interactive", [...extra, "", keyHints()].join("\n") + "\n");
   });
 });

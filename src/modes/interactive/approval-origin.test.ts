@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { setLocale } from "../../i18n/index.js";
 import type { ApprovalDecision, ApprovalRequest } from "../../permissions/types.js";
 import { Editor, MemoryTerminal, TUI, Text, plainTheme } from "../../tui.js";
 import {
@@ -267,5 +268,18 @@ describe("首次运行合并确认", () => {
     await h.ask({ ...TASK_CALL, input: { agent: "reviewer", prompt: "x" } });
     await h.ask(FIRST_RUN);
     expect(h.asked).toEqual(["r4", "r3"]);
+  });
+});
+
+describe("审批来源标注（en）", () => {
+  afterEach(() => setLocale("zh"));
+
+  it("外部 Agent 的请求 80x24", async () => {
+    setLocale("en");
+    const s = setup(80);
+    const answer = s.broker.ask(ORIGIN, new AbortController().signal);
+    golden("en/approval-origin-80x24", s.shot("approval origin"));
+    s.key("a");
+    expect(await answer).toBe<ApprovalDecision>("allow_session");
   });
 });

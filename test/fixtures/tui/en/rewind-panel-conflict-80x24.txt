@@ -1,0 +1,51 @@
+# panel · viewport 80x24
+|▎ Rewind to before this message  3m ago
+|▎ › Switch the diff renderer in src/tui/tui.ts to line-by-line,
+|▎   add tests
+|▎   update the docs
+|▎   … 1 more line
+|▎
+|▎ › 1. Restore code and conversation
+|▎      Restores 3 files +12 −48, 1 conflict · conversation will fork
+|▎   2. Restore conversation
+|▎      Code unchanged (later edits kept) · conversation will fork
+|▎   3. Restore code
+|▎      Restores 3 files +12 −48, 1 conflict · conversation unchanged
+|▎   4. Summarize from here
+|▎      Conversation will fork; the part left behind becomes a summary
+|▎   5. Summarize up to here
+|▎      Earlier conversation is compressed into a summary; later turns stay
+|▎   6. Cancel
+|▎
+|▎ 1 conflict (changed outside the turn; skipped by default):
+|▎   README.md
+|▎ 1 can't be restored:
+|▎   assets/big.bin: too large, not backed up
+|▎
+|▎ ↑↓ select · 1-6 run · Enter confirm · Esc cancel
+
+# panel · after "\r" · viewport 80x24
+|▎ Rewind to before this message  3m ago
+|▎ › Switch the diff renderer in src/tui/tui.ts to line-by-line,
+|▎   add tests
+|▎   update the docs
+|▎   … 1 more line
+|▎
+|▎ 1 file changed outside the turn:
+|▎   README.md
+|▎
+|▎ › 1. Skip conflicting files, restore the rest
+|▎   2. Overwrite conflicting files
+|▎   3. Back
+|▎
+|▎ ↑↓ select · 1-3 pick · Enter confirm · Esc back
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|

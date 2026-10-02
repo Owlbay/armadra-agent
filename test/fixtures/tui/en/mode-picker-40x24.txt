@@ -1,0 +1,25 @@
+# viewport 40x24 cursor=16,39
+|─╭─ Permission mode ──────────────────╮─
+|›│                                    │
+|─│     Manual              Default  1 │─
+| │       Ask before writing files or… │
+| │ › ✓ Accept edits                 2 │
+| │       Accept file edits automatic… │
+| │     Plan                         3 │
+| │       Read-only research and comm… │
+| │     Auto            Recommended  4 │
+| │       ama judges each step: safe … │
+| │     Bypass permissions           5 │
+| │       Allow everything (dangerous… │
+| │     Allowlist only               6 │
+| │       Allow only what allow rules… │
+| │ ↑↓ select · 1-6 pick · Enter conf… │
+| │                                    │
+| ╰────────────────────────────────────╯
+|
+|
+|
+|
+|
+|
+|

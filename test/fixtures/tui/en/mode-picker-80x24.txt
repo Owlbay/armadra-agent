@@ -1,0 +1,25 @@
+# viewport 80x24 cursor=16,76
+|────╭─ Permission mode ────────────────────────────────────────────────────╮────
+|›   │                                                                      │
+|────│     Manual                                                Default  1 │────
+|    │       Ask before writing files or running commands                   │
+|    │ › ✓ Accept edits                                                   2 │
+|    │       Accept file edits automatically; still ask before commands     │
+|    │     Plan                                                           3 │
+|    │       Read-only research and commands; approve the plan to run       │
+|    │     Auto                                              Recommended  4 │
+|    │       ama judges each step: safe ones run, risky ones ask            │
+|    │     Bypass permissions                                             5 │
+|    │       Allow everything (dangerous commands still ask)                │
+|    │     Allowlist only                                                 6 │
+|    │       Allow only what allow rules match; deny the rest, never ask    │
+|    │ ↑↓ select · 1-6 pick · Enter confirm · Esc cancel                    │
+|    │                                                                      │
+|    ╰──────────────────────────────────────────────────────────────────────╯
+|
+|
+|
+|
+|
+|
+|

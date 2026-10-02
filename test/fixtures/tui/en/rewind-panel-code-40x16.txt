@@ -1,0 +1,17 @@
+# panel · viewport 40x16
+|▎ Rewind to before this message  3m ago
+|▎ › Switch the diff renderer in src/tui…
+|▎   add tests
+|▎   update the docs
+|▎   … 1 more line
+|▎ › 1. Restore code and conversation
+|▎      Restores 3 files +12 −48 ·
+|▎      conversation will fork
+|▎   2. Restore conversation
+|▎   3. Restore code
+|▎   4. Summarize from here
+|▎   5. Summarize up to here
+|▎   6. Cancel
+|▎ ↑↓ Enter · 1-6 · Esc cancel
+|
+|

@@ -335,7 +335,7 @@ export class RewindPanel implements Component, Focusable {
     width: number,
     note?: (f: string) => string,
   ): string[] {
-    if (this.tight) return [truncateToWidth(`${head}${msg().rewind.panel.fileJoin(files)}`, width)];
+    if (this.tight) return [truncateToWidth(msg().rewind.panel.tightList(head, files), width)];
     const lines = files
       .slice(0, REWIND_DETAIL_MAX)
       .map((f) => truncateToWidth(`  ${f}${note !== undefined ? note(f) : ""}`, width));

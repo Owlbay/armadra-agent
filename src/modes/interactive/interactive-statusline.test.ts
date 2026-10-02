@@ -8,6 +8,7 @@ import type { AgentSession, SessionEvent } from "../../agent/types.js";
 import type { Runtime } from "../../cli/runtime.js";
 import { IMAGE_OMITTED_FOR_BUDGET } from "../../compaction/image-budget.js";
 import { mergeBaseLayers } from "../../config/merge.js";
+import { setLocale } from "../../i18n/index.js";
 import { plainTheme } from "../../tui.js";
 import { ImageBudgetNotices, compactionErrorText } from "./event-notices.js";
 import { StatusArea } from "./status-area.js";
@@ -37,6 +38,20 @@ describe("底部信息行（交互界面）", () => {
       await s.done;
     });
   }
+
+  it("en：full 80x24 与切到 compact 后的一行", async () => {
+    setLocale("en");
+    try {
+      const s = await start([], { columns: 80, rows: 24, statusLine: "full" });
+      golden("en/status-frame-full-80x24", snapshot(s.terminal, "status full"));
+      s.type("\x07");
+      golden("en/status-frame-compact-80x24", snapshot(s.terminal, "status compact"));
+      s.handle.exit(0);
+      await s.done;
+    } finally {
+      setLocale("zh");
+    }
+  });
 
   it("Ctrl+G 在 full / compact 间切换并提示；/statusline [full|compact] 同样，参数不对报用法", async () => {
     const s = await start([], { statusLine: "full" });

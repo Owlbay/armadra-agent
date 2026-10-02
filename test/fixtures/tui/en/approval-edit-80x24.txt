@@ -1,0 +1,25 @@
+# viewport 80x24 cursor=13,79
+|╭─ Needs confirmation ─────────────────────────────────────────────────────────╮
+|│ edit  Needs confirmation                                                     │
+|│ src/util.ts  1 edit                                                          │
+|│ - export function helper() {                                                 │
+|│ + export function format() {                                                 │
+|│                                                                              │
+|│ Confirmation required in permission mode Manual                              │
+|│                                                                              │
+|│ › 1. Allow                                                             y     │
+|│   2. Allow for this session                                            a     │
+|│   3. Deny                                                              n Esc │
+|│                                                                              │
+|│ ↑↓ select · Enter confirm · v full input                                     │
+|╰──────────────────────────────────────────────────────────────────────────────╯
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|

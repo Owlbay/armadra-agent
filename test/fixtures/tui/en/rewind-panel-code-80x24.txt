@@ -1,0 +1,25 @@
+# panel · viewport 80x24
+|▎ Rewind to before this message  3m ago
+|▎ › Switch the diff renderer in src/tui/tui.ts to line-by-line,
+|▎   add tests
+|▎   update the docs
+|▎   … 1 more line
+|▎
+|▎ › 1. Restore code and conversation
+|▎      Restores 3 files +12 −48 · conversation will fork
+|▎   2. Restore conversation
+|▎      Code unchanged (later edits kept) · conversation will fork
+|▎   3. Restore code
+|▎      Restores 3 files +12 −48 · conversation unchanged
+|▎   4. Summarize from here
+|▎      Conversation will fork; the part left behind becomes a summary
+|▎   5. Summarize up to here
+|▎      Earlier conversation is compressed into a summary; later turns stay
+|▎   6. Cancel
+|▎
+|▎ ↑↓ select · 1-6 run · Enter confirm · Esc cancel
+|
+|
+|
+|
+|

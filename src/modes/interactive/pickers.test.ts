@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
+import { setLocale } from "../../i18n/index.js";
 import type { SessionEntry } from "../../session/types.js";
 import { Editor, MemoryTerminal, TUI, plainTheme } from "../../tui.js";
 import {
@@ -223,4 +224,26 @@ describe("选择器", () => {
     expect(items[1]?.label.endsWith("…")).toBe(true);
     expect(treeItems([], new Set(), 0)).toEqual([]);
   });
+});
+
+describe("模式选择器（en）", () => {
+  afterEach(() => setLocale("zh"));
+  for (const columns of [80, 40]) {
+    it(`帧黄金 ${columns}x24`, () => {
+      setLocale("en");
+      const terminal = new MemoryTerminal({ columns, rows: 24 });
+      tui = new TUI(terminal);
+      const editor = new Editor({ theme });
+      tui.addChild(editor);
+      tui.start();
+      tui.setFocus(editor);
+      const t = tui;
+      void openPicker(
+        { theme, showOverlay: (c, o) => t.showOverlay(c, o), columns: () => terminal.columns },
+        permissionPickerSpec("auto-edit"),
+      );
+      t.renderNow();
+      golden(`en/mode-picker-${columns}x24`, terminal);
+    });
+  }
 });

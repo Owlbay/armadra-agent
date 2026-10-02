@@ -1,0 +1,25 @@
+# /memory · viewport 80x24 cursor=9,2
+|▎ Memory  /memory show|edit|rm <name> · on|off · reload
+|▎ user /memories/user/ · 2 entries · index 139 B / 4.0 KiB
+|▎   prefers-pnpm — use pnpm, not npm  updated 2026-10-01
+|▎   old-style — old code style rules  updated 2025-01-02
+|▎
+|▎ project /memories/project/ · 0 entries · index 0 B / 4.0 KiB
+|▎   (no entries)
+|
+|────────────────────────────────────────────────────────────────────────────────
+|› Type a message, / for commands, @ for files, Shift+Enter for newline
+|────────────────────────────────────────────────────────────────────────────────
+|Manual · shift+tab to cycle                   echo · medium · ctx 0% · work · 0s
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
