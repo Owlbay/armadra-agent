@@ -1,33 +1,127 @@
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { Decision, PermissionMode } from "./types.js";
+import type { Decision, PermissionCheckInput, PermissionMode } from "./types.js";
 import type { ToolPermission } from "../tools/types.js";
 import { PermissionPipeline, UNATTENDED_MESSAGE, modeDecision } from "./pipeline.js";
 import { BUILTIN_DENY_RULES, parseRule } from "./rules.js";
 
 const cwd = resolve("/work/proj");
-type ClassicMode = Exclude<PermissionMode, "auto" | "allowlist">;
-const MODES: ClassicMode[] = ["plan", "default", "auto-edit", "full-auto"];
-const PERMS: ToolPermission[] = ["read", "write", "execute"];
+const MODES: PermissionMode[] = ["plan", "allowlist", "default", "auto-edit", "auto", "full-auto"];
 const HOOKS: (Decision | undefined)[] = [undefined, "allow", "ask", "deny"];
 
-/**
- * 真值表：4 模式 × 3 类 × Hook（无 / allow / ask / deny），有人值守。
- * 每格 4 个字母对应 HOOKS 顺序：A = allow，Q = ask，D = deny。
- */
-const TABLE: Record<ClassicMode, Record<ToolPermission, string>> = {
-  plan: { read: "AAQD", write: "DDDD", execute: "DDDD" },
-  default: { read: "AAQD", write: "QAQD", execute: "QAQD" },
-  "auto-edit": { read: "AAQD", write: "AAQD", execute: "QAQD" },
-  "full-auto": { read: "AAQD", write: "AAQD", execute: "AAQD" },
-};
-const LETTER: Record<string, Decision> = { A: "allow", Q: "ask", D: "deny" };
+type CallKind =
+  | "read"
+  | "readSecret"
+  | "writeIn"
+  | "writeOut"
+  | "writeProtected"
+  | "bashSafe"
+  | "bashDangerous"
+  | "bashNetwork"
+  | "bashUnknown";
 
-const CALL: Record<ToolPermission, { toolName: string; input: unknown }> = {
-  read: { toolName: "read", input: { path: "src/a.ts" } },
-  write: { toolName: "write", input: { path: "src/a.ts", content: "x" } },
-  execute: { toolName: "bash", input: { command: "ls -la" } },
+const CALL: Record<CallKind, { toolName: string; permission: ToolPermission; input: unknown }> = {
+  read: { toolName: "read", permission: "read", input: { path: "src/a.ts" } },
+  readSecret: { toolName: "read", permission: "read", input: { path: ".env" } },
+  writeIn: { toolName: "write", permission: "write", input: { path: "src/a.ts", content: "x" } },
+  writeOut: { toolName: "write", permission: "write", input: { path: "/tmp/x.txt", content: "x" } },
+  writeProtected: {
+    toolName: "edit",
+    permission: "write",
+    input: { path: ".ama/hooks.json", edits: [] },
+  },
+  bashSafe: { toolName: "bash", permission: "execute", input: { command: "ls -la" } },
+  bashDangerous: {
+    toolName: "bash",
+    permission: "execute",
+    input: { command: "git push --force" },
+  },
+  bashNetwork: {
+    toolName: "bash",
+    permission: "execute",
+    input: { command: "curl https://example.com" },
+  },
+  bashUnknown: {
+    toolName: "bash",
+    permission: "execute",
+    input: { command: "node scripts/gen.js" },
+  },
 };
+
+/**
+ * 真值表：6 模式 × 9 类调用 × Hook（无 / allow / ask / deny），有人值守。
+ * 每格 4 个字母对应 HOOKS 顺序：A = allow，Q = ask，D = deny，C = ask 且交给分类器（auto）。
+ * 无人值守时 Q / C → deny（C 仍带 classify，分类器 allow 可放行）。
+ */
+const TABLE: Record<PermissionMode, Record<CallKind, string>> = {
+  plan: {
+    read: "AAQD",
+    readSecret: "AAQD",
+    writeIn: "DDDD",
+    writeOut: "DDDD",
+    writeProtected: "DDDD",
+    bashSafe: "DDDD",
+    bashDangerous: "QQQD",
+    bashNetwork: "DDDD",
+    bashUnknown: "DDDD",
+  },
+  allowlist: {
+    read: "AADD",
+    readSecret: "AADD",
+    writeIn: "DADD",
+    writeOut: "DADD",
+    writeProtected: "DADD",
+    bashSafe: "DADD",
+    bashDangerous: "DDDD",
+    bashNetwork: "DADD",
+    bashUnknown: "DADD",
+  },
+  default: {
+    read: "AAQD",
+    readSecret: "AAQD",
+    writeIn: "QAQD",
+    writeOut: "QAQD",
+    writeProtected: "QAQD",
+    bashSafe: "QAQD",
+    bashDangerous: "QQQD",
+    bashNetwork: "QAQD",
+    bashUnknown: "QAQD",
+  },
+  "auto-edit": {
+    read: "AAQD",
+    readSecret: "AAQD",
+    writeIn: "AAQD",
+    writeOut: "AAQD",
+    writeProtected: "AAQD",
+    bashSafe: "QAQD",
+    bashDangerous: "QQQD",
+    bashNetwork: "QAQD",
+    bashUnknown: "QAQD",
+  },
+  auto: {
+    read: "AAQD",
+    readSecret: "QQQD",
+    writeIn: "AAQD",
+    writeOut: "QQQD",
+    writeProtected: "QQQD",
+    bashSafe: "AAQD",
+    bashDangerous: "QQQD",
+    bashNetwork: "QQQD",
+    bashUnknown: "CAQD",
+  },
+  "full-auto": {
+    read: "AAQD",
+    readSecret: "AAQD",
+    writeIn: "AAQD",
+    writeOut: "AAQD",
+    writeProtected: "AAQD",
+    bashSafe: "AAQD",
+    bashDangerous: "QQQD",
+    bashNetwork: "AAQD",
+    bashUnknown: "AAQD",
+  },
+};
+const LETTER: Record<string, Decision> = { A: "allow", Q: "ask", C: "ask", D: "deny" };
 
 function pipeline(mode: PermissionMode, rules: string[] = [], allow: string[] = []) {
   return new PermissionPipeline({
@@ -41,42 +135,177 @@ function pipeline(mode: PermissionMode, rules: string[] = [], allow: string[] = 
   });
 }
 
-describe("权限真值表（4 模式 × 3 类 × Hook 三值 + 无决策）", () => {
+describe("权限真值表（6 模式 × 读 / 写 / bash × Hook 三值 + 无决策 × 有人 / 无人值守）", () => {
   for (const mode of MODES) {
-    for (const perm of PERMS) {
+    for (const kind of Object.keys(CALL) as CallKind[]) {
       HOOKS.forEach((hook, i) => {
-        const expected = LETTER[TABLE[mode][perm][i] as string] as Decision;
-        it(`${mode} / ${perm} / hook=${hook ?? "∅"} → ${expected}`, () => {
+        const letter = TABLE[mode][kind][i] as string;
+        const expected = LETTER[letter] as Decision;
+        it(`${mode} / ${kind} / hook=${hook ?? "∅"} → ${letter}`, () => {
           const p = pipeline(mode);
-          const call = CALL[perm];
-          const base = { ...call, permission: perm, hookReason: "hook says so" };
-          const attended = p.check({
-            ...base,
-            unattended: false,
-            ...(hook !== undefined ? { hookDecision: hook } : {}),
-          });
+          const base = { ...CALL[kind], hookReason: "hook says so" };
+          const withHook = hook !== undefined ? { hookDecision: hook } : {};
+          const attended = p.check({ ...base, unattended: false, ...withHook });
           expect(attended.decision).toBe(expected);
-          const unattended = p.check({
-            ...base,
-            unattended: true,
-            ...(hook !== undefined ? { hookDecision: hook } : {}),
-          });
+          expect(attended.classify === true).toBe(letter === "C");
+          if (mode === "auto") expect(attended.auto?.decision).toBe(expected);
+          else expect(attended.auto).toBeUndefined();
+          const unattended = p.check({ ...base, unattended: true, ...withHook });
           expect(unattended.decision).toBe(expected === "ask" ? "deny" : expected);
+          expect(unattended.classify === true).toBe(letter === "C");
           if (expected === "ask") expect(unattended.message).toBe(UNATTENDED_MESSAGE);
-          if (hook === "ask" && expected === "ask") {
-            expect(attended).toMatchObject({ step: "hook", approvalReason: "hook" });
+          const without = TABLE[mode][kind][0] as string;
+          if (hook === "ask" && expected === "ask" && (without === "A" || without === "C")) {
+            expect(attended).toMatchObject({ approvalReason: "hook" });
           }
         });
       });
     }
   }
 
-  it("modeDecision 与表一致", () => {
+  it("modeDecision 与表的无 Hook 一列一致（auto 的 write / execute 在这一步是 ask）", () => {
+    const permOf: Record<ToolPermission, CallKind> = {
+      read: "read",
+      write: "writeIn",
+      execute: "bashUnknown",
+    };
     for (const mode of MODES) {
-      for (const perm of PERMS) {
-        expect(modeDecision(mode, perm)).toBe(LETTER[TABLE[mode][perm][0] as string]);
+      for (const perm of ["read", "write", "execute"] as ToolPermission[]) {
+        const letter = TABLE[mode][permOf[perm]][0] as string;
+        const expected = mode === "auto" && perm !== "read" ? "ask" : LETTER[letter];
+        expect(modeDecision(mode, perm), `${mode}/${perm}`).toBe(expected);
       }
     }
+  });
+});
+
+describe("auto 三层", () => {
+  const bash = (command: string, extra: Partial<PermissionCheckInput> = {}) => ({
+    toolName: "bash",
+    permission: "execute" as const,
+    input: { command },
+    unattended: false,
+    ...extra,
+  });
+
+  it("每个结论带 layer 与 reason", () => {
+    const p = pipeline("auto", ["bash(terraform *)"]);
+    expect(p.check(bash("npm test")).auto).toMatchObject({ layer: "static", decision: "allow" });
+    expect(p.check(bash("rm -rf ./build")).auto).toMatchObject({
+      layer: "rule",
+      decision: "ask",
+      reason: "recursive or forced rm",
+    });
+    expect(p.check(bash("npm install left-pad")).auto?.reason).toMatch(/network/);
+    expect(p.check(bash("git push --force")).auto).toMatchObject({
+      layer: "rule",
+      decision: "ask",
+    });
+    expect(p.check(bash("terraform apply")).auto).toMatchObject({
+      layer: "rule",
+      decision: "deny",
+    });
+    expect(p.check(bash("node gen.js")).auto).toMatchObject({
+      layer: "classifier",
+      decision: "ask",
+    });
+    const read = p.check({ toolName: "read", permission: "read", input: {}, unattended: false });
+    expect(read.auto).toMatchObject({ layer: "static", reason: "read-only tool" });
+  });
+
+  it("allow 规则放行未决定的调用，但越不过规则层", () => {
+    const p = pipeline(
+      "auto",
+      [],
+      ["bash(node *)", "bash(curl *)", "write(/tmp/**)", "read(.env)"],
+    );
+    expect(p.check(bash("node gen.js"))).toMatchObject({
+      decision: "allow",
+      step: "allow-rule",
+      auto: { layer: "rule", decision: "allow" },
+    });
+    expect(p.check(bash("curl x")).decision).toBe("ask");
+    const out = { toolName: "write", permission: "write" as const, input: { path: "/tmp/a" } };
+    expect(p.check({ ...out, unattended: false }).decision).toBe("ask");
+    const env = { toolName: "read", permission: "read" as const, input: { path: ".env" } };
+    expect(p.check({ ...env, unattended: false }).decision).toBe("ask");
+  });
+
+  it("会话记忆放行未决定的调用", () => {
+    const p = pipeline("auto");
+    p.rememberForSession("bash", { command: "node gen.js" });
+    expect(p.check(bash("node gen.js --force"))).toMatchObject({
+      decision: "allow",
+      step: "session",
+    });
+  });
+
+  it("autoSafeCommands 追加安全名单；项目根可与 cwd 不同", () => {
+    const p = new PermissionPipeline({
+      mode: "auto",
+      rules: [],
+      cwd: resolve("/work/proj/sub"),
+      projectRoot: cwd,
+      autoSafeCommands: ["just test"],
+    });
+    expect(p.check(bash("just test")).decision).toBe("allow");
+    const parent = { toolName: "write", permission: "write" as const, input: { path: "../a.ts" } };
+    expect(p.check({ ...parent, unattended: false }).decision).toBe("allow");
+    const out = { toolName: "write", permission: "write" as const, input: { path: "../../a.ts" } };
+    expect(p.check({ ...out, unattended: false }).decision).toBe("ask");
+  });
+
+  it("非 bash 的执行类工具与没有 path 的写工具交给分类器", () => {
+    const p = pipeline("auto");
+    const codemode = { toolName: "codemode", permission: "execute" as const, input: { code: "1" } };
+    expect(p.check({ ...codemode, unattended: false }).classify).toBe(true);
+    const host = { toolName: "canvas_send", permission: "write" as const, input: { to: "x" } };
+    expect(p.check({ ...host, unattended: false }).classify).toBe(true);
+  });
+
+  it("审计：保留最近 20 条，摘要单行截断", () => {
+    const p = pipeline("auto");
+    for (let i = 0; i < 25; i++) {
+      p.recordAutoDecision(
+        "bash",
+        { command: `echo ${i}\nls` },
+        {
+          layer: "static",
+          decision: "allow",
+          reason: "safe",
+        },
+      );
+    }
+    const list = p.autoDecisions();
+    expect(list).toHaveLength(20);
+    expect(list[0]).toMatchObject({ toolName: "bash", summary: "echo 5 ls", layer: "static" });
+    p.recordAutoDecision(
+      "write",
+      { path: "x".repeat(200) },
+      {
+        layer: "static",
+        decision: "allow",
+        reason: "w",
+      },
+    );
+    expect(p.autoDecisions().at(-1)?.summary.length).toBe(80);
+  });
+});
+
+describe("allowlist", () => {
+  it("只放行 allow 规则命中的，拒绝说明写「不在允许名单」", () => {
+    const p = pipeline("allowlist", [], ["write(src/**)", "bash(pnpm test*)"]);
+    const write = (path: string) =>
+      p.check({ toolName: "write", permission: "write", input: { path }, unattended: false });
+    expect(write("src/a.ts").decision).toBe("allow");
+    const denied = write("lib/a.ts");
+    expect(denied).toMatchObject({ decision: "deny", step: "allowlist" });
+    expect(denied.message).toContain("不在允许名单");
+    const bash = (command: string) =>
+      p.check({ toolName: "bash", permission: "execute", input: { command }, unattended: false });
+    expect(bash("pnpm test --run").decision).toBe("allow");
+    expect(bash("pnpm test && rm -rf build").decision).toBe("deny");
+    expect(bash("pnpm publish").decision).toBe("deny");
   });
 });
 

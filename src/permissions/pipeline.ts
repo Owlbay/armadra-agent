@@ -1,5 +1,5 @@
 /**
- * 权限管线（设计 §6.3 第 3 步、§7.1、D11）。[B3]
+ * 权限管线（设计 §6.3 第 3 步、§7.1、§7.4、D11）。[B3]
  *
  *   ① deny 规则 ∪ Hook deny                         → deny
  *   ② 危险命令（仅 bash）                            → ask（无人值守 deny），之后各步不能放宽
@@ -11,9 +11,17 @@
  *      Hook ask：随后把 allow 变 ask——净效果是 Hook ask 总得到 ask（reason "hook"，对话框显示 Hook 的 reason）
  *   无人值守：最终 ask → deny。
  *
+ * auto（§7.4）：①② 同上；规则层再把受保护路径、项目外写入、网络命令、删除类命令判 ask（不能被 allow
+ * 规则越过）；Hook ask → ask；allow 规则 / Hook allow / 会话记忆 → allow；静态判定（只读工具、项目内写入、
+ * 安全名单里的 bash）→ allow；都没决定 → ask 且 `classify: true`，由调用方问模型分类器（分类器只能
+ * 把它变 allow）。每个结论带 `auto{layer, decision, reason}`。
+ *
+ * allowlist：①② 同上；只读工具与 allow 规则 / Hook allow 命中放行，其余 deny——从不询问（危险命令、
+ * Hook ask 也 deny）。
+ *
  * allow_session 记忆（内存，不落盘）：bash 记命令的前两个词（`npm test`），之后以它开头的命令
  * 命中；带 path 的工具记文件所在目录，之后该目录下的路径命中；其它工具只记工具名。
- * 记忆只作用于第 ③ 步模式产生的 ask。
+ * 记忆只作用于第 ③ 步模式产生的 ask（auto 里只作用于规则层之后）。
  *
  * 包装里的命令（`sh -c '…'`、`eval`、`xargs`、`find -exec`，见 dangerous.ts）逐层核对：deny 规则命中
  * 任一层即 deny；allow 规则与会话记忆要求外层与每一层嵌套命令都被覆盖，嵌套超深时不放行。
@@ -22,6 +30,8 @@
 import { dirname, sep } from "node:path";
 import type {
   ApprovalReason,
+  AutoAuditEntry,
+  AutoDecision,
   Decision,
   PermissionCheckInput,
   PermissionMode,
@@ -39,6 +49,9 @@ import {
   splitShellSegments,
 } from "./rules.js";
 import { collectNestedCommands, matchDangerous } from "./dangerous.js";
+import { analyzeBashForAuto } from "./auto-safe.js";
+import { secretPathReason, writeProtectionReason } from "./protected.js";
+import { AUTO_AUDIT_LIMIT } from "./types.js";
 
 /** bash 调用拆成「外层 + 每层嵌套命令」各自的输入；嵌套超深时 tooDeep 为真。非 bash 原样返回。 */
 function layeredInputs(toolName: string, input: unknown): { inputs: unknown[]; tooDeep: boolean } {
@@ -51,16 +64,34 @@ function layeredInputs(toolName: string, input: unknown): { inputs: unknown[]; t
   };
 }
 
-/** 第 ③ 步的模式真值表。 */
+/**
+ * 第 ③ 步的模式真值表（不看输入）。auto 的 write / execute 在这里是 ask，真正的结论由规则层、
+ * 静态判定与分类器给出；allowlist 的 write / execute 是 deny（allow 规则可放行）。
+ */
 export function modeDecision(mode: PermissionMode, permission: ToolPermission): Decision {
   if (permission === "read" || mode === "full-auto") return "allow";
-  if (mode === "plan") return "deny";
+  if (mode === "plan" || mode === "allowlist") return "deny";
   if (mode === "auto-edit") return permission === "write" ? "allow" : "ask";
   return "ask";
 }
 
 export const UNATTENDED_MESSAGE =
   "This tool call requires approval, but no one is available to approve it (unattended mode).";
+
+export const ALLOWLIST_MESSAGE =
+  'Not in the allowlist (不在允许名单): permission mode "allowlist" only runs read-only tools and calls matched by an allow rule, and never asks.';
+
+/** 审计摘要：bash 取命令，带 path 的取路径，其它取工具名；单行、截断。 */
+function auditSummary(toolName: string, input: unknown): string {
+  const command = inputCommand(input);
+  const raw =
+    command ??
+    (typeof input === "object" && input !== null
+      ? (input as Record<string, unknown>)["path"]
+      : undefined);
+  const text = typeof raw === "string" ? raw.replace(/\s+/g, " ").trim() : toolName;
+  return text.length > 80 ? `${text.slice(0, 79)}…` : text;
+}
 
 interface SessionGrant {
   toolName: string;
@@ -99,18 +130,27 @@ export interface PermissionPipelineOptions {
   mode: PermissionMode;
   rules: readonly Rule[];
   cwd: string;
+  /** auto：项目根（受保护写入与分类器输入用），缺省 = cwd。 */
+  projectRoot?: string;
+  /** auto：安全名单追加（`permission.autoSafeCommands`）。 */
+  autoSafeCommands?: readonly string[];
 }
 
 export class PermissionPipeline implements PermissionPipelineApi {
   private currentMode: PermissionMode;
   private readonly ruleList: Rule[];
   private readonly grants: SessionGrant[] = [];
+  private readonly audit: AutoAuditEntry[] = [];
   readonly cwd: string;
+  readonly projectRoot: string;
+  readonly autoSafeCommands: readonly string[];
 
   constructor(options: PermissionPipelineOptions) {
     this.currentMode = options.mode;
     this.ruleList = [...options.rules];
     this.cwd = options.cwd;
+    this.projectRoot = options.projectRoot ?? options.cwd;
+    this.autoSafeCommands = [...(options.autoSafeCommands ?? [])];
   }
 
   get mode(): PermissionMode {
@@ -133,8 +173,30 @@ export class PermissionPipeline implements PermissionPipelineApi {
     this.grants.length = 0;
   }
 
+  recordAutoDecision(toolName: string, input: unknown, decision: AutoDecision): void {
+    this.audit.push({
+      ...decision,
+      at: Date.now(),
+      toolName,
+      summary: auditSummary(toolName, input),
+    });
+    if (this.audit.length > AUTO_AUDIT_LIMIT)
+      this.audit.splice(0, this.audit.length - AUTO_AUDIT_LIMIT);
+  }
+
+  autoDecisions(): readonly AutoAuditEntry[] {
+    return [...this.audit];
+  }
+
   check(input: PermissionCheckInput): PermissionVerdict {
     const verdict = this.evaluate(input);
+    if (this.currentMode === "auto" && verdict.auto === undefined) {
+      verdict.auto = {
+        layer: "rule",
+        decision: verdict.decision,
+        reason: verdict.message ?? verdict.step,
+      };
+    }
     if (verdict.decision === "ask" && input.unattended) {
       return { ...verdict, decision: "deny", message: UNATTENDED_MESSAGE };
     }
@@ -169,13 +231,23 @@ export class PermissionPipeline implements PermissionPipelineApi {
     const command = toolName === "bash" ? inputCommand(input.input) : undefined;
     const danger = command !== undefined ? matchDangerous(command) : undefined;
     if (danger) {
-      return {
+      const message = `Potentially dangerous command: ${danger.description}`;
+      if (this.currentMode === "allowlist") {
+        return { decision: "deny", step: "allowlist", message: `${ALLOWLIST_MESSAGE} ${message}` };
+      }
+      const verdict: PermissionVerdict = {
         decision: "ask",
         step: "dangerous",
         approvalReason: "dangerous",
-        message: `Potentially dangerous command: ${danger.description}`,
+        message,
       };
+      if (this.currentMode === "auto") {
+        verdict.auto = { layer: "rule", decision: "ask", reason: danger.description };
+      }
+      return verdict;
     }
+    if (this.currentMode === "auto") return this.evaluateAuto(input, layers, command);
+    if (this.currentMode === "allowlist") return this.evaluateAllowlist(input, layers);
     // ③ 模式
     const byMode = modeDecision(this.currentMode, permission);
     if (byMode === "deny") {
@@ -216,5 +288,146 @@ export class PermissionPipeline implements PermissionPipelineApi {
       };
     }
     return verdict;
+  }
+
+  /** allow 规则（每层都覆盖）/ Hook allow / 会话记忆；都不命中返回 undefined。 */
+  private allowedBy(
+    input: PermissionCheckInput,
+    layers: { inputs: unknown[]; tooDeep: boolean },
+    useGrants: boolean,
+  ): PermissionVerdict | undefined {
+    const { toolName } = input;
+    const allow = layers.tooDeep
+      ? undefined
+      : findAllowRule(this.ruleList, toolName, input.input, this.cwd);
+    if (
+      allow !== undefined &&
+      layers.inputs.every((l) => findAllowRule(this.ruleList, toolName, l, this.cwd))
+    ) {
+      return { decision: "allow", step: "allow-rule", rule: allow };
+    }
+    if (input.hookDecision === "allow") return { decision: "allow", step: "hook" };
+    if (
+      useGrants &&
+      !layers.tooDeep &&
+      layers.inputs.every((l) => this.grants.some((g) => grantCovers(g, toolName, l, this.cwd)))
+    ) {
+      return { decision: "allow", step: "session" };
+    }
+    return undefined;
+  }
+
+  /** auto 规则层（受保护路径、项目外写入、网络、删除类）要询问的原因。 */
+  private autoRuleReason(
+    input: PermissionCheckInput,
+    command: string | undefined,
+  ): { ask?: string; bashSafe?: boolean; bashReason?: string } {
+    if (command !== undefined) {
+      const analysis = analyzeBashForAuto(command, {
+        cwd: this.cwd,
+        projectRoot: this.projectRoot,
+        extraSafe: this.autoSafeCommands,
+      });
+      const out: { ask?: string; bashSafe?: boolean; bashReason?: string } = {
+        bashSafe: analysis.safe,
+        bashReason: analysis.reason,
+      };
+      if (analysis.ask !== undefined) out.ask = analysis.ask;
+      return out;
+    }
+    const raw =
+      typeof input.input === "object" && input.input !== null
+        ? (input.input as Record<string, unknown>)["path"]
+        : undefined;
+    if (typeof raw !== "string" && input.permission !== "write") return {};
+    const path = inputPath(input.toolName, input.input, this.cwd);
+    if (path === undefined) return {};
+    const secret = secretPathReason(path);
+    if (secret !== undefined) return { ask: secret };
+    if (input.permission === "write") {
+      const reason = writeProtectionReason(path, this.projectRoot);
+      if (reason !== undefined) return { ask: reason };
+    }
+    return {};
+  }
+
+  private evaluateAuto(
+    input: PermissionCheckInput,
+    layers: { inputs: unknown[]; tooDeep: boolean },
+    command: string | undefined,
+  ): PermissionVerdict {
+    const rule = (decision: Decision, reason: string): AutoDecision => ({
+      layer: "rule",
+      decision,
+      reason,
+    });
+    const checked = this.autoRuleReason(input, command);
+    if (checked.ask !== undefined) {
+      return {
+        decision: "ask",
+        step: "auto-rule",
+        approvalReason: "mode",
+        message: `Auto mode asks before this: ${checked.ask}`,
+        auto: rule("ask", checked.ask),
+      };
+    }
+    if (input.hookDecision === "ask") {
+      const verdict: PermissionVerdict = {
+        decision: "ask",
+        step: "hook",
+        approvalReason: "hook",
+        auto: rule("ask", input.hookReason ?? "PreToolUse hook asked"),
+      };
+      if (input.hookReason !== undefined) verdict.message = input.hookReason;
+      return verdict;
+    }
+    const allowed = this.allowedBy(input, layers, true);
+    if (allowed !== undefined) {
+      const reason =
+        allowed.step === "allow-rule"
+          ? `allow rule ${allowed.rule?.raw ?? ""}`.trim()
+          : allowed.step === "hook"
+            ? "PreToolUse hook allowed"
+            : "allowed for this session";
+      return { ...allowed, auto: rule("allow", reason) };
+    }
+    const fixed = (reason: string): PermissionVerdict => ({
+      decision: "allow",
+      step: "auto-static",
+      auto: { layer: "static", decision: "allow", reason },
+    });
+    if (input.permission === "read") return fixed("read-only tool");
+    if (command !== undefined && checked.bashSafe === true) {
+      return fixed(checked.bashReason ?? "safe command");
+    }
+    if (command === undefined && input.permission === "write") {
+      const path = inputPath(input.toolName, input.input, this.cwd);
+      if (path !== undefined) return fixed("write inside the project");
+    }
+    return {
+      decision: "ask",
+      step: "auto-classify",
+      approvalReason: "mode",
+      classify: true,
+      auto: {
+        layer: "classifier",
+        decision: "ask",
+        reason: checked.bashReason ?? `${input.toolName} needs a judgement`,
+      },
+    };
+  }
+
+  private evaluateAllowlist(
+    input: PermissionCheckInput,
+    layers: { inputs: unknown[]; tooDeep: boolean },
+  ): PermissionVerdict {
+    const deny = (why?: string): PermissionVerdict => ({
+      decision: "deny",
+      step: "allowlist",
+      message: why === undefined ? ALLOWLIST_MESSAGE : `${ALLOWLIST_MESSAGE} ${why}`,
+    });
+    if (input.hookDecision === "ask") return deny(input.hookReason);
+    if (input.permission === "read") return { decision: "allow", step: "mode" };
+    return this.allowedBy(input, layers, false) ?? deny();
   }
 }
