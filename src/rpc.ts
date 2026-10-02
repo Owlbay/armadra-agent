@@ -6,6 +6,9 @@
  * - 设计只列了命令名；参数形状按 v1 §8.4 补全，新增命令（get_available_thinking_levels、
  *   set_auto_retry、abort_retry、get_fork_messages、set_permission_mode、get_commands、
  *   get_skills）按名字含义补全。
+ * - [RW-B] 回滚：get_rewind_points → `{ points }`、rewind → `RewindResult`（形状见
+ *   checkpoints/types.ts）、summarize_from → `{ leafId, draft, summary? }`、summarize_up_to →
+ *   `CompactionResult`；成功回滚发 `session_rewound` 事件。
  * - 线上事件 = 进程内 `SessionEvent`，但 `message_update` 换成纯增量（去掉 partial / 累计消息，
  *   附最新 usage）；stream-json 输出同一形状。
  * - 类型定义直接放在本文件（B6 实现 import 它），避免子路径入口依赖实现文件。
@@ -13,6 +16,7 @@
 
 import type { AssistantEvent, ImageBlock, ModelThinkingLevel, Usage } from "./ai/types.js";
 import type { QueueMode, SessionEvent } from "./agent/types.js";
+import type { RewindRequest } from "./checkpoints/types.js";
 import type { ApprovalDecision, PermissionMode } from "./permissions/types.js";
 
 export type { SessionEvent } from "./agent/types.js";
@@ -71,6 +75,11 @@ export interface RpcCommandMap {
   get_tree: NoParams;
   set_session_name: { name: string };
   get_fork_messages: NoParams;
+  // 回滚（docs/rewind-plan.md §5）
+  get_rewind_points: NoParams;
+  rewind: RewindRequest;
+  summarize_from: { entryId: string; instructions?: string };
+  summarize_up_to: { entryId: string; instructions?: string };
   // 审批
   set_client_capabilities: { capabilities: RpcCapability[] };
   permission_response: { requestId: string; decision: ApprovalDecision };

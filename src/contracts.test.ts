@@ -234,6 +234,7 @@ describe("Hook 契约", () => {
       | "PreCompact"
       | "Notification"
       | "SessionEnd"
+      | "PostRewind"
     >();
     expectTypeOf<HookOutput["decision"]>().toEqualTypeOf<
       "allow" | "deny" | "ask" | "block" | undefined

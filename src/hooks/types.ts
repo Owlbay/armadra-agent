@@ -19,7 +19,8 @@ export type HookEvent =
   | "SubagentStop"
   | "PreCompact"
   | "Notification"
-  | "SessionEnd";
+  | "SessionEnd"
+  | "PostRewind";
 
 export const HOOK_EVENTS: readonly HookEvent[] = [
   "SessionStart",
@@ -31,6 +32,7 @@ export const HOOK_EVENTS: readonly HookEvent[] = [
   "PreCompact",
   "Notification",
   "SessionEnd",
+  "PostRewind",
 ];
 
 export type HookDecision = "allow" | "deny" | "ask" | "block";
@@ -94,6 +96,12 @@ export interface HookInput {
   trigger?: "auto" | "manual";
   // Notification
   notification?: HookNotification;
+  // PostRewind（[RW-B]，不可阻止）
+  /** 回滚到的用户消息条目 id。 */
+  entryId?: string;
+  mode?: "both" | "conversation" | "code";
+  /** 被恢复或删除的文件（cwd 内相对路径，cwd 外绝对路径）；仅对话时为空。 */
+  files?: string[];
   /** Pre/PostToolUse：本次调用来自 codemode 脚本里的 `tools.*`（设计 §5.5）。 */
   viaCodemode?: boolean;
   /** Pre/PostToolUse：codemode 内层调用时为外层 `codemode` 调用的 toolCallId。 */

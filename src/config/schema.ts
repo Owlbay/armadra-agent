@@ -402,6 +402,7 @@ export function validateConfig(value: unknown): Diagnostic[] {
       "ascii",
       "compact",
       "animation",
+      "restoreOnCancel",
     ],
     (s, p) => {
       c.oneOf(s, "theme", p, ["dark", "light", "auto"]);
@@ -412,6 +413,7 @@ export function validateConfig(value: unknown): Diagnostic[] {
       c.boolean(s, "ascii", p);
       c.boolean(s, "compact", p);
       c.boolean(s, "animation", p);
+      c.boolean(s, "restoreOnCancel", p);
     },
   );
   checkSection(c, value, "skills", ["dirs"], (s, p) => c.stringArray(s, "dirs", p));

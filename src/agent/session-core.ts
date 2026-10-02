@@ -6,6 +6,7 @@
  */
 
 import type { WarmingDecisionHandler } from "../ai/cache/types.js";
+import type { CheckpointHooks } from "../checkpoints/types.js";
 import type { Model, ModelThinkingLevel, ProviderRegistryApi } from "../ai/types.js";
 import type {
   HookDispatcherApi,
@@ -21,6 +22,7 @@ import type { SubagentRequest, SubagentResult, ToolDefinition } from "../tools/t
 import type { Agent } from "./agent.js";
 import type { StreamFn } from "./loop.js";
 import type { SessionCacheController } from "./session-cache.js";
+import type { CheckpointBackendFactory } from "../checkpoints/index.js";
 import type { SystemPromptInput } from "./system-prompt.js";
 import type {
   CacheSettings,
@@ -87,6 +89,15 @@ export interface AgentSessionOptions {
   cache?: Partial<CacheSettings>;
   /** [W3-C1b] 宿主 `cache.onWarmingDecision` 的处理器（每次保温前现取）。 */
   warmingDecider?(): WarmingDecisionHandler | undefined;
+  /**
+   * [RW-B] 检查点后端工厂（rewind-plan §2）：只在主会话（depth 0）且会话有目录时调用；返回
+   * undefined = 不建检查点（`checkpoints.mode: "off"`）。
+   */
+  checkpoints?: CheckpointBackendFactory;
+  /** [RW-B] task 子会话：父会话的检查点钩子（编辑记到父会话当前回合）。 */
+  checkpointHooks?: CheckpointHooks;
+  /** [RW-B] 中断即撤回（config `ui.restoreOnCancel`，缺省 true）。 */
+  restoreOnCancel?: boolean;
   log?(level: "debug" | "info" | "warn" | "error", message: string): void;
 }
 
@@ -120,6 +131,8 @@ export interface SessionCore {
   /** Hook 返回 continue:false 时记下，finishTurn 据此结束 run。 */
   requestStop(reason: string | undefined): void;
   spawnSubagent(request: SubagentRequest): Promise<SubagentResult>;
+  /** [RW-B] ToolContext.checkpoint：本会话的检查点钩子（无则 undefined）。 */
+  checkpointHooks?(): CheckpointHooks | undefined;
   /** auto 权限模式的分类器（懒建，会话内缓存判定）。 */
   autoClassifier(): PermissionClassifier;
   log(level: "debug" | "info" | "warn" | "error", message: string): void;

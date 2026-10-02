@@ -12,6 +12,7 @@ export { HOST_API_VERSION } from "./host/types.js";
 export { RPC_PROTOCOL_VERSION } from "./rpc.js";
 export { SESSION_FORMAT_VERSION } from "./session/types.js";
 export { HOOK_EVENTS } from "./hooks/types.js";
+export { REWIND_NOTE_CUSTOM_TYPE } from "./checkpoints/types.js";
 export { PERMISSION_MODES_STRICT_FIRST } from "./permissions/types.js";
 export { ExitCode, describeExitCode } from "./cli/exit-codes.js";
 export { defineTool } from "./tools/types.js";
@@ -28,6 +29,7 @@ export type * from "./hooks/types.js";
 export type * from "./permissions/types.js";
 export type * from "./host/types.js";
 export type * from "./config/types.js";
+export type * from "./checkpoints/types.js";
 export type { AmaErrorOptions, ErrorCode, KnownErrorCode } from "./errors.js";
 export type {
   Runtime,

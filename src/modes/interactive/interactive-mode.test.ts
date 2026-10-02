@@ -91,7 +91,14 @@ describe("交互模式", () => {
 
   it("Alt+Enter 排 followUp，Alt+↑ 取回；空闲时 Alt+Enter 等同发送", async () => {
     const s = await start([{ delayMs: 5_000, text: "slow" }, { text: "后续回复" }]);
-    const started = s.until((e) => e.type === "agent_start");
+    // 新回合先建检查点再发请求：等检查点条目落盘（之后紧接着发请求），否则 Esc 可能落在请求之前，
+    // 脚本第 1 步没被消耗。fake 的 delayMs 在 message_start 之前，不能等助手消息开始。
+    const started = s.until(
+      (e) =>
+        e.type === "entry_appended" &&
+        e.entry.type === "custom" &&
+        e.entry.customType === "ama.checkpoint",
+    );
     s.type("开始");
     s.terminal.sendInput("\r");
     await started;

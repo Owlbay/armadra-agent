@@ -9,11 +9,15 @@
  *   逐条发 hook_executed；Hook 自身出错记 warning、按无决策处理。
  */
 
-import type { Model, ModelThinkingLevel } from "../ai/types.js";
+import { modelRefOf } from "../ai/providers/channels.js";
+import type { Model, ModelRef, ModelThinkingLevel, ProviderRegistryApi } from "../ai/types.js";
+import { AmaError } from "../errors.js";
 import type { HookEvent, HookEventPayload, HookOutcome } from "../hooks/types.js";
-import type { AgentMessage, SessionEntryInput } from "../session/types.js";
+import type { AgentMessage, SessionEntry, SessionEntryInput } from "../session/types.js";
 import type { ToolDefinition } from "../tools/types.js";
+import type { SessionManager } from "../session/manager.js";
 import type { SessionCore } from "./session-core.js";
+import type { SessionEvent } from "./types.js";
 import {
   assembleSections,
   currentSystemState,
@@ -23,7 +27,7 @@ import {
   type SystemPromptInput,
 } from "./system-prompt.js";
 
-export function persistMessage(core: SessionCore, message: AgentMessage): void {
+export function persistMessage(core: SessionCore, message: AgentMessage): SessionEntry | undefined {
   if (message.role === "custom") {
     const input: SessionEntryInput = {
       type: "custom_message",
@@ -32,10 +36,11 @@ export function persistMessage(core: SessionCore, message: AgentMessage): void {
       display: message.display,
     };
     if (message.details !== undefined) input.details = message.details;
-    core.appendEntry(input);
+    return core.appendEntry(input);
   } else if (message.role !== "compactionSummary" && message.role !== "branchSummary") {
-    core.appendEntry({ type: "message", message });
+    return core.appendEntry({ type: "message", message });
   }
+  return undefined;
 }
 
 export function recordModelState(
@@ -55,16 +60,31 @@ export function recordModelState(
     } else if (entry.type === "thinking_level_change") thinking = entry.thinkingLevel;
   }
   if (provider !== model.provider || modelId !== model.id || channel !== model.channel) {
-    core.appendEntry({
-      type: "model_change",
-      provider: model.provider,
-      modelId: model.id,
-      ...(model.channel !== undefined ? { channel: model.channel } : {}),
-    });
+    appendModelChange(core, model);
   }
   if (thinking !== thinkingLevel) {
     core.appendEntry({ type: "thinking_level_change", thinkingLevel });
   }
+}
+
+/** 落一条 model_change，返回模型引用（`setModel` 发 model_changed 用）。 */
+export function appendModelChange(core: SessionCore, model: Model): ModelRef {
+  const next = modelRefOf(model);
+  core.appendEntry({
+    type: "model_change",
+    provider: next.provider,
+    modelId: next.id,
+    ...(next.channel !== undefined ? { channel: next.channel } : {}),
+  });
+  return next;
+}
+
+export function findModelOrThrow(providers: ProviderRegistryApi, ref: string): Model {
+  const lookup = providers.findModel(ref);
+  if (!lookup.ok) {
+    throw new AmaError("model_not_found", `model ${ref} not found`, { detail: lookup.candidates });
+  }
+  return lookup.model;
 }
 
 export function syncSystemMessage(
@@ -131,4 +151,20 @@ export async function runHookWithEvents(
     core.log("warn", `${event} hook failed: ${String(error)}`);
     return undefined;
   }
+}
+
+/** session_start 事件（bootstrap / SDK 在会话就绪后发一次）。 */
+export function sessionStartEvent(
+  manager: SessionManager,
+  reason: "startup" | "resume" | "new" | "fork",
+): SessionEvent {
+  const event: SessionEvent = {
+    type: "session_start",
+    sessionId: manager.id,
+    cwd: manager.cwd,
+    reason,
+  };
+  const file = manager.file();
+  if (file !== undefined) event.sessionFile = file;
+  return event;
 }

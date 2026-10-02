@@ -16,6 +16,7 @@ import type { AgentSession, PromptDisposition } from "../../agent/types.js";
 import { getSupportedLevels } from "../../ai/thinking.js";
 import { switchSession } from "../../cli/compose-session.js";
 import type { Runtime } from "../../cli/runtime.js";
+import type { RewindRequest } from "../../checkpoints/types.js";
 import { AmaError } from "../../errors.js";
 import { isPermissionMode } from "../../permissions/modes.js";
 import { PERMISSION_MODES_STRICT_FIRST } from "../../permissions/types.js";
@@ -258,6 +259,15 @@ export const handlers: RpcHandlers = {
           : [],
       ),
   }),
+  get_rewind_points: async (_p, ctx) => ({ points: ctx.session().rewindPoints() }),
+  rewind: async (p, ctx) => {
+    const request: RewindRequest = { entryId: p.entryId, mode: p.mode };
+    if (p.dryRun !== undefined) request.dryRun = p.dryRun;
+    if (p.onConflict !== undefined) request.onConflict = p.onConflict;
+    return ctx.session().rewind(request);
+  },
+  summarize_from: async (p, ctx) => ctx.session().summarizeFrom(p.entryId, p.instructions),
+  summarize_up_to: async (p, ctx) => ctx.session().summarizeUpTo(p.entryId, p.instructions),
   set_client_capabilities: async (p, ctx) => {
     ctx.capabilities = new Set(p.capabilities);
     const approvals = ctx.capabilities.has("approvals");
