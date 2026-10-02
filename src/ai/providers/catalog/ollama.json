@@ -1,5 +1,6 @@
 {
   "version": 1,
   "provider": "ollama",
+  "modelsDev": false,
   "models": []
 }

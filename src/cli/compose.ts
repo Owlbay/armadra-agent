@@ -31,6 +31,7 @@ import type { AmaConfig } from "../config/types.js";
 import { PermissionPipeline } from "../permissions/pipeline.js";
 import { BUILTIN_DENY_RULES, parseRule } from "../permissions/rules.js";
 import type { Rule } from "../permissions/types.js";
+import { withBuiltinSkills } from "../skills/builtin.js";
 import { discoverSkills, skillSources } from "../skills/discover.js";
 import { discoverPromptTemplates, promptSources } from "../skills/templates.js";
 import { applyCodemodeMode } from "../codemode/modes.js";
@@ -297,6 +298,11 @@ export function createRuntimeDeps(
           }),
           { trusted: input.trusted },
         );
+        if (input.dataDir !== undefined) {
+          const builtin = await withBuiltinSkills(skills.skills, input.dataDir);
+          skills.skills = builtin.skills;
+          skills.warnings.push(...builtin.warnings);
+        }
         const prompts = await discoverPromptTemplates(
           promptSources({
             cwd: input.cwd,

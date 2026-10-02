@@ -1,0 +1,113 @@
+{
+  "api": "https://api.moonshot.cn/v1",
+  "id": "moonshotai-cn",
+  "models": {
+    "kimi-k2.6": {
+      "cost": {
+        "cache_read": 0.16,
+        "input": 0.95,
+        "output": 4
+      },
+      "family": "kimi-k2",
+      "interleaved": {
+        "field": "reasoning_content"
+      },
+      "knowledge": "2025-01",
+      "limit": {
+        "context": 262144,
+        "output": 262144
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ]
+      },
+      "name": "Kimi K2.6",
+      "reasoning": true,
+      "release_date": "2026-04-21"
+    },
+    "kimi-k2.7-code": {
+      "canonical_model_id": "moonshotai/kimi-k2.7-code",
+      "cost": {
+        "cache_read": 0.19,
+        "input": 0.95,
+        "output": 4
+      },
+      "family": "kimi-k2",
+      "interleaved": {
+        "field": "reasoning_content"
+      },
+      "knowledge": "2025-01",
+      "limit": {
+        "context": 262144,
+        "output": 262144
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ]
+      },
+      "name": "Kimi K2.7 Code",
+      "reasoning": true,
+      "release_date": "2026-06-12"
+    },
+    "kimi-k2.7-code-highspeed": {
+      "canonical_model_id": "moonshotai/kimi-k2.7-code",
+      "cost": {
+        "cache_read": 0.38,
+        "input": 1.9,
+        "output": 8
+      },
+      "family": "kimi-k2",
+      "interleaved": {
+        "field": "reasoning_content"
+      },
+      "knowledge": "2025-01",
+      "limit": {
+        "context": 262144,
+        "output": 262144
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ]
+      },
+      "name": "Kimi K2.7 Code HighSpeed",
+      "reasoning": true,
+      "release_date": "2026-06-12"
+    },
+    "kimi-k3": {
+      "canonical_model_id": "moonshotai/kimi-k3",
+      "cost": {
+        "cache_read": 0.3,
+        "input": 3,
+        "output": 15
+      },
+      "family": "kimi-k3",
+      "interleaved": {
+        "field": "reasoning_content"
+      },
+      "limit": {
+        "context": 1048576,
+        "output": 1048576
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ]
+      },
+      "name": "Kimi K3",
+      "reasoning": true,
+      "release_date": "2026-07-16"
+    }
+  },
+  "name": "Moonshot AI (China)"
+}

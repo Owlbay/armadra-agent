@@ -29,27 +29,20 @@ export function formatSkillIndex(
   if (visible.length === 0) return "";
   let how: string;
   if (options.hasSkillTool) {
-    how =
-      "Call the skill tool with a skill's name to load it when the task matches its description.";
+    how = "call the skill tool with its name";
   } else if (options.hasReadTool) {
-    how = "Use the read tool to load a skill's file when the task matches its description.";
+    how = "read its file";
   } else {
     return "";
   }
+  // 每个字都进缓存前缀（预算见 src/cli/prompt-budget.test.ts），说明保持一行。
   const lines = [
-    "The following skills provide specialized instructions for specific tasks.",
-    how,
-    "When a skill file references a relative path, resolve it against the skill's directory.",
-    "",
+    `Skills: when a task matches one, ${how} first; resolve its relative paths against its directory.`,
     "<available_skills>",
   ];
   for (const s of visible) {
     lines.push(
-      "  <skill>",
-      `    <name>${escapeXml(s.name)}</name>`,
-      `    <description>${escapeXml(s.description)}</description>`,
-      `    <location>${escapeXml(s.location)}</location>`,
-      "  </skill>",
+      `<skill name="${escapeXml(s.name)}" location="${escapeXml(s.location)}">${escapeXml(s.description)}</skill>`,
     );
   }
   lines.push("</available_skills>");

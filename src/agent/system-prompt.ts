@@ -14,6 +14,7 @@ import { replaySystem, type SystemState } from "../session/projection.js";
 import { escapeXml } from "../skills/index-prompt.js";
 import type { AgentMessage } from "../session/types.js";
 import type { ToolDefinition } from "../tools/types.js";
+import { baseRules } from "./prompt-rules.js";
 
 export const SECTION_ORDER = [
   "preamble",
@@ -70,6 +71,7 @@ export function assembleSections(
     return snippet.startsWith(`${tool.name}:`) ? `- ${snippet}` : `- ${tool.name}: ${snippet}`;
   });
   const rules = [
+    ...baseRules(tools),
     ...tools.flatMap((tool) => tool.promptGuidelines ?? []),
     ...(input.extraRules ?? []),
   ];

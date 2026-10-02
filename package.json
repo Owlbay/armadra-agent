@@ -68,7 +68,8 @@
     "docs/tui.md",
     "docs/session-format.md",
     "docs/sessions.md",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "sideEffects": [
     "./dist/cli/main.js",

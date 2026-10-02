@@ -8,6 +8,12 @@
   `codemode` 按只读类、`default` 预设缺省开启、状态栏不再标 `net!`；没有时（Windows 等）保持原样。Node ≥ 25 叠加作纵深
   防御。新配置 `sandbox.enabled`（`auto` | `off`，只认用户级 / profile，`AMA_SANDBOX=off` 覆盖）；`ama doctor` 显示沙箱
   能力，`ama config show` 写明网络由谁隔离。bash 沙箱与「沙箱内命令免审批」是第二阶段。
+- **系统提示维护**：规则节加两条通用规则——破坏性命令（`rm -rf`、`git reset --hard`、强推、删分支）除非用户要求否则先问；
+  独立的只读工具调用放在同一轮（只在 read 可直接调用时出现）。edit 描述写明多处修改用一次调用的 `edits[]`、`oldText` 按原文件
+  匹配、唯一、尽量短、不重叠。新增内置 Skill `ama-docs`（配置速查，按需读取，同名时用户的优先）；Skill 索引改为每条一行、
+  说明压到一行。新增提示长度预算测试（`default` ≤ 2 000、`minimal` ≤ 800、`codemode-only` ≤ 1 775 token）。
+  系统提示前缀因此变化，**升级后每个会话的首个请求缓存未命中一次**（恢复的旧会话追加一条 system 补丁）。
+
 - **图像能力**（第五波 W5-I，docs/providers.md「图像输入」）：单图上限改按 base64 后计算并按端点分档（官方 Anthropic
   10 MB、Gemini / OpenAI 20 MB、中转与未知 5 MB，原来按原始字节 5 MB），任一边超 8000 px 拒绝；超限时按
   `images.resize`（缺省 `auto`）用 `sips` / ImageMagick 缩放。请求图片总量超预算（Anthropic 32 MB、其它 20 MB）时把
@@ -63,6 +69,13 @@ get_todos / get_tasks / get_agents`（命令表 42 条，实现前回 `not_imple
   `HostApi.runners` 可选面；`@armadra/agent/acp` 子路径（驱动类型与 NDJSON 分帧）；第五波配置键的校验、说明与 JSON Schema
   （行为随各批次生效）。命令行新增 `--mode acp`、`--max-cost`、`--agent-dir`（实现前分别报「尚未实现」或提示不生效），
   退出码 8 = `-p` 到达预算上限（7 仍是工具被拒）。
+- **models.dev 快照入库**（docs/providers.md「模型元数据」，第五波 §2）：22 家主流厂商的裁剪快照随包携带（内联数据约 180 KB，
+  MIT 声明见 `THIRD_PARTY_NOTICES.md`），**启动与运行都不联网**；`ama providers add|refresh`、`ama models discover`
+  不再拉 models.dev。新命令 `ama models refresh [--provider <id>]` 显式联网刷新到数据目录（晚于快照才叠加，
+  `refresh-catalog` 为旧名）；旧版的全量缓存 `models-dev.json`（version 1）不再读取。内置目录 `catalog/*.json`
+  改为「快照 ⊕ 覆盖」：数值从快照继承，目录只写覆盖项与 ama 特有字段，与快照相同的值由测试报冗余；dashscope
+  补上了价格，gemini 2.5 / 3.1 pro、openrouter 部分模型补上了阶梯价；模型新增 `family` / `knowledge` /
+  `releaseDate` / `inputLimit` / `status` 元数据。每周的 `.github/workflows/models-dev.yml` 刷新快照并开 PR。
 
 ## 0.4.0（2026-10-02）
 
