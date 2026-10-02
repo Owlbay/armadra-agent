@@ -69,12 +69,13 @@ function rig(
     stats?: Partial<SessionStats>;
     git?: GitInfo | undefined | null;
     source?: Partial<StatusBarSource>;
+    model?: { provider: string; id: string; channel?: string };
   } = {},
 ): Rig {
   let current = stats(options.stats);
   const session = {
     state: {
-      model: { provider: "anthropic", id: "claude-opus-5-5" },
+      model: options.model ?? { provider: "anthropic", id: "claude-opus-5-5" },
       thinkingLevel: "medium",
       permissionMode: "default",
     },
@@ -280,6 +281,21 @@ describe("速率行", () => {
       }
     }
     golden("status-layouts", out.join("\n") + "\n");
+  });
+
+  it("帧黄金：带渠道的长模型名（M2）按宽度去供应商、再去 @渠道", () => {
+    const r = rig("full", {
+      model: { provider: "dashscope", id: "qwen3.8-max", channel: "messages" },
+    });
+    const out: string[] = [];
+    for (const w of [40, 60, 80, 110, 140]) {
+      out.push(`# full ${w}`, ...r.rows(w).map((row) => `|${pad(row, w)}|`));
+    }
+    const text = out.join("\n") + "\n";
+    expect(text).toContain("dashscope/qwen3.8-max@messages medium |");
+    expect(text).toContain(" qwen3.8-max@messages | Ctx 3.0%");
+    expect(text).toContain(" qwen3.8-max | Ctx 3.0%");
+    golden("status-long-model", text);
   });
 
   it("帧黄金：ASCII（⎇ → git、− → -、♨ → ~）", () => {
