@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "responses": [
+    {
+      "steps": [
+        {
+          "toolCall": {
+            "name": "bash",
+            "arguments": { "command": "node -e \"setTimeout(() => {}, 3500)\"" }
+          }
+        }
+      ],
+      "usage": { "input": 0, "cacheWrite": 60000, "output": 10 }
+    },
+    { "text": "warm", "usage": { "input": 0, "cacheRead": 60000, "output": 1 } },
+    { "text": "Finished after the long tool run.", "usage": { "input": 300, "cacheRead": 60000, "output": 8 } }
+  ],
+  "whenExhausted": "repeat-last"
+}

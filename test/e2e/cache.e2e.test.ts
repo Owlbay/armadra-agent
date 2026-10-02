@@ -2,13 +2,14 @@
  * bundle 级缓存测试（第三波 §2.4）：与 `src/cli/cache-stability.test.ts` 同口径，但走
  * `dist/bundle/ama.cjs`——fake 供应商经 `AMA_FAKE_RECORD` 把每次请求的折叠 system 与工具表记成
  * 一行，20 回合（RPC 一个进程内连续 prompt）全部行逐字节相同。
+ * 另外：`cache_miss` / `cache_warm` 事件经 stream-json 原样输出。
  */
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { createTmpHome, type TmpHome } from "../helpers/tmp-home.js";
-import { hasBundle, spawnRpc } from "./spawn.js";
+import { hasBundle, jsonLines, runAma, spawnRpc, type Line } from "./spawn.js";
 
 let home: TmpHome | undefined;
 afterEach(() => {
@@ -76,4 +77,64 @@ describe.skipIf(!hasBundle)("e2e：缓存前缀稳定（bundle 子进程）", ()
     expect(data.tokens.cacheRead).toBe(900 * 19);
     expect(data.cacheHitRate).toBeGreaterThan(0);
   });
+});
+
+describe.skipIf(!hasBundle)("e2e：缓存事件进 stream-json（bundle 子进程）", () => {
+  it("第 3 次请求 cacheRead 0：一条 cache_miss{evicted}，重计费 min(上次, 本次) − 读 = 30.5k token", async () => {
+    home = createTmpHome();
+    home.write("work/README.md", "# demo\n");
+    const r = await runAma(
+      home,
+      ["-p", "check", "--model", "fake/echo", "--output-format", "stream-json"],
+      { env: { AMA_FAKE_SCRIPT: fixture("cache-miss.json") } },
+    );
+    expect(r.code).toBe(0);
+    const misses = jsonLines(r.stdout).filter((l) => l["type"] === "cache_miss");
+    expect(misses).toHaveLength(1);
+    expect(misses[0]).toMatchObject({ reason: "evicted", missedTokens: 30_500 });
+    expect(misses[0]?.["missedCost"]).toBeGreaterThan(0);
+  });
+
+  it("长工具运行期间保温：模型 promptCache.short 12 s → 运行中一条 cache_warm{sent}", async () => {
+    home = createTmpHome();
+    home.write("home/.config/ama/config.json", {
+      version: 1,
+      permission: { allow: ["bash"] },
+      providers: {
+        fake: {
+          baseUrl: "fake://local",
+          api: "fake",
+          requiresApiKey: false,
+          models: [
+            {
+              id: "warm",
+              name: "Fake Warm",
+              contextWindow: 200_000,
+              maxTokens: 8192,
+              cost: { input: 1, output: 2, cacheRead: 0.1, cacheWrite: 1.25 },
+              promptCache: { short: 12 },
+            },
+          ],
+        },
+      },
+    });
+    const r = await runAma(
+      home,
+      ["-p", "run the slow check", "--model", "fake/warm", "--output-format", "stream-json"],
+      { env: { AMA_FAKE_SCRIPT: fixture("cache-warm.json") }, timeoutMs: 30_000 },
+    );
+    expect(r.code).toBe(0);
+    const lines = jsonLines(r.stdout);
+    const warm = lines.filter((l) => l["type"] === "cache_warm");
+    expect(warm.find((l) => l["phase"] === "scheduled")).toBeDefined();
+    const sent = warm.filter((l) => l["phase"] === "sent");
+    expect(sent.length).toBeGreaterThanOrEqual(1);
+    expect((sent[0]?.["usage"] as { cacheRead: number }).cacheRead).toBe(60_000);
+    // 保温发生在工具运行期间：位于 bash 的 tool_execution_end 之前。
+    const at = (pred: (l: Line) => boolean): number => lines.findIndex(pred);
+    expect(at((l) => l === sent[0])).toBeLessThan(
+      at((l) => l["type"] === "tool_execution_end" && l["toolName"] === "bash"),
+    );
+    expect(lines.some((l) => l["type"] === "cache_miss")).toBe(false);
+  }, 40_000);
 });
