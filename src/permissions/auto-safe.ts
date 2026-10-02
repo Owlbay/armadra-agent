@@ -433,7 +433,11 @@ function secretInWord(word: string, cwd: string): string | undefined {
   return undefined;
 }
 
+/** 输出设备（写它们不算写文件）；按原文判断，Windows 上 `/dev/null` 解析后带盘符。 */
+const DEVICE_TARGETS = /^(\/dev\/(null|stdout|stderr|tty)|NUL)$/i;
+
 function writeReason(target: string, cwd: string, projectRoot: string): string | undefined {
+  if (DEVICE_TARGETS.test(target)) return undefined;
   if (target.includes("$")) return `write target with variable expansion (${target})`;
   let abs: string;
   try {
