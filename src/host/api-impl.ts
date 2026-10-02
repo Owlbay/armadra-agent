@@ -28,6 +28,7 @@ import type {
 import { HOST_API_VERSION } from "./types.js";
 import type { ToolDefinition, ToolRegistryApi } from "../tools/types.js";
 import type { WarmingDecisionHandler } from "../ai/cache/types.js";
+import { msg } from "../i18n/index.js";
 
 export type HostNotify = (message: string, level: "info" | "warn" | "error") => void;
 
@@ -66,7 +67,7 @@ export class AgentEventBus {
       try {
         await handler(event);
       } catch (error) {
-        this.log("error", `宿主事件处理器异常（${name}）`, error);
+        this.log("error", msg().drivers.host.handlerFailed(name), error);
       }
     }
   }
@@ -131,16 +132,16 @@ export function hostRunnersOf(api: HostApi): HostRunnerRegistry | undefined {
 
 function validateTool(tool: ToolDefinition): void {
   if (typeof tool !== "object" || tool === null) {
-    throw new AmaError("invalid_arguments", "tools.register：工具定义应为对象");
+    throw new AmaError("invalid_arguments", msg().drivers.host.toolNotObject);
   }
   if (typeof tool.name !== "string" || !TOOL_NAME.test(tool.name)) {
-    throw new AmaError("invalid_arguments", `tools.register：工具名不合法：${String(tool.name)}`);
+    throw new AmaError("invalid_arguments", msg().drivers.host.toolBadName(String(tool.name)));
   }
   if (typeof tool.execute !== "function") {
-    throw new AmaError("invalid_arguments", `tools.register：${tool.name} 缺少 execute()`);
+    throw new AmaError("invalid_arguments", msg().drivers.host.toolNoExecute(tool.name));
   }
   if (!["read", "write", "execute"].includes(tool.permission)) {
-    throw new AmaError("invalid_arguments", `tools.register：${tool.name} 的 permission 不合法`);
+    throw new AmaError("invalid_arguments", msg().drivers.host.toolBadPermission(tool.name));
   }
 }
 
@@ -175,7 +176,7 @@ export function createHostApi(deps: HostApiDeps): HostApiBinding {
       register(tool: ToolDefinition): void {
         validateTool(tool);
         if (deps.tools.get(tool.name) !== undefined) {
-          throw new AmaError("tool_exists", `tools.register：工具 ${tool.name} 已存在`);
+          throw new AmaError("tool_exists", msg().drivers.host.toolExists(tool.name));
         }
         deps.tools.register(tool, "host");
         registeredTools.push(tool.name);
@@ -189,10 +190,10 @@ export function createHostApi(deps: HostApiDeps): HostApiBinding {
     instructions: Object.freeze({
       add(source: InstructionSource): void {
         if (source.kind === "file" && typeof source.path !== "string") {
-          throw new AmaError("invalid_arguments", "instructions.add：file 需要 path");
+          throw new AmaError("invalid_arguments", msg().drivers.host.instructionNeedsPath);
         }
         if (source.kind === "text" && typeof source.text !== "string") {
-          throw new AmaError("invalid_arguments", "instructions.add：text 需要 text");
+          throw new AmaError("invalid_arguments", msg().drivers.host.instructionNeedsText);
         }
         instructions.push({ ...source });
       },
@@ -203,7 +204,7 @@ export function createHostApi(deps: HostApiDeps): HostApiBinding {
     approvals: Object.freeze({
       setBroker(next: ApprovalBroker): void {
         if (typeof next?.ask !== "function") {
-          throw new AmaError("invalid_arguments", "approvals.setBroker：broker 需要 ask()");
+          throw new AmaError("invalid_arguments", msg().drivers.host.brokerNeedsAsk);
         }
         broker = next;
       },
@@ -230,7 +231,7 @@ export function createHostApi(deps: HostApiDeps): HostApiBinding {
     cache: Object.freeze({
       onWarmingDecision(handler: WarmingDecisionHandler): () => void {
         if (typeof handler !== "function") {
-          throw new AmaError("invalid_arguments", "cache.onWarmingDecision：需要函数");
+          throw new AmaError("invalid_arguments", msg().drivers.host.warmingNeedsFunction);
         }
         warmingHandlers.push(handler);
         return () => {

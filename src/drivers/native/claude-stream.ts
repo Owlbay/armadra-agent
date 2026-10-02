@@ -42,6 +42,7 @@ import {
   sessionScopedSuggestions,
   type ClaudeResult,
 } from "./claude-normalize.js";
+import { msg as messages } from "../../i18n/index.js";
 
 type Json = Record<string, unknown>;
 
@@ -179,7 +180,7 @@ class ClaudeStreamSession implements DriverSession {
       if (this.exited || signal.aborted) throw error;
       this.deps.log?.(
         "debug",
-        `${this.agentId}: initialize 未被接受（${(error as Error).message}）`,
+        messages().drivers.agent.initializeRejected(this.agentId, (error as Error).message),
       );
     }
   }
@@ -262,13 +263,13 @@ class ClaudeStreamSession implements DriverSession {
       turn.push({
         type: "notice",
         level: "info",
-        text: `${this.agentId} 有 ${denials} 次操作因无人审批被拒绝`,
+        text: messages().drivers.agent.denials(this.agentId, denials),
       });
     if (result.subtype === "error_max_budget_usd")
       turn.push({
         type: "notice",
         level: "warn",
-        text: `${this.agentId} 达到美元预算上限，已停止`,
+        text: messages().drivers.agent.budgetStop(this.agentId),
       });
     const stop = claudeStopReason(result, this.interrupted);
     if (stop === undefined) {
@@ -322,7 +323,7 @@ class ClaudeStreamSession implements DriverSession {
     try {
       msg = JSON.parse(line) as Json;
     } catch {
-      this.deps.log?.("debug", `${this.agentId}: 非 JSON 输出`);
+      this.deps.log?.("debug", messages().drivers.agent.nonJson(this.agentId));
       return;
     }
     switch (msg["type"]) {
@@ -440,7 +441,7 @@ class ClaudeStreamSession implements DriverSession {
       this.turn?.push({
         type: "notice",
         level: "warn",
-        text: `${this.agentId} 想向你提问（${name}）；ama 不代答，已请它把问题写进最终回复`,
+        text: messages().drivers.agent.askedQuestion(this.agentId, name),
       });
       this.respond(requestId, {
         behavior: "deny",

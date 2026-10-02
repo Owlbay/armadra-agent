@@ -38,6 +38,7 @@ import type {
   DriverTurnResult,
 } from "./types.js";
 import type { TraceExternalTool } from "../trace/types.js";
+import { msg } from "../i18n/index.js";
 
 export const RUN_TIMEOUT_MS = 30 * 60 * 1000;
 export const IDLE_CLOSE_MS = 10 * 60 * 1000;
@@ -129,7 +130,7 @@ export class ProcessRunner implements SubagentRunner {
   ) {
     this.drivers = Array.isArray(driver) ? driver : [driver as AgentDriver];
     if (this.drivers.length === 0)
-      throw new AmaError("invalid_arguments", "ProcessRunner 需要至少一个驱动");
+      throw new AmaError("invalid_arguments", "ProcessRunner needs at least one driver");
     this.id = deps.id ?? this.drivers[0]!.agentId;
   }
 
@@ -245,7 +246,7 @@ class ProcessHandle implements RunnerHandle {
       request.onEvent({
         type: "notice",
         level: "info",
-        text: `${this.agent} 以「${chosen.mode}」模式运行（请求的是「${request.mode}」，外部 Agent 不得比 ama 当前模式宽）`,
+        text: msg().drivers.agent.modeClamped(this.agent, chosen.mode, request.mode),
       });
   }
 
@@ -366,7 +367,7 @@ class ProcessHandle implements RunnerHandle {
             this.emit({
               type: "notice",
               level: "warn",
-              text: `${this.agent} 超出美元预算，已中断`,
+              text: msg().drivers.agent.overBudget(this.agent),
             });
             cancel();
           }
@@ -431,7 +432,11 @@ class ProcessHandle implements RunnerHandle {
       const cancel = (): void => void session.cancel();
       const clearTimeout = setTimer(() => {
         timedOut = true;
-        this.emit({ type: "notice", level: "warn", text: `${this.agent} 运行超时，已中断` });
+        this.emit({
+          type: "notice",
+          level: "warn",
+          text: msg().drivers.agent.timedOut(this.agent),
+        });
         cancel();
       }, this.deps.timeoutMs ?? RUN_TIMEOUT_MS);
       const onAbort = (): void => cancel();

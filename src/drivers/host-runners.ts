@@ -8,6 +8,7 @@
 
 import { AmaError } from "../errors.js";
 import type { HostRunner } from "../host/types.js";
+import { msg } from "../i18n/index.js";
 
 export class HostRunnerRegistry {
   private readonly runners = new Map<string, HostRunner>();
@@ -15,7 +16,7 @@ export class HostRunnerRegistry {
 
   provide(runner: HostRunner): () => void {
     if (typeof runner?.id !== "string" || runner.id === "" || typeof runner.start !== "function")
-      throw new AmaError("invalid_arguments", "runners.provide：需要带 id 与 start 的 runner");
+      throw new AmaError("invalid_arguments", msg().drivers.host.runnerNeedsIdStart);
     this.runners.set(runner.id, runner);
     this.changed();
     return () => {

@@ -26,6 +26,7 @@ import type {
   DriverTurnResult,
 } from "../types.js";
 import { claudeStopReason, type ClaudeResult } from "./claude-normalize.js";
+import { msg as messages } from "../../i18n/index.js";
 
 type Json = Record<string, unknown>;
 type Dialect = NonNullable<CatalogCandidate["oneshot"]>;
@@ -131,7 +132,7 @@ class OneshotSession implements DriverSession {
       turn.push({
         type: "notice",
         level: "warn",
-        text: `${this.agentId} 一次性模式不传图片，已省略`,
+        text: messages().drivers.agent.noImagesOneshot(this.agentId),
       });
     const resume = this.resumable && this.id !== "";
     const transport = spawnOf(this.deps)({

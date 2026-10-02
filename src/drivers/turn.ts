@@ -94,7 +94,7 @@ export class TurnCollector {
       lines.length > TOOL_SUMMARY_LINES
         ? [
             ...lines.slice(0, TOOL_SUMMARY_LINES - 1),
-            `… 另有 ${lines.length - TOOL_SUMMARY_LINES + 1} 次工具调用`,
+            `… ${lines.length - TOOL_SUMMARY_LINES + 1} more tool calls`,
           ]
         : lines;
     const result: DriverTurnResult = {

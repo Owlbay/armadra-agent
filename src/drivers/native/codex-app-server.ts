@@ -39,6 +39,7 @@ import {
   readTokens,
   type CodexTokens,
 } from "./codex-normalize.js";
+import { msg } from "../../i18n/index.js";
 
 type Json = Record<string, unknown>;
 
@@ -160,7 +161,7 @@ class CodexSession implements DriverSession {
         return;
       } catch (error) {
         if (signal.aborted || !(error instanceof RpcError)) throw error;
-        this.notices.push(`${this.agentId} 找不到会话 ${options.resume}，已新开`);
+        this.notices.push(msg().drivers.agent.resumeNotFound(this.agentId, options.resume));
       }
     }
     const started = await this.peer.request<{ thread?: { id?: string } }>(
@@ -181,7 +182,11 @@ class CodexSession implements DriverSession {
     const turn = new TurnCollector((e) => hooks.onEvent(e));
     for (const text of this.notices.splice(0)) turn.push({ type: "notice", level: "info", text });
     if (content.some((b) => b.type === "image"))
-      turn.push({ type: "notice", level: "warn", text: `${this.agentId} 驱动暂不传图片，已省略` });
+      turn.push({
+        type: "notice",
+        level: "warn",
+        text: msg().drivers.agent.noImagesDriver(this.agentId),
+      });
     this.turn = turn;
     this.hooks = hooks;
     this.messages.clear();
@@ -348,7 +353,11 @@ class CodexSession implements DriverSession {
         turn.push({
           type: "notice",
           level: "warn",
-          text: `${this.agentId}：${oneLine(String(error["message"] ?? "error"), 200)}${params["willRetry"] === true ? "（重试中）" : ""}`,
+          text: msg().drivers.agent.error(
+            this.agentId,
+            oneLine(String(error["message"] ?? "error"), 200),
+            params["willRetry"] === true,
+          ),
         });
         return;
       }
@@ -426,14 +435,14 @@ class CodexSession implements DriverSession {
         this.turn?.push({
           type: "notice",
           level: "warn",
-          text: `${this.agentId} 想向你提问；ama 不代答，请让它把问题写进最终回复`,
+          text: msg().drivers.agent.askedQuestionCodex(this.agentId),
         });
         throw new RpcError(-32601, "The coordinator cannot relay interactive questions");
       case "mcpServer/elicitation/request":
         this.turn?.push({
           type: "notice",
           level: "warn",
-          text: `${this.agentId} 的 MCP 服务器请求输入；ama 不代答，已取消`,
+          text: msg().drivers.agent.mcpElicitation(this.agentId),
         });
         return { action: "cancel", content: null, _meta: null };
       default:

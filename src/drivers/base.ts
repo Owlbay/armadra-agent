@@ -9,6 +9,7 @@ import type { ProgramProbe } from "./probe.js";
 import { versionSatisfies } from "./probe.js";
 import { spawnTransport, type AgentTransport, type SpawnTransport } from "./process.js";
 import type { DriverProbe } from "./types.js";
+import { msg } from "../i18n/index.js";
 
 /** 中断后等回合结束的宽限；过了关 stdin，再 SIGTERM 进程树（§5.2 cancel）。 */
 export const CANCEL_GRACE_MS = 15_000;
@@ -55,7 +56,11 @@ export async function probeCandidate(
     located.version !== undefined &&
     !versionSatisfies(located.version, candidate.verified)
   )
-    out.warning = `${candidate.program} ${located.version} 不在已验证区间 ${candidate.verified}，协议可能有变化`;
+    out.warning = msg().drivers.agent.unverifiedVersion(
+      candidate.program,
+      located.version,
+      candidate.verified,
+    );
   return out;
 }
 
@@ -72,7 +77,7 @@ export function armCancelWatchdog(
   let fired = false;
   const clear = setTimer(() => {
     fired = true;
-    deps.log?.("warn", "外部 Agent 中断后未在宽限内结束回合，关闭进程");
+    deps.log?.("warn", msg().drivers.agent.cancelGraceExpired);
     void transport.terminate();
   }, deps.cancelGraceMs ?? CANCEL_GRACE_MS);
   void turnDone.finally(() => {

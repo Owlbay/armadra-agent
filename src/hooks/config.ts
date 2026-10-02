@@ -15,6 +15,7 @@ import { HOOK_TIMEOUT_MAX_MS } from "../config/schema.js";
 import { checkMatcher } from "./matcher.js";
 import type { HookConfig, HookEvent, HookSource } from "./types.js";
 import { HOOK_EVENTS } from "./types.js";
+import { msg } from "../i18n/index.js";
 
 export const DEFAULT_HOOK_TIMEOUT_MS = 60_000;
 
@@ -81,7 +82,7 @@ function validateMatchers(file: string, config: HookConfig): void {
   if (problems.length > 0) {
     throw new StartupError(
       "config_invalid",
-      `配置文件无效：\n  ${problems.map((p) => `${file}: ${p}`).join("\n  ")}`,
+      msg().drivers.hooks.configInvalid(problems.map((p) => `${file}: ${p}`).join("\n  ")),
       3,
     );
   }
@@ -129,7 +130,7 @@ export function loadHookConfigs(input: LoadHookConfigsInput): LoadHookConfigsRes
   } else if (existsSync(projectPath)) {
     // 未信任时不解析内容（不让不可信文件的语法错误阻断启动），只看存在性。
     skippedProject = projectPath;
-    warnings.push(`${projectPath}: 项目未信任，跳过项目级 Hook（用 --trust 或在交互模式确认信任）`);
+    warnings.push(msg().drivers.hooks.projectUntrusted(projectPath));
   }
   const result: LoadHookConfigsResult = {
     hooks: flattenHookLayers(layers, input.defaultTimeoutMs ?? DEFAULT_HOOK_TIMEOUT_MS),
