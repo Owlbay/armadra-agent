@@ -1,6 +1,8 @@
 # 更新记录
 
-## 未发布
+## 0.3.0（2026-10-02）
+
+自定义供应商与多渠道、models.dev 模型元数据、图像输入、默认配置目录。
 
 - **一键接入**：`ama providers add <id> --base-url <url>` 只要 baseUrl 与 key——列出中转的模型、按提示或 `--probe` 逐渠道
   探测、写进配置；`list` / `channels` / `remove` / `refresh`。
