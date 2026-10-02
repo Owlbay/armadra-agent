@@ -52,6 +52,7 @@ import type { CliIo, InteractiveUi, ModeRunner, RuntimeDeps } from "./deps.js";
 import type { RuntimeMode } from "./runtime.js";
 import { defaultSendUser } from "./startup-steps.js";
 import type { StartupUiOptions } from "../modes/interactive/startup-ui.js";
+import { imageFitOptionsFor } from "../modes/image-input.js";
 import type { TextUiIo } from "../modes/startup-ui-text.js";
 
 export interface ToolFactoryContext {
@@ -140,7 +141,10 @@ export function createTools(
       : {};
   const builtins = builtinTools({
     bash,
-    read: { supportsImages: (ctx) => modelAcceptsImages(state, ctx.model) },
+    read: {
+      supportsImages: (ctx) => modelAcceptsImages(state, ctx.model),
+      imageOptions: (ctx) => imageFitOptionsFor(state.providers, ctx.model, input.config.images),
+    },
   });
   const ctx: ToolFactoryContext = {
     ...input,

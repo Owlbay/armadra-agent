@@ -2,6 +2,11 @@
 
 ## 未发布
 
+- **图像能力**（第五波 W5-I，docs/providers.md「图像输入」）：单图上限改按 base64 后计算并按端点分档（官方 Anthropic
+  10 MB、Gemini / OpenAI 20 MB、中转与未知 5 MB，原来按原始字节 5 MB），任一边超 8000 px 拒绝；超限时按
+  `images.resize`（缺省 `auto`）用 `sips` / ImageMagick 缩放。请求图片总量超预算（Anthropic 32 MB、其它 20 MB）时把
+  最旧的图换成占位文本，写成 `context_edit{reason:"image_budget"}`。新增剪贴板图片读取（`pasteClipboardImage`，
+  界面接线在后续批次），`ama sessions prune` 清理超过 7 天的剪贴板文件。
 - **检查点核心**（docs/rewind-plan.md，回滚的会话接线与界面在后续批次）：edit / write 第一次写文件前备份，
   每个新回合重拍已跟踪文件；备份按内容 sha256 存 `<数据目录>/file-history/blobs/`。恢复做冲突检测与安全检查
   （符号链接、硬链接、非普通文件、父目录移动；非 Windows 用 `O_NOFOLLOW`），可预览行级增删。

@@ -63,4 +63,20 @@ describe("doctor 显示 file-history 占用", () => {
     await runDoctor([], io, undefined);
     expect(out.join("")).toMatch(/file-history：0 个备份，0 B；影子仓库 1 个，21 B/);
   });
+
+  it("[W5-I] 同时清理超过 7 天的剪贴板图片", async () => {
+    const dir = join(root, "data", "clipboard");
+    mkdirSync(dir, { recursive: true });
+    const old = join(dir, "old.png");
+    writeFileSync(old, "x");
+    writeFileSync(join(dir, "new.png"), "x");
+    const eightDays = (Date.now() - 8 * 86_400_000) / 1000;
+    utimesSync(old, eightDays, eightDays);
+    expect(await runSessions(["prune", "--dry-run"], io, deps)).toBe(0);
+    expect(out.join("")).toContain("clipboard：将清除 1 个");
+    expect(existsSync(old)).toBe(true);
+    expect(await runSessions(["prune"], io, deps)).toBe(0);
+    expect(existsSync(old)).toBe(false);
+    expect(existsSync(join(dir, "new.png"))).toBe(true);
+  });
 });
