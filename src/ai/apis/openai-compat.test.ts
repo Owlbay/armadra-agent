@@ -71,6 +71,10 @@ const TRUTH: Row[] = [
   ],
   ["xai", "grok-4.7", { maxTokensField: "max_completion_tokens", supportsReasoningEffort: true }],
   ["mistral", "mistral-large-latest", { thinkingFormat: "none", requiresToolResultName: true }],
+  ["minimax", "MiniMax-M2.7", {}],
+  ["stepfun", "step-5-preview", {}],
+  ["volcengine", "doubao-seed-2-1-pro-260628", {}],
+  ["tencent", "hy3", {}],
   ["ollama", "llama3", {}],
   ["lmstudio", "qwen", {}],
 ];
@@ -101,8 +105,7 @@ describe("detectCompat 真值表", () => {
     expect(detectCompat(model(p, modelId), p)).toEqual({ ...CONSERVATIVE_COMPAT, ...diff });
   });
 
-  it("13 家内置都有归宿：11 家走推断表，anthropic / google 不走本协议", () => {
-    expect(BUILTIN_PROVIDERS).toHaveLength(13);
+  it("内置都有归宿：单渠道回落走 Chat 的都在推断表，anthropic / google 不走本协议", () => {
     const covered = new Set(TRUTH.map(([id]) => id));
     for (const p of BUILTIN_PROVIDERS) {
       if (p.api === "openai-completions") expect(covered.has(p.id), p.id).toBe(true);
@@ -155,6 +158,8 @@ describe("detectCompat 真值表", () => {
       supportsTemperatureWithThinking: false,
       adaptiveThinking: false,
       maxCacheBreakpoints: 4,
+      sendInterleavedThinkingBeta: true,
+      sendCacheControl: true,
     });
     expect(
       detectAnthropicCompat(model(p, "c", { compat: { adaptiveThinking: true } }), p)

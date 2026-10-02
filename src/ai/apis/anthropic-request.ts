@@ -1,14 +1,17 @@
 /**
  * anthropic-messages 请求体（设计 §3.1、§3.3、§3.6）：消息转换、三断点缓存、thinking、工具。
  *
- * 缓存断点（cacheRetention 缺省 short，未指定时读 `AMA_CACHE_RETENTION`；none 不打；long 加
+ * compat 按主机推断见 anthropic-compat.ts（[W5-M2]）。
+ *
+ * 缓存断点（`sendCacheControl` 关时不打；cacheRetention 缺省 short，未指定时读 `AMA_CACHE_RETENTION`；none 不打；long 加
  * `ttl: "1h"`，仅 `supportsLongCacheRetention`——官方端点缺省开，中转缺省关、降为 short；最后做 TTL
  * 顺序校验，5m 之后出现 1h 则全部降为 5m）按优先级取前
  * `maxCacheBreakpoints` 个：① 最后一条 user 消息（含工具结果）的最后一个块 ② system 末块
  * ③ 最后一个工具定义（`supportsCacheControlOnTools`）。
  *
  * thinking：`adaptiveThinking` 模型发 `{type:"adaptive"}` + `output_config.effort`；
- * 其余推理模型按预算发 `{type:"enabled", budget_tokens}`，预算计入 max_tokens；off 发
+ * 其余推理模型按预算发 `{type:"enabled", budget_tokens}`，预算计入 max_tokens（有工具时带交错思考 beta 头，
+ * `sendInterleavedThinkingBeta` 关时不带）；off 发
  * `{type:"disabled"}`（映射表 off 为 null 的模型不发）。思考开启时不发 temperature，
  * 除非 `supportsTemperatureWithThinking`。`toolChoice: "none"`（有工具时）→ `tool_choice:{type:"none"}`。
  */
@@ -20,14 +23,13 @@ import {
   mappedThinkingValue,
   thinkingBudget,
 } from "../thinking.js";
+import { detectAnthropicCompat } from "./anthropic-compat.js";
 import type {
   AnthropicMessagesCompat,
   AssistantMessage,
   ContentBlock,
   Model,
   ModelThinkingLevel,
-  ProviderCompat,
-  ProviderData,
   StreamOptions,
   ToolDecl,
   ToolResultMessage,
@@ -43,35 +45,7 @@ import {
 export const ANTHROPIC_VERSION = "2023-06-01";
 export const INTERLEAVED_THINKING_BETA = "interleaved-thinking-2025-05-14";
 
-const ANTHROPIC_COMPAT_KEYS = [
-  "supportsCacheControlOnTools",
-  "supportsTemperatureWithThinking",
-  "adaptiveThinking",
-  "maxCacheBreakpoints",
-] as const satisfies readonly (keyof AnthropicMessagesCompat)[];
-
-export const DEFAULT_ANTHROPIC_COMPAT: Readonly<AnthropicMessagesCompat> = {
-  supportsCacheControlOnTools: true,
-  supportsTemperatureWithThinking: false,
-  adaptiveThinking: false,
-  maxCacheBreakpoints: 4,
-};
-
-function pick(compat: ProviderCompat | undefined): Partial<AnthropicMessagesCompat> {
-  const out: Record<string, unknown> = {};
-  for (const key of ANTHROPIC_COMPAT_KEYS) {
-    const value = compat?.[key];
-    if (value !== undefined) out[key] = value;
-  }
-  return out as Partial<AnthropicMessagesCompat>;
-}
-
-export function detectAnthropicCompat(
-  model: Model,
-  provider?: ProviderData,
-): AnthropicMessagesCompat {
-  return { ...DEFAULT_ANTHROPIC_COMPAT, ...pick(provider?.compat), ...pick(model.compat) };
-}
+export { DEFAULT_ANTHROPIC_COMPAT, detectAnthropicCompat } from "./anthropic-compat.js";
 
 type Json = Record<string, unknown>;
 
@@ -275,7 +249,8 @@ function applyThinking(
   body["max_tokens"] = plan.maxTokens;
   if (plan.budget < 1024) return undefined; // 回答上限太小，放弃思考
   body["thinking"] = { type: "enabled", budget_tokens: plan.budget, display: "summarized" };
-  if (hasTools) betas.push(INTERLEAVED_THINKING_BETA);
+  if (hasTools && compat.sendInterleavedThinkingBeta !== false)
+    betas.push(INTERLEAVED_THINKING_BETA);
   return String(plan.budget);
 }
 
@@ -288,7 +263,8 @@ export function buildAnthropicRequest(
   const normalized = normalizeContext(context, { model });
   const cacheCompat = resolvePromptCacheCompat(model, "anthropic-messages");
   const retention = effectiveRetention(resolveCacheRetention(options.cacheRetention), cacheCompat);
-  const cacheControl = cacheControlFor(retention);
+  // sendCacheControl:false（端点忽略 cache_control，如 DeepSeek）：不打断点
+  const cacheControl = compat.sendCacheControl === false ? undefined : cacheControlFor(retention);
   const messages = convertMessages(normalized.messages);
   const level = clampThinkingLevel(model, options.thinkingLevel ?? "off");
   const betas: string[] = [];

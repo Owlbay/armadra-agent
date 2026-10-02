@@ -54,7 +54,10 @@ interface InferenceRule {
   patch: (modelId: string) => Patch;
 }
 
-/** 推断表：13 家内置里走 OpenAI 兼容线的 11 家（anthropic / google 不走本协议）。 */
+/**
+ * 推断表：内置里有 OpenAI 兼容线（Chat 渠道或单渠道回落）的各家（anthropic / google 不走本协议）。
+ * [W5-M2] 新增四家暂无已验证的差异，按保守缺省（空补丁）登记。
+ */
 export const INFERENCE_RULES: readonly InferenceRule[] = [
   {
     provider: "openai",
@@ -117,6 +120,10 @@ export const INFERENCE_RULES: readonly InferenceRule[] = [
     baseUrl: "mistral.ai",
     patch: () => ({ thinkingFormat: "none", requiresToolResultName: true }),
   },
+  { provider: "minimax", baseUrl: "minimax", patch: () => ({}) },
+  { provider: "stepfun", baseUrl: "stepfun", patch: () => ({}) },
+  { provider: "volcengine", baseUrl: "volces.com", patch: () => ({}) },
+  { provider: "tencent", baseUrl: "tencentmaas.com", patch: () => ({}) },
   { provider: "ollama", baseUrl: ":11434", patch: () => ({}) },
   { provider: "lmstudio", baseUrl: ":1234", patch: () => ({}) },
 ];

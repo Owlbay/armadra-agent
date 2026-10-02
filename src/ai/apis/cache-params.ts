@@ -2,8 +2,8 @@
  * 协议层缓存参数（第三波 §1.3）：缓存兼容开关的端点推断、保留层级解析、亲和头。
  *
  * 推断只看最终请求的主机名（不看 provider id：`OPENAI_BASE_URL` 把 openai 指到中转时按中转处理）：
- * - `sendPromptCacheKey`、`supportsLongCacheRetention`：只有官方端点（api.openai.com /
- *   api.anthropic.com）缺省开；
+ * - `sendPromptCacheKey`、`supportsLongCacheRetention`：按 `HOST_CACHE_CAPABILITIES`（[W5-M2]，官方
+ *   文档写明支持的主机才开；其余主机——含全部中转——缺省关）。`sendPromptCacheKey` 只对 OpenAI 两条线有意义；
  * - `sendSessionAffinityHeaders`、`supportsExplicitPromptCacheMode`：缺省一律关（实测中转都接受
  *   但未见命中提升，OpenRouter 未实测，见 docs/providers.md「缓存」）；
  * - `cacheReporting`：`auto`。
@@ -23,7 +23,28 @@ const DEFAULT_BASE_URLS: Readonly<Record<string, string>> = {
   "openai-responses": "https://api.openai.com/v1",
 };
 
-const OFFICIAL_HOSTS = new Set(["api.openai.com", "api.anthropic.com"]);
+/**
+ * 按主机的缓存能力（精确主机名；docs/research/R1-models-protocols.md §2.1 的官方文档为据）：
+ * - OpenAI：`prompt_cache_key` 路由 + `prompt_cache_retention: "24h"`；
+ * - Anthropic：`ttl: "1h"`；
+ * - xAI、Mistral、Kimi：官方推荐 `prompt_cache_key`（Kimi 的 `prompt_cache_options.ttl` 形状不同，不开）；
+ * - 腾讯 TokenHub：Anthropic 线 `cache_control` 支持 `ttl: "1h"`，OpenAI 线自动缓存 + `prompt_cache_key`。
+ * 通义 Messages 只有 5m（不开长保留）；Groq 的 Responses 不认 `prompt_cache_key`（不开）。
+ */
+export const HOST_CACHE_CAPABILITIES: Readonly<
+  Record<
+    string,
+    Partial<Pick<PromptCacheCompat, "sendPromptCacheKey" | "supportsLongCacheRetention">>
+  >
+> = {
+  "api.openai.com": { sendPromptCacheKey: true, supportsLongCacheRetention: true },
+  "api.anthropic.com": { supportsLongCacheRetention: true },
+  "api.x.ai": { sendPromptCacheKey: true },
+  "api.mistral.ai": { sendPromptCacheKey: true },
+  "api.moonshot.cn": { sendPromptCacheKey: true },
+  "api.moonshot.ai": { sendPromptCacheKey: true },
+  "tokenhub.tencentmaas.com": { sendPromptCacheKey: true, supportsLongCacheRetention: true },
+};
 
 const PROMPT_CACHE_KEYS = [
   "sendPromptCacheKey",
@@ -48,11 +69,14 @@ export function resolvePromptCacheCompat(
   model: Pick<Model, "baseUrl" | "compat">,
   api: Api,
 ): PromptCacheCompat {
-  const official = OFFICIAL_HOSTS.has(endpointHost(model, api));
+  const name = endpointHost(model, api);
+  const host = Object.hasOwn(HOST_CACHE_CAPABILITIES, name)
+    ? HOST_CACHE_CAPABILITIES[name]
+    : undefined;
   const out: PromptCacheCompat = {
-    sendPromptCacheKey: official && api !== "anthropic-messages",
+    sendPromptCacheKey: host?.sendPromptCacheKey === true && api !== "anthropic-messages",
     sendSessionAffinityHeaders: false,
-    supportsLongCacheRetention: official,
+    supportsLongCacheRetention: host?.supportsLongCacheRetention === true,
     supportsExplicitPromptCacheMode: false,
     cacheReporting: "auto",
   };

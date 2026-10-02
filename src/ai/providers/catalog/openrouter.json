@@ -120,11 +120,6 @@
       "id": "moonshotai/kimi-k3",
       "name": "MoonshotAI: Kimi K3",
       "maxTokens": 131072,
-      "cost": {
-        "input": 0.6635,
-        "output": 10,
-        "cacheRead": 0.6635
-      },
       "thinkingLevelMap": {
         "off": "none",
         "minimal": null,
@@ -142,11 +137,6 @@
       "id": "z-ai/glm-5.3",
       "name": "Z.ai: GLM 5.3",
       "maxTokens": 943718,
-      "cost": {
-        "input": 0.2219,
-        "output": 3.39,
-        "cacheRead": 0.1775
-      },
       "thinkingLevelMap": {
         "off": null,
         "minimal": null,
