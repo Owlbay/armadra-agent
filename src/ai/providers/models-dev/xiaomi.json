@@ -1,0 +1,161 @@
+{
+  "api": "https://api.xiaomimimo.com/v1",
+  "id": "xiaomi",
+  "models": {
+    "mimo-v2.5": {
+      "cost": {
+        "cache_read": 0.0028,
+        "input": 0.14,
+        "output": 0.28
+      },
+      "family": "mimo",
+      "interleaved": {
+        "field": "reasoning_content"
+      },
+      "knowledge": "2024-12",
+      "limit": {
+        "context": 1048576,
+        "output": 131072
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ]
+      },
+      "name": "MiMo-V2.5",
+      "reasoning": true,
+      "release_date": "2026-04-22"
+    },
+    "mimo-v2.5-pro": {
+      "cost": {
+        "cache_read": 0.0036,
+        "input": 0.435,
+        "output": 0.87
+      },
+      "family": "mimo",
+      "interleaved": {
+        "field": "reasoning_content"
+      },
+      "knowledge": "2024-12",
+      "limit": {
+        "context": 1048576,
+        "output": 131072
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "MiMo-V2.5-Pro",
+      "reasoning": true,
+      "release_date": "2026-04-22"
+    },
+    "mimo-v2.5-pro-ultraspeed": {
+      "cost": {
+        "cache_read": 0.0108,
+        "input": 1.305,
+        "output": 2.61
+      },
+      "family": "mimo",
+      "interleaved": {
+        "field": "reasoning_content"
+      },
+      "knowledge": "2024-12",
+      "limit": {
+        "context": 1048576,
+        "output": 131072
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "MiMo-V2.5-Pro-UltraSpeed",
+      "reasoning": true,
+      "release_date": "2026-06-08",
+      "status": "beta"
+    },
+    "mimo-v2.6-flash": {
+      "cost": {
+        "cache_read": 0.0028,
+        "input": 0.14,
+        "output": 0.28
+      },
+      "family": "mimo",
+      "interleaved": {
+        "field": "reasoning_content"
+      },
+      "limit": {
+        "context": 1048576,
+        "output": 131072
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ]
+      },
+      "name": "MiMo-V2.6-Flash",
+      "reasoning": true,
+      "release_date": "2026-09-22"
+    },
+    "mimo-v2.6-pro": {
+      "cost": {
+        "cache_read": 0.0036,
+        "input": 0.435,
+        "output": 0.87
+      },
+      "family": "mimo",
+      "interleaved": {
+        "field": "reasoning_content"
+      },
+      "limit": {
+        "context": 1048576,
+        "output": 131072
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ]
+      },
+      "name": "MiMo-V2.6-Pro",
+      "reasoning": true,
+      "release_date": "2026-09-22"
+    },
+    "mimo-v2.6-pro-ultraspeed": {
+      "cost": {
+        "cache_read": 0.036,
+        "input": 4.35,
+        "output": 8.7
+      },
+      "family": "mimo",
+      "interleaved": {
+        "field": "reasoning_content"
+      },
+      "limit": {
+        "context": 1048576,
+        "output": 131072
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ]
+      },
+      "name": "MiMo-V2.6-Pro-UltraSpeed",
+      "reasoning": true,
+      "release_date": "2026-09-21"
+    }
+  },
+  "name": "Xiaomi"
+}

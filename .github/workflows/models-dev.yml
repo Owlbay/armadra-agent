@@ -1,0 +1,120 @@
+name: models-dev
+
+# 每周刷新入库的 models.dev 快照（docs/wave5-plan.md §2.3、docs/providers.md「模型元数据」）。
+# 有改动才往固定分支 chore/models-dev-refresh 开 / 更新 PR；不推 main、不发布，合并由人做。
+# PR 用 secrets.MODELS_DEV_PR_TOKEN（GitHub App installation token 或 fine-grained PAT，需
+# contents: write + pull-requests: write）创建，才能触发 ci.yml；没有该 secret 时用缺省 token
+# 开 PR（不会触发 CI），所以先在本 workflow 里跑一遍 `pnpm run ci` 并把结果写进 PR 描述。
+
+on:
+  schedule:
+    - cron: "17 3 * * 1" # 每周一 03:17 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: models-dev
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    env:
+      HAS_PR_TOKEN: ${{ secrets.MODELS_DEV_PR_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # pnpm run ci 里的 release:check 与上一个 v* tag 比较，需要完整历史与 tag
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # 退出码 3 = 删除比例 > 30%（文件照写，PR 加 needs-review）；其它非 0 = 失败，不开 PR
+      - name: update snapshot
+        id: update
+        run: |
+          set +e
+          node scripts/update-models-dev.mjs > "$RUNNER_TEMP/summary.md"
+          code=$?
+          set -e
+          cat "$RUNNER_TEMP/summary.md"
+          if [ "$code" -eq 3 ]; then
+            echo "review=true" >> "$GITHUB_OUTPUT"
+          elif [ "$code" -ne 0 ]; then
+            exit "$code"
+          fi
+
+      # 快照变了，目录里与新快照相同的覆盖项变成冗余：自动删掉（目录条目若在快照里消失、
+      # 缺了必填字段，这一步不修，交给下面的 CI 报出来）
+      - name: prune catalog overrides
+        run: |
+          UPDATE_CATALOG=1 pnpm exec vitest run src/ai/providers/catalog.test.ts || true
+          pnpm exec prettier --write src/ai/providers/catalog src/ai/providers/catalog-data.ts
+
+      - name: detect changes
+        id: diff
+        run: |
+          if [ -n "$(git status --porcelain -- src/ai/providers)" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "没有变化，不开 PR"
+          fi
+
+      - name: pnpm run ci（没有 MODELS_DEV_PR_TOKEN 时）
+        id: ci
+        if: steps.diff.outputs.changed == 'true' && env.HAS_PR_TOKEN != 'true'
+        continue-on-error: true
+        run: pnpm run ci
+
+      - name: pr body
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          CI_OUTCOME: ${{ steps.ci.outcome }}
+          REVIEW: ${{ steps.update.outputs.review }}
+        run: |
+          body="$RUNNER_TEMP/body.md"
+          : > "$body"
+          if [ "$HAS_PR_TOKEN" != "true" ]; then
+            if [ "$CI_OUTCOME" = "success" ]; then
+              echo "> 本 PR 由缺省 token 创建，CI 未自动触发；已在 workflow 内跑过 \`pnpm run ci\`：**通过**。" >> "$body"
+            else
+              echo "> 本 PR 由缺省 token 创建，CI 未自动触发；已在 workflow 内跑过 \`pnpm run ci\`：**失败**（见 workflow 日志），需要人工修复。" >> "$body"
+            fi
+            echo "> 配置 secret \`MODELS_DEV_PR_TOKEN\` 后由它创建 PR，即可正常触发 CI。" >> "$body"
+            echo >> "$body"
+          fi
+          if [ "$REVIEW" = "true" ]; then
+            echo "> **删除的模型超过 30%**，请人工核对上游是否批量清理。" >> "$body"
+            echo >> "$body"
+          fi
+          cat "$RUNNER_TEMP/summary.md" >> "$body"
+          echo "" >> "$body"
+          echo "由 \`.github/workflows/models-dev.yml\` 生成（\`node scripts/update-models-dev.mjs\`，数据 MIT © models.dev）。目录里与新快照相同的覆盖项已自动删除。" >> "$body"
+          echo "BODY_PATH=$body" >> "$GITHUB_ENV"
+
+      - name: create / update PR
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.MODELS_DEV_PR_TOKEN || github.token }}
+          branch: chore/models-dev-refresh
+          base: main
+          delete-branch: true
+          add-paths: |
+            src/ai/providers/models-dev/**
+            src/ai/providers/models-dev-data.ts
+            src/ai/providers/catalog/**
+            src/ai/providers/catalog-data.ts
+          commit-message: "chore(providers): 刷新 models.dev 快照"
+          title: "chore(providers): 刷新 models.dev 快照"
+          body-path: ${{ env.BODY_PATH }}
+          labels: |
+            models-dev
+            ${{ steps.update.outputs.review == 'true' && 'needs-review' || '' }}

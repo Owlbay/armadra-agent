@@ -54,7 +54,7 @@ function seed(): void {
     },
   });
   writeModelsDevCache(home.dataDir, {
-    version: 1,
+    version: 2,
     url: "https://models.dev/api.json",
     fetchedAt: new Date().toISOString(),
     providers: trimModelsDev({
