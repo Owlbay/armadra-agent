@@ -27,7 +27,7 @@ import type {
 import { AmaError } from "../errors.js";
 import type { ContextItem, Projection } from "../session/projection.js";
 import type { AgentMessage, FileOpsDetails } from "../session/types.js";
-import { findCutPoint, summarizableStart, type CutPointResult } from "./cut-point.js";
+import { findCutPoint, isTurnStart, summarizableStart, type CutPointResult } from "./cut-point.js";
 import {
   collectFileOps,
   createFileOps,
@@ -179,9 +179,35 @@ export function prepareCompaction(
   projection: Projection,
   keepRecentTokens: number,
 ): CompactionPlan | undefined {
+  const start = summarizableStart(projection.items);
+  return planAt(projection, start, findCutPoint(projection.items, start, keepRecentTokens));
+}
+
+/**
+ * [RW-B] 以指定条目为切点（「摘要到这里」，rewind-plan §3.5）：该条目须是投影里摘要区之后的
+ * 回合起点（user / custom / branch_summary），否则 undefined。
+ */
+export function prepareCompactionAt(
+  projection: Projection,
+  firstKeptEntryId: string,
+): CompactionPlan | undefined {
+  const start = summarizableStart(projection.items);
+  const index = projection.items.findIndex((item) => item.entry.id === firstKeptEntryId);
+  const message = projection.items[index]?.message;
+  if (index <= start || message === undefined || !isTurnStart(message)) return undefined;
+  return planAt(projection, start, {
+    firstKeptIndex: index,
+    turnStartIndex: -1,
+    isSplitTurn: false,
+  });
+}
+
+function planAt(
+  projection: Projection,
+  start: number,
+  cut: CutPointResult,
+): CompactionPlan | undefined {
   const items: readonly ContextItem[] = projection.items;
-  const start = summarizableStart(items);
-  const cut = findCutPoint(items, start, keepRecentTokens);
   if (cut.firstKeptIndex <= start) return undefined;
   const keptItem = items[cut.firstKeptIndex];
   if (keptItem === undefined) return undefined;
