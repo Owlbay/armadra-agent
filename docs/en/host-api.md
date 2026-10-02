@@ -44,33 +44,33 @@ export function create(api) {
 - Timing: step 13 of the startup sequence, after config, resources, the model and the tool registry are ready and before the session is assembled. Tools and instructions registered in `create()` enter the system prompt and tool table of the first request, so the prefix is stable from the first request on.
 - Failures:
 
-| Case                                                           | Exit code |
-| -------------------------------------------------------------- | --------- |
-| File missing, loading throws, `hostApi` / `create` missing     | 6         |
-| `hostApi` differs from `HOST_API_VERSION`                      | 78        |
-| `create()` throws or does not return within 10 seconds         | 6         |
-| The returned adapter has no `id`                               | 6         |
+| Case                                                       | Exit code |
+| ---------------------------------------------------------- | --------- |
+| File missing, loading throws, `hostApi` / `create` missing | 6         |
+| `hostApi` differs from `HOST_API_VERSION`                  | 78        |
+| `create()` throws or does not return within 10 seconds     | 6         |
+| The returned adapter has no `id`                           | 6         |
 
 ## HostApi
 
-| Member                                          | Description                                                                                                                                                                                         |
-| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `version`                                       | `HOST_API_VERSION`                                                                                                                                                                                  |
-| `agent`                                         | `{ name: "ama", version }`                                                                                                                                                                          |
-| `env`                                           | A frozen copy of the environment variables at startup                                                                                                                                               |
-| `mode`                                          | `interactive` / `line` / `print` / `rpc`                                                                                                                                                            |
-| `session.id()` / `file()` / `cwd()` / `model()` | The current session (follows the new session after a switch); `file()` is `undefined` until the first request is written to disk                                                                  |
-| `tools.register(tool)`                          | Register a tool (shape below); the name must match `^[a-z][a-z0-9_]{1,63}$`, and an existing name throws `tool_exists`. A prefix is recommended (`canvas_*`)                                       |
-| `tools.disable(name)`                           | Hide a built-in tool (Armadra disables `task`, for example); the tools section of the system prompt stops listing it                                                                               |
-| `tools.list()`                                  | All current tool names                                                                                                                                                                              |
-| `instructions.add(source)`                      | Append to the final `host` section of the system prompt; `{ kind: "file", path }` or `{ kind: "text", text, name? }`                                                                               |
-| `events.on(name, handler)`                      | Observe events (table below); returns an unsubscribe function                                                                                                                                      |
-| `approvals.setBroker(broker)`                   | Set the approval answerer (see "Approvals")                                                                                                                                                         |
+| Member                                          | Description                                                                                                                                                                                          |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `version`                                       | `HOST_API_VERSION`                                                                                                                                                                                   |
+| `agent`                                         | `{ name: "ama", version }`                                                                                                                                                                           |
+| `env`                                           | A frozen copy of the environment variables at startup                                                                                                                                                |
+| `mode`                                          | `interactive` / `line` / `print` / `rpc`                                                                                                                                                             |
+| `session.id()` / `file()` / `cwd()` / `model()` | The current session (follows the new session after a switch); `file()` is `undefined` until the first request is written to disk                                                                     |
+| `tools.register(tool)`                          | Register a tool (shape below); the name must match `^[a-z][a-z0-9_]{1,63}$`, and an existing name throws `tool_exists`. A prefix is recommended (`canvas_*`)                                         |
+| `tools.disable(name)`                           | Hide a built-in tool (Armadra disables `task`, for example); the tools section of the system prompt stops listing it                                                                                 |
+| `tools.list()`                                  | All current tool names                                                                                                                                                                               |
+| `instructions.add(source)`                      | Append to the final `host` section of the system prompt; `{ kind: "file", path }` or `{ kind: "text", text, name? }`                                                                                 |
+| `events.on(name, handler)`                      | Observe events (table below); returns an unsubscribe function                                                                                                                                        |
+| `approvals.setBroker(broker)`                   | Set the approval answerer (see "Approvals")                                                                                                                                                          |
 | `messages.sendUser(text, origin?)`              | Inject a user message: when idle it starts a run (`"started"`), while running it is queued as a steer (`"queued"`); `origin` defaults to `"host"`, is persisted on the message and shown as `↳ host` |
 | `ui.notify(message, level?)`                    | Goes to the message area in interactive / line mode; becomes a `notification` event in rpc mode (with a copy on stderr); written to stderr in print mode                                             |
-| `ui.setStatus(key, text?)`                      | A host item in the status bar; an empty or missing `text` removes the key                                                                                                                          |
-| `log(level, message, detail?)`                  | Logging; `warn` / `error` go to stderr                                                                                                                                                              |
-| `cache?.onWarmingDecision(handler)`             | Veto hook for cache warming (see "Cache warming"); an optional facet missing in older runtimes, so check `api.cache !== undefined` before use                                                       |
+| `ui.setStatus(key, text?)`                      | A host item in the status bar; an empty or missing `text` removes the key                                                                                                                            |
+| `log(level, message, detail?)`                  | Logging; `warn` / `error` go to stderr                                                                                                                                                               |
+| `cache?.onWarmingDecision(handler)`             | Veto hook for cache warming (see "Cache warming"); an optional facet missing in older runtimes, so check `api.cache !== undefined` before use                                                        |
 
 During `create()` the session is not assembled yet: `session.*` returns the values fixed at startup, and `sendUser` is rejected with `busy`. To send a message at startup, wait for the `session_start` event.
 
@@ -108,23 +108,23 @@ Host tools take the same path as built-in tools: schema validation → command h
 
 `events.on` handlers only observe: a throw is just logged and does not affect the run; handlers are called and awaited in order, and `session_shutdown` is awaited (so you can clean up before exit).
 
-| Event                                                             | Payload                                                                        | Source                                                         |
-| ----------------------------------------------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------- |
-| `session_start`                                                   | `sessionId`, `sessionFile?`, `cwd`, `reason: startup \| resume \| new \| fork` | Startup and session switches                                   |
-| `before_agent_start`                                              | `prompt`                                                                       | After the user prompt is expanded, before the run starts       |
-| `agent_start` / `turn_start` / `turn_end` / `agent_before_settle` | `{}`                                                                           | Runs and turns                                                 |
-| `agent_end`                                                       | `stopReason`, `willRetry`                                                      |                                                                |
-| `agent_settled`                                                   | `warning?`                                                                     | The run has fully ended                                        |
-| `tool_call`                                                       | `toolCallId`, `toolName`, `input`                                              | A tool starts executing (permission already granted)           |
-| `tool_result`                                                     | `toolCallId`, `toolName`, `isError`                                            | A tool finished executing                                      |
-| `tool_approval_requested`                                         | `requestId`, `toolName`                                                        | Approval needed                                                |
-| `tool_approval_resolved`                                          | `requestId`, `decision`                                                        | Approval decided                                               |
-| `session_compact`                                                 | `tokensBefore`                                                                 | Compaction succeeded                                           |
-| `model_select`                                                    | `model: { provider, id }`                                                      | Model switched                                                 |
-| `hook_executed`                                                   | `event`, `command`, `exitCode`, `durationMs`                                   | Each command hook finished                                     |
-| `cache_miss`                                                      | `missedTokens`, `missedCost?`, `reason`, `detail?`, `idleMs`                   | A cache miss (including those below the interface threshold)   |
-| `context_pressure`                                                | `percent`, `threshold: 70 \| 90`, `remainingTokens?`, `estimatedTurnsLeft?`    | Context usage crossed 70% / 90%                                |
-| `session_shutdown`                                                | `{}`                                                                           | Before exit (followed by the SessionEnd hook and `dispose`)    |
+| Event                                                             | Payload                                                                        | Source                                                       |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| `session_start`                                                   | `sessionId`, `sessionFile?`, `cwd`, `reason: startup \| resume \| new \| fork` | Startup and session switches                                 |
+| `before_agent_start`                                              | `prompt`                                                                       | After the user prompt is expanded, before the run starts     |
+| `agent_start` / `turn_start` / `turn_end` / `agent_before_settle` | `{}`                                                                           | Runs and turns                                               |
+| `agent_end`                                                       | `stopReason`, `willRetry`                                                      |                                                              |
+| `agent_settled`                                                   | `warning?`                                                                     | The run has fully ended                                      |
+| `tool_call`                                                       | `toolCallId`, `toolName`, `input`                                              | A tool starts executing (permission already granted)         |
+| `tool_result`                                                     | `toolCallId`, `toolName`, `isError`                                            | A tool finished executing                                    |
+| `tool_approval_requested`                                         | `requestId`, `toolName`                                                        | Approval needed                                              |
+| `tool_approval_resolved`                                          | `requestId`, `decision`                                                        | Approval decided                                             |
+| `session_compact`                                                 | `tokensBefore`                                                                 | Compaction succeeded                                         |
+| `model_select`                                                    | `model: { provider, id }`                                                      | Model switched                                               |
+| `hook_executed`                                                   | `event`, `command`, `exitCode`, `durationMs`                                   | Each command hook finished                                   |
+| `cache_miss`                                                      | `missedTokens`, `missedCost?`, `reason`, `detail?`, `idleMs`                   | A cache miss (including those below the interface threshold) |
+| `context_pressure`                                                | `percent`, `threshold: 70 \| 90`, `remainingTokens?`, `estimatedTurnsLeft?`    | Context usage crossed 70% / 90%                              |
+| `session_shutdown`                                                | `{}`                                                                           | Before exit (followed by the SessionEnd hook and `dispose`)  |
 
 For token-level streaming content or the full event stream, use RPC or the SDK's `subscribe`; host events are a trimmed set.
 

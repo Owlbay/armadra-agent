@@ -72,15 +72,15 @@ Accept edits     claude-opus-5-5 medium | Ctx 3.0% | proj ⎇ main 5ae9e54 (+12,
 
 Status bar items:
 
-| Item                   | Meaning                                                                                                                                          |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `cache 83%`            | Hit rate of the **latest** request (cache read / (input + cache read + cache write)); the session total is in `/session`                         |
-| `cache —`              | The endpoint has not reported cache usage yet (`unknown`: no long enough comparable request so far)                                              |
+| Item                   | Meaning                                                                                                                                                                                                   |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cache 83%`            | Hit rate of the **latest** request (cache read / (input + cache read + cache write)); the session total is in `/session`                                                                                  |
+| `cache —`              | The endpoint has not reported cache usage yet (`unknown`: no long enough comparable request so far)                                                                                                       |
 | `cache` "not reported" | The endpoint does not report cache usage (`silent`: reads and writes were 0 for 3 comparable requests in a row, or `compat.cacheReporting: "silent"`); such requests stay out of the hit-rate denominator |
-| `♨`                    | Warming timer running (during long tool runs the prefix is replayed per TTL; `/cache warm` switches it)                                         |
-| `rebill $0.11`         | Re-billing caused by cache misses in this session; token count for models without prices; hidden when 0                                         |
-| `ctx 72%`              | Context usage: green below 70%, yellow at ≥ 70%, red at ≥ 90%; `ctx ?` means the model has no window information                               |
-| `codemode only`        | codemode active (`on` / `only`); a red `net!` is appended when the network is not isolated (Node 22 / 24 without an OS sandbox, see sandbox.md) |
+| `♨`                    | Warming timer running (during long tool runs the prefix is replayed per TTL; `/cache warm` switches it)                                                                                                   |
+| `rebill $0.11`         | Re-billing caused by cache misses in this session; token count for models without prices; hidden when 0                                                                                                   |
+| `ctx 72%`              | Context usage: green below 70%, yellow at ≥ 70%, red at ≥ 90%; `ctx ?` means the model has no window information                                                                                          |
+| `codemode only`        | codemode active (`on` / `only`); a red `net!` is appended when the network is not isolated (Node 22 / 24 without an OS sandbox, see sandbox.md)                                                           |
 
 The message area (stderr with an `ama: ` prefix in line mode) shows one line in only two cases; `cache.missNotices: false` turns them off:
 
@@ -117,24 +117,24 @@ Trade-offs: the status bar shows the latest hit rate (the session total lives in
 
 ## Keys
 
-| Key                  | Effect                                                                                                                                                                      |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Enter                | Send; while running = steer (inserted into the current turn)                                                                                                                |
-| Alt+Enter            | While running, queue after this turn (followUp); when idle, same as Enter                                                                                                   |
-| Shift+Enter / Ctrl+J | New line                                                                                                                                                                    |
-| Esc                  | Interrupt: queued messages go back into the input box, then the current run stops; closes completion first when it is open                                                 |
-| Esc Esc (idle)       | Empty input: open the rewind list (same as `/rewind`); with text: clear it and save it into input history                                                                   |
-| Alt+↑                | Recall the last queued message                                                                                                                                              |
-| Shift+Tab / Tab      | Cycle permission modes Manual → Accept edits → Plan → Auto → Bypass permissions (Tab only on an empty input with completion closed, otherwise still completion; entering Bypass asks to confirm, see "Entering Bypass" below) |
-| Ctrl+O               | Expand / fold tool output and thinking blocks                                                                                                                               |
-| Ctrl+L / Ctrl+T      | Pick model / thinking level                                                                                                                                                 |
-| Ctrl+G               | Bottom info line two lines (full) ↔ one line (compact), this session only                                                                                                   |
-| Ctrl+V               | Paste an image from the clipboard: saved in the data directory, `@<path>` inserted at the cursor (same as `/paste`)                                                         |
-| Ctrl+C               | Clear the input; on an empty input, press again within 1.5 seconds to quit (exit code 130)                                                                                 |
-| Ctrl+D               | Quit on an empty input                                                                                                                                                      |
-| Tab                  | Complete                                                                                                                                                                    |
-| ↑ / ↓                | Browse history on a single line (`<data dir>/history`, 500 entries)                                                                                                         |
-| Ctrl+B / ↓ (empty input) | Enter the agent bar (when there are sub-agent tasks; with text Ctrl+B still moves the cursor left, use ↓ in tmux), see "Sub-agents" (from wave 6 W6-A)                |
+| Key                      | Effect                                                                                                                                                                                                                        |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Enter                    | Send; while running = steer (inserted into the current turn)                                                                                                                                                                  |
+| Alt+Enter                | While running, queue after this turn (followUp); when idle, same as Enter                                                                                                                                                     |
+| Shift+Enter / Ctrl+J     | New line                                                                                                                                                                                                                      |
+| Esc                      | Interrupt: queued messages go back into the input box, then the current run stops; closes completion first when it is open                                                                                                    |
+| Esc Esc (idle)           | Empty input: open the rewind list (same as `/rewind`); with text: clear it and save it into input history                                                                                                                     |
+| Alt+↑                    | Recall the last queued message                                                                                                                                                                                                |
+| Shift+Tab / Tab          | Cycle permission modes Manual → Accept edits → Plan → Auto → Bypass permissions (Tab only on an empty input with completion closed, otherwise still completion; entering Bypass asks to confirm, see "Entering Bypass" below) |
+| Ctrl+O                   | Expand / fold tool output and thinking blocks                                                                                                                                                                                 |
+| Ctrl+L / Ctrl+T          | Pick model / thinking level                                                                                                                                                                                                   |
+| Ctrl+G                   | Bottom info line two lines (full) ↔ one line (compact), this session only                                                                                                                                                     |
+| Ctrl+V                   | Paste an image from the clipboard: saved in the data directory, `@<path>` inserted at the cursor (same as `/paste`)                                                                                                           |
+| Ctrl+C                   | Clear the input; on an empty input, press again within 1.5 seconds to quit (exit code 130)                                                                                                                                    |
+| Ctrl+D                   | Quit on an empty input                                                                                                                                                                                                        |
+| Tab                      | Complete                                                                                                                                                                                                                      |
+| ↑ / ↓                    | Browse history on a single line (`<data dir>/history`, 500 entries)                                                                                                                                                           |
+| Ctrl+B / ↓ (empty input) | Enter the agent bar (when there are sub-agent tasks; with text Ctrl+B still moves the cursor left, use ↓ in tmux), see "Sub-agents" (from wave 6 W6-A)                                                                        |
 
 Keys can be overridden in `~/.config/ama/keybindings.json`: keys are action ids (`app.interrupt`, `app.rewind`, `app.message.followUp`, `app.statusLine.toggle`, `app.paste.image`, `tui.editor.newLine` …), values are a key or an array of keys, and an empty array disables the action. `app.rewind` is the key double-pressed while idle (Esc by default, at most 800 ms apart).
 
@@ -223,16 +223,16 @@ Before switching to Bypass permissions (`full-auto`), a confirmation box pops up
 
 Every place that asks for a choice supports ↑↓ to move + Enter to confirm, keeping the existing shortcuts:
 
-| Where                                                      | Keys                                                              |
-| ---------------------------------------------------------- | ----------------------------------------------------------------- |
-| Approval dialog (including the external agent first-run confirmation) | ↑↓ Enter · 1–3 · y / a / n · Esc deny · v full input   |
-| Plan approval box (main options, execution mode)           | ↑↓ Enter · 1–4 / 1–3 · e edit plan · Esc stay in Plan / back      |
-| Rewind confirmation panel, second confirmation for overwriting conflicts | ↑↓ Enter · numbers run directly · Esc cancel / back |
-| Entering Bypass confirmation                               | ↑↓ Enter · 1–2 · y / n · Esc cancel                               |
-| Permission mode and thinking level pickers                 | ↑↓ Enter · numbers pick directly · Esc cancel                     |
-| Model, session, tree and task pickers                      | ↑↓ Enter · type to filter · Esc cancel (filterable lists have no number keys) |
-| Trusting the directory at startup                          | ↑↓ Enter · 1–4 pick directly · Esc / Ctrl+C = do not trust this time |
-| CLI subcommand billing / write confirmations (TTY)         | ↑↓ Enter · 1–2 · y / n · Esc / Ctrl+C cancel (cancel by default)  |
+| Where                                                                    | Keys                                                                          |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| Approval dialog (including the external agent first-run confirmation)    | ↑↓ Enter · 1–3 · y / a / n · Esc deny · v full input                          |
+| Plan approval box (main options, execution mode)                         | ↑↓ Enter · 1–4 / 1–3 · e edit plan · Esc stay in Plan / back                  |
+| Rewind confirmation panel, second confirmation for overwriting conflicts | ↑↓ Enter · numbers run directly · Esc cancel / back                           |
+| Entering Bypass confirmation                                             | ↑↓ Enter · 1–2 · y / n · Esc cancel                                           |
+| Permission mode and thinking level pickers                               | ↑↓ Enter · numbers pick directly · Esc cancel                                 |
+| Model, session, tree and task pickers                                    | ↑↓ Enter · type to filter · Esc cancel (filterable lists have no number keys) |
+| Trusting the directory at startup                                        | ↑↓ Enter · 1–4 pick directly · Esc / Ctrl+C = do not trust this time          |
+| CLI subcommand billing / write confirmations (TTY)                       | ↑↓ Enter · 1–2 · y / n · Esc / Ctrl+C cancel (cancel by default)              |
 
 CLI subcommands (write confirmations of `ama providers add` / `refresh` and the `--probe` billing confirmation, `ama models cache-probe`) use the same arrow-key selection on a TTY, collapsing to a single answered line and restoring the terminal afterwards; when stdin is not a TTY (pipes, CI) it is still a text `[y/N]` question (these commands require `--yes` when non-interactive anyway), and `--yes` skips the confirmation.
 
@@ -319,11 +319,11 @@ Sub-agents started by the `task` tool ([agents.md](../agents.md), Chinese) fold 
 
 Origin labels on approval boxes:
 
-| Origin                                                    | Title prefix                                         | Body                                                                          |
-| --------------------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Tool calls of a task sub-agent                            | `[task:explore]` (`[task]` when the type is unknown) | Same as the main session                                                      |
-| Permission requests from external agents (claude / codex / ACP) | `[claude · session abc12345]`                  | The title, kind, paths involved and input summary given by the external agent |
-| First run of an external agent in this session            | Title "first run of an external agent"               | An explanation (runs with your login in that CLI) and the mode                |
+| Origin                                                          | Title prefix                                         | Body                                                                          |
+| --------------------------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Tool calls of a task sub-agent                                  | `[task:explore]` (`[task]` when the type is unknown) | Same as the main session                                                      |
+| Permission requests from external agents (claude / codex / ACP) | `[claude · session abc12345]`                        | The title, kind, paths involved and input summary given by the external agent |
+| First run of an external agent in this session                  | Title "first run of an external agent"               | An explanation (runs with your login in that CLI) and the mode                |
 
 All three offer only "allow / allow this kind for the session / deny" (for external agents, "allow for the session" is remembered by the agent itself). In Manual mode `task(agent="claude")` would ask twice (once for the task call, once for the first run): the approval box of the task call already says it runs with your login in the claude CLI (including the first-run confirmation for this session), so after allowing it the immediately following first-run confirmation passes automatically, with one line in the message area saying task was allowed along with the previous confirmation; if another approval comes in between, it is denied, more than 60 seconds pass, or the task was not created by this call, the first-run confirmation pops up as usual.
 
@@ -354,15 +354,15 @@ All three offer only "allow / allow this kind for the session / deny" (for exter
 
 The `ui` section of `config.json` (settable at project level too):
 
-| Key               | Default       | Effect                                                                                                         |
-| ----------------- | ------------- | -------------------------------------------------------------------------------------------------------------- |
+| Key               | Default       | Effect                                                                                                                                            |
+| ----------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ui.theme`        | `dark`        | `dark` / `light` / `auto`; auto only looks at `COLORFGBG` (no terminal query) and uses dark when unsure; configuring it explicitly is recommended |
-| `ui.ascii`        | auto-detected | ASCII glyphs (`›` → `>`, `⏺` → `*`, `⎿` → `L`, box lines → `+ - \|`, a 4-frame spinner)                        |
-| `ui.compact`      | `false`       | No blank lines between message blocks, no box around the startup header                                        |
-| `ui.animation`    | `true`        | `false`: the spinner stays still as `·` while running and redraws only when seconds change                     |
-| `ui.markdown`     | `true`        | `false`: assistant text is not rendered as Markdown                                                            |
-| `ui.showThinking` | `collapsed`   | See "Layout"                                                                                                   |
-| `ui.quietStartup` | `normal`      | See "Startup screen"                                                                                           |
+| `ui.ascii`        | auto-detected | ASCII glyphs (`›` → `>`, `⏺` → `*`, `⎿` → `L`, box lines → `+ - \|`, a 4-frame spinner)                                                           |
+| `ui.compact`      | `false`       | No blank lines between message blocks, no box around the startup header                                                                           |
+| `ui.animation`    | `true`        | `false`: the spinner stays still as `·` while running and redraws only when seconds change                                                        |
+| `ui.markdown`     | `true`        | `false`: assistant text is not rendered as Markdown                                                                                               |
+| `ui.showThinking` | `collapsed`   | See "Layout"                                                                                                                                      |
+| `ui.quietStartup` | `normal`      | See "Startup screen"                                                                                                                              |
 
 - **ASCII mode**: `AMA_ASCII=1` (or `ui.ascii: true`) forces it on, `AMA_ASCII=0` forces it off; auto-detection turns it on when the locale (`LC_ALL` > `LC_CTYPE` > `LANG`) is set but lacks UTF-8, with `TERM=linux`, or on Windows without `WT_SESSION` or `TERM_PROGRAM` (legacy conhost). Windows Terminal uses Unicode.
 - **Misaligned characters**: `⏺` (U+23FA), `⎿` and `▎` render two cells wide in some fonts (emoji fallback fonts in particular), while width is computed per wcwidth (one cell), causing misaligned columns or ghosting; switch to a monospace font or set `AMA_ASCII=1`.
@@ -392,22 +392,22 @@ tui.setFocus(editor);
 tui.start();
 ```
 
-| Export                                                                    | Purpose                                                                                                                                                         |
-| ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Export                                                                    | Purpose                                                                                                                                                                                  |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Component`, `Focusable`, `CURSOR_MARKER`                                 | The component contract: `render(width)` returns lines (each with visible width ≤ width), `handleInput?(data)`, `invalidate()`; the focused component emits `CURSOR_MARKER` at the cursor |
-| `TUI`                                                                     | Root container and differential rendering (main screen, synchronized output): `addChild`, `start` / `stop`, `requestRender`, `setFocus`, `addInputListener`, `showOverlay` |
-| `ProcessTerminal`, `MemoryTerminal`, `VirtualScreen`                      | A real terminal (raw mode, bracketed paste); an in-memory terminal and a VT screen (tests, frame goldens)                                                       |
-| `Container`, `Text`, `TruncatedText`, `Markdown`, `Box`, `Card`, `Spacer` | Basic components; `Card` is a left-bar card, `Box` accepts `borderColor`                                                                                        |
-| `Loader`                                                                  | Running indicator: `setVerb(verb, extras, { elapsed })`, `frame` / `onFrame` (changes glyph in the same frame as other components), `animation: false`         |
-| `Editor`, `EditorBuffer`, `PasteStore`                                    | Multi-line editor (history, the `AutocompleteProvider` completion interface, paste folding)                                                                     |
-| `SelectList`                                                              | Filterable selection list: groups, badges, number keys, `stacked`, `currentValue` (✓), `footer` key hints                                                       |
-| `KeyValue`, `Meter`                                                       | Two-column aligned key-value table (`wrap` wraps aligned to the value column); a meter (`levelColor` threshold coloring)                                        |
-| `compositeOverlays`, `OverlayOptions`                                     | Overlay compositing (centered / bottom-anchored)                                                                                                                |
-| `createTheme`, `plainTheme`, `detectCapabilities`, `Theme`                | Themes and color capability detection (`NO_COLOR`, 16 / 256 / truecolor); 14 semantic colors, `resolveThemeName("auto")`                                        |
-| `Theme.glyphs`, `UNICODE_GLYPHS`, `ASCII_GLYPHS`, `detectAscii`           | Glyph tables (`›` `⏺` `⎿` `✻` `▎`, box lines, spinner frames …) with ASCII fallback; `createTheme(name, { ascii })`                                            |
-| `Keybindings`, `DEFAULT_KEYBINDINGS`, `loadKeybindingsFile`               | Action id → keys, overridden by `keybindings.json`                                                                                                              |
-| `parseKey`, `matchesKey`, `StdinBuffer`                                   | Key sequence parsing and Esc timeout splitting (`AMA_TUI_ESC_TIMEOUT`)                                                                                          |
-| `visibleWidth`, `truncateToWidth`, `wrapTextWithAnsi`, `sliceByColumn` …  | Width computation and truncation aware of ANSI and wide characters                                                                                              |
+| `TUI`                                                                     | Root container and differential rendering (main screen, synchronized output): `addChild`, `start` / `stop`, `requestRender`, `setFocus`, `addInputListener`, `showOverlay`               |
+| `ProcessTerminal`, `MemoryTerminal`, `VirtualScreen`                      | A real terminal (raw mode, bracketed paste); an in-memory terminal and a VT screen (tests, frame goldens)                                                                                |
+| `Container`, `Text`, `TruncatedText`, `Markdown`, `Box`, `Card`, `Spacer` | Basic components; `Card` is a left-bar card, `Box` accepts `borderColor`                                                                                                                 |
+| `Loader`                                                                  | Running indicator: `setVerb(verb, extras, { elapsed })`, `frame` / `onFrame` (changes glyph in the same frame as other components), `animation: false`                                   |
+| `Editor`, `EditorBuffer`, `PasteStore`                                    | Multi-line editor (history, the `AutocompleteProvider` completion interface, paste folding)                                                                                              |
+| `SelectList`                                                              | Filterable selection list: groups, badges, number keys, `stacked`, `currentValue` (✓), `footer` key hints                                                                                |
+| `KeyValue`, `Meter`                                                       | Two-column aligned key-value table (`wrap` wraps aligned to the value column); a meter (`levelColor` threshold coloring)                                                                 |
+| `compositeOverlays`, `OverlayOptions`                                     | Overlay compositing (centered / bottom-anchored)                                                                                                                                         |
+| `createTheme`, `plainTheme`, `detectCapabilities`, `Theme`                | Themes and color capability detection (`NO_COLOR`, 16 / 256 / truecolor); 14 semantic colors, `resolveThemeName("auto")`                                                                 |
+| `Theme.glyphs`, `UNICODE_GLYPHS`, `ASCII_GLYPHS`, `detectAscii`           | Glyph tables (`›` `⏺` `⎿` `✻` `▎`, box lines, spinner frames …) with ASCII fallback; `createTheme(name, { ascii })`                                                                      |
+| `Keybindings`, `DEFAULT_KEYBINDINGS`, `loadKeybindingsFile`               | Action id → keys, overridden by `keybindings.json`                                                                                                                                       |
+| `parseKey`, `matchesKey`, `StdinBuffer`                                   | Key sequence parsing and Esc timeout splitting (`AMA_TUI_ESC_TIMEOUT`)                                                                                                                   |
+| `visibleWidth`, `truncateToWidth`, `wrapTextWithAnsi`, `sliceByColumn` …  | Width computation and truncation aware of ANSI and wide characters                                                                                                                       |
 
 ## Testing
 
