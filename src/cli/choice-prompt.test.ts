@@ -41,7 +41,7 @@ const OPTIONS = [
 
 const plain = (s: string): string => s.replace(/\x1b\[[0-9;]*m/g, "");
 
-function run(keys: string[], env: NodeJS.ProcessEnv = { NO_COLOR: "1" }) {
+function run(keys: string[], env: NodeJS.ProcessEnv = { NO_COLOR: "1", AMA_ASCII: "0" }) {
   const tty = new FakeTty();
   let out = "";
   const answer = promptChoice({
