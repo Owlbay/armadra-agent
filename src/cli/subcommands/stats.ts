@@ -106,7 +106,9 @@ export function renderStats(report: StatsReport, scope: string): string {
     .join(" · ");
   const costLine =
     t.cost === undefined
-      ? m.costUnpriced
+      ? t.unpriced > 0
+        ? m.costUnpriced
+        : "—"
       : t.unpriced > 0
         ? m.costPartial(usd(t), t.unpriced)
         : usd(t);
@@ -127,6 +129,9 @@ export function renderStats(report: StatsReport, scope: string): string {
       m.hitRateValue(percent(t.hitRate), report.endpoints.reported, report.endpoints.total),
     ],
     [m.rows.cost, costLine],
+    ...(t.subscription !== undefined
+      ? [[m.rows.subscription, m.subscriptionValue(t.subscription)]]
+      : []),
     [m.rows.errors, `${t.errors} / ${t.retries}`],
   ];
   lines.push(table(rows, () => false));

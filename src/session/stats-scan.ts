@@ -5,7 +5,8 @@
  * - 请求来源：assistant 消息 = `turn`；`usage` 条目用自己的 `kind`（cache_warm、permission_classify…）；
  *   `compaction` / `branch_summary` 带的 usage 记为同名 kind（模型取最近一条 assistant 的）。
  * - token：input（不含缓存）/ output / cacheRead / cacheWrite；费用只累加有 `usage.cost` 的请求，
- *   `costed` 记有价请求数，展示层据此区分「有价」「部分无价」「全无价」。
+ *   `costed` 记有价请求数，展示层据此区分「有价」「部分无价」「全无价」。订阅计费
+ *   （`usage.billing: "subscription"`，ChatGPT 登录）单列 `subscription`，不进费用也不算无价。
  * - 缓存三态：桶记下是否出现过 cacheRead > 0 或 cacheWrite > 0（`cacheSeen`）；汇总时同一端点
  *   （provider/model@channel）任一桶出现过即算报告缓存，其余端点不进命中率分母（同会话层三态）。
  * - 回合：非 `steer` 的用户消息开始一个回合，到下一个回合开始为止；回合计入首条 assistant 的桶，
@@ -35,6 +36,8 @@ export interface StatsBucket {
   cost: number;
   /** 有价请求数。 */
   costed: number;
+  /** [W6-I5] 订阅计费的请求数（不折算美元）。 */
+  subscription: number;
   /** 出现过 cacheRead > 0 或 cacheWrite > 0。 */
   cacheSeen: boolean;
   errors: number;
@@ -118,6 +121,7 @@ export function summarizeSessionFile(file: string): FileStatsSummary | undefined
         cacheWrite: 0,
         cost: 0,
         costed: 0,
+        subscription: 0,
         cacheSeen: false,
         errors: 0,
         retries: 0,
@@ -140,7 +144,8 @@ export function summarizeSessionFile(file: string): FileStatsSummary | undefined
     bucket.cacheRead += num(u.cacheRead);
     bucket.cacheWrite += num(u.cacheWrite);
     if (num(u.cacheRead) > 0 || num(u.cacheWrite) > 0) bucket.cacheSeen = true;
-    if (isRec(u.cost) && typeof u.cost["total"] === "number") {
+    if (u.billing === "subscription") bucket.subscription++;
+    else if (isRec(u.cost) && typeof u.cost["total"] === "number") {
       bucket.cost += num(u.cost["total"]);
       bucket.costed++;
     }

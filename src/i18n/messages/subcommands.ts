@@ -8,8 +8,10 @@
 
 import { plural } from "../format.js";
 import type { Messages } from "../types.js";
+import * as configShow from "./subcommands-config.js";
 
 export const en = {
+  ...configShow.en,
   /** 多个子命令共用。 */
   common: {
     warning: (text: string) => `ama: warning: ${text}\n`,
@@ -211,8 +213,11 @@ export const en = {
       tokens: "Tokens",
       hitRate: "Cache hit rate",
       cost: "Cost",
+      subscription: "Subscription",
       errors: "Errors / retries",
     },
+    subscriptionValue: (requests: number) =>
+      `${plural(requests, "request")} on a ChatGPT plan (not billed in USD, not in the cost)`,
     requestsValue: (requests: number, kinds: string) => `${requests} (${kinds})`,
     turnsValue: (turns: number, avg: string) => `${turns} · avg ${avg}`,
     tokensValue: (input: string, output: string, read: string, write: string) =>
@@ -313,6 +318,7 @@ export const en = {
 };
 
 export const zh = {
+  ...configShow.zh,
   common: {
     warning: (text) => `ama: 警告：${text}\n`,
     cancelled: "ama: 已取消\n",
@@ -467,8 +473,10 @@ export const zh = {
       tokens: "Token",
       hitRate: "缓存命中率",
       cost: "费用",
+      subscription: "订阅",
       errors: "错误 / 重试",
     },
+    subscriptionValue: (requests) => `${requests} 次请求走 ChatGPT 套餐（不折算美元、不计入费用）`,
     requestsValue: (requests, kinds) => `${requests}（${kinds}）`,
     turnsValue: (turns, avg) => `${turns} · 平均耗时 ${avg}`,
     tokensValue: (input, output, read, write) =>

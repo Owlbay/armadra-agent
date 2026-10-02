@@ -52,6 +52,26 @@ export const en = {
       `${label}: ${key} cannot be set at project level; ignored`,
     projectMemoryOnlyDisable: (label: string) =>
       `${label}: project level can only set memory.enabled to false; other memory keys ignored`,
+    projectOnlyKeys: (label: string, allowed: string, ignored: string) =>
+      `${label}: project level can only set ${allowed}; ignoring ${ignored}`,
+    projectPresetLoosen: (label: string, preset: string, current: string) =>
+      `${label}: project level cannot loosen the tool preset; ignoring tools.preset ${preset} (current ${current})`,
+    projectOnlyValue: (label: string, key: string, value: string, ignored: string) =>
+      `${label}: project level only accepts ${key} "${value}"; ignoring ${ignored}`,
+    projectPlanBashTighten: (label: string, value: string, current: string) =>
+      `${label}: project level can only tighten plan.bash; ignoring ${value} (current ${current})`,
+    projectModeTighten: (label: string, value: string, current: string) =>
+      `${label}: project level can only tighten the permission mode; ignoring ${value} (current ${current})`,
+    projectLowerOnly: (label: string, key: string, value: number, current: number) =>
+      `${label}: project level can only lower ${key}; ignoring ${value} (current ${current})`,
+    projectNoAllow: (label: string, rules: string) =>
+      `${label}: project level cannot add allow rules; ignoring ${rules}`,
+    projectNoBuiltinDeny: (label: string) =>
+      `${label}: project level cannot change the built-in deny table; ignoring permission.builtinDeny`,
+    projectNoAutoSafe: (label: string) =>
+      `${label}: project level cannot add permission.autoSafeCommands (loosening); ignored`,
+    projectModeLoosen: (label: string, mode: string) =>
+      `${label}: project level cannot set the permission mode to ${mode} (loosening; only the user config, profile or command line may); ignored`,
   },
   /** 读配置文件（load.ts）。 */
   load: {
@@ -62,6 +82,17 @@ export const en = {
     jsonEmpty: "JSON syntax error: the file is empty",
     notFound: "file not found",
     invalid: (lines: readonly string[]) => `invalid config file:\n  ${lines.join("\n  ")}`,
+  },
+  /** [W6-I5] profile.json（profile.ts）。 */
+  profile: {
+    notFound: (path: string) => `${path}: file not found`,
+    relativePaths: (path: string, lines: readonly string[]) =>
+      `${path}: paths in a profile must be absolute:\n  ${lines.join("\n  ")}`,
+  },
+  /** [W6-I5] auth.json 权限过宽（auth-file.ts）。 */
+  authFile: {
+    modeTooOpen: (path: string, mode: string) =>
+      `${path}: permissions are ${mode}, should be 0600 (chmod 600 ${path})`,
   },
   /** 目录（paths.ts）。 */
   paths: {
@@ -158,6 +189,25 @@ export const zh = {
     projectIgnored: (label, key) => `${label}: 项目级不能设 ${key}，已忽略`,
     projectMemoryOnlyDisable: (label) =>
       `${label}: 项目级只能把 memory.enabled 设为 false，忽略 memory 的其它键`,
+    projectOnlyKeys: (label, allowed, ignored) =>
+      `${label}: 项目级只能设 ${allowed}，忽略 ${ignored}`,
+    projectPresetLoosen: (label, preset, current) =>
+      `${label}: 项目级不能放宽工具预设，忽略 tools.preset ${preset}（当前 ${current}）`,
+    projectOnlyValue: (label, key, value, ignored) =>
+      `${label}: 项目级只接受 ${key} "${value}"，忽略 ${ignored}`,
+    projectPlanBashTighten: (label, value, current) =>
+      `${label}: 项目级只能收紧 plan.bash，忽略 ${value}（当前 ${current}）`,
+    projectModeTighten: (label, value, current) =>
+      `${label}: 项目级只能收紧权限模式，忽略 ${value}（当前 ${current}）`,
+    projectLowerOnly: (label, key, value, current) =>
+      `${label}: 项目级只能调小 ${key}，忽略 ${value}（当前 ${current}）`,
+    projectNoAllow: (label, rules) => `${label}: 项目级不能加 allow 规则，忽略 ${rules}`,
+    projectNoBuiltinDeny: (label) =>
+      `${label}: 项目级不能改内置 deny 表，忽略 permission.builtinDeny`,
+    projectNoAutoSafe: (label) =>
+      `${label}: 项目级不能追加 permission.autoSafeCommands（放宽），已忽略`,
+    projectModeLoosen: (label, mode) =>
+      `${label}: 项目级不能把权限模式设为 ${mode}（放宽，只能在用户级配置、profile 或命令行设），已忽略`,
   },
   load: {
     jsonSyntax: (line, column, message) =>
@@ -167,6 +217,14 @@ export const zh = {
     jsonEmpty: "JSON 语法错误：文件为空",
     notFound: "文件不存在",
     invalid: (lines) => `配置文件无效：\n  ${lines.join("\n  ")}`,
+  },
+  profile: {
+    notFound: (path) => `${path}: 文件不存在`,
+    relativePaths: (path, lines) =>
+      `${path}: profile 中的路径必须是绝对路径：\n  ${lines.join("\n  ")}`,
+  },
+  authFile: {
+    modeTooOpen: (path, mode) => `${path}: 权限为 ${mode}，应为 0600（chmod 600 ${path}）`,
   },
   paths: {
     notDirectory: "不是目录",

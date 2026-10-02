@@ -10,6 +10,7 @@ import { StartupError } from "../errors.js";
 import { loadConfigFile } from "./load.js";
 import { PROFILE_PATH_FIELDS, PROFILE_PATH_LIST_FIELDS } from "./schema.js";
 import type { AmaConfig, ProfileFile, ProfileMemoryOptions } from "./types.js";
+import { msg } from "../i18n/index.js";
 
 const EXIT_CONFIG = 3;
 
@@ -43,7 +44,7 @@ export function loadProfile(path: string, cwd = process.cwd()): ProfileOptions {
   const abs = resolve(cwd, path);
   const loaded = loadConfigFile("profile", abs, { required: true });
   if (loaded === undefined) {
-    throw new StartupError("profile_invalid", `${abs}: 文件不存在`, EXIT_CONFIG);
+    throw new StartupError("profile_invalid", msg().config.profile.notFound(abs), EXIT_CONFIG);
   }
   const profile = loaded.value;
   const relative: string[] = [];
@@ -59,7 +60,7 @@ export function loadProfile(path: string, cwd = process.cwd()): ProfileOptions {
   if (relative.length > 0) {
     throw new StartupError(
       "profile_invalid",
-      `${abs}: profile 中的路径必须是绝对路径：\n  ${relative.join("\n  ")}`,
+      msg().config.profile.relativePaths(abs, relative),
       EXIT_CONFIG,
     );
   }

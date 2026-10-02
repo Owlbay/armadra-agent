@@ -113,9 +113,8 @@ describe("ama doctor（en）", () => {
     expect(text).toContain("\nDirectories\n  Config directory: ");
     expect(text).toContain("\nTerminal\n  stdin TTY: no · stdout TTY: no");
     expect(text).toContain("  UI language: en (source AMA_LANG=en)");
-    // codemode 一行的原因来自 subcommands/config.ts 的 describeCodemode（不在本批次范围，留给 W6-I5）
-    const cjk = text.split("\n").filter((line) => CJK.test(line));
-    expect(cjk.filter((line) => !line.startsWith("  codemode: "))).toEqual([]);
+    // [W6-I5] codemode 一行（describeCodemode）也已迁移：整份 doctor 输出不含汉字
+    expect(text.split("\n").filter((line) => CJK.test(line))).toEqual([]);
     setLocale("zh");
     const zh: string[] = [];
     expect(await main(["doctor"], { io: io({ AMA_LANG: "zh" }, zh), processHooks: false })).toBe(0);

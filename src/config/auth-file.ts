@@ -14,6 +14,7 @@ import { AUTH_FILE } from "./paths.js";
 import type { AuthFile } from "./types.js";
 import { CONFIG_FILE_VERSION, apiKeyEntry } from "./types.js";
 import { isOAuthEntry, type ChatGptFlavor } from "./types-w6.js";
+import { msg } from "../i18n/index.js";
 
 export function defaultAuthFilePath(configDir: string): string {
   return join(configDir, AUTH_FILE);
@@ -58,7 +59,7 @@ export function readAuthFile(path: string): ReadAuthResult {
   const mode = fileMode(path);
   if (isModeTooOpen(mode)) {
     warnings.push(
-      `${path}: 权限为 ${mode?.toString(8).padStart(4, "0")}，应为 0600（chmod 600 ${path}）`,
+      msg().config.authFile.modeTooOpen(path, mode?.toString(8).padStart(4, "0") ?? ""),
     );
   }
   const result: ReadAuthResult = { path, exists: true, file: loaded.value, warnings };

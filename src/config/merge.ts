@@ -162,7 +162,9 @@ export function restrictProjectConfig(
         if (project.compaction !== undefined) {
           const { prune, pruneExclude, ...rest } = structuredClone(project.compaction);
           if (prune !== undefined || pruneExclude !== undefined)
-            warnings.push(`${label}: 项目级不能设 compaction.prune / pruneExclude，已忽略`);
+            warnings.push(
+              msg().config.merge.projectIgnored(label, "compaction.prune / pruneExclude"),
+            );
           if (Object.keys(rest).length > 0) accepted.compaction = rest;
         }
         break;
@@ -198,7 +200,11 @@ export function restrictProjectConfig(
         for (const sub of Object.keys(tools)) {
           if (sub !== "disabled" && sub !== "preset")
             warnings.push(
-              `${label}: 项目级只能设 tools.disabled / tools.preset，忽略 tools.${sub}`,
+              msg().config.merge.projectOnlyKeys(
+                label,
+                "tools.disabled / tools.preset",
+                `tools.${sub}`,
+              ),
             );
         }
         if (tools.disabled !== undefined) result.disabled = [...tools.disabled];
@@ -206,7 +212,7 @@ export function restrictProjectConfig(
           if (isPresetStricterOrEqual(tools.preset, currentPreset)) result.preset = tools.preset;
           else
             warnings.push(
-              `${label}: 项目级不能放宽工具预设，忽略 tools.preset ${tools.preset}（当前 ${currentPreset}）`,
+              msg().config.merge.projectPresetLoosen(label, tools.preset, currentPreset),
             );
         }
         if (Object.keys(result).length > 0) accepted.tools = result;
@@ -216,8 +222,9 @@ export function restrictProjectConfig(
         const codemode = project.codemode ?? {};
         for (const [sub, v] of Object.entries(codemode)) {
           if (sub === "mode" && v === "off") continue;
+          const ignored = `codemode.${sub}${sub === "mode" ? ` ${String(v)}` : ""}`;
           warnings.push(
-            `${label}: 项目级只接受 codemode.mode "off"，忽略 codemode.${sub}${sub === "mode" ? ` ${String(v)}` : ""}`,
+            msg().config.merge.projectOnlyValue(label, "codemode.mode", "off", ignored),
           );
         }
         if (codemode.mode === "off") accepted.codemode = { mode: "off" };
@@ -249,15 +256,16 @@ export function restrictProjectConfig(
         const sandbox = project.sandbox ?? {};
         for (const [sub, v] of Object.entries(sandbox)) {
           if (sub === "network" && v === "deny") continue;
+          const ignored = `sandbox.${sub}${sub === "network" ? ` ${String(v)}` : ""}`;
           warnings.push(
-            `${label}: 项目级只接受 sandbox.network "deny"，忽略 sandbox.${sub}${sub === "network" ? ` ${String(v)}` : ""}`,
+            msg().config.merge.projectOnlyValue(label, "sandbox.network", "deny", ignored),
           );
         }
         if (sandbox.network === "deny") accepted.sandbox = { network: "deny" };
         break;
       }
       default:
-        warnings.push(`${label}: 项目级不能设 ${key}，已忽略`);
+        warnings.push(msg().config.merge.projectIgnored(label, key));
     }
   }
   return { accepted, warnings };
@@ -271,12 +279,13 @@ function restrictPlan(
   warnings: string[],
 ): PlanConfig | undefined {
   for (const sub of Object.keys(plan)) {
-    if (sub !== "bash") warnings.push(`${label}: 项目级只能设 plan.bash，忽略 plan.${sub}`);
+    if (sub !== "bash")
+      warnings.push(msg().config.merge.projectOnlyKeys(label, "plan.bash", `plan.${sub}`));
   }
   if (plan.bash === undefined) return undefined;
   const order = PLAN_BASH_MODES_STRICT_FIRST;
   if (order.indexOf(plan.bash) <= order.indexOf(current)) return { bash: plan.bash };
-  warnings.push(`${label}: 项目级只能收紧 plan.bash，忽略 ${plan.bash}（当前 ${current}）`);
+  warnings.push(msg().config.merge.projectPlanBashTighten(label, plan.bash, current));
   return undefined;
 }
 
@@ -291,15 +300,23 @@ function restrictCheckpoints(
   for (const [sub, v] of Object.entries(checkpoints)) {
     if (sub === "mode") {
       if (v === "off") result.mode = "off";
-      else warnings.push(`${label}: 项目级只接受 checkpoints.mode "off"，忽略 ${String(v)}`);
+      else
+        warnings.push(
+          msg().config.merge.projectOnlyValue(label, "checkpoints.mode", "off", String(v)),
+        );
     } else if (sub === "maxFileBytes" && typeof v === "number") {
       if (v <= currentMaxFileBytes) result.maxFileBytes = v;
       else
         warnings.push(
-          `${label}: 项目级只能调小 checkpoints.maxFileBytes，忽略 ${v}（当前 ${currentMaxFileBytes}）`,
+          msg().config.merge.projectLowerOnly(
+            label,
+            "checkpoints.maxFileBytes",
+            v,
+            currentMaxFileBytes,
+          ),
         );
     } else {
-      warnings.push(`${label}: 项目级不能设 checkpoints.${sub}，已忽略`);
+      warnings.push(msg().config.merge.projectIgnored(label, `checkpoints.${sub}`));
     }
   }
   return Object.keys(result).length > 0 ? result : undefined;
@@ -313,30 +330,26 @@ function restrictPermission(
 ): PermissionConfig | undefined {
   const result: PermissionConfig = {};
   if (permission.allow !== undefined && permission.allow.length > 0) {
-    warnings.push(`${label}: 项目级不能加 allow 规则，忽略 ${permission.allow.join(", ")}`);
+    warnings.push(msg().config.merge.projectNoAllow(label, permission.allow.join(", ")));
   }
   if (permission.deny !== undefined && permission.deny.length > 0)
     result.deny = [...permission.deny];
   if (permission.builtinDeny !== undefined) {
-    warnings.push(`${label}: 项目级不能改内置 deny 表，忽略 permission.builtinDeny`);
+    warnings.push(msg().config.merge.projectNoBuiltinDeny(label));
   }
   if (permission.autoModel !== undefined) {
-    warnings.push(`${label}: 项目级不能设 permission.autoModel，已忽略`);
+    warnings.push(msg().config.merge.projectIgnored(label, "permission.autoModel"));
   }
   if (permission.autoSafeCommands !== undefined && permission.autoSafeCommands.length > 0) {
-    warnings.push(`${label}: 项目级不能追加 permission.autoSafeCommands（放宽），已忽略`);
+    warnings.push(msg().config.merge.projectNoAutoSafe(label));
   }
   if (permission.mode === "auto" || permission.mode === "full-auto") {
-    warnings.push(
-      `${label}: 项目级不能把权限模式设为 ${permission.mode}（放宽，只能在用户级配置、profile 或命令行设），已忽略`,
-    );
+    warnings.push(msg().config.merge.projectModeLoosen(label, permission.mode));
   } else if (permission.mode !== undefined) {
     if (isAtLeastAsStrict(permission.mode, currentMode)) {
       result.mode = permission.mode;
     } else {
-      warnings.push(
-        `${label}: 项目级只能收紧权限模式，忽略 ${permission.mode}（当前 ${currentMode}）`,
-      );
+      warnings.push(msg().config.merge.projectModeTighten(label, permission.mode, currentMode));
     }
   }
   return Object.keys(result).length > 0 ? result : undefined;

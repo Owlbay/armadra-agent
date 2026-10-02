@@ -1,48 +1,57 @@
 #!/usr/bin/env node
-// 中英双语检查（docs/wave6-plan.md §5.4、D20；docs/i18n.md）。零依赖，进 `pnpm ci`。
+// 中英双语检查（docs/wave6-plan.md §5.4、D20；docs/i18n.md）。零依赖，进 `pnpm ci`（`pnpm check:i18n`）。
 //
-//   1. 棘轮：扫 src/** 非测试、非 src/i18n/ 源码里「代码与字符串中」含汉字的行（注释不算），按文件计数，与
-//      scripts/i18n-baseline.json 比较——只许降不许升，基线里没有的文件必须为 0。白名单：输入别名
-//      （plan/controller.ts 的「批准」、plan/extract.ts 的步骤标题正则），两种语言同时识别、与界面语言无关。
+// [W6-I5] 严格模式（基线已清零并删除）：出现即失败。
+//   1. src/** 源码里「代码与字符串中」含汉字的行（注释不算）一律报错；界面文案写进 src/i18n/messages/<领域>.ts。
+//      不扫的文件见 SKIPPED，允许的行见 ALLOWED_LINES——两处每一条都写了理由；新增条目要在 PR 里说明。
 //   2. 目录：src/i18n/messages/*.ts 的 `en` 段不得含汉字；`zh` 段不得留 TODO 占位。
 //   3. 顶层 `const` / `let` 的初始化不得立即调用 msg()（会按 import 时的语言定死）；放进函数或 getter 里。
 //
-// 用法：
-//   node scripts/check-i18n.mjs            检查（失败退出码 1）
-//   node scripts/check-i18n.mjs --update   计数下降后收紧基线（只降；要升需 --force，并在 PR 写明理由）
-//   node scripts/check-i18n.mjs --strict   严格模式（[W6-I5]）：任何汉字都失败
+// 用法：node scripts/check-i18n.mjs（失败退出码 1）
 
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const BASELINE = join(ROOT, "scripts", "i18n-baseline.json");
 const CJK = /[　-〿㐀-䶿一-鿿＀-￯]/;
 
-/** 不扫的源码：测试、测试支撑、生成数据。 */
+/** 不扫的源码：[匹配, 理由]。 */
+export const SKIPPED = [
+  [/\.test\.ts$/, "测试：断言里写中文是在验证 zh 界面"],
+  [/\.d\.ts$/, "类型声明，没有运行期文案"],
+  [/^src\/i18n\//, "消息目录本身（en / zh 由规则 2 检查）"],
+  [/(^|\/)(testing|__snapshots__)\//, "测试支撑与快照"],
+  [/(^|\/)test-support\.ts$/, "测试支撑（帧快照打码等需要认 zh 文案）"],
+  [/(^|\/)models-dev-data\.ts$/, "生成数据：models.dev 上游快照，原样保存、不显示为界面文案"],
+];
+
+/** 要扫的文件：src/**.ts 去掉 SKIPPED。 */
 export function isScanned(path) {
   const p = path.split(sep).join("/");
   if (!p.startsWith("src/") || !p.endsWith(".ts")) return false;
-  if (p.endsWith(".test.ts") || p.endsWith(".d.ts")) return false;
-  if (p.startsWith("src/i18n/")) return false;
-  if (/(^|\/)(testing|__snapshots__)\//.test(p)) return false;
-  if (/(^|\/)test-support\.ts$/.test(p)) return false;
-  if (/(^|\/)(models-dev-data|catalog-data)\.ts$/.test(p)) return false;
-  return true;
+  return !SKIPPED.some(([re]) => re.test(p));
 }
 
-/** 输入别名白名单：文件 → 允许的行（正则）。 */
+/** 允许含汉字的行：文件 → [行的正则, 理由]。 */
 export const ALLOWED_LINES = {
-  // [W6-C0] 粘贴折叠标记的识别同时认两种语言（换语言后旧草稿里的标记照样展开）
   "src/tui/components/editor-paste.ts": [
-    /^const MARKER_RE = \/\\\[\(\?:粘贴\|paste\)/,
-    /line\.includes\("\[粘贴 #"\) \|\| line\.includes\("\[paste #"\)/,
+    [
+      /^const MARKER_RE = \/\\\[\(\?:粘贴\|paste\)/,
+      "输入识别：粘贴折叠标记两种语言都认（换语言后旧草稿里的标记照样展开）",
+    ],
+    [/line\.includes\("\[粘贴 #"\) \|\| line\.includes\("\[paste #"\)/, "输入识别：同上，快速判断"],
   ],
-  "src/plan/controller.ts": [/^\s*批准: "pre",\s*$/],
+  "src/plan/controller.ts": [[/^\s*批准: "pre",\s*$/, "输入别名：用户输入「批准」等同 approve"]],
   "src/plan/extract.ts": [
-    /^const STEPS_HEADING = \/步骤\|steps\|implementation\|实施\|执行\/i;$/,
-    /^\s*\.split\(\/\[,，\\s\]\+\/\)/,
+    [
+      /^const STEPS_HEADING = \/步骤\|steps\|implementation\|实施\|执行\/i;$/,
+      "输入识别：模型写的计划可能用中文标题，与界面语言无关",
+    ],
+    [/^\s*\.split\(\/\[,，\\s\]\+\/\)/, "输入识别：全角逗号也当分隔符"],
+  ],
+  "src/ai/providers/catalog-data.ts": [
+    [/"_reason":"/, "生成数据：价格覆盖的 _reason 是给维护者看的出处说明，不显示、不发给模型"],
   ],
 };
 
@@ -192,7 +201,7 @@ export function cjkLines(source, path = "") {
   const lines = [];
   code.forEach((line, index) => {
     if (!CJK.test(line)) return;
-    if (allowed.some((re) => re.test(raw[index] ?? ""))) return;
+    if (allowed.some(([re]) => re.test(raw[index] ?? ""))) return;
     lines.push(index + 1);
   });
   return lines;
@@ -260,9 +269,9 @@ function* walk(dir) {
   }
 }
 
-/** 扫描整个仓库：每文件汉字行数 + 其它问题。 */
+/** 扫描整个仓库：含汉字的行（`path:line: 内容`）+ 其它问题。 */
 export function scan(root = ROOT) {
-  const counts = {};
+  const lines = [];
   const problems = [];
   for (const full of walk(join(root, "src"))) {
     const path = relative(root, full).split(sep).join("/");
@@ -273,76 +282,29 @@ export function scan(root = ROOT) {
       for (const line of eagerMsgLines(source))
         problems.push(`${path}:${line}: 顶层常量立即调用 msg()，改成函数或 getter`);
     if (!isScanned(path)) continue;
-    const lines = cjkLines(source, path);
-    if (lines.length > 0) counts[path] = lines.length;
+    const raw = source.split("\n");
+    for (const line of cjkLines(source, path))
+      lines.push(`${path}:${line}: ${(raw[line - 1] ?? "").trim().slice(0, 120)}`);
   }
-  return { counts, problems };
+  return { lines, problems };
 }
 
-/** 与基线比较。 */
-export function compare(counts, baseline, { strict = false } = {}) {
-  const errors = [];
-  const lowered = [];
-  for (const [path, count] of Object.entries(counts).sort()) {
-    const allowed = strict ? 0 : (baseline[path] ?? 0);
-    if (count > allowed)
-      errors.push(
-        `${path}: 界面文案里有 ${count} 行汉字（基线 ${allowed}）——新文案写进 src/i18n/messages/<领域>.ts`,
-      );
-    else if (count < allowed) lowered.push(`${path}: ${allowed} → ${count}`);
-  }
-  for (const [path, allowed] of Object.entries(baseline))
-    if (!(path in counts) && allowed > 0) lowered.push(`${path}: ${allowed} → 0`);
-  return { errors, lowered };
-}
-
-function readBaseline() {
-  try {
-    return JSON.parse(readFileSync(BASELINE, "utf8")).files ?? {};
-  } catch {
-    return {};
-  }
-}
-
-function writeBaseline(counts) {
-  const files = Object.fromEntries(Object.entries(counts).sort(([a], [b]) => (a < b ? -1 : 1)));
-  const total = Object.values(files).reduce((sum, n) => sum + n, 0);
-  writeFileSync(BASELINE, `${JSON.stringify({ version: 1, total, files }, null, 2)}\n`);
-}
-
-function run(argv) {
-  const strict = argv.includes("--strict");
-  const { counts, problems } = scan();
-  const baseline = readBaseline();
-  if (argv.includes("--update")) {
-    const raised = compare(counts, baseline).errors;
-    if (raised.length > 0 && !argv.includes("--force")) {
-      process.stderr.write(
-        `基线只降不升；确需上调加 --force 并在 PR 写明理由：\n${raised.join("\n")}\n`,
-      );
-      return 1;
-    }
-    writeBaseline(counts);
-    process.stdout.write(
-      `已写 scripts/i18n-baseline.json（${Object.keys(counts).length} 个文件）\n`,
-    );
-    return 0;
-  }
-  const { errors, lowered } = compare(counts, baseline, { strict });
-  const all = [...problems, ...errors];
-  if (lowered.length > 0)
-    process.stdout.write(
-      `i18n：以下文件的汉字行减少了，可用 node scripts/check-i18n.mjs --update 收紧基线：\n  ${lowered.join("\n  ")}\n`,
-    );
+function run() {
+  const { lines, problems } = scan();
+  const all = [
+    ...problems,
+    ...lines.map(
+      (line) => `${line}\n      ↑ 界面文案写进 src/i18n/messages/<领域>.ts（docs/i18n.md）`,
+    ),
+  ];
   if (all.length > 0) {
     process.stderr.write(`i18n 检查失败：\n  ${all.join("\n  ")}\n`);
     return 1;
   }
-  const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
-  process.stdout.write(`i18n 检查通过（剩余 ${total} 行待迁移）\n`);
+  process.stdout.write("i18n 检查通过\n");
   return 0;
 }
 
 if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1]) {
-  process.exitCode = run(process.argv.slice(2));
+  process.exitCode = run();
 }

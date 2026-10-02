@@ -33,6 +33,11 @@ interface ReleaseCheckModule {
   filesEntryCovers(entry: string, path: string): boolean;
   DOC_FILES: string[];
   PACKED_DOC_FILES: string[];
+  translationBasis(text: string | undefined): string | undefined;
+  staleTranslations(
+    docs: { name: string; basis: string | undefined; commits: number | undefined }[],
+    threshold?: number,
+  ): string[];
 }
 
 const SCRIPT = fileURLToPath(new URL("../scripts/release-check.mjs", import.meta.url));
@@ -264,5 +269,25 @@ describe("release-check CLI（临时 git 仓库）", () => {
     expect(tagged.status).toBe(0);
     expect(tagged.stdout).toContain("相对 v0.1.0：版本 0.1.0 → 0.2.0");
     expect(run({ GITHUB_REF_TYPE: "tag", GITHUB_REF_NAME: "v0.3.0" }).status).toBe(1);
+  });
+});
+
+describe("英文文档滞后提示（[W6-I5]，§5.5）", () => {
+  it("读头部基准提交；超过阈值才提示，看不到基准时跳过", async () => {
+    const m = await load();
+    expect(m.translationBasis("> Translated … as of commit `ee89edb`. When …")).toBe("ee89edb");
+    expect(m.translationBasis("# no header")).toBeUndefined();
+    const notes = m.staleTranslations(
+      [
+        { name: "tui", basis: "ed2c792", commits: 8 },
+        { name: "rpc", basis: "ee89edb", commits: 5 },
+        { name: "sessions", basis: "ee89edb", commits: undefined },
+        { name: "host-api", basis: undefined, commits: 99 },
+      ],
+      5,
+    );
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toContain("docs/tui.md");
+    expect(notes[0]).toContain("ed2c792");
   });
 });

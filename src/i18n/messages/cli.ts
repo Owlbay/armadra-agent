@@ -8,13 +8,13 @@
 
 import type { Messages } from "../types.js";
 import * as help from "./cli-help.js";
+import * as args from "./cli-args.js";
 
 export const en = {
-  args: {
-    flagConflict: (a: string, b: string) => `${a} and ${b} cannot be used together`,
-  },
+  args: args.en,
   main: {
     subcommandUnavailable: (name: string) => `ama ${name}: not available in this build yet`,
+    uncaught: (message: string) => `ama: uncaught exception: ${message}\n`,
   },
   help: help.en.text,
   /** 退出码说明（数值是契约，不译；键是 `ExitCode` 的名字）。 */
@@ -195,11 +195,10 @@ export const en = {
 };
 
 export const zh = {
-  args: {
-    flagConflict: (a, b) => `${a} 与 ${b} 不能同时使用`,
-  },
+  args: args.zh,
   main: {
     subcommandUnavailable: (name) => `ama ${name}：当前版本尚未提供`,
+    uncaught: (message) => `ama: 未捕获的异常：${message}\n`,
   },
   help: help.zh.text,
   exitCodes: {

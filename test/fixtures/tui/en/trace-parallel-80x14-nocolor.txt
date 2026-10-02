@@ -17,10 +17,10 @@
 # detail · viewport 80x14
 |Trace · 1 turn · 2 requests · 3 tool calls · 12s · ↑8.1k ↓240 · cache 70% · ttf…
 | bash pnpm test
-| Kind              tool
-| Status            done
-| Start             +1.8s
-| Duration          8.0s
+| Kind                  tool
+| Status                done
+| Start                 +1.8s
+| Duration              8.0s
 | Waiting for approval  3.2s
 |
 | Arguments

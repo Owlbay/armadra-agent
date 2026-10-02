@@ -16,6 +16,7 @@
 
 import { HttpError, postJson, type PostOptions } from "../http.js";
 import type { Api, CacheRetention, Model, PromptCacheCompat } from "../types.js";
+import { msg } from "../../i18n/index.js";
 
 const DEFAULT_BASE_URLS: Readonly<Record<string, string>> = {
   "anthropic-messages": "https://api.anthropic.com",
@@ -214,9 +215,7 @@ export async function postWithCacheFallback(
     const stripped = field && !options.signal.aborted ? stripWithCount(body) : undefined;
     if (!field || !stripped || stripped.removed === 0) throw error;
     strippedCacheParams.add(key);
-    warn(
-      `${key}：该端点不支持 ${field}，已自动去掉缓存参数重发；可在 config 里设 ${SUGGESTION[field] ?? "相应的 compat 开关"}`,
-    );
+    warn(msg().errors.cacheParamsStripped(key, field, SUGGESTION[field]));
     return postJson(url, { ...options, body: stripped.body });
   }
 }

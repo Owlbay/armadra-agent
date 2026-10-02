@@ -75,8 +75,8 @@ export function snapshot(terminal: MemoryTerminal, label: string): string {
     out
       .join("\n")
       .replaceAll(AMA_VERSION, "<version>")
-      // 会话 id 每次不同（退出摘要、/session 面板）
-      .replace(/(会话 |--resume )[0-9A-Za-z_-]{8}/g, "$1<id>") + "\n"
+      // 会话 id 每次不同（退出摘要、/session 面板）；两种界面语言都认（en 写 session <id>）
+      .replace(/((?:会话|[Ss]ession) |--resume )[0-9A-Za-z_-]{8}/g, "$1<id>") + "\n"
   );
 }
 

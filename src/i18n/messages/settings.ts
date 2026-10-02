@@ -111,8 +111,7 @@ export const en = {
     project: "project config takes precedence",
   },
   projectNote: { deny: "user only", tighten: "tighten only" },
-  footer:
-    "↑↓ select · Enter/Space change · / search · Tab user/project · Backspace reset · Esc close",
+  footer: "↑↓ select · Enter change · Tab user/project · Backspace reset · Esc close",
   footerCompact: "↑↓ · Enter · / · Tab · Esc",
   footerSearch: "Type to filter · ↑↓ select · Enter change · Esc clear",
   footerEdit: "Enter save · Esc cancel",

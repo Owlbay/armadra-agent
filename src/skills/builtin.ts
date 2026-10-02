@@ -111,7 +111,10 @@ export async function withBuiltinSkills(
     try {
       await ensureFile(location, builtinSkillText(builtin));
     } catch (error) {
-      warnings.push(`内置 Skill ${builtin.name} 写入失败：${(error as Error).message}`);
+      // 与 skills/ 其它加载告警一样固定英文（模型侧模块不 import i18n，见 docs/i18n.md）
+      warnings.push(
+        `built-in skill ${builtin.name} could not be written: ${(error as Error).message}`,
+      );
       continue;
     }
     out.push({

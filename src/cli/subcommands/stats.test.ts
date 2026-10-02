@@ -289,3 +289,32 @@ describe("与 SessionManager 写出的文件一致", () => {
     expect(report.tools).toEqual([{ name: "grep", count: 1 }]);
   });
 });
+
+describe("订阅计费（[W6-I5]）", () => {
+  it("billing: subscription 的请求单列，不进费用、不算无价", async () => {
+    const sub = { ...usageOf(100, 10, 50, 0, 0), billing: "subscription" as const };
+    writeFixtureSession(root, {
+      id: "eeee",
+      cwd: home.cwd,
+      start: noon("2026-10-02"),
+      entries: [
+        userEntry("hi"),
+        assistantEntry("a", sub, { provider: "chatgpt", model: "gpt-5" }),
+        assistantEntry("b", sub, { provider: "chatgpt", model: "gpt-5" }),
+        assistantEntry("c", usageOf(10, 1, 0, 0, 0.5), { provider: "relay", model: "kimi" }),
+      ],
+    });
+    expect(await runStats([], io())).toBe(0);
+    const text = out.join("");
+    expect(text).toMatch(/订阅\s+2 次请求走 ChatGPT 套餐/);
+    expect(text).toMatch(/费用\s+\$0\.5000\n/);
+    out = [];
+    await runStats(["--json"], io());
+    expect(JSON.parse(out.join("")).totals).toMatchObject({
+      requests: 3,
+      subscription: 2,
+      unpriced: 0,
+      cost: 0.5,
+    });
+  });
+});

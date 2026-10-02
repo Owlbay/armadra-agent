@@ -75,16 +75,23 @@ Resources
   --tools-preset <name>        Tool preset: default (default) | minimal | codemode-only | coordinator
                                (codemode is the old name of codemode-only and still works)
   --codemode <mode>            How codemode is offered: off | on | only (default follows the preset)
+  --memory / --no-memory       Turn memory on / off for this launch (overrides memory.enabled)
 
 Subcommands
   ama auth set <provider>      Read a key from stdin and save it to auth.json (0600)
   ama auth list                List providers with saved keys (keys are not shown)
   ama auth remove <provider>   Delete a saved key
+  ama auth login chatgpt [--paste | --device] [--flavor siwc|codex]
+                               Sign in with a ChatGPT plan (OAuth in the browser; --paste / --device
+                               without a local browser)
+  ama auth logout|status [chatgpt]  Sign out / show sign-in and token status
   ama sessions list|show|prune Manage sessions
   ama sessions search <term|/regex/> [--all] [--role user|assistant|tool] [--since 7d] [--limit N]
                                Full-text search across sessions
   ama sessions export <id> [--format md|json|jsonl] [--output <file>] [--branch leaf|all]
                                Export a session (redacted)
+  ama sessions trace <id> [--html [file]] [--json] [--open]
+                               Timeline of turns, requests, tools and subagents (text / HTML / JSON)
   ama models list [--provider <id>]  List models (with source and key status)
   ama models check <provider/id>     Send one minimal request to check availability
   ama models discover <provider> [--probe] [--write] [--limit N]
@@ -102,12 +109,18 @@ Subcommands
   ama config show [--json]     Effective config with each value's source, and the model to be used
   ama config path              Config directory, data directory and file paths
   ama config edit              Open config.json in $VISUAL / $EDITOR
+  ama config get|set|unset <key> [<value>] [--project]
+                               Read / write one setting (--project writes the project level; tighten-only)
+  ama config list [prefix] [--all]  Settings with value, source and when they apply
+  ama memory list|show|edit|rm|path|enable|disable
+                               Manage memories (user level and this project)
   ama init [--force]           Create the config directory (0700), config.json and config.schema.json;
                                existing files are kept
   ama stats [--since 7d] [--by day|week|month|provider|channel|model|project] [--all] [--json]
                                Cross-session stats: requests, tokens, cache hit rate, cost, tool calls
 
 Other
+  --lang <zh|en>               Interface language (also AMA_LANG, ui.language; default follows LANG)
   -h, --help                   Print this help
   -v, --version                Print the version
 
@@ -179,16 +192,22 @@ export const zh = {
   --tools-preset <名>          工具预设：default（缺省）| minimal | codemode-only | coordinator
                                （codemode 是 codemode-only 的旧名，仍可用）
   --codemode <模式>            codemode 调用方式：off | on | only（缺省随预设）
+  --memory / --no-memory       本次启动开启 / 关闭 Memory（覆盖 memory.enabled）
 
 子命令
   ama auth set <provider>      从 stdin 读取 key 写入 auth.json（0600）
   ama auth list                列出已保存 key 的供应商（不显示 key）
   ama auth remove <provider>   删除已保存的 key
+  ama auth login chatgpt [--paste | --device] [--flavor siwc|codex]
+                               用 ChatGPT 套餐登录（浏览器 OAuth；无浏览器时用 --paste / --device）
+  ama auth logout|status [chatgpt]  退出登录 / 查看登录与令牌状态
   ama sessions list|show|prune 会话管理
   ama sessions search <关键词|/正则/> [--all] [--role user|assistant|tool] [--since 7d] [--limit N]
                                跨会话全文检索
   ama sessions export <id> [--format md|json|jsonl] [--output <文件>] [--branch leaf|all]
                                导出会话（已脱敏）
+  ama sessions trace <id> [--html [文件]] [--json] [--open]
+                               回合、请求、工具与子 Agent 的时间线（文本 / HTML / JSON）
   ama models list [--provider <id>]  列出模型（含来源与 key 状态）
   ama models check <provider/id>     发一次最小请求检查可用性
   ama models discover <provider> [--probe] [--write] [--limit N]
@@ -205,11 +224,17 @@ export const zh = {
   ama config show [--json]     生效配置与每项来源、将使用的模型
   ama config path              配置目录、数据目录与各文件路径
   ama config edit              用 $VISUAL / $EDITOR 打开 config.json
+  ama config get|set|unset <key> [<值>] [--project]
+                               读写单个设置（--project 写 .ama/config.json，只能收紧）
+  ama config list [前缀] [--all]  设置项与值、来源、何时生效
+  ama memory list|show|edit|rm|path|enable|disable
+                               管理 Memory（用户级与当前项目）
   ama init [--force]           建配置目录（0700）与 config.json、config.schema.json；已有的不覆盖
   ama stats [--since 7d] [--by day|week|month|provider|channel|model|project] [--all] [--json]
                                跨会话统计：请求、token、缓存命中率、费用、工具调用
 
 其它
+  --lang <zh|en>               界面语言（也可用 AMA_LANG、ui.language；缺省跟随 LANG）
   -h, --help                   输出本帮助
   -v, --version                输出版本
 
