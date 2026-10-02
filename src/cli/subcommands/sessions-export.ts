@@ -14,10 +14,11 @@ import { findSessionFileReadOnly, readSessionReadOnly } from "../../session/scan
 import { parseSubArgs, UsageError } from "../args.js";
 import type { CliIo } from "../deps.js";
 import { ExitCode } from "../exit-codes.js";
+import { msg } from "../../i18n/index.js";
 
-export const SESSIONS_EXPORT_USAGE = `用法：ama sessions export <id> [--format md|json|jsonl] [--output <文件>] [--branch leaf|all]
-                            [--session-dir <目录>]
-`;
+export function sessionsExportUsage(): string {
+  return msg().subcommands.sessionsExport.usage;
+}
 
 const FORMATS: readonly ExportFormat[] = ["md", "json", "jsonl"];
 const BRANCHES: readonly ExportBranch[] = ["leaf", "all"];
@@ -30,19 +31,20 @@ export async function runSessionsExport(argv: readonly string[], io: CliIo): Pro
     "session-dir",
   ]);
   if (flags.has("help")) {
-    io.stdout(SESSIONS_EXPORT_USAGE);
+    io.stdout(sessionsExportUsage());
     return ExitCode.Ok;
   }
   const [id, extra] = positionals;
-  if (id === undefined) throw new UsageError("ama sessions export 需要 <id>");
-  if (extra !== undefined) throw new UsageError(`多余的参数：${extra}`);
+  if (id === undefined)
+    throw new UsageError(msg().subcommands.common.needsArg("ama sessions export", "<id>"));
+  if (extra !== undefined) throw new UsageError(msg().subcommands.common.extraArgs(extra));
   const format = (values.get("format") ?? "md") as ExportFormat;
   if (!FORMATS.includes(format)) {
-    throw new UsageError(`--format 的取值应为 ${FORMATS.join(" | ")}（收到 ${format}）`);
+    throw new UsageError(msg().subcommands.common.invalidChoice("--format", FORMATS, format));
   }
   const branch = (values.get("branch") ?? "leaf") as ExportBranch;
   if (!BRANCHES.includes(branch)) {
-    throw new UsageError(`--branch 的取值应为 ${BRANCHES.join(" | ")}（收到 ${branch}）`);
+    throw new UsageError(msg().subcommands.common.invalidChoice("--branch", BRANCHES, branch));
   }
   const dirFlag = values.get("session-dir");
   const root =
@@ -58,6 +60,6 @@ export async function runSessionsExport(argv: readonly string[], io: CliIo): Pro
   }
   const target = resolve(io.cwd, expandHome(output, { env: io.env }));
   writeFileSync(target, text, { mode: 0o600 });
-  io.stderr(`已导出到 ${target}\n`);
+  io.stderr(msg().subcommands.sessionsExport.exported(target));
   return ExitCode.Ok;
 }
