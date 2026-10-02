@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { HELP_TEXT, parseArgs, parseSubArgs, UsageError, type ParsedArgs } from "./args.js";
+import { ExitCode, describeExitCode } from "./exit-codes.js";
+import { applyProfile, decideMode } from "./startup-steps.js";
 
 function run(argv: string[]): ParsedArgs {
   const result = parseArgs(argv);
@@ -213,5 +215,52 @@ describe("parseArgs", () => {
       expect(HELP_TEXT).toContain(flag);
     }
     expect(run(["--help", "--continue", "--resume"]).help).toBe(true);
+  });
+});
+
+describe("第五波参数（W5-C0：只解析与透传）", () => {
+  it("--mode acp 可解析；与 -p 互斥；decideMode 报尚未实现（退出码 2）", () => {
+    expect(run(["--mode", "acp"]).mode).toBe("acp");
+    expect(usage(["-p", "--mode", "acp", "hi"])).toContain("-p 与 --mode acp 不能同时使用");
+    expect(usage(["-p", "--mode", "rpc", "hi"])).toContain("-p 与 --mode rpc 不能同时使用");
+    expect(usage(["--mode", "grpc"])).toContain("rpc | acp");
+    const io = { stdinIsTTY: true, stdoutIsTTY: true, env: {} };
+    expect(() => decideMode(run(["--mode", "acp"]), io)).toThrow(/--mode acp 尚未实现/);
+    expect(decideMode(run(["--mode", "rpc"]), io)).toBe("rpc");
+  });
+
+  it("--max-cost 正数；--agent-dir 可重复；不给时字段缺省", () => {
+    expect(run(["--max-cost", "1.5", "hi"]).maxCostUsd).toBe(1.5);
+    expect(usage(["--max-cost", "0"])).toContain("--max-cost 应为正数");
+    expect(usage(["--max-cost=abc"])).toContain("--max-cost 应为正数");
+    expect(run(["--agent-dir", "/a", "--agent-dir=/b"]).agentDirs).toEqual(["/a", "/b"]);
+    const plain = run(["hi"]);
+    expect(plain.maxCostUsd).toBeUndefined();
+    expect(plain.agentDirs).toBeUndefined();
+    // --max-turns 维持原状：只用于 -p
+    expect(usage(["--max-turns", "3", "hi"])).toContain("--max-turns 只用于 -p");
+    for (const flag of ["--mode acp", "--max-cost", "--agent-dir"])
+      expect(HELP_TEXT).toContain(flag);
+  });
+
+  it("profile agentDirs 排在 --agent-dir 之后", () => {
+    const merged = applyProfile(run(["--agent-dir", "/cli"]), {
+      path: "/p.json",
+      instructions: [],
+      skillDirs: [],
+      promptDirs: [],
+      agentDirs: ["/profile"],
+      authEnv: true,
+      trustProject: false,
+      warnings: [],
+    });
+    expect(merged.agentDirs).toEqual(["/cli", "/profile"]);
+  });
+
+  it("退出码 8 = 预算上限（7 仍是工具被拒）", () => {
+    expect(ExitCode.LimitReached).toBe(8);
+    expect(ExitCode.ToolDenied).toBe(7);
+    expect(describeExitCode(8)).toContain("预算上限");
+    expect(HELP_TEXT).toContain("8 -p 到达预算上限");
   });
 });

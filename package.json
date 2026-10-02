@@ -49,6 +49,10 @@
       "types": "./dist/tui.d.ts",
       "import": "./dist/tui.js"
     },
+    "./acp": {
+      "types": "./dist/acp.d.ts",
+      "import": "./dist/acp.js"
+    },
     "./bundle": "./dist/bundle/ama.cjs",
     "./package.json": "./package.json"
   },

@@ -346,6 +346,12 @@ function buildSession(
   };
   const maxTurns = assembly.overrides?.maxTurns;
   if (maxTurns !== undefined) options.maxTurns = maxTurns;
+  // [W5-C0] 只透传：limits（config limits.* 与 --max-cost）与 fallbackModel 由 W5-H2 实现
+  const limits = { ...config.limits };
+  const maxCost = assembly.overrides?.maxCostUsd;
+  if (maxCost !== undefined) limits.maxCostUsd = maxCost;
+  if (Object.keys(limits).length > 0) options.limits = limits;
+  if (config.fallbackModel !== undefined) options.fallbackModel = config.fallbackModel;
   const idle = idleTimeoutFrom(config, process.env, (message) => record.log("warn", message));
   if (idle !== undefined) options.idleTimeoutMs = idle;
   const autoModel = config.permission?.autoModel;
