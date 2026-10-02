@@ -87,13 +87,18 @@ jobs:
           mv release/*.tgz release/package.tgz
           cd release && sha256sum ama.cjs ama-sandbox.cjs package.tgz > SHA256SUMS
       # 先发 GitHub Release 附件，再发 npm（设计 D15 / §14）
+      # 同一 tag 偶发重复触发：Release 已存在时改为覆盖上传附件，不让后一次运行失败
       - name: github release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >
-          gh release create "$GITHUB_REF_NAME"
-          release/ama.cjs release/ama-sandbox.cjs release/package.tgz release/SHA256SUMS
-          --title "$GITHUB_REF_NAME" --generate-notes
+        run: |
+          assets="release/ama.cjs release/ama-sandbox.cjs release/package.tgz release/SHA256SUMS"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "::notice::Release $GITHUB_REF_NAME 已存在，覆盖上传附件"
+            gh release upload "$GITHUB_REF_NAME" $assets --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" $assets --title "$GITHUB_REF_NAME" --generate-notes
+          fi
       # npm 可信发布（trusted publishing）需要 npm ≥ 11.5.1；Node 22 自带的是 npm 10。
       - name: npm (trusted publishing)
         run: |
