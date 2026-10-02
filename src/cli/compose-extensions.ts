@@ -20,6 +20,7 @@
  */
 
 import type { SessionExtensionFactory } from "../agent/session-extensions.js";
+import { planExtensionFor } from "../plan/compose.js";
 import type { SessionAssembly } from "./deps.js";
 
 export interface ComposeExtensionDeps {
@@ -29,8 +30,9 @@ export interface ComposeExtensionDeps {
   log(level: "debug" | "info" | "warn" | "error", message: string): void;
 }
 
-export function composeExtensions(_deps: ComposeExtensionDeps): SessionExtensionFactory[] {
+export function composeExtensions(deps: ComposeExtensionDeps): SessionExtensionFactory[] {
   return [
+    planExtensionFor(deps),
     // 各批次在下面约定的位置各加一行（顺序有意义，见文件头）：
     // [W5-F]  createPlanExtension(...)
     // [W5-H2] createRemindersExtension(...), createLimitsExtension(...)
