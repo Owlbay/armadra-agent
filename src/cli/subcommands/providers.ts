@@ -7,16 +7,15 @@
  * - refresh：重拉 `/models` 与 models.dev，只追加新模型；已下架的只提示。
  * - list / channels：供应商 → 渠道 → 模型数与 key 来源（从不显示 key）。remove：删配置与 auth.json 条目。
  *
- * 计费：`--probe` 每模型每渠道一次最小请求；执行前打印预估，TTY 问 y/N，非 TTY 必须 `--yes`。
+ * 计费：`--probe` 每模型每渠道一次最小请求（并发执行，见到首个流事件即判可用并断开，见
+ * probe-runner.ts）；执行前打印预估，TTY 问 y/N，非 TTY 必须 `--yes`。
  */
 
 import { existsSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
-import { withCustomDefaults } from "../../ai/providers/catalog.js";
 import { describeRefresh, refreshModelsDev } from "../../ai/providers/models-dev-cache.js";
 import { modelsDevFields, type ModelsDevIndex } from "../../ai/providers/models-dev.js";
-import { materializeModel } from "../../ai/providers/registry.js";
-import type { ProviderData, ProviderRegistryApi } from "../../ai/types.js";
+import type { ProviderRegistryApi } from "../../ai/types.js";
 import { PROVIDER_ID_PATTERN, setAuthKey } from "../../config/auth-file.js";
 import { loadConfigFile } from "../../config/load.js";
 import type { AmaConfig, ProviderConfig } from "../../config/types.js";
@@ -28,7 +27,9 @@ import { ExitCode } from "../exit-codes.js";
 import { extractKey } from "./auth.js";
 import { listChannels, listProviders, removeProvider } from "./providers-list.js";
 import { buildRegistry, loadUserLevel, type UserLevel } from "./context.js";
-import { attempt, DISCOVER_TIMEOUT_MS, FATAL_STATUS } from "./models-discover.js";
+import { DISCOVER_TIMEOUT_MS } from "./models-discover.js";
+import { describeProbePlan, parseProbeTuning } from "./probe-runner.js";
+import { probeChannels, type ChannelProbeResult } from "./providers-probe.js";
 import {
   DEFAULT_PREFER,
   capRequests,
@@ -52,12 +53,13 @@ export const DEFAULT_LIMIT = 30;
 export const PROVIDERS_USAGE = `用法：ama providers add <id> --base-url <url> [--channel <名字>=<协议>@<地址> …]
                          [--api openai-completions|openai-responses|anthropic-messages|auto]
                          [--key-env <VAR>] [--probe] [--limit N] [--probe-models a,b,…]
-                         [--max-requests N] [--prefer chat,responses,messages]
-                         [--include-no-tools] [--yes]
+                         [--max-requests N] [--concurrency N] [--probe-timeout ms]
+                         [--prefer chat,responses,messages] [--include-no-tools] [--yes]
       ama providers list
       ama providers channels <id>
       ama providers remove <id>
-      ama providers refresh <id> [--probe] [--limit N] [--probe-models a,b,…] [--max-requests N] [--yes]
+      ama providers refresh <id> [--probe] [--limit N] [--probe-models a,b,…] [--max-requests N]
+                             [--concurrency N] [--probe-timeout ms] [--yes]
 `;
 
 const VALUE_OPTIONS = [
@@ -67,6 +69,8 @@ const VALUE_OPTIONS = [
   "limit",
   "probe-models",
   "max-requests",
+  "concurrency",
+  "probe-timeout",
   "prefer",
   "name",
   "profile",
@@ -160,20 +164,6 @@ function channelsOfConfig(config: ProviderConfig): CandidateChannel[] {
   return [{ name: "default", api, baseUrl: config.baseUrl }];
 }
 
-/** 渠道的探测用供应商数据（key 由调用方传入）。 */
-function probeProvider(id: string, channel: CandidateChannel): ProviderData {
-  return {
-    id,
-    name: id,
-    api: channel.api,
-    baseUrl: channel.baseUrl,
-    envKeys: [],
-    models: [],
-    requiresApiKey: true,
-    builtin: false,
-  };
-}
-
 interface PlanInput {
   id: string;
   candidates: CandidateChannel[];
@@ -201,7 +191,7 @@ async function plan(
   const tryChannels = (id: string): string[] =>
     orderChannels(hint(id) ?? input.candidates.map((c) => c.name), prefer);
   const probeable = (id: string): boolean => tryChannels(id).length > 0;
-  const results = new Map<string, { ok: string[]; error?: string }>();
+  const results = new Map<string, ChannelProbeResult>();
   let stopped: string | undefined;
   if (input.probe) {
     const only = list(ctx.values.get("probe-models"));
@@ -212,9 +202,11 @@ async function plan(
     );
     const max = intValue(ctx, "max-requests", DEFAULT_MAX_REQUESTS);
     const capped = capRequests(selected, tryChannels, max);
+    const tuning = parseProbeTuning(ctx.values);
     io.stdout(
       `\n探测：${capped.ids.length} 个模型、${capped.requests} 次最小请求（每模型每渠道 1 次，上限 ${max}）` +
-        `${capped.dropped > 0 ? `；另有 ${capped.dropped} 个超出上限未探测` : ""}\n`,
+        `${capped.dropped > 0 ? `；另有 ${capped.dropped} 个超出上限未探测` : ""}\n` +
+        `${describeProbePlan(capped.requests, tuning.concurrency, tuning.timeoutMs)}\n`,
     );
     const ok = await approved(
       ctx,
@@ -222,30 +214,18 @@ async function plan(
     );
     if (ok === "usage") return { plans: [], cancelled: ExitCode.Usage };
     if (!ok) return { plans: [], cancelled: ExitCode.Ok };
-    outer: for (const id of capped.ids) {
-      const result: { ok: string[]; error?: string } = { ok: [] };
-      const failed: string[] = [];
-      results.set(id, result);
-      for (const name of tryChannels(id)) {
-        const channel = input.candidates.find((c) => c.name === name) as CandidateChannel;
-        const provider = probeProvider(input.id, channel);
-        const model = materializeModel(withCustomDefaults({ id }, input.id, channel.api), provider);
-        const error = await attempt(input.registry, model, input.apiKey);
-        if (error === undefined) result.ok.push(name);
-        else {
-          result.error = error.split("\n")[0]?.slice(0, 120) ?? error;
-          failed.push(`${name}：${result.error}`);
-          if (FATAL_STATUS.test(error)) {
-            stopped = error;
-            break outer;
-          }
-        }
-      }
-      io.stdout(
-        `  ${id}  ${result.ok.length > 0 ? result.ok.join(", ") : "全部失败"}` +
-          `${failed.length > 0 ? `（失败 ${failed.join("；")}）` : ""}\n`,
-      );
-    }
+    const probed = await probeChannels({
+      io,
+      providerId: input.id,
+      ids: capped.ids,
+      channelsFor: tryChannels,
+      candidates: input.candidates,
+      registry: input.registry,
+      apiKey: input.apiKey,
+      ...tuning,
+    });
+    for (const [id, result] of probed.results) results.set(id, result);
+    stopped = probed.stopped;
   }
   const includeNoTools = ctx.flags.has("include-no-tools");
   const plans: ModelPlan[] = input.listed.map((listed) => {
