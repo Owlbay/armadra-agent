@@ -1,6 +1,8 @@
 /**
  * 缓存保证（设计 §9.1）：组装后的会话连续 20 回合，发给供应商的 system + tools 部分逐字节相同；
  * 宿主中途注册工具后，system 不变、工具表只在末尾追加；缓存命中率统计。
+ * 第三波 §1.5 / §1.8：25 回合里一次服务端淘汰只报一次 `cache_miss{evicted}`；`/compact` 的
+ * 摘要请求以上一次真实请求为逐字节前缀续写，压缩后的首个请求是重置点不算未命中。
  */
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -14,6 +16,8 @@ import { buildOpenAIRequest } from "../ai/apis/openai-request.js";
 import type { FakeResponse } from "../ai/fake/fake-script.js";
 import { ProviderRegistry } from "../ai/providers/registry.js";
 import type { Model, TranscriptContext } from "../ai/types.js";
+import type { SessionEvent } from "../agent/types.js";
+import { SUMMARY_CONTINUATION_PREAMBLE } from "../compaction/summarize-tier.js";
 import type { HostApi } from "../host/types.js";
 
 let h: ComposeHarness;
@@ -118,6 +122,79 @@ describe("缓存保证（设计 §9.1）", () => {
     expect(systems).toHaveLength(2);
     expect(systems[1]).toMatchObject({ sections: {} });
     expect(systems[1]?.toolsAdded?.map((t) => t.name)).toEqual(["canvas_note"]);
+    await runtime.dispose();
+  });
+});
+
+/** 25 回合：第 `miss` 回合服务端淘汰（读 0），第 `compactAfter` 回合后手动压缩。 */
+function evictionScript(rounds: number, miss: number, compactAfter: number): FakeResponse[] {
+  const out: FakeResponse[] = [];
+  const prompt = (i: number) => 30_000 + 500 * i;
+  for (let i = 0; i < rounds; i++) {
+    const p = prompt(i);
+    let usage: FakeResponse["usage"];
+    if (i === 0) usage = { input: 0, cacheWrite: p, output: 5 };
+    else if (i === miss || i === compactAfter + 1) usage = { input: p, output: 5 };
+    else usage = { input: 500, cacheRead: p - 500, output: 5 };
+    out.push({ text: `answer ${i}`, usage });
+    if (i === compactAfter) {
+      // 手动压缩切在最后一条助手消息上（split turn）：历史与回合前缀各一份摘要
+      out.push({ text: "## Goal\ncheckpoint", usage: { input: 300, cacheRead: p, output: 50 } });
+      out.push({ text: "## Turn So Far\nq", usage: { input: 300, cacheRead: p, output: 20 } });
+    }
+  }
+  return out;
+}
+
+describe("未命中与摘要续写（第三波 §1.5 / §1.8）", () => {
+  it("25 回合：一次淘汰只报一次 evicted；/compact 续写上一次真实请求的逐字节前缀；压缩后首个请求不算未命中", async () => {
+    const rounds = 25;
+    const missAt = 9;
+    const compactAfter = 17;
+    h = composeHarness(evictionScript(rounds, missAt, compactAfter));
+    h.home.write("work/AGENTS.md", "project rules");
+    const runtime = await h.boot(["--model", "fake/echo"]);
+    const events: SessionEvent[] = [];
+    runtime.session.subscribe((event) => events.push(event));
+    for (let i = 0; i < rounds; i++) {
+      await runtime.session.prompt(`question ${i}`);
+      if (i === compactAfter) await runtime.session.compact();
+    }
+    expect(h.fake.calls).toHaveLength(rounds + 2);
+    const first = prefixes(h.fake.calls[0]!.context);
+    for (const call of h.fake.calls) {
+      const p = prefixes(call.context);
+      expect(JSON.stringify(p.anthropic)).toBe(JSON.stringify(first.anthropic));
+      expect(JSON.stringify(p.openai)).toBe(JSON.stringify(first.openai));
+    }
+
+    const turn = h.fake.calls[compactAfter]!;
+    const summary = h.fake.calls[compactAfter + 1]!;
+    for (const call of h.fake.calls.slice(compactAfter + 1, compactAfter + 3)) {
+      expect(call.options).toMatchObject({ purpose: "summary", toolChoice: "none" });
+    }
+    const last = summary.context.messages.at(-1);
+    expect(last?.role === "user" && String(last.content)).toMatch(
+      new RegExp(`^${SUMMARY_CONTINUATION_PREAMBLE.slice(0, 20)}`),
+    );
+    const n = turn.context.messages.length;
+    expect(JSON.stringify(summary.context.messages.slice(0, n))).toBe(
+      JSON.stringify(turn.context.messages),
+    );
+
+    const misses = events.filter((e) => e.type === "cache_miss");
+    expect(misses).toHaveLength(1);
+    expect(misses[0]).toMatchObject({
+      reason: "evicted",
+      missedTokens: 30_000 + 500 * (missAt - 1),
+    });
+    const cache = runtime.session.getStats().cache!;
+    expect(cache).toMatchObject({
+      reporting: "reported",
+      misses: { count: 1, byReason: { evicted: 1 } },
+    });
+    expect(cache.lastHitRate).toBeGreaterThan(0.98);
+    expect(cache.warming).toMatchObject({ state: "stopped", reason: "no_ttl" });
     await runtime.dispose();
   });
 });
