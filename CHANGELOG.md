@@ -35,6 +35,11 @@ Wave 6 (docs/wave6-plan.md) contracts and infrastructure (W6-C0):
   output and errors of `ama providers` / `models` / `stats` / `sessions export` · `search` / `init` follow the interface
   language (`AMA_LANG=en` / `--lang en`); Chinese output is unchanged word for word. The `advice` of
   `ama models cache-probe --json` is human-readable text and follows the interface language too.
+- **English interactive interface** (W6-I2): the TUI and line mode follow the interface language — startup header, status
+  line, approval dialog (including the pre-execution preview and origin labels), Plan dialog, rewind list and panel, `/session`,
+  `/cache`, `/permissions`, pickers, `/agents`, `/tasks`, Bypass confirmation, notices and key hints. Chinese output is
+  byte-for-byte unchanged; compact status line notation (`ctx`, `cache`, `$`, `↑ ↓`) is not translated. Approval previews in
+  `permission_request` events follow the interface language too.
 - **`/config` settings panel** (W6-S): lists scalar settings by group with their effective value, source (default / user /
   profile / project / cli / env) and when a change takes effect (immediately / new session / restart); ↑↓ Enter / Space to
   change, `/` to search, Tab to switch the target layer (project level may only tighten), and overridden items are marked
