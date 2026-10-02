@@ -10,6 +10,7 @@
  *   DISPLAY_DEFAULTS 相同，DISPLAY_DEFAULTS 本身通过 `validateConfig`。
  */
 
+import { DEFAULT_IDLE_TIMEOUT_MS } from "../ai/http.js";
 import { DEFAULT_INLINE_BUDGET } from "../codemode/declarations.js";
 import { DEFAULT_CONFIG, mergeConfig } from "./merge.js";
 import { DEFAULT_CACHE_CONFIG, type AmaConfig } from "./types.js";
@@ -21,6 +22,7 @@ const IMPLICIT_DEFAULTS: Partial<AmaConfig> = {
   tools: { default: [] },
   codemode: { inlineBudget: DEFAULT_INLINE_BUDGET, requireStrict: false },
   cache: { ...DEFAULT_CACHE_CONFIG },
+  request: { idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS },
 };
 
 /** 全部有固定缺省值的键（展示用；运行时仍以 DEFAULT_CONFIG 合并）。 */
@@ -85,6 +87,9 @@ export const CONFIG_KEY_DOCS: Readonly<Record<string, string>> = Object.freeze({
   skills: "Skill",
   "skills.dirs": "追加的 Skill 目录；各层累加",
   cache: "提示缓存；整段只认用户级",
+  request: "模型请求；整段只认用户级 / profile",
+  "request.idleTimeoutMs":
+    "流空闲超时（毫秒）：等响应头或两块数据之间超过即判卡住并按可重试错误重试；0 关闭；AMA_IDLE_TIMEOUT_MS 覆盖",
   "cache.warming": "保温：off 关闭，streaming 生成期间保温，idle 空闲时也保温",
   "cache.retention": "缓存时长档：none、short、long（供应商支持时）",
   "cache.minSavingsUsd": "保温的最低期望节省（美元）",
