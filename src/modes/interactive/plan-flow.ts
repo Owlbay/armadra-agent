@@ -11,6 +11,7 @@
 
 import type { AgentSession, PlanData } from "../../agent/types.js";
 import type { SwitchRequest } from "../../cli/compose-session.js";
+import { msg } from "../../i18n/index.js";
 import { permissionModeLabel } from "../../permissions/modes.js";
 import { planController } from "../../plan/controller.js";
 import { executionMode } from "../../plan/store.js";
@@ -42,8 +43,7 @@ export class PlanFlow {
       return undefined;
     });
     const pending = controller.pending();
-    if (pending !== undefined)
-      this.deps.notice("info", `计划 v${pending.version} 待审批：/plan 打开审批框`);
+    if (pending !== undefined) this.deps.notice("info", msg().plan.flow.pending(pending.version));
   }
 
   get isOpen(): boolean {
@@ -78,7 +78,7 @@ export class PlanFlow {
           ...(choice.editedMarkdown !== undefined ? { editedMarkdown: choice.editedMarkdown } : {}),
         });
         const mode = permissionModeLabel(result.mode ?? choice.mode);
-        this.deps.notice("info", `已批准计划 v${result.plan.version}，以 ${mode} 执行`);
+        this.deps.notice("info", msg().plan.flow.approved(result.plan.version, mode));
         return;
       }
       case "approve_fresh": {
@@ -91,7 +91,11 @@ export class PlanFlow {
         );
         this.deps.notice(
           "info",
-          `已批准计划 v${fresh.plan.version}，在新会话 ${fresh.session.state.sessionId.slice(0, 8)} 以 ${permissionModeLabel(choice.mode)} 执行`,
+          msg().plan.flow.approvedFresh(
+            fresh.plan.version,
+            fresh.session.state.sessionId.slice(0, 8),
+            permissionModeLabel(choice.mode),
+          ),
         );
         this.deps.prompt(fresh.prompt);
         return;
@@ -108,9 +112,11 @@ export class PlanFlow {
         await controller.respond({ planId: plan.id, decision: "reject" });
         if (choice.exit) {
           session.setPermissionMode(pre);
-          this.deps.notice("info", `已放弃计划 v${plan.version}，回到 ${permissionModeLabel(pre)}`);
-        } else
-          this.deps.notice("info", `已放弃计划 v${plan.version}（仍在 Plan 模式，/plan 查看）`);
+          this.deps.notice(
+            "info",
+            msg().plan.flow.rejectedExit(plan.version, permissionModeLabel(pre)),
+          );
+        } else this.deps.notice("info", msg().plan.flow.rejectedStay(plan.version));
         return;
       }
     }

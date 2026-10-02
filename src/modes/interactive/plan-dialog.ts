@@ -28,6 +28,7 @@
  */
 
 import type { PlanData } from "../../agent/types.js";
+import { msg } from "../../i18n/index.js";
 import { permissionModeLabel } from "../../permissions/modes.js";
 import type { PermissionMode } from "../../permissions/types.js";
 import {
@@ -79,7 +80,8 @@ export interface PlanDialogInput {
 }
 
 function mainOptions(ellipsis: string): readonly string[] {
-  return ["批准并执行", "批准，在新上下文执行", `继续修改${ellipsis}`, "放弃，退出 Plan 模式"];
+  const m = msg().plan.dialog;
+  return [m.optionApprove, m.optionApproveFresh, m.optionRevise(ellipsis), m.optionReject];
 }
 const MAIN_COUNT = 4;
 
@@ -104,7 +106,7 @@ export class PlanDialog implements Component, Focusable {
   private modes(): { mode: PermissionMode; label: string }[] {
     const pre = this.input.preMode;
     return [
-      { mode: pre, label: `回到进入前的模式（${permissionModeLabel(pre)}）` },
+      { mode: pre, label: msg().plan.dialog.modeBack(permissionModeLabel(pre)) },
       { mode: "auto-edit", label: permissionModeLabel("auto-edit") },
       { mode: "auto", label: permissionModeLabel("auto") },
     ];
@@ -243,7 +245,11 @@ export class PlanDialog implements Component, Focusable {
         );
         break;
       case "mode":
-        push(this.host.theme.bold(this.fresh ? "在新上下文执行，执行模式" : "执行模式"));
+        push(
+          this.host.theme.bold(
+            this.fresh ? msg().plan.dialog.modeHeadingFresh : msg().plan.dialog.modeHeading,
+          ),
+        );
         lines.push(
           ...this.optionLines(
             this.modes().map((m) => m.label),
@@ -256,7 +262,7 @@ export class PlanDialog implements Component, Focusable {
         lines.push(...this.reviseLines(width, compact));
         break;
       case "editing":
-        push(this.host.theme.fg("dim", `正在外部编辑器里编辑${this.host.theme.glyphs.ellipsis}`));
+        push(this.host.theme.fg("dim", msg().plan.dialog.editing(this.host.theme.glyphs.ellipsis)));
         break;
     }
     blank();
@@ -269,20 +275,20 @@ export class PlanDialog implements Component, Focusable {
     const { theme } = this.host;
     const plan = this.input.plan;
     const sep = theme.fg("dim", " · ");
-    const head = [`计划 v${plan.version}`, `${plan.steps.length} 步`];
+    const m = msg().plan.dialog;
+    const head = [m.version(plan.version), m.stepCount(plan.steps.length)];
     if (plan.filePath !== undefined)
       head.push(this.host.displayPath?.(plan.filePath) ?? plan.filePath);
     const out = [theme.fg("muted", head.join(sep))];
     out.push(theme.bold(planTitle({ markdown: this.edited ?? plan.markdown })));
     if (this.edited !== undefined) {
-      out.push(theme.fg("warning", "已在编辑器里修改：批准时以修改后的计划执行"));
+      out.push(theme.fg("warning", m.edited));
       return out;
     }
     for (const step of plan.steps.slice(0, PLAN_DIALOG_STEPS))
       out.push(`  ${theme.fg("dim", step.id)} ${step.text}`);
     const hidden = plan.steps.length - PLAN_DIALOG_STEPS;
-    if (hidden > 0)
-      out.push(theme.fg("dim", `  ${theme.glyphs.ellipsis} 另 ${hidden} 步（/plan 查看全部）`));
+    if (hidden > 0) out.push(theme.fg("dim", m.moreSteps(theme.glyphs.ellipsis, hidden)));
     return out;
   }
 
@@ -303,7 +309,8 @@ export class PlanDialog implements Component, Focusable {
   private reviseLines(width: number, compact: boolean): string[] {
     const { theme } = this.host;
     const g = theme.glyphs;
-    const out = [theme.bold(compact ? "修改意见" : "修改意见（留在 Plan 模式，模型据此重写计划）")];
+    const m = msg().plan.dialog;
+    const out = [theme.bold(compact ? m.feedbackCompact : m.feedback)];
     const cursor = "\x1b[7m \x1b[27m";
     const text = this.feedback.replace(/\n/g, " ⏎ ");
     const body = `${theme.fg("user", g.prompt)} ${text}${cursor}`;
@@ -315,19 +322,16 @@ export class PlanDialog implements Component, Focusable {
     const g = this.host.theme.glyphs;
     const arrows = g.arrowUp + g.arrowDown;
     const edit = this.host.editExternal !== undefined;
+    const m = msg().plan.dialog;
     switch (this.stage) {
       case "main":
-        return compact
-          ? `${arrows} Enter${edit ? " · e 编辑" : ""} · Esc 留在 Plan`
-          : `${arrows} 选择 · Enter 确认${edit ? " · e 编辑计划" : ""} · Esc 留在 Plan`;
+        return compact ? m.hintMainCompact(arrows, edit) : m.hintMain(arrows, edit);
       case "mode":
-        return compact ? `${arrows} Enter · Esc 返回` : `${arrows} 选择 · Enter 确认 · Esc 返回`;
+        return compact ? m.hintModeCompact(arrows) : m.hintMode(arrows);
       case "revise":
-        return compact
-          ? `Enter 发送${edit ? " · Ctrl+E 编辑器" : ""} · Esc 返回`
-          : `Enter 发送${edit ? " · Ctrl+E 外部编辑器" : ""} · Esc 返回`;
+        return compact ? m.hintReviseCompact(edit) : m.hintRevise(edit);
       case "editing":
-        return "保存并关闭编辑器后回到这里";
+        return m.hintEditing;
     }
   }
 
@@ -347,6 +351,8 @@ export function openPlanDialog(host: PlanDialogHost, input: PlanDialogInput): Pr
       resolve(choice);
     });
     host.onOpen?.();
-    handle = host.showOverlay(new Box(dialog, { title: "计划待审批", theme: host.theme }));
+    handle = host.showOverlay(
+      new Box(dialog, { title: msg().plan.dialog.title, theme: host.theme }),
+    );
   });
 }
