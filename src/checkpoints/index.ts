@@ -58,3 +58,12 @@ export {
   type BlobUsage,
 } from "./blobs.js";
 export { readGitHead, type GitHead } from "./git-head.js";
+export {
+  SHADOW_MAX_FILES,
+  SHADOW_MAX_SNAPSHOT_MS,
+  ShadowRepo,
+  shadowRepoDir,
+  shadowUsage,
+  type ShadowGitOptions,
+} from "./shadow-git.js";
+export { restoreFromShadow, type ShadowRestoreOptions } from "./shadow-restore.js";
