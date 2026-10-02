@@ -1,5 +1,6 @@
 /**
- * `scripts/check-i18n.mjs`（docs/wave6-plan.md §5.4）：注释剥离、棘轮比较、目录检查、顶层 msg() 检查。[W6-C0]
+ * `scripts/check-i18n.mjs`（docs/wave6-plan.md §5.4）：注释剥离、严格检查（[W6-I5]：出现即失败）、白名单理由、
+ * 目录检查、顶层 msg() 检查。[W6-C0]
  */
 
 import { pathToFileURL, fileURLToPath } from "node:url";
@@ -11,12 +12,9 @@ interface CheckI18n {
   cjkLines(source: string, path?: string): number[];
   checkCatalog(source: string, path: string): string[];
   eagerMsgLines(source: string): number[];
-  compare(
-    counts: Record<string, number>,
-    baseline: Record<string, number>,
-    options?: { strict?: boolean },
-  ): { errors: string[]; lowered: string[] };
-  scan(): { counts: Record<string, number>; problems: string[] };
+  scan(): { lines: string[]; problems: string[] };
+  SKIPPED: [RegExp, string][];
+  ALLOWED_LINES: Record<string, [RegExp, string][]>;
 }
 
 const SCRIPT = fileURLToPath(new URL("../scripts/check-i18n.mjs", import.meta.url));
@@ -31,6 +29,8 @@ describe("check-i18n", () => {
     expect(isScanned("src/agent/testing/fake.ts")).toBe(false);
     expect(isScanned("src/modes/interactive/test-support.ts")).toBe(false);
     expect(isScanned("src/ai/providers/models-dev-data.ts")).toBe(false);
+    // 价格覆盖数据要扫：只有 _reason 行在白名单里
+    expect(isScanned("src/ai/providers/catalog-data.ts")).toBe(true);
     expect(isScanned("scripts/x.ts")).toBe(false);
   });
 
@@ -49,20 +49,22 @@ describe("check-i18n", () => {
     expect(cjkLines(source)).toEqual([4, 5, 6, 8]);
   });
 
-  it("白名单：输入别名", async () => {
+  it("白名单：输入别名与 _reason，只对登记的文件生效", async () => {
     const { cjkLines } = await load();
     expect(cjkLines('  批准: "pre",', "src/plan/controller.ts")).toEqual([]);
     expect(cjkLines('  批准: "pre",', "src/other.ts")).toEqual([1]);
+    const data = `  '{"id":"x","_reason":"按官方价格页"}',`;
+    expect(cjkLines(data, "src/ai/providers/catalog-data.ts")).toEqual([]);
+    expect(cjkLines(`  '{"id":"x","name":"中文"}',`, "src/ai/providers/catalog-data.ts")).toEqual([
+      1,
+    ]);
   });
 
-  it("棘轮：只许降不许升，基线外的新文件必须为 0；严格模式全部失败", async () => {
-    const { compare } = await load();
-    expect(compare({ "src/a.ts": 3 }, { "src/a.ts": 3 })).toEqual({ errors: [], lowered: [] });
-    expect(compare({ "src/a.ts": 2 }, { "src/a.ts": 3 }).lowered).toEqual(["src/a.ts: 3 → 2"]);
-    expect(compare({}, { "src/a.ts": 3 }).lowered).toEqual(["src/a.ts: 3 → 0"]);
-    expect(compare({ "src/a.ts": 4 }, { "src/a.ts": 3 }).errors).toHaveLength(1);
-    expect(compare({ "src/new.ts": 1 }, {}).errors[0]).toContain("src/new.ts");
-    expect(compare({ "src/a.ts": 3 }, { "src/a.ts": 3 }, { strict: true }).errors).toHaveLength(1);
+  it("每条跳过与白名单都写了理由", async () => {
+    const { SKIPPED, ALLOWED_LINES } = await load();
+    for (const [re, reason] of SKIPPED) expect(reason.length, String(re)).toBeGreaterThan(4);
+    for (const entries of Object.values(ALLOWED_LINES))
+      for (const [re, reason] of entries) expect(reason.length, String(re)).toBeGreaterThan(4);
   });
 
   it("目录：en 不得有汉字，zh 不得留 TODO", async () => {
@@ -93,14 +95,10 @@ describe("check-i18n", () => {
     expect(eagerMsgLines("export const T = { get label() { return msg().cli.a; } };")).toEqual([]);
   });
 
-  it("仓库当前通过（基线、目录、顶层 msg()）", async () => {
-    const { scan, compare } = await load();
-    const { counts, problems } = scan();
+  it("仓库当前通过（严格：没有汉字行、目录、顶层 msg()）", async () => {
+    const { scan } = await load();
+    const { lines, problems } = scan();
     expect(problems).toEqual([]);
-    const { readFileSync } = await import("node:fs");
-    const baseline = JSON.parse(
-      readFileSync(new URL("../scripts/i18n-baseline.json", import.meta.url), "utf8"),
-    ) as { files: Record<string, number> };
-    expect(compare(counts, baseline.files).errors).toEqual([]);
+    expect(lines).toEqual([]);
   });
 });
