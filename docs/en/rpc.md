@@ -138,7 +138,40 @@ After a session switch the server re-subscribes to events and sends `session_sta
 | `get_tasks`     | —                                                                                                                                                        | `{ tasks: TaskInfo[] }` (a read-only view of the sub-agent task registry; empty when not wired)                 |
 | `get_agents`    | —                                                                                                                                                        | `{ agents: AgentInfo[] }` (available sub-agent types and external agents; empty when not wired)                 |
 
-42 commands in total; their names are the keys of `RpcCommandMap`.
+### Traces (wave 6)
+
+`get_trace` returns the session trace (the same tree as the TUI `/trace` and `ama sessions trace`, see [tui.md](tui.md)
+"Traces"). There is no new event: after `entry_appended`, fetch again with the previous `cursor.since` to refresh incrementally.
+
+| Parameter    | Meaning                                                                                                                                                                                   |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `branch?`    | `leaf` (default, root to the current leaf) \| `all` (every entry in the file)                                                                                                             |
+| `turnLimit?` | Number of turns, tail first; default 50, range 1–500                                                                                                                                      |
+| `before?`    | A turn id (= the entry id of the turn's user message); returns the `turnLimit` turns before it (paging backwards)                                                                         |
+| `since?`     | An entry id (as in `get_entries.since`): returns every turn from the one containing that entry to the end (no `turnLimit`); excludes `before`                                             |
+| `taskId?`    | That task's sub-trace: an ama subagent returns its child session's trace (cursor and `leafId` refer to the child); an external agent returns no turns and its skeleton in `task.external` |
+| `content?`   | `none` (default: structure, times and tokens only) \| `preview` (adds `previews`)                                                                                                         |
+
+`data`: `{ trace, hasMoreBefore, cursor: { before?, since }, leafId, task?, previews? }`
+
+- `trace` is a `Trace` (a type exported by `@armadra/agent`): `turns` is the requested window, while `totals` and `aux`
+  (auxiliary requests such as cache warm-up and the permission classifier) always cover the whole branch.
+- `cursor.before` is the id of the window's first turn (present only when there are earlier turns) for the next `before`;
+  `cursor.since` is the id of the last entry on the branch for the next `since`.
+- **Merging increments**: replace the tail of the local list starting at the first returned turn id; if the local list does
+  not have that id (rewind switched branches), replace everything; an empty list means the branch has no turns. The turn that
+  contains `since` is always sent again (it may still be running); when a late entry from a background task changes an earlier
+  turn, the response starts from that turn. If `since` is not on the selected branch, every turn is returned from the first.
+- `task`: with `taskId`, the subagent node itself (without `child`).
+- `previews`: `<kind>:<node id>` → `{ input?, output?, args?, result? }` (the turn's prompt, the request's reply text, the
+  tool's arguments JSON and result) for this session's nodes inside the window; redacted first (as `sessions export`) and then
+  truncated — arguments to 500 characters, the rest to 2000 — with `…` at the cut.
+- The whole `data` is redacted; nodes carry only ids, times, counts and usage, and content appears only in `previews`. Tools
+  still running without a result are marked `running`.
+- Errors: `invalid_arguments` (out-of-range parameters, `before` not a turn id on this branch, `before` together with
+  `since`) and `task_not_found`.
+
+43 commands in total; their names are the keys of `RpcCommandMap`.
 
 ## Events
 

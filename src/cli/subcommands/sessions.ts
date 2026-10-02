@@ -4,7 +4,7 @@
  * 会话存储是 B2 的实现，经 RuntimeDeps.sessions 注入；这里只做参数、目录解析与输出格式。
  * - list [--all]：缺省只列当前目录的会话；`--all` 列全部。
  * - show <id>：头信息 + 条目类型统计 + 首条提示 + 用户消息编号（`--from <id>#<编号>` 复用）。
- * - search / export：见 sessions-search.ts、sessions-export.ts（只读扫描，不经会话存储）。
+ * - search / export / trace：见 sessions-search.ts、sessions-export.ts、sessions-trace.ts（只读扫描，不经会话存储）。
  * - prune [--older-than <天>] [--dry-run]：缺省 30 天，移到 trash（不删除）；之后清理检查点备份
  *   （未被任何会话引用且超过 1 天的 blob，docs/rewind-plan.md §1.4）与超过 7 天的剪贴板图片
  *   （`<数据目录>/clipboard/`，W5-I），`--dry-run` 时只报告。
@@ -20,6 +20,7 @@ import { numberUserMessages } from "../../session/reuse.js";
 import { gcClipboardImages } from "../../tools/clipboard-image.js";
 import { runSessionsExport } from "./sessions-export.js";
 import { runSessionsSearch } from "./sessions-search.js";
+import { runSessionsTrace } from "./sessions-trace.js";
 
 export const SESSIONS_USAGE = `用法：ama sessions list [--all] [--session-dir <目录>]
       ama sessions show <id> [--session-dir <目录>]
@@ -45,6 +46,7 @@ export async function runSessions(
 ): Promise<number> {
   if (argv[0] === "search") return runSessionsSearch(argv.slice(1), io);
   if (argv[0] === "export") return runSessionsExport(argv.slice(1), io);
+  if (argv[0] === "trace") return runSessionsTrace(argv.slice(1), io); // [W6-T2]
   const { positionals, values, flags } = parseSubArgs(
     argv,
     ["session-dir", "older-than"],

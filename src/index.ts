@@ -35,6 +35,7 @@ export type * from "./trace/types.js";
 export { TRACE_CUSTOM_TYPE } from "./trace/types.js";
 export { buildTrace, loadSubagentTrace } from "./trace/build.js"; // [W6-T1]
 export type { BuildTraceOptions, LiveOverlay, TraceInput } from "./trace/build.js";
+export type { TracePreview } from "./trace/preview.js"; // [W6-T2]
 export type { Locale } from "./i18n/index.js";
 export type { AmaErrorOptions, ErrorCode, KnownErrorCode } from "./errors.js";
 export type {
