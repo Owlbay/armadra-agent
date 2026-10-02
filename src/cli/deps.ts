@@ -107,7 +107,7 @@ export interface SessionAssembly {
   sessionStartContext(): string | undefined;
   /** print：ask → deny。 */
   unattended: boolean;
-  /** 命令行对会话的覆盖（W4-C）：`-p --max-turns`。 */
+  /** 命令行对会话的覆盖（W4-C）：`-p --max-turns`、`--system-prompt`。 */
   overrides?: SessionOverrides;
   warn(message: string): void;
 }
@@ -115,6 +115,13 @@ export interface SessionAssembly {
 export interface SessionOverrides {
   /** 一次运行（prompt）的回合上限。 */
   maxTurns?: number;
+  /** `--system-prompt`：追加进 rules 节，或替换 preamble。 */
+  systemPrompt?: SystemPromptOverride;
+}
+
+export interface SystemPromptOverride {
+  text: string;
+  mode: "append" | "replace";
 }
 
 export interface ModeContext {

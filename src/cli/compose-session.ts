@@ -133,6 +133,9 @@ function systemInput(
   active: readonly string[],
 ): NonNullable<AgentSessionOptions["system"]> {
   const system: NonNullable<AgentSessionOptions["system"]> = { contextFiles: contextFiles(record) };
+  const override = record.assembly.overrides?.systemPrompt;
+  if (override?.mode === "replace") system.preamble = override.text;
+  else if (override !== undefined) system.extraRules = [override.text];
   const index = formatSkillIndex(record.state.skills, {
     hasSkillTool: false,
     hasReadTool: active.includes("read"),

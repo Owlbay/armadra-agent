@@ -381,6 +381,9 @@ anthropic/<model-id> · think:medium · ↑412k ↓8.1k · cache 83% ♨ · $0.8
 `--max-turns N` 限制一次运行最多 N 轮（一次模型请求加它的工具执行算一轮），到上限仍在调用工具时提前结束，退出码 1，
 `json` 结果带 `maxTurnsReached: true`。
 
+`--system-prompt <文本|@文件>` 补充系统提示（任何模式都可用）：缺省作为最后一条规则追加，preamble 与工具表这段最长的
+缓存前缀不变；`--system-prompt-mode replace` 改为替换开头的角色说明，工具表、规则与 AGENTS.md 仍然保留。
+
 **无人值守**：`-p` 没有人审批，缺省权限模式下需要询问的调用（写文件、跑命令）一律拒绝。被拒时 stderr 一行汇总被拒的
 工具与原因，`json` 结果带 `deniedTools`，`stream-json` 的 `tool_execution_end` 带 `denied: true`，退出码 7。需要放行时用
 `--permission-mode auto-edit`（放行写入）/ `auto`（ama 判断每一步），或 `--allow "bash(npm test*)"` 按规则放行。

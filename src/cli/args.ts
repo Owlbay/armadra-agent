@@ -69,6 +69,10 @@ export interface ParsedArgs {
   toolsPreset?: ToolsPreset;
   /** `--codemode`：覆盖 config `codemode.mode`。 */
   codemode?: CodemodeMode;
+  /** `--system-prompt <文本|@文件>`：缺省追加进系统提示的 rules 节。 */
+  systemPrompt?: string;
+  /** `--system-prompt-mode`：append（缺省）| replace（替换开头的 preamble）。 */
+  systemPromptMode?: "append" | "replace";
   /** `--max-turns N`（只用于 -p）：一次运行最多 N 轮（模型请求 + 工具执行算一轮）。 */
   maxTurns?: number;
   /** 位置参数 `-`（只用于 -p）：显式读 stdin，有提示参数时也拼接。 */
@@ -144,6 +148,8 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
   --trust / --no-trust         信任 / 不信任当前项目（项目级 Hook、Skill、提示模板）
 
 资源
+  --system-prompt <文本|@文件> 追加系统提示：缺省作为最后一条规则追加（工具表等前缀不变，利于缓存）
+  --system-prompt-mode <方式>  append（缺省）| replace（替换开头的角色说明，工具与项目上下文保留）
   --profile <文件>             宿主 profile.json（字段等价于对应参数，命令行优先）
   --host <模块>                宿主适配器模块（CJS / ESM）
   --instructions <文件>        追加指令文件，可重复
@@ -211,7 +217,9 @@ type ValueOption =
   | "tools-preset"
   | "codemode"
   | "image"
-  | "max-turns";
+  | "max-turns"
+  | "system-prompt"
+  | "system-prompt-mode";
 
 const VALUE_OPTIONS: ReadonlySet<string> = new Set<ValueOption>([
   "profile",
@@ -239,6 +247,8 @@ const VALUE_OPTIONS: ReadonlySet<string> = new Set<ValueOption>([
   "codemode",
   "image",
   "max-turns",
+  "system-prompt",
+  "system-prompt-mode",
 ]);
 
 const FLAG_ALIASES: Readonly<Record<string, string>> = {
@@ -356,6 +366,12 @@ function applyValue(args: ParsedArgs, option: ValueOption, value: string): void 
     case "image":
       args.images.push(value);
       break;
+    case "system-prompt":
+      args.systemPrompt = value;
+      break;
+    case "system-prompt-mode":
+      args.systemPromptMode = choice(option, value, ["append", "replace"] as const);
+      break;
     case "max-turns": {
       const turns = Number(value);
       if (!Number.isInteger(turns) || turns < 1)
@@ -411,6 +427,9 @@ function validate(args: ParsedArgs): void {
   }
   if (args.outputFormat !== undefined && !args.print) {
     throw new UsageError("--output-format 只用于 -p / --print");
+  }
+  if (args.systemPromptMode !== undefined && args.systemPrompt === undefined) {
+    throw new UsageError("--system-prompt-mode 需要同时给出 --system-prompt");
   }
   if (args.maxTurns !== undefined && !args.print) {
     throw new UsageError("--max-turns 只用于 -p / --print");
