@@ -57,7 +57,7 @@ const percent = (rate: number | undefined): string =>
 
 const usd = (t: StatsTotals): string => {
   if (t.cost === undefined) return "—";
-  return t.cost >= 0.01 || t.cost === 0 ? `$${t.cost.toFixed(2)}` : `$${t.cost.toFixed(4)}`;
+  return t.cost >= 1 || t.cost === 0 ? `$${t.cost.toFixed(2)}` : `$${t.cost.toFixed(4)}`;
 };
 
 function seconds(ms: number | undefined): string {
