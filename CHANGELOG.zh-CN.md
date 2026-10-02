@@ -82,6 +82,10 @@
   `/trace` 详情的键列宽按最长的键对齐；`/config` 面板英文底部提示在 80 列不再截断。`release-check` 在中文文档比 `docs/en/` 译本
   的基准提交多改了 5 次以上时提示（不失败）。
 
+- **继续 / 恢复会话跳过子 Agent 会话**：`ama -c`、`--resume` 选择器、交互 `/resume` 选择器与 ACP `session/list` 不再选中或列出
+  子 Agent（task）会话——头有 `parentSession` 且第一条条目是 `custom{ama.task}` 的会话（fork 出来的照常算）；`-c` 每个文件只读头两行。
+  `ama sessions list` 缺省隐藏，`--all` 列出并标 `↳ 子 Agent`。显式 `--resume <子会话 id>` 仍可打开；`prune`、`stats`、`sessions search` 不变。
+
 ## 0.5.1（2026-10-03）
 
 - **Tab 切换权限模式**：输入为空、补全未打开时按 Tab 与 Shift+Tab 一样循环权限模式；有输入时 Tab 仍是补全。可在 `keybindings.json` 的 `app.permission.cycle` 改回只用 `shift+tab`。

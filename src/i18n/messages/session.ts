@@ -24,6 +24,7 @@ export const en = {
        ama sessions trace <id|file> [--html [file]] [--json] [--output <file>] [--open] [--children]
 `,
     none: "No sessions\n",
+    subagentTag: "↳ subagent",
     listRow: (id: string, time: string, count: number, name: string) =>
       `${id}  ${time}  ${String(count).padStart(4)} msgs  ${name}\n`,
     showNeedsId: "ama sessions show needs <id>",
@@ -194,6 +195,7 @@ export const zh = {
       ama sessions trace <id|文件> [--html [文件]] [--json] [--output <文件>] [--open] [--children]
 `,
     none: "没有会话\n",
+    subagentTag: "↳ 子 Agent",
     listRow: (id, time, count, name) =>
       `${id}  ${time}  ${String(count).padStart(4)} 条  ${name}\n`,
     showNeedsId: "ama sessions show 需要 <id>",

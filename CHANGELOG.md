@@ -120,6 +120,12 @@ set | unset | list`, `ama memory` and `ama sessions trace` (the Chinese help cha
   columns in English. `release-check` notes (without failing) when a Chinese doc changed more than 5 times since the commit
   its `docs/en/` translation is based on.
 
+- **Continue / resume skip subagent sessions**: `ama -c`, the `--resume` picker, the interactive `/resume` picker and ACP
+  `session/list` no longer pick or list subagent (task) sessions — those whose header has `parentSession` and whose first entry
+  is `custom{ama.task}` (forks still count). `-c` only reads the first two lines of each file. `ama sessions list` hides them by
+  default; `--all` lists them marked `↳ subagent`. An explicit `--resume <subagent session id>` still works; `prune`, `stats` and
+  `sessions search` are unchanged.
+
 ## Earlier releases
 
 See [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md) (Chinese).
