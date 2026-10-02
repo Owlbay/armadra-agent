@@ -27,6 +27,7 @@ import type {
 import { formatSchemaErrors, validateSchema } from "./schema.js";
 import type { NestedCallInfo, SessionEvent, ToolCallGate, ToolCallGateContext } from "./types.js";
 import { CODEMODE_TOOL } from "../tools/presets.js";
+import { executionModeOf } from "../tools/registry.js";
 import type { ToolContext, ToolDefinition, ToolResult } from "../tools/types.js";
 
 export const ABORTED_TOOL_TEXT = "aborted by user";
@@ -85,10 +86,6 @@ interface Immediate {
 
 export function errorResult(text: string): ToolResult {
   return { content: text, isError: true };
-}
-
-export function executionModeOf(tool: ToolDefinition): "sequential" | "parallel" {
-  return tool.executionMode ?? (tool.permission === "read" ? "parallel" : "sequential");
 }
 
 export function toolResultMessage(call: ToolCallBlock, result: ToolResult): ToolResultMessage {
