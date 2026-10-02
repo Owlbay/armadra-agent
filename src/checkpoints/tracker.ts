@@ -140,8 +140,11 @@ export class CheckpointTracker implements CheckpointHooks {
     }
   }
 
-  /** 新回合：重拍全部已跟踪文件，追加 `ama.checkpoint`，返回它。 */
-  async snapshot(userEntryId: string): Promise<CheckpointData> {
+  /** 新回合：重拍全部已跟踪文件，追加 `ama.checkpoint`，返回它。`extra.shadowCommit` 来自影子 git。 */
+  async snapshot(
+    userEntryId: string,
+    extra: { shadowCommit?: string } = {},
+  ): Promise<CheckpointData> {
     this.lastSnapshotId = userEntryId;
     const files: Record<string, FileRecord> = {};
     const times = new Map<string, number>();
@@ -160,6 +163,7 @@ export class CheckpointTracker implements CheckpointHooks {
       }
     }
     const data: CheckpointData = { v: 1, userEntryId, files };
+    if (extra.shadowCommit !== undefined) data.shadowCommit = extra.shadowCommit;
     try {
       const git = await (this.options.readHead ?? readGitHead)(this.cwd);
       if (git !== undefined) data.git = git;
