@@ -68,6 +68,7 @@ export {
   type ThemeName,
   type CreateThemeOptions,
 } from "./tui/theme.js";
+export { UNICODE_GLYPHS, ASCII_GLYPHS, detectAscii, glyphsFor } from "./tui/glyphs.js";
 export {
   Keybindings,
   defaultKeybindings,

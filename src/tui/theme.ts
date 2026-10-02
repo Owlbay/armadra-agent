@@ -8,6 +8,7 @@
  */
 
 import type { ColorDepth, SemanticColor, Theme, ThemeCapabilities } from "./component.js";
+import { detectAscii, glyphsFor, type Glyphs } from "./glyphs.js";
 
 export type ThemeName = "dark" | "light";
 
@@ -150,6 +151,7 @@ class PaletteTheme implements Theme {
     readonly name: string,
     palette: Record<SemanticColor, string>,
     readonly caps: ThemeCapabilities,
+    readonly glyphs: Glyphs,
   ) {
     const fg = {} as Record<SemanticColor, string>;
     const bg = {} as Record<SemanticColor, string>;
@@ -192,21 +194,25 @@ export interface CreateThemeOptions {
   caps?: ThemeCapabilities;
   /** 覆盖部分语义色（`#rrggbb`）。 */
   overrides?: Partial<Record<SemanticColor, string>>;
+  /** ASCII 字形；缺省按环境检测（`detectAscii`）。 */
+  ascii?: boolean;
 }
 
 export function createTheme(name: ThemeName = "dark", options: CreateThemeOptions = {}): Theme {
   const palette = { ...THEME_PALETTES[name], ...options.overrides };
-  return new PaletteTheme(name, palette, options.caps ?? detectCapabilities());
+  const glyphs = glyphsFor(options.ascii ?? detectAscii());
+  return new PaletteTheme(name, palette, options.caps ?? detectCapabilities(), glyphs);
 }
 
-/** 无色主题（测试、line 模式、NO_COLOR）：所有方法原样返回文本。 */
-export function plainTheme(): Theme {
-  return new PlainTheme();
+/** 无色主题（测试、line 模式、NO_COLOR）：所有方法原样返回文本；字形缺省 Unicode。 */
+export function plainTheme(options: { ascii?: boolean } = {}): Theme {
+  return new PlainTheme(glyphsFor(options.ascii === true));
 }
 
 class PlainTheme implements Theme {
   readonly name = "plain";
   readonly caps: ThemeCapabilities = { colors: 0 };
+  constructor(readonly glyphs: Glyphs) {}
   fg(_color: SemanticColor, text: string): string {
     return text;
   }

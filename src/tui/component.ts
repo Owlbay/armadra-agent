@@ -5,7 +5,12 @@
  * - 设计的 `Theme` 写作 `bg(...)` 与 `bold/dim/italic/underline(s)`，此处展开为完整签名。
  * - `SemanticColor` 取 §12.7 的 11 个语义色名。
  * - 补全 `CURSOR_MARKER` 常量与 `isFocusable()` 判别函数（B4 的 tui.ts 与 B7 都要用）。
+ * - 终端界面视觉设计 v1：`Theme.glyphs`（字形表与 ASCII 回退，见 glyphs.ts）。
  */
+
+import type { Glyphs } from "./glyphs.js";
+
+export type { Glyphs, BoxGlyphs } from "./glyphs.js";
 
 /** APC 序列；获焦组件在光标处输出它，TUI 据此摆硬件光标并在输出前剔除。 */
 export const CURSOR_MARKER = "\x1b_ama:c\x07";
@@ -56,4 +61,6 @@ export interface Theme {
   italic(text: string): string;
   underline(text: string): string;
   readonly caps: ThemeCapabilities;
+  /** 字形（Unicode 或 ASCII 回退）；组件一律从这里取。 */
+  readonly glyphs: Glyphs;
 }
