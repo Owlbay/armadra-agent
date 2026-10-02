@@ -36,6 +36,7 @@ import type {
   WarmingDecisionHandler,
 } from "./ai/cache/types.js";
 import { CACHE_MISS_REASONS, WARMING_MODES } from "./ai/cache/types.js";
+import type * as Sdk from "./index.js";
 import type {
   HookCommonContext,
   HookContextOverrides,
@@ -183,6 +184,10 @@ describe("会话层缓存共享类型（W3-C0 ②）", () => {
     expectTypeOf<ReturnType<WarmingDecisionHandler>>().toEqualTypeOf<
       "warm" | "stop" | Promise<"warm" | "stop">
     >();
+    // SDK 公开面同名再导出
+    expectTypeOf<Sdk.RequestRecord>().toEqualTypeOf<RequestRecord>();
+    expectTypeOf<Sdk.WarmerStatus>().toEqualTypeOf<WarmerStatus>();
+    expectTypeOf<Sdk.CacheReporting>().toEqualTypeOf<"unknown" | "reported" | "silent">();
     expect(WARMING_MODES).toEqual(["off", "streaming", "idle"]);
     expect(CACHE_MISS_REASONS).toEqual([
       "prefix_changed",
