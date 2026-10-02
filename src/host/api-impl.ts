@@ -5,8 +5,13 @@
  * （B2 组装后才可用，所以全部是惰性函数）、指令收集、broker 槽、sendUser、UI 通知。
  * 事件总线 `AgentEventBus` 由 bootstrap 创建并交给 AgentSession 发事件；处理器只观察，
  * 抛错记日志；`emit` 等待全部处理器（`session_shutdown` 需要被 await）。
+ *
+ * [W5-EG] `runners.provide`（docs/wave5-plan.md §5.5，D17）：宿主注入的 runner 进本适配器的
+ * {@link HostRunnerRegistry}（跨会话共享），每个主会话的外部 Agent 入口（agents/external.ts）经
+ * {@link hostRunnersOf} 取到它；有宿主时 ama 不自 spawn 外部 CLI，只认这里注入的。
  */
 
+import { HostRunnerRegistry } from "../drivers/host-runners.js";
 import { AmaError } from "../errors.js";
 import { AMA_VERSION } from "../version.js";
 import type {
@@ -17,6 +22,7 @@ import type {
   HostAdapterHandle,
   HostApi,
   HostMode,
+  HostRunner,
   InstructionSource,
 } from "./types.js";
 import { HOST_API_VERSION } from "./types.js";
@@ -116,6 +122,13 @@ export interface HostApiBinding {
 
 const TOOL_NAME = /^[a-z][a-z0-9_]{1,63}$/;
 
+const hostRunnerRegistries = new WeakMap<HostApi, HostRunnerRegistry>();
+
+/** [W5-EG] 宿主经 `runners.provide` 注入的 runner（HostApi 不是本模块创建的返回 undefined）。 */
+export function hostRunnersOf(api: HostApi): HostRunnerRegistry | undefined {
+  return hostRunnerRegistries.get(api);
+}
+
 function validateTool(tool: ToolDefinition): void {
   if (typeof tool !== "object" || tool === null) {
     throw new AmaError("invalid_arguments", "tools.register：工具定义应为对象");
@@ -139,6 +152,7 @@ export function createHostApi(deps: HostApiDeps): HostApiBinding {
   let broker: ApprovalBroker | undefined;
   const warmingHandlers: WarmingDecisionHandler[] = [];
   let notify: HostNotify | undefined = deps.notify;
+  const runners = new HostRunnerRegistry();
   const writeErr = deps.stderr ?? ((text: string) => void process.stderr.write(text));
   const log: HostLogger =
     deps.log ??
@@ -225,7 +239,11 @@ export function createHostApi(deps: HostApiDeps): HostApiBinding {
         };
       },
     }),
+    runners: Object.freeze({
+      provide: (runner: HostRunner) => runners.provide(runner),
+    }),
   });
+  hostRunnerRegistries.set(api, runners);
 
   return {
     api,
