@@ -251,9 +251,10 @@ ama providers refresh <id> [--probe …]
 - **候选渠道**：给了 `--channel`（可重复）就只用这些；否则从 `--base-url` 推出三个——`chat`
   （openai-completions，baseUrl 原样）、`responses`（openai-responses，同上）、`messages`
   （anthropic-messages，去掉末尾 `/v1` 的主机根）；`--api <api>` 只留对应的一个。
-- **模型列表**：`GET {baseUrl}/models`（第一个 OpenAI 系渠道的地址）。new-api 一类中转在条目上给
+- **模型列表**：`GET {baseUrl}/models`（第一个 OpenAI 系渠道的地址；只有 Messages 渠道时是 `/v1/models`，先带
+  `Authorization: Bearer`，401 / 403 再试 `x-api-key`——实测中转只认前者）。new-api 一类中转在条目上给
   `supported_endpoint_types`（`openai` / `openai-response` / `anthropic`），据此把模型挂到对应渠道；没有提示
-  时挂到全部候选渠道里的第一个。
+  时挂到全部候选渠道里的第一个；有提示但候选渠道都不支持（如只配了 messages 渠道时的 grok）→ 不写入。
 - **`--probe`**：对选中的模型（`--probe-models` 列出的，缺省按 id 字母序不分大小写取前 `--limit` 个，缺省 30）
   逐个渠道发一次最小请求（有提示时只试提示里的渠道），**探测成功的渠道全部写进模型的 `channels`**，顺序按
   `--prefer`（缺省 chat、responses、messages）；全部失败的模型不写入；未探测的按提示写入并在表格里标「未探测」。
@@ -271,6 +272,18 @@ ama providers refresh <id> [--probe …]
   `$VAR` / 字面量 / 无，从不显示 key）→ 模型数。`channels <id>`：每个渠道的协议、地址与挂载的模型数。
   `remove`：删 `providers.<id>`（备份）与 auth.json 里该供应商的条目。`refresh`：重拉 `/models` 与
   models.dev，只追加新模型（带 `--probe` 时同 add 的探测），已有条目不改；上游已下架的 id 只提示、不删。
+
+实测（2026-10-02，一家同时提供三种接口的中转，22 个模型，共 29 次请求）：
+
+- `providers add --probe --probe-models kimi-k2.5,grok-4.7,deepseek-v4-flash` 共 8 次请求（1 次列表 + 7 次探测）：
+  kimi-k2.5 → chat、messages（Responses 不通）；grok-4.7 → responses；deepseek-v4-flash 在 Responses 上回
+  `incomplete_details.reason: "length"`（中转转发 DeepSeek 时不写 `max_output_tokens`），已按输出截断处理，三种接口都通。
+- models.dev 匹配 22 / 22：原厂条目 19 个（其中 `qwen3.8-max-0902` 去日期后缀匹配到 `alibaba/qwen3.8-max`），多数一致 2 个
+  （kimi-k2.5：原厂 `moonshotai/kimi-k2.5` 不在库里，同 canonical 的 11 条取多数 262k / 图像；qwen3-coder-next），
+  唯一条目 1 个（qwen3-vl-flash）。
+- `-p` 经 chat 与 `@messages` 两条渠道都正常；`--image` 四色方块图在 kimi-k2.5（chat、messages）与 qwen3-vl-flash 上都答对
+  红 / 绿 / 蓝 / 黄；对 glm-5（models.dev 标纯文本）直接退出 2、不发请求。
+- 第二个供应商只配 messages 渠道：19 个模型挂上，3 个只支持 Responses 的 grok 不写入；同名模型不加前缀时报歧义并列出两家。
 
 ### 模型元数据：models.dev
 

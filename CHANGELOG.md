@@ -1,5 +1,18 @@
 # 更新记录
 
+## 未发布
+
+- **一键接入**：`ama providers add <id> --base-url <url>` 只要 baseUrl 与 key——列出中转的模型、按提示或 `--probe` 逐渠道
+  探测、写进配置；`list` / `channels` / `remove` / `refresh`。
+- **渠道**：一个供应商可挂多个渠道（协议 + 地址 + 可选 key / headers / compat），模型声明 `channels`，
+  `provider/model@channel` 指定渠道；旧配置按隐式 `default` 渠道处理，不用改。
+- **models.dev 元数据**：上下文、输出上限、图像输入、推理、价格缺省从 models.dev 补（数据目录缓存，启动不联网），
+  `ama models refresh-catalog` 刷新；`models list` / `config show` 标出每个字段的来源。
+- **图像输入**：`-p --image`、界面里 `@图片路径`；与 read 工具共用 MIME 检测与 5 MB 上限；模型不收图片时拒绝。
+- **配置目录**：首次运行自动建 `~/.config/ama/` 与最小 `config.json`、`config.schema.json`；`ama init`、
+  `ama config path`、`ama config edit`。
+- **修复**：Responses 的 `incomplete_details.reason: "length"` 按输出截断处理（中转转发 DeepSeek 时出现）。
+
 ## 0.2.1（2026-10-02）
 
 npm 首发：`npm i -g @armadra/agent`。功能与 0.2.0 相同。
