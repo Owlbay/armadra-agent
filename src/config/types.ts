@@ -23,8 +23,11 @@ import type {
 import type { PermissionMode } from "../permissions/types.js";
 import type { CheckpointMode } from "../checkpoints/types.js";
 import type { AmaConfigW5, PruneConfig, StatusLineMode } from "./types-w5.js";
+import type { UiConfigW6 } from "./types-w6.js";
 
 export type * from "./types-w5.js";
+export type * from "./types-w6.js";
+export { LANGUAGE_SETTINGS } from "./types-w6.js";
 export {
   AGENTS_RESERVED_KEYS,
   IMAGE_RESIZE_MODES,
@@ -183,7 +186,7 @@ export interface HooksSettings {
   timeoutMs?: number;
 }
 
-export interface UiConfig {
+export interface UiConfig extends UiConfigW6 {
   /** auto 按 `COLORFGBG` / `TERM_PROGRAM` 猜（不发查询序列），猜不出用 dark。 */
   theme?: "dark" | "light" | "auto";
   markdown?: boolean;
@@ -325,6 +328,8 @@ export interface ProfileFile {
   sessionDir?: string;
   config?: string;
   trustProject?: boolean;
+  /** [W6-C0] 宿主界面语言（跟随画布）；优先于配置的 `ui.language`，`AMA_LANG` / `--lang` 仍更优先。 */
+  language?: "zh" | "en";
 }
 
 export interface TrustEntry {

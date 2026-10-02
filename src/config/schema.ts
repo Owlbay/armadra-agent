@@ -24,6 +24,7 @@ import {
   checkUiW5,
   validateConfigW5,
 } from "./schema-w5.js";
+import { W6_UI_KEYS, checkUiW6 } from "./schema-w6.js";
 import type { HookConfig } from "../hooks/types.js";
 import { HOOK_EVENTS } from "../hooks/types.js";
 import { PERMISSION_MODES_STRICT_FIRST } from "../permissions/types.js";
@@ -339,6 +340,7 @@ export function validateConfig(value: unknown): Diagnostic[] {
       "animation",
       "restoreOnCancel",
       ...W5_UI_KEYS,
+      ...W6_UI_KEYS,
     ],
     (s, p) => {
       c.oneOf(s, "theme", p, ["dark", "light", "auto"]);
@@ -351,6 +353,7 @@ export function validateConfig(value: unknown): Diagnostic[] {
       c.boolean(s, "animation", p);
       c.boolean(s, "restoreOnCancel", p);
       checkUiW5(c, s, p);
+      checkUiW6(c, s, p);
     },
   );
   checkSection(c, value, "skills", ["dirs"], (s, p) => c.stringArray(s, "dirs", p));
@@ -441,12 +444,14 @@ export function validateProfile(value: unknown): Diagnostic[] {
     ...PROFILE_PATH_LIST_FIELDS,
     "authEnv",
     "trustProject",
+    "language",
     "$schema",
   ]);
   for (const key of PROFILE_PATH_FIELDS) c.string(value, key, "");
   for (const key of PROFILE_PATH_LIST_FIELDS) c.stringArray(value, key, "");
   c.boolean(value, "authEnv", "");
   c.boolean(value, "trustProject", "");
+  c.oneOf(value, "language", "", ["zh", "en"]);
   return c.diagnostics;
 }
 

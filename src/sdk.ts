@@ -13,6 +13,7 @@
  * - [W5-F] 计划（docs/plan.md）：`CreateSessionOptions.plan`（plan.* 配置 + `onProposed` 审批回调）；
  *   返回的会话带 `plan.current() / respond() / todos()`。没有 `onProposed` 时按 `plan.unattended`
  *   （缺省 stop：计划落盘后停下，不替人批准）。
+ * - [W6-C0] `language`（两个入口都有）：界面语言，跟随宿主界面（docs/i18n.md）；进程级，`AMA_LANG` 仍优先。
  */
 
 import { resolve } from "node:path";
@@ -42,6 +43,7 @@ import { DEFAULT_CONFIG, mergeConfig } from "./config/merge.js";
 import { resolveConfigDir, resolveDataDir } from "./config/paths.js";
 import { canonicalPreset, type AmaConfig, type ToolsPresetInput } from "./config/types.js";
 import { AmaError } from "./errors.js";
+import { resolveLocale, setLocale, type Locale } from "./i18n/index.js";
 import { hooksFromConfig } from "./hooks/config.js";
 import { HookDispatcher } from "./hooks/dispatcher.js";
 import type { HookConfig } from "./hooks/types.js";
@@ -91,6 +93,8 @@ export interface RuntimeOptions {
   stderr?: (text: string) => void;
   /** 组装根选项：追加供应商 / 协议 / 工具 / 工具工厂。 */
   compose?: ComposeOptions;
+  /** [W6-C0] 界面语言（等价 `--lang`）；进程级。 */
+  language?: Locale;
 }
 
 export async function createRuntime(options: RuntimeOptions = {}): Promise<Runtime> {
@@ -105,7 +109,9 @@ export async function createRuntime(options: RuntimeOptions = {}): Promise<Runti
   if (options.sessionDir !== undefined) args.sessionDir = options.sessionDir;
   if (options.profile !== undefined) args.profile = options.profile;
   if (options.unattended === true) args.print = true;
+  if (options.language !== undefined) args.lang = options.language;
   const env = options.env ?? process.env;
+  if (args.lang !== undefined) setLocale(resolveLocale(env, undefined, args.lang));
   const io: CliIo = {
     stdout: () => undefined,
     stderr: options.stderr ?? ((text) => void process.stderr.write(text)),
@@ -188,6 +194,8 @@ export interface CreateSessionOptions {
   unattended?: boolean;
   onWarning?: (message: string) => void;
   log?: LogFn;
+  /** [W6-C0] 界面语言（跟随宿主界面）；进程级，`AMA_LANG` 仍优先。不影响发给模型的文本。 */
+  language?: Locale;
 }
 
 function keyOptions(auth: SessionAuth | undefined): KeyResolverOptions {
@@ -210,6 +218,8 @@ export async function createAgentSession(
 ): Promise<SdkAgentSession> {
   const cwd = resolve(options.cwd ?? process.cwd());
   const warn = options.onWarning ?? (() => undefined);
+  if (options.language !== undefined)
+    setLocale(resolveLocale(process.env, undefined, options.language));
   let config = mergeConfig(DEFAULT_CONFIG as AmaConfig, options.config);
   const { onProposed, ...planConfig } = options.plan ?? {};
   if (options.plan !== undefined) config = { ...config, plan: { ...config.plan, ...planConfig } };

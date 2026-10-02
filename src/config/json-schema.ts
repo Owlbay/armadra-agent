@@ -22,6 +22,7 @@ import {
   PLAN_UNATTENDED_MODES,
   STATUS_LINE_MODES,
   TOOLS_PRESET_INPUTS,
+  LANGUAGE_SETTINGS,
 } from "./types.js";
 import { AGENT_ID_PATTERN } from "./schema-w5.js";
 import { AGENTS_RESERVED_KEYS } from "./types-w5.js";
@@ -276,6 +277,7 @@ function buildBaseSchema(): Schema {
         animation: bool(),
         restoreOnCancel: bool(),
         statusLine: oneOf(STATUS_LINE_MODES),
+        language: oneOf(LANGUAGE_SETTINGS),
       }),
       skills: object({ dirs: strings }),
       cache: object({

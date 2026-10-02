@@ -23,7 +23,7 @@ const IMPLICIT_DEFAULTS: Partial<AmaConfig> = {
   codemode: { inlineBudget: DEFAULT_INLINE_BUDGET, requireStrict: false },
   cache: { ...DEFAULT_CACHE_CONFIG },
   request: { idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS },
-  ui: { compact: false, animation: true, restoreOnCancel: true },
+  ui: { compact: false, animation: true, restoreOnCancel: true, language: "auto" },
   checkpoints: { ...DEFAULT_CHECKPOINTS_CONFIG },
   sandbox: { enabled: "auto", bash: "off", network: "deny", writable: [] },
   // [W5-C0] 第五波键的缺省（行为由各批次实现）
@@ -121,6 +121,8 @@ export const CONFIG_KEY_DOCS: Readonly<Record<string, string>> = Object.freeze({
     "运行中 Esc 中断、本回合还没有任何回复或工具调用时，撤回该回合并把原消息放回输入框",
   "ui.statusLine":
     "底部信息行：full 两行（速率行 + 状态行），compact 一行；运行时 Ctrl+G 或 /statusline 切换（第五波 W5-A 起生效）",
+  "ui.language":
+    "界面语言：auto 按 LC_ALL / LC_MESSAGES / LANG 判断（zh* 为中文，其余英文），zh，en；AMA_LANG、--lang 覆盖；只影响界面，发给模型的文本固定英文",
   skills: "Skill",
   "skills.dirs": "追加的 Skill 目录；各层累加",
   cache: "提示缓存；整段只认用户级",

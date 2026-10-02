@@ -7,6 +7,20 @@
 
 import type { Messages } from "../types.js";
 
-export const en = {};
+export const en = {
+  args: {
+    flagConflict: (a: string, b: string) => `${a} and ${b} cannot be used together`,
+  },
+  main: {
+    subcommandUnavailable: (name: string) => `ama ${name}: not available in this build yet`,
+  },
+};
 
-export const zh = {} satisfies Messages<typeof en>;
+export const zh = {
+  args: {
+    flagConflict: (a, b) => `${a} 与 ${b} 不能同时使用`,
+  },
+  main: {
+    subcommandUnavailable: (name) => `ama ${name}：当前版本尚未提供`,
+  },
+} satisfies Messages<typeof en>;

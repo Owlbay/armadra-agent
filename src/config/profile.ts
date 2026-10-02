@@ -32,6 +32,8 @@ export interface ProfileOptions {
   /** profile.config 的内容（已校验）。 */
   config?: AmaConfig;
   trustProject: boolean;
+  /** [W6-C0] 宿主界面语言。 */
+  language?: "zh" | "en";
   warnings: string[];
 }
 
@@ -86,5 +88,6 @@ function profileToOptions(path: string, profile: ProfileFile, warnings: string[]
   if (profile.authFile !== undefined) options.authFile = profile.authFile;
   if (profile.sessionDir !== undefined) options.sessionDir = profile.sessionDir;
   if (profile.config !== undefined) options.configFile = profile.config;
+  if (profile.language !== undefined) options.language = profile.language;
   return options;
 }
