@@ -99,20 +99,44 @@ export interface RetryConfig {
   maxDelayMs?: number;
 }
 
-/** 工具预设（设计 §5.6）：模型直接看到的工具集合。 */
-export type ToolsPreset = "default" | "minimal" | "codemode" | "coordinator";
+/** 工具预设（设计 §5.6）：模型直接看到的工具集合（规范名）。 */
+export type ToolsPreset = "default" | "minimal" | "codemode-only" | "coordinator";
 
-/** 从严到宽：项目级只能把预设改成不比当前更宽的那个（coordinator 最严，codemode 最宽）。 */
+/** 预设别名 → 规范名：`codemode` 是 0.3.0 的旧名（行为同 `codemode-only`）。 */
+export const TOOLS_PRESET_ALIASES: Readonly<Record<string, ToolsPreset>> = Object.freeze({
+  codemode: "codemode-only",
+});
+
+/** 配置文件、命令行、RPC、SDK 接受的写法：规范名或别名。 */
+export type ToolsPresetInput = ToolsPreset | "codemode";
+
+/** 从严到宽：项目级只能把预设改成不比当前更宽的那个（coordinator 最严，codemode-only 最宽）。 */
 export const TOOLS_PRESETS_STRICT_FIRST: readonly ToolsPreset[] = [
   "coordinator",
   "minimal",
   "default",
+  "codemode-only",
+];
+
+/** 全部可接受的写法（规范名在前，别名在后；schema 与命令行校验用）。 */
+export const TOOLS_PRESET_INPUTS: readonly ToolsPresetInput[] = [
+  ...TOOLS_PRESETS_STRICT_FIRST,
   "codemode",
 ];
 
+/** 规范名；未知名字原样返回（校验由 schema 负责）。 */
+export function canonicalPreset(name: ToolsPresetInput): ToolsPreset;
+export function canonicalPreset(name: string | undefined): ToolsPreset | undefined;
+export function canonicalPreset(name: string | undefined): ToolsPreset | undefined {
+  if (name === undefined) return undefined;
+  return Object.hasOwn(TOOLS_PRESET_ALIASES, name)
+    ? (TOOLS_PRESET_ALIASES[name] as ToolsPreset)
+    : (name as ToolsPreset);
+}
+
 export interface ToolsConfig {
-  /** 缺省 `default`；命令行 `--tools-preset`。 */
-  preset?: ToolsPreset;
+  /** 缺省 `default`；命令行 `--tools-preset`；`codemode` 是 `codemode-only` 的别名。 */
+  preset?: ToolsPresetInput;
   /**
    * 在预设上微调（设计 §5.6）：`+name` 加、`-name` 去；不带前缀的名字整组替换预设的内置工具。
    * 只认用户级 / profile（项目级忽略并 warning）。

@@ -17,6 +17,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { canonicalPreset } from "../config/types.js";
 import type { BashStructured } from "../tools/bash.js";
 import type { ToolContext, ToolDefinition, ToolResult } from "../tools/types.js";
 import {
@@ -347,7 +348,8 @@ export function codemodeToolFactory(
 ): (ctx: CodemodeFactoryContext) => ToolDefinition | undefined {
   return (ctx) => {
     const explicit = ctx.config.codemode?.mode;
-    const mode = explicit ?? (ctx.config.tools?.preset === "codemode" ? "only" : "off");
+    const mode =
+      explicit ?? (canonicalPreset(ctx.config.tools?.preset) === "codemode-only" ? "only" : "off");
     if (mode === "off") return undefined;
     const availability = codemodeAvailability(
       ctx.config.codemode?.requireStrict,

@@ -49,12 +49,21 @@ describe("工具预设", () => {
     ).toEqual(["read"]);
   });
 
-  it("codemode 预设：有 codemode 工具 → only；没有 → 回退 default 并 warning", () => {
+  it("codemode-only 预设（旧名 codemode）：有 codemode 工具 → only；没有 → 回退 default 并 warning", () => {
     const withTool = resolvePreset({
+      config: cfg({ preset: "codemode-only" }),
+      available: available(["codemode"]),
+    });
+    expect(withTool).toMatchObject({
+      preset: "codemode-only",
+      codemode: "only",
+      builtin: ["codemode"],
+    });
+    const alias = resolvePreset({
       config: cfg({ preset: "codemode" }),
       available: available(["codemode"]),
     });
-    expect(withTool).toMatchObject({ preset: "codemode", codemode: "only", builtin: ["codemode"] });
+    expect(alias).toMatchObject({ preset: "codemode-only", codemode: "only" });
     const without = resolvePreset({ config: cfg({ preset: "codemode" }), available: available() });
     expect(without.preset).toBe("default");
     expect(without.codemode).toBe("off");

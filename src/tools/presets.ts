@@ -5,31 +5,37 @@
  * | ------------- | ----------------------------------------- |
  * | `default`     | read、edit、write、bash、grep、glob       |
  * | `minimal`     | read、edit、write、bash                   |
- * | `codemode`    | 只有 codemode（其余工具在脚本里调用）     |
+ * | `codemode-only` | 只有 codemode（其余工具在脚本里调用）   |
  * | `coordinator` | read + 宿主注册的工具                     |
  *
  * - 预设只管**内置**工具；宿主 / SDK 注册的工具（`canvas_*` 等）总在活动集里，除非用户
  *   `--tools a,b,c` 整组替换（之后只用列出的名字）。
  * - `tools.default`：`+name` / `-name` 在预设上增减；不带前缀的名字整组替换预设的内置工具，
  *   之后再应用带前缀的项。未注册的名字记 warning 并忽略。
- * - codemode 开关跟随预设：`codemode` 预设 → `only`，其余 → `off`；`codemode.mode` 显式配置覆盖。
+ * - `codemode` 是 `codemode-only` 的旧名（0.3.0），配置合并与命令行解析时折成规范名。
+ * - codemode 开关跟随预设：`codemode-only` 预设 → `only`，其余 → `off`；`codemode.mode` 显式配置覆盖。
  * - codemode 工具由 B10 经组装根的 `toolFactories` 注册（`codemode.mode` 为 off 时不注册）；不可用
- *   （例如 `codemode.requireStrict` 而运行时 Node 不隔离网络）时 codemode 预设**回退到 default 并
+ *   （例如 `codemode.requireStrict` 而运行时 Node 不隔离网络）时 codemode-only 预设**回退到 default 并
  *   warning**（不报错：零配置用户不应因此起不来），`on` 同样忽略。
  * - `only` 模式活动集独占：宿主 / SDK 工具也不直接暴露，只能在脚本里调用（`exclusive`）。
  */
 
-import type { AmaConfig, CodemodeMode, ToolsPreset } from "../config/types.js";
+import {
+  canonicalPreset,
+  type AmaConfig,
+  type CodemodeMode,
+  type ToolsPreset,
+} from "../config/types.js";
 import { ToolRegistry } from "./registry.js";
 import type { ToolDefinition, ToolSource } from "./types.js";
 
 export const CODEMODE_TOOL = "codemode";
 
-/** 各预设下模型直接看到的内置工具（codemode 预设见 `resolvePreset`）。 */
+/** 各预设下模型直接看到的内置工具（codemode-only 预设见 `resolvePreset`）。 */
 export const PRESET_TOOLS: Readonly<Record<ToolsPreset, readonly string[]>> = Object.freeze({
   default: ["bash", "edit", "glob", "grep", "read", "write"],
   minimal: ["bash", "edit", "read", "write"],
-  codemode: [CODEMODE_TOOL],
+  "codemode-only": [CODEMODE_TOOL],
   coordinator: ["read"],
 });
 
@@ -37,7 +43,7 @@ export const PRESET_TOOLS: Readonly<Record<ToolsPreset, readonly string[]>> = Ob
 export function effectiveCodemodeMode(config: Pick<AmaConfig, "tools" | "codemode">): CodemodeMode {
   const explicit = config.codemode?.mode;
   if (explicit !== undefined) return explicit;
-  return config.tools?.preset === "codemode" ? "only" : "off";
+  return canonicalPreset(config.tools?.preset) === "codemode-only" ? "only" : "off";
 }
 
 /**
@@ -75,21 +81,21 @@ export function resolvePreset(input: {
   available(name: string): boolean;
 }): PresetResolution {
   const warnings: string[] = [];
-  let preset: ToolsPreset = input.config.tools?.preset ?? "default";
+  let preset: ToolsPreset = canonicalPreset(input.config.tools?.preset) ?? "default";
   let codemode = effectiveCodemodeMode(input.config);
   if (codemode !== "off" && !input.available(CODEMODE_TOOL)) {
     warnings.push(
-      preset === "codemode"
-        ? "工具预设 codemode 需要 codemode 工具（不可用），已回退到 default"
+      preset === "codemode-only"
+        ? "工具预设 codemode-only 需要 codemode 工具（不可用），已回退到 default"
         : `codemode.mode ${codemode} 需要 codemode 工具（不可用），已忽略`,
     );
-    if (preset === "codemode") preset = "default";
+    if (preset === "codemode-only") preset = "default";
     codemode = "off";
   }
   let base: string[];
   if (codemode === "only") base = [CODEMODE_TOOL];
   else {
-    base = [...PRESET_TOOLS[preset === "codemode" ? "default" : preset]];
+    base = [...PRESET_TOOLS[preset === "codemode-only" ? "default" : preset]];
     if (codemode === "on") base.push(CODEMODE_TOOL);
   }
   const names: string[] = [];

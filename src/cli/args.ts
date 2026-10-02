@@ -14,7 +14,7 @@
 import { AmaError } from "../errors.js";
 import type { ModelThinkingLevel } from "../ai/types.js";
 import { PERMISSION_MODES_STRICT_FIRST, type PermissionMode } from "../permissions/types.js";
-import type { CodemodeMode, ToolsPreset } from "../config/types.js";
+import { canonicalPreset, type CodemodeMode, type ToolsPreset } from "../config/types.js";
 import { CODEMODE_MODES } from "../config/types.js";
 
 export const SUBCOMMANDS = [
@@ -97,8 +97,8 @@ const THINKING_LEVELS: readonly ModelThinkingLevel[] = [
 ];
 const OUTPUT_FORMATS: readonly OutputFormat[] = ["text", "json", "stream-json"];
 const QUIET_LEVELS: readonly QuietStartup[] = ["normal", "header", "silent"];
-/** 帮助与报错按常用顺序列出（校验集合同 TOOLS_PRESETS_STRICT_FIRST）。 */
-const PRESET_CHOICES: readonly ToolsPreset[] = ["default", "minimal", "codemode", "coordinator"];
+/** 帮助与报错按常用顺序列出（校验集合同 TOOLS_PRESET_INPUTS；`codemode` 是 `codemode-only` 的别名）。 */
+const PRESET_CHOICES = ["default", "minimal", "codemode-only", "coordinator", "codemode"] as const;
 const SESSION_ID_LIKE = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 
 export const HELP_TEXT = `用法：ama [选项] [提示]
@@ -143,7 +143,8 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
   --auth-file <文件>           auth.json 位置（缺省 ~/.config/ama/auth.json）
   --tools <a,b,…>              只启用这些工具
   --exclude-tools <a,b,…>      禁用这些工具
-  --tools-preset <名>          工具预设：default（缺省）| minimal | codemode | coordinator
+  --tools-preset <名>          工具预设：default（缺省）| minimal | codemode-only | coordinator
+                               （codemode 是 codemode-only 的旧名，仍可用）
   --codemode <模式>            codemode 调用方式：off | on | only
 
 子命令
@@ -335,7 +336,7 @@ function applyValue(args: ParsedArgs, option: ValueOption, value: string): void 
       args.excludeTools = [...(args.excludeTools ?? []), ...list(value)];
       break;
     case "tools-preset":
-      args.toolsPreset = choice(option, value, PRESET_CHOICES);
+      args.toolsPreset = canonicalPreset(choice(option, value, PRESET_CHOICES));
       break;
     case "codemode":
       args.codemode = choice(option, value, CODEMODE_MODES);

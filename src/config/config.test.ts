@@ -418,6 +418,9 @@ describe("builtinDeny / codemode / tools.preset（契约 A6）", () => {
         codemode: { mode: "only", inlineBudget: 2000, requireStrict: true },
       }),
     ).toEqual([]);
+    // 规范名与旧名都合法
+    expect(validateConfig({ version: 1, tools: { preset: "codemode-only" } })).toEqual([]);
+    expect(validateConfig({ version: 1, tools: { preset: "codemode" } })).toEqual([]);
     expect(validateConfig({ version: 1, permission: { builtinDeny: false } })).toEqual([]);
     expect(
       errors({
@@ -428,7 +431,7 @@ describe("builtinDeny / codemode / tools.preset（契约 A6）", () => {
       }),
     ).toEqual([
       "permission.builtinDeny: 应为布尔值或字符串数组",
-      "tools.preset: 取值应为 coordinator | minimal | default | codemode",
+      "tools.preset: 取值应为 coordinator | minimal | default | codemode-only | codemode",
       "codemode.mode: 取值应为 off | on | only",
       "codemode.inlineBudget: 应在 0–9007199254740991 之间",
       "codemode.requireStrict: 应为布尔值",
@@ -490,5 +493,21 @@ describe("builtinDeny / codemode / tools.preset（契约 A6）", () => {
       accepted: { tools: { disabled: ["bash"], preset: "coordinator" } },
       warnings: [],
     });
+  });
+
+  it("预设旧名 codemode：各层合并后折成 codemode-only；项目级按规范名比较宽严", () => {
+    expect(
+      mergeConfigLayers({ user: { version: 1, tools: { preset: "codemode" } } }).config.tools
+        ?.preset,
+    ).toBe("codemode-only");
+    expect(mergeConfigLayers({ cli: { toolsPreset: "codemode" } }).config.tools?.preset).toBe(
+      "codemode-only",
+    );
+    const same = mergeConfigLayers({
+      user: { version: 1, tools: { preset: "codemode-only" } },
+      project: { version: 1, tools: { preset: "codemode" } },
+    });
+    expect(same.config.tools?.preset).toBe("codemode-only");
+    expect(same.warnings).toEqual([]);
   });
 });

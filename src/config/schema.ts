@@ -15,7 +15,7 @@ import {
   CACHE_RETENTIONS,
   CHANNEL_NAME_PATTERN,
   CODEMODE_MODES,
-  TOOLS_PRESETS_STRICT_FIRST,
+  TOOLS_PRESET_INPUTS,
 } from "./types.js";
 
 export type {
@@ -30,6 +30,7 @@ export type {
   RetryConfig,
   ToolsConfig,
   ToolsPreset,
+  ToolsPresetInput,
   CodemodeConfig,
   CodemodeMode,
   HooksSettings,
@@ -369,7 +370,7 @@ export function validateConfig(value: unknown): Diagnostic[] {
     "tools",
     ["preset", "default", "maxToolResultChars", "bashTimeoutMs", "disabled"],
     (s, p) => {
-      c.oneOf(s, "preset", p, TOOLS_PRESETS_STRICT_FIRST);
+      c.oneOf(s, "preset", p, TOOLS_PRESET_INPUTS);
       c.stringArray(s, "default", p);
       c.number(s, "maxToolResultChars", p, 1);
       c.number(s, "bashTimeoutMs", p, 1);

@@ -12,7 +12,7 @@ import {
   CACHE_RETENTIONS,
   CHANNEL_NAME_PATTERN,
   CODEMODE_MODES,
-  TOOLS_PRESETS_STRICT_FIRST,
+  TOOLS_PRESET_INPUTS,
 } from "./types.js";
 
 type Schema = Record<string, unknown>;
@@ -167,7 +167,7 @@ export function buildConfigJsonSchema(): Schema {
         maxDelayMs: num(0),
       }),
       tools: object({
-        preset: oneOf(TOOLS_PRESETS_STRICT_FIRST),
+        preset: oneOf(TOOLS_PRESET_INPUTS),
         default: strings,
         maxToolResultChars: num(1),
         bashTimeoutMs: num(1),

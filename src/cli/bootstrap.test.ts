@@ -160,7 +160,8 @@ describe("启动序列：编排细节", () => {
       inlineBudget: 500,
     });
     expect(await run(["-p", "--tools-preset", "codemode", "--codemode", "only", "hi"])).toBe(0);
-    expect((h.calls.runtime as Runtime).config.tools?.preset).toBe("codemode");
+    // 旧名 codemode 是 codemode-only 的别名，进 Runtime.config 时已是规范名
+    expect((h.calls.runtime as Runtime).config.tools?.preset).toBe("codemode-only");
     expect((h.calls.runtime as Runtime).config.codemode).toEqual({
       mode: "only",
       inlineBudget: 500,
