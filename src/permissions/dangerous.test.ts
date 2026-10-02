@@ -60,7 +60,13 @@ const CASES: Record<string, { yes: string[]; no: string[] }> = {
       "git -C sub clean -fd",
       "git --git-dir=.git clean -f",
     ],
-    no: ["git clean -n", "git clean --dry-run", "git status", "git -C sub status", "git -c a=b log --hard"],
+    no: [
+      "git clean -n",
+      "git clean --dry-run",
+      "git status",
+      "git -C sub status",
+      "git -c a=b log --hard",
+    ],
   },
   "git-branch-force-delete": {
     yes: ["git branch -D feature", "git branch --delete --force x"],
