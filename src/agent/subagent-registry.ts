@@ -17,10 +17,7 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AmaError } from "../errors.js";
-import type { SessionEntry } from "../session/types.js";
 import type {
-  RunnerHandle,
-  SubagentEvent,
   SubagentRequest,
   SubagentResult,
   SubagentRunner,
@@ -36,74 +33,31 @@ import {
   taskNotification,
   writeTaskOutput,
 } from "../agents/result.js";
+import {
+  SubagentPool,
+  TASK_CUSTOM_TYPE,
+  applyRunnerEvent,
+  flushText,
+  newRecord,
+  rebuildRecords,
+  recordData,
+  type AmaRunnerSpec,
+  type ProgressSink,
+  type TaskHandle,
+  type TaskRecord,
+} from "../agents/task-record.js";
 import type { AgentDefinition, AgentInfo } from "../agents/types.js";
 import { ZERO_USAGE } from "./loop.js";
 import type { SessionCore } from "./session-core.js";
 import type { SessionTaskStats } from "./types.js";
-import { createWorktree, finishWorktree, type Worktree, type WorktreeOutcome } from "./worktree.js";
+import { createWorktree, finishWorktree } from "./worktree.js";
 
-export const TASK_CUSTOM_TYPE = "ama.task";
 export const DEFAULT_SUBAGENT_CONCURRENCY = 4;
 export const DEFAULT_MAX_PENDING = 16;
 export const DEFAULT_RETAINED = 16;
-const TEXT_THROTTLE_MS = 250;
 
-/** 计数信号量；`waiting` 供排队上限判断。 */
-export class SubagentPool {
-  private running = 0;
-  private readonly waiters: (() => void)[] = [];
-
-  constructor(private readonly limit: number) {}
-
-  get waiting(): number {
-    return this.waiters.length;
-  }
-
-  async acquire(signal: AbortSignal): Promise<void> {
-    while (this.running >= this.limit) {
-      if (signal.aborted) throw new AmaError("aborted", "aborted");
-      await new Promise<void>((resolve) => {
-        const wake = (): void => {
-          signal.removeEventListener("abort", wake);
-          const at = this.waiters.indexOf(wake);
-          if (at >= 0) this.waiters.splice(at, 1);
-          resolve();
-        };
-        this.waiters.push(wake);
-        signal.addEventListener("abort", wake, { once: true });
-      });
-    }
-    if (signal.aborted) throw new AmaError("aborted", "aborted");
-    this.running++;
-  }
-
-  release(): void {
-    this.running--;
-    this.waiters[0]?.();
-  }
-}
-
-/** ama runner 的创建参数（registry → session-subagent.ts）。 */
-export interface AmaRunnerSpec {
-  taskId: string;
-  agent: AgentDefinition;
-  request: SubagentRequest;
-  /** `provider/model`；undefined = 继承父。 */
-  modelRef?: string;
-  cwd: string;
-  /** 续聊被释放 / resume 后的任务：重开这个子会话文件。 */
-  resumeFile?: string;
-  /** worktree 里运行：不记父会话检查点。 */
-  isolated: boolean;
-}
+export { SubagentPool, TASK_CUSTOM_TYPE, type AmaRunnerSpec, type TaskHandle };
 export type AmaRunnerFactory = (spec: AmaRunnerSpec) => SubagentRunner;
-
-/** runner 句柄的可选扩展（ama 子会话提供）。 */
-export type TaskHandle = RunnerHandle & {
-  readonly sessionFile?: string;
-  readonly model?: string;
-  dispose?(): Promise<void>;
-};
 
 export interface SubagentEnvironment {
   catalog: AgentCatalog;
@@ -123,25 +77,6 @@ export type RegistryHost = Pick<
 > & {
   followUp?(text: string, options?: { origin?: string }): Promise<unknown>;
 };
-
-interface TaskRecord {
-  info: TaskInfo;
-  agent: AgentDefinition;
-  parentToolCallId: string;
-  isolation: "none" | "worktree";
-  cwd: string;
-  modelRef?: string;
-  handle?: TaskHandle;
-  running?: Promise<SubagentResult>;
-  controller?: AbortController;
-  text: string;
-  pendingText: string;
-  lastFlush: number;
-  worktree?: Worktree;
-  worktreeOutcome?: WorktreeOutcome;
-  last?: SubagentResult;
-  onUpdate?: (partial: string) => void;
-}
 
 const registries = new Map<string, SubagentRegistry>();
 
@@ -186,7 +121,7 @@ const TERMINAL: readonly SubagentStatus[] = [
 export class SubagentRegistry implements TaskRegistryView {
   readonly catalog: AgentCatalog;
   private readonly pool: SubagentPool;
-  private readonly tasks = new Map<string, TaskRecord>();
+  private readonly tasks: Map<string, TaskRecord>;
   private readonly retained: string[] = [];
   private seq = 0;
   private disposed = false;
@@ -197,7 +132,9 @@ export class SubagentRegistry implements TaskRegistryView {
   ) {
     this.catalog = env.catalog;
     this.pool = new SubagentPool(env.maxConcurrent ?? DEFAULT_SUBAGENT_CONCURRENCY);
-    this.rebuild(host.manager.branch());
+    const rebuilt = rebuildRecords(host.manager.branch(), this.catalog, host.cwd);
+    this.tasks = rebuilt.records;
+    this.seq = rebuilt.seq;
   }
 
   private now(): number {
@@ -279,8 +216,8 @@ export class SubagentRegistry implements TaskRegistryView {
     if (model.warning !== undefined) this.host.log("warn", `agent ${name}: ${model.warning}`);
     const background = request.background ?? agent.background;
     const taskId = `t${++this.seq}`;
-    const record: TaskRecord = {
-      info: {
+    const record = newRecord(
+      {
         taskId,
         agent: agent.name,
         runner: agent.runner,
@@ -290,13 +227,10 @@ export class SubagentRegistry implements TaskRegistryView {
         startedAt: this.now(),
       },
       agent,
-      parentToolCallId: request.parentToolCallId,
-      isolation: request.isolation ?? agent.isolation,
-      cwd: this.host.cwd,
-      text: "",
-      pendingText: "",
-      lastFlush: 0,
-    };
+      request.parentToolCallId,
+      this.host.cwd,
+      request.isolation ?? agent.isolation,
+    );
     if (model.ref !== undefined) record.modelRef = model.ref;
     this.tasks.set(taskId, record);
     return this.launch(record, request, ama, background);
@@ -431,7 +365,7 @@ export class SubagentRegistry implements TaskRegistryView {
       ...(ref !== undefined && record.agent.runner !== "ama" ? { resume: ref.sessionId } : {}),
       ...(request.budgetUsd === undefined ? {} : { budgetUsd: request.budgetUsd }),
       signal,
-      onEvent: (event) => this.onRunnerEvent(record, event),
+      onEvent: (event) => applyRunnerEvent(record, event, this.sink()),
     });
     record.handle = handle;
     record.info.sessionRef = {
@@ -459,63 +393,12 @@ export class SubagentRegistry implements TaskRegistryView {
     this.host.emit(event);
   }
 
-  private onRunnerEvent(record: TaskRecord, event: SubagentEvent): void {
-    const taskId = record.info.taskId;
-    const turn = record.info.turns ?? 0;
-    switch (event.type) {
-      case "text": {
-        record.text += event.delta;
-        record.pendingText += event.delta;
-        if (this.now() - record.lastFlush >= TEXT_THROTTLE_MS) this.flushText(record);
-        return;
-      }
-      case "tool":
-        if (event.status !== "started") return;
-        record.onUpdate?.(`[task] ${event.toolName}`);
-        this.host.emit({
-          type: "subagent_update",
-          taskId,
-          kind: "tool",
-          toolName: event.toolName,
-          turn,
-        });
-        return;
-      case "turn": {
-        this.flushText(record);
-        record.info.turns = event.turn;
-        const update: Extract<Parameters<RegistryHost["emit"]>[0], { type: "subagent_update" }> = {
-          type: "subagent_update",
-          taskId,
-          kind: "turn",
-          turn: event.turn,
-        };
-        if (record.info.usage !== undefined) update.usage = record.info.usage;
-        this.host.emit(update);
-        return;
-      }
-      case "usage":
-        if (event.usage !== undefined) record.info.usage = event.usage;
-        if (event.unit === "usd" && event.amount !== undefined) record.info.costUsd = event.amount;
-        return;
-      case "notice":
-        this.host.log(event.level === "warn" ? "warn" : "info", `[task ${taskId}] ${event.text}`);
-        return;
-      default:
-        return;
-    }
-  }
-
-  private flushText(record: TaskRecord): void {
-    if (record.pendingText === "") return;
-    this.host.emit({
-      type: "subagent_update",
-      taskId: record.info.taskId,
-      kind: "text",
-      textDelta: record.pendingText,
-      turn: record.info.turns ?? 0,
-    });
-    record.pendingText = "";
-    record.lastFlush = this.now();
+  private sink(): ProgressSink {
+    return {
+      emit: (event) => this.host.emit(event),
+      log: (level, message) => this.host.log(level, message),
+      now: () => this.now(),
+    };
   }
 
   private async finish(
@@ -523,7 +406,7 @@ export class SubagentRegistry implements TaskRegistryView {
     result: SubagentResult,
     aborted = false,
   ): Promise<SubagentResult> {
-    this.flushText(record);
+    flushText(record, this.sink());
     const status: SubagentStatus = aborted
       ? "aborted"
       : result.status !== undefined && TERMINAL.includes(result.status as SubagentStatus)
@@ -627,7 +510,7 @@ export class SubagentRegistry implements TaskRegistryView {
       this.host.appendEntry({
         type: "custom",
         customType: TASK_CUSTOM_TYPE,
-        data: { ...record.info, parentToolCallId: record.parentToolCallId, cwd: record.cwd },
+        data: recordData(record),
       });
     } catch (error) {
       this.host.log("warn", `could not record task ${record.info.taskId}: ${String(error)}`);
@@ -651,34 +534,6 @@ export class SubagentRegistry implements TaskRegistryView {
       if (evicted === undefined || handle === undefined) continue;
       delete evicted.handle;
       void (handle.dispose?.() ?? handle.stop()).catch(() => undefined);
-    }
-  }
-
-  private rebuild(branch: readonly SessionEntry[]): void {
-    for (const entry of branch) {
-      if (entry.type !== "custom" || entry.customType !== TASK_CUSTOM_TYPE) continue;
-      const data = entry.data as Partial<TaskInfo & { parentToolCallId: string; cwd: string }>;
-      if (typeof data.taskId !== "string" || data.status === undefined) continue;
-      const agent = this.catalog.get(data.agent ?? "") ?? {
-        ...(this.catalog.get(DEFAULT_AGENT) as AgentDefinition),
-        name: data.agent ?? DEFAULT_AGENT,
-      };
-      const info = { ...(data as TaskInfo) };
-      delete (info as Partial<{ parentToolCallId: string; cwd: string }>).parentToolCallId;
-      delete (info as Partial<{ cwd: string }>).cwd;
-      if (info.status === "running") info.status = "interrupted";
-      this.tasks.set(info.taskId, {
-        info,
-        agent,
-        parentToolCallId: data.parentToolCallId ?? "",
-        isolation: "none",
-        cwd: data.cwd ?? this.host.cwd,
-        text: "",
-        pendingText: "",
-        lastFlush: 0,
-      });
-      const n = /^t(\d+)$/.exec(info.taskId);
-      if (n !== null) this.seq = Math.max(this.seq, Number(n[1]));
     }
   }
 
