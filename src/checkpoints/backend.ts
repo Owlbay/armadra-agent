@@ -3,13 +3,23 @@
  *
  * 会话（`src/agent/session-rewind.ts`）只经这里的接口使用检查点：工厂拿到会话上下文后返回后端；
  * 内存会话不调工厂，`mode: "off"` 时工厂返回 undefined。条目重放在第一次使用时惰性执行。
- * `shadow-git` 在 RW-D 落地前按 `tools` 处理。
+ *
+ * `shadow-git`（§6，RW-D）：在 tools 的基础上，每个新回合先做影子快照，提交 id 记进
+ * `CheckpointData.shadowCommit`；恢复时目标有影子提交就以影子差异为准（同时覆盖 edit / write 跟踪的文件），
+ * 否则回退 tools。git 不可用、cwd 是家目录或根目录、文件数或快照耗时超限 → 本会话降级为 tools 并 warn 一次。
  */
 
 import type { SessionEntry } from "../session/types.js";
 import { registerSessionRoot } from "./gc.js";
 import { loadCheckpoints, isRewindable } from "./replay.js";
 import { emptyCodeResult, gitHintFor, restoreCheckpoint } from "./restore.js";
+import {
+  GitMissingError,
+  ShadowRepo,
+  unsafeShadowCwd,
+  type ShadowGitOptions,
+} from "./shadow-git.js";
+import { latestShadowCommit, restoreFromShadow } from "./shadow-restore.js";
 import { CheckpointTracker } from "./tracker.js";
 import type { CheckpointHooks, CheckpointMode, CodeRestoreResult } from "./types.js";
 
@@ -54,6 +64,8 @@ export interface CheckpointBackendSettings {
   keep?: number;
   /** 会话根目录：登记进 file-history/roots.json，GC 标记时会扫描它。 */
   sessionsRoot?: string;
+  /** 影子 git 的参数（测试注入阈值、git 路径、环境）。 */
+  shadow?: ShadowGitOptions & { homeDir?: string };
 }
 
 export function createCheckpointBackendFactory(
@@ -82,6 +94,35 @@ export function createCheckpointBackendFactory(
       }
       return tracker;
     };
+    // 影子 git：undefined = 未建；null = 本会话不用（模式不是 shadow-git 或已降级）
+    let shadow: ShadowRepo | null | undefined = settings.mode === "shadow-git" ? undefined : null;
+    const degrade = (message: string): void => {
+      shadow = null;
+      warn(`检查点：影子 git 不可用（${message}），本会话改用 tools 模式`);
+    };
+    const getShadow = (): ShadowRepo | null => {
+      if (shadow !== undefined) return shadow;
+      const unsafe = unsafeShadowCwd(ctx.cwd, settings.shadow?.homeDir);
+      if (unsafe !== undefined) {
+        degrade(unsafe);
+        return null;
+      }
+      shadow = new ShadowRepo(settings.dataDir, ctx.cwd, settings.shadow ?? {});
+      return shadow;
+    };
+    const shadowSnapshot = async (userEntryId: string): Promise<string | undefined> => {
+      const repo = getShadow();
+      if (repo === null) return undefined;
+      try {
+        const parent = latestShadowCommit(get().state);
+        const snap = await repo.snapshot(parent, `ama checkpoint ${userEntryId}`);
+        if (snap.degrade !== undefined) degrade(snap.degrade.message);
+        return snap.commit;
+      } catch (error) {
+        degrade(error instanceof GitMissingError ? "PATH 里找不到 git" : describe(error));
+        return undefined;
+      }
+    };
     const hooks: CheckpointHooks = {
       beforeWrite: (absolutePath) => get().beforeWrite(absolutePath),
       afterWrite: (absolutePath, content) => get().afterWrite(absolutePath, content),
@@ -90,9 +131,10 @@ export function createCheckpointBackendFactory(
       hooks,
       snapshot: async (userEntryId) => {
         try {
-          await get().snapshot(userEntryId);
+          const shadowCommit = await shadowSnapshot(userEntryId);
+          await get().snapshot(userEntryId, shadowCommit !== undefined ? { shadowCommit } : {});
         } catch (error) {
-          warn(`检查点：建立失败（${error instanceof Error ? error.message : String(error)}）`);
+          warn(`检查点：建立失败（${describe(error)}）`);
         }
       },
       hasCheckpoint: (userEntryId) => isRewindable(get().state, userEntryId, settings.keep),
@@ -102,7 +144,7 @@ export function createCheckpointBackendFactory(
         if (target === undefined || !isRewindable(t.state, userEntryId, settings.keep)) {
           return { result: emptyCodeResult(), touched: [] };
         }
-        return restoreCheckpoint({
+        const base = {
           cwd: ctx.cwd,
           dataDir: settings.dataDir,
           state: t.state,
@@ -111,7 +153,26 @@ export function createCheckpointBackendFactory(
           dryRun: options.dryRun,
           onConflict: options.onConflict,
           ...(settings.maxFileBytes !== undefined ? { maxDiffBytes: settings.maxFileBytes } : {}),
-        });
+        };
+        // 有影子提交就以影子差异为准（降级前留下的提交照样可用）；影子不可用时回退 tools
+        if (target.shadowCommit !== undefined && settings.mode === "shadow-git") {
+          const unsafe = unsafeShadowCwd(ctx.cwd, settings.shadow?.homeDir);
+          if (unsafe === undefined) {
+            const repo = shadow ?? new ShadowRepo(settings.dataDir, ctx.cwd, settings.shadow ?? {});
+            try {
+              return await restoreFromShadow({
+                ...base,
+                repo,
+                ...(settings.maxFileBytes !== undefined
+                  ? { maxFileBytes: settings.maxFileBytes }
+                  : {}),
+              });
+            } catch (error) {
+              warn(`检查点：按影子提交恢复失败（${describe(error)}），改按 tools 记录恢复`);
+            }
+          }
+        }
+        return restoreCheckpoint(base);
       },
       gitHint: async (userEntryId) => {
         const target = get().state.byUserEntry.get(userEntryId);
@@ -119,4 +180,8 @@ export function createCheckpointBackendFactory(
       },
     };
   };
+}
+
+function describe(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

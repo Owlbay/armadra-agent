@@ -15,6 +15,10 @@
   新配置 `ui.restoreOnCancel`（缺省 true）。新回合用户消息落盘后建检查点，`task` 子会话的编辑记到父会话当前回合。
 - RPC 新增 `get_rewind_points`、`rewind`、`summarize_from`、`summarize_up_to` 与事件 `session_rewound`（命令表 37 条）；
   命令式 Hook 新增 `PostRewind`（`{ entryId, mode, files }`，不可阻止）；SDK 导出回滚类型。
+- **影子 git 检查点**（`checkpoints.mode: "shadow-git"`，docs/sessions.md「影子 git 模式」）：每个新回合把工作目录快照进
+  `<数据目录>/file-history/shadow/` 下的独立仓库，bash 与手动的新增、修改、删除、重命名也能回滚；尊重 `.gitignore`，
+  不碰用户仓库。git 不在 PATH、文件数超过 20 000 或快照超过 3 秒时本会话降级为 `tools`；家目录与根目录不启用。
+  `ama doctor` 显示影子仓库占用。
 
 ## 0.4.0（2026-10-02）
 
