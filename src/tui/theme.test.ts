@@ -8,6 +8,7 @@ import {
   levelColor,
   parseHex,
   plainTheme,
+  resolveThemeName,
   rgbTo16,
   rgbTo256,
 } from "./theme.js";
@@ -142,5 +143,18 @@ describe("色板 v1", () => {
     expect(levelColor(0.7)).toBe("warning");
     expect(levelColor(0.9)).toBe("error");
     expect(levelColor(0.5, { warnAt: 0.5 })).toBe("warning");
+  });
+});
+
+describe("auto 主题", () => {
+  it("COLORFGBG 背景色号决定 dark / light；缺省 dark", () => {
+    expect(resolveThemeName("auto", { COLORFGBG: "15;0" })).toBe("dark");
+    expect(resolveThemeName("auto", { COLORFGBG: "0;15" })).toBe("light");
+    expect(resolveThemeName("auto", { COLORFGBG: "0;default;15" })).toBe("light");
+    expect(resolveThemeName("auto", { COLORFGBG: "7;8" })).toBe("dark");
+    expect(resolveThemeName("auto", { TERM_PROGRAM: "Apple_Terminal" })).toBe("dark");
+    expect(resolveThemeName("auto", {})).toBe("dark");
+    expect(resolveThemeName(undefined, { COLORFGBG: "0;15" })).toBe("light");
+    expect(resolveThemeName("light", { COLORFGBG: "15;0" })).toBe("light");
   });
 });

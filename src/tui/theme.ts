@@ -101,6 +101,23 @@ export function levelColor(
   return "success";
 }
 
+/**
+ * `auto` → dark / light：不发查询序列，只看环境。`COLORFGBG` 的最后一段是背景色号（0–6、8 暗，
+ * 7、9–15 亮）；没有时 Apple Terminal 按 dark；其余缺省 dark。只是猜，文档建议显式配置。
+ */
+export function resolveThemeName(
+  name: ThemeName | "auto" | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): ThemeName {
+  if (name === "dark" || name === "light") return name;
+  const colorfgbg = env["COLORFGBG"];
+  if (colorfgbg !== undefined && colorfgbg !== "") {
+    const bg = Number(colorfgbg.split(";").at(-1));
+    if (Number.isInteger(bg) && bg >= 0 && bg <= 15) return bg === 7 || bg >= 9 ? "light" : "dark";
+  }
+  return "dark";
+}
+
 /** 由环境推断颜色深度。 */
 export function detectColorDepth(
   env: NodeJS.ProcessEnv = process.env,

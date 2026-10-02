@@ -66,11 +66,18 @@ export {
   rgbTo16,
   THEME_PALETTES,
   THEME_ANSI16,
+  resolveThemeName,
   levelColor,
   type ThemeName,
   type CreateThemeOptions,
 } from "./tui/theme.js";
-export { UNICODE_GLYPHS, ASCII_GLYPHS, detectAscii, glyphsFor } from "./tui/glyphs.js";
+export {
+  UNICODE_GLYPHS,
+  ASCII_GLYPHS,
+  detectAscii,
+  resolveAscii,
+  glyphsFor,
+} from "./tui/glyphs.js";
 export {
   Keybindings,
   defaultKeybindings,

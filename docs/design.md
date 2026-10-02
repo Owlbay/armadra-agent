@@ -827,13 +827,15 @@ tool_call（模型产出）
   "retry": { "maxRetries": 3, "baseDelayMs": 2000, "maxDelayMs": 60000 },
   "tools": { "maxToolResultChars": 30000, "bashTimeoutMs": 120000, "disabled": [] },
   "hooks": { "timeoutMs": 60000 },
-  "ui": { "theme": "dark", "markdown": true, "showThinking": "collapsed" },
+  "ui": { "theme": "dark", "markdown": true, "showThinking": "collapsed", "compact": false, "animation": true },
   "skills": { "dirs": [] },
   "cache": { "warming": "streaming", "retention": "short", "minSavingsUsd": 0.05, "missNotices": true, "warmSubagents": false }
 }
 ```
 
 `cache` 段（第三波）：`warming` 为 `off | streaming | idle`（`AMA_CACHE_WARMING` 覆盖），`retention` 为 `none | short | long`（`AMA_CACHE_RETENTION` 覆盖），`minSavingsUsd` 是保温的最低期望节省，`missNotices` 控制消息区的未命中与上下文余量提示，`warmSubagents` 让 task 子会话也保温。整段只认用户级 / profile，项目级忽略并 warning。供应商级开关在 `providers.<id>.compat`（`sendPromptCacheKey`、`sendSessionAffinityHeaders`、`supportsLongCacheRetention`、`supportsExplicitPromptCacheMode`、`cacheReporting`），TTL 在模型的 `promptCache{short,long,minTokens}`；见 `docs/providers.md`「缓存」。
+
+`ui` 段：`theme` 为 `dark | light | auto`（auto 按 `COLORFGBG` / `TERM_PROGRAM` 猜，猜不出用 dark），`ascii` 用 ASCII 字形（缺省按区域设置与 `TERM` 自动检测，`AMA_ASCII=1` 等价），`compact` 让消息区块间不空行、启动头无框，`animation: false` 让运行中 spinner 静止；见 `docs/tui.md`「配置」。
 
 合并顺序：内置缺省 ← 用户级 ← profile.config ← 项目级（只接受 `permission.deny`、`permission.mode` 收紧、`compaction`、`tools.disabled`、`ui`）← 命令行。
 

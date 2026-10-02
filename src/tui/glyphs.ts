@@ -156,6 +156,17 @@ export function detectAscii(
   return false;
 }
 
+/** 配置与环境合并：`AMA_ASCII` 显式值 > `ui.ascii` > 自动检测。 */
+export function resolveAscii(
+  configured: boolean | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  const forced = truthy(env["AMA_ASCII"]);
+  if (forced !== undefined) return forced;
+  return configured ?? detectAscii(env, platform);
+}
+
 export function glyphsFor(ascii: boolean): Glyphs {
   return ascii ? ASCII_GLYPHS : UNICODE_GLYPHS;
 }

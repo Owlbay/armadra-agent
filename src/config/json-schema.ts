@@ -180,11 +180,14 @@ export function buildConfigJsonSchema(): Schema {
       }),
       hooks: object({ timeoutMs: num(1, HOOK_TIMEOUT_MAX_MS) }),
       ui: object({
-        theme: oneOf(["dark", "light"]),
+        theme: oneOf(["dark", "light", "auto"]),
         markdown: bool(),
         showThinking: oneOf(["full", "collapsed", "hidden"]),
         tuiMode: oneOf(["regular"]),
         quietStartup: oneOf(["normal", "header", "silent"]),
+        ascii: bool(),
+        compact: bool(),
+        animation: bool(),
       }),
       skills: object({ dirs: strings }),
       cache: object({

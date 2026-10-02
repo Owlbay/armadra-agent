@@ -388,13 +388,25 @@ export function validateConfig(value: unknown): Diagnostic[] {
     c,
     value,
     "ui",
-    ["theme", "markdown", "showThinking", "tuiMode", "quietStartup"],
+    [
+      "theme",
+      "markdown",
+      "showThinking",
+      "tuiMode",
+      "quietStartup",
+      "ascii",
+      "compact",
+      "animation",
+    ],
     (s, p) => {
-      c.oneOf(s, "theme", p, ["dark", "light"]);
+      c.oneOf(s, "theme", p, ["dark", "light", "auto"]);
       c.boolean(s, "markdown", p);
       c.oneOf(s, "showThinking", p, ["full", "collapsed", "hidden"]);
       c.oneOf(s, "tuiMode", p, ["regular"]);
       c.oneOf(s, "quietStartup", p, ["normal", "header", "silent"]);
+      c.boolean(s, "ascii", p);
+      c.boolean(s, "compact", p);
+      c.boolean(s, "animation", p);
     },
   );
   checkSection(c, value, "skills", ["dirs"], (s, p) => c.stringArray(s, "dirs", p));

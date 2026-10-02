@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { visibleWidth } from "./ansi.js";
-import { ASCII_GLYPHS, UNICODE_GLYPHS, detectAscii, glyphsFor, type Glyphs } from "./glyphs.js";
+import {
+  ASCII_GLYPHS,
+  UNICODE_GLYPHS,
+  detectAscii,
+  glyphsFor,
+  resolveAscii,
+  type Glyphs,
+} from "./glyphs.js";
 import { createTheme, plainTheme } from "./theme.js";
 
 function flatten(glyphs: Glyphs): string[] {
@@ -53,6 +60,13 @@ describe("ASCII 检测", () => {
     expect(detectAscii({}, "win32")).toBe(true);
     expect(detectAscii({ WT_SESSION: "abc" }, "win32")).toBe(false);
     expect(detectAscii({ TERM_PROGRAM: "vscode" }, "win32")).toBe(false);
+  });
+
+  it("resolveAscii：AMA_ASCII > ui.ascii > 检测", () => {
+    expect(resolveAscii(false, { AMA_ASCII: "1" }, "linux")).toBe(true);
+    expect(resolveAscii(true, {}, "linux")).toBe(true);
+    expect(resolveAscii(false, { LANG: "C" }, "linux")).toBe(false);
+    expect(resolveAscii(undefined, { LANG: "C" }, "linux")).toBe(true);
   });
 
   it("主题带字形", () => {

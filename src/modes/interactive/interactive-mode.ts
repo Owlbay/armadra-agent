@@ -37,6 +37,8 @@ import {
   Text,
   createTheme,
   detectCapabilities,
+  resolveAscii,
+  resolveThemeName,
   loadKeybindingsFile,
   truncateToWidth,
   type Component,
@@ -122,10 +124,12 @@ export function runInteractiveMode(
 ): Promise<number> {
   const terminal = options.terminal ?? processTerminal();
   const ui = runtime.config.ui ?? {};
+  const env = context.io.env as NodeJS.ProcessEnv;
   const theme =
     options.theme ??
-    createTheme(ui.theme ?? "dark", {
-      caps: detectCapabilities(context.io.env as NodeJS.ProcessEnv, context.io.stdoutIsTTY),
+    createTheme(resolveThemeName(ui.theme, env), {
+      caps: detectCapabilities(env, context.io.stdoutIsTTY),
+      ascii: resolveAscii(ui.ascii, env),
     });
   const now = options.now ?? Date.now;
   const startupWarnings: string[] = [];
