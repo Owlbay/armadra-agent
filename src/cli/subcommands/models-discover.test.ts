@@ -201,31 +201,41 @@ describe("ama models discover", () => {
     expect(text).toContain("  grok-4.7  openai-responses\n");
     expect(text).toContain("  MiniMax-M2.7  anthropic-messages\n");
     expect(text).not.toContain("qwen-x  openai");
-    expect(calls.map((c) => `${c.id}:${c.api}`)).toEqual([
-      "deepseek-v4-flash:openai-completions",
-      "glm-5:openai-completions",
-      "grok-4.7:openai-completions",
-      "grok-4.7:openai-responses",
-      "MiniMax-M2.7:openai-completions",
-      "MiniMax-M2.7:openai-responses",
-      "MiniMax-M2.7:anthropic-messages",
+    // 模型之间并发：同一模型内按协议顺序，模型之间的先后不固定
+    const tried = (id: string): Api[] => calls.filter((c) => c.id === id).map((c) => c.api);
+    expect(calls).toHaveLength(7);
+    expect(tried("deepseek-v4-flash")).toEqual(["openai-completions"]);
+    expect(tried("glm-5")).toEqual(["openai-completions"]);
+    expect(tried("grok-4.7")).toEqual(["openai-completions", "openai-responses"]);
+    expect(tried("MiniMax-M2.7")).toEqual([
+      "openai-completions",
+      "openai-responses",
+      "anthropic-messages",
     ]);
+    // 输出按模型顺序，不按完成顺序
+    expect(text.indexOf("  glm-5  ")).toBeLessThan(text.indexOf("  grok-4.7  "));
+    expect(text.indexOf("  grok-4.7  ")).toBeLessThan(text.indexOf("  MiniMax-M2.7  "));
     expect(calls.every((c) => c.apiKey === "sk-relay" && c.baseUrl === RELAY.baseUrl)).toBe(true);
   });
 
-  it("--probe：三种都失败记不可用；401 / 429 立即停止 → 1；--limit 非正整数 → 用法错误", async () => {
+  it("--probe：三种都失败记不可用；401 立即停止 → 1；--limit / --concurrency 越界 → 用法错误", async () => {
     writeConfig({ relay: RELAY });
     stubFetch(["unknown-a", "grok-4.7"]);
     expect(await runModels(["discover", "relay", "--probe"], io(), deps())).toBe(0);
     expect(out.join("")).toContain("  unknown-a  不可用（三种协议均失败）");
     calls = [];
-    failWith = "429 rate limited";
-    expect(await runModels(["discover", "relay", "--probe"], io(), deps())).toBe(1);
+    failWith = "401 invalid key";
+    expect(
+      await runModels(["discover", "relay", "--probe", "--concurrency", "1"], io(), deps()),
+    ).toBe(1);
     expect(calls).toHaveLength(1);
-    expect(err.join("")).toContain("探测提前停止（429 rate limited）");
+    expect(err.join("")).toContain("探测提前停止（401 invalid key）");
     await expect(
       runModels(["discover", "relay", "--probe", "--limit", "0"], io(), deps()),
     ).rejects.toThrow(/--limit 需要正整数/);
+    await expect(
+      runModels(["discover", "relay", "--probe", "--concurrency", "17"], io(), deps()),
+    ).rejects.toThrow(/--concurrency 需要 1–16 的整数/);
   });
 
   it("--probe --write：只写探测成功的新模型（id + 与供应商不同的 api），已有同 id 不覆盖，先备份", async () => {
