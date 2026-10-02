@@ -12,14 +12,7 @@
  */
 
 import { AssistantEventStreamImpl } from "../event-stream.js";
-import {
-  USER_AGENT,
-  authHeaders,
-  describeErrorJson,
-  joinUrl,
-  mergeHeaders,
-  postJson,
-} from "../http.js";
+import { USER_AGENT, authHeaders, describeErrorJson, joinUrl, mergeHeaders } from "../http.js";
 import { readSseEvents } from "../sse.js";
 import type {
   AnthropicMessagesCompat,
@@ -30,6 +23,7 @@ import type {
   TranscriptContext,
   Usage,
 } from "../types.js";
+import { postWithCacheFallback } from "./cache-params.js";
 import {
   ANTHROPIC_VERSION,
   buildAnthropicRequest,
@@ -201,7 +195,7 @@ async function run(
     const replaced = options.onPayload?.(request.body);
     const body = replaced === undefined ? request.body : replaced;
     const baseUrl = model.baseUrl ?? "https://api.anthropic.com";
-    const response = await postJson(joinUrl(baseUrl, "/v1/messages"), {
+    const response = await postWithCacheFallback(model, joinUrl(baseUrl, "/v1/messages"), {
       headers: buildHeaders(model, options, request.betas),
       body,
       signal: options.signal,

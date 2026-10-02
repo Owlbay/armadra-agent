@@ -15,14 +15,7 @@
  */
 
 import { AssistantEventStreamImpl } from "../event-stream.js";
-import {
-  USER_AGENT,
-  authHeaders,
-  describeErrorJson,
-  joinUrl,
-  mergeHeaders,
-  postJson,
-} from "../http.js";
+import { USER_AGENT, authHeaders, describeErrorJson, joinUrl, mergeHeaders } from "../http.js";
 import { readSseEvents } from "../sse.js";
 import type {
   ApiImplementation,
@@ -33,7 +26,7 @@ import type {
   TranscriptContext,
   Usage,
 } from "../types.js";
-import { affinityHeaders, resolveCacheRetention } from "./cache-params.js";
+import { affinityHeaders, postWithCacheFallback, resolveCacheRetention } from "./cache-params.js";
 import { detectCompat } from "./openai-compat.js";
 import { REASONING_FIELDS, buildOpenAIRequest } from "./openai-request.js";
 import {
@@ -240,7 +233,7 @@ async function run(
     }
     const replaced = options.onPayload?.(request.body);
     const baseUrl = model.baseUrl ?? "https://api.openai.com/v1";
-    const response = await postJson(joinUrl(baseUrl, "/chat/completions"), {
+    const response = await postWithCacheFallback(model, joinUrl(baseUrl, "/chat/completions"), {
       headers: buildHeaders(model, options),
       body: replaced === undefined ? request.body : replaced,
       signal: options.signal,
