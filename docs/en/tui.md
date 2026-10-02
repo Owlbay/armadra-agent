@@ -2,7 +2,7 @@
 
 English · [简体中文](../tui.md)
 
-> Translated from the Chinese [docs/tui.md](../tui.md) as of commit `ed2c792`. When the two differ, the Chinese version is
+> Translated from the Chinese [docs/tui.md](../tui.md) as of commit `6a7b5eb`. When the two differ, the Chinese version is
 > authoritative. Screens below are illustrative; the exact interface wording follows the interface language
 > (`ui.language`, `--lang`, `AMA_LANG`).
 
@@ -136,7 +136,7 @@ Trade-offs: the status bar shows the latest hit rate (the session total lives in
 | ↑ / ↓                    | Browse history on a single line (`<data dir>/history`, 500 entries)                                                                                                                                                           |
 | Ctrl+B / ↓ (empty input) | Enter the agent bar (when there are sub-agent tasks; with text Ctrl+B still moves the cursor left, use ↓ in tmux), see "Sub-agents" (from wave 6 W6-A)                                                                        |
 
-Keys can be overridden in `~/.config/ama/keybindings.json`: keys are action ids (`app.interrupt`, `app.rewind`, `app.message.followUp`, `app.statusLine.toggle`, `app.paste.image`, `tui.editor.newLine` …), values are a key or an array of keys, and an empty array disables the action. `app.rewind` is the key double-pressed while idle (Esc by default, at most 800 ms apart).
+Keys can be overridden in `~/.config/ama/keybindings.json`: keys are action ids (`app.interrupt`, `app.rewind`, `app.message.followUp`, `app.statusLine.toggle`, `app.paste.image`, `app.agents.focus`, `tui.editor.newLine` …), values are a key or an array of keys, and an empty array disables the action. `app.rewind` is the key double-pressed while idle (Esc by default, at most 800 ms apart).
 
 ## Rewind
 
@@ -193,7 +193,7 @@ Design in [rewind-plan.md](../rewind-plan.md) (Chinese). Every user message that
 - `/statusline [full|compact]`: switch the bottom info line (without arguments it toggles, same as `Ctrl+G`), this session only; line mode has no bottom info line.
 - `/session`, `/cache`: session usage and cache stats panels (see "Cache and context" above); `/permissions` is a panel too, with allow in green, deny in red and the decision order wrapped and aligned. With sub-agent tasks `/session` gains a "Sub-agents" line (task count and states), and after using external agents an "External agents" section (runs and usage per agent, USD / tokens / requests each in its own unit, never converted).
 - `/plan`: the current plan panel (see "Plan approval" below); `/plan <goal>` enters Plan mode and sends the goal; `/plan approve [mode|fresh]` and `/plan reject` approve / discard directly without a dialog.
-- `/tasks`: the sub-agent task list; `/agents`: the available sub-agent types (see "Sub-agents" below).
+- `/tasks`: focus the agent bar, `/tasks <id>` opens the sub-agent view; `/agents`: the available sub-agent types (see "Sub-agents" below).
 - `/paste`: same as `Ctrl+V`.
 
 ## Entering Bypass
@@ -313,9 +313,48 @@ Sub-agents started by the `task` tool ([agents.md](../agents.md), Chinese) fold 
 ```
 
 - The status line shows the type (external agents show a runner such as `claude (claude)`), status and elapsed time, turns, the latest 3 tools and usage; after a foreground task ends it is replaced by the result summary. A background task's (`background: true`) tool call returns immediately, with an extra follow-up status line below (refreshed every second while running); when it completes, the `<task-notification>` the model receives shows in the message area as a single line (e.g. "↳ sub-agent notification: t2 explore done · 7 turns · see /tasks for output"), plus a yellow notice on failure or stop.
-- `/tasks`: a task picker (newest on top; each line shows task id, type, status, elapsed time, turns, usage, cost, background, description); Enter shows the output (the output so far while running; a full-text file when truncated); running tasks can be stopped. Line mode: `/tasks` lists, `/tasks <id>` shows output, `/tasks stop <id>` stops.
+- `/tasks`: focus the agent bar (below); `/tasks <id>` opens that task's sub-agent view directly; `/tasks stop <id>` stops it. With `ui.agentBar: "off"` (the default in embedding hosts) `/tasks` is still the task picker (newest on top, Enter shows the output, running tasks can be stopped). Line mode: `/tasks` lists, `/tasks <id>` shows output, `/tasks stop <id>` stops.
 - `/agents`: the available types: name, runner, source (built-in / user / project / profile / host), external agents marked installed with a version or not installed, plus a one-line description.
 - Notices reported by external agents themselves (budget exhausted, timeout, mode downgrade …) show in the message area as a single line `[claude · t3] …`.
+
+### Agent bar
+
+Above the status line (below the hint line) the bar lists sub-agent tasks, one line each, at most 3 lines, with an "N more" line for the rest:
+
+```
+⏺ t1 explore · running 1m05s · 3 turns · grep  find test gaps in src/tui
+⏺ t2 codex · awaiting approval 40s  review the diff
+⏺ t3 explore · queued  a queued task
+1 more
+```
+
+- States: queued (the concurrency pool is full) / running (elapsed time, turns, latest tool) / awaiting approval (the approval dialog currently holds its request) / done / failed / stopped (plus out of turns and interrupted); `⏺` is the accent color while running, green when done, red on failure, yellow / dim otherwise; `*` in ASCII.
+- When it shows: while any task is queued, running or awaiting approval; tasks that ended in this session and have not been looked at in the view stay until viewed, at most 10 minutes. Tasks already finished when a session is resumed are not shown (`/tasks` lists them).
+- Entering: `Ctrl+B` with an empty input box (whenever there are tasks), or `↓` (while the bar is visible) — tmux's default prefix swallows `Ctrl+B`, so use `↓` there; with text in the input box `Ctrl+B` still moves the cursor left and `↓` still moves down / through history. The key action is `app.agents.focus`, configurable in `keybindings.json`.
+- In the bar: `↑` `↓` select (lists every task of the session, the window scrolls along; `↑` on the first item returns to the input box), Enter opens the sub-agent view, Esc / `Ctrl+B` return to the input box; typing returns to the input box with the text filled in. The last line is a key hint.
+- Embedding hosts (with a profile) default to `ui.agentBar: "off"`: no bar, and `Ctrl+B` / `↓` go to the editor as usual.
+
+### Sub-agent view
+
+Opened with Enter in the bar or `/tasks <id>`. It is a bottom overlay on the main screen, terminal rows − 1 tall (no alternate screen), so the message area and scrollback are unchanged after closing it:
+
+```
+t2 explore · running 1m05s · 3 turns · ↑12k ↓3.4k · Esc back · /tasks stop t2 to stop
+› find test gaps in src/tui
+
+⏺ grep "describe(" src/tui
+  ⎿ 14 matches · 6 files
+…
+────────────────────────────────────────
+› message t2
+────────────────────────────────────────
+```
+
+- The body follows live: for ama sub-agents it shows every message and tool call of the sub-session (rendered like the message area); when the sub-session handle has been released (at most 16 are kept) or the session was resumed, the sub-session file is loaded read-only and live events are attached when the task runs again. External agents (claude / codex / ACP) show the live output held in this process's memory (text, thinking, tool start / end, turns, notices; at most 2000 items / 1 MB, never written to disk); after ama restarts only one line remains, saying to use the original CLI's resume <session id> for the full text.
+- With an empty input box: `↑` / PgUp scroll up (pausing follow, with "follow paused · End to resume" at the bottom), `↓` / PgDn scroll down, End (or `f` while paused) resumes following; `←` `→` switch to the previous / next task; Esc returns to the main screen. With text in the input box, Esc clears it first.
+- Enter sends the input to this sub-agent (recorded in the sub-session as a user message with `origin: "direct"`, see [session-format.md](../session-format.md), Chinese): ama sub-agent running → delivered when its current turn ends; external agent running or task still queued → continued after this run ends; finished → continued in the background (like `task_ctl send`; the main session receives the `<task-notification>` as usual when it completes). A line at the bottom reports the result. The parent session's model does not know you talked to the sub-agent directly; the result comes back through the completion notification.
+- Nothing is interrupted from the view: Esc only goes back. To stop the task use `/tasks stop <id>`, which also works in the view's input box (the only command the view accepts).
+- When the viewed task waits for approval the title says "awaiting approval", and the approval dialog pops up over the view as usual (with the `[task:<type>]` origin).
 
 Origin labels on approval boxes:
 
@@ -329,11 +368,37 @@ All three offer only "allow / allow this kind for the session / deny" (for exter
 
 ## Traces
 
-(Wave 6 W6-T1: the `/trace` overlay.)
+`/trace` opens the current session's trace: layered as turn → request → tool → sub-call / sub-agent, each row showing duration, tokens and cache hits, so you can see where a reply was slow (first token, decoding, tools, approvals, retries, compaction). `/trace t2` looks at task t2 directly: an ama sub-agent shows its own sub-trace, external agents (claude / codex …) only have a turn skeleton (kind, state, times and counts, no command lines or paths).
+
+The overlay sits at the bottom of the main screen, `rows − 1` tall, and leaves the message area unchanged when closed:
+
+```text
+Trace · 1 turn · 2 requests · 3 tool calls · 12s · ↑8.1k ↓240 · cache 70% · ttft p50 0.8s / p90 0.9s · 120 tok/s
+ ▾ #1 run the tests and find TODOs                         12s ▕██░░░░░░░▒██▏ ↑8.1k ↓240     70%
+   ▾ request claude-sonnet-4-5 · ttft 0.8s · 167 tok/s    1.7s ▕██░░░░░░░░  ▏ ↑3.9k ↓150     46%
+       bash pnpm test                                     8.0s ▕ ░░░░░░░░░  ▏
+       grep TODO                                          0.3s ▕ ░░         ▏
+       ⛔ write notes.md                                  2.2s ▕ ░░░░       ▏
+›    request claude-sonnet-4-5 · ttft 0.9s · 82 tok/s     2.0s ▕         ▒██▏ ↑4.2k ↓90      93%
+↑↓ move · → expand · ← collapse · Enter details · f follow · Esc close
+```
+
+- **Bars** are a relative timeline of the turn: `▒` waiting for the first token (TTFT), `█` decoding, `░` tools; in-progress nodes only draw a start mark `│` and no made-up duration. With ASCII (`ui.ascii` / `AMA_ASCII=1`) or no color (`NO_COLOR`) they degrade to `[==..--]` (`.` TTFT, `=` decoding, `-` tools, `|` start).
+- **Columns**: ↑ is prompt tokens (including cache reads and writes), ↓ is output tokens, the percentage is the cache hit rate (cache reads / prompt tokens). Below 60 columns only the label and duration remain; 40 columns works.
+- **Marks**: `✗` failed, `⛔` denied, `↻` a request replaced by a retry, `!` interrupted or unfinished, `·` in progress; `≈` (ASCII `~`) before a duration means **estimated** — sessions from before 0.6 have no timing records, so durations are estimated from entry times, first token and throughput are not shown, and the summary's ttft percentiles use exact values only.
+- **Keys**: `↑↓` / `PgUp` `PgDn` / `Home` `End` move; `→` expands (expanding a sub-agent reads its sub-session) or moves to the first child, `←` collapses or returns to the parent; `Enter` opens a detail card (kind, state, start time, duration, model and attempts, fallback source, TTFT, throughput, tokens and cache, cost, approval wait; the turn's prompt, the request's reply text, tool arguments (cut at 500 characters) and results (cut at 2000 characters)), with `↑↓` to scroll in the card and `Esc` / `Enter` to go back; `f` toggles following; `Esc` closes the details first, then the view.
+- **Long sessions**: the last 50 turns show first; `Enter` on the top line "N earlier turns" (or `↑` again on the first line) loads 50 more; only visible rows are rendered.
+- **While running**: the trace refreshes with session events (at most twice a second); with in-progress nodes it follows the newest row, moving up manually pauses it ("follow paused" at the right of the title), and `End` or `f` resumes.
+- Auxiliary requests such as warming and permission classification are grouped at the end under "N auxiliary requests", collapsed by default.
+- In line mode (`--ui line`, pipes) `/trace [task id]` prints the same tree as text (fully expanded, no bars).
+
+Timing comes from `custom{customType:"ama.trace"}` entries in the session file ([session-format.md](../session-format.md), Chinese), which hold only ids, times and counts; previews of prompts, arguments and results are read from session entries on demand and never enter the trace itself. The HTML export `ama sessions trace` and RPC `get_trace` are described in [sessions.md](sessions.md) and [rpc.md](rpc.md).
 
 ## Memory
 
-(Wave 6 W6-M: `/memory` and the memory panel.)
+Requires memory to be enabled (`ama memory enable` or `--memory`, see [memory.md](../memory.md), Chinese). `/memory` draws a card in the message area: one section per scope (`user /memories/user/ · N entries · index X / 4.0 KiB`), one line per entry "name — description updated date", entries not updated for over 90 days greyed out; when the index exceeds its limit a yellow line says how many entries did not make it into the system prompt; an untrusted project and writes disabled for this session each add a line at the bottom of the card.
+
+`/memory show <name>` renders the body as a card; `/memory edit [name|scope]` suspends the interface and opens `$VISUAL` / `$EDITOR` (on a temporary copy, saved back and the index rebuilt after you save and quit, with the same credential and size checks as model writes); `/memory rm <name>` asks for confirmation (default "Cancel", `y` deletes, `n` / Esc cancels); `/memory on|off` toggles writes for this session; `/memory reload` re-renders the system prompt's `memory` section (breaking the cache once). Line mode has the same commands with text output; `edit` uses `ama memory edit` instead and `rm` needs `--yes`. When memory is not enabled for the session it only explains how to enable it.
 
 ## Clipboard images
 
