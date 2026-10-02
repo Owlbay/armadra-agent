@@ -177,3 +177,29 @@ describe("OpenRouter：流式 usage 只在 message_delta", () => {
     expect(usage).toMatchObject({ input: 12, output: 40, cacheRead: 9000, cacheReported: true });
   });
 });
+
+describe("请求快照：TTL（按主机缓存能力）", () => {
+  const ttls = (baseUrl: string): unknown[] => {
+    const body = buildAnthropicRequest(
+      model(baseUrl, "x", { reasoning: false }),
+      TOOLS_CONTEXT,
+      opts({ cacheRetention: "long" }),
+    ).body;
+    const found: unknown[] = [];
+    JSON.stringify(body, (key, value: unknown) => {
+      if (key === "cache_control") found.push((value as { ttl?: unknown }).ttl);
+      return value;
+    });
+    return found;
+  };
+
+  it("long：腾讯 TokenHub 带 1h，通义降为 5m，DeepSeek 不打断点", () => {
+    expect(ttls("https://tokenhub.tencentmaas.com")).toEqual(["1h", "1h", "1h"]);
+    expect(ttls("https://dashscope.aliyuncs.com/apps/anthropic")).toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ]);
+    expect(ttls("https://api.deepseek.com/anthropic")).toEqual([]);
+  });
+});
