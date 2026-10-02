@@ -65,14 +65,30 @@ export function reminderKind(promptIndex: number): "full" | "brief" | undefined 
   return reminder % 5 === 0 ? "full" : "brief";
 }
 
-/** 交接消息：计划已批准 + plan 模式结束 + 计划全文 + 文件路径 + 按 todo 推进。 */
-export function planApprovedText(plan: Pick<PlanData, "markdown" | "filePath" | "steps">): string {
+/**
+ * 交接时怎么记进度：活动工具集里有 `todo` 就用 `todo update`；没有（D20 未过门，`default` 预设不含 todo）
+ * 时请模型在回复里单独一行写 `[DONE:<步骤>]`，由 `done-markers.ts` 读回待办（[W5-Z]）。
+ */
+export interface HandoffOptions {
+  todoTool: boolean;
+}
+
+const DONE_MARKER_HINT =
+  "When you finish a step, write `[DONE:<step id>]` (for example `[DONE:S1]`) on its own line in your reply so progress can be tracked.";
+
+/** 交接消息：计划已批准 + plan 模式结束 + 计划全文 + 文件路径 + 进度记法。 */
+export function planApprovedText(
+  plan: Pick<PlanData, "markdown" | "filePath" | "steps">,
+  options: HandoffOptions = { todoTool: true },
+): string {
   const lines = [
     "The user approved the plan below. Plan mode has ended: you may now edit files and run commands as the current permission mode allows.",
   ];
   if (plan.steps.length > 0) {
     lines.push(
-      "The todo list has been created from the plan steps (the first step is in progress). Work through it in order and mark each step with todo update as soon as it is done.",
+      options.todoTool
+        ? "The todo list has been created from the plan steps (the first step is in progress). Work through it in order and mark each step with todo update as soon as it is done."
+        : `Work through the plan steps in order. ${DONE_MARKER_HINT}`,
     );
   }
   if (plan.filePath !== undefined) lines.push(`Plan file: ${plan.filePath}`);
@@ -83,12 +99,17 @@ export function planApprovedText(plan: Pick<PlanData, "markdown" | "filePath" | 
 /** 「批准，在新上下文执行」：新会话的首条用户消息。 */
 export function freshContextPrompt(
   plan: Pick<PlanData, "markdown" | "filePath" | "steps">,
+  options: HandoffOptions = { todoTool: true },
 ): string {
   const lines = [
     "Carry out the approved plan below. It was written in an earlier session that you cannot see; the plan is self-contained.",
   ];
   if (plan.steps.length > 0)
-    lines.push("Track progress with the todo tool: mark each step with todo update when done.");
+    lines.push(
+      options.todoTool
+        ? "Track progress with the todo tool: mark each step with todo update when done."
+        : DONE_MARKER_HINT,
+    );
   if (plan.filePath !== undefined) lines.push(`Plan file: ${plan.filePath}`);
   lines.push("", "<approved_plan>", plan.markdown, "</approved_plan>");
   return lines.join("\n");

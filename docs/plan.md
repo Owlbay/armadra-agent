@@ -60,10 +60,12 @@ plan 模式让 ama 先只读调研、写出一份结构化的计划，经人批�
 
 四种决定：
 
-- **approve**：计划标 approved；步骤写成 `ama.todo`（`planStep` 指回步骤 id，首项 in_progress）；权限模式切到指定模式，缺省进入 plan 前的模式（进入前就是 plan 时用 Manual）；配置了 `plan.model` 时切回执行模型；随后开新回合：用户消息 `The plan is approved. Go ahead.`（`origin: "plan"`）+ `ama.plan_approved`（计划全文、文件路径、「按 todo 推进，每完成一步 todo update」）。line 模式下回复 `1` 本身就是这个回合的用户消息。
+- **approve**：计划标 approved；步骤写成 `ama.todo`（`planStep` 指回步骤 id，首项 in_progress）；权限模式切到指定模式，缺省进入 plan 前的模式（进入前就是 plan 时用 Manual）；配置了 `plan.model` 时切回执行模型；随后开新回合：用户消息 `The plan is approved. Go ahead.`（`origin: "plan"`）+ `ama.plan_approved`（计划全文、文件路径与进度记法，见下文「进度记法」）。line 模式下回复 `1` 本身就是这个回合的用户消息。
 - **approve_fresh**：同样标 approved 并切模式，但执行放到新会话：首条用户消息是计划全文与文件路径，新会话里写 todo。RPC 由服务端新建会话；SDK 的 `respond()` 返回 `freshPrompt`，由调用方新建会话后 `planController(next).adopt(plan)` 再发它。上下文占用高或配置了 `plan.model` 时最划算（反正要重读）。
 - **revise**：留在 plan；`feedback` 作为普通用户消息开回合，模型整份重写计划，新版本号 +1，旧版标 superseded。
 - **reject**：计划标 rejected，留在 plan。交互界面的「放弃，退出 Plan 模式」在 reject 之后切回进入前的模式；审批框里按 Esc 是 reject 但留在 plan。
+
+**进度记法**：活动工具集里有 `todo`（`tools.default: ["+todo"]`、`--tools …,todo`）时，交接消息请模型「按 todo 推进，每完成一步 todo update」；没有时（`default` 预设缺省不含 todo，见 D20 与 [docs/benchmarks/](https://github.com/Owlbay/armadra-agent/tree/main/docs/benchmarks)）请模型每完成一步在回复里**单独一行**写 `[DONE:<步骤 id>]`（如 `[DONE:S1]`），ama 在回合结束时读这些标记：对应的计划待办标 done，没有进行中的项时下一个 pending 转 in_progress，照常落 `ama.todo`、发 `todo_updated`，界面与 RPC 的进度显示不受影响。「在新上下文执行」的首条消息用同样的规则。
 
 客户端改过的全文（`editedMarkdown`，界面里「在外部编辑器里改」）先落一份新版本，交接消息用改后的全文。
 

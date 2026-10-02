@@ -314,7 +314,7 @@ plan 模式与计划的格式见 [plan.md](plan.md)。
 1. 回合在 plan 模式下以纯文本结束、回复里有 `<proposed_plan>` 块时，服务端落盘计划并发 `plan_proposed{ planId, version, markdown, steps, filePath? }`（`steps[]`：`{ id, text, dependsOn?, agent? }`），随后照常 `agent_settled`。
 2. 客户端声明过 `set_client_capabilities{capabilities:["plans"]}` 才由它回答；没声明时按配置 `plan.unattended`：缺省 `stop`（计划留在 proposed，不切模式、不执行，客户端之后仍可用 `plan_response` 作答），`approve` 时同一次运行里自动批准并执行。
 3. `plan_response`：
-   - `approve`：计划标 approved，步骤写成 todo（首项 in_progress，发 `todo_updated`），发 `plan_resolved{ planId, decision, mode }`，权限模式切到 `mode`（缺省进入 plan 前的模式；进入前就是 plan 时用 `default`），随后自动开一个新回合：用户消息 `The plan is approved. Go ahead.`（`origin: "plan"`）+ `custom_message{ama.plan_approved}`（计划全文、文件路径、按 todo 推进）。
+   - `approve`：计划标 approved，步骤写成 todo（首项 in_progress，发 `todo_updated`），发 `plan_resolved{ planId, decision, mode }`，权限模式切到 `mode`（缺省进入 plan 前的模式；进入前就是 plan 时用 `default`），随后自动开一个新回合：用户消息 `The plan is approved. Go ahead.`（`origin: "plan"`）+ `custom_message{ama.plan_approved}`（计划全文、文件路径、进度记法：有 todo 工具时按 todo 推进，没有时请模型每完成一步写一行 `[DONE:<步骤>]`，ama 据此推进待办并发 `todo_updated`）。
    - `approve_fresh`：同上标 approved、切模式，然后新建会话（发 `session_start{reason:"new"}`），在新会话里写 todo，并以计划全文为首条用户消息开回合。
    - `revise`：留在 plan；`feedback` 非空时作为普通用户消息开回合，模型重写计划后出新版本（旧版标 superseded）。
    - `reject`：计划标 rejected，留在 plan。

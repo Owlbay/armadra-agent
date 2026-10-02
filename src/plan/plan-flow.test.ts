@@ -2,6 +2,7 @@
  * [W5-F] 组装后的端到端（docs/wave5-plan.md §6.6）：
  * - 缓存前缀：20 回合里 plan ↔ default 切换 3 次，system + tools 逐字节不变，`cache_miss` 没有 prefix_changed；
  * - 交接：`-p` + `plan.unattended: approve` 在一次运行里 plan → 批准 → todo → 执行模式；缺省 stop 只落盘。
+ * - [W5-Z] default 预设不含 todo 时交接改用 `[DONE:n]`：回复里的标记把计划待办推进；`+todo` 时仍用 todo update。
  */
 
 import { existsSync, readdirSync } from "node:fs";
@@ -119,5 +120,57 @@ describe("-p 下的计划审批", () => {
       .at(-1);
     expect(state).toMatchObject({ data: { active: false, prePlanMode: "default" } });
     expect(existsSync(join(h.home.dataDir, "plans"))).toBe(true);
+  });
+});
+
+describe("[W5-Z] 交接的进度记法", () => {
+  async function approveRun(extra: object, execution: FakeResponse[]) {
+    h = composeHarness([{ text: PLAN_REPLY }, ...execution]);
+    h.home.write("home/.config/ama/config.json", {
+      version: 1,
+      plan: { unattended: "approve" },
+      ...extra,
+    });
+    const code = await h.run([
+      "-p",
+      "--model",
+      "fake/echo",
+      "--permission-mode",
+      "plan",
+      "--output-format",
+      "json",
+      "plan",
+    ]);
+    expect(code).toBe(0);
+    const result = JSON.parse(h.stdout().trim().split("\n").at(-1)!) as { sessionFile: string };
+    const entries = SessionManager.open(result.sessionFile).branch();
+    const handoff = entries.find(
+      (e) => e.type === "custom_message" && e.customType === "ama.plan_approved",
+    );
+    const todos = entries.filter((e) => e.type === "custom" && e.customType === "ama.todo");
+    return { handoff: JSON.stringify(handoff), todos };
+  }
+
+  it("没有 todo 工具：交接写 [DONE:n]，回复里的标记把 S1 标 done、S2 转 in_progress", async () => {
+    const { handoff, todos } = await approveRun({}, [{ text: "read it\n[DONE:S1]" }]);
+    expect(handoff).toContain("[DONE:S1]");
+    expect(handoff).not.toContain("todo update");
+    expect(todos.at(-1)).toMatchObject({
+      data: {
+        items: [
+          { id: "S1", status: "done" },
+          { id: "S2", status: "in_progress" },
+        ],
+      },
+    });
+  });
+
+  it('tools.default: ["+todo"]：交接仍是 todo update，标记不需要', async () => {
+    const { handoff, todos } = await approveRun({ tools: { default: ["+todo"] } }, [
+      { text: "implemented" },
+    ]);
+    expect(handoff).toContain("todo update");
+    expect(handoff).not.toContain("[DONE:");
+    expect(todos).toHaveLength(1);
   });
 });
