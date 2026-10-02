@@ -1,0 +1,77 @@
+# config · user scope, project plan locks mode · viewport 80x24 cursor=1,79
+|▎ 设置  写入：用户级 ~/.config/ama/config.json  [Tab 切换]
+|▎ 搜索：mode_
+|▎ 模型
+|▎ › 缺省模型                  （未设）          即时 · 动缓存
+|▎   回退模型                  （未设）          新会话
+|▎   规划模型                  （未设）          新会话
+|▎   子 Agent 模型             （未设）          新会话
+|▎   别名 fast                 （未设）          新会话
+|▎   别名 strong               （未设）          新会话
+|▎ 权限
+|▎   权限模式                  plan              即时             [锁定] project
+|▎   auto 分类器模型           （未设）          新会话
+|▎ 工具
+|▎   工具预设                  default           重启 · 动缓存
+|▎   codemode                  （未设）          重启 · 动缓存
+|▎   codemode 内联预算         3000              重启 · 动缓存
+|▎   codemode 要求隔离         false             重启
+|▎ ──────────────────────────────────────────────────────────────────────────────
+|▎ 缺省模型 provider/model 或 provider/model@channel；不写时零配置自动选择（ama
+|▎ config show 显示选了谁、为什么） · 零配置自动选择
+|▎ 输入过滤 · ↑↓ 选择 · Enter 修改 · Esc 清除
+|
+|
+|
+
+# config · project scope, cache is user-only · viewport 80x24 cursor=1,79
+|▎ 设置  写入：项目级 .ama/config.json  [Tab 切换]
+|▎ 搜索：cache_
+|▎ 上下文与缓存
+|▎ › 缓存保温                  off               即时             [锁定] AMA_CAC…
+|▎   缓存时长                  short             新会话           仅用户级
+|▎   保温最低节省（美元）      0.05              新会话           仅用户级
+|▎   未命中提示                true              新会话           仅用户级
+|▎   子会话保温                false             新会话           仅用户级
+|▎ ──────────────────────────────────────────────────────────────────────────────
+|▎ 缓存保温 已锁定：环境变量 AMA_CACHE_WARMING 生效
+|▎ 保温：off 关闭，streaming 生成期间保温，idle 空闲时也保温
+|▎ 输入过滤 · ↑↓ 选择 · Enter 修改 · Esc 清除
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+
+# config · number editor error · viewport 80x24 cursor=8,79
+|▎ 设置  写入：用户级 ~/.config/ama/config.json  [Tab 切换]
+|▎ 搜索：maxretries
+|▎ 上下文与缓存
+|▎ › 最多重试次数              3                 新会话
+|▎ ──────────────────────────────────────────────────────────────────────────────
+|▎ 最多重试次数
+|▎ 最多重试次数：lots_
+|▎ retry.maxRetries：应为数字，收到 lots
+|▎ Enter 保存 · Esc 取消
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|

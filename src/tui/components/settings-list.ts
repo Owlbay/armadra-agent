@@ -42,8 +42,8 @@ export interface SettingsListOptions {
 
 type Line = { kind: "group"; text: string } | { kind: "row"; row: SettingsRow; index: number };
 
-const LABEL_MAX = 30;
-const VALUE_MAX = 22;
+const LABEL_MAX = 24;
+const VALUE_MAX = 16;
 
 export class SettingsList implements Component {
   private rows: readonly SettingsRow[] = [];
@@ -142,8 +142,11 @@ export class SettingsList implements Component {
     const window = all.slice(this.top, this.top + max);
     // column widths from all rows: filtering does not make columns jump
     const rows = this.rows;
-    const labelW = Math.min(LABEL_MAX, Math.max(...rows.map((r) => visibleWidth(r.label))));
-    const valueW = Math.min(VALUE_MAX, Math.max(...rows.map((r) => visibleWidth(r.value))));
+    // narrow terminals: label gets at most half the width, value what is left of the first two columns
+    const labelCap = Math.min(LABEL_MAX, Math.max(8, Math.floor((width - 4) / 2)));
+    const labelW = Math.min(labelCap, Math.max(...rows.map((r) => visibleWidth(r.label))));
+    const valueCap = Math.min(VALUE_MAX, Math.max(4, width - 4 - labelW));
+    const valueW = Math.min(valueCap, Math.max(...rows.map((r) => visibleWidth(r.value))));
     const tagW = Math.max(0, ...rows.map((r) => visibleWidth(r.tag ?? "")));
     return window.map((line) =>
       line.kind === "group"

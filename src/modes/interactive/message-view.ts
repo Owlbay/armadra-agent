@@ -336,6 +336,11 @@ export class MessageView extends Container {
     return this.options.theme;
   }
 
+  /** [W6-S] `/config` 热应用：之后渲染的块按新选项（共享同一个 options 对象）。 */
+  setOptions(options: Partial<Omit<MessageViewOptions, "theme">>): void {
+    Object.assign(this.options, options);
+  }
+
   /** 追加一块（与上一块之间空一行；`compact` 不空行）。 */
   add(component: Component): void {
     this.push(component, this.options.compact !== true);
