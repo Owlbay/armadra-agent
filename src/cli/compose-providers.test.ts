@@ -77,3 +77,51 @@ describe("buildProviderRegistry：环境变量 baseUrl", () => {
     expect(registry.findModel("openai/deepseek-v4-flash")).toMatchObject({ ok: false });
   });
 });
+
+describe("[W6-O] chatgpt 渠道", () => {
+  it("缺省渠道按 auth.json 条目的 flavor；AMA_CHATGPT_BASE_URL 与 originator 改对应渠道", async () => {
+    const { mkdtempSync, writeFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { withChatGptChannels } = await import("./compose-providers.js");
+    const authFile = join(mkdtempSync(join(tmpdir(), "ama-cp-")), "auth.json");
+    const base = { version: 1 as const };
+    expect(withChatGptChannels(base, authFile, {})).toBe(base);
+    writeFileSync(
+      authFile,
+      JSON.stringify({
+        version: 1,
+        providers: {
+          chatgpt: {
+            type: "oauth",
+            flavor: "codex",
+            accessToken: "a",
+            refreshToken: "r",
+            expiresAt: 0,
+          },
+        },
+      }),
+    );
+    const patched = withChatGptChannels(
+      { ...base, auth: { chatgpt: { originator: "ama" } } },
+      authFile,
+      { AMA_CHATGPT_BASE_URL: "http://127.0.0.1:9/codex" },
+    );
+    expect(patched.providers?.["chatgpt"]).toEqual({
+      defaultChannel: "codex",
+      channels: {
+        codex: {
+          api: "openai-responses",
+          baseUrl: "http://127.0.0.1:9/codex",
+          headers: { originator: "ama" },
+        },
+      },
+    });
+    const kept = withChatGptChannels(
+      { ...base, providers: { chatgpt: { defaultChannel: "siwc" } } },
+      authFile,
+      {},
+    );
+    expect(kept.providers?.["chatgpt"]?.defaultChannel).toBe("siwc");
+  });
+});

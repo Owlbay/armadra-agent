@@ -247,6 +247,33 @@ export const BUILTIN_PROVIDERS: readonly BuiltinProvider[] = [
     requiresApiKey: true,
   },
   {
+    // [W6-O] ChatGPT 订阅（docs/wave6-plan.md §4、D14）：`ama auth login chatgpt` 写 auth.json 的 OAuth 条目；
+    // 缺省渠道在组装时按条目的 flavor 定（compose-providers.ts）。模型表为空：`chatgpt/<slug>` 任意接受，
+    // `ama models discover chatgpt` 列出账户可用的 slug。缓存只有 prompt_cache_key（无 24h / 30m 显式缓存）。
+    id: "chatgpt",
+    name: "ChatGPT (subscription)",
+    api: RESPONSES,
+    baseUrl: "https://api.openai.com/v1",
+    channels: [
+      ch("siwc", RESPONSES, "https://api.openai.com/v1", { compat: { chatgptBackend: "siwc" } }),
+      ch("codex", RESPONSES, "https://chatgpt.com/backend-api/codex", {
+        headers: { originator: "codex_cli_rs" },
+        compat: { chatgptBackend: "codex" },
+      }),
+    ],
+    defaultChannel: "siwc",
+    envKeys: [],
+    requiresApiKey: true,
+    compat: {
+      supportsStore: true,
+      supportsReasoningSummary: true,
+      sendPromptCacheKey: true,
+      sendSessionAffinityHeaders: false,
+      supportsLongCacheRetention: false,
+      supportsExplicitPromptCacheMode: false,
+    },
+  },
+  {
     id: "ollama",
     name: "Ollama (local)",
     api: "openai-completions",

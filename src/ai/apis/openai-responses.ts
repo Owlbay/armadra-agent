@@ -13,10 +13,13 @@
  * - usage：input = input_tokens − input_tokens_details.cached_tokens，reasoning =
  *   output_tokens_details.reasoning_tokens（已含在 output_tokens 里）；cached_tokens 出现（含 0）即
  *   `cacheReported: true`。
+ * - [W6-O] compat `chatgptBackend`：请求头、配额、出错恢复（401 刷新 / 删不支持字段 / instructions 回退，各一次）、
+ *   错误映射与订阅用量见 chatgpt-backend.ts。
  */
 
 import { AssistantEventStreamImpl } from "../event-stream.js";
 import {
+  HttpError,
   authHeaders,
   describeErrorJson,
   idleTimeoutOf,
@@ -36,6 +39,14 @@ import type {
   Usage,
 } from "../types.js";
 import { affinityHeaders, postWithCacheFallback, resolveCacheRetention } from "./cache-params.js";
+import {
+  chatgptHeaders,
+  chatgptPrecheck,
+  handleChatGptEvent,
+  subscriptionModel,
+  quotaOnResponse,
+  recoverChatGptError,
+} from "./chatgpt-backend.js";
 import {
   buildResponsesRequest,
   detectResponsesCompat,
@@ -269,7 +280,11 @@ function handleEvent(data: Json, state: StreamState, tracker: BlockTracker): boo
   }
 }
 
-function buildHeaders(model: Model, options: StreamOptions): Record<string, string> {
+function buildHeaders(
+  model: Model,
+  options: StreamOptions,
+  compat: OpenAIResponsesCompat,
+): Record<string, string> {
   return mergeHeaders(
     { "content-type": "application/json", accept: "text/event-stream", "user-agent": USER_AGENT },
     authHeaders(options.apiKey, model.authHeader, "authorization-bearer"),
@@ -279,9 +294,51 @@ function buildHeaders(model: Model, options: StreamOptions): Record<string, stri
       options.sessionId,
       resolveCacheRetention(options.cacheRetention),
     ),
+    chatgptHeaders(compat, options, options.apiKey),
     model.headers,
     options.headers,
   );
+}
+
+/** 发请求；ChatGPT 后端按 chatgpt-backend.ts 做至多各一次的恢复（刷新 token / 删字段 / instructions 回退）。 */
+async function post(
+  model: Model,
+  context: TranscriptContext,
+  initial: StreamOptions,
+  tracker: BlockTracker,
+): Promise<{ response: Response; options: StreamOptions; compat: OpenAIResponsesCompat }> {
+  let options = initial;
+  const tried = new Set<string>();
+  for (;;) {
+    const request = buildResponsesRequest(model, context, options);
+    tracker.output.thinkingLevel = request.thinkingLevel;
+    if (request.providerThinkingLevel !== undefined) {
+      tracker.output.providerThinkingLevel = request.providerThinkingLevel;
+    }
+    const compat = request.compat;
+    const chatgpt = compat.chatgptBackend !== undefined;
+    if (chatgpt) chatgptPrecheck(model, compat, options.apiKey);
+    const replaced = options.onPayload?.(request.body);
+    const baseUrl = model.baseUrl ?? "https://api.openai.com/v1";
+    try {
+      const response = await postWithCacheFallback(model, joinUrl(baseUrl, "/responses"), {
+        headers: buildHeaders(model, options, compat),
+        body: replaced === undefined ? request.body : replaced,
+        signal: options.signal,
+        timeoutMs: options.timeoutMs,
+        idleTimeoutMs: idleTimeoutOf(options),
+        onResponse: chatgpt ? quotaOnResponse(compat, options) : options.onResponse,
+      });
+      return { response, options, compat };
+    } catch (error) {
+      if (!chatgpt || !(error instanceof HttpError)) throw error;
+      const recovery = recoverChatGptError(error, model, compat, options, options.apiKey, tried);
+      if (recovery.kind === "fail") throw recovery.error;
+      if (recovery.kind === "none") throw error;
+      if (recovery.kind === "refresh")
+        options = { ...options, apiKey: await recovery.live.refresh() };
+    }
+  }
 }
 
 async function run(
@@ -291,22 +348,10 @@ async function run(
   options: StreamOptions,
 ): Promise<void> {
   const tracker = new BlockTracker(stream, createOutput(model));
+  let subscription = false;
   try {
-    const request = buildResponsesRequest(model, context, options);
-    tracker.output.thinkingLevel = request.thinkingLevel;
-    if (request.providerThinkingLevel !== undefined) {
-      tracker.output.providerThinkingLevel = request.providerThinkingLevel;
-    }
-    const replaced = options.onPayload?.(request.body);
-    const baseUrl = model.baseUrl ?? "https://api.openai.com/v1";
-    const response = await postWithCacheFallback(model, joinUrl(baseUrl, "/responses"), {
-      headers: buildHeaders(model, options),
-      body: replaced === undefined ? request.body : replaced,
-      signal: options.signal,
-      timeoutMs: options.timeoutMs,
-      idleTimeoutMs: idleTimeoutOf(options),
-      onResponse: options.onResponse,
-    });
+    const { response, compat } = await post(model, context, options, tracker);
+    subscription = compat.chatgptBackend !== undefined;
     stream.push({ type: "start", partial: tracker.output });
     const state: StreamState = {
       byOutput: new Map(),
@@ -326,6 +371,7 @@ async function run(
         throw new Error(`Malformed SSE data (${sse.event ?? "message"}): ${raw.slice(0, 200)}`);
       }
       if (data["type"] === undefined && sse.event) data["type"] = sse.event;
+      if (subscription && handleChatGptEvent(data, options)) continue;
       if (handleEvent(data, state, tracker)) {
         finished = true;
         break;
@@ -336,9 +382,11 @@ async function run(
     if (state.stop.reason === "error") throw new ProviderStopError(state.stop.message);
     const reason =
       state.stop.reason === "stop" && tracker.hasToolCalls ? "toolUse" : state.stop.reason;
-    finishDone(stream, tracker, model, reason);
+    const billed = subscription ? subscriptionModel(model, tracker.output.usage) : model;
+    finishDone(stream, tracker, billed, reason);
   } catch (error) {
-    finishError(stream, tracker, model, error, options.signal);
+    const billed = subscription ? subscriptionModel(model, tracker.output.usage) : model;
+    finishError(stream, tracker, billed, error, options.signal);
   }
 }
 
