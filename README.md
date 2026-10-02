@@ -41,7 +41,9 @@ ama
 | 方面           | 内容                                                                                                                                                                  |
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 多协议与供应商 | 4 条协议线、13 家内置供应商（Anthropic、OpenAI、Google、DeepSeek、Moonshot、智谱、通义、OpenRouter、Groq、xAI、Mistral、Ollama、LM Studio）、自定义供应商、模型级协议 |
-| 零配置与中转站 | 有 key 就选第一个可用的供应商；识别 `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`；`ama models discover` 从中转站探测协议并写回配置                                        |
+| 零配置与中转站 | 有 key 就选第一个可用的供应商；识别 `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`；`ama providers add` 只给 baseUrl 与 key 一键接入：列模型、探测渠道、写回配置            |
+| 模型元数据     | 上下文、输出上限、图像输入、推理、价格缺省从 models.dev 补（本地缓存，启动不联网）；一个供应商可挂多个渠道（Chat / Responses / Messages），`provider/model@渠道`      |
+| 图像输入       | `-p --image`、界面里 `@图片路径`；四条协议都映射；模型不收图片时直接拒绝并提示换模型                                                                                  |
 | 工具与预设     | read / edit / write / bash / grep / glob，另有 ls、todo、task（子 Agent）、codemode；四个预设 `default` / `minimal` / `codemode` / `coordinator`                      |
 | codemode       | 模型写一段 JS，在受 Node 权限模型约束的子进程里编排多次工具调用，只有输出回到模型                                                                                     |
 | Skill          | `SKILL.md` 目录，模型按索引自行读取，用户用 `/skill:<名字>` 调用；另有提示模板                                                                                        |
@@ -133,10 +135,13 @@ ama -p "列出 TODO" --model deepseek/deepseek-v4-pro --output-format json
 
 ## 配置
 
-一个文件 `~/.config/ama/config.json`。常用的只有五个键：
+一个文件 `~/.config/ama/config.json`。第一次运行 ama 时自动建好目录（0700）、最小的 `config.json` 与给编辑器用的
+`config.schema.json`；也可以 `ama init` 手动建（已有文件不覆盖）。`ama config path` 打印各文件位置，`ama config edit`
+用 `$VISUAL` / `$EDITOR` 打开。常用的只有五个键：
 
 ```json
 {
+  "$schema": "./config.schema.json",
   "version": 1,
   "defaultModel": "anthropic/<model-id>",
   "thinkingLevel": "medium",
@@ -150,13 +155,13 @@ ama -p "列出 TODO" --model deepseek/deepseek-v4-pro --output-format json
 
 ### 文件位置与层级
 
-| 位置                  | 内容                                                                                                       |
-| --------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `~/.config/ama/`      | 用户级：`config.json`、`auth.json`、`hooks.json`、`keybindings.json`、`trust.json`、`AGENTS.md`、`skills/` |
-| `~/.local/share/ama/` | 数据：`sessions/`（会话 JSONL）、输入历史                                                                  |
-| `<项目>/.ama/`        | 项目级：`config.json`（只能收紧）、`hooks.json` / `skills/` / `prompts/`（需信任）                         |
-| `<项目>/AGENTS.md`    | 项目约定，从 cwd 向上查找，自动进系统提示                                                                  |
-| `--profile <文件>`    | 宿主 profile（嵌入方用，见「嵌入 Armadra」）                                                               |
+| 位置                  | 内容                                                                                                                                                 |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `~/.config/ama/`      | 用户级：`config.json`、`config.schema.json`（ama 生成）、`auth.json`（0600）、`hooks.json`、`keybindings.json`、`trust.json`、`AGENTS.md`、`skills/` |
+| `~/.local/share/ama/` | 数据：`sessions/`（会话 JSONL）、`models-dev.json`（模型元数据缓存）、输入历史                                                                       |
+| `<项目>/.ama/`        | 项目级：`config.json`（只能收紧）、`hooks.json` / `skills/` / `prompts/`（需信任）                                                                   |
+| `<项目>/AGENTS.md`    | 项目约定，从 cwd 向上查找，自动进系统提示                                                                                                            |
+| `--profile <文件>`    | 宿主 profile（嵌入方用，见「嵌入 Armadra」）                                                                                                         |
 
 `AMA_CONFIG_DIR` / `AMA_DATA_DIR` 可改两个目录；也遵循 `XDG_CONFIG_HOME` / `XDG_DATA_HOME`，Windows 下是 `%APPDATA%\ama` 与 `%LOCALAPPDATA%\ama`。
 
@@ -171,6 +176,41 @@ ama doctor               # 配置层级、项目信任、key 来源、Hook、终
 ```
 
 ## 接入中转站
+
+**一键接入**：只给 baseUrl 与 key。
+
+```sh
+export PACKY_API_KEY=sk-...
+ama providers add packy --base-url https://proxy.example/v1 --key-env PACKY_API_KEY --probe --limit 8 --yes
+ama -p "hi" --model packy/kimi-k2.5               # 首选渠道
+ama -p "hi" --model packy/kimi-k2.5@messages      # 指定渠道（Anthropic Messages）
+ama -p "图里有什么颜色" --image shot.png --model packy/kimi-k2.5
+ama providers list                                 # 供应商 → 渠道 → 模型数、key 来源
+```
+
+`add` 列出 `GET {baseUrl}/models` 的模型，从 baseUrl 推出 chat / responses / messages 三个候选渠道，`--probe` 逐渠道发最小
+请求，把能用的渠道写进每个模型的 `channels`；上下文、输出上限、图像、推理与价格不写进配置，运行时从 models.dev 缓存补
+（`ama models list` 标出每个字段的来源）。不给 `--key-env` 时 key 从 stdin 读（不回显）存进 `auth.json`。写入后的配置：
+
+```json
+{
+  "providers": {
+    "packy": {
+      "apiKey": "$PACKY_API_KEY",
+      "channels": {
+        "chat": { "api": "openai-completions", "baseUrl": "https://proxy.example/v1" },
+        "responses": { "api": "openai-responses", "baseUrl": "https://proxy.example/v1" },
+        "messages": { "api": "anthropic-messages", "baseUrl": "https://proxy.example" }
+      },
+      "defaultChannel": "chat",
+      "models": [
+        { "id": "kimi-k2.5", "channels": ["chat", "messages"] },
+        { "id": "grok-4.7", "channels": ["responses"] }
+      ]
+    }
+  }
+}
+```
 
 **零配置**：内置的 `openai` / `anthropic` 识别 `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`。baseUrl 不在官方主机时接受目录外的 model id，缓存相关字段按保守缺省。
 
@@ -200,7 +240,8 @@ OPENAI_BASE_URL=https://proxy.example/v1 OPENAI_API_KEY=$PACKY_API_KEY \
 
 - `api` 缺省 `openai-completions`；可选 `openai-responses`、`anthropic-messages`、`google-generative-ai`。
 - `apiKey` 支持 `$ENV` / `${ENV}`（读环境变量）与 `!command`（执行命令取值），不要把 key 明文写进配置。
-- 自定义模型不猜 `contextWindow`，没写时自动压缩关闭；需要时在模型条目里补上。
+- 自定义模型的元数据缺省从 models.dev 补（`ama models refresh-catalog` 刷新缓存）；匹配不到时不猜 `contextWindow`，自动
+  压缩关闭，需要时在模型条目里补上或写 `"modelsDev": "provider/model"` 指定条目。
 
 **不想手写模型表**：让 ama 去问中转站。
 
@@ -310,7 +351,7 @@ anthropic/<model-id> · think:medium · ↑412k ↓8.1k · cache 83% ♨ · $0.8
 | Ctrl+C               | 清空输入；输入为空时 1.5 秒内再按一次退出  |
 | Tab                  | 补全：`/` 命令、模板与 Skill，`@` 文件路径 |
 
-常用命令：`/model`、`/thinking`、`/permission`、`/tools`、`/compact`、`/tree`（回到某条消息之前重新分支）、`/fork`、`/resume`、`/new`、`/session`、`/cache`、`/hooks`、`/skill:<名字>`、`/help`。按键可在 `~/.config/ama/keybindings.json` 覆盖。见 [docs/tui.md](docs/tui.md)。
+常用命令：`/model`、`/thinking`、`/permission`、`/tools`、`/compact`、`/tree`（回到某条消息之前重新分支）、`/fork`、`/resume`、`/new`、`/session`、`/cache`、`/hooks`、`/skill:<名字>`、`/help`。输入里的 `@图片路径`（或粘贴 / 拖入的图片路径）作为图片附件发给模型；`/model` 按「供应商 · 渠道」分组，标出上下文与 `img`。按键可在 `~/.config/ama/keybindings.json` 覆盖。见 [docs/tui.md](docs/tui.md)。
 
 `--no-tui`（或 stdin / stdout 不是 TTY、`TERM=dumb`）进入行式界面：readline + 括号粘贴，命令相同。
 
@@ -321,6 +362,9 @@ anthropic/<model-id> · think:medium · ↑412k ↓8.1k · cache 83% ♨ · $0.8
 | `text`（缺省）    | 最后一条回答的文本                                                            |
 | `json`            | 一个 `result` 对象：会话 id、模型、`stopReason`、`text`、用量、费用、缓存统计 |
 | `stream-json`     | 每行一个事件，与 RPC 事件同形状                                               |
+
+`--image <文件>` 可重复，随提示发送图片（PNG / JPEG / GIF / WebP，单张 ≤ 5 MB）；提示里的 `@图片路径` 同样作为附件。当前
+模型不收图片时直接退出 2，不发请求。
 
 退出码：0 正常 · 1 运行期错误 · 2 用法错误 · 3 配置错误 · 4 无可用模型或 key · 5 会话错误 · 6 宿主 / Hook 启动失败 · 78 宿主 API 版本不匹配 · 130 / 143 信号。
 
