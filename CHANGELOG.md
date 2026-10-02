@@ -37,6 +37,18 @@
   说明压到一行。新增提示长度预算测试（`default` ≤ 2 000、`minimal` ≤ 800、`codemode-only` ≤ 1 775 token）。
   系统提示前缀因此变化，**升级后每个会话的首个请求缓存未命中一次**（恢复的旧会话追加一条 system 补丁）。
 
+- **Agent harness**（第五波 W5-H2，docs/wave5-plan.md §8.3）：会话层通用截断改为保留头 70% + 尾 30%（中间写省略字符数与全文
+  路径；bash 仍尾截断、read 仍头截断）。重复调用检测：同一 run 里同名同参（规范化 JSON）第 3、4 次在结果末尾提醒，第 5 次
+  不执行并结束 run（`agent_settled{warning:"repeated_tool_call"}`；`task_ctl` 与后台 bash 的查询豁免）。预算：config
+  `limits.maxTurns / maxCostUsd` 与 `--max-turns`、`--max-cost`（不再提示未生效）按一次运行计，到限发 `limit_reached`，
+  **`-p` 退出码改为 8**（`--max-turns` 原来是 1）。提醒通道 `ama.reminder`：todo 连续 `todo.reminder`（缺省 10）回合未更新
+  时复述、读过的文件被外部改动、上下文 70% / 85%、预算剩余 < 20%、后台命令退出；`reminders.*` 逐项可关。后台 bash：
+  `bash{command, background:true}` 立即返回 jobId，`bash{job, action: wait | output | stop}` 查询（权限按只读），会话结束时
+  回收进程树。模型回退 `fallbackModel`：overloaded 或重试用尽时切过去重试一次，事件 `model_fallback`。`-p` 在计划待审批
+  时给出提示与**新退出码 9**；`--image` 按 `images.resize` 缩放；`subagents.maxConcurrent` 生效。周期收尾阶段入队的
+  steer / followUp（宿主 `sendUser`、子 Agent 后台通知）不再滞留到下一次提示。bash 工具描述与参数变化，**升级后每个会话的
+  首个请求缓存未命中一次**。D20 基准见 docs/benchmarks/presets-todo-2026-10-02.md（按门保留 todo 在 default）。
+
 - **图像能力**（第五波 W5-I，docs/providers.md「图像输入」）：单图上限改按 base64 后计算并按端点分档（官方 Anthropic
   10 MB、Gemini / OpenAI 20 MB、中转与未知 5 MB，原来按原始字节 5 MB），任一边超 8000 px 拒绝；超限时按
   `images.resize`（缺省 `auto`）用 `sips` / ImageMagick 缩放。请求图片总量超预算（Anthropic 32 MB、其它 20 MB）时把

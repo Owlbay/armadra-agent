@@ -7,13 +7,17 @@
  * `tool_execution_end` 按完成顺序发；toolResult 消息按原序发 `message_start/end`（入转录）。
  * `terminate` 要整批都为真才提前结束。`stopReason: "length"` 且有工具调用 → 整批判失败不执行。
  * abort：未开始的调用直接给 `aborted by user` 错误结果；执行中的工具收到 signal，超过宽限期仍未结束
- * 则不再等待、记 `aborted by user`。结果超 `maxToolResultChars` 截断并把全文写到 `outputDir`。
+ * 则不再等待、记 `aborted by user`。结果超 `maxToolResultChars` 截断并把全文写到 `outputDir`：
+ * [W5-H2] 保留头 70% + 尾 30%，中间 `[… N 字符已省略，全文 <path>]`（tools/truncate.ts）。
  *
  * 嵌套调用（`ToolContext.tools.executeTool`，codemode 脚本里的 `tools.*`）走 `runSingleToolCall`：
  * 同一套校验与门禁，按**全部未禁用工具**查找（codemode only 模式下活动集只有 codemode），
  * 发带 `parentToolCallId` 的 `tool_execution_start / update / end`（不入转录），门禁与 PostToolUse
  * 拿到 `parent`（Hook 输入的 `viaCodemode / parentToolCallId`）；结果给脚本而不是模型，截断上限放宽到
  * `NESTED_MAX_RESULT_CHARS`。
+ *
+ * [W5-H2] 重复调用检测（loop-guard.ts）只看顶层调用：同 run 同名同参第 3、4 次在结果末尾追加提醒，
+ * 第 5 次不执行、给错误结果，整批返回 `stop: "repeated_tool_call"`（循环据此结束 run）。
  */
 
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -24,11 +28,19 @@ import type {
   ToolCallBlock,
   ToolResultMessage,
 } from "../ai/types.js";
+import {
+  REPEATED_TOOL_CALL,
+  guardFor,
+  loopReminderText,
+  loopStopText,
+  type LoopVerdict,
+} from "./loop-guard.js";
 import { formatSchemaErrors, validateSchema } from "./schema.js";
 import type { NestedCallInfo, SessionEvent, ToolCallGate, ToolCallGateContext } from "./types.js";
 import type { AutoDecision } from "../permissions/types.js";
 import { CODEMODE_TOOL } from "../tools/presets.js";
 import { executionModeOf } from "../tools/registry.js";
+import { truncateMiddle } from "../tools/truncate.js";
 import type { ToolContext, ToolDefinition, ToolResult } from "../tools/types.js";
 
 export const ABORTED_TOOL_TEXT = "aborted by user";
@@ -70,6 +82,8 @@ export interface ToolRunnerOptions {
 export interface ToolBatchResult {
   messages: ToolResultMessage[];
   terminate: boolean;
+  /** [W5-H2] 结束本 run 的原因（重复调用检测到 5 次：`repeated_tool_call`）。 */
+  stop?: string;
 }
 
 /** 门禁给出的 auto 判定，随 tool_execution_end 发出（按调用对象记，调用结束后随之回收）。 */
@@ -211,10 +225,14 @@ function truncateResult(
     typeof result.content === "string"
       ? []
       : result.content.filter((block) => block.type === "image");
-  const head = `${text.slice(0, limit)}\n\n[输出过长已截断：共 ${text.length} 字符，${where}]`;
+  const { content } = truncateMiddle(
+    text,
+    limit,
+    (omitted) => `[… ${omitted} 字符已省略（输出过长已截断：共 ${text.length} 字符，${where}）]`,
+  );
   return {
     ...result,
-    content: images.length > 0 ? [{ type: "text", text: head }, ...images] : head,
+    content: images.length > 0 ? [{ type: "text", text: content }, ...images] : content,
   };
 }
 
@@ -316,6 +334,9 @@ export async function runToolBatch(
 ): Promise<ToolBatchResult> {
   const calls = toolCallsOf(assistant);
   const preparedList: (Prepared | Immediate)[] = [];
+  const guard = guardFor(signal);
+  const verdicts = new Map<ToolCallBlock, LoopVerdict>();
+  let stop: string | undefined;
   for (const call of calls) {
     await emit({
       type: "tool_execution_start",
@@ -323,6 +344,15 @@ export async function runToolBatch(
       toolName: call.name,
       args: call.arguments,
     });
+    const verdict = guard.observe(call, options.getTool(call.name));
+    verdicts.set(call, verdict);
+    if (verdict === "stop") {
+      stop = REPEATED_TOOL_CALL;
+      const result = errorResult(loopStopText(call.name, guard.count(call)));
+      await emitEnd(call, result, emit);
+      preparedList.push({ kind: "immediate", call, result });
+      continue;
+    }
     const prepared = await prepare(call, assistant, options, signal);
     if (prepared.kind === "immediate") await emitEnd(call, prepared.result, emit);
     preparedList.push(prepared);
@@ -352,10 +382,54 @@ export async function runToolBatch(
     );
     finalized.push(...results);
   }
+  appendBatchSuffix(finalized, signal, stop);
+  for (const item of finalized) {
+    if (verdicts.get(item.call) === "remind")
+      item.result = withReminder(
+        item.result,
+        loopReminderText(item.call.name, guard.count(item.call)),
+      );
+  }
   const messages = await emitResultMessages(finalized, emit);
   const terminate =
     finalized.length > 0 && finalized.every(({ result }) => result.terminate === true);
-  return { messages, terminate };
+  return stop === undefined ? { messages, terminate } : { messages, terminate, stop };
+}
+
+/**
+ * [W5-H2] 本 run 的「批次尾部提醒」来源（reminders.ts 在 agent_start 时以 run 的 signal 登记）：
+ * 每个工具批次结束时取一次，非空就追加在本批**最后一条**结果末尾——run 进行中的提醒（todo 复述、
+ * 文件改动、上下文用量、预算、后台命令退出）由此进上下文，只改新结果、不碰前缀。
+ */
+const batchSuffixSources = new WeakMap<AbortSignal, () => string | undefined>();
+
+export function setBatchSuffixSource(signal: AbortSignal, source: () => string | undefined): void {
+  batchSuffixSources.set(signal, source);
+}
+
+function appendBatchSuffix(
+  finalized: { call: ToolCallBlock; result: ToolResult }[],
+  signal: AbortSignal,
+  stop: string | undefined,
+): void {
+  const last = finalized.at(-1);
+  if (last === undefined || stop !== undefined || signal.aborted) return;
+  let suffix: string | undefined;
+  try {
+    suffix = batchSuffixSources.get(signal)?.();
+  } catch {
+    suffix = undefined;
+  }
+  if (suffix !== undefined && suffix !== "") last.result = withReminder(last.result, suffix);
+}
+
+/** 在结果末尾追加一段文本（字符串结果拼接，块数组追加 text 块）。 */
+function withReminder(result: ToolResult, text: string): ToolResult {
+  const content =
+    typeof result.content === "string"
+      ? `${result.content}\n\n${text}`
+      : [...result.content, { type: "text" as const, text }];
+  return { ...result, content };
 }
 
 /** `length` 截断的助手消息：整批判失败，不执行。 */

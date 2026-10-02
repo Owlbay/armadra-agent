@@ -15,10 +15,14 @@
  * - 重试：text / json 格式在 stderr 打一行 `↻ 重试 n/m`（stream-json 里本来就有事件），等待期间不再无声。
  * - 无人值守：ask → deny（bootstrap 已按 print 设 unattended）。被拒的调用（`tool_execution_end`
  *   带 `denied`）在 stderr 汇总一行（工具 ×次数、首个原因、放行办法），json 结果带 `deniedTools`。
- * - `--max-turns N`：到达上限时若最后一条助手消息停在 toolUse（还有活没做完）→ stderr 一行、
- *   json 带 `maxTurnsReached`、退出码 1。
- * - 退出码：最终助手消息 `error / aborted` 或提示被拒 → 1；有工具调用被拒 → 7；SIGINT 130、
- *   SIGTERM 143（先 abort）。
+ * - [W5-H2] 预算（`--max-turns N` / `--max-cost USD` / config `limits.*`，agent/limits.ts）：到限
+ *   （会话发 `limit_reached`）→ stderr 一行、json 带 `limitReached{kind, value, limit}`（回合到限另带
+ *   `maxTurnsReached: true`）、退出码 8。
+ * - [W5-H2] plan 模式产出计划、`plan.unattended: stop`（缺省）没人审批：stderr 一行（计划文件与审批办法）、
+ *   json 带 `planPending{planId, version, filePath}`、退出码 9。
+ * - [W5-H2] `--image` / `@图片` 超限时按 config `images.resize` 缩放（缺省 auto）。
+ * - 退出码：最终助手消息 `error / aborted` 或提示被拒 → 1；有工具调用被拒 → 7；到达预算 → 8；
+ *   计划待审批 → 9；SIGINT 130、SIGTERM 143（先 abort）。
  */
 
 import type { CliIo, ModeContext } from "../../cli/deps.js";
@@ -27,7 +31,8 @@ import { ExitCode } from "../../cli/exit-codes.js";
 import type { Runtime } from "../../cli/runtime.js";
 import { errorText, lastAssistant, onStdoutClosed, onTerminationSignals } from "../shared.js";
 import { toJsonLine, toWireEvent } from "./json-event.js";
-import type { SessionEvent } from "../../agent/types.js";
+import { formatUsd } from "../../agent/limits.js";
+import type { LimitReachedEvent, PlanProposedEvent, SessionEvent } from "../../agent/types.js";
 import type { ImageBlock } from "../../ai/types.js";
 import { promptImages, sessionModel } from "../image-input.js";
 
@@ -119,19 +124,26 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
   }
   const session = currentSession(runtime);
   let images: ImageBlock[];
+  const resize = runtime.config.images?.resize;
   try {
     images = await promptImages(
       prompt,
       context.args.images,
       io.cwd,
       sessionModel(runtime.providers, session),
+      resize === undefined ? {} : { resize },
     );
   } catch (error) {
     io.stderr(`ama: ${errorText(error)}\n`);
     return ExitCode.Usage;
   }
   const denied: DeniedTool[] = [];
+  let limit: LimitReachedEvent | undefined;
+  let plan: PlanProposedEvent | undefined;
   const unsubscribe = session.subscribe((event) => {
+    if (event.type === "limit_reached") limit ??= event;
+    else if (event.type === "plan_proposed") plan = event;
+    else if (event.type === "plan_resolved" && event.planId === plan?.planId) plan = undefined;
     if (event.type === "tool_execution_end" && event.denied === true)
       denied.push({
         toolCallId: event.toolCallId,
@@ -166,10 +178,6 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
   }
   const last = lastAssistant(session);
   const text = session.getLastAssistantText() ?? "";
-  // 回合上限在工具执行之后结束运行：最后一条助手消息停在 toolUse 即「没做完」
-  const maxTurns = context.args.maxTurns;
-  const turnsExhausted =
-    maxTurns !== undefined && failure === undefined && last?.stopReason === "toolUse";
   const stopReason = failure !== undefined ? "error" : (last?.stopReason ?? "stop");
   if (format === "text") {
     // 部分模型在正文前多发空行：只去前导空行，保留首行缩进；json / stream-json 原样。
@@ -194,7 +202,21 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
         cacheHitRate: stats.cacheHitRate,
         ...(stats.cache !== undefined ? { cache: stats.cache } : {}),
         ...(denied.length > 0 ? { deniedTools: denied } : {}),
-        ...(turnsExhausted ? { maxTurnsReached: true } : {}),
+        ...(plan !== undefined
+          ? {
+              planPending: {
+                planId: plan.planId,
+                version: plan.version,
+                ...(plan.filePath === undefined ? {} : { filePath: plan.filePath }),
+              },
+            }
+          : {}),
+        ...(limit !== undefined
+          ? {
+              limitReached: { kind: limit.kind, value: limit.value, limit: limit.limit },
+              ...(limit.kind === "turns" ? { maxTurnsReached: true } : {}),
+            }
+          : {}),
         entries: session.entries,
       })}\n`,
     );
@@ -205,17 +227,39 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
     io.stderr(`ama: ${failure}\n`);
     return ExitCode.RuntimeError;
   }
+  if (limit !== undefined) {
+    if (denied.length > 0) io.stderr(`${describeDenied(denied)}\n`);
+    io.stderr(`${describeLimit(limit)}\n`);
+    return ExitCode.LimitReached;
+  }
   if (last?.stopReason === "error" || last?.stopReason === "aborted") {
     io.stderr(`ama: ${last.errorMessage ?? "模型调用失败"}\n`);
     return ExitCode.RuntimeError;
   }
   if (denied.length > 0) io.stderr(`${describeDenied(denied)}\n`);
-  if (turnsExhausted) {
-    io.stderr(`ama: 已达到 --max-turns ${maxTurns}，运行在完成前结束\n`);
-    return ExitCode.RuntimeError;
+  if (plan !== undefined) {
+    io.stderr(`${describePlanPending(plan)}\n`);
+    return ExitCode.PlanPending;
   }
   if (denied.length > 0) return ExitCode.ToolDenied;
   return ExitCode.Ok;
+}
+
+/** stderr 一行：计划已落盘待审批（-p 不替人批准）。 */
+export function describePlanPending(plan: PlanProposedEvent): string {
+  const where = plan.filePath ?? plan.planId;
+  return (
+    `ama: 计划 v${plan.version} 已落盘、待审批（未执行）：${where}；-p 不替人批准——` +
+    "在交互界面或 RPC plan_response 里审批，或设 plan.unattended: approve 让 -p 批准后接着执行"
+  );
+}
+
+/** stderr 一行：哪个预算到限。 */
+export function describeLimit(event: LimitReachedEvent): string {
+  return event.kind === "turns"
+    ? `ama: 已达到回合上限 ${event.limit}（--max-turns / limits.maxTurns），运行在完成前结束`
+    : `ama: 已达到费用上限 ${formatUsd(event.limit)}（累计 ${formatUsd(event.value)}；` +
+        "--max-cost / limits.maxCostUsd），运行在完成前结束";
 }
 
 /** 被拒的一次工具调用（json 结果的 `deniedTools` 元素）。 */

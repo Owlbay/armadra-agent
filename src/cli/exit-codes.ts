@@ -24,6 +24,11 @@ export const ExitCode = {
    * 设计稿写的是 7，但 7 已发布为 ToolDenied，这里用 8。
    */
   LimitReached: 8,
+  /**
+   * [W5-H2] `-p` 在 plan 模式产出计划、已落盘但没有人审批（`plan.unattended: stop`，缺省）：
+   * 计划还没执行。不复用 7（7 已发布为「工具调用被拒」）。
+   */
+  PlanPending: 9,
   /** HOST_API_VERSION 不匹配。 */
   HostVersion: 78,
   /** SIGINT 退出（两次 Ctrl+C）。 */
@@ -45,6 +50,7 @@ export const EXIT_CODE_DESCRIPTIONS: Readonly<Record<ExitCode, string>> = {
   6: "宿主 / Hook 加载或启动失败",
   7: "-p 运行中有工具调用被拒（没有人审批）",
   8: "-p 到达预算上限（--max-turns / --max-cost / limits）",
+  9: "-p 产出的计划已落盘、待审批（未执行）",
   78: "HOST_API_VERSION 不匹配",
   130: "SIGINT 退出（两次 Ctrl+C）",
   143: "SIGTERM",

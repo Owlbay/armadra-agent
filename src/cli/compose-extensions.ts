@@ -22,6 +22,8 @@
 import type { SessionExtensionFactory } from "../agent/session-extensions.js";
 import { telemetryFactory } from "../agent/session-telemetry.js";
 import { createImageBudgetExtension } from "../agent/session-images.js";
+import { createLimitsExtension } from "../agent/limits.js";
+import { createRemindersExtension, remindersSettings } from "../agent/reminders.js";
 import { planExtensionFor } from "../plan/compose.js";
 import { createSubagentsFactory } from "./compose-agents.js";
 import type { SessionAssembly } from "./deps.js";
@@ -40,6 +42,8 @@ export function composeExtensions(deps: ComposeExtensionDeps): SessionExtensionF
     // [W5-F]  createPlanExtension(...)
     planExtensionFor(deps),
     // [W5-H2] createRemindersExtension(...), createLimitsExtension(...)
+    ({ core }) => (core.depth > 0 ? undefined : createLimitsExtension(core, core.options.limits)),
+    ({ core }) => createRemindersExtension(core, remindersSettings(deps.assembly.config)),
     // [W5-I]  createImageBudgetExtension(...)
     ({ core }) => createImageBudgetExtension(core),
     // [W5-A]  createTelemetryExtension(...)

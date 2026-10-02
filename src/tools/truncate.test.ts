@@ -10,6 +10,7 @@ import {
   splitLines,
   truncateHead,
   truncateLine,
+  truncateMiddle,
   truncateTail,
   writeFullOutput,
 } from "./truncate.js";
@@ -90,5 +91,32 @@ describe("truncate", () => {
     } finally {
       tmp.cleanup();
     }
+  });
+});
+
+describe("truncateMiddle（W5-H2 头 + 尾）", () => {
+  it("未超限原样返回", () => {
+    expect(truncateMiddle("abc", 3)).toEqual({ content: "abc", omitted: 0 });
+  });
+
+  it("保留前 70% 与后 30%，中间给省略数", () => {
+    const text = `${"h".repeat(100)}${"m".repeat(800)}${"t".repeat(100)}`;
+    const out = truncateMiddle(text, 100, (n) => `[skip ${n}]`);
+    expect(out.omitted).toBe(900);
+    expect(out.content).toBe(`${"h".repeat(70)}\n\n[skip 900]\n\n${"t".repeat(30)}`);
+  });
+
+  it("尾部的错误信息保住；缺省标记为中文省略说明", () => {
+    const text = `${"x".repeat(5000)}\nError: boom at line 3`;
+    const out = truncateMiddle(text, 200);
+    expect(out.content.endsWith("Error: boom at line 3")).toBe(true);
+    expect(out.content).toMatch(/\[… \d+ 字符已省略\]/);
+  });
+
+  it("不切断代理对", () => {
+    const text = "😀".repeat(100);
+    const out = truncateMiddle(text, 15);
+    expect(out.content).not.toMatch(/[\ud800-\udbff](?![\udc00-\udfff])/);
+    expect(out.content).not.toMatch(/(?<![\ud800-\udbff])[\udc00-\udfff]/);
   });
 });

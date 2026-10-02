@@ -83,7 +83,7 @@ describe("-p 下的计划审批", () => {
   it("缺省 stop：落盘计划文件后停下，不切模式、不执行", async () => {
     h = composeHarness([{ text: PLAN_REPLY }, { text: "should not run" }]);
     const code = await h.run(["-p", "--model", "fake/echo", "--permission-mode", "plan", "plan"]);
-    expect(code).toBe(0);
+    expect(code).toBe(9); // [W5-H2] 计划待审批：退出码 9（print-mode.test.ts 有完整用例）
     expect(h.fake.calls).toHaveLength(1);
     const plans = readdirSync(join(h.home.dataDir, "plans"));
     expect(plans).toHaveLength(1);

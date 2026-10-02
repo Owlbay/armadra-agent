@@ -18,7 +18,9 @@
 
 import type { ProviderRegistryApi } from "../ai/types.js";
 import { readFileSync } from "node:fs";
+import { resolveLimits } from "../agent/limits.js";
 import { AgentSessionImpl, type AgentSessionOptions } from "../agent/session.js";
+import { DEFAULT_SUBAGENT_CONCURRENCY } from "../agent/session-subagent.js";
 import type { AgentSession, CacheSettings, SessionEvent } from "../agent/types.js";
 import { WARMING_MODES, type WarmingMode } from "../ai/cache/types.js";
 import { isOverflowErrorText } from "../ai/overflow.js";
@@ -337,20 +339,22 @@ function buildSession(
     retry: { ...config.retry },
     expandPrompt: (text) => expandPrompt(record, session as AgentSessionImpl, text),
     isContextOverflow: isOverflowErrorText,
-    subagents: registry.get("task") === undefined ? false : { maxConcurrent: 4 },
+    subagents:
+      registry.get("task") === undefined
+        ? false
+        : { maxConcurrent: config.subagents?.maxConcurrent ?? DEFAULT_SUBAGENT_CONCURRENCY },
     log: record.log,
     cache: cacheSettingsFrom(config, process.env, (message) => record.log("warn", message)),
     warmingDecider: () => assembly.host.warmingDecider?.(),
     // [W5-C0] 会话扩展（组装表在 compose-extensions.ts）
     extensions: composeExtensions({ assembly, env: process.env, log: record.log }),
   };
-  const maxTurns = assembly.overrides?.maxTurns;
-  if (maxTurns !== undefined) options.maxTurns = maxTurns;
-  // [W5-C0] 只透传：limits（config limits.* 与 --max-cost）与 fallbackModel 由 W5-H2 实现
-  const limits = { ...config.limits };
-  const maxCost = assembly.overrides?.maxCostUsd;
-  if (maxCost !== undefined) limits.maxCostUsd = maxCost;
-  if (Object.keys(limits).length > 0) options.limits = limits;
+  // [W5-H2] 预算：--max-turns / --max-cost 覆盖 config limits.*，由 limits 扩展执行（agent/limits.ts）
+  const limits = resolveLimits(config.limits, {
+    maxTurns: assembly.overrides?.maxTurns,
+    maxCostUsd: assembly.overrides?.maxCostUsd,
+  });
+  if (limits !== undefined) options.limits = limits;
   if (config.fallbackModel !== undefined) options.fallbackModel = config.fallbackModel;
   const idle = idleTimeoutFrom(config, process.env, (message) => record.log("warn", message));
   if (idle !== undefined) options.idleTimeoutMs = idle;

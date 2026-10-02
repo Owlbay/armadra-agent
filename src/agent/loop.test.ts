@@ -252,8 +252,11 @@ describe("工具执行", () => {
     expect(h2.scripted.calls).toHaveLength(2);
   });
 
-  it("超出 maxToolResultChars 截断并把全文写到 outputs/", async () => {
-    const big = stubTool({ name: "big", run: async () => ({ content: "z".repeat(500) }) });
+  it("超出 maxToolResultChars 头 + 尾截断并把全文写到 outputs/", async () => {
+    const big = stubTool({
+      name: "big",
+      run: async () => ({ content: `${"a".repeat(250)}${"z".repeat(250)}` }),
+    });
     const h = createHarness({
       script: [{ toolCalls: [{ name: "big", args: {}, id: "cbig" }] }, { text: "ok" }],
       tools: [big],
@@ -262,9 +265,12 @@ describe("工具执行", () => {
     });
     await h.session.prompt("x");
     const result = h.session.messages.find((m) => m.role === "toolResult");
-    expect(result?.role === "toolResult" && String(result.content)).toMatch(
-      /输出过长已截断：共 500 字符，全文 .*outputs.*cbig\.txt/,
+    const text = result?.role === "toolResult" ? String(result.content) : "";
+    expect(text).toMatch(
+      /\[… 400 字符已省略（输出过长已截断：共 500 字符，全文 .*outputs.*cbig\.txt）\]/,
     );
+    expect(text.startsWith("a".repeat(70))).toBe(true);
+    expect(text.endsWith("z".repeat(30))).toBe(true);
   });
 });
 
