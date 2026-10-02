@@ -2,6 +2,14 @@
 
 ## 未发布
 
+- **子 Agent**（第五波 W5-G，docs/agents.md「子 Agent」）：定义文件 `.ama/agents/*.md`（项目级需信任）与
+  `~/.config/ama/agents/*.md`，`--agent-dir` / profile `agentDirs` / config `agents.dirs` 追加目录；内置 `general`、
+  `explore`、`plan`（后两者以 plan 模式强制只读，不弹审批）。`task` 新增 `agent`、`background`、`taskId`（续聊）、
+  `isolation: "worktree"`、`budgetUsd`；同一回复里的多个 task 并行（池 `subagents.maxConcurrent`，排队上限
+  `subagents.maxPending`）；结果超过 50 KB 保留头尾并全文落 `outputs/`；轮数用尽以 `toolChoice:"none"` 收尾一轮要报告。
+  后台任务完成后以 `<task-notification>` 通知父会话；`task_ctl` 支持 list / wait / stop / output / send。子会话工具表
+  与父逐字节相同（`task` 保留、运行时拒绝），首个请求可复用父的缓存前缀；角色说明是系统提示末位的 `role` 节。
+  事件 `subagent_start / update / end`，`getStats().tasks`，父会话 `custom{ama.task}` 记任务快照、resume 时重建。
 - **检查点核心**（docs/rewind-plan.md，回滚的会话接线与界面在后续批次）：edit / write 第一次写文件前备份，
   每个新回合重拍已跟踪文件；备份按内容 sha256 存 `<数据目录>/file-history/blobs/`。恢复做冲突检测与安全检查
   （符号链接、硬链接、非普通文件、父目录移动；非 Windows 用 `O_NOFOLLOW`），可预览行级增删。
