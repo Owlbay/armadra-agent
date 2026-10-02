@@ -300,16 +300,16 @@ export class SessionCacheController {
   ): SessionCacheStats {
     const model = this.core.model();
     const setting = model.compat?.cacheReporting;
-    const reporting = this.tracker.get(
-      endpointKey({ model, baseUrl: model.baseUrl ?? "" }),
-      setting,
-    );
+    const endpoint = endpointKey({ model, baseUrl: model.baseUrl ?? "" });
+    const reporting = this.tracker.get(endpoint, setting);
     const stats: SessionCacheStats = {
       reporting,
       reBilledTokens: this.reBilledTokens,
       misses: { count: this.missCount, byReason: { ...this.byReason } },
       warming: this.warmer.status,
     };
+    const granularity = this.tracker.granularity(endpoint);
+    if (granularity !== undefined) stats.granularity = granularity;
     const last = this.lastTurnRecord;
     if (reporting === "reported" && last !== undefined && last.promptTokens > 0)
       stats.lastHitRate = last.usage.cacheRead / last.promptTokens;
@@ -435,6 +435,8 @@ export class SessionCacheController {
     this.resetPending = false;
     const missOptions: Parameters<typeof detectMiss>[3] = { reporting, minTokens, subtaskMs };
     if (model.cost !== undefined) missOptions.cost = model.cost;
+    const granularity = this.tracker.granularity(key);
+    if (granularity !== undefined) missOptions.granularity = granularity;
     const miss = detectMiss(prev, record, ttl, missOptions);
     if (miss !== undefined) {
       this.missCount++;

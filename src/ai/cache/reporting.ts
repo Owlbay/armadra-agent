@@ -9,6 +9,10 @@
  * - 其余情形（小请求、不可比）既不投票也不清零。`silent` 之后出现命中即转 `reported`。
  * `compat.cacheReporting` 为 `silent` / `reported` 时强制。状态只在内存：进程内跨会话复用
  * （`sharedCacheReporting`），同一端点换会话不必再探 3 次。
+ *
+ * 同一张表还记缓存读的**分块粒度**：有的端点（如 DeepSeek 经中转）按 2048 token 一块报
+ * cacheRead，不足一块的尾部总被算成未读。粒度 = 观察到的非零 cacheRead 的最大公约数，
+ * 至少 2 个样本且落在 [128, 8192] 才采信；未命中的噪声下限据此抬高（`miss.ts`）。
  */
 
 import type { CacheReportingSetting } from "../types.js";
@@ -17,6 +21,21 @@ import type { CacheReporting, PrefixFingerprint, RequestRecord } from "./types.j
 
 /** 连续这么多票判 silent。 */
 export const SILENT_STREAK = 3;
+/** 缓存粒度：样本数下限与采信范围。 */
+export const GRANULARITY_MIN_SAMPLES = 2;
+export const GRANULARITY_MIN = 128;
+export const GRANULARITY_MAX = 8192;
+
+function gcd(a: number, b: number): number {
+  while (b > 0) [a, b] = [b, a % b];
+  return a;
+}
+
+/** 由非零 cacheRead 的最大公约数与样本数推断粒度；不可信 → undefined。 */
+export function inferGranularity(divisor: number, samples: number): number | undefined {
+  if (samples < GRANULARITY_MIN_SAMPLES) return undefined;
+  return divisor >= GRANULARITY_MIN && divisor <= GRANULARITY_MAX ? divisor : undefined;
+}
 
 function hostOf(baseUrl: string): string {
   try {
@@ -42,6 +61,9 @@ interface EndpointState {
   state: CacheReporting;
   streak: number;
   last: RequestRecord | undefined;
+  /** 非零 cacheRead 的最大公约数与样本数。 */
+  divisor: number;
+  samples: number;
 }
 
 export class CacheReportingTracker {
@@ -55,11 +77,21 @@ export class CacheReportingTracker {
     setting?: CacheReportingSetting,
   ): CacheReporting {
     const key = endpointKey(record);
-    const entry = this.endpoints.get(key) ?? { state: "unknown", streak: 0, last: undefined };
+    const entry = this.endpoints.get(key) ?? {
+      state: "unknown",
+      streak: 0,
+      last: undefined,
+      divisor: 0,
+      samples: 0,
+    };
     this.endpoints.set(key, entry);
     const last = entry.last;
     entry.last = record;
     const { cacheRead, cacheWrite, cacheReported } = record.usage;
+    if (cacheRead > 0 && Number.isInteger(cacheRead)) {
+      entry.divisor = gcd(entry.divisor, cacheRead);
+      entry.samples++;
+    }
     if (cacheRead + cacheWrite > 0) {
       entry.state = "reported";
       entry.streak = 0;
@@ -77,6 +109,12 @@ export class CacheReportingTracker {
 
   get(key: string, setting?: CacheReportingSetting): CacheReporting {
     return forced(setting) ?? this.endpoints.get(key)?.state ?? "unknown";
+  }
+
+  /** 端点的缓存读粒度（token）；样本不足或不可信 → undefined。 */
+  granularity(key: string): number | undefined {
+    const entry = this.endpoints.get(key);
+    return entry === undefined ? undefined : inferGranularity(entry.divisor, entry.samples);
   }
 
   /** 测试用：清空全部端点。 */

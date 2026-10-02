@@ -380,6 +380,8 @@ export interface SessionCacheStats {
   estimatedTurnsLeft?: number;
   /** task 子会话的汇总（各自独立统计）。 */
   subagents?: { count: number; hitRate?: number; reBilledTokens: number };
+  /** 当前端点推断的缓存读分块粒度（token）；未推断出时不给。 */
+  granularity?: number;
 }
 
 export interface AgentSession {
