@@ -33,7 +33,7 @@ export interface RpcModeOptions {
   stdout?: NodeJS.WritableStream;
 }
 
-export const RPC_CAPABILITIES: RpcHello["capabilities"] = ["approvals", "images", "hooks"];
+export const RPC_CAPABILITIES: RpcHello["capabilities"] = ["approvals", "images", "hooks", "plans"];
 
 type Command = { id?: unknown; type?: unknown } & Record<string, unknown>;
 

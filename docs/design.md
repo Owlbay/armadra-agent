@@ -30,6 +30,22 @@
 | D20 | **精简配置**：零配置可用——检测到任一供应商的标准环境变量即选其缺省模型直接运行；用户只需一个 `config.json`，常用键不超过 5 个（`defaultModel`、`tools.preset`、`permission.mode`、`providers`、`thinkingLevel`）；其余全部有缺省 | 配置越少，出错与文档成本越低；与 Pi「开箱即用」的思路一致 | 新 |
 | D21 | **缓存保证**（§9.1）：系统提示与工具表构成字节稳定的前缀，跨回合不变；预设在会话开始时固定；工具表变化只以补丁追加；测试断言前缀逐字节稳定；状态栏显示缓存命中率 | 长任务的主要用量是缓存读取，前缀一旦抖动，缓存全部失效，成本成倍上升 | 新 |
 
+### 第五波增补（0.5.0）
+
+本文是 v2 的基线设计，第五波（0.5.0）的改动不逐节回写，按主题见下列文档（设计依据与决定表在 [wave5-plan.md](wave5-plan.md)）：
+
+| 主题                                  | 现状文档                                                                                  | 涉及本文                       |
+| ------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------ |
+| 子 Agent（类型、后台、续聊、worktree） | [agents.md](agents.md)「子 Agent」                                                        | §5 `task`、D14                 |
+| 外部 Agent 与 ACP                     | [agents.md](agents.md)「外部 Agent」、[acp.md](acp.md)                                    | D13、D14、§13                  |
+| Plan 模式与计划审批                   | [plan.md](plan.md)、[permissions.md](permissions.md)「plan 模式与只读命令」               | §7                             |
+| 回滚与检查点                          | [rewind-plan.md](rewind-plan.md)、[sessions.md](sessions.md)                              | §8                             |
+| 操作系统沙箱（codemode、bash）        | [sandbox.md](sandbox.md)、[codemode.md](codemode.md)                                      | §5.5、§7                       |
+| 压缩修订与 harness（截断、预算、提醒） | 本文 §9（已回写）、[wave5-plan.md](wave5-plan.md) §8                                      | §4、§9                         |
+| 模型元数据快照、内置渠道、17 家供应商 | [providers.md](providers.md)「模型元数据」「内置供应商」                                  | §3.3、D4（目录改为快照 ⊕ 覆盖） |
+| 图像、剪贴板、状态行、界面集成        | [providers.md](providers.md)「图像输入」、[tui.md](tui.md)、[tui-design.md](tui-design.md) | §12                            |
+| 退出码 8 / 9                          | 下文 §11.3                                                                                | §11.3                          |
+
 ## §1 架构与目录树
 
 ### §1.1 依赖方向
@@ -565,14 +581,14 @@ ama 不知道画布；Armadra 适配器经 `HostApi.tools.register` 注册 `canv
 
 | 预设          | 模型直接看到                                         | 脚本内可调用（codemode）              | 用途                                         |
 | ------------- | ---------------------------------------------------- | ------------------------------------- | -------------------------------------------- |
-| `default`     | read、edit、write、bash、grep、glob、todo（第五波 D20，以基准复测为门）；Node ≥ 25 另加 codemode | 全部内置工具（含 ls、todo、task）      | 独立编码，缺省                               |
+| `default`     | read、edit、write、bash、grep、glob（第五波 D20 曾加 todo，0.5.0 复测未过门撤回）；网络隔离时另加 codemode | 全部内置工具（含 ls、todo、task）      | 独立编码，缺省                               |
 | `minimal`     | read、edit、write、bash                              | —（显式 `on` 时全部内置工具）          | 与 Pi 一致；适合 `full-auto`                 |
 | `codemode-only` | codemode                                           | 全部内置工具（含 ls、todo、task）      | 长流程、工具密集任务                         |
 | `coordinator` | read、宿主注册的 canvas_* / context_*（codemode 可选） | 只有活动集：read 与 canvas_* 等       | 嵌入 Armadra 的协调者：不写文件、不跑 bash   |
 
 - 预设名：`codemode-only` 是 2026-10 起的规范名，0.3.0 的 `codemode` 作别名保留（配置、命令行、RPC 的 argv、SDK、schema 都接受；配置合并与命令行解析后只见规范名，`ama config show` 显示规范名并提示）。项目级「只能更严」按规范名比较。
 
-- 逐个工具：`ls` 默认关（glob 已覆盖，且诱导逐层翻目录）；`todo` 默认关（每次更新多一次往返；长任务在脚本里用；第五波改为进 `default` 预设，以预设基准复测为门，见 [wave5-plan.md](wave5-plan.md) D20）；`task` 默认关（`+task` 打开；嵌入 Armadra 时禁用）；**删除 `skill` 工具**（Skill 正文用 `read` 读，`/skill:` 命令保留）；Windows 上若没有 bash，`default` 预设自动退化为 PowerShell 版 bash，grep / glob 照常可用。
+- 逐个工具：`ls` 默认关（glob 已覆盖，且诱导逐层翻目录）；`todo` 默认关（每次更新多一次往返；长任务在脚本里用；第五波曾进 `default` 预设，0.5.0 用多步长任务复测未过门撤回，计划交接改用 `[DONE:n]` 文本标记，见 [wave5-plan.md](wave5-plan.md) D20 与 docs/benchmarks/presets-todo-2026-10-03.md）；`task` 默认关（`+task` 打开；嵌入 Armadra 时禁用）；**删除 `skill` 工具**（Skill 正文用 `read` 读，`/skill:` 命令保留）；Windows 上若没有 bash，`default` 预设自动退化为 PowerShell 版 bash，grep / glob 照常可用。
 - 配置：`tools.preset`（缺省 `default`）+ `tools.default` 的 `+name` / `-name` 微调；命令行 `--tools-preset <名>`、`--tools a,b,c`（整组替换）。
 - 预设在会话开始时确定并写进首条 system 消息；会话中途改预设按工具表补丁处理（§9.1）。
 - 描述精简：每个工具的描述 + 参数控制在 150 token 内（已落实：内置工具合计 1548 → 1186 token，`src/tools/descriptions.test.ts` 守住）。
@@ -904,13 +920,17 @@ tool_call（模型产出）
 
 ### §11.3 退出码
 
-| 码  | 含义                           | 码  | 含义                                 |
-| --- | ------------------------------ | --- | ------------------------------------ |
-| 0   | 正常                           | 5   | 会话不存在 / 损坏 / cwd 不匹配        |
-| 1   | 运行期错误（模型最终失败等）   | 6   | 宿主 / Hook 加载或启动失败            |
-| 2   | 参数用法错误                   | 78  | `HOST_API_VERSION` 不匹配             |
-| 3   | 配置 / profile / 路径错误      | 130 | SIGINT 退出（两次 Ctrl+C）            |
-| 4   | 无可用模型或密钥               | 143 | SIGTERM                               |
+| 码  | 含义                           | 码  | 含义                                                         |
+| --- | ------------------------------ | --- | ------------------------------------------------------------ |
+| 0   | 正常                           | 6   | 宿主 / Hook 加载或启动失败                                   |
+| 1   | 运行期错误（模型最终失败等）   | 7   | `-p` 有工具调用被拒（无人审批、deny 规则、plan 等）          |
+| 2   | 参数用法错误                   | 8   | `-p` 到达预算上限（`--max-turns` / `--max-cost` / `limits`） |
+| 3   | 配置 / profile / 路径错误      | 9   | `-p` 产出的计划已落盘、待审批（`plan.unattended: stop`）     |
+| 4   | 无可用模型或密钥               | 78  | `HOST_API_VERSION` 不匹配                                    |
+| 5   | 会话不存在 / 损坏 / cwd 不匹配 | 130 | SIGINT 退出（两次 Ctrl+C）；143 = SIGTERM                    |
+
+7 在 0.4.0 加入；8、9 在 0.5.0 加入（第五波：`--max-turns` 到限原来退出 1，现为 8；设计稿里的 7 已被「工具被拒」占用）。
+码表的唯一来源是 `src/cli/exit-codes.ts`（`describeExitCode`），README 与 `--help` 与它一致。
 
 ## §12 交互界面（`tui/` 组件库 + `modes/interactive/`）
 

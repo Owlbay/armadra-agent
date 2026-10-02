@@ -44,25 +44,28 @@ plan 模式让 ama 先只读调研、写出一份结构化的计划，经人批�
 
 - 开、闭标签各占一行，不在代码围栏里；一条回复里有多个块取最后一个完整块，不闭合的块忽略。
 - 步骤取 `- [ ] Sx` 清单；没有清单时取「步骤 / Steps」小节里的编号列表。`[depends: …]`、`[agent: …]` 解析成 `dependsOn`、`agent`（只是建议，派发仍按各自的授权）。最多 30 条，多出的截断并记 warning。解析不出步骤也能审批，只是不生成 todo。
-- 弱模型不写标签时，可以把上一条回复当作计划提交审批（`PlanController.proposeFromLastReply()`，交互界面的 `/plan approve` 用它）。
+- 弱模型不写标签时，可以把上一条回复当作计划提交审批（`PlanController.proposeFromLastReply()`，交互界面与 line 模式的 `/plan approve` 用它）。
 
 ## 审批
 
 谁来回答取决于运行方式；**ama 不替人批准**：
 
-| 运行方式                             | 回答者                                                                                                                                                                                                |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 交互（TUI / line）                   | 用户在输入框回复：`1`（或 `y` / `yes` / `approve` / `批准`）批准并以进入前的模式执行，`2` 以 Accept edits 执行，`3` 以 Auto 执行；其它内容作为修改意见，留在 plan。TUI 无宿主时在计划下方显示一行提示 |
-| RPC，声明了 `plans` 能力             | 客户端：`plan_proposed` → `plan_response`（见 [rpc.md](rpc.md)「计划审批」）                                                                                                                          |
-| SDK，给了 `plan.onProposed`          | 回调：运行结束后调用，返回 `{ decision, mode?, feedback?, editedMarkdown? }`；返回 undefined 留待 `session.plan.respond()`                                                                            |
-| `-p`、未声明能力的 RPC、无回调的 SDK | 配置 `plan.unattended`：`stop`（缺省）落盘计划后停下，不切模式、不执行；`approve` 在同一次运行里自动批准并执行                                                                                        |
+| 运行方式                             | 回答者                                                                                                                                                                                                                                                                   |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 交互（TUI）                          | 用户在底部审批框里选：批准并执行 / 批准，在新上下文执行（两者接着选执行模式：回到进入前的模式 / Accept edits / Auto）/ 继续修改（框内或外部编辑器写意见）/ 放弃并退出 Plan；`e` 在 `$VISUAL` / `$EDITOR` 里改计划，Esc 放弃但留在 Plan。见 [tui.md](tui.md)「Plan 审批」 |
+| 交互（line，`--no-tui`）             | `/plan approve [模式\|fresh]`、`/plan reject`；回复 `1` / `2` / `3` 也能批准（进入前的模式 / Accept edits / Auto），其它内容作为修改意见、留在 plan                                                                                                                      |
+| RPC，声明了 `plans` 能力             | 客户端：`plan_proposed` → `plan_response`（见 [rpc.md](rpc.md)「计划审批」）                                                                                                                                                                                             |
+| SDK，给了 `plan.onProposed`          | 回调：运行结束后调用，返回 `{ decision, mode?, feedback?, editedMarkdown? }`；返回 undefined 留待 `session.plan.respond()`                                                                                                                                               |
+| `-p`、未声明能力的 RPC、无回调的 SDK | 配置 `plan.unattended`：`stop`（缺省）落盘计划后停下，不切模式、不执行；`approve` 在同一次运行里自动批准并执行                                                                                                                                                           |
 
 四种决定：
 
-- **approve**：计划标 approved；步骤写成 `ama.todo`（`planStep` 指回步骤 id，首项 in_progress）；权限模式切到指定模式，缺省进入 plan 前的模式（进入前就是 plan 时用 Manual）；配置了 `plan.model` 时切回执行模型；随后开新回合：用户消息 `The plan is approved. Go ahead.`（`origin: "plan"`）+ `ama.plan_approved`（计划全文、文件路径、「按 todo 推进，每完成一步 todo update」）。交互模式下回复 `1` 本身就是这个回合的用户消息。
+- **approve**：计划标 approved；步骤写成 `ama.todo`（`planStep` 指回步骤 id，首项 in_progress）；权限模式切到指定模式，缺省进入 plan 前的模式（进入前就是 plan 时用 Manual）；配置了 `plan.model` 时切回执行模型；随后开新回合：用户消息 `The plan is approved. Go ahead.`（`origin: "plan"`）+ `ama.plan_approved`（计划全文、文件路径与进度记法，见下文「进度记法」）。line 模式下回复 `1` 本身就是这个回合的用户消息。
 - **approve_fresh**：同样标 approved 并切模式，但执行放到新会话：首条用户消息是计划全文与文件路径，新会话里写 todo。RPC 由服务端新建会话；SDK 的 `respond()` 返回 `freshPrompt`，由调用方新建会话后 `planController(next).adopt(plan)` 再发它。上下文占用高或配置了 `plan.model` 时最划算（反正要重读）。
 - **revise**：留在 plan；`feedback` 作为普通用户消息开回合，模型整份重写计划，新版本号 +1，旧版标 superseded。
-- **reject**：计划标 rejected，留在 plan。
+- **reject**：计划标 rejected，留在 plan。交互界面的「放弃，退出 Plan 模式」在 reject 之后切回进入前的模式；审批框里按 Esc 是 reject 但留在 plan。
+
+**进度记法**：活动工具集里有 `todo`（`tools.default: ["+todo"]`、`--tools …,todo`）时，交接消息请模型「按 todo 推进，每完成一步 todo update」；没有时（`default` 预设缺省不含 todo，见 D20 与 [docs/benchmarks/](https://github.com/Owlbay/armadra-agent/tree/main/docs/benchmarks)）请模型每完成一步在回复里**单独一行**写 `[DONE:<步骤 id>]`（如 `[DONE:S1]`），ama 在回合结束时读这些标记：对应的计划待办标 done，没有进行中的项时下一个 pending 转 in_progress，照常落 `ama.todo`、发 `todo_updated`，界面与 RPC 的进度显示不受影响。「在新上下文执行」的首条消息用同样的规则。
 
 客户端改过的全文（`editedMarkdown`，界面里「在外部编辑器里改」）先落一份新版本，交接消息用改后的全文。
 
@@ -100,4 +103,5 @@ plan 模式让 ama 先只读调研、写出一份结构化的计划，经人批�
 - RPC：命令 `plan_response` / `get_plan` / `get_todos`，能力 `plans`，事件 `plan_proposed` / `plan_resolved` / `todo_updated`，见 [rpc.md](rpc.md)。
 - SDK：`createAgentSession({ plan: { bash?, directory?, unattended?, model?, thinkingLevel?, onProposed? } })`；返回的会话有 `session.plan.current()`、`session.plan.respond(response)`、`session.plan.todos()`。
 - 进程内：`planController(session)`（`src/agent/session-plan.ts`）给界面用——`pending()`、`respond()`、`proposeFromLastReply()`、`adopt()`、`setAttendance()`。
-- 交互界面的审批框、`/plan` 命令与外部编辑器由界面批次接入；在那之前用上面的文本回复。
+- 交互界面：底部审批框（四个选项 + 执行模式、`e` 编辑计划、Esc 留在 Plan）、`/plan` 面板，`/plan <目标>` 进入 Plan 并发出目标，`/plan approve [模式|fresh]` / `/plan reject` 不开对话框直接作答；见 [tui.md](tui.md)「Plan 审批」。
+- `-p`：`stop` 下退出码 9 与 `planPending`（见上文）；要无人值守执行就在用户级配置写 `"plan": { "unattended": "approve" }`。

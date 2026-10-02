@@ -128,8 +128,11 @@ export class AcpDriver implements AgentDriver {
   }
 
   async open(options: DriverOpenOptions): Promise<DriverSession> {
+    // 与原生驱动一致：用探测到的完整路径启动。Windows 上 npm 装的 ACP Agent 是 `.cmd` 垫片，
+    // 裸程序名 spawn 会 ENOENT（commandLine 只认带扩展名的路径改走 cmd.exe）。[W5-Z]
+    const probed = await probeCandidate(this.candidate, this.deps);
     const transport = spawnOf(this.deps)({
-      program: this.candidate.program,
+      program: probed.path ?? this.candidate.program,
       args: this.candidate.args,
       cwd: options.cwd,
       env: options.env,

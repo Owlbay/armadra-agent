@@ -94,7 +94,7 @@ export const CONFIG_KEY_DOCS: Readonly<Record<string, string>> = Object.freeze({
   "retry.maxDelayMs": "单次等待上限（毫秒）",
   tools: "内置工具",
   "tools.preset":
-    "工具预设：default（七个工具，含 todo；Node ≥ 25 时另加 codemode）、minimal、codemode-only、coordinator；codemode 是 codemode-only 的旧名；项目级只能更严",
+    "工具预设：default（六个工具；网络隔离时另加 codemode，todo 需在 tools.default 加 +todo）、minimal、codemode-only、coordinator；codemode 是 codemode-only 的旧名；项目级只能更严",
   "tools.default":
     "在预设上微调：+name 加、-name 去，不带前缀的名字整组替换预设的内置工具；只认用户级",
   "tools.maxToolResultChars": "单条工具结果进上下文的字符上限，超出保留首尾",

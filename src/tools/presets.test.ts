@@ -35,14 +35,13 @@ function cfg(tools: NonNullable<AmaConfig["tools"]>, codemode?: AmaConfig["codem
 
 describe("工具预设", () => {
   it("default / minimal / coordinator 的内置工具", () => {
-    // [W5-C0] D20：todo 进 default（以 bench-presets 复测为门）
+    // D20：W5-C0 曾把 todo 加进 default，W5-Z 复测未过门撤回（docs/benchmarks/presets-todo-2026-10-03.md）
     expect(resolvePreset({ config: cfg({}), available: available() }).builtin).toEqual([
       "bash",
       "edit",
       "glob",
       "grep",
       "read",
-      "todo",
       "write",
     ]);
     expect(
@@ -102,7 +101,7 @@ describe("工具预设", () => {
     );
     // 缺省配置不写 codemode.mode：映射调整能惠及老用户
     expect(mergeConfigLayers({}).config.codemode).toBeUndefined();
-    // default 预设：strict 且 codemode 可用 → 七个工具 + codemode；不可用 → 静默回退，无 warning
+    // default 预设：strict 且 codemode 可用 → 六个工具 + codemode；不可用 → 静默回退，无 warning
     const strictDefault = resolvePreset({
       config: cfg({}),
       available: available(["codemode"]),
@@ -116,7 +115,6 @@ describe("工具预设", () => {
       "glob",
       "grep",
       "read",
-      "todo",
       "write",
     ]);
     const missing = resolvePreset({ config: cfg({}), available: available(), strict: true });
@@ -133,6 +131,12 @@ describe("工具预设", () => {
       available: available(["codemode"]),
     });
     expect(on.builtin).toEqual(["bash", "codemode", "edit", "read", "write"]);
+  });
+
+  it('[W5-Z] tools.default: ["+todo"] 把 todo 加回 default', () => {
+    expect(
+      resolvePreset({ config: cfg({ default: ["+todo"] }), available: available() }).builtin,
+    ).toEqual(["bash", "edit", "glob", "grep", "read", "todo", "write"]);
   });
 
   it("tools.default：+ / - 微调、纯名字整组替换、未知名 warning", () => {

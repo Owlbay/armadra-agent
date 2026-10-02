@@ -22,6 +22,7 @@ import type { ModelThinkingLevel } from "../ai/types.js";
 import { AmaError } from "../errors.js";
 import { permissionModeLabel } from "../permissions/modes.js";
 import type { PermissionMode, PermissionPipelineApi } from "../permissions/types.js";
+import { todosFromDoneMarkers } from "../plan/done-markers.js";
 import { extractProposedPlan, planFromMarkdown, type ExtractedPlan } from "../plan/extract.js";
 import {
   PLAN_APPROVED_PROMPT,
@@ -207,6 +208,8 @@ class PlanExtension implements SessionExtension, PlanController {
       case "turn_end":
         if (this.inPlan && event.toolResults.length === 0 && event.message.stopReason === "stop")
           this.proposeFromLastAssistant(true);
+        else if (!this.inPlan)
+          this.writeTodoItems(todosFromDoneMarkers(event.message, this.todos()));
         break;
       default:
         break;
@@ -460,7 +463,7 @@ class PlanExtension implements SessionExtension, PlanController {
         decision,
         mode,
         plan: { ...plan, status: "approved" },
-        freshPrompt: freshContextPrompt(plan),
+        freshPrompt: freshContextPrompt(plan, { todoTool: this.todoTool() }),
       };
     }
     this.pendingHandoff = this.approve(plan, mode, decision);
@@ -494,7 +497,12 @@ class PlanExtension implements SessionExtension, PlanController {
     }
     this.pendingExit = false;
     this.restoreExecutionModel();
-    return planApprovedText(plan);
+    return planApprovedText(plan, { todoTool: this.todoTool() });
+  }
+
+  /** [W5-Z] 活动工具集里没有 todo 时交接改用 `[DONE:n]` 文本标记（plan/done-markers.ts）。 */
+  private todoTool(): boolean {
+    return this.core.activeToolNames().includes("todo");
   }
 
   private writeTodos(plan: PlanData): void {
@@ -505,7 +513,12 @@ class PlanExtension implements SessionExtension, PlanController {
       status: i === 0 ? "in_progress" : "pending",
       planStep: step.id,
     }));
-    this.core.appendEntry({ type: "custom", customType: TODO_CUSTOM_TYPE, data: { items } });
+    this.writeTodoItems(items);
+  }
+
+  private writeTodoItems(items: TodoItem[] | undefined): void {
+    if (items !== undefined)
+      this.core.appendEntry({ type: "custom", customType: TODO_CUSTOM_TYPE, data: { items } });
   }
 
   adopt(plan: PlanData): void {

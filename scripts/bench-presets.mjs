@@ -17,13 +17,17 @@
  * `--render <json> [--out <md>]` 由原始数据重出报告（不发请求）。
  * 用 fake 验证管线：`--models fake/echo`（不花钱，任务必然失败）。
  *
- * [W5-H2] D20 对照组：`default` 自第五波起含 `todo`；`default-todo` 是对照组（config
- * `tools.default: ["-todo"]`，即第三波报告里的六工具 default），`default+todo` 是 `default` 的别名。
+ * [W5-H2] D20 对照组：`default+todo`（config `tools.default: ["+todo"]`）对 `default-todo`（不含 todo）。
  * 两组都在时报告多一节「D20 判定」：todo 组费用（统一估价）涨幅 > 5% 或成功率下降 → 撤出 default。
+ * [W5-Z] 0.5.0 起 `default` 预设不含 todo（复测未过门），`default` 与 `default-todo` 相同。0.5.0 之前
+ * 跑出的原始数据（`meta.defaultHasTodo` 缺省）里 `default` 含 todo，`--render` 按当时的含义归组。
  *
  *   node scripts/bench-presets.mjs --config <cfg> --models packy/kimi-k2.5,packy/deepseek-v4-flash \
  *     --presets default,default-todo --max-requests 60 --budget-usd 2 --per-run 8 \
  *     --out docs/benchmarks/presets-todo-<date>.md --json docs/benchmarks/presets-todo-<date>.json
+ *
+ * [W5-Z] D20 复测用多步长任务：`--tasks long`（multi-bug-hunt、string-kit、inventory-feature），
+ * `--runs 3 --per-run 25`。
  */
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -47,9 +51,16 @@ export const PRESETS = ["default", "minimal", "codemode"];
 
 /** 基准里的「预设」名 → 实际 `--tools-preset` 与额外配置（对照组）。 */
 export const PRESET_VARIANTS = {
-  "default+todo": { preset: "default", extra: {} },
+  "default+todo": { preset: "default", extra: { tools: { default: ["+todo"] } } },
   "default-todo": { preset: "default", extra: { tools: { default: ["-todo"] } } },
 };
+
+/** 这个基准「预设」名的工具表里有没有 todo（`defaultHasTodo`：当时的 `default` 预设是否含 todo）。 */
+export function variantHasTodo(name, defaultHasTodo = false) {
+  if (name === "default+todo") return true;
+  if (name === "default-todo") return false;
+  return name === "default" ? defaultHasTodo : undefined;
+}
 
 export function presetVariant(name) {
   return PRESET_VARIANTS[name] ?? { preset: name, extra: {} };
@@ -58,6 +69,22 @@ export function presetVariant(name) {
 /** D20 的门：费用涨幅上限（todo 组相对对照组）。 */
 export const D20_MAX_COST_INCREASE = 0.05;
 export const TASKS = ["fix-bug", "search-summarize", "multi-file-refactor"];
+/**
+ * [W5-Z] 多步长任务（D20 复测）：每个需要 5+ 步、适合 todo 跟踪；不在缺省 `--tasks` 里，
+ * `--tasks long` 选全部，或逐个列名。
+ */
+export const LONG_TASKS = ["multi-bug-hunt", "string-kit", "inventory-feature"];
+export const ALL_TASKS = [...TASKS, ...LONG_TASKS];
+
+/** `--tasks` 解析：逗号分隔，`long` 展开为全部长任务。 */
+export function parseTasks(raw) {
+  const tasks = raw
+    .split(",")
+    .filter(Boolean)
+    .flatMap((t) => (t === "long" ? LONG_TASKS : [t]));
+  for (const t of tasks) if (!ALL_TASKS.includes(t)) throw new Error(`未知任务 ${t}`);
+  return tasks;
+}
 
 function sumUsage(entries) {
   const total = { input: 0, cacheRead: 0, cacheWrite: 0, output: 0 };
@@ -213,7 +240,7 @@ export function renderReport(results, meta) {
     ),
     "",
   );
-  const d20 = renderD20(results);
+  const d20 = renderD20(results, meta);
   if (d20.length > 0) out.push(...d20);
   out.push("## 明细", "");
   out.push(
@@ -260,14 +287,14 @@ export function renderReport(results, meta) {
  * D20 判定：只比两组都跑完（都没中止）的「模型 × 任务 × 第 n 次」配对；费用用统一估价。
  * 返回报告行（两组不全时为空）。
  */
-export function d20Verdict(results) {
+export function d20Verdict(results, { defaultHasTodo = false } = {}) {
   const key = (r) => `${r.model}\u0000${r.task}\u0000${r.run}`;
   const control = new Map();
   for (const r of results)
-    if (!r.aborted && presetVariant(r.preset).extra.tools !== undefined) control.set(key(r), r);
+    if (!r.aborted && variantHasTodo(r.preset, defaultHasTodo) === false) control.set(key(r), r);
   const pairs = [];
   for (const r of results) {
-    if (r.aborted || (r.preset !== "default" && r.preset !== "default+todo")) continue;
+    if (r.aborted || variantHasTodo(r.preset, defaultHasTodo) !== true) continue;
     const c = control.get(key(r));
     if (c !== undefined) pairs.push([r, c]);
   }
@@ -303,8 +330,8 @@ export function d20Verdict(results) {
   };
 }
 
-function renderD20(results) {
-  const v = d20Verdict(results);
+function renderD20(results, meta) {
+  const v = d20Verdict(results, { defaultHasTodo: meta.defaultHasTodo ?? true });
   if (v === undefined) return [];
   const pct = (x) => `${x >= 0 ? "+" : ""}${(x * 100).toFixed(1)}%`;
   const row = (name, g) => [
@@ -323,7 +350,7 @@ function renderD20(results) {
     "",
     table(
       ["组", "成功", "请求", "输入", "估价", "预算计价", "todo 调用"],
-      [row("default（含 todo）", v.withTodo), row("default-todo（对照）", v.control)],
+      [row("含 todo", v.withTodo), row("不含 todo（对照）", v.control)],
     ),
     "",
     `估价涨幅 ${pct(v.costIncrease)}（门用这一列：与缓存同口径）；输入 token ${pct(v.inputIncrease)}、` +
@@ -363,8 +390,7 @@ async function main() {
   const fakeOnly = settings.models.every((m) => m.startsWith("fake/"));
   if (!fakeOnly && !existsSync(settings.config)) throw new Error(`配置不存在：${settings.config}`);
   const presets = values.presets.split(",").filter(Boolean);
-  const tasks = values.tasks.split(",").filter(Boolean);
-  for (const t of tasks) if (!TASKS.includes(t)) throw new Error(`未知任务 ${t}`);
+  const tasks = parseTasks(values.tasks);
   const known = [...PRESETS, ...Object.keys(PRESET_VARIANTS)];
   for (const p of presets) if (!known.includes(p)) throw new Error(`未知预设 ${p}`);
   const runs = Number(values.runs);
@@ -407,6 +433,7 @@ async function main() {
     usd: budget.usd,
     budgetUsd: settings.budgetUsd,
     stopped: budget.stopped,
+    defaultHasTodo: false,
   };
   const report = renderReport(results, meta);
   if (values.out) writeFileSync(values.out, `${report}\n`);

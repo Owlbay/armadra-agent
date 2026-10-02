@@ -54,15 +54,7 @@ describe("createRuntimeDeps + bootstrap", () => {
       await runtime.dispose();
       return { tools, warnings: runtime.warnings };
     };
-    expect((await names([])).tools).toEqual([
-      "bash",
-      "edit",
-      "glob",
-      "grep",
-      "read",
-      "todo",
-      "write",
-    ]);
+    expect((await names([])).tools).toEqual(["bash", "edit", "glob", "grep", "read", "write"]);
     expect((await names(["--tools-preset", "minimal"])).tools).toEqual([
       "bash",
       "edit",

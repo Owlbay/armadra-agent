@@ -41,6 +41,21 @@ jobs:
         env:
           AMA_E2E: "1"
         run: pnpm exec vitest run test/e2e
+      # models-dev.yml 只在定时 / 手动时跑，平时没人发现它坏了：每个 PR 在一台机器上校验 workflow
+      # （actionlint，镜像按 digest 固定，只查语法与表达式、不跑 shellcheck 风格项）并以 fixture 跑一遍
+      # 刷新脚本的 --dry-run（不联网、不写文件；输出目录指到临时目录，与空目录比较）。tag 构建跳过，不影响 release job。
+      - name: models-dev workflow check
+        if: ${{ runner.os == 'Linux' && matrix.node == 22 && !startsWith(github.ref, 'refs/tags/') }}
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo \
+            rhysd/actionlint:1.7.7@sha256:887a259a5a534f3c4f36cb02dca341673c6089431057242cdc931e9f133147e9 \
+            -shellcheck= .github/workflows/models-dev.yml .github/workflows/ci.yml
+          node scripts/update-models-dev.mjs --dry-run --min-providers 1 \
+            --out "$RUNNER_TEMP/models-dev" --data-out "$RUNNER_TEMP/models-dev-data.ts" \
+            --input test/fixtures/models-dev/snapshot-api.json \
+            --list test/fixtures/models-dev/snapshot-providers.json > "$RUNNER_TEMP/models-dev-summary.md"
+          grep -q "models.dev 快照刷新" "$RUNNER_TEMP/models-dev-summary.md"
+          git diff --exit-code -- src/ai/providers
       - name: print + codemode smoke (windows)
         if: ${{ runner.os == 'Windows' }}
         shell: pwsh
