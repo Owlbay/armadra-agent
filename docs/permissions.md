@@ -72,15 +72,40 @@ schema 校验
    ② 模式
       plan：只读工具、只读命令、task 放行，其余拒绝（plan.bash: ask 时其余命令询问）
       default / auto-edit / full-auto：同以前的模式真值表
+        [default / auto-edit] 模式要询问的 bash：allow 规则 / Hook allow / 会话记忆之外，
+        沙箱内免审批（见下）→ 放行；Hook ask 仍把结论改回询问
       allowlist：只读工具、只读命令、task 放行，其余拒绝（不在允许名单）
-      auto：静态判定（不调模型）→ 放行；未决定 → ③
-   ③ [auto] 模型分类器：allow → 放行；ask / 出错 / 超时 → 询问
+      auto：[沙箱生效时] 请求 sandbox:false 越出沙箱 → 询问（allow 规则 / Hook allow / 会话记忆之后）
+            静态判定（不调模型）→ 放行；未决定 → ③
+   ③ [auto] 模型分类器（沙箱内的 bash 附 os_sandbox 输入）：allow → 放行；ask / 出错 / 超时 → 询问
 → 询问时走审批链（宿主 broker → 界面 → 无人值守按拒绝）
 ```
 
 - 后面的步骤不能放宽前面的结论：allow 规则越不过危险命令和 auto 的规则层，分类器只能处理①②都没决定的调用。
 - `allowlist` 从不询问：凡是会询问的（危险命令、Hook ask）一律拒绝，拒绝说明写「不在允许名单」。
 - 无人值守（`-p`、RPC 未接审批）时，询问一律按拒绝；auto 模式下分类器仍会先跑，判 allow 的照样执行。
+
+### 沙箱内命令免审批
+
+`sandbox.bash: auto` 且本机有能限制写入的 OS 沙箱时（[sandbox.md](sandbox.md)「第二阶段」），bash 经沙箱运行。
+default / auto-edit 下，满足下面全部条件的 bash 调用免审批（`PermissionVerdict.sandboxed: true`）：
+
+1. 将在沙箱内运行：没有 `sandbox: false`；
+2. `sandbox.network: deny`（联网可外带数据，`allow` 时照常询问）；
+3. 命令文本（含 `sh -c`、`eval`、`xargs`、`find -exec` 里的嵌套命令）不碰机密路径（`cat .env`、`~/.ssh/…`），嵌套不超深；
+4. 前面没被 deny 规则、Hook deny 拒绝，不在危险命令表里（`rm -rf` 工作区外路径、`git push --force`、`git reset --hard`
+   等照常询问），之后也没有 Hook ask。
+
+| 模式               | 沙箱内的 bash                                        | `sandbox: false`（越出沙箱）                         |
+| ------------------ | ---------------------------------------------------- | ---------------------------------------------------- |
+| default、auto-edit | 满足上面条件即放行，否则询问                         | 询问（allow 规则、Hook allow、会话记忆可放行）       |
+| auto               | 规则层与静态判定照旧；分类器多一项 `os_sandbox` 输入 | 规则层询问（allow 规则、Hook allow、会话记忆可放行） |
+| plan、allowlist    | 不变                                                 | 不变                                                 |
+| full-auto          | 放行                                                 | 放行                                                 |
+
+无人值守时「询问」一律拒绝，所以 `-p` 里越出沙箱的调用被拒。auto 不直接放行沙箱内的命令：它的规则层（网络、
+删除、受保护路径、项目外写入）是有意比 default 更细的防线，分类器仍是最后一关；代价是 default + 沙箱放行的一些
+命令（工作区里的 `rm -r dist`）在 auto 下仍会询问。
 
 ## auto 的三层
 

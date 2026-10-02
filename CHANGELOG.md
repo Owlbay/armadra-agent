@@ -24,6 +24,15 @@
   `codemode` 按只读类、`default` 预设缺省开启、状态栏不再标 `net!`；没有时（Windows 等）保持原样。Node ≥ 25 叠加作纵深
   防御。新配置 `sandbox.enabled`（`auto` | `off`，只认用户级 / profile，`AMA_SANDBOX=off` 覆盖）；`ama doctor` 显示沙箱
   能力，`ama config show` 写明网络由谁隔离。bash 沙箱与「沙箱内命令免审批」是第二阶段。
+- **bash 沙箱与沙箱内命令免审批**（docs/sandbox.md「第二阶段」、docs/permissions.md「判定顺序」）：新配置
+  `sandbox.bash`（`off` 缺省 | `auto`）、`sandbox.network`（`deny` 缺省 | `allow`）、`sandbox.writable`（追加可写目录，
+  `~/…` 展开），只认用户级 / profile，项目级只接受收紧的 `network: "deny"`。`auto` 且有 `sandbox-exec` / bwrap（`unshare`
+  不算）时，bash（含后台 bash）经 OS 沙箱运行：可写只限工作区、系统临时目录、ama 输出目录与配置追加的目录，工作区的
+  `.ama/`、`.git/hooks`、`.git/config` 只读，`~/.ssh` 等凭据目录与 `auth.json` 不可读。`default` / `auto-edit` 模式下沙箱内
+  且拒绝网络的命令免审批（危险命令、deny 规则、Hook ask、碰机密路径的命令仍按原样处理）；`auto` 模式沙箱信息只作为分类器
+  输入。被沙箱拒绝时输出末尾提示可用 `bash{…, sandbox: false}` 不经沙箱重跑——这一调用一律走正常审批、无人值守拒绝。
+  `ama doctor` / `ama config show` 显示 bash 沙箱状态。**开启 `sandbox.bash: auto` 后 bash 工具多一个参数与一句描述，
+  首个请求未命中缓存一次**；不开启时工具定义逐字节不变。
 - **系统提示维护**：规则节加两条通用规则——破坏性命令（`rm -rf`、`git reset --hard`、强推、删分支）除非用户要求否则先问；
   独立的只读工具调用放在同一轮（只在 read 可直接调用时出现）。edit 描述写明多处修改用一次调用的 `edits[]`、`oldText` 按原文件
   匹配、唯一、尽量短、不重叠。新增内置 Skill `ama-docs`（配置速查，按需读取，同名时用户的优先）；Skill 索引改为每条一行、
