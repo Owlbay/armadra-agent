@@ -3,22 +3,55 @@
     "type": "start"
   },
   {
-    "type": "text_start",
+    "type": "thinking_start",
     "contentIndex": 0
   },
   {
-    "type": "text_delta",
+    "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": "Hello, "
+    "delta": "Preparing a short greeting"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " that includes the Chinese word 世界."
+  },
+  {
+    "type": "thinking_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 1
   },
   {
     "type": "text_delta",
-    "contentIndex": 0,
-    "delta": "世界 👋"
+    "contentIndex": 1,
+    "delta": "Hello"
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 1,
+    "delta": ","
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 1,
+    "delta": " "
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 1,
+    "delta": "世界"
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 1,
+    "delta": "!"
   },
   {
     "type": "text_end",
-    "contentIndex": 0
+    "contentIndex": 1
   },
   {
     "type": "done",
@@ -27,35 +60,40 @@
       "role": "assistant",
       "content": [
         {
+          "type": "thinking",
+          "thinking": "Preparing a short greeting that includes the Chinese word 世界.",
+          "thinkingSignature": "{\"id\":\"rs_b34ea031-19eb-9c85-b766-3a513d4e4e6c\",\"summary\":[{\"text\":\"Preparing a short greeting that includes the Chinese word 世界.\",\"type\":\"summary_text\"}],\"type\":\"reasoning\",\"status\":\"completed\",\"encrypted_content\":\"vCpei2EdnPDt5ZrU4D//U0+h5FR2eSBtVw+jCrUqZpGvsM9yzbZJJZPB7WIpMFYIpeIoW6WeWiOg4ilLY4DXVbyosgqjJmj8B25N+Tsd5fcIgm9+4/fC+PJ6MMTHoNAzLS6pCC5qchkwjzP0SJ7bjV0JQtDov4BAfQ7wfdkiYsRnLyzzqyuyWjh+Pekbqktft/jM2/44WDbfoQD8Tvql6DEz44ExxD5sCIdmByzRLZ4hCGRi6pG7FurD+szZbcVoottFEeQh+krS4VzwK+tXSo8fYjZ8DgEV6V+xmaVPDQtRVWvCD9lxXdbs3qFT4QvWW+AQGtV+B1iuwdheRTpB/XlKgNolXLczqo8iyPg5Z/jNzzPZ2Qg0RasUtbJiJxWi/xVGQ4s2fHKhkKultzIKYddNszbunZyZMbkyFNYYe9St8A/kvve1la0Cuqjl/uyPPXzwZnbaXQ\"}"
+        },
+        {
           "type": "text",
-          "text": "Hello, 世界 👋",
-          "textSignature": "{\"v\":1,\"id\":\"msg_text1\"}"
+          "text": "Hello, 世界!",
+          "textSignature": "{\"v\":1,\"id\":\"msg_b34ea031-19eb-9c85-b766-3a513d4e4e6c\"}"
         }
       ],
       "api": "openai-responses",
-      "provider": "openai",
-      "model": "gpt-5.5",
+      "provider": "packy",
+      "model": "grok-4.7",
       "usage": {
-        "input": 30,
-        "output": 6,
-        "cacheRead": 0,
+        "input": 113,
+        "output": 80,
+        "cacheRead": 1152,
         "cacheWrite": 0,
-        "totalTokens": 36,
+        "totalTokens": 1345,
         "cacheReported": true,
-        "reasoning": 0,
+        "reasoning": 75,
         "cost": {
-          "input": 0.00015,
-          "output": 0.00018,
-          "cacheRead": 0,
+          "input": 0.000565,
+          "output": 0.0024,
+          "cacheRead": 0.000576,
           "cacheWrite": 0,
-          "total": 0.00033
+          "total": 0.003541
         }
       },
       "stopReason": "stop",
       "timestamp": 0,
       "thinkingLevel": "off",
       "providerThinkingLevel": "none",
-      "responseId": "resp_text1",
+      "responseId": "b34ea031-19eb-9c85-b766-3a513d4e4e6c",
       "rawStopReason": "completed"
     }
   }
