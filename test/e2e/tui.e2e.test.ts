@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createTmpHome, type TmpHome } from "../helpers/tmp-home.js";
 
 type ApiModule = typeof import("../../src/ai/apis/api.js");
+type CapabilityModule = typeof import("../../src/codemode/capability.js");
 type FakeModule = typeof import("../../src/ai/fake/fake-provider.js");
 type ArgsModule = typeof import("../../src/cli/args.js");
 type BootstrapModule = typeof import("../../src/cli/bootstrap.js");
@@ -45,16 +46,18 @@ afterEach(async () => {
 
 describe.skipIf(!hasDist)("e2e：交互模式（dist 构建产物 + MemoryTerminal）", () => {
   it("一次完整 run 的帧序列与 run-80x24 帧黄金一致", async () => {
-    const [api, fakeMod, args, boot, compose, interactive, tui, version] = await Promise.all([
-      load<ApiModule>("ai/apis/api.js"),
-      load<FakeModule>("ai/fake/fake-provider.js"),
-      load<ArgsModule>("cli/args.js"),
-      load<BootstrapModule>("cli/bootstrap.js"),
-      load<ComposeModule>("cli/compose.js"),
-      load<InteractiveModule>("modes/interactive/interactive-mode.js"),
-      load<TuiModule>("tui.js"),
-      load<VersionModule>("version.js"),
-    ]);
+    const [api, fakeMod, args, boot, compose, interactive, tui, version, capability] =
+      await Promise.all([
+        load<ApiModule>("ai/apis/api.js"),
+        load<FakeModule>("ai/fake/fake-provider.js"),
+        load<ArgsModule>("cli/args.js"),
+        load<BootstrapModule>("cli/bootstrap.js"),
+        load<ComposeModule>("cli/compose.js"),
+        load<InteractiveModule>("modes/interactive/interactive-mode.js"),
+        load<TuiModule>("tui.js"),
+        load<VersionModule>("version.js"),
+        load<CapabilityModule>("codemode/capability.js"),
+      ]);
     home = createTmpHome("ama-tui-e2e-");
     home.write(
       "work/README.md",
@@ -89,7 +92,14 @@ describe.skipIf(!hasDist)("e2e：交互模式（dist 构建产物 + MemoryTermin
     const argv = ["--model", "fake/echo", "--quiet-startup", "header"];
     const parsed = args.parseArgs(argv);
     if (parsed.kind !== "run") throw new Error("subcommand");
-    const deps = compose.createRuntimeDeps({ apis, env, probeLocal: false, log: () => undefined });
+    // 沙箱能力固定为 Node 24（同 compose-harness）：帧黄金不随本机 Node 版本变化
+    const deps = compose.createRuntimeDeps({
+      apis,
+      env,
+      probeLocal: false,
+      log: () => undefined,
+      sandboxCapability: capability.detectSandboxCapability("24.0.0"),
+    });
     const rt = await boot.bootstrap(parsed.args, deps, io);
     runtime = rt;
 
