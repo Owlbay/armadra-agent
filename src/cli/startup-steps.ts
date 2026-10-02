@@ -3,6 +3,7 @@
  * 模型与思考级别解析、工具过滤、指令文件。[B5] 由 cli/bootstrap.ts 编排。
  */
 
+import { describeLookupFailure } from "../ai/providers/suggest.js";
 import { formatModelRef } from "../ai/providers/channels.js";
 import { statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
@@ -132,15 +133,8 @@ export async function resolveModel(
   const lookup = (ref: string, label: string): ModelChoice => {
     const found = registry.findModel(ref);
     if (found.ok) return { model: found.model, provider: found.provider };
-    const hint =
-      found.candidates.length > 0 ? `；候选：${found.candidates.slice(0, 20).join(", ")}` : "";
-    const what =
-      found.reason === "provider_not_found"
-        ? "供应商不存在"
-        : found.reason === "ambiguous"
-          ? "模型名有歧义"
-          : "模型不存在";
-    throw new StartupError("model_not_found", `${label}${what}：${ref}${hint}`, ExitCode.NoModel);
+    const code = found.reason === "provider_not_found" ? "provider_not_found" : "model_not_found";
+    throw new StartupError(code, `${label}${describeLookupFailure(ref, found)}`, ExitCode.NoModel);
   };
   let choice: ModelChoice | undefined;
   if (args.model !== undefined) {

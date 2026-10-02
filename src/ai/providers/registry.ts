@@ -49,6 +49,7 @@ import {
   type ModelsDevSource,
 } from "./enrich.js";
 import type { ModelsDevIndex } from "./models-dev.js";
+import { closest } from "./suggest.js";
 
 export type ModelSource = "builtin" | "config" | "discovered";
 
@@ -381,33 +382,38 @@ export class ProviderRegistry implements ProviderRegistryApi {
     return materializeModel(model, provider, channelData);
   }
 
-  /** 按渠道取模型：渠道不在模型的 channels 里 → 列出可用渠道。 */
+  /** 按渠道取模型：渠道不在模型的 channels 里 → channel_not_found，列出可用渠道。 */
   private withChannel(provider: ProviderData, model: Model, channel: string): ModelLookup {
     const available = model.channels ?? [];
-    if (!available.includes(channel)) {
+    if (!available.includes(channel) || !provider.channels?.some((c) => c.name === channel)) {
       return {
         ok: false,
-        reason: "not_found",
-        candidates: available.map((c) => `${provider.id}/${model.id}@${c}`),
+        reason: "channel_not_found",
+        candidates: available.filter(Boolean).map((c) => `${provider.id}/${model.id}@${c}`),
       };
     }
     if (channel === model.channel) return { ok: true, model, provider };
     return { ok: true, model: this.materialize(provider, model, channel), provider };
   }
 
+  /**
+   * `provider/model`、`provider/model@渠道` 或裸模型 id。`@` 先按渠道解析（id 里本来就带 `@` 且已登记的
+   * 模型除外），中转供应商的「未登记即合成」不会把 `@渠道` 吞进模型 id。失败的 reason：供应商不存在 →
+   * provider_not_found（候选是编辑距离最近的供应商）；渠道不存在 → channel_not_found；模型不存在 →
+   * not_found（候选是最接近的模型）。
+   */
   findModel(ref: string): ModelLookup {
     const trimmed = ref.trim();
-    const direct = this.findPlain(trimmed);
-    if (direct.ok) return direct;
     const split = splitChannelRef(trimmed);
-    if (split === undefined) return direct;
+    if (split === undefined) return this.findPlain(trimmed);
+    const exact = this.findPlain(trimmed, undefined, false);
+    if (exact.ok) return exact;
     const base = this.findPlain(split.base, split.channel);
-    if (!base.ok) return base.reason === "ambiguous" ? base : direct;
-    if (!base.provider.channels?.some((c) => c.name === split.channel)) return direct;
+    if (!base.ok) return base;
     return this.withChannel(base.provider, base.model, split.channel);
   }
 
-  private findPlain(trimmed: string, channel?: string): ModelLookup {
+  private findPlain(trimmed: string, channel?: string, synthesize = true): ModelLookup {
     const slash = trimmed.indexOf("/");
     if (slash > 0) {
       const provider = this.providers.get(trimmed.slice(0, slash));
@@ -415,7 +421,8 @@ export class ProviderRegistry implements ProviderRegistryApi {
         const id = trimmed.slice(slash + 1);
         const model = provider.models.find((m) => m.id === id);
         if (model) return { ok: true, model, provider };
-        if ((provider.models.length === 0 || this.relayed.has(provider.id)) && id.length > 0) {
+        const relayed = provider.models.length === 0 || this.relayed.has(provider.id);
+        if (synthesize && relayed && id.length > 0) {
           const synthesized = this.synthesize(provider, id);
           if (channel !== undefined && provider.channels?.some((c) => c.name === channel))
             synthesized.channels = [...new Set([...(synthesized.channels ?? []), channel])];
@@ -425,6 +432,14 @@ export class ProviderRegistry implements ProviderRegistryApi {
       }
     }
     const matches = this.listModels().filter((entry) => entry.model.id === trimmed);
+    if (matches.length === 0 && slash > 0) {
+      const ids = [...this.providers.keys()];
+      return {
+        ok: false,
+        reason: "provider_not_found",
+        candidates: closest(trimmed.slice(0, slash), ids),
+      };
+    }
     if (matches.length === 1 && matches[0]) {
       return { ok: true, model: matches[0].model, provider: matches[0].provider };
     }
@@ -444,16 +459,14 @@ export class ProviderRegistry implements ProviderRegistryApi {
     };
   }
 
+  /** 最接近的模型（包含关系优先，其次编辑距离），`provider/id` 形式。 */
   private similar(id: string, providerId?: string): string[] {
-    const needle = id.toLowerCase();
-    return this.listModels()
-      .filter((entry) => providerId === undefined || entry.provider.id === providerId)
-      .filter((entry) => {
-        const candidate = entry.model.id.toLowerCase();
-        return needle.length > 0 && (candidate.includes(needle) || needle.includes(candidate));
-      })
-      .slice(0, 10)
-      .map((entry) => `${entry.provider.id}/${entry.model.id}`);
+    const entries = this.listModels().filter(
+      (entry) => providerId === undefined || entry.provider.id === providerId,
+    );
+    return closest(id, entries, 5, (entry) => entry.model.id).map(
+      (entry) => `${entry.provider.id}/${entry.model.id}`,
+    );
   }
 
   hasConfiguredKey(providerId: string): boolean {

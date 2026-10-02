@@ -489,7 +489,12 @@ export interface ApiKeyResolution {
 
 export type ModelLookup =
   | { ok: true; model: Model; provider: ProviderData }
-  | { ok: false; reason: "not_found" | "ambiguous" | "provider_not_found"; candidates: string[] };
+  | {
+      ok: false;
+      /** `channel_not_found`：模型在，`@渠道` 不在（候选是该模型可用的 `provider/model@渠道`）。 */
+      reason: "not_found" | "ambiguous" | "provider_not_found" | "channel_not_found";
+      candidates: string[];
+    };
 
 export interface ProviderRegistryApi {
   list(): readonly ProviderData[];
