@@ -3,7 +3,7 @@
  */
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -20,9 +20,19 @@ interface CheckInput {
   previous?: Previous;
   refTag?: string;
 }
+interface DocsInput {
+  version: string;
+  docs: Record<string, string | undefined>;
+  packageFiles: string[];
+}
 interface ReleaseCheckModule {
   checkRelease(input: CheckInput): { ok: boolean; errors: string[]; notes: string[] };
   readConstant(source: string, name: string): number | undefined;
+  checkDocs(input: DocsInput): { errors: string[]; notes: string[] };
+  hasVersionSection(text: string, version: string): boolean;
+  filesEntryCovers(entry: string, path: string): boolean;
+  DOC_FILES: string[];
+  PACKED_DOC_FILES: string[];
 }
 
 const SCRIPT = fileURLToPath(new URL("../scripts/release-check.mjs", import.meta.url));
@@ -96,6 +106,101 @@ describe("release-check 规则", () => {
   });
 });
 
+const EN_DOCS = ["tui", "permissions", "providers", "rpc", "host-api", "sessions"];
+const PACKAGE_FILES = ["docs/en/*.md", "README.zh-CN.md", "CHANGELOG.md", "CHANGELOG.zh-CN.md"];
+
+/** 合格的双语文档（CHANGELOG 两份都有该版本段）。 */
+function docFixture(version: string): Record<string, string> {
+  return {
+    "README.md": "# ama\n\nEnglish · [简体中文](README.zh-CN.md)\n",
+    "README.zh-CN.md": "# ama\n\n[English](README.md) · 简体中文\n",
+    "CHANGELOG.md": `# Changelog\n\nEnglish · [简体中文](CHANGELOG.zh-CN.md)\n\n## ${version} (2026-10-10)\n`,
+    "CHANGELOG.zh-CN.md": `# 更新记录\n\n[English](CHANGELOG.md) · 简体中文\n\n## ${version}（2026-10-10）\n`,
+    ...Object.fromEntries(EN_DOCS.map((name) => [`docs/en/${name}.md`, `# ${name}\n`])),
+  };
+}
+
+describe("release-check 双语文档（第六波 §5.5）", () => {
+  it("合格的文档通过；本仓库当前的文档与 package.json 通过", async () => {
+    const { checkDocs, DOC_FILES } = await load();
+    expect(DOC_FILES).toEqual(Object.keys(docFixture("0.6.0")));
+    expect(
+      checkDocs({ version: "0.6.0", docs: docFixture("0.6.0"), packageFiles: PACKAGE_FILES })
+        .errors,
+    ).toEqual([]);
+    const root = join(dirname(SCRIPT), "..");
+    const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
+      version: string;
+      files: string[];
+    };
+    const docs = Object.fromEntries(
+      DOC_FILES.map((file) => [
+        file,
+        existsSync(join(root, file)) ? readFileSync(join(root, file), "utf8") : undefined,
+      ]),
+    );
+    expect(checkDocs({ version: pkg.version, docs, packageFiles: pkg.files }).errors).toEqual([]);
+  });
+
+  it("0.6.0 前只查中文 CHANGELOG 的版本段；之后两份都查；「未发布」不算", async () => {
+    const { checkDocs } = await load();
+    const docs = docFixture("0.5.1");
+    docs["CHANGELOG.md"] =
+      "# Changelog\n\nEnglish · [简体中文](CHANGELOG.zh-CN.md)\n\n## Unreleased\n";
+    const before = checkDocs({ version: "0.5.1", docs, packageFiles: PACKAGE_FILES });
+    expect(before.errors).toEqual([]);
+    expect(before.notes.join("\n")).toContain("只查中文");
+    const after = checkDocs({
+      version: "0.6.0",
+      docs: { ...docFixture("0.6.0"), "CHANGELOG.md": docs["CHANGELOG.md"] },
+      packageFiles: PACKAGE_FILES,
+    });
+    expect(after.errors).toEqual(["CHANGELOG.md 没有 0.6.0 的段"]);
+    const zhMissing = checkDocs({
+      version: "0.6.0",
+      docs: {
+        ...docFixture("0.6.0"),
+        "CHANGELOG.zh-CN.md": "[English](CHANGELOG.md)\n## 未发布\n",
+      },
+      packageFiles: PACKAGE_FILES,
+    });
+    expect(zhMissing.errors).toEqual(["CHANGELOG.zh-CN.md 没有 0.6.0 的段"]);
+  });
+
+  it("缺文件、files 漏列、顶部没有互链 → 报错", async () => {
+    const { checkDocs } = await load();
+    const docs: Record<string, string | undefined> = docFixture("0.6.0");
+    docs["docs/en/rpc.md"] = undefined;
+    docs["README.zh-CN.md"] = "# ama\n";
+    const result = checkDocs({
+      version: "0.6.0",
+      docs,
+      packageFiles: ["README.zh-CN.md", "CHANGELOG.md"],
+    });
+    expect(result.errors).toEqual([
+      "缺少 docs/en/rpc.md",
+      "package.json files 没有包含 CHANGELOG.zh-CN.md",
+      ...EN_DOCS.map((name) => `package.json files 没有包含 docs/en/${name}.md`),
+      "README.zh-CN.md 顶部缺少到 README.md 的链接",
+    ]);
+  });
+
+  it("版本段与 files 匹配规则", async () => {
+    const { hasVersionSection, filesEntryCovers } = await load();
+    expect(hasVersionSection("## 0.6.0（2026-10-10）", "0.6.0")).toBe(true);
+    expect(hasVersionSection("x\n## 0.6.0 (2026-10-10)\n", "0.6.0")).toBe(true);
+    expect(hasVersionSection("## v0.6.0\n", "0.6.0")).toBe(true);
+    expect(hasVersionSection("## 0.6.0-rc.1\n", "0.6.0")).toBe(false);
+    expect(hasVersionSection("## 0.6.01\n", "0.6.0")).toBe(false);
+    expect(hasVersionSection("### 0.6.0\n", "0.6.0")).toBe(false);
+    expect(filesEntryCovers("docs/en/*.md", "docs/en/rpc.md")).toBe(true);
+    expect(filesEntryCovers("docs/en", "docs/en/rpc.md")).toBe(true);
+    expect(filesEntryCovers("./docs/en/", "docs/en/rpc.md")).toBe(true);
+    expect(filesEntryCovers("docs/*.md", "docs/en/rpc.md")).toBe(false);
+    expect(filesEntryCovers("docs/**", "docs/en/rpc.md")).toBe(true);
+  });
+});
+
 describe("release-check CLI（临时 git 仓库）", () => {
   let root: string | undefined;
   afterEach(() => {
@@ -128,7 +233,8 @@ describe("release-check CLI（临时 git 仓库）", () => {
       mkdirSync(dirname(join(dir, file)), { recursive: true });
       writeFileSync(join(dir, file), text);
     };
-    put("package.json", JSON.stringify({ version }));
+    put("package.json", JSON.stringify({ version, files: PACKAGE_FILES }));
+    for (const [file, text] of Object.entries(docFixture(version))) put(file, text);
     put("src/host/types.ts", "export const HOST_API_VERSION = 1 as const;\n");
     put("src/rpc.ts", `export const RPC_PROTOCOL_VERSION = ${rpc} as const;\n`);
     put("src/session/types.ts", "export const SESSION_FORMAT_VERSION = 1 as const;\n");
