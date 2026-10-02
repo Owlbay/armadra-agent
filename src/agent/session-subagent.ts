@@ -14,6 +14,8 @@
  * - 轮数耗尽且最后停在工具结果上：以 `toolChoice:"none"` 再跑一轮要最终报告，状态 `max_turns`。
  * - broker 包一层，请求带 `context{depth, parentToolCallId, taskId}`，审批事件转发到父会话；
  *   [RW-B] 父的检查点钩子（worktree 里运行时不记）；[W3-C1b] 子会话命中与重计费汇总进父。
+ * - [W6-A] 句柄外露 `observe` / `entries`（子 Agent 视图跟随）与 `message`（视图里直接发的消息，
+ *   `origin: "direct"`：运行中 followUp，空闲开新一轮）；一轮收尾时才入队、没赶上的 followUp 接着再跑一轮。
  */
 
 import type { CheckpointHooks } from "../checkpoints/types.js";
@@ -26,6 +28,7 @@ import type {
 } from "../permissions/types.js";
 import { SessionManager } from "../session/manager.js";
 import type { AgentMessage } from "../session/types.js";
+import type { MessageOrigin } from "../ai/types.js";
 import type {
   RunnerHandle,
   SubagentRequest,
@@ -86,7 +89,11 @@ function brokersForChild(
 export interface ChildSession {
   readonly manager: SessionManager;
   readonly messages: readonly AgentMessage[];
-  prompt(text: string): Promise<unknown>;
+  prompt(text: string, options?: { origin?: MessageOrigin }): Promise<unknown>;
+  /** [W6-A] 视图里直接发的消息（运行中排到回合结束）。 */
+  followUp?(text: string, options?: { origin?: MessageOrigin }): Promise<unknown>;
+  /** [W6-A] 取出排队消息（一轮收尾时才入队、没被消费的）。 */
+  clearQueue?(): { steering: string[]; followUp: string[] };
   abort(): Promise<void>;
   subscribe(listener: (event: SessionEvent) => void): () => void;
   getStats(): SessionStats;
@@ -270,15 +277,24 @@ async function startAmaChild(
   run.signal.addEventListener("abort", onAbort, { once: true });
   let billed = { cacheRead: 0, prompt: 0, reBilled: 0 };
 
-  const runOnce = async (prompt: string): Promise<SubagentResult> => {
+  let active = false;
+  const runOnce = async (prompt: string, origin?: MessageOrigin): Promise<SubagentResult> => {
     const startTurns = turns;
     let error: string | undefined;
+    active = true;
     try {
       if (run.signal.aborted) throw new AmaError("aborted", "aborted");
-      await child.prompt(prompt);
+      await child.prompt(prompt, origin === undefined ? {} : { origin });
+      // [W6-A] 收尾阶段才入队的 followUp（只可能来自视图）留在队列里：接着再跑一轮
+      for (;;) {
+        const left = child.clearQueue?.().followUp ?? [];
+        if (left.length === 0 || run.signal.aborted) break;
+        await child.prompt(left.join("\n\n"), { origin: "direct" });
+      }
     } catch (caught) {
       error = caught instanceof Error ? caught.message : String(caught);
     }
+    active = false;
     const exhausted =
       error === undefined && !run.signal.aborted && turns - startTurns >= maxTurns && toolUse;
     if (exhausted) {
@@ -300,13 +316,24 @@ async function startAmaChild(
     return result;
   };
 
-  let current = runOnce(run.prompt);
+  let current = runOnce(run.prompt, spec.origin);
   const handle: TaskHandle = {
     id: manager.id,
     model: `${model.provider}/${model.id}`,
     ...(manager.file() === undefined ? {} : { sessionFile: manager.file() as string }),
     send: async (text) => {
       current = runOnce(text);
+    },
+    observe: (listener) => child.subscribe(listener),
+    entries: () => child.manager.branch(),
+    message: async (text, when) => {
+      if (when === "send") {
+        current = runOnce(text, "direct");
+        return;
+      }
+      if (!active || child.followUp === undefined)
+        throw new AmaError("task_idle", "the sub-agent is not running");
+      await child.followUp(text, { origin: "direct" });
     },
     wait: () => current,
     stop: () => child.abort(),

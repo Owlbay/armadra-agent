@@ -5,6 +5,7 @@
  */
 
 import type { SubagentUpdateEvent } from "../agent/types-w5.js";
+import type { MessageOrigin } from "../ai/types.js";
 import type { SessionEvent } from "../agent/types.js";
 import type { TraceExternalTurnData } from "../trace/types.js";
 import type { Worktree, WorktreeOutcome } from "../agent/worktree.js";
@@ -72,6 +73,8 @@ export interface AmaRunnerSpec {
   resumeFile?: string;
   /** worktree 里运行：不记父会话检查点。 */
   isolated: boolean;
+  /** [W6-A] 首条 prompt 的 origin（子 Agent 视图里续聊已释放的子会话 = `"direct"`）。 */
+  origin?: MessageOrigin;
 }
 
 /**
@@ -100,7 +103,92 @@ export type TaskHandle = RunnerHandle & {
   entries?(): readonly SessionEntry[];
   /** [W6-C0] 外部 Agent 的环形缓冲（W6-A）。 */
   recent?(): readonly ExternalDisplayEvent[];
+  /**
+   * [W6-A] 人在子 Agent 视图里直接发的消息（子会话 user 消息 `origin: "direct"`）：`followUp` = 本轮运行中
+   * 排到回合结束（不在运行中抛 `task_idle`，由注册表排队到运行结束后续聊）；`send` = 空闲时开新一轮（同 `send`）。
+   * ama 子会话提供。
+   */
+  message?(text: string, when: "followUp" | "send"): Promise<void>;
 };
+
+/** [W6-A] 外部 Agent 环形缓冲的上限（docs/wave6-plan.md D2）。 */
+export const RING_MAX_EVENTS = 2000;
+export const RING_MAX_BYTES = 1024 * 1024;
+
+/**
+ * [W6-A] 外部 Agent 展示事件的内存环形缓冲：相邻的同类文本（text / thought）合并成一条；超过条数或字节
+ * 上限从最旧的丢。只在内存，不落盘（第五波 §5.4：外部 Agent 原始事件不进 JSONL）。
+ */
+export class DisplayRing {
+  private readonly events: ExternalDisplayEvent[] = [];
+  private bytes = 0;
+
+  constructor(
+    private readonly maxEvents = RING_MAX_EVENTS,
+    private readonly maxBytes = RING_MAX_BYTES,
+  ) {}
+
+  get size(): number {
+    return this.bytes;
+  }
+
+  items(): readonly ExternalDisplayEvent[] {
+    return this.events;
+  }
+
+  push(event: ExternalDisplayEvent): void {
+    const last = this.events.at(-1);
+    const add = sizeOf(event);
+    if (
+      last !== undefined &&
+      (event.kind === "text" || event.kind === "thought") &&
+      last.kind === event.kind &&
+      last.turn === event.turn
+    ) {
+      last.text = (last.text ?? "") + (event.text ?? "");
+      this.bytes += add;
+    } else {
+      this.events.push({ ...event });
+      this.bytes += add;
+    }
+    this.trim();
+  }
+
+  private trim(): void {
+    while (this.events.length > this.maxEvents) this.drop();
+    while (this.bytes > this.maxBytes && this.events.length > 1) this.drop();
+    const only = this.events[0];
+    if (this.bytes > this.maxBytes && only?.text !== undefined) {
+      // 单条超过上限：保留尾部
+      const keep = only.text.slice(only.text.length - Math.floor(this.maxBytes / 4));
+      this.bytes = this.bytes - Buffer.byteLength(only.text) + Buffer.byteLength(keep);
+      only.text = keep;
+    }
+  }
+
+  private drop(): void {
+    const first = this.events.shift();
+    if (first !== undefined) this.bytes -= sizeOf(first);
+  }
+}
+
+function sizeOf(event: ExternalDisplayEvent): number {
+  return Buffer.byteLength(event.text ?? "") + Buffer.byteLength(event.toolName ?? "") + 32;
+}
+
+/** [W6-A] 子 Agent 视图读的一条任务的实时数据（`SubagentRegistry.live`）。 */
+export interface TaskLive {
+  info: TaskInfo;
+  /** 还在并发池里排队（尚未开跑）。 */
+  queued: boolean;
+  /** ama 子会话的观察钩子（句柄在内存时）。 */
+  observe?(listener: (event: SessionEvent) => void): () => void;
+  entries?(): readonly SessionEntry[];
+  /** 外部 Agent 的环形缓冲（本进程里跑过才有）。 */
+  recent: readonly ExternalDisplayEvent[];
+  /** 人在视图里发、等运行结束再续聊的消息数。 */
+  pending: number;
+}
 
 export interface TaskRecord {
   info: TaskInfo;
@@ -120,6 +208,14 @@ export interface TaskRecord {
   worktreeOutcome?: WorktreeOutcome;
   last?: SubagentResult;
   onUpdate?: (partial: string) => void;
+  /** [W6-A] 在并发池里排队（acquire 之前）。 */
+  queued?: boolean;
+  /** [W6-A] 外部 Agent 的展示事件（内存环形缓冲）。 */
+  ring?: DisplayRing;
+  /** [W6-A] 视图里发来、等本次运行结束再续聊的消息。 */
+  direct?: string[];
+  /** [W6-A] 下一次续聊是人在视图里发的（子会话 user 消息记 `origin: "direct"`）。 */
+  directNext?: boolean;
 }
 
 export function newRecord(
@@ -160,6 +256,7 @@ export function applyRunnerEvent(
   sink: ProgressSink,
 ): void {
   const taskId = record.info.taskId;
+  if (record.info.runner !== "ama") recordDisplay(record, event, sink.now());
   switch (event.type) {
     case "text":
       record.text += event.delta;
@@ -204,6 +301,36 @@ export function applyRunnerEvent(
         agent: record.info.agent,
         ...event.trace,
       });
+      return;
+    default:
+      return;
+  }
+}
+
+/** [W6-A] 外部 Agent 的进度 → 环形缓冲（ama 子会话由视图直接订阅子会话，不进这里）。 */
+function recordDisplay(record: TaskRecord, event: SubagentEvent, now: number): void {
+  const turn = record.info.turns ?? 0;
+  const ring = (record.ring ??= new DisplayRing());
+  switch (event.type) {
+    case "text":
+    case "thought":
+      if (event.delta !== "") ring.push({ at: now, kind: event.type, text: event.delta, turn });
+      return;
+    case "tool":
+      ring.push({
+        at: event.at ?? now,
+        kind: "tool",
+        toolName: event.toolName,
+        status: event.status,
+        ...(event.id === undefined ? {} : { toolId: event.id }),
+        turn,
+      });
+      return;
+    case "turn":
+      ring.push({ at: now, kind: "turn", turn: event.turn });
+      return;
+    case "notice":
+      ring.push({ at: now, kind: "notice", text: event.text, level: event.level, turn });
       return;
     default:
       return;
