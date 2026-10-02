@@ -10,11 +10,11 @@ import type { Messages } from "../types.js";
 
 export const en = {
   usage: `Usage: ama auth set <provider> [--auth-file <file>]   read the key from stdin
-      ama auth list [--auth-file <file>]
-      ama auth remove <provider> [--auth-file <file>]
-      ama auth login chatgpt [--flavor siwc|codex] [--paste | --device] [--port <n>] [--no-browser] [--yes] [--auth-file <file>]
-      ama auth logout chatgpt [--auth-file <file>]
-      ama auth status [chatgpt] [--auth-file <file>]
+       ama auth list [--auth-file <file>]
+       ama auth remove <provider> [--auth-file <file>]
+       ama auth login chatgpt [--flavor siwc|codex] [--paste | --device] [--port <n>] [--no-browser] [--yes] [--auth-file <file>]
+       ama auth logout chatgpt [--auth-file <file>]
+       ama auth status [chatgpt] [--auth-file <file>]
 `,
   kind: { literal: "key", command: "!command", envRef: "env reference", oauth: "oauth" },
   needProvider: (action: string) => `ama auth ${action} needs <provider>`,

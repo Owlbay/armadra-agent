@@ -11,7 +11,7 @@ import type { Messages } from "../types.js";
 export const en = {
   configShow: {
     usage: `Usage: ama config show [--json] [--profile <file>] [--auth-file <file>]
-                        [--tools-preset <name>] [--codemode off|on|only]
+                       [--tools-preset <name>] [--codemode off|on|only]
        ama config path    Config directory, data directory and file paths
        ama config edit    Open config.json in $VISUAL / $EDITOR (prints the path without an editor)
 `,

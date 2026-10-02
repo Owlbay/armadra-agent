@@ -155,3 +155,23 @@ describe("配置收紧告警与 profile（en）", () => {
     );
   });
 });
+
+describe("ama --help", () => {
+  it("两种语言都列出第六波的参数与子命令", async () => {
+    const { messagesFor } = await import("../i18n/index.js");
+    for (const locale of ["en", "zh"] as const) {
+      const text = messagesFor(locale).cli.help;
+      for (const needle of [
+        "--lang <zh|en>",
+        "--memory / --no-memory",
+        "ama auth login chatgpt",
+        "ama auth logout|status [chatgpt]",
+        "ama config get|set|unset <key>",
+        "ama config list",
+        "ama memory list|show|edit|rm|path|enable|disable",
+        "ama sessions trace <id>",
+      ])
+        expect(text, `${locale}: ${needle}`).toContain(needle);
+    }
+  });
+});
