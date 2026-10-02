@@ -269,8 +269,9 @@ export function createEditTool(): ToolDefinition<EditInput> {
     name: "edit",
     label: "Edit",
     description:
-      "Replace text in a file (read it first). Each oldText must be unique in the original " +
-      "(unless replaceAll); edits must not overlap.",
+      "Replace text in a file (read it first). Give all changes to a file as edits[] in one call; " +
+      "each oldText matches the original file and must be unique (unless replaceAll), short and " +
+      "non-overlapping.",
     parameters: {
       type: "object",
       properties: {
