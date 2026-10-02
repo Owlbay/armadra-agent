@@ -1,0 +1,12 @@
+轨迹 · 1 回合 · 2 请求 · 2 次工具 · 10s · ↑8.1k ↓220 · 缓存 33% · ttft p50 0.6s / p90 0.6s · 129 tok/s
+#1 让 explore 查一下测试覆盖，另起一个后台审查  10s  ↑8.1k ↓220  33%
+  请求 claude-sonnet-4-5 · ttft 0.6s · 200 tok/s  1.4s  ↑5.1k ↓160  0%
+    task 查测试覆盖  7.5s
+      任务 t1 explore  7.5s  ↑8k ↓400  38%
+        #1 查测试覆盖  7.4s  ↑8k ↓400  38%
+          请求 claude-haiku-4-5 · ttft 0.5s · 114 tok/s  1.2s  ↑2k ↓80  0%
+            glob src/**/*.test.ts  0.3s
+          请求 claude-haiku-4-5 · ttft 0.8s · 64 tok/s  5.8s  ↑6k ↓320  50%
+    task 后台审查  0.0s
+      ✗ 任务 t2 explore · 后台 · 子会话缺失  38s
+  请求 claude-sonnet-4-5 · ttft 0.6s · 67 tok/s  1.4s  ↑3k ↓60  90%

@@ -1,0 +1,203 @@
+{
+  "version": 1,
+  "sessionId": "sess-basic",
+  "cwd": "/work/proj",
+  "startedAt": 1791014400000,
+  "totals": {
+    "requests": 3,
+    "input": 3720,
+    "output": 420,
+    "cacheRead": 6600,
+    "cacheWrite": 3100,
+    "toolCalls": 1,
+    "cost": 0.0234,
+    "durationMs": 6650,
+    "ttftP50": 750,
+    "ttftP90": 1200,
+    "avgTps": 116.7,
+    "cacheHitRatio": 0.4918032786885246
+  },
+  "turns": [
+    {
+      "id": "ba004",
+      "kind": "turn",
+      "status": "ok",
+      "entryIds": [
+        "ba004"
+      ],
+      "steps": [
+        {
+          "id": "ba005",
+          "kind": "step",
+          "status": "ok",
+          "entryIds": [
+            "ba005",
+            "ba007"
+          ],
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "attempt": 1,
+          "usage": {
+            "input": 3200,
+            "output": 120,
+            "cacheRead": 0,
+            "cacheWrite": 3100,
+            "totalTokens": 6420,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0151
+            }
+          },
+          "stopReason": "toolUse",
+          "tools": [
+            {
+              "id": "call_read",
+              "kind": "tool",
+              "name": "read",
+              "status": "ok",
+              "isError": false,
+              "entryIds": [
+                "ba005",
+                "ba006"
+              ],
+              "children": [],
+              "startedAt": 1791014403610,
+              "endedAt": 1791014403890
+            }
+          ],
+          "thinkingLevel": "medium",
+          "cacheHitRatio": 0,
+          "requestAt": 1791014401100,
+          "startedAt": 1791014401100,
+          "firstTokenAt": 1791014402300,
+          "ttftMs": 1200,
+          "doneAt": 1791014403600,
+          "endedAt": 1791014403600,
+          "tps": 92.3
+        },
+        {
+          "id": "ba008",
+          "kind": "step",
+          "status": "ok",
+          "entryIds": [
+            "ba008",
+            "ba009"
+          ],
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "attempt": 1,
+          "usage": {
+            "input": 400,
+            "output": 260,
+            "cacheRead": 3100,
+            "cacheWrite": 0,
+            "totalTokens": 3760,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0062
+            }
+          },
+          "stopReason": "stop",
+          "tools": [],
+          "thinkingLevel": "medium",
+          "cacheHitRatio": 0.8857142857142857,
+          "requestAt": 1791014403950,
+          "startedAt": 1791014403950,
+          "firstTokenAt": 1791014404700,
+          "ttftMs": 750,
+          "doneAt": 1791014406200,
+          "endedAt": 1791014406200,
+          "tps": 173.3
+        }
+      ],
+      "usage": {
+        "requests": 2,
+        "input": 3600,
+        "output": 380,
+        "cacheRead": 3100,
+        "cacheWrite": 3100,
+        "toolCalls": 1,
+        "cost": 0.0213,
+        "durationMs": 5200,
+        "ttftP50": 750,
+        "ttftP90": 1200,
+        "avgTps": 135.7,
+        "cacheHitRatio": 0.3163265306122449
+      },
+      "startedAt": 1791014401000,
+      "endedAt": 1791014406200
+    },
+    {
+      "id": "ba010",
+      "kind": "turn",
+      "status": "ok",
+      "entryIds": [
+        "ba010"
+      ],
+      "steps": [
+        {
+          "id": "ba011",
+          "kind": "step",
+          "status": "ok",
+          "entryIds": [
+            "ba011",
+            "ba012"
+          ],
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "attempt": 1,
+          "usage": {
+            "input": 120,
+            "output": 40,
+            "cacheRead": 3500,
+            "cacheWrite": 0,
+            "totalTokens": 3660,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0021
+            }
+          },
+          "stopReason": "stop",
+          "tools": [],
+          "thinkingLevel": "medium",
+          "cacheHitRatio": 0.9668508287292817,
+          "requestAt": 1791014460050,
+          "startedAt": 1791014460050,
+          "firstTokenAt": 1791014460650,
+          "ttftMs": 600,
+          "doneAt": 1791014461450,
+          "endedAt": 1791014461450,
+          "tps": 50
+        }
+      ],
+      "usage": {
+        "requests": 1,
+        "input": 120,
+        "output": 40,
+        "cacheRead": 3500,
+        "cacheWrite": 0,
+        "toolCalls": 0,
+        "cost": 0.0021,
+        "durationMs": 1450,
+        "ttftP50": 600,
+        "ttftP90": 600,
+        "avgTps": 50,
+        "cacheHitRatio": 0.9668508287292817
+      },
+      "startedAt": 1791014460000,
+      "endedAt": 1791014461450
+    }
+  ],
+  "aux": [],
+  "partial": false,
+  "endedAt": 1791014461450
+}
