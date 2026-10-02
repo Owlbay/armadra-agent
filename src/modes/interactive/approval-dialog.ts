@@ -225,7 +225,10 @@ class ApprovalDialog implements Component, Focusable {
     if (!compact) lines.push("");
     lines.push(...this.optionLines(width, compact));
     if (!compact) lines.push("");
-    const hint = compact ? "↑↓ Enter · v 完整输入" : "↑↓ 选择 · Enter 确认 · v 完整输入";
+    const arrows = theme.glyphs.arrowUp + theme.glyphs.arrowDown;
+    const hint = compact
+      ? `${arrows} Enter · v 完整输入`
+      : `${arrows} 选择 · Enter 确认 · v 完整输入`;
     lines.push(theme.fg("dim", hint));
     return lines.map((l) => truncateToWidth(l, width));
   }

@@ -194,7 +194,9 @@ export class QueueView extends Text {
     if (rows.length > shown.length) {
       shown.unshift("  " + t.fg("dim", `${t.glyphs.ellipsis} 另 ${rows.length - shown.length} 条`));
     }
-    if (rows.length > 0) shown.push("    " + t.fg("dim", "Alt+↑ 取回 · Esc 回填并中断"));
+    if (rows.length > 0) {
+      shown.push("    " + t.fg("dim", `Alt+${t.glyphs.arrowUp} 取回 · Esc 回填并中断`));
+    }
     this.setText(shown.join("\n"));
   }
 }
