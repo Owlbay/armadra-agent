@@ -64,7 +64,7 @@ import type { SubagentResult, ToolContext, ToolDefinition, ToolResult } from "./
 import type { Runtime } from "./cli/runtime.js";
 import type { RuntimeDeps, SessionAssembly } from "./cli/deps.js";
 import type { HostApiBinding } from "./host/api-impl.js";
-import type { AmaConfig, PermissionConfig } from "./config/types.js";
+import type { AmaConfig, ModelConfig, ModelOverride, PermissionConfig } from "./config/types.js";
 import type { ParsedArgs } from "./cli/args.js";
 import type { RpcCommand, RpcEvent } from "./rpc.js";
 import { HOST_API_VERSION } from "./host/types.js";
@@ -306,6 +306,20 @@ describe("配置契约", () => {
     expectTypeOf<NonNullable<AmaConfig["tools"]>["preset"]>().toEqualTypeOf<
       "default" | "minimal" | "codemode" | "coordinator" | undefined
     >();
+  });
+
+  it("cache 段与模型级 api（W3-C0 ③）", () => {
+    expectTypeOf<NonNullable<AmaConfig["cache"]>>().toEqualTypeOf<{
+      warming?: "off" | "streaming" | "idle";
+      retention?: "none" | "short" | "long";
+      minSavingsUsd?: number;
+      missNotices?: boolean;
+      warmSubagents?: boolean;
+    }>();
+    expectTypeOf<ModelConfig["api"]>().toEqualTypeOf<Model["api"] | undefined>();
+    expectTypeOf<ModelOverride["api"]>().toEqualTypeOf<Model["api"] | undefined>();
+    const entry: ModelConfig = { id: "MiniMax-M2.7", api: "anthropic-messages" };
+    expect(entry.api).toBe("anthropic-messages");
   });
 
   it("--codemode / --tools-preset（契约 A7）", () => {

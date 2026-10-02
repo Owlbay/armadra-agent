@@ -5,18 +5,31 @@
  * 与 SDK 的 `CreateSessionOptions.config` 都要引用 `AmaConfig`，而 B5 与 B6 并行开工，
  * 所以形状在这里定死；config/schema.ts 只做校验并可再导出这些类型。
  * hooks.json 的形状是 `HookConfig`（hooks/types.ts）。
+ * （W3-C0）第三波：`cache` 段（§1.12，只认用户级 / profile）；`ModelConfig` / `ModelOverride`
+ * 允许模型级 `api`（§2.3，同一中转的模型走不同协议），由 W3-B12 在注册表里生效。
  */
 
-import type { Api, Model, ModelThinkingLevel, ProviderCompat, AuthHeader } from "../ai/types.js";
+import type { WarmingMode } from "../ai/cache/types.js";
+import type {
+  Api,
+  AuthHeader,
+  CacheRetention,
+  Model,
+  ModelThinkingLevel,
+  ProviderCompat,
+} from "../ai/types.js";
 import type { PermissionMode } from "../permissions/types.js";
 
 export const CONFIG_FILE_VERSION = 1 as const;
 
-/** 自定义模型条目；缺省 maxTokens 8192、reasoning false、input ["text"]，不猜 contextWindow。 */
-export type ModelConfig = Partial<Omit<Model, "id" | "provider" | "api">> & { id: string };
+/**
+ * 自定义模型条目；缺省 maxTokens 8192、reasoning false、input ["text"]，不猜 contextWindow。
+ * `api` 缺省沿用供应商的协议。
+ */
+export type ModelConfig = Partial<Omit<Model, "id" | "provider">> & { id: string };
 
-/** 只改元数据的覆盖项。 */
-export type ModelOverride = Partial<Omit<Model, "id" | "provider" | "api">> & { id: string };
+/** 只改元数据的覆盖项（含模型级 `api`）。 */
+export type ModelOverride = Partial<Omit<Model, "id" | "provider">> & { id: string };
 
 export interface ProviderConfig {
   name?: string;
@@ -113,6 +126,33 @@ export interface SkillsConfig {
   dirs?: string[];
 }
 
+export const CACHE_RETENTIONS: readonly CacheRetention[] = ["none", "short", "long"];
+
+/**
+ * 缓存（第三波 §1.12）。整段只认用户级 / profile，项目级忽略并 warning（同 `permission.allow`）；
+ * 环境变量 `AMA_CACHE_WARMING` / `AMA_CACHE_RETENTION` 覆盖对应项。
+ */
+export interface CacheConfig {
+  /** off | streaming | idle，缺省 streaming。 */
+  warming?: WarmingMode;
+  /** none | short | long，缺省 short。 */
+  retention?: CacheRetention;
+  /** 保温的最低期望节省（美元），缺省 0.05。 */
+  minSavingsUsd?: number;
+  /** 转录 / 消息区的未命中与上下文余量提示，缺省 true（统计面板不受影响）。 */
+  missNotices?: boolean;
+  /** 子会话（task）也保温，缺省 false。 */
+  warmSubagents?: boolean;
+}
+
+export const DEFAULT_CACHE_CONFIG: Readonly<Required<CacheConfig>> = Object.freeze({
+  warming: "streaming",
+  retention: "short",
+  minSavingsUsd: 0.05,
+  missNotices: true,
+  warmSubagents: false,
+});
+
 /** config.json（用户级 / 项目级 / profile.config 同形状；项目级只接受受限字段，§10.2）。 */
 export interface AmaConfig {
   version: typeof CONFIG_FILE_VERSION;
@@ -128,6 +168,7 @@ export interface AmaConfig {
   hooks?: HooksSettings;
   ui?: UiConfig;
   skills?: SkillsConfig;
+  cache?: CacheConfig;
 }
 
 /** auth.json（0600）。 */
