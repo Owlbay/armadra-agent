@@ -175,6 +175,8 @@ export interface PermissionPipelineApi {
   recordAutoDecision?(toolName: string, input: unknown, decision: AutoDecision): void;
   /** 最近的 auto 判定，旧的在前。 */
   autoDecisions?(): readonly AutoAuditEntry[];
+  /** auto：项目根（分类器输入），缺省 = 会话 cwd。 */
+  readonly projectRoot?: string;
 }
 
 export const AUTO_AUDIT_LIMIT = 20;

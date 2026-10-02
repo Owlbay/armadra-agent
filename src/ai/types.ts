@@ -35,7 +35,8 @@ export type CacheRetention = "none" | "short" | "long";
  * 真实回合，`summary` 是压缩 / 分支摘要，`warm` 是缓存保温重放，`probe` 是 `models check` /
  * `cache-probe` 一类的探测。缺省视为 `turn`。协议层只透传，不改变请求体。
  */
-export type RequestPurpose = "turn" | "summary" | "warm" | "probe";
+/** `classify`：auto 权限模式的分类请求（独立请求，不经会话层缓存观测、不触发保温）。 */
+export type RequestPurpose = "turn" | "summary" | "warm" | "probe" | "classify";
 
 /** `provider/model-id` 拆开后的引用。 */
 export interface ModelRef {

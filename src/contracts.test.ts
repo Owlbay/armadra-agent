@@ -28,6 +28,7 @@ import type {
   SessionStats,
 } from "./agent/types.js";
 import type { MessageOrigin } from "./ai/types.js";
+import type { AutoDecision } from "./permissions/types.js";
 import type {
   CacheMiss,
   RequestRecord,
@@ -139,7 +140,7 @@ describe("ai 契约（W3-C0 ①：缓存）", () => {
   it("Usage.cacheReported、StreamOptions.purpose / toolChoice、promptCache.minTokens", () => {
     expectTypeOf<AssistantMessage["usage"]["cacheReported"]>().toEqualTypeOf<boolean | undefined>();
     expectTypeOf<StreamOptions["purpose"]>().toEqualTypeOf<
-      "turn" | "summary" | "warm" | "probe" | undefined
+      "turn" | "summary" | "warm" | "probe" | "classify" | undefined
     >();
     expectTypeOf<StreamOptions["toolChoice"]>().toEqualTypeOf<"none" | undefined>();
     expectTypeOf<NonNullable<Model["promptCache"]>>().toEqualTypeOf<{
@@ -458,7 +459,7 @@ describe("会话契约（W3-C0 ③：usage 条目与 leaf 行）", () => {
 describe("循环、SDK、RPC、Runtime 契约", () => {
   it("LoopHooks / AgentSession / SessionEvent", () => {
     expectTypeOf<LoopHooks["beforeToolCall"]>().returns.toEqualTypeOf<
-      Promise<{ block?: boolean; reason?: string; input?: unknown }>
+      Promise<{ block?: boolean; reason?: string; input?: unknown; autoDecision?: AutoDecision }>
     >();
     expectTypeOf<ReturnType<AgentSession["prompt"]>>().toEqualTypeOf<
       Promise<"started" | "queued" | "handled">

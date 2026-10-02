@@ -16,7 +16,9 @@ import { join } from "node:path";
 import type { Model, ModelThinkingLevel, UserMessage } from "../ai/types.js";
 import { AmaError } from "../errors.js";
 import type { HookEvent, HookEventPayload, HookOutcome } from "../hooks/types.js";
+import type { PermissionClassifier } from "../permissions/classifier.js";
 import type { PermissionMode } from "../permissions/types.js";
+import { createSessionClassifier } from "./session-classifier.js";
 import type { SessionManager } from "../session/manager.js";
 import { buildProjection } from "../session/projection.js";
 import type {
@@ -88,6 +90,7 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
   private systemInput: Omit<SystemPromptInput, "tools" | "cwd">;
   private readonly subagentPool: SubagentPool;
   private disposed = false;
+  private classifier: PermissionClassifier | undefined;
   /** 已入队、尚未投递的消息（投递时发 queue_update）。 */
   private readonly queuedMessages = new WeakSet<object>();
 
@@ -576,6 +579,11 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
       activeTools: this.activeNames,
       system: this.systemInput,
     };
+  }
+
+  autoClassifier(): PermissionClassifier {
+    this.classifier ??= createSessionClassifier(this);
+    return this.classifier;
   }
 
   spawnSubagent(request: SubagentRequest): Promise<SubagentResult> {

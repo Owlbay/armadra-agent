@@ -13,6 +13,7 @@ import type {
   HookEventPayload,
   HookOutcome,
 } from "../hooks/types.js";
+import type { PermissionClassifier } from "../permissions/classifier.js";
 import type { ApprovalBroker, PermissionPipelineApi } from "../permissions/types.js";
 import type { SessionManager } from "../session/manager.js";
 import type { SessionEntry, SessionEntryInput } from "../session/types.js";
@@ -47,6 +48,11 @@ export interface AgentSessionOptions {
   brokers?: readonly ApprovalBroker[];
   /** 无人值守：权限管线把 ask 变 deny。 */
   unattended?: boolean;
+  /**
+   * auto 权限模式的模型分类器（§7.4）：`model` 为 `provider/model`（config `permission.autoModel`），
+   * 缺省用当前会话模型；`timeoutMs` 缺省 10 000。
+   */
+  permissionClassifier?: { model?: string; timeoutMs?: number };
   /** 审批超时，缺省 10 分钟（超时 deny）。 */
   approvalTimeoutMs?: number;
   /** 命令式 Hook（B5）；缺省无 Hook。 */
@@ -112,5 +118,7 @@ export interface SessionCore {
   /** Hook 返回 continue:false 时记下，finishTurn 据此结束 run。 */
   requestStop(reason: string | undefined): void;
   spawnSubagent(request: SubagentRequest): Promise<SubagentResult>;
+  /** auto 权限模式的分类器（懒建，会话内缓存判定）。 */
+  autoClassifier(): PermissionClassifier;
   log(level: "debug" | "info" | "warn" | "error", message: string): void;
 }

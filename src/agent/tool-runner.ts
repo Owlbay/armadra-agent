@@ -26,6 +26,7 @@ import type {
 } from "../ai/types.js";
 import { formatSchemaErrors, validateSchema } from "./schema.js";
 import type { NestedCallInfo, SessionEvent, ToolCallGate, ToolCallGateContext } from "./types.js";
+import type { AutoDecision } from "../permissions/types.js";
 import { CODEMODE_TOOL } from "../tools/presets.js";
 import { executionModeOf } from "../tools/registry.js";
 import type { ToolContext, ToolDefinition, ToolResult } from "../tools/types.js";
@@ -70,6 +71,9 @@ export interface ToolBatchResult {
   messages: ToolResultMessage[];
   terminate: boolean;
 }
+
+/** 门禁给出的 auto 判定，随 tool_execution_end 发出（按调用对象记，调用结束后随之回收）。 */
+const autoDecisions = new WeakMap<ToolCallBlock, AutoDecision>();
 
 interface Prepared {
   kind: "prepared";
@@ -147,6 +151,7 @@ async function prepare(
     const gateContext: ToolCallGateContext =
       parent === undefined ? { signal, assistant, tool } : { signal, assistant, tool, parent };
     const gate = await options.beforeToolCall(call, gateContext);
+    if (gate.autoDecision !== undefined) autoDecisions.set(call, gate.autoDecision);
     if (signal.aborted) return { kind: "immediate", call, result: errorResult(ABORTED_TOOL_TEXT) };
     if (gate.block === true) {
       return {
@@ -273,13 +278,16 @@ async function execute(
 }
 
 async function emitEnd(call: ToolCallBlock, result: ToolResult, emit: LoopEmit): Promise<void> {
-  await emit({
+  const event: Extract<SessionEvent, { type: "tool_execution_end" }> = {
     type: "tool_execution_end",
     toolCallId: call.id,
     toolName: call.name,
     result,
     isError: result.isError === true,
-  });
+  };
+  const auto = autoDecisions.get(call);
+  if (auto !== undefined) event.autoDecision = auto;
+  await emit(event);
 }
 
 async function emitResultMessages(

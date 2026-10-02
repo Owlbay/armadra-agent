@@ -46,6 +46,7 @@ import type {
   ActionPreview,
   ApprovalDecision,
   ApprovalReason,
+  AutoDecision,
   PermissionMode,
 } from "../permissions/types.js";
 import type { AgentMessage, SessionEntry } from "../session/types.js";
@@ -112,6 +113,8 @@ export interface ToolCallGate {
   reason?: string;
   /** Hook 的 updatedInput 替换后的输入。 */
   input?: unknown;
+  /** auto 权限模式的判定（随 tool_execution_end 发出）。 */
+  autoDecision?: AutoDecision;
 }
 
 export interface LoopHooks {
@@ -233,6 +236,8 @@ export type SessionEvent =
       result: ToolResult;
       isError: boolean;
       parentToolCallId?: string;
+      /** auto 权限模式下这次调用的判定（层、结论、原因）；其它模式缺省。 */
+      autoDecision?: AutoDecision;
     }
   | { type: "queue_update"; steering: string[]; followUp: string[] }
   | { type: "compaction_start"; trigger: CompactionTrigger }
@@ -262,6 +267,8 @@ export type SessionEvent =
       timeoutMs: number;
       /** [W3-C0] 执行前预览（同 `ApprovalRequest.preview`）。 */
       preview?: ActionPreview;
+      /** auto 权限模式下为什么询问（同 `ApprovalRequest.autoDecision`）。 */
+      autoDecision?: AutoDecision;
     }
   | { type: "permission_resolved"; requestId: string; decision: ApprovalDecision }
   | { type: "permission_mode_changed"; mode: PermissionMode }
