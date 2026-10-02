@@ -24,6 +24,7 @@ import { AMA_VERSION } from "../../version.js";
 import { toJsonLine, toWireEvent } from "../print/json-event.js";
 import { errorText, onTerminationSignals } from "../shared.js";
 import { sessionAgents, taskRegistryView } from "../../agent/subagent-registry.js";
+import { cachedAgentInfos } from "../../agents/external.js";
 import { RpcApprovals, handlers, type RpcContext } from "./commands.js";
 import { createLineReader, writeChunked } from "./jsonl.js";
 
@@ -69,7 +70,9 @@ export async function runRpcMode(
     },
     // [W5-G] get_tasks / get_agents：当前会话的任务注册表与可用类型
     tasks: () => taskRegistryView(session.state.sessionId),
-    agents: () => sessionAgents(session.state.sessionId),
+    // [W5-EG] 外部 Agent 的安装 / 版本要异步探测：会话建立时缓存、变化时刷新，未就绪时只列类型目录
+    agents: () =>
+      cachedAgentInfos(session.state.sessionId) ?? sessionAgents(session.state.sessionId),
   };
   runtime.notifier.set((message, level) => {
     void write({ type: "notification", level, message });

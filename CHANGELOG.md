@@ -35,6 +35,12 @@
   `images.resize`（缺省 `auto`）用 `sips` / ImageMagick 缩放。请求图片总量超预算（Anthropic 32 MB、其它 20 MB）时把
   最旧的图换成占位文本，写成 `context_edit{reason:"image_budget"}`。新增剪贴板图片读取（`pasteClipboardImage`，
   界面接线在后续批次），`ama sessions prune` 清理超过 7 天的剪贴板文件。
+- **外部 Agent 接入 task**（第五波 W5-EG，docs/agents.md「在 task 里使用」）：`task(agent="claude" | "codex" | "acp:<程序>")`
+  经各 CLI 自己的登录运行，前台 / 后台通知 / `taskId` 续聊（被停止过的以外部会话 id `resume` 重开）/ `task_ctl` 与 ama 子会话
+  一致；PATH 上的 claude / codex 写进 task 描述。每个会话首次以某个外部 Agent 运行时确认一次（allow 规则 `task(<id>)` 或
+  full-auto 放行，allowlist 与 `-p` 无规则时拒绝）；外部 Agent 的权限请求只交给人，RPC `permission_request` 新增可选
+  `context`（`depth`、`taskId`、`origin`）。嵌入宿主时不自启外部 CLI，`HostApi.runners.provide` 注入的 runner 以同一入口出现。
+  `get_agents` 带外部 Agent 的安装与版本（异步探测缓存）。SDK 直接 `bootstrap(--mode acp)` 不再报「尚未实现」。
 - **子 Agent**（第五波 W5-G，docs/agents.md「子 Agent」）：定义文件 `.ama/agents/*.md`（项目级需信任）与
   `~/.config/ama/agents/*.md`，`--agent-dir` / profile `agentDirs` / config `agents.dirs` 追加目录；内置 `general`、
   `explore`、`plan`（后两者以 plan 模式强制只读，不弹审批）。`task` 新增 `agent`、`background`、`taskId`（续聊）、
