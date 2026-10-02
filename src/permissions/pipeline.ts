@@ -156,6 +156,7 @@ interface SessionGrant {
 }
 
 export function sessionGrantFor(toolName: string, input: unknown, cwd: string): SessionGrant {
+  if (toolName === "memory") return { toolName, kind: "any", prefix: "" }; // [W6-M] 本会话允许全部写命令
   const command = inputCommand(input);
   if (command !== undefined) {
     const words = normalizeCommand(command).split(" ").slice(0, 2);

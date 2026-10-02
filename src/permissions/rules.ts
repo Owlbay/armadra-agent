@@ -20,6 +20,7 @@ import type { PermissionMode, Rule, RuleSource } from "./types.js";
 import { PERMISSION_MODES_STRICT_FIRST } from "./types.js";
 import { globBody } from "../tools/glob.js";
 import { expandHome, resolvePath, toPosix } from "../tools/paths.js";
+import { memoryRuleMatches } from "./memory-class.js";
 
 /** 内置缺省 deny 表（用户可经 `builtinDeny` 选项移除）。 */
 export const BUILTIN_DENY_RULES: readonly string[] = [
@@ -154,6 +155,7 @@ function matchesSubject(
 ): boolean {
   if (!toolNameMatches(rule.tool, toolName)) return false;
   if (rule.pattern === undefined) return true;
+  if (toolName === "memory") return memoryRuleMatches(rule.pattern, input); // [W6-M] 逻辑路径 / 命令名
   if (command !== undefined) return wildcardToRegExp(rule.pattern).test(command);
   const abs = inputPath(toolName, input, cwd);
   return abs !== undefined && pathMatches(rule.pattern, abs, cwd);
@@ -166,7 +168,7 @@ export function findDenyRule(
   input: unknown,
   cwd: string,
 ): Rule | undefined {
-  const command = inputCommand(input);
+  const command = toolName === "memory" ? undefined : inputCommand(input);
   for (const rule of rules) {
     if (rule.effect !== "deny") continue;
     if (command === undefined || rule.pattern === undefined) {
@@ -187,7 +189,7 @@ export function findAllowRule(
   cwd: string,
 ): Rule | undefined {
   const allows = rules.filter((r) => r.effect === "allow");
-  const command = inputCommand(input);
+  const command = toolName === "memory" ? undefined : inputCommand(input);
   if (command === undefined) return allows.find((r) => matchesSubject(r, toolName, input, cwd));
   const unconditional = allows.find(
     (r) => r.pattern === undefined && toolNameMatches(r.tool, toolName),

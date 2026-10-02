@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { memoryCommand, memoryEffectivePermission } from "./memory-class.js";
+import { memoryCommand, memoryEffectivePermission, memoryRuleMatches } from "./memory-class.js";
 import { PermissionPipeline } from "./pipeline.js";
 import { parseRule } from "./rules.js";
 import type { PermissionMode } from "./types.js";
@@ -59,5 +59,55 @@ describe("memory 权限类", () => {
     expect(p.check(req).decision).toBe("ask");
     p.rememberForSession("memory", input);
     expect(p.check(req).decision).toBe("allow");
+  });
+
+  it("[W6-M] memory(pattern)：命令名、逻辑路径 glob、* 全部；不按 bash 命令或真实路径匹配", () => {
+    const input = { command: "create", path: "/memories/user/a.md" };
+    expect(memoryRuleMatches("*", input)).toBe(true);
+    expect(memoryRuleMatches("**", input)).toBe(true);
+    expect(memoryRuleMatches("create", input)).toBe(true);
+    expect(memoryRuleMatches("delete", input)).toBe(false);
+    expect(memoryRuleMatches("/memories/user/**", input)).toBe(true);
+    expect(memoryRuleMatches("/memories/user/*.md", input)).toBe(true);
+    expect(memoryRuleMatches("/memories/project/**", input)).toBe(false);
+    expect(memoryRuleMatches("/memories/*", input)).toBe(false);
+    expect(memoryRuleMatches("/memories/user/**", { command: "view" })).toBe(false);
+    expect(check("default", "create", ["memory(*)"])).toBe("allow");
+    expect(check("default", "create", ["memory(create)"])).toBe("allow");
+    expect(check("default", "delete", ["memory(create)"])).toBe("ask");
+    expect(check("default", "create", ["memory(/memories/user/**)"])).toBe("allow");
+    expect(check("default", "create", ["memory(/memories/project/**)"])).toBe("ask");
+    expect(check("allowlist", "str_replace", ["memory(*)"])).toBe("allow");
+  });
+
+  it("[W6-M] deny 规则按逻辑路径命中，压过 full-auto", () => {
+    const p = new PermissionPipeline({
+      mode: "full-auto",
+      cwd,
+      rules: [parseRule("memory(/memories/user/**)", "deny", "user")],
+    });
+    const at = (path: string) =>
+      p.check({
+        toolName: "memory",
+        permission: "memory",
+        input: { command: "create", path },
+        unattended: false,
+      }).decision;
+    expect(at("/memories/user/a.md")).toBe("deny");
+    expect(at("/memories/project/a.md")).toBe("allow");
+  });
+
+  it("[W6-M] 本会话允许一次，覆盖全部写命令（不限 create）", () => {
+    const p = new PermissionPipeline({ mode: "default", cwd, rules: [] });
+    p.rememberForSession("memory", { command: "create", path: "/memories/user/a.md" });
+    for (const command of ["str_replace", "delete", "create"])
+      expect(
+        p.check({
+          toolName: "memory",
+          permission: "memory",
+          input: { command, path: "/memories/project/b.md" },
+          unattended: false,
+        }).decision,
+      ).toBe("allow");
   });
 });
