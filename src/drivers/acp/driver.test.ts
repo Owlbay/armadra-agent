@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildSync } from "esbuild";
 import { afterEach, describe, expect, it } from "vitest";
+import type { ProgramProbe } from "../probe.js";
 import { spawnTransport } from "../process.js";
 import { golden, memoryTransport, spawnRecorder, wireText } from "../test-support.js";
 import type {
@@ -243,5 +244,27 @@ describe("AcpDriver × 真实子进程（假 Agent 打包成单文件）", () =>
     expect(result.finalText).toBe("echo: real");
     await session.close();
     await expect(exited).resolves.toBe(0);
+  });
+});
+
+describe("[W5-Z] 启动路径", () => {
+  it("用探测到的完整路径启动（Windows 的 .cmd 垫片要靠扩展名改走 cmd.exe）", async () => {
+    const rec = spawnRecorder(() =>
+      memoryTransport((input, output) => runFakeAcpAgent(input, output)),
+    );
+    const located = { path: "C:\\npm\\fake-acp.cmd", version: "1.0.0" };
+    const probe = { locate: async () => located, capture: async () => undefined };
+    const driver = new AcpDriver("acp:fake-acp", candidate, {
+      spawn: rec.spawn,
+      probe: probe as unknown as ProgramProbe,
+    });
+    sessions.push(await open(driver));
+    expect(rec.specs[0]?.program).toBe(located.path);
+  });
+
+  it("没有探测器时退回程序名", async () => {
+    const { driver, rec } = fakeDriver();
+    sessions.push(await open(driver));
+    expect(rec.specs[0]?.program).toBe("fake-acp");
   });
 });

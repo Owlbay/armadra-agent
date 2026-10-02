@@ -75,6 +75,7 @@
   `taskId`、`origin`）；`get_agents` 带外部 Agent 的安装与版本。
 - **`ama --mode acp`**：ama 作为 ACP Agent（会话新开 / 回放 / 续接 / 列表 / 关闭、事件映射、`session/request_permission`、
   `session/cancel`、`session/set_mode`）。`@armadra/agent/acp` 导出 ACP 类型、JSON-RPC 对等端、`AcpClient`、`AcpDriver` 与假 ACP Agent。
+- ACP Agent 用探测到的完整路径启动：Windows 上 npm 装的 ACP Agent（`.cmd` 垫片）不再报 `spawn … ENOENT`（bundle 级 e2e 发现）。
 - 界面：审批框标注来源（`[task:<类型>]`、`[claude · 会话 abc12345]`、「首次运行外部 Agent」）；外部 Agent 的提示显示在消息区；
   `/agents` 列出安装状态与版本，`/session` 增「外部 Agent」段。
 
