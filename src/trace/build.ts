@@ -16,6 +16,10 @@
  * retry / overflow 目标）→ 顺序扫描建节点 → 叠加 `live` → 汇总。推算规则：`requestAt = assistant.timestamp`、
  * `doneAt = 条目时间`、工具 `startedAt = assistant 条目时间`、`endedAt = toolResult.timestamp`；ttft 分位与
  * 平均吞吐只用精确（非 approx）的 step。
+ *
+ * 汇总口径：`requests` 与 token / 费用和 `usageTotals`（session/export.ts）一致（assistant + 压缩 / 分支摘要 +
+ * `usage` 条目；进行中的请求不计）；`durationMs` = 各回合耗时之和（不含回合之间的空闲）；回合的 `endedAt`
+ * 不被后台子 Agent 拉长；文件里 `status: "running"` 的任务在没有 `live` 时视为 `interrupted`。
  */
 
 import type { SessionEntry, SessionHeader } from "../session/types.js";
