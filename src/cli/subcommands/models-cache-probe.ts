@@ -7,14 +7,14 @@
  * （字段缺失或恒 0）；其余（读到一点、只有写入）→ `inconclusive`（粒度或 TTL 问题）。
  *
  * 计费动作：执行前打印预估（两次 × `--tokens` × 目录输入价，无价 `$?`）；非 TTY 必须 `--yes`
- * （否则退出 2），TTY 下问一次 y/N。`--json` 时预估写 stderr，stdout 只有一个结果对象。
+ * （否则退出 2），TTY 下方向键选一次「继续 / 取消」（choice-prompt.ts）。`--json` 时预估写 stderr，stdout 只有一个结果对象。
  * 协议层不保留原始响应，「usage 字段」列的是该协议解析时读取的字段名。
  */
 
-import { createInterface } from "node:readline/promises";
 import { priceTokens } from "../../ai/cost.js";
 import type { Api, Message, Model, Usage } from "../../ai/types.js";
 import { UsageError } from "../args.js";
+import { confirmContinue } from "../choice-prompt.js";
 import { ExitCode } from "../exit-codes.js";
 import type { ModelsAction, ModelsActionContext } from "./models.js";
 
@@ -102,15 +102,6 @@ function intOption(ctx: ModelsActionContext, name: string, fallback: number, min
   return value;
 }
 
-async function confirm(): Promise<boolean> {
-  const rl = createInterface({ input: process.stdin, output: process.stderr });
-  try {
-    return /^y(es)?$/i.test((await rl.question("继续？[y/N] ")).trim());
-  } finally {
-    rl.close();
-  }
-}
-
 function sampleLine(index: number, s: ProbeSample): string {
   const field = s.cacheReported === undefined ? "?" : s.cacheReported ? "有" : "无";
   return `#${index}  input ${s.input} · cacheRead ${s.cacheRead} · cacheWrite ${s.cacheWrite} · 缓存字段 ${field}`;
@@ -147,7 +138,7 @@ async function run(ctx: ModelsActionContext): Promise<number> {
       io.stderr("ama: cache-probe 会发两次计费请求，非交互环境需加 --yes\n");
       return ExitCode.Usage;
     }
-    if (!(await confirm())) {
+    if (!(await confirmContinue({ env: io.env }))) {
       io.stderr("ama: 已取消\n");
       return ExitCode.Ok;
     }
