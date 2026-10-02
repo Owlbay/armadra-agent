@@ -16,7 +16,8 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { parseFrontmatter } from "./frontmatter.js";
 
-export type SkillScope = "cli" | "profile" | "config" | "user" | "project" | "ancestor";
+/** `builtin`：随 ama 分发的内置 Skill（builtin.ts），排在最后，同名让位。 */
+export type SkillScope = "cli" | "profile" | "config" | "user" | "project" | "ancestor" | "builtin";
 
 export interface SkillSource {
   dir: string;

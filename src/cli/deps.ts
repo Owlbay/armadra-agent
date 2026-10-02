@@ -61,6 +61,8 @@ export interface ResourceDiscoveryInput {
   /** 按 §5.3 顺序：`--skill-dir` → profile.skillDirs → config.skills.dirs。 */
   extraSkillDirs: readonly string[];
   promptDirs: readonly string[];
+  /** 数据目录：内置 Skill 的正文写在 `<dataDir>/builtin-skills/`；缺省不加内置 Skill。 */
+  dataDir?: string;
 }
 
 export interface ResourceDiscoveryResult {

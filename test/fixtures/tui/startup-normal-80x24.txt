@@ -5,7 +5,7 @@
 |│ 模型   fake/echo · 思考 medium                               │
 |│ 目录   ~/work · 已信任（命令行）                             │
 |│ 模式   Manual · 预设 default                                 │
-|│ 已加载 AGENTS.md                                             │
+|│ 已加载 AGENTS.md · 1 Skill                                   │
 |│                                                              │
 |│ /help 命令 · Shift+Tab 切模式 · Ctrl+O 展开工具输出          │
 |╰──────────────────────────────────────────────────────────────╯
