@@ -144,8 +144,12 @@ describe("压缩摘要走会话前缀续写（§1.8）", () => {
       await h.session.prompt("z".repeat(800));
       const result = await h.session.compact();
       expect(result.summary).toContain("fallback");
-      const [cont, independent] = h.scripted.calls.slice(-2);
-      expect(isContinuation(cont!.context)).toBe(true);
+      // split turn 的两份摘要并行发出（C9）：续写在前、回落的独立请求在后，但不一定相邻
+      const calls = h.scripted.calls;
+      const independent = calls.at(-1);
+      const cont = calls.findLast((c) => isContinuation(c.context));
+      expect(cont).toBeDefined();
+      expect(calls.indexOf(cont!)).toBeLessThan(calls.length - 1);
       const first = independent!.context.messages[0];
       expect(first?.role === "system" && first.sections["preamble"]).toBe(
         SUMMARIZATION_SYSTEM_PROMPT,

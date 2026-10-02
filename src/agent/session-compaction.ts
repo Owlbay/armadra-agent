@@ -5,6 +5,7 @@
  *   结果新旧计边界，可省 ≥ clearAtLeast 才动，一次清到 0.5 ×）；仍 > 窗口 − 预留且熔断允许 → 档二摘要
  *   （trigger `threshold`）。缓存已冷（上次请求距今超过 TTL，只认 reported 端点）时未到 0.7 也裁，
  *   且一次换掉全部候选。
+ * - 自检（[W5-H1] C8）：摘要缺 `## Goal` 重试一次再回落；自动压缩后估算不比压缩前小判失败，不写条目。
  * - 熔断（[W5-H1] C5）：连续 3 次失败或连续 3 次快速回填跳闸；固定前缀超预算不再尝试；都只告警一次。
  * - 溢出恢复（会话 run 结束后，失败尝试已用 context_edit 剔除）：PreCompact Hook → 档二摘要（trigger
  *   `overflow`，受跳闸限制）→ 压缩后估算 ≤ 0.8 × 窗口才重试。
@@ -32,7 +33,7 @@ import {
 } from "../compaction/summarize-tier.js";
 import { prepareBranchSummary, runBranchSummary } from "../compaction/branch-summary.js";
 import { buildProjection } from "../session/projection.js";
-import type { BranchSummaryEntry } from "../session/types.js";
+import type { BranchSummaryEntry, CompactionEntry } from "../session/types.js";
 import type { SessionCore } from "./session-core.js";
 import type { CompactionResult, CompactionSettings, CompactionTrigger } from "./types.js";
 
@@ -122,6 +123,7 @@ export class CompactionController {
           "warn",
           `summary by prefix continuation failed (${reason}); used a separate request`,
         ),
+      onInvalid: (reason) => core.log("warn", `${reason}; kept it after one retry`),
     };
     if (continuation) options.continuation = core.cache?.summaryContinuation();
     return options;
@@ -176,6 +178,19 @@ export class CompactionController {
     this.breaker.setPrefixOverflow(this.fixedPrefixTokens() > budget);
     if (!this.breaker.canSummarize()) return this.warnBlocked();
     await this.summarize("threshold", signal);
+  }
+
+  /** 假设追加了这条 compaction 之后的估算（按投影全量重估）。 */
+  private projectedTokens(input: Omit<CompactionEntry, "id" | "parentId" | "timestamp">): number {
+    const branch = this.core.manager.branch();
+    const pending: CompactionEntry = {
+      ...input,
+      id: "\u0000pending-compaction",
+      parentId: branch.at(-1)?.id ?? null,
+      timestamp: new Date().toISOString(),
+    };
+    const next = [...branch, pending];
+    return estimateProjectedTokens(buildProjection(next).items, next).tokens;
   }
 
   /** 固定前缀（system 节 + 工具表）的估算：摘要压不掉这部分。 */
@@ -341,6 +356,13 @@ export class CompactionController {
         details: draft.details,
       };
       if (draft.usage !== undefined) entry.usage = draft.usage;
+      // 自检（C8）：自动压缩后不比压缩前小 = 失败（不写条目，计入熔断）；手动 /compact 照用户意思写
+      const projected = trigger === "manual" ? 0 : this.projectedTokens(entry);
+      if (projected >= tokensBefore)
+        throw new AmaError(
+          "compaction_failed",
+          `compaction did not shrink the context (${tokensBefore} → ${projected} tokens)`,
+        );
       core.appendEntry(entry);
       core.reloadMessages();
       this.breaker.recordSummary(true);

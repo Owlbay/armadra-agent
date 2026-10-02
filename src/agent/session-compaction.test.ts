@@ -186,3 +186,26 @@ describe("熔断在会话里（C5）", () => {
     expect(logs.filter((m) => m.includes("system prompt"))).toHaveLength(1);
   });
 });
+
+describe("自检在会话里（C8）", () => {
+  it("自动压缩后不比压缩前小：判失败、不写 compaction 条目", async () => {
+    let made = 0;
+    const h = createHarness({
+      model,
+      tools: [readTool],
+      compaction: { reserveTokens: 10_000, pruneExclude: ["read"] } as never,
+      script: (call) => {
+        if (isSummaryRequest(call.context)) return { text: `## Goal\n${"z".repeat(400_000)}` };
+        if (made >= 52) return { text: "done" };
+        made++;
+        return { toolCalls: [{ name: "read", args: { path: `f${made}.ts` } }] };
+      },
+    });
+    await h.session.prompt("读很多文件");
+    const ends = h.events.filter((e) => e.type === "compaction_end");
+    expect(ends.length).toBeGreaterThan(0);
+    expect(ends[0]).toMatchObject({ trigger: "threshold" });
+    expect(ends[0]?.type === "compaction_end" && ends[0].error).toMatch(/did not shrink/);
+    expect(h.manager.branch().some((e) => e.type === "compaction")).toBe(false);
+  });
+});
