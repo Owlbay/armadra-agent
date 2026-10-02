@@ -27,6 +27,7 @@ import {
 import { hostRunnersOf } from "../host/api-impl.js";
 import { bindTaskAgents } from "../tools/task.js";
 import type { ComposeExtensionDeps } from "./compose-extensions.js";
+import { msg } from "../i18n/index.js";
 
 /** 同一装配材料只提示一次（`/new` 等会重新装配会话）。 */
 const warned = new WeakSet<object>();
@@ -46,7 +47,7 @@ export function loadAgentCatalog(deps: ComposeExtensionDeps): AgentCatalog {
     warned.add(assembly);
     for (const warning of found.warnings) assembly.warn(warning);
     for (const dir of found.skippedUntrusted)
-      assembly.warn(`项目未信任，跳过子 Agent 定义目录 ${dir}（--trust 后生效）`);
+      assembly.warn(msg().cli.composeAgents.untrustedAgentDir(dir));
   }
   return new AgentCatalog(found.agents);
 }

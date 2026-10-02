@@ -16,6 +16,7 @@ import { basename } from "node:path";
 import { formatModelRef } from "../ai/providers/channels.js";
 import type { PermissionMode } from "../permissions/types.js";
 import { effectiveCodemodeMode } from "../tools/presets.js";
+import { msg } from "../i18n/index.js";
 import { AMA_VERSION } from "../version.js";
 import type { Runtime } from "./runtime.js";
 
@@ -26,22 +27,15 @@ export function startupScreenLevel(runtime: Pick<Runtime, "config">): StartupScr
 }
 
 export function headerLine(): string {
-  return `ama ${AMA_VERSION} · Enter 发送 · Esc 中断 · Ctrl+C 两次退出 · /help 命令`;
+  return msg().cli.startupScreen.header(AMA_VERSION);
 }
 
 function trustText(runtime: Pick<Runtime, "trust">): string {
   const { trusted, source, matchedPath } = runtime.trust;
+  const label = trustSourceLabel(source);
   const from =
-    source === "flag"
-      ? "命令行"
-      : source === "trust-file"
-        ? `trust.json${matchedPath === undefined ? "" : ` ${matchedPath}`}`
-        : source === "prompt"
-          ? "本次确认"
-          : source === "profile"
-            ? "profile"
-            : "缺省";
-  return `${trusted ? "已信任" : "未信任"}（${from}）`;
+    source === "trust-file" && matchedPath !== undefined ? `${label} ${matchedPath}` : label;
+  return msg().cli.startupScreen.trust(trusted, from);
 }
 
 export type StartupScreenRuntime = Pick<
@@ -65,23 +59,23 @@ export function buildStartupScreen(
   const lines = [headerLine()];
   if (level === "header") return lines;
   const { resources } = runtime;
-  lines.push(`模型：${runtime.model.provider}/${runtime.model.id} · 思考 ${runtime.thinkingLevel}`);
-  lines.push(`目录：${runtime.paths.cwd} · ${trustText(runtime)}`);
+  const m = msg().cli.startupScreen;
+  lines.push(m.model(`${runtime.model.provider}/${runtime.model.id}`, runtime.thinkingLevel));
+  lines.push(m.cwd(runtime.paths.cwd, trustText(runtime)));
   if (resources.contextFiles.length > 0) {
-    lines.push(`上下文：${resources.contextFiles.map((f) => f.path).join(", ")}`);
+    lines.push(m.context(resources.contextFiles.map((f) => f.path)));
   }
   const skills = resources.skills.filter((s) => !isBuiltinSkill(s));
   if (skills.length > 0) {
-    lines.push(`Skill：${skills.map((s) => s.name).join(", ")}`);
+    lines.push(m.skills(skills.map((s) => s.name)));
   }
   if (resources.prompts.length > 0) {
-    lines.push(`提示模板：${resources.prompts.map((p) => `/${p.name}`).join(" ")}`);
+    lines.push(m.prompts(resources.prompts.map((p) => `/${p.name}`)));
   }
   const hooks = runtime.hooks.list();
-  if (hooks.length > 0) lines.push(`Hook：${hooks.length} 条`);
-  if (runtime.host !== undefined) lines.push(`宿主：${runtime.host.adapter.id}`);
-  if (runtime.warnings.length > 0)
-    lines.push(`警告：${runtime.warnings.length} 条（ama doctor 查看）`);
+  if (hooks.length > 0) lines.push(m.hooks(hooks.length));
+  if (runtime.host !== undefined) lines.push(m.host(runtime.host.adapter.id));
+  if (runtime.warnings.length > 0) lines.push(m.warnings(runtime.warnings.length));
   return lines;
 }
 
@@ -108,13 +102,11 @@ export interface StartupInfo {
   warnings: number;
 }
 
-const TRUST_SOURCE: Record<Runtime["trust"]["source"], string> = {
-  flag: "命令行",
-  "trust-file": "trust.json",
-  prompt: "本次确认",
-  profile: "profile",
-  default: "缺省",
-};
+/** 信任来源的短名（按界面语言）。 */
+function trustSourceLabel(source: Runtime["trust"]["source"]): string {
+  const labels = msg().cli.startupScreen.trustSource;
+  return source === "trust-file" ? labels.trustFile : labels[source];
+}
 
 /** 家目录前缀缩写为 `~`（`/` 与 `\` 两种分隔都认，余下部分原样保留）。 */
 export function tildePath(path: string, home: string | undefined): string {
@@ -138,7 +130,7 @@ export function startupInfo(
     thinking: runtime.thinkingLevel,
     cwd: tildePath(runtime.paths.cwd, home),
     trusted: runtime.trust.trusted,
-    trustSource: TRUST_SOURCE[runtime.trust.source],
+    trustSource: trustSourceLabel(runtime.trust.source),
     permissionMode: runtime.session.state.permissionMode,
     preset: runtime.config.tools?.preset ?? "default",
     codemode: effectiveCodemodeMode(runtime.config),

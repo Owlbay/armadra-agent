@@ -61,6 +61,7 @@ import { defaultSendUser } from "./startup-steps.js";
 import type { StartupUiOptions } from "../modes/interactive/startup-ui.js";
 import { imageFitOptionsFor } from "../modes/image-input.js";
 import type { TextUiIo } from "../modes/startup-ui-text.js";
+import { msg } from "../i18n/index.js";
 
 export interface ToolFactoryContext {
   config: AmaConfig;
@@ -180,7 +181,7 @@ export function createTools(
       const tool = factory(ctx);
       if (tool !== undefined) produced.push(tool);
     } catch (error) {
-      state.warnings.push(`工具工厂失败：${(error as Error).message}`);
+      state.warnings.push(msg().cli.compose.toolFactoryFailed((error as Error).message));
     }
   }
   // [W6-M] 记忆开启时注册 memory 工具并放进活动集（关闭时什么都不加，工具表字节不变）
@@ -197,7 +198,9 @@ export function createTools(
     try {
       registry.register(tool, "builtin");
     } catch (error) {
-      state.warnings.push(`工具 ${tool.name} 注册失败：${(error as Error).message}`);
+      state.warnings.push(
+        msg().cli.compose.toolRegisterFailed(tool.name, (error as Error).message),
+      );
     }
   }
   for (const tool of extra) registry.register(tool, "sdk");
@@ -236,7 +239,7 @@ export function buildRules(
     try {
       rules.push(parseRule(spec.raw, spec.effect, spec.source));
     } catch (error) {
-      warn(`权限规则（${spec.source}）：${(error as Error).message}，已忽略`);
+      warn(msg().cli.compose.permissionRuleIgnored(spec.source, (error as Error).message));
     }
   }
   return rules;
@@ -339,7 +342,7 @@ export function createRuntimeDeps(
         const skipped = [...new Set([...skills.skippedUntrusted, ...prompts.skippedUntrusted])];
         const warnings = [...skills.warnings, ...prompts.warnings];
         if (skipped.length > 0)
-          warnings.push(`${skipped.length} 个项目级目录因未信任被跳过（--trust 加载）`);
+          warnings.push(msg().cli.compose.untrustedDirsSkipped(skipped.length));
         return {
           skills: skills.skills.map((s) => ({
             name: s.name,

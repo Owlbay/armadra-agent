@@ -14,6 +14,7 @@
 
 import { compactTokens, metadataOf } from "./subcommands/model-meta.js";
 import type { Model, ProviderData, ProviderRegistryApi } from "../ai/types.js";
+import { msg } from "../i18n/index.js";
 
 /** 缺省模型的最小上下文（token）。 */
 export const MIN_DEFAULT_CONTEXT = 64_000;
@@ -32,9 +33,6 @@ export interface PricePick {
   /** 为什么选它（一句话）。 */
   reason: string;
 }
-
-/** 规则说明（帮助与输出共用）。 */
-export const PRICE_RULE = "支持工具调用、上下文 ≥ 64k 且有价格的模型里输入价最低";
 
 /** 按价格挑缺省模型；没有满足条件的返回 undefined（规则见文件头）。 */
 export function pickByPrice(candidates: readonly PriceCandidate[]): PricePick | undefined {
@@ -56,7 +54,10 @@ export function pickByPrice(candidates: readonly PriceCandidate[]): PricePick | 
   const { c } = best;
   return {
     id: c.id,
-    reason: `${PRICE_RULE}（$${c.inputCost}/M 输入，上下文 ${compactTokens(c.contextWindow)}）`,
+    reason: msg().cli.defaultModel.priceReason(
+      c.inputCost as number,
+      compactTokens(c.contextWindow),
+    ),
   };
 }
 
@@ -78,7 +79,7 @@ export function pickProviderModel(
   const usable = provider.models.filter((m) => registry.getApi(m.api) !== undefined);
   const first = usable[0];
   if (first === undefined) return undefined;
-  if (provider.builtin) return { model: first, rule: "内置目录推荐的首个模型" };
+  if (provider.builtin) return { model: first, rule: msg().cli.defaultModel.builtinFirst };
   const picked = pickByPrice(
     usable.map((m) => ({
       id: m.id,
@@ -91,7 +92,7 @@ export function pickProviderModel(
   if (picked !== undefined && model !== undefined) return { model, rule: picked.reason };
   return {
     model: first,
-    rule: "列表首个模型（没有同时支持工具调用、上下文 ≥ 64k 且有价格的模型）",
+    rule: msg().cli.defaultModel.listFirst,
   };
 }
 
@@ -131,9 +132,5 @@ export function noModelGuidance(registry: Pick<ProviderRegistryApi, "list">): st
     .map((p) => p.envKeys[0])
     .filter((name): name is string => name !== undefined);
   const shown = envs.slice(0, 3).join(" / ");
-  const more = envs.length > 3 ? " 等" : "";
-  return (
-    `没有可用模型：设置 ${shown}${more}环境变量，或 \`ama auth set <provider>\` 保存 key，` +
-    "或 `ama providers add <id> --base-url <url>` 接入中转站（也可 --model 指定）"
-  );
+  return msg().cli.defaultModel.noModel(shown, envs.length > 3);
 }

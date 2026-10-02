@@ -28,6 +28,7 @@ import { previewDisplayLines } from "../../../permissions/preview.js";
 import type { Runtime } from "../../../cli/runtime.js";
 import { AMA_VERSION } from "../../../version.js";
 import { runSlashCommand, type CommandContext } from "../../commands-core.js";
+import { configCommand } from "../config-ui.js";
 import { createLineReader } from "../../rpc/jsonl.js";
 import { errorText, onTerminationSignals } from "../../shared.js";
 import { memoryLineCommand } from "../memory-panel.js";
@@ -68,6 +69,7 @@ export async function runLineMode(
   let unsubscribe = session.subscribe((event) => printer.handle(event));
   const commands: CommandContext = {
     runtime,
+    extra: { config: configCommand(runtime, context), memory: memoryLineCommand }, // [W6-M] memory
     session: () => session,
     async switchSession(request) {
       const next = await switchSession(runtime, request);
@@ -76,7 +78,6 @@ export async function runLineMode(
       unsubscribe = next.subscribe((event) => printer.handle(event));
       return next;
     },
-    extra: { memory: memoryLineCommand }, // [W6-M]
   };
 
   /** 一行输入：命令或提示；返回 "exit" 表示结束。 */

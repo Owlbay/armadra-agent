@@ -20,10 +20,11 @@ import { parseSubArgs, UsageError } from "../args.js";
 import type { CliIo } from "../deps.js";
 import { ExitCode } from "../exit-codes.js";
 import { parseDaySpec } from "./stats.js";
+import { msg } from "../../i18n/index.js";
 
-export const SESSIONS_SEARCH_USAGE = `用法：ama sessions search <关键词|/正则/标志> [--all] [--role user|assistant|tool]
-                            [--since 7d|today|YYYY-MM-DD] [--limit N] [--json] [--session-dir <目录>]
-`;
+export function sessionsSearchUsage(): string {
+  return msg().subcommands.sessionsSearch.usage;
+}
 
 const ROLES: readonly SearchRole[] = ["user", "assistant", "tool"];
 
@@ -59,16 +60,16 @@ export async function runSessionsSearch(argv: readonly string[], io: CliIo): Pro
     ["all", "json"],
   );
   if (flags.has("help")) {
-    io.stdout(SESSIONS_SEARCH_USAGE);
+    io.stdout(sessionsSearchUsage());
     return ExitCode.Ok;
   }
   const pattern = positionals.join(" ");
-  if (pattern.trim() === "") throw new UsageError("ama sessions search 需要关键词或 /正则/");
+  if (pattern.trim() === "") throw new UsageError(msg().subcommands.sessionsSearch.needsPattern);
   let query;
   try {
     query = compileQuery(pattern);
   } catch (error) {
-    throw new UsageError(`正则无效：${(error as Error).message}`);
+    throw new UsageError(msg().subcommands.sessionsSearch.invalidRegex((error as Error).message));
   }
   let roles: Set<SearchRole> | undefined;
   const roleRaw = values.get("role");
@@ -76,13 +77,14 @@ export async function runSessionsSearch(argv: readonly string[], io: CliIo): Pro
     roles = new Set();
     for (const role of roleRaw.split(",").map((r) => r.trim())) {
       if (!(ROLES as readonly string[]).includes(role)) {
-        throw new UsageError(`--role 的取值应为 ${ROLES.join(" | ")}（收到 ${role}）`);
+        throw new UsageError(msg().subcommands.common.invalidChoice("--role", ROLES, role));
       }
       roles.add(role as SearchRole);
     }
   }
   const limit = Number(values.get("limit") ?? "20");
-  if (!Number.isInteger(limit) || limit < 1) throw new UsageError("--limit 应为正整数");
+  if (!Number.isInteger(limit) || limit < 1)
+    throw new UsageError(msg().subcommands.sessionsSearch.limitPositive);
   const sinceRaw = values.get("since");
   const sinceIso =
     sinceRaw === undefined
@@ -104,11 +106,11 @@ export async function runSessionsSearch(argv: readonly string[], io: CliIo): Pro
     return ExitCode.Ok;
   }
   if (hits.length === 0) {
-    io.stdout(flags.has("all") ? "没有命中\n" : "没有命中（只搜了当前目录的会话，--all 搜全部）\n");
+    io.stdout(msg().subcommands.sessionsSearch.noHits(flags.has("all")));
     return ExitCode.Ok;
   }
   const color = io.stdoutIsTTY && (io.env["NO_COLOR"] ?? "") === "";
   for (const hit of hits) io.stdout(renderHit(hit, color));
-  if (truncated) io.stdout(`（已到 --limit ${limit}，可能还有更多）\n`);
+  if (truncated) io.stdout(msg().subcommands.sessionsSearch.truncated(limit));
   return ExitCode.Ok;
 }

@@ -61,6 +61,7 @@ import { ALL_COMMANDS, runInteractiveCommand, type CommandUi } from "./commands.
 import { memoryPanelFor } from "./memory-panel.js";
 import { InteractiveCompletion } from "./completion.js";
 import { confirmBypass } from "./confirm-dialog.js";
+import { configUiFor } from "./config-ui.js";
 import { createKeyDispatch } from "./key-dispatch.js";
 import { MessageView, exitSummaryLines, type NoticeLevel } from "./message-view.js";
 import { openPicker } from "./pickers.js";
@@ -377,6 +378,7 @@ export function runInteractiveMode(
     editorEmpty: () => editor.isEmpty(),
   });
 
+  const configUi = configUiFor(pickerHost, { runtime, context, view, loader, area, tui, notice });
   const commandUi: CommandUi = {
     runtime,
     session: () => session,
@@ -406,6 +408,7 @@ export function runInteractiveMode(
     exit: (code) => exit(code),
     now,
     extra: (name, args) => agentUi.command(name, args),
+    configPanel: (args) => configUi.open(args),
     memoryPanel: memoryPanelFor(() => commandUi, pickerHost, tui, env), // [W6-M]
   };
 

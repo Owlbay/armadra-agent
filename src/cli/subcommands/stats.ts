@@ -23,11 +23,11 @@ import { localDay } from "../../session/stats-scan.js";
 import { parseSubArgs, UsageError } from "../args.js";
 import type { CliIo } from "../deps.js";
 import { ExitCode } from "../exit-codes.js";
+import { msg } from "../../i18n/index.js";
 
-export const STATS_USAGE = `用法：ama stats [--since 7d|30d|today|YYYY-MM-DD] [--until …]
-                 [--by day|week|month|provider|channel|model|project]
-                 [--project <目录> | --all] [--top N] [--json] [--no-cache] [--session-dir <目录>]
-`;
+export function statsUsage(): string {
+  return msg().subcommands.stats.usage;
+}
 
 /** `7d` / `today` / `YYYY-MM-DD` → 本地日期。 */
 export function parseDaySpec(option: string, raw: string, now = new Date()): string {
@@ -35,13 +35,13 @@ export function parseDaySpec(option: string, raw: string, now = new Date()): str
   const rel = /^(\d+)d$/.exec(raw);
   if (rel !== null) {
     const days = Number(rel[1]);
-    if (days < 1) throw new UsageError(`--${option} 的天数至少为 1（收到 ${raw}）`);
+    if (days < 1) throw new UsageError(msg().subcommands.stats.daysAtLeastOne(option, raw));
     const d = new Date(now);
     d.setDate(d.getDate() - (days - 1));
     return localDay(d.toISOString()) ?? "";
   }
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw) && Number.isFinite(Date.parse(`${raw}T00:00:00`))) return raw;
-  throw new UsageError(`--${option} 应为 7d、today 或 YYYY-MM-DD（收到 ${raw}）`);
+  throw new UsageError(msg().subcommands.stats.daySpec(option, raw));
 }
 
 export function formatTokens(count: number): string {
@@ -90,42 +90,60 @@ function table(rows: readonly string[][], rightAlign: (col: number) => boolean):
 
 export function renderStats(report: StatsReport, scope: string): string {
   const t = report.totals;
+  const m = msg().subcommands.stats;
   const range =
     report.since === undefined && report.until === undefined
-      ? "全部时间"
-      : `${report.since ?? "最早"} – ${report.until ?? "今天"}`;
-  const lines: string[] = [`${range} · ${scope} · ${report.sessions} 个会话`];
+      ? m.allTime
+      : m.range(report.since, report.until);
+  const lines: string[] = [m.header(range, scope, report.sessions)];
   if (t.requests === 0) {
-    lines.push("没有模型请求");
+    lines.push(m.noRequests);
     return lines.join("\n") + "\n";
   }
   const kinds = Object.entries(report.byKind)
     .sort((a, b) => b[1] - a[1])
-    .map(([kind, n]) => `${kind === "turn" ? "对话" : kind} ${n}`)
+    .map(([kind, n]) => `${kind === "turn" ? m.kindTurn : kind} ${n}`)
     .join(" · ");
   const costLine =
     t.cost === undefined
-      ? "— （所有请求的模型都无价格，见 token）"
+      ? m.costUnpriced
       : t.unpriced > 0
-        ? `${usd(t)}（另有 ${t.unpriced} 次请求无价，未计入）`
+        ? m.costPartial(usd(t), t.unpriced)
         : usd(t);
   const rows: string[][] = [
-    ["请求", `${t.requests}（${kinds}）`],
-    ["回合", `${t.turns} · 平均耗时 ${seconds(t.avgTurnMs)}`],
+    [m.rows.requests, m.requestsValue(t.requests, kinds)],
+    [m.rows.turns, m.turnsValue(t.turns, seconds(t.avgTurnMs))],
     [
-      "Token",
-      `输入 ${formatTokens(t.input)} · 输出 ${formatTokens(t.output)} · 缓存读 ${formatTokens(t.cacheRead)} · 缓存写 ${formatTokens(t.cacheWrite)}`,
+      m.rows.tokens,
+      m.tokensValue(
+        formatTokens(t.input),
+        formatTokens(t.output),
+        formatTokens(t.cacheRead),
+        formatTokens(t.cacheWrite),
+      ),
     ],
     [
-      "缓存命中率",
-      `${percent(t.hitRate)}（报告缓存的端点 ${report.endpoints.reported}/${report.endpoints.total}，其余不进分母）`,
+      m.rows.hitRate,
+      m.hitRateValue(percent(t.hitRate), report.endpoints.reported, report.endpoints.total),
     ],
-    ["费用", costLine],
-    ["错误 / 重试", `${t.errors} / ${t.retries}`],
+    [m.rows.cost, costLine],
+    [m.rows.errors, `${t.errors} / ${t.retries}`],
   ];
   lines.push(table(rows, () => false));
   if (report.groups !== undefined && report.groups.length > 0) {
-    const head = ["", "会话", "请求", "回合", "输入", "输出", "缓存读", "缓存写", "命中率", "费用"];
+    const gh = m.groupHead;
+    const head = [
+      "",
+      gh.sessions,
+      gh.requests,
+      gh.turns,
+      gh.input,
+      gh.output,
+      gh.cacheRead,
+      gh.cacheWrite,
+      gh.hitRate,
+      gh.cost,
+    ];
     const body = report.groups.map((g) => [
       g.key,
       String(g.sessions),
@@ -144,7 +162,7 @@ export function renderStats(report: StatsReport, scope: string): string {
     );
   }
   if (report.tools.length > 0) {
-    lines.push("", `工具调用 Top ${report.tools.length}`);
+    lines.push("", m.topTools(report.tools.length));
     lines.push(
       table(
         report.tools.map((tool) => [`  ${tool.name}`, String(tool.count)]),
@@ -162,22 +180,24 @@ export async function runStats(argv: readonly string[], io: CliIo): Promise<numb
     ["all", "json", "no-cache"],
   );
   if (flags.has("help")) {
-    io.stdout(STATS_USAGE);
+    io.stdout(statsUsage());
     return ExitCode.Ok;
   }
-  if (positionals.length > 0) throw new UsageError(`ama stats 不接受位置参数：${positionals[0]}`);
+  if (positionals.length > 0)
+    throw new UsageError(msg().subcommands.stats.noPositionals(positionals[0] ?? ""));
   const now = new Date();
   const since = values.has("since") ? parseDaySpec("since", values.get("since")!, now) : undefined;
   const until = values.has("until") ? parseDaySpec("until", values.get("until")!, now) : undefined;
   const byRaw = values.get("by");
   if (byRaw !== undefined && !(STATS_GROUPS as readonly string[]).includes(byRaw)) {
-    throw new UsageError(`--by 的取值应为 ${STATS_GROUPS.join(" | ")}（收到 ${byRaw}）`);
+    throw new UsageError(msg().subcommands.common.invalidChoice("--by", STATS_GROUPS, byRaw));
   }
   const by = byRaw as StatsGroupBy | undefined;
   const top = Number(values.get("top") ?? "10");
-  if (!Number.isInteger(top) || top < 0) throw new UsageError("--top 应为非负整数");
+  if (!Number.isInteger(top) || top < 0)
+    throw new UsageError(msg().subcommands.stats.topNonNegative);
   if (flags.has("all") && values.has("project")) {
-    throw new UsageError("--project 与 --all 不能同时使用");
+    throw new UsageError(msg().cli.args.flagConflict("--project", "--all"));
   }
   const dataDir = resolveDataDir({ env: io.env });
   const dirFlag = values.get("session-dir");
@@ -223,7 +243,8 @@ export async function runStats(argv: readonly string[], io: CliIo): Promise<numb
     );
     return ExitCode.Ok;
   }
-  io.stdout(renderStats(report, project === undefined ? "全部项目" : `项目 ${project}`));
-  if (collected.invalid > 0) io.stderr(`ama: 跳过 ${collected.invalid} 个无法读取的会话文件\n`);
+  const m = msg().subcommands.stats;
+  io.stdout(renderStats(report, project === undefined ? m.allProjects : m.project(project)));
+  if (collected.invalid > 0) io.stderr(m.skippedInvalid(collected.invalid));
   return ExitCode.Ok;
 }

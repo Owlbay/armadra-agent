@@ -87,6 +87,11 @@ export interface Runtime {
   readonly tools: ToolRegistryApi;
   readonly approvals: RuntimeApprovals;
   readonly notifier: RuntimeNotifier;
+  /**
+   * [W6-S] 换上重新合并的配置（`/config` 改完立即写盘后调用）：`config` 与之后 `/new` / `/resume` 组装的
+   * 会话读新值；已在运行的会话不受影响（「即时」档由界面另行热应用）。SDK 组装的运行时可以没有。
+   */
+  replaceConfig?(config: AmaConfig): void;
   /** 启动期收集的 warning（被忽略的放宽项、文件读错等）。 */
   readonly warnings: readonly string[];
   /** 发 session_shutdown、SessionEnd Hook、适配器 dispose；幂等。 */
