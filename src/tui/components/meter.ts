@@ -9,6 +9,7 @@
 
 import type { Component, SemanticColor, Theme } from "../component.js";
 import { truncateToWidth, visibleWidth } from "../ansi.js";
+import { levelColor } from "../theme.js";
 
 export interface MeterOptions {
   label?: string;
@@ -34,10 +35,11 @@ export class Meter implements Component {
 
   /** 当前阈值档位对应的语义色。 */
   level(): SemanticColor {
-    const v = this.value ?? 0;
-    if (v >= (this.options.dangerAt ?? 0.9)) return "error";
-    if (v >= (this.options.warnAt ?? 0.7)) return "warning";
-    return "success";
+    const { warnAt, dangerAt } = this.options;
+    return levelColor(this.value ?? 0, {
+      ...(warnAt !== undefined ? { warnAt } : {}),
+      ...(dangerAt !== undefined ? { dangerAt } : {}),
+    });
   }
 
   render(width: number): string[] {

@@ -65,6 +65,8 @@ export {
   rgbTo256,
   rgbTo16,
   THEME_PALETTES,
+  THEME_ANSI16,
+  levelColor,
   type ThemeName,
   type CreateThemeOptions,
 } from "./tui/theme.js";

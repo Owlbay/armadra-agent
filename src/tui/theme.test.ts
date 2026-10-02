@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  THEME_ANSI16,
+  THEME_PALETTES,
   colorCode,
   createTheme,
   detectColorDepth,
+  levelColor,
+  parseHex,
   plainTheme,
   rgbTo16,
   rgbTo256,
@@ -69,5 +73,74 @@ describe("主题", () => {
     const theme = plainTheme();
     expect(theme.bold(theme.fg("error", theme.underline("x")))).toBe("x");
     expect(theme.caps.colors).toBe(0);
+  });
+});
+
+describe("色板 v1", () => {
+  const NAMES = [
+    "text",
+    "muted",
+    "dim",
+    "accent",
+    "success",
+    "warning",
+    "error",
+    "user",
+    "assistant",
+    "tool",
+    "border",
+    "code",
+    "link",
+    "selection",
+  ] as const;
+  const EXPECTED_256 = {
+    dark: [254, 248, 242, 75, 78, 221, 203, 111, 254, 141, 240, 215, 117, 236],
+    light: [234, 240, 245, 26, 28, 130, 160, 25, 234, 91, 250, 94, 31, 254],
+  } as const;
+  const EXPECTED_16 = {
+    dark: [7, 7, 8, 12, 10, 11, 9, 12, 7, 13, 8, 11, 14],
+    light: [0, 8, 8, 4, 2, 3, 1, 4, 0, 5, 7, 3, 6],
+  } as const;
+
+  for (const name of ["dark", "light"] as const) {
+    it(`${name}：14 个语义色，256 色回退无损（落在立方 / 灰阶上）`, () => {
+      expect(Object.keys(THEME_PALETTES[name]).sort()).toEqual([...NAMES].sort());
+      NAMES.forEach((color, i) => {
+        const rgb = parseHex(THEME_PALETTES[name][color]);
+        expect([color, rgbTo256(rgb)]).toEqual([color, EXPECTED_256[name][i]]);
+      });
+    });
+
+    it(`${name}：16 色索引表锁定`, () => {
+      const theme = createTheme(name, { caps: { colors: 16 } });
+      EXPECTED_16[name].forEach((idx, i) => {
+        const color = NAMES[i]!;
+        expect([color, THEME_ANSI16[name][color]]).toEqual([color, idx]);
+        const code = idx < 8 ? 30 + idx : 90 + idx - 8;
+        expect(theme.fg(color, "x")).toBe(`\x1b[${code}mx\x1b[39m`);
+      });
+    });
+  }
+
+  it("selection：≥ 256 色作 bg，否则退化为 accent 粗体", () => {
+    expect(createTheme("dark", { caps: { colors: 256 } }).bg("selection", "x")).toBe(
+      "\x1b[48;5;236mx\x1b[49m",
+    );
+    expect(createTheme("dark", { caps: { colors: 16 } }).bg("selection", "x")).toBe(
+      "\x1b[1m\x1b[94mx\x1b[39m\x1b[22m",
+    );
+    expect(stripAnsi(createTheme("dark", { caps: { colors: 0 } }).bg("selection", "x"))).toBe("x");
+  });
+
+  it("覆盖色在 16 色下按距离取近", () => {
+    const theme = createTheme("dark", { caps: { colors: 16 }, overrides: { error: "#cd0000" } });
+    expect(theme.fg("error", "x")).toBe("\x1b[31mx\x1b[39m");
+  });
+
+  it("levelColor 阈值", () => {
+    expect(levelColor(0.1)).toBe("success");
+    expect(levelColor(0.7)).toBe("warning");
+    expect(levelColor(0.9)).toBe("error");
+    expect(levelColor(0.5, { warnAt: 0.5 })).toBe("warning");
   });
 });

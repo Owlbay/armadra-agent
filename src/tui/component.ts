@@ -3,7 +3,8 @@
  *
  * 补全与偏差：
  * - 设计的 `Theme` 写作 `bg(...)` 与 `bold/dim/italic/underline(s)`，此处展开为完整签名。
- * - `SemanticColor` 取 §12.7 的 11 个语义色名。
+ * - `SemanticColor` 取 §12.7 的 11 个语义色名；终端界面视觉设计 v1 加 `muted`（正文与 dim 之间的次要文字）、
+ *   `link`（链接文字）、`selection`（选中行底色，只在 ≥ 256 色时作 bg）共 14 个。
  * - 补全 `CURSOR_MARKER` 常量与 `isFocusable()` 判别函数（B4 的 tui.ts 与 B7 都要用）。
  * - 终端界面视觉设计 v1：`Theme.glyphs`（字形表与 ASCII 回退，见 glyphs.ts）。
  */
@@ -43,7 +44,10 @@ export type SemanticColor =
   | "assistant"
   | "tool"
   | "border"
-  | "code";
+  | "code"
+  | "muted"
+  | "link"
+  | "selection";
 
 /** 0 = 无色（NO_COLOR）；16_777_216 = truecolor。 */
 export type ColorDepth = 0 | 16 | 256 | 16_777_216;

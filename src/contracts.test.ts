@@ -402,11 +402,15 @@ describe("TUI 契约", () => {
           | "tool"
           | "border"
           | "code"
+          | "muted"
+          | "link"
+          | "selection"
         ),
         string,
       ]
     >();
     expectTypeOf<Theme["caps"]["colors"]>().toEqualTypeOf<0 | 16 | 256 | 16_777_216>();
+    expectTypeOf<Theme["glyphs"]["tool"]>().toEqualTypeOf<string>();
   });
 });
 
