@@ -1,0 +1,158 @@
+{
+  "version": 1,
+  "sessionId": "sess-retry",
+  "cwd": "/work/proj",
+  "startedAt": 1791014400000,
+  "totals": {
+    "requests": 3,
+    "input": 4600,
+    "output": 210,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "toolCalls": 0,
+    "cost": 0.0047,
+    "durationMs": 6000,
+    "ttftP50": 980,
+    "ttftP90": 980,
+    "avgTps": 100,
+    "cacheHitRatio": 0
+  },
+  "turns": [
+    {
+      "id": "re004",
+      "kind": "turn",
+      "status": "ok",
+      "entryIds": [
+        "re004"
+      ],
+      "steps": [
+        {
+          "id": "re005",
+          "kind": "step",
+          "status": "retried",
+          "entryIds": [
+            "re005",
+            "re006"
+          ],
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "attempt": 1,
+          "usage": {
+            "input": 1500,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 1500
+          },
+          "stopReason": "error",
+          "tools": [],
+          "errorMessage": "502 bad gateway",
+          "thinkingLevel": "medium",
+          "cacheHitRatio": 0,
+          "requestAt": 1791014401100,
+          "startedAt": 1791014401100,
+          "doneAt": 1791014401400,
+          "endedAt": 1791014401400
+        },
+        {
+          "id": "re008",
+          "kind": "retry_wait",
+          "status": "ok",
+          "entryIds": [
+            "re008"
+          ],
+          "attempt": 2,
+          "delayMs": 2000,
+          "startedAt": 1791014401410,
+          "endedAt": 1791014403410,
+          "reason": "502 bad gateway"
+        },
+        {
+          "id": "re009",
+          "kind": "step",
+          "status": "retried",
+          "entryIds": [
+            "re009",
+            "re010"
+          ],
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "attempt": 2,
+          "usage": {
+            "input": 1500,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 1500
+          },
+          "stopReason": "error",
+          "tools": [],
+          "errorMessage": "529 overloaded_error: Overloaded",
+          "thinkingLevel": "medium",
+          "cacheHitRatio": 0,
+          "requestAt": 1791014403420,
+          "startedAt": 1791014403420,
+          "doneAt": 1791014403900,
+          "endedAt": 1791014403900
+        },
+        {
+          "id": "re014",
+          "kind": "step",
+          "status": "ok",
+          "entryIds": [
+            "re014",
+            "re016"
+          ],
+          "provider": "openai",
+          "model": "gpt-5.1",
+          "attempt": 3,
+          "usage": {
+            "input": 1600,
+            "output": 210,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 1810,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0047
+            }
+          },
+          "stopReason": "stop",
+          "tools": [],
+          "fallbackFrom": "anthropic/claude-sonnet-4-5",
+          "thinkingLevel": "medium",
+          "cacheHitRatio": 0,
+          "requestAt": 1791014403920,
+          "startedAt": 1791014403920,
+          "firstTokenAt": 1791014404900,
+          "ttftMs": 980,
+          "doneAt": 1791014407000,
+          "endedAt": 1791014407000,
+          "tps": 100
+        }
+      ],
+      "usage": {
+        "requests": 3,
+        "input": 4600,
+        "output": 210,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "toolCalls": 0,
+        "cost": 0.0047,
+        "durationMs": 6000,
+        "ttftP50": 980,
+        "ttftP90": 980,
+        "avgTps": 100,
+        "cacheHitRatio": 0
+      },
+      "startedAt": 1791014401000,
+      "endedAt": 1791014407000
+    }
+  ],
+  "aux": [],
+  "partial": false,
+  "endedAt": 1791014407000
+}

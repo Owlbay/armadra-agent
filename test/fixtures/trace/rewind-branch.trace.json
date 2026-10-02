@@ -1,0 +1,151 @@
+{
+  "version": 1,
+  "sessionId": "sess-rewind",
+  "cwd": "/work/proj",
+  "startedAt": 1791014400000,
+  "totals": {
+    "requests": 2,
+    "input": 2400,
+    "output": 160,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "toolCalls": 0,
+    "cost": 0.008,
+    "durationMs": 2700,
+    "ttftP50": 400,
+    "ttftP90": 500,
+    "avgTps": 100,
+    "cacheHitRatio": 0
+  },
+  "turns": [
+    {
+      "id": "re004",
+      "kind": "turn",
+      "status": "ok",
+      "entryIds": [
+        "re004"
+      ],
+      "steps": [
+        {
+          "id": "re005",
+          "kind": "step",
+          "status": "ok",
+          "entryIds": [
+            "re005",
+            "re006"
+          ],
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "attempt": 1,
+          "usage": {
+            "input": 1200,
+            "output": 80,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 1280,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.004
+            }
+          },
+          "stopReason": "stop",
+          "tools": [],
+          "thinkingLevel": "medium",
+          "cacheHitRatio": 0,
+          "requestAt": 1791014401100,
+          "startedAt": 1791014401100,
+          "firstTokenAt": 1791014401500,
+          "ttftMs": 400,
+          "doneAt": 1791014402100,
+          "endedAt": 1791014402100,
+          "tps": 133.3
+        }
+      ],
+      "usage": {
+        "requests": 1,
+        "input": 1200,
+        "output": 80,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "toolCalls": 0,
+        "cost": 0.004,
+        "durationMs": 1100,
+        "ttftP50": 400,
+        "ttftP90": 400,
+        "avgTps": 133.3,
+        "cacheHitRatio": 0
+      },
+      "startedAt": 1791014401000,
+      "endedAt": 1791014402100
+    },
+    {
+      "id": "re010",
+      "kind": "turn",
+      "status": "ok",
+      "entryIds": [
+        "re010"
+      ],
+      "steps": [
+        {
+          "id": "re011",
+          "kind": "step",
+          "status": "ok",
+          "entryIds": [
+            "re011",
+            "re012"
+          ],
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "attempt": 1,
+          "usage": {
+            "input": 1200,
+            "output": 80,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 1280,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.004
+            }
+          },
+          "stopReason": "stop",
+          "tools": [],
+          "thinkingLevel": "medium",
+          "cacheHitRatio": 0,
+          "requestAt": 1791014460100,
+          "startedAt": 1791014460100,
+          "firstTokenAt": 1791014460600,
+          "ttftMs": 500,
+          "doneAt": 1791014461600,
+          "endedAt": 1791014461600,
+          "tps": 80
+        }
+      ],
+      "usage": {
+        "requests": 1,
+        "input": 1200,
+        "output": 80,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "toolCalls": 0,
+        "cost": 0.004,
+        "durationMs": 1600,
+        "ttftP50": 500,
+        "ttftP90": 500,
+        "avgTps": 80,
+        "cacheHitRatio": 0
+      },
+      "startedAt": 1791014460000,
+      "endedAt": 1791014461600
+    }
+  ],
+  "aux": [],
+  "partial": false,
+  "endedAt": 1791014461600
+}

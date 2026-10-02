@@ -1,0 +1,181 @@
+{
+  "version": 1,
+  "sessionId": "sess-overflow",
+  "cwd": "/work/proj",
+  "startedAt": 1791014400000,
+  "totals": {
+    "requests": 5,
+    "input": 192801,
+    "output": 2721,
+    "cacheRead": 11800,
+    "cacheWrite": 11800,
+    "toolCalls": 0,
+    "cost": 0.6653,
+    "durationMs": 24000,
+    "ttftP50": 950,
+    "ttftP90": 950,
+    "avgTps": 150,
+    "cacheHitRatio": 0.054528398667288966
+  },
+  "turns": [
+    {
+      "id": "ov004",
+      "kind": "turn",
+      "status": "ok",
+      "entryIds": [
+        "ov004"
+      ],
+      "steps": [
+        {
+          "id": "ov005",
+          "kind": "step",
+          "status": "retried",
+          "entryIds": [
+            "ov005",
+            "ov006"
+          ],
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "attempt": 1,
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0
+          },
+          "stopReason": "error",
+          "tools": [],
+          "errorMessage": "prompt is too long: 210000 tokens > 200000 maximum",
+          "thinkingLevel": "medium",
+          "requestAt": 1791014401100,
+          "startedAt": 1791014401100,
+          "doneAt": 1791014401600,
+          "endedAt": 1791014401600
+        },
+        {
+          "id": "ov008",
+          "kind": "compaction",
+          "status": "ok",
+          "entryIds": [
+            "ov008",
+            "ov009"
+          ],
+          "startedAt": 1791014401620,
+          "endedAt": 1791014422000,
+          "trigger": "overflow",
+          "tokensBefore": 210000
+        },
+        {
+          "id": "ov010",
+          "kind": "step",
+          "status": "ok",
+          "entryIds": [
+            "ov010",
+            "ov011"
+          ],
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "attempt": 1,
+          "usage": {
+            "input": 12000,
+            "output": 300,
+            "cacheRead": 0,
+            "cacheWrite": 11800,
+            "totalTokens": 24100,
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.0848
+            }
+          },
+          "stopReason": "stop",
+          "tools": [],
+          "thinkingLevel": "medium",
+          "cacheHitRatio": 0,
+          "requestAt": 1791014422050,
+          "startedAt": 1791014422050,
+          "firstTokenAt": 1791014423000,
+          "ttftMs": 950,
+          "doneAt": 1791014425000,
+          "endedAt": 1791014425000,
+          "tps": 150
+        }
+      ],
+      "usage": {
+        "requests": 3,
+        "input": 192000,
+        "output": 2700,
+        "cacheRead": 0,
+        "cacheWrite": 11800,
+        "toolCalls": 0,
+        "cost": 0.6607999999999999,
+        "durationMs": 24000,
+        "ttftP50": 950,
+        "ttftP90": 950,
+        "avgTps": 150,
+        "cacheHitRatio": 0
+      },
+      "startedAt": 1791014401000,
+      "endedAt": 1791014425000
+    }
+  ],
+  "aux": [
+    {
+      "id": "ov012",
+      "kind": "aux",
+      "purpose": "cache_warm",
+      "status": "ok",
+      "entryIds": [
+        "ov012",
+        "ov013"
+      ],
+      "usage": {
+        "input": 1,
+        "output": 1,
+        "cacheRead": 11800,
+        "cacheWrite": 0,
+        "totalTokens": 11802,
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0.0036
+        }
+      },
+      "endedAt": 1791014701000,
+      "approx": true
+    },
+    {
+      "id": "ov014",
+      "kind": "aux",
+      "purpose": "permission_classify",
+      "status": "ok",
+      "entryIds": [
+        "ov014",
+        "ov015"
+      ],
+      "usage": {
+        "input": 800,
+        "output": 20,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 820,
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0.0009
+        }
+      },
+      "startedAt": 1791014701400,
+      "endedAt": 1791014702000
+    }
+  ],
+  "partial": false,
+  "endedAt": 1791014702000
+}
