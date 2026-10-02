@@ -31,6 +31,7 @@ import { ApprovalBrokerChain, DEFAULT_APPROVAL_TIMEOUT_MS } from "../permissions
 import { PermissionPipeline } from "../permissions/pipeline.js";
 import { SessionManager } from "../session/manager.js";
 import { sessionDirForCwd } from "../session/store.js";
+import { createCheckpointBackendFactory, resolveCheckpointSettings } from "../checkpoints/index.js";
 import type { Skill } from "../skills/discover.js";
 import { expandSkillCommand } from "../skills/expand.js";
 import { formatSkillIndex } from "../skills/index-prompt.js";
@@ -329,8 +330,13 @@ function buildSession(
   if (maxChars !== undefined) options.maxToolResultChars = maxChars;
   const hostId = assembly.host.handle?.adapter.id;
   if (hostId !== undefined) options.hostId = hostId;
-  // [RW-B] 中断即撤回；检查点后端（options.checkpoints）待 RW-A 的 createCheckpointBackendFactory 接入
+  // [RW-B] 回滚：中断即撤回与检查点后端（内存会话不调工厂；mode off 时工厂返回 undefined）
   if (config.ui?.restoreOnCancel === false) options.restoreOnCancel = false;
+  options.checkpoints = createCheckpointBackendFactory({
+    ...resolveCheckpointSettings(config, process.env, (message) => record.log("warn", message)),
+    dataDir: assembly.paths.dataDir,
+    sessionsRoot: assembly.paths.sessionDir,
+  });
   session = new AgentSessionImpl(options);
   session.subscribe((event) => bridgeEvent(event, assembly.events));
   records.set(session, record);

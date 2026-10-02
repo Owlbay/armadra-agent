@@ -91,7 +91,8 @@ describe("交互模式", () => {
 
   it("Alt+Enter 排 followUp，Alt+↑ 取回；空闲时 Alt+Enter 等同发送", async () => {
     const s = await start([{ delayMs: 5_000, text: "slow" }, { text: "后续回复" }]);
-    const started = s.until((e) => e.type === "agent_start");
+    // 等第一个请求真正发出（新回合先建检查点再请求）：否则 Esc 落在请求之前，脚本第 1 步没被消耗
+    const started = s.until((e) => e.type === "message_start" && e.message.role === "assistant");
     s.type("开始");
     s.terminal.sendInput("\r");
     await started;
