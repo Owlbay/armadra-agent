@@ -172,6 +172,7 @@ describe("保温接线（fake 计时器）", () => {
     const cache = h.session.getStats().cache!;
     expect(cache.warming).toMatchObject({ mode: "streaming", state: "inactive", sent: 1 });
     expect(cache.misses.count).toBe(0);
+    expect(h.session.getStats().tokens.cacheRead).toBe(80_000); // 保温读计入统计
     expect(h.session.messages.filter((m) => m.role === "assistant")).toHaveLength(2);
   });
 

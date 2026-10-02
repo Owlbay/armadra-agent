@@ -2,7 +2,8 @@
  * SessionState 快照与统计（设计 §1.2 session-state.ts、§12.6 状态栏）。[B2]
  *
  * 统计口径：活动分支上的全部条目（不是投影）——被压缩 / 剔除的消息仍计入用量与成本；
- * 压缩与分支摘要请求的 usage 也计入。上下文 % 用投影感知估算（§9）。
+ * 压缩与分支摘要请求的 usage 也计入；`usage` 条目（缓存保温等不进上下文的请求，第三波 §1.7）
+ * 计入 token 与费用但不算消息。上下文 % 用投影感知估算（§9）。
  */
 
 import type { Model, ModelThinkingLevel, Usage } from "../ai/types.js";
@@ -89,6 +90,9 @@ export function computeStats(input: StatsInput): SessionStats {
         addUsage(tokens, message.usage);
         addCost(message.usage);
       }
+    } else if (entry.type === "usage") {
+      addUsage(tokens, entry.usage);
+      addCost(entry.usage);
     } else if ((entry.type === "compaction" || entry.type === "branch_summary") && entry.usage) {
       addUsage(tokens, entry.usage);
       addCost(entry.usage);
