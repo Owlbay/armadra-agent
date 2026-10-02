@@ -198,4 +198,11 @@ export interface CliIo {
   cwd: string;
   /** 读取 stdin 全部内容（auth set）。 */
   readStdin(): Promise<string>;
+  /**
+   * stdin 的类型（`-p` 据此决定读不读）：`file` / `null`（/dev/null 等字符设备）读了不会卡；
+   * `fifo` 是 shell 管道；`socket` 多为父进程 spawn 时留的管道。未提供时按 `other` 处理（不读、不提示）。
+   */
+  stdinKind?(): StdinKind;
 }
+
+export type StdinKind = "tty" | "file" | "null" | "fifo" | "socket" | "other";

@@ -2,6 +2,7 @@
  * 手写参数解析（设计 §11.1 第 2 步、§12.10、§13）。[B5]
  *
  * - 支持 `--opt value` 与 `--opt=value`；`--` 之后全部作为提示文本；可重复的参数累加。
+ * - 位置参数 `-`：`-p` 显式读 stdin（有提示参数时也拼接）。
  * - 子命令只在第一个参数是 `auth / sessions / models / providers / doctor / config / init` 时识别，
  *   其余参数原样交给子命令。
  * - 互斥：`-p` 与 `--mode rpc`；`--continue` / `--resume` / `--session-id` / `--fork` 两两互斥；
@@ -68,6 +69,8 @@ export interface ParsedArgs {
   toolsPreset?: ToolsPreset;
   /** `--codemode`：覆盖 config `codemode.mode`。 */
   codemode?: CodemodeMode;
+  /** 位置参数 `-`（只用于 -p）：显式读 stdin，有提示参数时也拼接。 */
+  stdin: boolean;
   /** `--image <文件>`（可重复，只用于 -p）：随首条提示发送的图片。 */
   images: string[];
   /** 位置参数拼成的提示（空格连接）。 */
@@ -107,7 +110,8 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
 模式
   （缺省）                     终端界面；stdin / stdout 非 TTY 或 TERM=dumb 时自动降级为行式
   --no-tui                     行式界面（readline + 括号粘贴）
-  -p, --print                  非交互：执行提示后退出（提示可来自参数与 stdin 管道）
+  -p, --print                  非交互：执行提示后退出。提示取自参数；没有提示参数时读 stdin，
+                               有提示参数时只有加 - 才拼接 stdin（如 cat 文件 | ama -p 总结 -）
   --output-format <格式>       -p 的输出：text（缺省）| json | stream-json
   --image <文件>               -p 随提示发送图片（可重复；png / jpg / gif / webp，单张 ≤ 5 MB）；
                                交互界面里写 @图片路径 或粘贴图片路径
@@ -262,6 +266,7 @@ export function emptyArgs(): ParsedArgs {
     resume: false,
     print: false,
     noTui: false,
+    stdin: false,
     positionals: [],
   };
 }
@@ -392,6 +397,9 @@ function validate(args: ParsedArgs): void {
   if (args.outputFormat !== undefined && !args.print) {
     throw new UsageError("--output-format 只用于 -p / --print");
   }
+  if (args.stdin && !args.print) {
+    throw new UsageError("位置参数 - （从 stdin 读提示）只用于 -p / --print");
+  }
   if (args.images.length > 0 && !args.print) {
     throw new UsageError("--image 只用于 -p / --print（交互界面里写 @图片路径）");
   }
@@ -410,7 +418,11 @@ export function parseArgs(argv: readonly string[]): ParseResult {
       args.positionals.push(...argv.slice(i + 1));
       break;
     }
-    if (!token.startsWith("-") || token === "-") {
+    if (token === "-") {
+      args.stdin = true;
+      continue;
+    }
+    if (!token.startsWith("-")) {
       args.positionals.push(token);
       continue;
     }

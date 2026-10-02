@@ -13,12 +13,12 @@
  *   src/bundle.ts 显式调用 `main()`。
  */
 
-import { realpathSync } from "node:fs";
+import { fstatSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { AMA_VERSION } from "../version.js";
 import { parseArgs } from "./args.js";
 import { reportError, runCli } from "./bootstrap.js";
-import type { CliIo, RuntimeDeps } from "./deps.js";
+import type { CliIo, RuntimeDeps, StdinKind } from "./deps.js";
 import { ExitCode } from "./exit-codes.js";
 import { runAuth } from "./subcommands/auth.js";
 import { runConfig } from "./subcommands/config.js";
@@ -85,6 +85,20 @@ export function readStdinDefault(): Promise<string> {
   });
 }
 
+/** fd 0 的类型；fstat 失败（已关闭）按 `null` 处理。 */
+export function stdinKindDefault(): StdinKind {
+  try {
+    const stat = fstatSync(0);
+    if (stat.isFile()) return "file";
+    if (stat.isFIFO()) return "fifo";
+    if (stat.isSocket()) return "socket";
+    if (stat.isCharacterDevice()) return process.stdin.isTTY === true ? "tty" : "null";
+    return "other";
+  } catch {
+    return "null";
+  }
+}
+
 export function defaultIo(): CliIo {
   return {
     stdout: (text) => void process.stdout.write(text),
@@ -94,6 +108,7 @@ export function defaultIo(): CliIo {
     env: process.env,
     cwd: process.cwd(),
     readStdin: readStdinDefault,
+    stdinKind: stdinKindDefault,
   };
 }
 

@@ -372,6 +372,9 @@ anthropic/<model-id> · think:medium · ↑412k ↓8.1k · cache 83% ♨ · $0.8
 | `json`            | 一个 `result` 对象：会话 id、模型、`stopReason`、`text`、用量、费用、缓存统计 |
 | `stream-json`     | 每行一个事件，与 RPC 事件同形状                                               |
 
+**stdin**：没有提示参数时读 stdin 作为提示（`git diff | ama -p`）；有提示参数时不等 stdin——父进程留着不关的管道不会让
+`-p` 挂起；要把管道内容拼在提示后面，在末尾加 `-`（`cat log.txt | ama -p "找出报错原因" -`）。`< 文件` 重定向总会读取。
+
 `--image <文件>` 可重复，随提示发送图片（PNG / JPEG / GIF / WebP，单张 ≤ 5 MB）；提示里的 `@图片路径` 同样作为附件。当前
 模型不收图片时直接退出 2，不发请求。
 
