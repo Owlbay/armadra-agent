@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "total": 1625,
+  "total": 1620,
   "files": {
     "src/agent/session-plan.ts": 2,
     "src/agents/external.ts": 1,
@@ -82,7 +82,7 @@
     "src/modes/acp/acp-server.ts": 12,
     "src/modes/commands-core.ts": 44,
     "src/modes/image-input.ts": 4,
-    "src/modes/interactive/agent-panels.ts": 19,
+    "src/modes/interactive/agent-panels.ts": 18,
     "src/modes/interactive/agent-ui.ts": 10,
     "src/modes/interactive/approval-dialog.ts": 32,
     "src/modes/interactive/clipboard-paste.ts": 3,
@@ -105,7 +105,7 @@
     "src/modes/interactive/rewind-flow.ts": 11,
     "src/modes/interactive/rewind-list.ts": 4,
     "src/modes/interactive/rewind-panel.ts": 31,
-    "src/modes/interactive/rewind-text.ts": 29,
+    "src/modes/interactive/rewind-text.ts": 28,
     "src/modes/interactive/run-indicator.ts": 10,
     "src/modes/interactive/session-events.ts": 2,
     "src/modes/interactive/startup-header.ts": 13,
@@ -133,7 +133,6 @@
     "src/session/scan.ts": 2,
     "src/skills/builtin.ts": 1,
     "src/tools/presets.ts": 3,
-    "src/tui/components/editor-paste.ts": 3,
     "src/tui/components/editor.ts": 1,
     "src/tui/keybindings.ts": 5
   }

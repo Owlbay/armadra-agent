@@ -34,6 +34,11 @@ export function isScanned(path) {
 
 /** 输入别名白名单：文件 → 允许的行（正则）。 */
 export const ALLOWED_LINES = {
+  // [W6-C0] 粘贴折叠标记的识别同时认两种语言（换语言后旧草稿里的标记照样展开）
+  "src/tui/components/editor-paste.ts": [
+    /^const MARKER_RE = \/\\\[\(\?:粘贴\|paste\)/,
+    /line\.includes\("\[粘贴 #"\) \|\| line\.includes\("\[paste #"\)/,
+  ],
   "src/plan/controller.ts": [/^\s*批准: "pre",\s*$/],
   "src/plan/extract.ts": [
     /^const STEPS_HEADING = \/步骤\|steps\|implementation\|实施\|执行\/i;$/,

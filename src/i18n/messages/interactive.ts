@@ -5,8 +5,18 @@
  * 整句一个键、禁止片段拼接；插值写成函数，条件分支写进函数体。
  */
 
+import { plural } from "../format.js";
 import type { Messages } from "../types.js";
 
-export const en = {};
+export const en = {
+  paste: {
+    /** 编辑器里大粘贴的折叠标记（`tui/components/editor-paste.ts`；识别正则同时认两种语言）。 */
+    marker: (id: number, lines: number) => `[paste #${id} · ${plural(lines, "line")}]`,
+  },
+};
 
-export const zh = {} satisfies Messages<typeof en>;
+export const zh = {
+  paste: {
+    marker: (id, lines) => `[粘贴 #${id} · ${lines} 行]`,
+  },
+} satisfies Messages<typeof en>;

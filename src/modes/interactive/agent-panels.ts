@@ -11,7 +11,7 @@ import type { TaskInfo } from "../../tools/types.js";
 import { Card, wrapTextWithAnsi, type Component, type KeyValueRow, type Theme } from "../../tui.js";
 import { Indent, Stack, keyValue } from "./panels.js";
 import { planStatusText, planTitle } from "./plan-command.js";
-import { agentFacts, listAgents, taskFacts } from "./tasks-report.js";
+import { agentFactItems, listAgents, taskFacts } from "./tasks-report.js";
 import { cleanLines } from "./tool-summary.js";
 
 /** 折行显示的若干行。 */
@@ -94,9 +94,12 @@ export function agentsPanel(sessionId: string, theme: Theme): Component {
       title: "子 Agent",
     });
   const rows: KeyValueRow[] = agents.map((agent) => {
-    const facts = agentFacts(agent);
-    const status = facts.map((f) =>
-      f === "未安装" ? theme.fg("warning", f) : f.startsWith("已安装") ? theme.fg("success", f) : f,
+    const status = agentFactItems(agent).map((f) =>
+      f.state === "missing"
+        ? theme.fg("warning", f.text)
+        : f.state === "installed"
+          ? theme.fg("success", f.text)
+          : f.text,
     );
     return {
       key: agent.name,

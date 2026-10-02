@@ -5,12 +5,16 @@
  * - 换行规范化：`\r\n` / 单独的 `\r` → `\n`（括号粘贴里终端常把换行发成 `\r`）。
  * - 未折叠的粘贴把制表符换成 4 个空格（编辑器按列宽渲染，`\t` 没有确定宽度）；折叠内容保留原文。
  * - 标记只在本编辑器记录过的编号上展开；用户手打的同形文本不会被替换成别的内容。
+ * - [W6-C0] 标记按界面语言渲染（zh `[粘贴 #N · M 行]`、en `[paste #N · M lines]`）；识别同时认两种写法，
+ *   换了语言后历史草稿里的旧标记照样是不可分割段、照样展开。
  */
+
+import { msg } from "../../i18n/index.js";
 
 export const PASTE_LINE_THRESHOLD = 10;
 export const PASTE_CHAR_THRESHOLD = 1000;
 
-const MARKER_RE = /\[粘贴 #(\d+) · (\d+) 行\]/g;
+const MARKER_RE = /\[(?:粘贴|paste) #(\d+) · (\d+) (?:行|lines?)\]/g;
 
 export function normalizePastedText(text: string): string {
   return text.replace(/\r\n?/g, "\n");
@@ -26,7 +30,7 @@ export function shouldCollapse(text: string): boolean {
 }
 
 export function formatMarker(id: number, lines: number): string {
-  return `[粘贴 #${id} · ${lines} 行]`;
+  return msg().interactive.paste.marker(id, lines);
 }
 
 export class PasteStore {
@@ -58,7 +62,8 @@ export class PasteStore {
 
   /** 一行内已登记标记的区间（编辑器的不可分割段）。 */
   ranges(line: string): Array<readonly [number, number]> {
-    if (this.entries.size === 0 || !line.includes("[粘贴 #")) return [];
+    if (this.entries.size === 0 || !(line.includes("[粘贴 #") || line.includes("[paste #")))
+      return [];
     const out: Array<readonly [number, number]> = [];
     for (const m of line.matchAll(MARKER_RE)) {
       if (this.entries.has(Number(m[1]))) out.push([m.index, m.index + m[0].length]);
