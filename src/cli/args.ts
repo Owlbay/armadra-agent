@@ -2,7 +2,7 @@
  * 手写参数解析（设计 §11.1 第 2 步、§12.10、§13）。[B5]
  *
  * - 支持 `--opt value` 与 `--opt=value`；`--` 之后全部作为提示文本；可重复的参数累加。
- * - 子命令只在第一个参数是 `auth / sessions / models / doctor / config` 时识别，其余参数原样交给子命令。
+ * - 子命令只在第一个参数是 `auth / sessions / models / providers / doctor / config` 时识别，其余参数原样交给子命令。
  * - 互斥：`-p` 与 `--mode rpc`；`--continue` / `--resume` / `--session-id` / `--fork` 两两互斥；
  *   `--trust` 与 `--no-trust`；`--api-key` 需要 `--model`；`--output-format` 需要 `-p`。
  * - `--resume [id]`：下一个参数形如会话 id（无空白、不以 `-` 开头）才被当作 id；
@@ -16,7 +16,7 @@ import type { PermissionMode } from "../permissions/types.js";
 import type { CodemodeMode, ToolsPreset } from "../config/types.js";
 import { CODEMODE_MODES } from "../config/types.js";
 
-export const SUBCOMMANDS = ["auth", "sessions", "models", "doctor", "config"] as const;
+export const SUBCOMMANDS = ["auth", "sessions", "models", "providers", "doctor", "config"] as const;
 export type SubcommandName = (typeof SUBCOMMANDS)[number];
 
 export type OutputFormat = "text" | "json" | "stream-json";
@@ -141,6 +141,11 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
   ama models check <provider/id>     发一次最小请求检查可用性
   ama models discover <provider> [--probe] [--write] [--limit N]
                                从中转 /v1/models 列出模型，探测协议并写入配置
+  ama models refresh-catalog   强制刷新 models.dev 模型元数据缓存
+  ama providers add <id> --base-url <url> [--key-env VAR] [--probe] [--channel n=api@url] [--yes]
+                               一键接入：列模型、补 models.dev 元数据、探测渠道、写入配置
+  ama providers list|channels <id>|remove <id>|refresh <id>
+                               供应商 → 渠道 → 模型；删除；重拉模型列表
   ama models cache-probe <provider/id> [--tokens N] [--gap-ms MS] [--yes] [--json]
                                判断端点是否报告缓存命中
   ama doctor                   配置层级、信任、key 来源、Hook、终端能力

@@ -4,7 +4,8 @@
  *
  * - 设 `AMA=1`、`AI_AGENT=ama`；直接执行时装 `uncaughtException` / `unhandledRejection` →
  *   stderr 一行 + 退出码 1；SIGINT / SIGTERM 交给当前模式。
- * - `--version` / `--help` 短路；子命令 `auth / sessions / models / doctor / config` 分派后返回；
+ * - `--version` / `--help` 短路；子命令 `auth / sessions / models / providers / doctor / config`
+ *   分派后返回；
  *   其余交给 `runCli()`（bootstrap → 模式）。
  * - 运行时实现（RuntimeDeps）：`MainOptions.deps` > `registerRuntimeDeps()` > 组装根
  *   `createRuntimeDeps()`（cli/compose.ts，动态 import）。
@@ -23,6 +24,7 @@ import { runAuth } from "./subcommands/auth.js";
 import { runConfig } from "./subcommands/config.js";
 import { runDoctor } from "./subcommands/doctor.js";
 import { runModels } from "./subcommands/models.js";
+import { runProviders } from "./subcommands/providers.js";
 import { runSessions } from "./subcommands/sessions.js";
 
 declare const __AMA_BUNDLED__: boolean | undefined;
@@ -138,6 +140,8 @@ export async function main(argv: readonly string[], options: MainOptions = {}): 
           return await runSessions(parsed.argv, io, await resolveDeps());
         case "models":
           return await runModels(parsed.argv, io, await resolveDeps());
+        case "providers":
+          return await runProviders(parsed.argv, io, await resolveDeps());
         case "doctor":
           return await runDoctor(parsed.argv, io, await resolveDeps());
         case "config":
