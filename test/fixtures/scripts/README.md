@@ -13,3 +13,4 @@
 | parallel-tools.json | 一轮三个工具调用（并行 / 串行传染） |
 | slow-stream.json | 慢流（abort 落在块中间） |
 | codemode-parallel.json | 一次 codemode 调用：脚本里 Promise.all 并行 read / grep / glob，只回脚本输出 |
+| cache-stability-20.json | 20 回合（每三回合一次 read），bundle 级缓存测试配 `AMA_FAKE_RECORD` 断言前缀逐字节不变 |

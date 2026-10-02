@@ -1,0 +1,269 @@
+{
+  "version": 1,
+  "responses": [
+    {
+      "steps": [
+        {
+          "toolCall": {
+            "name": "read",
+            "arguments": {
+              "path": "AGENTS.md"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "text": "answer 0",
+      "usage": {
+        "input": 100,
+        "output": 5,
+        "cacheRead": 0,
+        "cacheWrite": 900
+      }
+    },
+    {
+      "text": "answer 1",
+      "usage": {
+        "input": 100,
+        "output": 5,
+        "cacheRead": 900,
+        "cacheWrite": 0
+      }
+    },
+    {
+      "text": "answer 2",
+      "usage": {
+        "input": 100,
+        "output": 5,
+        "cacheRead": 900,
+        "cacheWrite": 0
+      }
+    },
+    {
+      "steps": [
+        {
+          "toolCall": {
+            "name": "read",
+            "arguments": {
+              "path": "AGENTS.md"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "text": "answer 3",
+      "usage": {
+        "input": 100,
+        "output": 5,
+        "cacheRead": 900,
+        "cacheWrite": 0
+      }
+    },
+    {
+      "text": "answer 4",
+      "usage": {
+        "input": 100,
+        "output": 5,
+        "cacheRead": 900,
+        "cacheWrite": 0
+      }
+    },
+    {
+      "text": "answer 5",
+      "usage": {
+        "input": 100,
+        "output": 5,
+        "cacheRead": 900,
+        "cacheWrite": 0
+      }
+    },
+    {
+      "steps": [
+        {
+          "toolCall": {
+            "name": "read",
+            "arguments": {
+              "path": "AGENTS.md"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "text": "answer 6",
+      "usage": {
+        "input": 100,
+        "output": 5,
+        "cacheRead": 900,
+        "cacheWrite": 0
+      }
+    },
+    {
+      "text": "answer 7",
+      "usage": {
+        "input": 100,
+        "output": 5,
+        "cacheRead": 900,
+        "cacheWrite": 0
+      }
+    },
+    {
+      "text": "answer 8",
+      "usage": {
+        "input": 100,
+        "output": 5,
+        "cacheRead": 900,
+        "cacheWrite": 0
+      }
+    },
+    {
+      "steps": [
+        {
+          "toolCall": {
+            "name": "read",
+            "arguments": {
+              "path": "AGENTS.md"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "text": "answer 9",
+      "usage": {
+        "input": 100,
+        "output": 5,
+        "cacheRead": 900,
+        "cacheWrite": 0
+      }
+    },
+    {
+      "text": "answer 10",
+      "usage": {
+        "input": 100,
+        "output": 5,
+        "cacheRead": 900,
+        "cacheWrite": 0
+      }
+    },
+    {
+      "text": "answer 11",
+      "usage": {
+        "input": 100,
+        "output": 5,
+        "cacheRead": 900,
+        "cacheWrite": 0
+      }
+    },
+    {
+      "steps": [
+        {
+          "toolCall": {
+            "name": "read",
+            "arguments": {
+              "path": "AGENTS.md"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "text": "answer 12",
+      "usage": {
+        "input": 100,
+        "output": 5,
+        "cacheRead": 900,
+        "cacheWrite": 0
+      }
+    },
+    {
+      "text": "answer 13",
+      "usage": {
+        "input": 100,
+        "output": 5,
+        "cacheRead": 900,
+        "cacheWrite": 0
+      }
+    },
+    {
+      "text": "answer 14",
+      "usage": {
+        "input": 100,
+        "output": 5,
+        "cacheRead": 900,
+        "cacheWrite": 0
+      }
+    },
+    {
+      "steps": [
+        {
+          "toolCall": {
+            "name": "read",
+            "arguments": {
+              "path": "AGENTS.md"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "text": "answer 15",
+      "usage": {
+        "input": 100,
+        "output": 5,
+        "cacheRead": 900,
+        "cacheWrite": 0
+      }
+    },
+    {
+      "text": "answer 16",
+      "usage": {
+        "input": 100,
+        "output": 5,
+        "cacheRead": 900,
+        "cacheWrite": 0
+      }
+    },
+    {
+      "text": "answer 17",
+      "usage": {
+        "input": 100,
+        "output": 5,
+        "cacheRead": 900,
+        "cacheWrite": 0
+      }
+    },
+    {
+      "steps": [
+        {
+          "toolCall": {
+            "name": "read",
+            "arguments": {
+              "path": "AGENTS.md"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "text": "answer 18",
+      "usage": {
+        "input": 100,
+        "output": 5,
+        "cacheRead": 900,
+        "cacheWrite": 0
+      }
+    },
+    {
+      "text": "answer 19",
+      "usage": {
+        "input": 100,
+        "output": 5,
+        "cacheRead": 900,
+        "cacheWrite": 0
+      }
+    }
+  ]
+}
