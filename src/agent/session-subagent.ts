@@ -108,6 +108,8 @@ export function readOnlyPermission(
     rules: parent?.rules ?? [],
     cwd: base?.cwd ?? cwd,
     ...(parent?.projectRoot === undefined ? {} : { projectRoot: parent.projectRoot }),
+    // 沿用父的 plan.bash（deny 更严时照样 deny；ask 由下面统一转 deny）
+    ...(base === undefined ? {} : { planBash: base.planBash }),
   });
   const denied =
     "Read-only sub-agent: this call is not allowed (it would modify files or run a non-read-only command).";

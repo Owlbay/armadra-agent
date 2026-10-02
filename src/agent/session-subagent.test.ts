@@ -4,7 +4,8 @@ import { createTmpHome, type TmpHome } from "../../test/helpers/tmp-home.js";
 import { AgentCatalog } from "../agents/catalog.js";
 import { MAX_TURNS_NOTE, TASK_RESULT_LIMIT_BYTES } from "../agents/result.js";
 import { sessionDirForCwd } from "../session/store.js";
-import { FINAL_REPORT_PROMPT } from "./session-subagent.js";
+import { PermissionPipeline } from "../permissions/pipeline.js";
+import { FINAL_REPORT_PROMPT, readOnlyPermission } from "./session-subagent.js";
 import {
   agentDef,
   firstUser,
@@ -84,6 +85,80 @@ describe("只读类型（explore / plan）", () => {
     await h.session.prompt("go");
     const child = h.scripted.calls.filter(isChild);
     expect(child[1]!.context.messages.at(-1)).toMatchObject({ toolName: "write", isError: false });
+  });
+});
+
+describe("只读管线（readOnlyPermission）", () => {
+  const check = (pipeline: ReturnType<typeof readOnlyPermission>, command: string) =>
+    pipeline.check({
+      toolName: "bash",
+      permission: "execute",
+      input: { command },
+      unattended: false,
+    }).decision;
+
+  it("只读 bash 放行、其余拒绝；沿用父的 plan.bash（deny 更严）；ask 一律转 deny", () => {
+    const parent = new PermissionPipeline({ mode: "full-auto", rules: [], cwd: "/w" });
+    const ro = readOnlyPermission(parent, "/w");
+    expect(ro.mode).toBe("plan");
+    expect(check(ro, "ls")).toBe("allow");
+    expect(check(ro, "rm -rf build")).toBe("deny");
+    expect(
+      ro.check({ toolName: "write", permission: "write", input: {}, unattended: false }).decision,
+    ).toBe("deny");
+    const strict = new PermissionPipeline({
+      mode: "default",
+      rules: [],
+      cwd: "/w",
+      planBash: "deny",
+    });
+    expect(check(readOnlyPermission(strict, "/w"), "ls")).toBe("deny");
+    const asking = new PermissionPipeline({
+      mode: "default",
+      rules: [],
+      cwd: "/w",
+      planBash: "ask",
+    });
+    expect(check(readOnlyPermission(asking, "/w"), "make build")).toBe("deny");
+    ro.setMode("full-auto");
+    expect(ro.mode).toBe("plan");
+  });
+});
+
+describe("父会话处于 plan（W5-F：plan 下放行 task，依赖子会话共用父的管线）", () => {
+  it.each(["explore", "general"])("%s 子 Agent 写文件被拒、不弹审批", async (agent) => {
+    const asked: string[] = [];
+    const h = subagentHarness({
+      mode: "plan",
+      asked,
+      script: (call) =>
+        isChild(call)
+          ? lastIsToolResult(call)
+            ? { text: "tried" }
+            : { toolCalls: [{ name: "write", args: { path: "x" } }] }
+          : parentTurn(call, [{ name: "task", args: { prompt: "edit", agent } }]),
+    });
+    await h.session.prompt("go");
+    const child = h.scripted.calls.filter(isChild);
+    expect(child).toHaveLength(2);
+    expect(child[1]!.context.messages.at(-1)).toMatchObject({ toolName: "write", isError: true });
+    expect(asked).toEqual([]);
+    expect(String(toolResults(h)[0]?.content)).toBe("[task t1] tried");
+  });
+
+  it("inherit 类型与父共用同一条管线对象（父切到 plan 后子会话随之只读）", async () => {
+    const h = subagentHarness({
+      script: (call) =>
+        isChild(call)
+          ? lastIsToolResult(call)
+            ? { text: "tried" }
+            : { toolCalls: [{ name: "write", args: {} }] }
+          : parentTurn(call, [{ name: "task", args: { prompt: "edit" } }]),
+    });
+    h.session.setPermissionMode("plan");
+    await h.session.prompt("go");
+    const child = h.scripted.calls.filter(isChild);
+    expect(child[1]!.context.messages.at(-1)).toMatchObject({ toolName: "write", isError: true });
   });
 });
 
