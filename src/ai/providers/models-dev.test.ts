@@ -5,6 +5,7 @@ import {
   MODELS_DEV_MAX_OUTPUT,
   ModelsDevIndex,
   idCandidates,
+  keepForSnapshot,
   matchLabel,
   modelsDevFields,
   trimModelsDev,
@@ -53,10 +54,77 @@ describe("trimModelsDev", () => {
         tool_call: true,
         modalities: { input: ["text", "image"] },
         limit: { context: 1000 },
-        cost: { input: 1 },
+        // 只有 input 没有 output 的价格用不上，整段丢掉
       },
     });
     expect(() => trimModelsDev([])).toThrow();
+  });
+
+  it("第五波字段：family / knowledge / release_date / limit.input / 价格档位 / interleaved / beta", () => {
+    const trimmed = trimModelsDev({
+      acme: {
+        id: "acme",
+        api: "https://acme.test/v1",
+        models: {
+          m: {
+            name: "M",
+            family: "m-family",
+            knowledge: "2026-06",
+            release_date: "2026-09-01",
+            last_updated: "2026-09-02",
+            status: "beta",
+            interleaved: { field: "reasoning_content", extra: 1 },
+            reasoning_options: [{ type: "effort", values: ["low"] }],
+            limit: { context: 300_000, input: 250_000, output: 32_000 },
+            cost: {
+              input: 1,
+              output: 2,
+              context_over_200k: { input: 2, output: 4, cache_read: 0.2 },
+              tiers: [
+                { input: 3, output: 6, tier: { type: "context", size: 128_000 } },
+                { input: 9, output: 9, tier: { type: "other", size: 1 } },
+              ],
+            },
+          },
+          old: { status: "deprecated", interleaved: true },
+        },
+      },
+    });
+    expect(trimmed["acme"]).toEqual({
+      id: "acme",
+      api: "https://acme.test/v1",
+      models: {
+        m: {
+          id: "m",
+          name: "M",
+          family: "m-family",
+          knowledge: "2026-06",
+          release_date: "2026-09-01",
+          status: "beta",
+          interleaved: { field: "reasoning_content" },
+          limit: { context: 300_000, input: 250_000, output: 32_000 },
+          cost: {
+            input: 1,
+            output: 2,
+            context_over_200k: { input: 2, output: 4, cache_read: 0.2 },
+            tiers: [{ input: 3, output: 6, tier: { size: 128_000, type: "context" } }],
+          },
+        },
+        old: { id: "old", interleaved: true },
+      },
+    });
+  });
+
+  it("keepForSnapshot：丢 deprecated、不出文本、context 0 / 缺失、tool_call:false", () => {
+    const ok = { limit: { context: 1 }, modalities: { output: ["text"] } };
+    expect(keepForSnapshot(ok)).toBe(true);
+    expect(keepForSnapshot({ ...ok, status: "beta" })).toBe(true);
+    expect(keepForSnapshot({ ...ok, status: "deprecated" })).toBe(false);
+    expect(keepForSnapshot({ ...ok, tool_call: false })).toBe(false);
+    expect(keepForSnapshot({ ...ok, modalities: { output: ["image"] } })).toBe(false);
+    expect(keepForSnapshot({ limit: { context: 0 } })).toBe(false);
+    expect(keepForSnapshot({})).toBe(false);
+    expect(keepForSnapshot("x")).toBe(false);
   });
 });
 
@@ -184,5 +252,66 @@ describe("modelsDevFields", () => {
     });
     expect(modelsDevFields({ id: "y", limit: { output: 8000 } })).toEqual({ maxTokens: 8000 });
     expect(modelsDevFields({ id: "z" })).toEqual({});
+  });
+
+  it("档位、元数据字段；catalog 口径不封顶、缺缓存价记 0", () => {
+    const model = {
+      id: "m",
+      family: "f",
+      knowledge: "2026-06",
+      release_date: "2026-09-01",
+      status: "beta" as const,
+      limit: { context: 1_000_000, input: 900_000, output: 128_000 },
+      cost: {
+        input: 1,
+        output: 2,
+        cache_read: 0.1,
+        context_over_200k: { input: 2, output: 4 },
+      },
+    };
+    expect(modelsDevFields(model)).toEqual({
+      contextWindow: 1_000_000,
+      maxTokens: MODELS_DEV_MAX_OUTPUT,
+      inputLimit: 900_000,
+      family: "f",
+      knowledge: "2026-06",
+      releaseDate: "2026-09-01",
+      status: "beta",
+      cost: {
+        input: 1,
+        output: 2,
+        cacheRead: 0.1,
+        cacheWrite: 1,
+        tiers: [{ inputTokensAbove: 200_000, input: 2, output: 4, cacheRead: 2, cacheWrite: 2 }],
+      },
+    });
+    const catalog = modelsDevFields(model, "catalog");
+    expect(catalog.maxTokens).toBe(128_000);
+    expect(catalog.cost).toEqual({
+      input: 1,
+      output: 2,
+      cacheRead: 0.1,
+      cacheWrite: 0,
+      tiers: [{ inputTokensAbove: 200_000, input: 2, output: 4, cacheRead: 0, cacheWrite: 0 }],
+    });
+    // 通用 tiers 优先于 context_over_200k；inputLimit 与 context 相同不给
+    const tiered = modelsDevFields(
+      {
+        id: "t",
+        limit: { context: 10, input: 10 },
+        cost: {
+          input: 1,
+          output: 1,
+          context_over_200k: { input: 9, output: 9 },
+          tiers: [
+            { input: 3, output: 3, tier: { size: 500, type: "context" } },
+            { input: 2, output: 2, tier: { size: 100, type: "context" } },
+          ],
+        },
+      },
+      "catalog",
+    );
+    expect(tiered.inputLimit).toBeUndefined();
+    expect(tiered.cost?.tiers?.map((t) => t.inputTokensAbove)).toEqual([100, 500]);
   });
 });

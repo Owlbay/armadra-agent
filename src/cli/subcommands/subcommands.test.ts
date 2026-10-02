@@ -268,6 +268,7 @@ describe("ama models / sessions（依赖注入）", () => {
       "check",
       "discover",
       "cache-probe",
+      "refresh",
       "refresh-catalog",
     ]);
     expect(MODELS_USAGE).toMatch(

@@ -13,7 +13,7 @@
 
 import { existsSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
-import { describeRefresh, refreshModelsDev } from "../../ai/providers/models-dev-cache.js";
+import { describeModelsDev, loadModelsDevIndex } from "../../ai/providers/models-dev-cache.js";
 import { modelsDevFields, type ModelsDevIndex } from "../../ai/providers/models-dev.js";
 import type { ProviderRegistryApi } from "../../ai/types.js";
 import { PROVIDER_ID_PATTERN, setAuthKey } from "../../config/auth-file.js";
@@ -321,9 +321,9 @@ async function add(ctx: Ctx, id: string, refresh: boolean): Promise<number> {
     return ExitCode.RuntimeError;
   }
   io.stdout(`${id}：发现 ${listed.length} 个模型（${target.url}）\n`);
-  const md = await refreshModelsDev({ dataDir: level.dataDir, env: io.env, force: refresh });
-  io.stdout(`${describeRefresh(md)}\n`);
-  if (md.warning !== undefined) io.stderr(`ama: 警告：${md.warning}\n`);
+  // models.dev 只读本地（快照 ⊕ `ama models refresh` 的覆盖），不联网。
+  const mdIndex = loadModelsDevIndex(level.dataDir);
+  io.stdout(`${describeModelsDev(level.dataDir)}\n`);
   io.stdout(
     `候选渠道：${candidates.map((c) => `${c.name}（${c.api} ${c.baseUrl}）`).join(" · ")}\n`,
   );
@@ -332,7 +332,7 @@ async function add(ctx: Ctx, id: string, refresh: boolean): Promise<number> {
     id,
     candidates,
     listed,
-    index: md.index,
+    index: mdIndex,
     existingIds,
     apiKey: key.apiKey,
     registry,

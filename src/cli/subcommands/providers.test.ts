@@ -3,6 +3,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTmpHome, type TmpHome } from "../../../test/helpers/tmp-home.js";
 import { ApiRegistry } from "../../ai/apis/api.js";
+import { writeModelsDevCache } from "../../ai/providers/models-dev-cache.js";
+import { trimModelsDev } from "../../ai/providers/models-dev.js";
 import type { Api, ApiImplementation, Model } from "../../ai/types.js";
 import type { AmaConfig } from "../../config/types.js";
 import { buildProviderRegistry } from "../compose-providers.js";
@@ -16,7 +18,6 @@ let err: string[];
 let calls: { id: string; api: Api; baseUrl: string | undefined; apiKey: string | undefined }[];
 let requests: { url: string; headers: Record<string, string> }[];
 
-const MD_URL = "http://models-dev.test/api.json";
 const SAMPLE = JSON.parse(
   readFileSync(join(process.cwd(), "test/fixtures/models-dev/api-sample.json"), "utf8"),
 ) as unknown;
@@ -42,10 +43,16 @@ beforeEach(() => {
   err = [];
   calls = [];
   requests = [];
+  // models.dev 不联网：快照 ⊕ 用户级覆盖（这里用样本当作 `ama models refresh` 写下的覆盖）
+  writeModelsDevCache(home.dataDir, {
+    version: 2,
+    url: "https://models.dev/api.json",
+    fetchedAt: "2999-01-01T00:00:00.000Z",
+    providers: trimModelsDev(SAMPLE),
+  });
   vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input instanceof Request ? input.url : input);
     requests.push({ url, headers: Object.fromEntries(new Headers(init?.headers).entries()) });
-    if (url === MD_URL) return Response.json(SAMPLE, { headers: { etag: '"x"' } });
     if (url.endsWith("/models")) return Response.json({ data: LISTING });
     return new Response("not found", { status: 404 });
   });
@@ -62,7 +69,7 @@ function io(stdin = ""): CliIo {
     stderr: (t: string) => void err.push(t),
     stdinIsTTY: false,
     stdoutIsTTY: false,
-    env: { ...home.env, AMA_MODELS_DEV_URL: MD_URL, RELAY_KEY: "sk-relay" },
+    env: { ...home.env, RELAY_KEY: "sk-relay" },
     cwd: home.cwd,
     readStdin: async () => stdin,
   };
@@ -163,7 +170,8 @@ describe("ama providers add", () => {
     ]);
     const text = out.join("");
     expect(text).toContain("发现 5 个模型（https://relay.example/v1/models）");
-    expect(text).toContain("models.dev：已更新");
+    expect(text).toMatch(/models\.dev：快照 \S+ ⊕ 刷新 2999-01-01/);
+    expect(requests.every((r) => !r.url.includes("models.dev"))).toBe(true);
     expect(text).toContain("探测：3 个模型、7 次最小请求");
     expect(text).toMatch(/kimi-k2\.5\s+chat,messages\s+262k\s+66k\s+是\s+是\s+是/);
     expect(text).toMatch(
@@ -258,7 +266,6 @@ describe("ama providers add", () => {
       const url = String(input instanceof Request ? input.url : input);
       const headers = Object.fromEntries(new Headers(init?.headers).entries());
       requests.push({ url, headers });
-      if (url === MD_URL) return Response.json(SAMPLE);
       if (headers["x-api-key"] === "sk-relay")
         return Response.json({
           data: [
