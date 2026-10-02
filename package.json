@@ -1,6 +1,6 @@
 {
   "name": "@armadra/agent",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "可独立使用、可嵌入 Armadra 的编码 / 协调 Agent",
   "type": "module",
   "keywords": [
