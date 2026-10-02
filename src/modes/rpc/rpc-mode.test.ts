@@ -291,33 +291,48 @@ describe("RPC 命令表", () => {
 });
 
 describe("RPC 回滚", () => {
-  it("黄金记录：get_rewind_points → rewind（仅对话）→ session_rewound；无检查点时代码回滚报 no_checkpoint", async () => {
-    const { lines } = await drive([{ text: "one" }, { text: "two" }], async (d) => {
-      d.send({ id: "p1", type: "prompt", message: "first" });
-      await d.waitFor(settled);
-      d.send({ id: "p2", type: "prompt", message: "second" });
-      await d.waitFor((l) => settled(l) && d.lines.filter(settled).length === 2);
-      d.send({ id: "pts", type: "get_rewind_points" });
-      const points = (await d.waitFor((l) => l["id"] === "pts"))["data"] as {
-        points: { entryId: string }[];
-      };
-      const target = points.points[1]?.entryId;
-      d.send({ id: "code", type: "rewind", entryId: target, mode: "code" });
-      await d.waitFor((l) => l["id"] === "code");
-      d.send({ id: "rw", type: "rewind", entryId: target, mode: "conversation" });
-      await d.waitFor((l) => l["id"] === "rw");
-      d.send({ id: "bad", type: "summarize_up_to", entryId: "missing" });
-      await d.waitFor((l) => l["id"] === "bad");
-      d.send({ id: "after", type: "get_rewind_points" });
-      await d.waitFor((l) => l["id"] === "after");
-    });
-    expect(lines.find((l) => l["id"] === "code")).toMatchObject({
-      success: false,
-      code: "no_checkpoint",
+  it("黄金记录：get_rewind_points → rewind 预览 → rewind（对话 + 代码）→ session_rewound，文件真的回到之前", async () => {
+    const { lines } = await drive(
+      [
+        { text: "one" },
+        {
+          steps: [
+            { toolCall: { name: "write", arguments: { path: "c.txt", content: "gamma\n" } } },
+          ],
+        },
+        { text: "two" },
+      ],
+      async (d) => {
+        d.send({ id: "m", type: "set_permission_mode", mode: "auto-edit" });
+        await d.waitFor((l) => l["id"] === "m");
+        d.send({ id: "p1", type: "prompt", message: "first" });
+        await d.waitFor(settled);
+        d.send({ id: "p2", type: "prompt", message: "second" });
+        await d.waitFor((l) => settled(l) && d.lines.filter(settled).length === 2);
+        expect(existsSync(join(h.home.cwd, "c.txt"))).toBe(true);
+        d.send({ id: "pts", type: "get_rewind_points" });
+        const points = (await d.waitFor((l) => l["id"] === "pts"))["data"] as {
+          points: { entryId: string }[];
+        };
+        const target = points.points[1]?.entryId;
+        d.send({ id: "dry", type: "rewind", entryId: target, mode: "both", dryRun: true });
+        await d.waitFor((l) => l["id"] === "dry");
+        d.send({ id: "rw", type: "rewind", entryId: target, mode: "both" });
+        await d.waitFor((l) => l["id"] === "rw");
+        d.send({ id: "bad", type: "summarize_up_to", entryId: "missing" });
+        await d.waitFor((l) => l["id"] === "bad");
+        d.send({ id: "after", type: "get_rewind_points" });
+        await d.waitFor((l) => l["id"] === "after");
+      },
+    );
+    expect(existsSync(join(h.home.cwd, "c.txt"))).toBe(false);
+    expect(lines.find((l) => l["id"] === "dry")).toMatchObject({
+      success: true,
+      data: { code: { deleted: ["c.txt"] } },
     });
     expect(lines.find((l) => l["id"] === "rw")).toMatchObject({
       success: true,
-      data: { conversation: { draft: { text: "second" } } },
+      data: { conversation: { draft: { text: "second" } }, code: { deleted: ["c.txt"] } },
     });
     expect(lines.find((l) => l["id"] === "bad")).toMatchObject({ code: "invalid_arguments" });
     const from = lines.findIndex((l) => l["id"] === "pts");

@@ -258,7 +258,7 @@
 
 ## 示例
 
-`test/fixtures/rpc/prompt.out.jsonl` 是一次完整往返的黄金文件（fake 供应商；`prompt` → `get_last_assistant_text`，会话 id、时间戳与路径已归一化）：`hello` → `session_start` → `entry_appended`（模型、思考级别、首条 system 消息）→ `before_agent_start` → `agent_start` → `turn_start` → `prompt` 的响应 → 用户消息 → 助手消息的 `message_update` 增量 → `turn_end` → `agent_end` → `agent_before_settle` → `agent_settled` → 第二条命令的响应。改协议后由 `src/modes/rpc/rpc-mode.test.ts` 用 `UPDATE_GOLDEN=1` 更新并审阅差异。`test/fixtures/rpc/rewind.out.jsonl` 记回滚的往返（不含 `entry_appended`）：`get_rewind_points` → 无检查点时 `rewind{mode:"code"}` 回 `no_checkpoint` → `rewind{mode:"conversation"}` 先发 `session_rewound` 再回 `RewindResult` → 非回滚点的 `summarize_up_to` 回 `invalid_arguments` → 回滚后的 `get_rewind_points`。
+`test/fixtures/rpc/prompt.out.jsonl` 是一次完整往返的黄金文件（fake 供应商；`prompt` → `get_last_assistant_text`，会话 id、时间戳与路径已归一化）：`hello` → `session_start` → `entry_appended`（模型、思考级别、首条 system 消息）→ `before_agent_start` → `agent_start` → `turn_start` → `prompt` 的响应 → 用户消息 → 助手消息的 `message_update` 增量 → `turn_end` → `agent_end` → `agent_before_settle` → `agent_settled` → 第二条命令的响应。改协议后由 `src/modes/rpc/rpc-mode.test.ts` 用 `UPDATE_GOLDEN=1` 更新并审阅差异。`test/fixtures/rpc/rewind.out.jsonl` 记回滚的往返（不含 `entry_appended`；第二回合用 write 新建了 `c.txt`）：`get_rewind_points` → `rewind{mode:"both", dryRun:true}` 只回预览 → `rewind{mode:"both"}` 先发 `session_rewound` 再回 `RewindResult`（`c.txt` 被删除、对话回到第二条消息之前）→ 非回滚点的 `summarize_up_to` 回 `invalid_arguments` → 回滚后的 `get_rewind_points`。
 
 最小会话（stdin 关闭即撤下审批，所以管道方式只适合不需要审批的提示；要回答审批，保持 stdin 打开并先发 `set_client_capabilities`）：
 

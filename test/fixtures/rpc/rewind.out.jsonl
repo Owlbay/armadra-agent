@@ -1,6 +1,6 @@
-{"id":"pts","type":"response","command":"get_rewind_points","success":true,"data":{"points":[{"entryId":"<id>","text":"first","timestamp":0,"hasCheckpoint":false},{"entryId":"<id>","text":"second","timestamp":0,"hasCheckpoint":false}]}}
-{"id":"code","type":"response","command":"rewind","success":false,"error":"this message has no checkpoint; rewind the conversation only","code":"no_checkpoint"}
-{"type":"session_rewound","entryId":"<id>","mode":"conversation","restored":[],"deleted":[],"conflicts":[],"skipped":[]}
-{"id":"rw","type":"response","command":"rewind","success":true,"data":{"conversation":{"leafId":"<id>","draft":{"text":"second"}}}}
+{"id":"pts","type":"response","command":"get_rewind_points","success":true,"data":{"points":[{"entryId":"<id>","text":"first","timestamp":0,"hasCheckpoint":true},{"entryId":"<id>","text":"second","timestamp":0,"hasCheckpoint":true}]}}
+{"id":"dry","type":"response","command":"rewind","success":true,"data":{"code":{"restored":[],"deleted":["c.txt"],"conflicts":[],"skipped":[],"failed":[],"insertions":0,"deletions":1}}}
+{"type":"session_rewound","entryId":"<id>","mode":"both","restored":[],"deleted":["c.txt"],"conflicts":[],"skipped":[]}
+{"id":"rw","type":"response","command":"rewind","success":true,"data":{"code":{"restored":[],"deleted":["c.txt"],"conflicts":[],"skipped":[],"failed":[],"insertions":0,"deletions":1},"conversation":{"leafId":"<id>","draft":{"text":"second"}}}}
 {"id":"bad","type":"response","command":"summarize_up_to","success":false,"error":"entry missing is not a rewind point on the active branch","code":"invalid_arguments"}
-{"id":"after","type":"response","command":"get_rewind_points","success":true,"data":{"points":[{"entryId":"<id>","text":"first","timestamp":0,"hasCheckpoint":false}]}}
+{"id":"after","type":"response","command":"get_rewind_points","success":true,"data":{"points":[{"entryId":"<id>","text":"first","timestamp":0,"hasCheckpoint":true}]}}
