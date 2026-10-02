@@ -169,6 +169,8 @@ export interface RuntimeDeps {
       cwd: string;
       /** config `permission.builtinDeny`（只来自用户级 / profile）；缺省 = 启用全部内置 deny。 */
       builtinDeny?: boolean | string[];
+      /** config `permission.autoSafeCommands`（auto 模式安全名单追加）。 */
+      autoSafeCommands?: string[];
     }): PermissionPipelineApi;
   };
   /** B3：skills / prompts 发现；缺省为空。 */

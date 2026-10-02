@@ -120,10 +120,10 @@ describe("规则命中", () => {
 describe("来源合并：项目级只能收紧", () => {
   it("项目级 allow 与放宽 mode 被忽略并 warning；deny 与收紧生效", () => {
     const r = resolvePermissionLayers([
-      { source: "user", mode: "auto-edit", allow: ["bash(git *)"], deny: ["write(**/.env*)"] },
-      { source: "project", mode: "full-auto", allow: ["bash"], deny: ["bash(curl *)"] },
+      { source: "user", mode: "default", allow: ["bash(git *)"], deny: ["write(**/.env*)"] },
+      { source: "project", mode: "auto-edit", allow: ["bash"], deny: ["bash(curl *)"] },
     ]);
-    expect(r.mode).toBe("auto-edit");
+    expect(r.mode).toBe("default");
     expect(r.rules.filter((x) => x.effect === "allow").map((x) => x.raw)).toEqual(["bash(git *)"]);
     expect(r.rules.some((x) => x.raw === "bash(curl *)" && x.source === "project")).toBe(true);
     expect(r.warnings).toHaveLength(2);
@@ -136,6 +136,20 @@ describe("来源合并：项目级只能收紧", () => {
     ]);
     expect(tighter.mode).toBe("plan");
     expect(tighter.warnings).toEqual([]);
+
+    for (const mode of ["auto", "full-auto"] as const) {
+      const never = resolvePermissionLayers([
+        { source: "user", mode: "full-auto" },
+        { source: "project", mode },
+      ]);
+      expect(never.mode).toBe("full-auto");
+      expect(never.warnings.join("\n")).toMatch(/cannot set permission mode/);
+    }
+    const allowlist = resolvePermissionLayers([
+      { source: "user", mode: "default" },
+      { source: "project", mode: "allowlist" },
+    ]);
+    expect(allowlist.mode).toBe("allowlist");
   });
 
   it("命令行在项目级之后仍可放宽", () => {

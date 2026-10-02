@@ -2,11 +2,12 @@
  * 配置层级合并（设计 §7.2、§10.2）。[B5]
  *
  * 顺序：内置缺省 ← 用户级 ← profile.config ← 项目级（受限字段，只能收紧）← 命令行。
- * - 对象深合并；数组整体替换，例外是「累加型」列表：`permission.allow / deny`、
+ * - 对象深合并；数组整体替换，例外是「累加型」列表：`permission.allow / deny / autoSafeCommands`、
  *   `tools.disabled`、`skills.dirs` 跨层拼接去重。
- * - 项目级 `.ama/config.json` 只接受：`permission.deny`（追加）、`permission.mode`（只能更严）、
+ * - 项目级 `.ama/config.json` 只接受：`permission.deny`（追加）、`permission.mode`（只能更严，且不能是
+ *   auto / full-auto）、
  *   `compaction`、`tools.disabled`、`tools.preset`（只能更严）、`codemode.mode: "off"`、`ui`；
- *   其它字段与放宽项（含 `permission.builtinDeny`）被忽略并记 warning。
+ *   其它字段与放宽项（含 `permission.builtinDeny / autoModel / autoSafeCommands`）被忽略并记 warning。
  * - 同时产出带来源的权限规则清单（`ruleSpecs`），交给权限管线（B3 的 rules.ts 解析）。
  */
 
@@ -65,6 +66,7 @@ const RULE_SOURCE: Record<ConfigLayerName, RuleSource> = {
 const ACCUMULATING = new Set([
   "permission.allow",
   "permission.deny",
+  "permission.autoSafeCommands",
   "tools.disabled",
   "skills.dirs",
 ]);
@@ -203,7 +205,17 @@ function restrictPermission(
   if (permission.builtinDeny !== undefined) {
     warnings.push(`${label}: 项目级不能改内置 deny 表，忽略 permission.builtinDeny`);
   }
-  if (permission.mode !== undefined) {
+  if (permission.autoModel !== undefined) {
+    warnings.push(`${label}: 项目级不能设 permission.autoModel，已忽略`);
+  }
+  if (permission.autoSafeCommands !== undefined && permission.autoSafeCommands.length > 0) {
+    warnings.push(`${label}: 项目级不能追加 permission.autoSafeCommands（放宽），已忽略`);
+  }
+  if (permission.mode === "auto" || permission.mode === "full-auto") {
+    warnings.push(
+      `${label}: 项目级不能把权限模式设为 ${permission.mode}（放宽，只能在用户级配置、profile 或命令行设），已忽略`,
+    );
+  } else if (permission.mode !== undefined) {
     if (isAtLeastAsStrict(permission.mode, currentMode)) {
       result.mode = permission.mode;
     } else {

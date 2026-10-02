@@ -17,6 +17,8 @@ import { getSupportedLevels } from "../../ai/thinking.js";
 import { switchSession } from "../../cli/compose-session.js";
 import type { Runtime } from "../../cli/runtime.js";
 import { AmaError } from "../../errors.js";
+import { isPermissionMode } from "../../permissions/modes.js";
+import { PERMISSION_MODES_STRICT_FIRST } from "../../permissions/types.js";
 import type { ApprovalBroker, ApprovalDecision, ApprovalRequest } from "../../permissions/types.js";
 import type {
   RpcCapability,
@@ -300,6 +302,12 @@ export const handlers: RpcHandlers = {
     };
   },
   set_permission_mode: async (p, ctx) => {
+    if (!isPermissionMode(p.mode)) {
+      throw new AmaError(
+        "invalid_arguments",
+        `mode 应为 ${PERMISSION_MODES_STRICT_FIRST.join(" | ")}`,
+      );
+    }
     ctx.session().setPermissionMode(p.mode);
     return { mode: p.mode };
   },

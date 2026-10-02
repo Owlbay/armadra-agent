@@ -290,6 +290,24 @@ describe("RPC 命令表", () => {
   });
 });
 
+describe("RPC set_permission_mode", () => {
+  it("接受 auto 与 allowlist；未知模式报 invalid_arguments", async () => {
+    const { lines } = await drive([{ text: "one" }], async (d) => {
+      d.send({ id: "a", type: "set_permission_mode", mode: "auto" });
+      d.send({ id: "b", type: "set_permission_mode", mode: "allowlist" });
+      d.send({ id: "c", type: "set_permission_mode", mode: "yolo" });
+      d.send({ id: "s", type: "get_state" });
+      await d.waitFor((l) => l["id"] === "s");
+    });
+    const byId = (id: string) => lines.find((l) => l["id"] === id) as Record<string, unknown>;
+    expect(byId("a")).toMatchObject({ success: true, data: { mode: "auto" } });
+    expect(byId("b")).toMatchObject({ success: true, data: { mode: "allowlist" } });
+    expect(byId("c")).toMatchObject({ success: false });
+    expect(JSON.stringify(byId("c"))).toContain("invalid_arguments");
+    expect(byId("s")["data"]).toMatchObject({ permissionMode: "allowlist" });
+  });
+});
+
 describe("RPC get_session_stats.cache [W3-C2]", () => {
   it("形状：三态、最近 / 会话命中率、未命中按原因、保温状态、余量；未命中与余量事件在流里", async () => {
     sharedCacheReporting.clear();

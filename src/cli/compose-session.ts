@@ -298,6 +298,8 @@ function buildSession(
     cache: cacheSettingsFrom(config, process.env, (message) => record.log("warn", message)),
     warmingDecider: () => assembly.host.warmingDecider?.(),
   };
+  const autoModel = config.permission?.autoModel;
+  if (autoModel !== undefined) options.permissionClassifier = { model: autoModel };
   const maxChars = config.tools?.maxToolResultChars;
   if (maxChars !== undefined) options.maxToolResultChars = maxChars;
   const hostId = assembly.host.handle?.adapter.id;

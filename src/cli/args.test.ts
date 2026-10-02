@@ -19,6 +19,13 @@ function usage(argv: string[]): string {
 }
 
 describe("parseArgs", () => {
+  it("--permission-mode 接受六种模式；--help 列出 auto 与 allowlist", () => {
+    for (const mode of ["plan", "allowlist", "default", "auto-edit", "auto", "full-auto"]) {
+      expect(run(["--permission-mode", mode]).permissionMode).toBe(mode);
+    }
+    expect(HELP_TEXT).toContain("default | auto-edit | plan | auto | full-auto | allowlist");
+  });
+
   it("全部参数", () => {
     const args = run([
       "--profile=/p.json",
@@ -115,6 +122,7 @@ describe("parseArgs", () => {
     expect(usage(["--trust", "--no-trust"])).toMatch(/--trust/);
     expect(usage(["--output-format", "json"])).toMatch(/-p/);
     expect(usage(["--permission-mode", "yolo"])).toMatch(/plan/);
+    expect(usage(["--permission-mode", "yolo"])).toMatch(/allowlist/);
     expect(usage(["--thinking", "max"])).toMatch(/xhigh/);
     expect(usage(["--tui-mode", "fullscreen"])).toMatch(/fullscreen/);
     expect(usage(["--mode", "json"])).toMatch(/rpc/);

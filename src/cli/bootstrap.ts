@@ -246,6 +246,7 @@ export async function bootstrap(
     // 14. 组装 AgentSession、session_start、SessionStart Hook
     const unattended = mode === "print";
     const builtinDeny = config.permission?.builtinDeny;
+    const autoSafeCommands = config.permission?.autoSafeCommands;
     const permission = await step(ExitCode.Config, "权限", () =>
       deps.permissions.create({
         mode: config.permission?.mode ?? "default",
@@ -253,6 +254,7 @@ export async function bootstrap(
         unattended,
         cwd: sessionCwd,
         ...(builtinDeny !== undefined ? { builtinDeny } : {}),
+        ...(autoSafeCommands !== undefined ? { autoSafeCommands } : {}),
       }),
     );
     const hooks = new HookDispatcher({

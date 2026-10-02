@@ -106,6 +106,32 @@ describe("SDK", () => {
     await session.dispose();
   });
 
+  it("permission.mode auto：安全名单（含 autoSafeCommands 追加）静态放行，删除类经 ask 回调并带 autoDecision", async () => {
+    const { fake, apis } = fakeApis([
+      { steps: [{ toolCall: { name: "bash", arguments: { command: "pwd" } } }] },
+      { steps: [{ toolCall: { name: "bash", arguments: { command: "node --version" } } }] },
+      { steps: [{ toolCall: { name: "bash", arguments: { command: "rm -rf ./build" } } }] },
+      { text: "done" },
+    ]);
+    const asked: unknown[] = [];
+    const session = await createAgentSession({
+      model: "fake/echo",
+      apis,
+      permission: {
+        mode: "auto",
+        autoSafeCommands: ["node --version"],
+        ask: async (request) => (asked.push(request.autoDecision), "deny"),
+      },
+    });
+    expect(session.state.permissionMode).toBe("auto");
+    await session.prompt("go");
+    const results = session.messages.filter((m) => m.role === "toolResult");
+    expect(results.map((m) => m.isError === true)).toEqual([false, false, true]);
+    expect(asked).toEqual([{ layer: "rule", decision: "ask", reason: "recursive or forced rm" }]);
+    expect(fake.calls.every((c) => c.options.purpose !== "classify")).toBe(true);
+    await session.dispose();
+  });
+
   it("没有任何 key 也没给模型 → no_api_key；模型不存在 → model_not_found", async () => {
     await expect(createAgentSession({ auth: { kind: "none" } })).rejects.toMatchObject({
       code: "no_api_key",

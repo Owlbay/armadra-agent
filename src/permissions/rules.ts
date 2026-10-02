@@ -263,6 +263,8 @@ export function resolvePermissionLayers(
     if (layer.mode !== undefined) {
       if (!PERMISSION_MODES_STRICT_FIRST.includes(layer.mode)) {
         warnings.push(`${layer.source}: unknown permission mode "${String(layer.mode)}"`);
+      } else if (restricted && (layer.mode === "auto" || layer.mode === "full-auto")) {
+        warnings.push(`project config cannot set permission mode "${layer.mode}"; ignored`);
       } else if (restricted && !isAtLeastAsStrict(layer.mode, mode)) {
         warnings.push(
           `project config cannot relax permission mode from "${mode}" to "${layer.mode}"; ignored`,
