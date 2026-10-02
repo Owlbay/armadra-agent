@@ -383,7 +383,7 @@ anthropic/<model-id> · think:medium · ↑412k ↓8.1k · cache 83% ♨ · $0.8
 留着不关的管道不会让 `-p` 挂起；收到首字节后读到 EOF。上游命令要先跑很久才输出时，在末尾加 `-` 一直等到 EOF
 （`npm test 2>&1 | ama -p "找出失败原因" -`）；`--no-stdin` 完全不读。`< 文件` 重定向总会读取。
 
-`--image <文件>` 可重复，随提示发送图片（PNG / JPEG / GIF / WebP，单张 ≤ 5 MB）；提示里的 `@图片路径` 同样作为附件。当前
+`--image <文件>` 可重复，随提示发送图片（PNG / JPEG / GIF / WebP，单张上限按端点分档、base64 后计：官方 Anthropic 10 MB、Gemini / OpenAI 20 MB、中转 5 MB，超限时尝试用 sips / ImageMagick 缩放）；提示里的 `@图片路径` 同样作为附件。当前
 模型不收图片时直接退出 2，不发请求。
 
 `--max-turns N` 限制一次运行最多 N 轮（一次模型请求加它的工具执行算一轮），到上限仍在调用工具时提前结束，退出码 1，
