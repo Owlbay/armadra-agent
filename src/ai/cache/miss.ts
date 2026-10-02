@@ -4,7 +4,8 @@
  * 1. 不计：没有 prev；本条 promptTokens 为 0；本条读写都为 0 且端点不是 `reported`（§1.6）；
  *    prev 低于最小可缓存长度（判 unknown，不判 miss）。
  * 2. `missed = min(prev, cur) − cur.cacheRead`；`missed ≤ noiseFloor` 不计，
- *    `noiseFloor = max(1024, minTokens)`。
+ *    `noiseFloor = max(1024, minTokens, 端点推断的缓存粒度)`（分块报读的端点，不足一块的尾部
+ *    不算未命中，见 `reporting.ts`）。
  * 3. 规模自适应：`missed / prev > clamp(0.10 × √(100k / prev), 0.02, 0.30)` 或 `missed ≥ 20k`。
  * 4. 成本：用本条实付反推——`(cost.input + cost.cacheWrite) / (input + cacheWrite)` 减去读价
  *    （本条有读用实付，否则用目录价）；无价格 → `missedCost` 缺省。
@@ -35,14 +36,20 @@ export interface MissOptions {
   reporting?: CacheReporting;
   /** 目录 `promptCache.minTokens`。 */
   minTokens?: number;
+  /** 端点推断的缓存读粒度（`CacheReportingTracker.granularity`）。 */
+  granularity?: number;
   /** prev 与 cur 之间 task 工具运行的墙钟时间。 */
   subtaskMs?: number;
   /** 本条没有缓存读时的读价来源（目录价）。 */
   cost?: Pick<ModelCost, "cacheRead">;
 }
 
-export function noiseFloor(minTokens: number | undefined): number {
-  return Math.max(DEFAULT_MIN_CACHE_TOKENS, minTokens ?? DEFAULT_MIN_CACHE_TOKENS);
+export function noiseFloor(minTokens: number | undefined, granularity?: number): number {
+  return Math.max(
+    DEFAULT_MIN_CACHE_TOKENS,
+    minTokens ?? DEFAULT_MIN_CACHE_TOKENS,
+    granularity ?? 0,
+  );
 }
 
 /** 未命中比例门槛：前缀越长越敏感（2%–30%）。 */
@@ -83,7 +90,7 @@ export function detectMiss(
   if (prev.promptTokens < minTokens) return undefined;
 
   const missed = Math.min(prev.promptTokens, cur.promptTokens) - cacheRead;
-  if (missed <= noiseFloor(options.minTokens)) return undefined;
+  if (missed <= noiseFloor(options.minTokens, options.granularity)) return undefined;
   const ratio = missed / prev.promptTokens;
   if (ratio <= missRatioThreshold(prev.promptTokens) && missed < MISS_ABSOLUTE_TOKENS) {
     return undefined;
