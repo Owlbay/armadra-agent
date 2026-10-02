@@ -385,7 +385,8 @@ export class ToolTracker {
     parentToolCallId?: string;
   }): { view: ToolView; topLevel: boolean } {
     const existing = this.views.get(event.toolCallId);
-    if (existing !== undefined) return { view: existing, topLevel: false };
+    // 同一调用的重复 start 复用；已结束的同名 id（有的供应商跨回合复用 id）另起一个视图
+    if (existing !== undefined && existing.isRunning) return { view: existing, topLevel: false };
     const view = new ToolView(event.toolCallId, event.toolName, event.args, this.options);
     view.setExpanded(this.expanded);
     this.views.set(event.toolCallId, view);

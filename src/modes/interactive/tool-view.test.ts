@@ -157,10 +157,12 @@ describe("工具视图", () => {
     const expanded = lines(outer.view);
     expect(expanded).toContain("    ⏺ read f1.ts");
     expect(expanded).toContain("        body 1");
-    // 已存在的 id 再 start 不重复建
-    expect(tracker.start({ toolCallId: "cm", toolName: "codemode", args: {} }).view).toBe(
-      outer.view,
-    );
+    // 运行中的 id 再 start 不重复建；已结束的同名 id（跨回合复用）另起一个视图
+    const running = tracker.start({ toolCallId: "r", toolName: "read", args: {} });
+    expect(tracker.start({ toolCallId: "r", toolName: "read", args: {} }).view).toBe(running.view);
+    const again = tracker.start({ toolCallId: "cm", toolName: "edit", args: {} });
+    expect(again.view).not.toBe(outer.view);
+    expect(again.topLevel).toBe(true);
   });
 
   it("Ctrl+O 状态对之后的新调用也生效；completed 重放已完成的调用", () => {
