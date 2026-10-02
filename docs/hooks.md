@@ -50,6 +50,7 @@
 | `Notification`     | 需要用户注意：审批等待、运行结束、错误、重试                              | 无（纯通知）                                                                                                              | 忽略                                |
 | `SessionEnd`       | 退出或换会话前（`reason: exit \| new \| switch`）                         | 无                                                                                                                        | 忽略                                |
 | `PostRewind`       | 回滚完成后（`/rewind`、RPC `rewind`、SDK `session.rewind()`；预览不触发） | 无（纯通知，不可阻止）                                                                                                    | 忽略                                |
+| `PostCompact`      | 档二摘要压缩写入之后（自动与手动；失败或取消不触发）                      | `additionalContext` 作为 custom 消息（`ama.hook_context`）追加在上下文末尾；不可阻止                                      | 忽略                                |
 
 每个事件只接受上表的决策；`deny` 与 `block` 在两类事件间互换（`UserPromptSubmit` 返回 `deny` 视为 `block`，`PreToolUse` 返回 `block` 视为 `deny`），其它不接受的决策忽略并记 warning。
 
@@ -81,6 +82,7 @@ stdin 是一个 JSON 对象，写完即关闭。所有事件共有：
 | `PostToolUse`           | 同上 + `toolResult: { content, isError }`（content 为文本）                                                      |
 | `Stop` / `SubagentStop` | `lastAssistantText`、`stopHookActive`（本次运行已被 Stop Hook 续跑过；处理器应避免再 block 造成循环）            |
 | `PreCompact`            | `tokensBefore`、`trigger: auto \| manual`                                                                        |
+| `PostCompact`           | `tokensBefore`、`tokensAfter`（压缩后估算，含摘要与回注块）、`trigger: auto \| manual`                           |
 | `Notification`          | `notification: { kind: approval \| settled \| error \| retry, message }`                                         |
 | `PostRewind`            | `entryId`（回滚到的用户消息）、`mode: both \| conversation \| code`、`files`（被恢复或删除的文件，仅对话时为空） |
 
@@ -105,7 +107,7 @@ interface HookOutput {
   reason?: string;
   updatedInput?: unknown; // PreToolUse
   updatedPrompt?: string; // UserPromptSubmit
-  additionalContext?: string; // SessionStart / UserPromptSubmit / PostToolUse
+  additionalContext?: string; // SessionStart / UserPromptSubmit / PostToolUse / PostCompact
   customInstructions?: string; // PreCompact
   continue?: false; // 任何事件：结束当前运行
   suppressOutput?: true;

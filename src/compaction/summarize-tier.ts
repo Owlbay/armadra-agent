@@ -29,6 +29,7 @@ import { AmaError } from "../errors.js";
 import type { ContextItem, Projection } from "../session/projection.js";
 import type { AgentMessage, FileOpsDetails } from "../session/types.js";
 import { findCutPoint, isTurnStart, summarizableStart, type CutPointResult } from "./cut-point.js";
+import { stripPostCompact } from "./post-compact.js";
 import {
   collectFileOps,
   createFileOps,
@@ -263,7 +264,7 @@ function planAt(
     turnPrefix: cut.isSplitTurn ? pick(cut.turnStartIndex, cut.firstKeptIndex) : [],
     firstKeptEntryId: keptItem.entry.id,
     cut,
-    previousSummary: previous?.summary,
+    previousSummary: previous === undefined ? undefined : stripPostCompact(previous.summary),
     previousDetails: previous?.details,
   };
 }
@@ -508,7 +509,8 @@ export async function runCompaction(
       : undefined,
   ]);
   let usage: Usage | undefined = history.usage;
-  let summary = history.text;
+  // 续写时上一份摘要（含回注块）在前缀里，模型可能照抄：去掉，由调用方重新生成
+  let summary = stripPostCompact(history.text);
   if (prefix !== undefined) {
     usage = addUsage(usage, prefix.usage);
     summary = `${summary}\n\n---\n\n${prefix.text}`;

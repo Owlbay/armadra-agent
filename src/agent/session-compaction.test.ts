@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { sharedCacheReporting } from "../ai/cache/reporting.js";
 import type { ScriptCall, ScriptStep } from "./testing/scripted-api.js";
 import { createHarness, isSummaryRequest } from "./testing/harness.js";
-import { fakeModel, stubTool } from "./testing/stubs.js";
+import { fakeModel, stubHooks, stubTool } from "./testing/stubs.js";
 import type { SessionEntry } from "../session/types.js";
 
 beforeEach(() => sharedCacheReporting.clear());
@@ -207,5 +207,68 @@ describe("自检在会话里（C8）", () => {
     expect(ends[0]).toMatchObject({ trigger: "threshold" });
     expect(ends[0]?.type === "compaction_end" && ends[0].error).toMatch(/did not shrink/);
     expect(h.manager.branch().some((e) => e.type === "compaction")).toBe(false);
+  });
+});
+
+describe("回注与 PostCompact（C6 / C13）", () => {
+  it("摘要后紧跟回注块（在保留区之前）；PostCompact 拿到前后 token 与 trigger，additionalContext 追加在末尾", async () => {
+    const hooks = stubHooks({
+      PostCompact: () => ({ additionalContext: "外部回注：别忘了跑 lint" }),
+    });
+    const h = createHarness({
+      model,
+      tools: [readTool],
+      hooks,
+      compaction: { reserveTokens: 10_000, pruneExclude: ["read"] } as never,
+      script: toolLoop(52),
+    });
+    await h.session.prompt("读很多文件");
+    const compaction = h.manager.branch().find((e) => e.type === "compaction");
+    expect(compaction?.type === "compaction" && compaction.summary).toMatch(
+      /<\/read-files>\n\n<post-compact-state>\n[\s\S]*<recently-read-files>\nf\d+\.ts[\s\S]*<\/post-compact-state>$/,
+    );
+    // 下一次真实请求：system 之后第一条是摘要（含回注块），紧接着是保留区
+    const next = h.scripted.calls.find(
+      (c) =>
+        !isSummaryRequest(c.context) &&
+        c.context.messages.some(
+          (m) =>
+            m.role === "user" && typeof m.content === "string" && m.content.includes("<summary>"),
+        ),
+    )!;
+    const [, first, second] = next.context.messages;
+    expect(first?.role === "user" && String(first.content)).toMatch(/<post-compact-state>/);
+    expect(second?.role).not.toBe("user");
+    const post = hooks.calls.find((c) => c.event === "PostCompact");
+    expect(post?.payload).toMatchObject({ trigger: "auto" });
+    const { tokensBefore, tokensAfter } = post!.payload as {
+      tokensBefore: number;
+      tokensAfter: number;
+    };
+    expect(tokensAfter).toBeLessThan(tokensBefore);
+    const at = h.manager.branch().findIndex((e) => e.type === "compaction");
+    expect(h.manager.branch()[at + 1]).toMatchObject({
+      type: "custom_message",
+      customType: "ama.hook_context",
+      content: "外部回注：别忘了跑 lint",
+      display: false,
+    });
+  });
+
+  it("手动 /compact：PostCompact trigger manual", async () => {
+    const hooks = stubHooks({ PostCompact: () => undefined });
+    const h = createHarness({
+      model,
+      hooks,
+      compaction: { keepRecentTokens: 50 },
+      script: (call) => (isSummaryRequest(call.context) ? { text: "## Goal\nm" } : { text: "ok" }),
+    });
+    await h.session.prompt("a ".repeat(400));
+    await h.session.prompt("b ".repeat(400));
+    await h.session.compact();
+    expect(hooks.calls.find((c) => c.event === "PostCompact")?.payload).toMatchObject({
+      trigger: "manual",
+    });
+    expect(h.manager.branch().some((e) => e.type === "custom_message")).toBe(false);
   });
 });

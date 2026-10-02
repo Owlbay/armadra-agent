@@ -6,6 +6,9 @@
  *   （trigger `threshold`）。缓存已冷（上次请求距今超过 TTL，只认 reported 端点）时未到 0.7 也裁，
  *   且一次换掉全部候选。
  * - 自检（[W5-H1] C8）：摘要缺 `## Goal` 重试一次再回落；自动压缩后估算不比压缩前小判失败，不写条目。
+ * - 回注（[W5-H1] C6 / C13）：摘要末尾接 `<post-compact-state>` 块（todo、计划、已加载 Skill、最近
+ *   文件、转录与 outputs 路径，不含文件正文；理由见 compaction/post-compact.ts），再跑 PostCompact
+ *   Hook，其 additionalContext 以 `ama.hook_context` 追加在末尾。
  * - 熔断（[W5-H1] C5）：连续 3 次失败或连续 3 次快速回填跳闸；固定前缀超预算不再尝试；都只告警一次。
  * - 溢出恢复（会话 run 结束后，失败尝试已用 context_edit 剔除）：PreCompact Hook → 档二摘要（trigger
  *   `overflow`，受跳闸限制）→ 压缩后估算 ≤ 0.8 × 窗口才重试。
@@ -24,6 +27,7 @@ import {
 } from "../compaction/estimate.js";
 import { planPrune, prunePolicy, type PrunePolicy } from "../compaction/prune-tier.js";
 import { createProtection, skillLocations } from "../compaction/protect.js";
+import { buildPostCompactBlock } from "../compaction/post-compact.js";
 import type { CompactionConfig } from "../config/types.js";
 import {
   prepareCompaction,
@@ -45,6 +49,9 @@ export const DEFAULT_COMPACTION_SETTINGS: CompactionSettings = {
 
 /** 保留区不超过 (窗口 − 预留) 的 40%，否则小窗口模型上摘要后仍然溢出。 */
 export const KEEP_RECENT_MAX_RATIO = 0.4;
+
+/** Hook additionalContext 的 custom 类型（与 UserPromptSubmit 的相同）。 */
+const HOOK_CONTEXT_CUSTOM_TYPE = "ama.hook_context";
 
 interface SummarizeOutcome {
   result: CompactionResult | undefined;
@@ -178,6 +185,47 @@ export class CompactionController {
     this.breaker.setPrefixOverflow(this.fixedPrefixTokens() > budget);
     if (!this.breaker.canSummarize()) return this.warnBlocked();
     await this.summarize("threshold", signal);
+  }
+
+  /** 回注块（todo、计划、已加载 Skill、最近文件、转录与 outputs 路径；不含文件正文）。 */
+  private postCompactBlock(): string {
+    const core = this.core;
+    const branch = core.manager.branch();
+    return buildPostCompactBlock({
+      branch,
+      cwd: core.cwd,
+      skillPaths: skillLocations(buildProjection(branch).items),
+      transcriptPath: core.manager.file(),
+      outputDir: core.outputDir(),
+    });
+  }
+
+  /**
+   * PostCompact Hook（C13，不可阻止）：`additionalContext` 作为 `ama.hook_context` 追加在末尾。
+   * 返回最终的压缩后估算。
+   */
+  private async runPostCompactHook(
+    trigger: CompactionTrigger,
+    tokensBefore: number,
+    signal: AbortSignal,
+  ): Promise<number> {
+    const core = this.core;
+    const tokensAfter = this.estimate().tokens;
+    const hook = await core.runHook(
+      "PostCompact",
+      { tokensBefore, tokensAfter, trigger: trigger === "manual" ? "manual" : "auto" },
+      signal,
+    );
+    const context = hook?.additionalContext;
+    if (context === undefined || context === "") return tokensAfter;
+    core.appendEntry({
+      type: "custom_message",
+      customType: HOOK_CONTEXT_CUSTOM_TYPE,
+      content: context,
+      display: false,
+    });
+    core.reloadMessages();
+    return this.estimate().tokens;
   }
 
   /** 假设追加了这条 compaction 之后的估算（按投影全量重估）。 */
@@ -348,9 +396,10 @@ export class CompactionController {
       const options = await this.summarizer(signal, customInstructions, trigger !== "overflow");
       const draft = await runCompaction(plan, options);
       if (signal.aborted) return fail("aborted", true);
+      // 回注（C6）：清单与指针接在摘要末尾，模型看到「摘要 → 回注 → 保留区」
       const entry: Parameters<SessionCore["appendEntry"]>[0] = {
         type: "compaction",
-        summary: draft.summary,
+        summary: `${draft.summary}\n\n${this.postCompactBlock()}`,
         firstKeptEntryId: draft.firstKeptEntryId,
         tokensBefore,
         details: draft.details,
@@ -367,7 +416,7 @@ export class CompactionController {
       core.reloadMessages();
       this.breaker.recordSummary(true);
       if (this.breaker.tripped) this.warnBlocked();
-      const tokensAfter = this.estimate().tokens;
+      const tokensAfter = await this.runPostCompactHook(trigger, tokensBefore, signal);
       const result: CompactionResult = {
         summary: draft.summary,
         firstKeptEntryId: draft.firstKeptEntryId,
