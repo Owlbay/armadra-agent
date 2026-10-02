@@ -4,6 +4,9 @@
  * 键位走 `tui.select.*`：上下移动（循环）、翻页、确认（Enter / Tab）、取消（Esc / Ctrl+C）。
  * `filterable` 时可打印字符追加到过滤词、退格删除；过滤为大小写不敏感的分词子串匹配
  * （每个词都要出现在 label / value / group / description 之一中）。
+ *
+ * `badge` 靠右显示（如 `Default`、`Recommended`）；`numberKeys` 时右侧标 1–9，按数字直接选中并确认；
+ * `stacked` 时说明换到标签下一行（缩进、暗色），适合「名字 + 一行说明」的短列表。
  */
 
 import type { Component, Focusable, Theme } from "../component.js";
@@ -17,6 +20,8 @@ export interface SelectItem {
   description?: string;
   /** 相邻项 group 不同时插入分组标题行。 */
   group?: string;
+  /** 靠右的徽标文字。 */
+  badge?: string;
 }
 
 export interface SelectListOptions {
@@ -26,6 +31,10 @@ export interface SelectListOptions {
   keybindings?: Keybindings;
   filterable?: boolean;
   emptyText?: string;
+  /** 右侧标序号，按 1–9 直接选中并确认（不与 filterable 同用）。 */
+  numberKeys?: boolean;
+  /** 说明放在标签下一行。 */
+  stacked?: boolean;
   onSelect?(item: SelectItem): void;
   onCancel?(): void;
   onSelectionChange?(item: SelectItem | undefined): void;
@@ -115,6 +124,14 @@ export class SelectList implements Component, Focusable {
 
   handleInput(data: string): void {
     const k = this.keys;
+    if (this.options.numberKeys === true && /^[1-9]$/.test(data)) {
+      const index = Number(data) - 1;
+      if (index < this.filtered.length) {
+        this.setSelectedIndex(index);
+        this.options.onSelect?.(this.filtered[index]!);
+      }
+      return;
+    }
     if (k.matches(data, "tui.select.up")) this.moveSelection(-1);
     else if (k.matches(data, "tui.select.down")) this.moveSelection(1);
     else if (k.matches(data, "tui.select.pageUp")) this.moveSelection(-this.maxVisible, false);
@@ -153,7 +170,7 @@ export class SelectList implements Component, Focusable {
         lines.push(truncateToWidth(dim(item.group), width));
       }
       lastGroup = item.group;
-      lines.push(this.renderItem(item, i === this.selected, labelWidth, width));
+      lines.push(...this.renderItem(item, i, labelWidth, width));
     }
     if (this.filtered.length > this.maxVisible) {
       lines.push(truncateToWidth(dim(`  (${this.selected + 1}/${this.filtered.length})`), width));
@@ -163,23 +180,44 @@ export class SelectList implements Component, Focusable {
 
   invalidate(): void {}
 
-  private renderItem(
-    item: SelectItem,
-    selected: boolean,
-    labelWidth: number,
-    width: number,
-  ): string {
+  private renderItem(item: SelectItem, index: number, labelWidth: number, width: number): string[] {
     const theme = this.options.theme;
-    const prefix = selected ? "› " : "  ";
-    const label = truncateToWidth(item.label, Math.max(1, width - 2));
-    let line = prefix + padToWidth(label, Math.min(labelWidth, width - 2));
-    if (selected && theme) line = theme.fg("accent", theme.bold(line));
-    const room = width - visibleWidth(line) - 2;
-    if (item.description && room > 4) {
-      const desc = truncateToWidth(item.description, room);
-      line += "  " + (theme ? theme.fg("dim", desc) : desc);
+    const selected = index === this.selected;
+    const dim = (s: string): string => (theme ? theme.fg("dim", s) : s);
+    const rightParts: string[] = [];
+    if (item.badge !== undefined && item.badge !== "") {
+      rightParts.push(theme ? theme.fg("accent", item.badge) : item.badge);
     }
-    return truncateToWidth(line, width);
+    if (this.options.numberKeys === true && index < 9) rightParts.push(dim(String(index + 1)));
+    let right = rightParts.join("  ");
+    if (visibleWidth(right) > Math.max(0, width - 8)) right = "";
+    const rightWidth = right === "" ? 0 : visibleWidth(right) + 1;
+    const prefix = selected ? "› " : "  ";
+    const labelRoom = Math.max(1, width - 2 - rightWidth);
+    const label = truncateToWidth(item.label, labelRoom);
+    let line = prefix + padToWidth(label, Math.min(labelWidth, labelRoom));
+    if (selected && theme) line = theme.fg("accent", theme.bold(line));
+    const stacked = this.options.stacked === true;
+    if (!stacked) {
+      const room = width - visibleWidth(line) - 2 - rightWidth;
+      if (item.description && room > 4) {
+        line += "  " + dim(truncateToWidth(item.description, room));
+      }
+    }
+    if (right !== "") {
+      line =
+        padToWidth(truncateToWidth(line, width - rightWidth), width - rightWidth) + " " + right;
+    }
+    const out = [truncateToWidth(line, width)];
+    if (stacked && item.description) {
+      out.push(
+        truncateToWidth(
+          `    ${dim(truncateToWidth(item.description, Math.max(1, width - 4)))}`,
+          width,
+        ),
+      );
+    }
+    return out;
   }
 
   private labelColumnWidth(end: number): number {

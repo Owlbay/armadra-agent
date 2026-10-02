@@ -19,9 +19,11 @@ import type {
   ActionPreview,
   ApprovalDecision,
   ApprovalRequest,
+  AutoDecision,
   Decision,
 } from "../permissions/types.js";
 import type { ToolContext, ToolResult } from "../tools/types.js";
+import { classifierRequest } from "./session-classifier.js";
 import type { SessionCore } from "./session-core.js";
 import { runSingleToolCall, type ToolRunnerOptions } from "./tool-runner.js";
 import type { NestedCallInfo, ToolCallGate, ToolCallGateContext } from "./types.js";
@@ -51,6 +53,7 @@ export async function requestApproval(
   };
   if (request.hookReason !== undefined) event.hookReason = request.hookReason;
   if (request.preview !== undefined) event.preview = request.preview;
+  if (request.autoDecision !== undefined) event.autoDecision = request.autoDecision;
   core.emit(event);
   void core.runHook("Notification", {
     notification: { kind: "approval", message: `approval requested for ${request.toolName}` },
@@ -146,6 +149,7 @@ export async function gateToolCall(
   let decision: Decision = hookDecision === "ask" ? "ask" : "allow";
   let approvalReason: ApprovalRequest["reason"] = "hook";
   let denyMessage: string | undefined;
+  let autoDecision: AutoDecision | undefined;
   if (permission !== undefined) {
     const checkInput: Parameters<typeof permission.check>[0] = {
       toolName: call.name,
@@ -159,12 +163,25 @@ export async function gateToolCall(
     decision = verdict.decision;
     approvalReason = verdict.approvalReason ?? "mode";
     denyMessage = verdict.message;
+    autoDecision = verdict.auto;
+    if (verdict.classify === true) {
+      // auto 第 3 层：规则层与静态判定都没决定，问一次独立的模型分类器（只能变 allow）
+      const judged = await core
+        .autoClassifier()
+        .classify(classifierRequest(core, call.name, input, permission.projectRoot), ctx.signal);
+      autoDecision = { layer: "classifier", decision: judged.decision, reason: judged.reason };
+      if (judged.cached) autoDecision.cached = true;
+      if (judged.decision === "allow") decision = "allow";
+    }
+    if (autoDecision !== undefined) permission.recordAutoDecision?.(call.name, input, autoDecision);
   } else if (decision === "ask" && core.options.unattended === true) {
     decision = "deny";
   }
 
+  const withAuto = (gate: ToolCallGate): ToolCallGate =>
+    autoDecision === undefined ? gate : { ...gate, autoDecision };
   if (decision === "deny") {
-    return { block: true, reason: denyMessage ?? `Permission denied for ${call.name}` };
+    return withAuto({ block: true, reason: denyMessage ?? `Permission denied for ${call.name}` });
   }
   if (decision === "ask") {
     const request: ApprovalRequest = {
@@ -175,13 +192,14 @@ export async function gateToolCall(
       context: { depth: core.depth, readFiles: core.readFiles },
     };
     if (hookReason !== undefined) request.hookReason = hookReason;
+    if (autoDecision !== undefined) request.autoDecision = autoDecision;
     const preview = safePreview(core, request);
     if (preview !== undefined) request.preview = preview;
     const answer = await requestApproval(core, request, ctx.signal);
-    if (answer === "deny") return { block: true, reason: `The user denied ${call.name}` };
+    if (answer === "deny") return withAuto({ block: true, reason: `The user denied ${call.name}` });
     if (answer === "allow_session") permission?.rememberForSession(call.name, input);
   }
-  return replaced ? { input } : {};
+  return withAuto(replaced ? { input } : {});
 }
 
 export async function afterToolCall(

@@ -58,16 +58,16 @@
 
 stdin 是一个 JSON 对象，写完即关闭。所有事件共有：
 
-| 字段             | 说明                                           |
-| ---------------- | ---------------------------------------------- |
-| `hookEventName`  | 事件名                                         |
-| `sessionId`      | 会话 id（子会话为子会话自己的）                |
-| `sessionFile`    | 会话文件（落盘前缺省）                         |
-| `cwd`            | 会话 cwd                                       |
-| `model`          | `{ provider, id }`                             |
-| `permissionMode` | `plan` / `default` / `auto-edit` / `full-auto` |
-| `depth`          | 主会话 0，`task` 子会话 1                      |
-| `host`           | 宿主适配器 id（激活时）                        |
+| 字段             | 说明                                                                  |
+| ---------------- | --------------------------------------------------------------------- |
+| `hookEventName`  | 事件名                                                                |
+| `sessionId`      | 会话 id（子会话为子会话自己的）                                       |
+| `sessionFile`    | 会话文件（落盘前缺省）                                                |
+| `cwd`            | 会话 cwd                                                              |
+| `model`          | `{ provider, id }`                                                    |
+| `permissionMode` | `plan` / `allowlist` / `default` / `auto-edit` / `auto` / `full-auto` |
+| `depth`          | 主会话 0，`task` 子会话 1                                             |
+| `host`           | 宿主适配器 id（激活时）                                               |
 
 事件特有：
 

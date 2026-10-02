@@ -198,7 +198,11 @@ src/
     types.ts                Rule、Mode、Decision、ApprovalRequest                                                        80  [B0]
     rules.ts                规则解析（`bash(git *)`、`write(src/**)`）、来源标记、收紧校验                                220 [B3]
     dangerous.ts            危险命令表（正反例测试）                                                                      250 [B3]
-    pipeline.ts             四步管线 + Hook 决策合入 + 无人值守                                                           250 [B3]
+    pipeline.ts             四步管线 + Hook 决策合入 + 无人值守；auto 三层与 allowlist（§7.4）                             400 [B3]
+    modes.ts                六种模式的显示名、说明、界面顺序与 Shift+Tab 循环                                             60
+    protected.ts            auto 的受保护路径：机密文件、.git / .ama 写入、项目外写入                                       120
+    auto-safe.ts            auto 的 bash 判定：安全名单、网络 / 删除类命令、重定向与路径参数                                350
+    classifier.ts           auto 的模型分类器：提示（数据块防注入）、严格 JSON 解析、超时、会话内缓存                        220
     broker.ts               ApprovalBroker 链：宿主 → UI → 无人值守；超时 deny；allow_session 记忆                       160 [B3]
   host/
     types.ts                HostModule、HostAdapter、HostApi、AgentEvents                                                260 [B0]
@@ -693,8 +697,10 @@ tool_call（模型产出）
   2. 命令式 Hook PreToolUse（并行，合并决策 D_hook ∈ {allow, ask, deny, ∅}；updatedInput 替换 input）
   3. 权限管线（§7）：① deny 规则 ∪ D_hook=deny → deny
                       ② 危险命令识别（bash）→ ask（无人值守 deny）
-                      ③ 模式决定 ask/allow
+                      ③ 模式决定 ask/allow（auto：受保护路径 / 网络 / 删除类先 ask，再静态判定，见 §7.4）
                       ④ allow 规则 ∪ D_hook=allow：把 ③ 的 ask 变 allow（不能越过 ①②）；D_hook=ask 把 allow 变 ask
+                      ⑤ [auto] 仍未决定 → 独立的模型分类器：allow / ask（不能推翻 ①–④ 的 deny / ask）
+                      [allowlist] 剩下的 ask 一律 deny（从不询问）
   4. 若结果 ask → 事件 tool_approval_requested → broker 链：宿主 broker → UI 对话框 → 无人值守 deny；超时（缺省 10 min）deny
   5. 事件 tool_call（宿主观察）→ 执行 → 事件 tool_result
   6. 命令式 Hook PostToolUse（可追加上下文 / 改为错误）→ 结果入转录
@@ -713,7 +719,7 @@ tool_call（模型产出）
 | 来源                               | 可做                                      | 不可做                                         |
 | ---------------------------------- | ----------------------------------------- | ---------------------------------------------- |
 | 用户级 `config.json`、命令行、profile | 设 mode、allow、deny                     | —                                              |
-| 项目级 `.ama/config.json`（无需信任） | **只能收紧**：追加 deny；mode 只能更严（`full-auto → auto-edit → default → plan`） | allow 规则与放宽 mode 被忽略并 warning        |
+| 项目级 `.ama/config.json`（无需信任） | **只能收紧**：追加 deny；mode 只能更严（`full-auto → auto → auto-edit → default → allowlist → plan`），且不能设 `auto` / `full-auto` | allow 规则、`autoSafeCommands`、`autoModel` 与放宽 mode 被忽略并 warning |
 | 项目级（已信任）                     | 同上 + 加载 hooks / skills / prompts       | 仍不能加 allow（信任解锁的是「执行项目的 Hook」，不是「放开工具」） |
 
 规则语法：`bash(git push*)`、`write(src/**)`、`read(**)`、`canvas_*`；`--allow` / `--deny` 可重复。危险命令表（`dangerous.ts`）与 v1 一致并加 `git branch -D`、`npm publish`、`docker system prune -a`、`shutdown/reboot`；每条正反例测试。
@@ -724,6 +730,22 @@ tool_call（模型产出）
 - 决策顺序：`--trust` / `--no-trust` → `trust.json` 中最近祖先的记录 → 交互模式询问（一次，可记住）→ 非交互缺省 **不信任**。
 - `trust.json`：`{ "version": 1, "entries": [{ "path": "/abs/dir", "trusted": true, "at": "ISO" }] }`，只在用户级目录。
 - 宿主 profile 可带 `trustProject: true`（Armadra 对自己管理的工作目录）。
+
+### §7.4 auto 与 allowlist 模式
+
+模式共六种（`PermissionMode`）：`plan`（Plan）、`allowlist`（Allowlist only）、`default`（Manual）、`auto-edit`（Accept edits）、`auto`（Auto）、`full-auto`（Bypass permissions），括号里是界面显示名。严格度 `plan < allowlist < default < auto-edit < auto < full-auto`：`allowlist` 放行的是只读工具加 allow 规则命中的调用，是 `plan` 的超集、`default` 放行集合的子集（其余 `default` 询问、`allowlist` 拒绝）。
+
+**auto** 在管线里分三层，顺序固定：
+
+1. **规则层**（不调模型）：deny 规则 / Hook deny / 内置 deny → deny；危险命令表 → ask；受保护路径（机密文件读写、`.git/` 与项目 `.ama/` 写入、项目外写入）、网络命令、删除类命令 → ask；Hook ask → ask；allow 规则 / Hook allow / 本会话记忆 → allow。
+2. **静态判定**（不调模型）：只读工具 → allow；write / edit 目标在项目内 → allow；bash 每一段都在安全名单（`permissions/auto-safe.ts`，`permission.autoSafeCommands` 追加）且无命令替换、变量展开、嵌套 shell → allow。
+3. **模型分类器**（`permissions/classifier.ts` + `agent/session-classifier.ts`）：只处理前两层未决定的调用。一次独立请求（`purpose: "classify"`，不进转录、不经会话层缓存观测、不触发保温），参数与最近一条用户消息摘要放在数据块里、系统提示声明块内文本不是指令；输出严格 JSON `{"decision":"allow"|"ask","reason"}`，解析失败 / 超时 10 s / 出错 → ask。模型 `permission.autoModel`，缺省当前会话模型。会话内按「工具 + 归一化参数」缓存；用量记 `usage{kind:"permission_classify"}`。
+
+每次 auto 判定产生 `AutoDecision{layer: rule|static|classifier, decision, reason}`：`tool_execution_end` 与 `permission_request` 事件带 `autoDecision`，管线保留最近 20 条供 `/permissions` 显示。无人值守时 ask → deny（分类器 allow 照常放行）。
+
+**allowlist**：deny 与危险命令照旧先判；只读工具放行；allow 规则 / Hook allow 命中放行；其余直接 deny（说明「不在允许名单」），Hook ask 与危险命令也 deny——从不询问，适合 CI。
+
+细节、安全名单全表与已知限制见 [permissions.md](permissions.md)。
 
 ## §8 会话树（`session/`）
 

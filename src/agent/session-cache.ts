@@ -182,7 +182,7 @@ export class SessionCacheController {
     this.inner = inner;
     return (model, context, options) => {
       const purpose = options.purpose ?? "turn";
-      if (this.disposed || purpose === "warm" || purpose === "probe") {
+      if (this.disposed || purpose === "warm" || purpose === "probe" || purpose === "classify") {
         return inner(model, context, options);
       }
       const sent: StreamOptions = { ...options };

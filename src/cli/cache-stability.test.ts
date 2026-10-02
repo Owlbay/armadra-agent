@@ -126,6 +126,49 @@ describe("缓存保证（设计 §9.1）", () => {
   });
 });
 
+describe("auto 权限模式的分类请求不影响主会话缓存（§7.4）", () => {
+  it("6 回合各分类一次：主会话请求 system + tools 逐字节相同、消息逐次为前缀；分类请求独立且不进转录", async () => {
+    const out: FakeResponse[] = [];
+    for (let i = 0; i < 6; i++) {
+      out.push({
+        steps: [{ toolCall: { name: "bash", arguments: { command: `node --version ${i}` } } }],
+      });
+      out.push({ text: '{"decision":"allow","reason":"prints the node version"}' });
+      out.push({ text: `answer ${i}` });
+    }
+    h = composeHarness(out);
+    const runtime = await h.boot(["--model", "fake/echo", "--permission-mode", "auto"]);
+    for (let i = 0; i < 6; i++) await runtime.session.prompt(`question ${i}`);
+    const classify = h.fake.calls.filter((c) => c.options.purpose === "classify");
+    const main = h.fake.calls.filter((c) => c.options.purpose !== "classify");
+    expect(classify).toHaveLength(6);
+    expect(main).toHaveLength(12);
+    const first = prefixes(main[0]!.context);
+    for (let i = 0; i < main.length; i++) {
+      const p = prefixes(main[i]!.context);
+      expect(JSON.stringify(p.anthropic)).toBe(JSON.stringify(first.anthropic));
+      expect(JSON.stringify(p.openai)).toBe(JSON.stringify(first.openai));
+      if (i === 0) continue;
+      const prev = main[i - 1]!.context.messages;
+      expect(JSON.stringify(main[i]!.context.messages.slice(0, prev.length))).toBe(
+        JSON.stringify(prev),
+      );
+      expect(JSON.stringify(main[i]!.context)).not.toContain("tool_call_data");
+    }
+    for (const call of classify) {
+      expect(call.context.messages).toHaveLength(2);
+      expect(call.options).toMatchObject({ cacheRetention: "none" });
+    }
+    const results = runtime.session.messages.filter((m) => m.role === "toolResult");
+    expect(results.every((m) => m.isError !== true)).toBe(true);
+    const usage = runtime.session.entries.filter(
+      (e) => e.type === "usage" && e.kind === "permission_classify",
+    );
+    expect(usage).toHaveLength(6);
+    await runtime.dispose();
+  });
+});
+
 /** 25 回合：第 `miss` 回合服务端淘汰（读 0），第 `compactAfter` 回合后手动压缩。 */
 function evictionScript(rounds: number, miss: number, compactAfter: number): FakeResponse[] {
   const out: FakeResponse[] = [];

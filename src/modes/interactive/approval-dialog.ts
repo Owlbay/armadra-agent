@@ -14,6 +14,7 @@
  * broker 链本身串行化审批，所以同一时刻最多一个对话框。
  */
 
+import { AUTO_LAYER_TEXT, isPermissionMode, permissionModeLabel } from "../../permissions/modes.js";
 import { previewDisplayLines } from "../../permissions/preview.js";
 import type { ApprovalBroker, ApprovalDecision, ApprovalRequest } from "../../permissions/types.js";
 import {
@@ -113,12 +114,17 @@ export function describeRequest(
   const severity = request.preview?.severity;
   const color = severity === "danger" ? "error" : severity === "warn" ? "warning" : "dim";
   out.push(...previewDisplayLines(request.preview).map((l) => theme.fg(color, l)));
+  const auto = request.autoDecision;
   if (request.reason === "hook") {
     out.push(theme.fg("warning", `Hook：${request.hookReason ?? "（无说明）"}`));
   } else if (request.reason === "dangerous") {
     out.push(theme.fg("error", "这条命令可能有破坏性，请确认"));
+  } else if (auto !== undefined) {
+    out.push(theme.fg("warning", `Auto ${AUTO_LAYER_TEXT[auto.layer]}：${auto.reason}`));
   } else if (options.permissionMode !== undefined) {
-    out.push(theme.fg("dim", `权限模式 ${options.permissionMode} 下需要确认`));
+    const mode = options.permissionMode;
+    const label = isPermissionMode(mode) ? permissionModeLabel(mode) : mode;
+    out.push(theme.fg("dim", `权限模式 ${label} 下需要确认`));
   }
   return out;
 }

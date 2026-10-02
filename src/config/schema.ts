@@ -330,10 +330,13 @@ export function validateConfig(value: unknown): Diagnostic[] {
       checkProvider(c, provider, join("providers", id));
     }
   }
-  checkSection(c, value, "permission", ["mode", "allow", "deny", "builtinDeny"], (s, p) => {
+  const permissionKeys = ["mode", "allow", "deny", "builtinDeny", "autoModel", "autoSafeCommands"];
+  checkSection(c, value, "permission", permissionKeys, (s, p) => {
     c.oneOf(s, "mode", p, PERMISSION_MODES_STRICT_FIRST);
     c.stringArray(s, "allow", p);
     c.stringArray(s, "deny", p);
+    c.string(s, "autoModel", p);
+    c.stringArray(s, "autoSafeCommands", p);
     const builtinDeny = s["builtinDeny"];
     if (
       builtinDeny !== undefined &&

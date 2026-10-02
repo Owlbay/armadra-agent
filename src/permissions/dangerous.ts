@@ -124,7 +124,7 @@ const GIT_FLAG_OPTIONS =
  * 去掉 git 子命令之前的全局选项：`git -C dir -c k=v reset --hard` → `git reset --hard`。
  * 不是 git 时返回 undefined。不去掉的话 `git -C x reset --hard` 这类写法会漏判。
  */
-function gitArgv(argv: readonly string[]): readonly string[] | undefined {
+export function gitArgv(argv: readonly string[]): readonly string[] | undefined {
   if (base(argv[0]) !== "git") return undefined;
   let i = 1;
   while (i < argv.length) {

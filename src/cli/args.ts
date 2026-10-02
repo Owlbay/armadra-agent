@@ -13,7 +13,7 @@
 
 import { AmaError } from "../errors.js";
 import type { ModelThinkingLevel } from "../ai/types.js";
-import type { PermissionMode } from "../permissions/types.js";
+import { PERMISSION_MODES_STRICT_FIRST, type PermissionMode } from "../permissions/types.js";
 import type { CodemodeMode, ToolsPreset } from "../config/types.js";
 import { CODEMODE_MODES } from "../config/types.js";
 
@@ -86,7 +86,7 @@ export class UsageError extends AmaError {
   }
 }
 
-const PERMISSION_MODES: readonly PermissionMode[] = ["plan", "default", "auto-edit", "full-auto"];
+const PERMISSION_MODES: readonly PermissionMode[] = PERMISSION_MODES_STRICT_FIRST;
 const THINKING_LEVELS: readonly ModelThinkingLevel[] = [
   "off",
   "minimal",
@@ -129,7 +129,8 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
   --session-dir <目录>         会话目录（缺省 ~/.local/share/ama/sessions）
 
 权限与信任
-  --permission-mode <模式>     plan | default | auto-edit | full-auto
+  --permission-mode <模式>     default | auto-edit | plan | auto | full-auto | allowlist
+                               （auto 由 ama 判断每一步；allowlist 只放行 allow 规则命中的，适合 CI）
   --allow <规则>               追加允许规则，可重复（如 "bash(git status*)"）
   --deny <规则>                追加拒绝规则，可重复（如 "write(**/.env*)"）
   --trust / --no-trust         信任 / 不信任当前项目（项目级 Hook、Skill、提示模板）

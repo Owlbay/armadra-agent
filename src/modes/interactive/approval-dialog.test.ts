@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { ActionPreview, ApprovalDecision, ApprovalRequest } from "../../permissions/types.js";
 import { Editor, MemoryTerminal, TUI, Text, plainTheme } from "../../tui.js";
 import { ApprovalDialogBroker, approvalOutcomeText, describeRequest } from "./approval-dialog.js";
+import { approvalQuestion } from "./line/line-render.js";
 
 const theme = plainTheme();
 
@@ -53,6 +54,29 @@ function setup(columns = 80) {
   return { terminal, editor, broker, events, screen, tui: t };
 }
 
+describe("审批对话框：auto 判定", () => {
+  it("auto 询问时显示判定层与原因；line 模式问句同样带上", () => {
+    const request: ApprovalRequest = {
+      ...req(),
+      input: { command: "./deploy.sh prod" },
+      autoDecision: { layer: "classifier", decision: "ask", reason: "deploys to production" },
+    };
+    const lines = describeRequest(request, plainTheme(), { permissionMode: "auto" });
+    expect(lines).toContain("Auto 分类器：deploys to production");
+    expect(lines.join("\n")).not.toContain("权限模式");
+    expect(approvalQuestion(request)).toContain("（Auto 分类器：deploys to production）");
+    const rule = {
+      ...request,
+      autoDecision: {
+        layer: "rule" as const,
+        decision: "ask" as const,
+        reason: "network command curl",
+      },
+    };
+    expect(describeRequest(rule, plainTheme())).toContain("Auto 规则层：network command curl");
+  });
+});
+
 describe("审批对话框", () => {
   for (const [key, decision] of [
     ["y", "allow"],
@@ -68,7 +92,7 @@ describe("审批对话框", () => {
       const shown = screen();
       expect(shown).toContain("╭─ 审批");
       expect(shown).toContain("$ rm -rf build");
-      expect(shown).toContain("权限模式 default 下需要确认");
+      expect(shown).toContain("权限模式 Manual 下需要确认");
       expect(shown).toContain("[y] 允许");
       terminal.sendInput(key);
       expect(await answer).toBe(decision as ApprovalDecision);
@@ -229,7 +253,7 @@ describe("审批对话框：执行前预览", () => {
       "bash  需要确认",
       "$ rm -rf build dist/*.map > out.log",
       ...RM_PREVIEW.lines,
-      "权限模式 default 下需要确认",
+      "权限模式 Manual 下需要确认",
     ]);
     const other = describeRequest(
       req({

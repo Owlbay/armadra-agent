@@ -18,7 +18,11 @@ import type { ModelThinkingLevel } from "../ai/types.js";
 import type { SwitchRequest } from "../cli/compose-session.js";
 import type { Runtime } from "../cli/runtime.js";
 import { AmaError } from "../errors.js";
-import { PERMISSION_MODES_STRICT_FIRST, type PermissionMode } from "../permissions/types.js";
+import {
+  PERMISSION_MODE_ORDER,
+  parsePermissionMode,
+  permissionModeLabel,
+} from "../permissions/modes.js";
 import { describeCache, describeFingerprint, describeSession } from "./session-report.js";
 
 export { describeSession } from "./session-report.js";
@@ -162,14 +166,15 @@ export async function runSlashCommand(
     }
     case "permission": {
       if (args === "") return { kind: "pick", what: "permission" };
-      if (!(PERMISSION_MODES_STRICT_FIRST as readonly string[]).includes(args)) {
+      const mode = parsePermissionMode(args);
+      if (mode === undefined) {
         throw new AmaError(
           "invalid_arguments",
-          `权限模式应为 ${PERMISSION_MODES_STRICT_FIRST.join(" | ")}`,
+          `权限模式应为 ${PERMISSION_MODE_ORDER.join(" | ")}（也可写显示名，如 "Accept edits"）`,
         );
       }
-      session.setPermissionMode(args as PermissionMode);
-      return { kind: "handled", message: `权限模式：${args}` };
+      session.setPermissionMode(mode);
+      return { kind: "handled", message: `权限模式：${permissionModeLabel(mode)}` };
     }
     case "tools": {
       if (args !== "") session.setActiveTools(toolNames(args));

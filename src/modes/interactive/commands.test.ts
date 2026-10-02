@@ -94,11 +94,63 @@ describe("交互命令", () => {
     expect(currentSession(rt).state.thinkingLevel).toBe("high");
   });
 
+  it("/permission 选择器：标题 Mode、当前打勾、配置缺省标 Default；选中后提示显示名；参数可写显示名", async () => {
+    const rt = await boot();
+    const { ui, picks, notices } = recordingUi(rt, [byValue("auto")]);
+    await runInteractiveCommand("/permission", ui);
+    expect(picks[0]).toMatchObject({ title: "Mode", selected: "default", numberKeys: true });
+    expect(picks[0]?.items.find((i) => i.value === "default")).toMatchObject({
+      label: "✔ Manual",
+      badge: "Default",
+    });
+    expect(picks[0]?.items.find((i) => i.value === "auto")?.badge).toBe("Recommended");
+    expect(currentSession(rt).state.permissionMode).toBe("auto");
+    expect(notices).toContain("info:权限模式：Auto");
+    await runInteractiveCommand("/permission Accept edits", ui);
+    expect(currentSession(rt).state.permissionMode).toBe("auto-edit");
+    expect(notices.at(-1)).toBe("info:权限模式：Accept edits");
+    await runInteractiveCommand("/permission yolo", ui);
+    expect(notices.at(-1)).toMatch(/^error:权限模式应为 default \| auto-edit \| plan \| auto/);
+  });
+
+  it("/permissions 在 auto 下列出三层顺序与最近判定", async () => {
+    const rt = await boot();
+    const { ui, notices } = recordingUi(rt);
+    currentSession(rt).setPermissionMode("auto");
+    rt.permission.recordAutoDecision?.(
+      "bash",
+      { command: "ls -la" },
+      {
+        layer: "static",
+        decision: "allow",
+        reason: "every command is in the auto safe list",
+      },
+    );
+    rt.permission.recordAutoDecision?.(
+      "bash",
+      { command: "node gen.js" },
+      {
+        layer: "classifier",
+        decision: "allow",
+        reason: "runs a generator",
+        cached: true,
+      },
+    );
+    await runInteractiveCommand("/permissions", ui);
+    expect(notices[0]).toContain("权限模式：Auto（auto）");
+    expect(notices[0]).toContain("模型分类器");
+    expect(notices[0]).toContain("最近的 auto 判定（2）：");
+    expect(notices[0]).toContain(
+      "  静态判定  allow  bash ls -la — every command is in the auto safe list",
+    );
+    expect(notices[0]).toContain("  分类器  allow  bash node gen.js — runs a generator（缓存）");
+  });
+
   it("/permissions 列出模式、判定顺序与内置规则", async () => {
     const rt = await boot();
     const { ui, notices } = recordingUi(rt);
     await runInteractiveCommand("/permissions", ui);
-    expect(notices[0]).toContain("权限模式：default");
+    expect(notices[0]).toContain("权限模式：Manual（default）");
     expect(notices[0]).toContain("判定顺序");
     expect(notices[0]).toContain("deny   write(**/.git/**)  [builtin]");
   });

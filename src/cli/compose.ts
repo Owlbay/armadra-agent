@@ -249,6 +249,9 @@ export function createRuntimeDeps(
           mode: input.mode,
           rules: buildRules(input.rules, input.builtinDeny, (m) => state.warnings.push(m)),
           cwd: input.cwd,
+          ...(input.autoSafeCommands !== undefined
+            ? { autoSafeCommands: input.autoSafeCommands }
+            : {}),
         }),
     },
     resources: {

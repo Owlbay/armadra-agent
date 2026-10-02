@@ -82,3 +82,38 @@ describe("SelectList", () => {
     expect(filterItems(items, "ODD 3").map((i) => i.value)).toEqual(["m3", "m13"]);
   });
 });
+
+describe("SelectList：徽标、数字快捷键、说明换行", () => {
+  const modes: SelectItem[] = [
+    { value: "a", label: "Alpha", description: "first one", badge: "Default" },
+    { value: "b", label: "Beta", description: "second one" },
+    { value: "c", label: "Gamma", description: "third one", badge: "Recommended" },
+  ];
+
+  it("stacked：说明在下一行；徽标与序号靠右", () => {
+    const list = new SelectList(modes, { numberKeys: true, stacked: true });
+    expect(list.render(32).map(stripAnsi)).toEqual([
+      "› Alpha               Default  1",
+      "    first one",
+      "  Beta                         2",
+      "    second one",
+      "  Gamma           Recommended  3",
+      "    third one",
+    ]);
+  });
+
+  it("窄屏放不下徽标时只截断标签，内联说明让位", () => {
+    const list = new SelectList(modes, { numberKeys: true });
+    for (const line of list.render(20).map(stripAnsi)) expect(line.length).toBeLessThanOrEqual(20);
+    expect(stripAnsi(list.render(40)[0] ?? "")).toBe("› Alpha  first one            Default  1");
+  });
+
+  it("数字键直接选中并确认；超出范围忽略", () => {
+    const picked: string[] = [];
+    const list = new SelectList(modes, { numberKeys: true, onSelect: (i) => picked.push(i.value) });
+    list.handleInput("3");
+    list.handleInput("9");
+    expect(picked).toEqual(["c"]);
+    expect(list.getSelected()?.value).toBe("c");
+  });
+});

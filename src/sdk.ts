@@ -129,6 +129,10 @@ export interface CreateSessionOptions {
     mode?: PermissionMode;
     allow?: string[];
     deny?: string[];
+    /** auto 模式分类器的模型（`provider/model`）；缺省 config `permission.autoModel`，再缺省当前模型。 */
+    autoModel?: string;
+    /** auto 模式安全名单追加（与 config `permission.autoSafeCommands` 合并）。 */
+    autoSafeCommands?: string[];
     /** 审批回调；缺省无人作答 → deny。 */
     ask?(request: ApprovalRequest, signal: AbortSignal): Promise<ApprovalDecision>;
   };
@@ -216,7 +220,13 @@ export async function createAgentSession(
     config.permission?.builtinDeny,
     warn,
   );
-  const permission = new PermissionPipeline({ mode, rules, cwd });
+  const autoSafeCommands = [
+    ...(config.permission?.autoSafeCommands ?? []),
+    ...(options.permission?.autoSafeCommands ?? []),
+  ];
+  const permission = new PermissionPipeline({ mode, rules, cwd, autoSafeCommands });
+  const autoModel = options.permission?.autoModel;
+  if (autoModel !== undefined) config.permission = { ...config.permission, autoModel };
   const manager = options.sessionManager ?? SessionManager.inMemory(cwd);
   let session: AgentSessionImpl | undefined;
   const hooks = new HookDispatcher({

@@ -197,6 +197,52 @@ describe("merge：缺省 ← 用户级 ← profile ← 项目级（收紧）← 
     ).toEqual([]);
   });
 
+  it("auto 与 allowlist：项目级不能设 auto / full-auto（即使比当前更严），可设 allowlist；autoModel / autoSafeCommands 只认用户级与命令行", () => {
+    const loose: AmaConfig = {
+      version: 1,
+      permission: {
+        mode: "full-auto",
+        autoModel: "packy/qwen3.8-flash",
+        autoSafeCommands: ["just test"],
+      },
+    };
+    for (const mode of ["auto", "full-auto"] as const) {
+      const project: AmaConfig = {
+        version: 1,
+        permission: { mode, autoModel: "evil/model", autoSafeCommands: ["curl *"] },
+      };
+      const result = mergeConfigLayers({ user: loose, project });
+      expect(result.config.permission?.mode).toBe("full-auto");
+      expect(result.config.permission?.autoModel).toBe("packy/qwen3.8-flash");
+      expect(result.config.permission?.autoSafeCommands).toEqual(["just test"]);
+      const text = result.warnings.join("\n");
+      expect(text).toContain(`不能把权限模式设为 ${mode}`);
+      expect(text).toContain("autoModel");
+      expect(text).toContain("autoSafeCommands");
+    }
+    const allowlist = mergeConfigLayers({
+      user: loose,
+      project: { version: 1, permission: { mode: "allowlist" } },
+    });
+    expect(allowlist.config.permission?.mode).toBe("allowlist");
+    expect(allowlist.warnings).toEqual([]);
+    const relax = mergeConfigLayers({
+      user: { version: 1, permission: { mode: "allowlist" } },
+      project: { version: 1, permission: { mode: "default" } },
+    });
+    expect(relax.config.permission?.mode).toBe("allowlist");
+    expect(relax.warnings.join("\n")).toMatch(/只能收紧/);
+    const profile: AmaConfig = { version: 1, permission: { autoSafeCommands: ["make fmt"] } };
+    expect(
+      mergeConfigLayers({ user: loose, profile, hasProfile: true }).config.permission
+        ?.autoSafeCommands,
+    ).toEqual(["just test", "make fmt"]);
+    const cli = mergeProjectAndCli(mergeBaseLayers({ user }), undefined, {
+      permissionMode: "auto",
+    });
+    expect(cli.config.permission?.mode).toBe("auto");
+  });
+
   it("临时 HOME 下从文件读出层级", async () => {
     await withTmpHome((home) => {
       home.write("home/.config/ama/config.json", user);

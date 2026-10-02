@@ -80,6 +80,10 @@ export interface PermissionConfig {
    * 数组 = 要移除的规则原文。放宽项，只认用户级 / profile，项目级忽略并 warning。
    */
   builtinDeny?: boolean | string[];
+  /** auto 模式分类器的模型（`provider/model`）；缺省 = 当前会话模型。放宽项，项目级忽略。 */
+  autoModel?: string;
+  /** auto 模式安全名单追加（词前缀或含 `*` 的通配）。放宽项，项目级忽略；各层累加。 */
+  autoSafeCommands?: string[];
 }
 
 export interface CompactionConfig {

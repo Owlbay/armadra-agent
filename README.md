@@ -316,16 +316,21 @@ anthropic/<model-id> · think:medium · ↑412k ↓8.1k · cache 83% ♨ · $0.8
 
 ## 安全
 
-**权限模式**（`--permission-mode`、`/permission`、交互模式 `Shift+Tab` 循环）：
+**权限模式**（`--permission-mode`、配置 `permission.mode`、`/permission` 选择器、交互模式 `Shift+Tab` 循环）：
 
-| 模式        | 读  | 写   | 执行（bash 等） |
-| ----------- | --- | ---- | --------------- |
-| `plan`      | ✓   | 拒绝 | 拒绝            |
-| `default`   | ✓   | 询问 | 询问            |
-| `auto-edit` | ✓   | ✓    | 询问            |
-| `full-auto` | ✓   | ✓    | ✓               |
+| 模式        | 显示名             | 读  | 写                                                     | 执行（bash 等）                |
+| ----------- | ------------------ | --- | ------------------------------------------------------ | ------------------------------ |
+| `default`   | Manual             | ✓   | 询问                                                   | 询问                           |
+| `auto-edit` | Accept edits       | ✓   | ✓                                                      | 询问                           |
+| `plan`      | Plan               | ✓   | 拒绝                                                   | 拒绝                           |
+| `auto`      | Auto               | ✓   | ✓ ¹                                                    | 安全的自动放行，有风险的才问 ² |
+| `full-auto` | Bypass permissions | ✓   | ✓                                                      | ✓                              |
+| `allowlist` | Allowlist only     | ✓   | 只放行 allow 规则命中的，其余拒绝，从不询问（适合 CI） | 同左                           |
 
-**判定顺序**：deny 规则（含 Hook deny）→ 危险命令 → 模式 → allow 规则把「询问」变「允许」。前两步之后的规则不能放宽它们。无人值守（`-p`、RPC 未接审批）时「询问」一律按拒绝。
+¹ 机密文件（`.env`、私钥、`.ssh/` 等）、`.git/` 与 `.ama/`、项目目录外的写入仍然询问。
+² 三层判定：规则层（危险命令、网络、删除类、受保护路径 → 询问）→ 静态判定（安全名单：`ls`、`cat`、`grep`、`git status/diff/log`、`npm test`、`tsc --noEmit`、`cargo test` 等 → 放行）→ 都没决定时问一次模型分类器（独立请求，不影响主会话缓存；`permission.autoModel` 可指定便宜模型）。详见 [docs/permissions.md](docs/permissions.md)。
+
+**判定顺序**：deny 规则（含 Hook deny）→ 危险命令 →（auto 的规则层）→ 模式 / 静态判定 → allow 规则把「询问」变「允许」→（auto 的分类器）。前面的结论后面不能放宽。无人值守（`-p`、RPC 未接审批）时「询问」一律按拒绝。项目级配置只能收紧模式，且不能设 `auto` / `full-auto`。
 
 - **规则**：`bash(git push*)`、`write(src/**)`、`read(**)`、`canvas_*`；`--allow` / `--deny` 可重复。内置 deny：写 `.git/**`、读写 `.ssh/**`。
 - **危险命令**：`rm -rf /`、`sudo`、`git push --force`、`git reset --hard`、`git clean -f`、`curl … | sh`、`chmod -R 777`、`npm publish`、`shutdown` 等，即使有 allow 规则也要询问。识别会穿透 `sh -c '…'`、`eval`、`xargs`、`find -exec` 与 git 全局选项。
@@ -427,6 +432,7 @@ Armadra 以 `ama --profile <path>` 启动 ama。profile 是一个 JSON 文件，
 | [docs/providers.md](docs/providers.md)                                                               | 内置供应商、API Key、自定义供应商与中转站、compat、缓存 |
 | [docs/tui.md](docs/tui.md)                                                                           | 终端界面：布局、按键、命令、审批预览、缓存显示、组件库  |
 | [docs/codemode.md](docs/codemode.md)                                                                 | codemode 脚本、沙箱与权限                               |
+| [docs/permissions.md](docs/permissions.md)                                                           | 权限模式、auto 三层判定、安全名单、allowlist            |
 | [docs/hooks.md](docs/hooks.md)                                                                       | 命令式 Hook（hooks.json）                               |
 | [docs/host-api.md](docs/host-api.md)                                                                 | 宿主适配器 API                                          |
 | [docs/rpc.md](docs/rpc.md)                                                                           | RPC 协议（stdio JSONL）                                 |

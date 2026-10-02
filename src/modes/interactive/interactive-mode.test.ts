@@ -267,8 +267,8 @@ describe("交互模式", () => {
     const s = await start([{ text: "收到粘贴" }]);
     s.type("\x1b[Z");
     expect(currentSession(s.rt).state.permissionMode).toBe("auto-edit");
-    expect(s.terminal.viewport().join("\n")).toContain("权限模式：auto-edit");
-    expect(s.terminal.viewport().join("\n")).toContain("mode:auto-edit");
+    expect(s.terminal.viewport().join("\n")).toContain("权限模式：Accept edits");
+    expect(s.terminal.viewport().join("\n")).toContain("mode:Accept edits");
     const settled = s.until((e) => e.type === "agent_settled");
     s.terminal.sendInput("\x1b[200~第一行\n第二行\x1b[201~");
     s.terminal.sendInput("\r");

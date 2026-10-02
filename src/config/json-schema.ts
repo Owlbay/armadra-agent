@@ -156,6 +156,8 @@ export function buildConfigJsonSchema(): Schema {
         allow: strings,
         deny: strings,
         builtinDeny: { anyOf: [{ type: "boolean" }, strings] },
+        autoModel: str("auto 模式分类器的模型 provider/model；缺省用当前会话模型"),
+        autoSafeCommands: strings,
       }),
       compaction: object({ enabled: bool(), reserveTokens: num(0), keepRecentTokens: num(0) }),
       retry: object({

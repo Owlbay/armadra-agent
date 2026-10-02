@@ -57,6 +57,7 @@
     "docs/rpc.md",
     "docs/host-api.md",
     "docs/hooks.md",
+    "docs/permissions.md",
     "docs/providers.md",
     "docs/codemode.md",
     "docs/tui.md",

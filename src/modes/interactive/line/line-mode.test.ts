@@ -39,7 +39,7 @@ describe("行式界面：管道", () => {
     const out = h.stdout();
     expect(out).toContain("first answer\n");
     expect(out).toMatch(/^会话 {4}/m);
-    expect(out).toContain("权限模式（/permission <模式>）");
+    expect(out).toContain("Mode（/permission <模式>）");
     expect(out).toContain("● bash  echo x");
     expect(out).toContain("after tool");
     expect(h.fake.calls).toHaveLength(4);

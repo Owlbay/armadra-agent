@@ -16,6 +16,7 @@ import type { ModelThinkingLevel } from "../../ai/types.js";
 import type { SwitchRequest } from "../../cli/compose-session.js";
 import { listSessions } from "../../cli/compose-store.js";
 import type { Runtime } from "../../cli/runtime.js";
+import { AUTO_LAYER_TEXT, permissionModeLabel } from "../../permissions/modes.js";
 import type { PermissionMode } from "../../permissions/types.js";
 import type { SessionEntry } from "../../session/types.js";
 import type { SelectItem } from "../../tui.js";
@@ -29,7 +30,7 @@ import {
 import { contentText, type NoticeLevel } from "./message-view.js";
 import {
   modelItems,
-  permissionItems,
+  permissionPickerSpec,
   sessionItems,
   thinkingItems,
   treeItems,
@@ -81,12 +82,29 @@ export function activeBranchIds(session: AgentSession): Set<string> {
 
 export function permissionsText(runtime: Runtime, session: AgentSession): string {
   const rules = runtime.permission.rules;
+  const mode = session.state.permissionMode;
+  const order =
+    mode === "auto"
+      ? "deny 规则 → Hook deny → 危险命令确认 → 规则层（受保护路径、项目外写入、网络、删除类）→ Hook ask → allow 规则 / Hook allow / 本会话记忆 → 静态判定（只读、项目内写入、安全名单）→ 模型分类器 → 询问"
+      : mode === "allowlist"
+        ? "deny 规则 → Hook deny → 危险命令（拒绝）→ 只读工具 / allow 规则 / Hook allow 放行 → 其余拒绝（从不询问）"
+        : "deny 规则 → Hook deny → 危险命令确认 → 权限模式 → allow 规则 / Hook allow / 本会话记忆 → 询问";
   const lines = [
-    `权限模式：${session.state.permissionMode}`,
-    "判定顺序：deny 规则 → Hook deny → 危险命令确认 → 权限模式 → allow 规则 / Hook allow / 本会话记忆 → 询问",
+    `权限模式：${permissionModeLabel(mode)}（${mode}）`,
+    `判定顺序：${order}`,
     rules.length === 0 ? "规则：（无）" : `规则（${rules.length}）：`,
     ...rules.map((r) => `  ${r.effect === "deny" ? "deny " : "allow"}  ${r.raw}  [${r.source}]`),
   ];
+  const recent = runtime.permission.autoDecisions?.() ?? [];
+  if (recent.length > 0) {
+    lines.push(`最近的 auto 判定（${recent.length}）：`);
+    for (const d of recent) {
+      const cached = d.cached === true ? "（缓存）" : "";
+      lines.push(
+        `  ${AUTO_LAYER_TEXT[d.layer]}  ${d.decision}  ${d.toolName} ${d.summary} — ${d.reason}${cached}`,
+      );
+    }
+  }
   return lines.join("\n");
 }
 
@@ -175,12 +193,16 @@ async function handlePick(
       return;
     }
     case "permission": {
-      const picked = await ui.pick({
-        title: "权限模式",
-        items: permissionItems(),
-        selected: session.state.permissionMode,
-      });
-      if (picked !== undefined) session.setPermissionMode(picked.value as PermissionMode);
+      const picked = await ui.pick(
+        permissionPickerSpec(
+          session.state.permissionMode,
+          ui.runtime.config.permission?.mode ?? "default",
+        ),
+      );
+      if (picked === undefined) return;
+      const mode = picked.value as PermissionMode;
+      session.setPermissionMode(mode);
+      ui.notice("info", `权限模式：${permissionModeLabel(mode)}`);
       return;
     }
     case "thinking": {

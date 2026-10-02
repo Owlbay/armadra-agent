@@ -54,7 +54,7 @@
 
 ### `usage` 条目
 
-不进上下文的请求用量，计入 `/session` 费用与 RPC 统计，投影时跳过。第一期只有 `kind: "cache_warm"`（缓存保温请求，见 [providers.md](providers.md)「缓存」）：
+不进上下文的请求用量，计入 `/session` 费用与 RPC 统计，投影时跳过。`kind` 目前有 `"cache_warm"`（缓存保温请求，见 [providers.md](providers.md)「缓存」）与 `"permission_classify"`（auto 权限模式的分类请求，见 [permissions.md](permissions.md)）：
 
 ```json
 {
