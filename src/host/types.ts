@@ -7,8 +7,12 @@
  * - `HostMode` 抽成具名类型；`AgentEvents` 中空载荷用 `Record<string, never>` 表示
  *   （设计写 `{}`，在 strict 下 `{}` 意为「任意非空值」，语义不对）。
  * - `HostAdapterHandle` 是 Runtime 持有的已激活适配器（loader.ts 产出）。
+ * - （W3-C0）第三波 §1.10 / §1.7：`AgentEvents` 加 `cache_miss`、`context_pressure`；
+ *   `HostApi.cache.onWarmingDecision` 为可选面（HOST_API_VERSION 不变，旧宿主不受影响），
+ *   多个处理器时最后注册的生效。
  */
 
+import type { CacheMiss, WarmingDecisionHandler } from "../ai/cache/types.js";
 import type { HookEvent } from "../hooks/types.js";
 import type { ApprovalBroker, ApprovalDecision } from "../permissions/types.js";
 import type { ToolDefinition } from "../tools/types.js";
@@ -31,6 +35,7 @@ export type {
   ToolResult,
 } from "../tools/types.js";
 export type { JsonSchema } from "../ai/types.js";
+export type { CacheMiss, WarmDecision, WarmingDecisionHandler } from "../ai/cache/types.js";
 
 export const HOST_API_VERSION = 1 as const;
 export type HostApiVersion = typeof HOST_API_VERSION;
@@ -75,6 +80,15 @@ export interface AgentEvents {
   tool_approval_resolved: { requestId: string; decision: ApprovalDecision };
   hook_executed: { event: HookEvent; command: string; exitCode: number | null; durationMs: number };
   session_shutdown: Empty;
+  /** [W3-C0] 一次缓存未命中（重计费 token / 金额与原因）。 */
+  cache_miss: CacheMiss;
+  /** [W3-C0] 上下文占用跨越 70% / 90%。 */
+  context_pressure: {
+    percent: number;
+    threshold: 70 | 90;
+    remainingTokens?: number;
+    estimatedTurnsLeft?: number;
+  };
 }
 
 export type AgentEventName = keyof AgentEvents;
@@ -118,6 +132,13 @@ export interface HostApi {
     message: string,
     detail?: unknown,
   ) => void;
+  /**
+   * [W3-C0] 缓存保温的否决钩子（第三波 §1.7）：每次保温前以内置决策调用，返回 `"stop"` 即不发；
+   * 处理器出错回落内置决策。返回值用于注销。可选面：旧版本运行时没有它。
+   */
+  readonly cache?: {
+    onWarmingDecision(handler: WarmingDecisionHandler): () => void;
+  };
 }
 
 /** Runtime 持有的已激活适配器。 */

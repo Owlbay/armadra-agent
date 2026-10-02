@@ -21,6 +21,7 @@ import type {
 } from "./types.js";
 import { HOST_API_VERSION } from "./types.js";
 import type { ToolDefinition, ToolRegistryApi } from "../tools/types.js";
+import type { WarmingDecisionHandler } from "../ai/cache/types.js";
 
 export type HostNotify = (message: string, level: "info" | "warn" | "error") => void;
 
@@ -109,6 +110,8 @@ export interface HostApiBinding {
    * 传 undefined 恢复为构造时的值（未提供则写 stderr）。
    */
   setNotify(fn?: HostNotify): void;
+  /** [W3-C0] 宿主经 `cache.onWarmingDecision` 注册的否决钩子（最后注册且未注销的那个）。 */
+  warmingDecider(): WarmingDecisionHandler | undefined;
 }
 
 const TOOL_NAME = /^[a-z][a-z0-9_]{1,63}$/;
@@ -134,6 +137,7 @@ export function createHostApi(deps: HostApiDeps): HostApiBinding {
   const disabledTools: string[] = [];
   const status = new Map<string, string>();
   let broker: ApprovalBroker | undefined;
+  const warmingHandlers: WarmingDecisionHandler[] = [];
   let notify: HostNotify | undefined = deps.notify;
   const writeErr = deps.stderr ?? ((text: string) => void process.stderr.write(text));
   const log: HostLogger =
@@ -209,6 +213,18 @@ export function createHostApi(deps: HostApiDeps): HostApiBinding {
       },
     }),
     log,
+    cache: Object.freeze({
+      onWarmingDecision(handler: WarmingDecisionHandler): () => void {
+        if (typeof handler !== "function") {
+          throw new AmaError("invalid_arguments", "cache.onWarmingDecision：需要函数");
+        }
+        warmingHandlers.push(handler);
+        return () => {
+          const index = warmingHandlers.lastIndexOf(handler);
+          if (index >= 0) warmingHandlers.splice(index, 1);
+        };
+      },
+    }),
   });
 
   return {
@@ -224,5 +240,6 @@ export function createHostApi(deps: HostApiDeps): HostApiBinding {
     setNotify(fn?: HostNotify): void {
       notify = fn ?? deps.notify;
     },
+    warmingDecider: () => warmingHandlers.at(-1),
   };
 }

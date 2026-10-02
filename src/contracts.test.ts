@@ -275,6 +275,19 @@ describe("宿主契约", () => {
     expectTypeOf<Parameters<HostApi["tools"]["register"]>[0]>().toEqualTypeOf<ToolDefinition>();
   });
 
+  it("AgentEvents 两个缓存事件与可选的 cache.onWarmingDecision（W3-C0 ③）", () => {
+    expectTypeOf<AgentEvents["cache_miss"]["reason"]>().toEqualTypeOf<
+      "prefix_changed" | "model_changed" | "idle" | "subtask" | "evicted"
+    >();
+    expectTypeOf<AgentEvents["context_pressure"]["threshold"]>().toEqualTypeOf<70 | 90>();
+    type Register = NonNullable<HostApi["cache"]>["onWarmingDecision"];
+    expectTypeOf<Parameters<Register>[0]>().toEqualTypeOf<WarmingDecisionHandler>();
+    expectTypeOf<ReturnType<Register>>().toEqualTypeOf<() => void>();
+    expectTypeOf<ReturnType<HostApiBinding["warmingDecider"]>>().toEqualTypeOf<
+      WarmingDecisionHandler | undefined
+    >();
+  });
+
   it("HostApiBinding.setNotify（契约 A8）", () => {
     expectTypeOf<Parameters<HostApiBinding["setNotify"]>>().toEqualTypeOf<
       [fn?: (message: string, level: "info" | "warn" | "error") => void]
