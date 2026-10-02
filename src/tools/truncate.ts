@@ -2,6 +2,8 @@
  * 头 / 尾截断（行数 + 字节双阈值，先到者为准）与全文落盘（设计 §5.2、§4.4）。[B3]
  *
  * - read / grep 用**头截断**（保留开头，提示 offset 续读）；bash 用**尾截断**（保留结尾）。
+ * - [W5-H2] 会话层通用截断（`maxToolResultChars`）用**头 + 尾**（`truncateMiddle`）：保留前 70% 与
+ *   后 30%，中间换成省略说明（错误信息常在尾部）。
  * - 字节按 UTF-8 计；不切断多字节字符；单行超过字节上限时按字符边界截该行。
  */
 
@@ -158,6 +160,41 @@ export function truncateTail(text: string, options: TruncateOptions = {}): Trunc
     outputLines: out.length,
     outputBytes: byteLength(content),
   };
+}
+
+/** 头 + 尾截断时开头所占的比例（§8.3 H5）。 */
+export const HEAD_TAIL_RATIO = 0.7;
+
+export interface MiddleTruncation {
+  /** 截断后的文本（未超限时原样）。 */
+  content: string;
+  /** 省略的字符数（UTF-16 单元）；未截断为 0。 */
+  omitted: number;
+}
+
+/** 下标落在代理对中间时往前挪一位，不切断字符。 */
+function charBoundary(text: string, index: number): number {
+  if (index <= 0 || index >= text.length) return index;
+  const code = text.charCodeAt(index);
+  return code >= 0xdc00 && code <= 0xdfff ? index - 1 : index;
+}
+
+/**
+ * 头 + 尾截断（[W5-H2] §8.3 H5）：超过 `maxChars` 时保留前 70% 与后 30%，中间换成
+ * `marker(省略字符数)` 的文本（缺省 `[… N 字符已省略]`）。
+ */
+export function truncateMiddle(
+  text: string,
+  maxChars: number,
+  marker: (omitted: number) => string = (omitted) => `[… ${omitted} 字符已省略]`,
+): MiddleTruncation {
+  if (text.length <= maxChars) return { content: text, omitted: 0 };
+  const limit = Math.max(0, Math.floor(maxChars));
+  const headEnd = charBoundary(text, Math.floor(limit * HEAD_TAIL_RATIO));
+  const tailStart = charBoundary(text, text.length - (limit - headEnd));
+  const omitted = tailStart - headEnd;
+  const content = `${text.slice(0, headEnd)}\n\n${marker(omitted)}\n\n${text.slice(tailStart)}`;
+  return { content, omitted };
 }
 
 /** 单行按字符截断，附省略提示。 */

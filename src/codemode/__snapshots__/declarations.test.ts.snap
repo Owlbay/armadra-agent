@@ -3,14 +3,16 @@
 exports[`buildDeclarationBlock > 内置工具的声明快照（缺省预算全部内联，按名排序） 1`] = `
 "interface BashResult { output: string; truncated: boolean; fullOutputPath?: string; exitCode: number; wallTimeMs: number }
 declare const tools: {
-  /** Run a shell command. stdout+stderr combined; over 2000 lines or 50 KB keeps the tail and saves the full output to a file. Timeout default 120000 ms, max 600000 ms. */
+  /** Run a shell command; stdout+stderr combined, keeps the last 2000 lines / 50 KB (full output saved). Timeout 120 s, max 600 s. background:true gives a job id for {job, action}. */
   bash(args: {
-    command: string;
+    command?: string;
     timeoutMs?: number;
     /** Default: session cwd */
     cwd?: string;
-    /** What this does, briefly */
     description?: string;
+    background?: boolean;
+    job?: string;
+    action?: "wait" | "output" | "stop";
   }): Promise<BashResult>;
   /** Replace text in a file (read it first). Give all changes to a file as edits[] in one call; each oldText matches the original file and must be unique (unless replaceAll), short and non-overlapping. */
   edit(args: {

@@ -199,6 +199,16 @@
 响应、`tool_execution_*`、`subagent_*` 与 `agent_settled`），由
 `src/agent/subagent-rpc.test.ts` 用 `UPDATE_GOLDEN=1` 更新。
 
+### 预算、回退与后台命令事件（第五波 W5-H2）
+
+| 事件             | 字段                                                                                                                                                                                                  |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `limit_reached`  | `kind: turns \| cost`、`value`（本次运行的回合数 / 美元）、`limit`；`limits.*`（config，`-p` 另有 `--max-turns` / `--max-cost`）到限时每次运行每类一次，随后 `agent_settled{warning:"limit_reached"}` |
+| `model_fallback` | `from`、`to`（`{ provider, id, channel? }`）、`reason`（触发的错误文本）；可重试错误在 overloaded 时或重试用尽后切到 `fallbackModel` 重试一次，回复后切回（另有两次 `model_changed`）                 |
+| `background_job` | `jobId`、`phase: started \| exited \| stopped`、`command`、`pid?`、`outputPath?`、`exitCode?`；`bash{background:true}` 启动的后台命令                                                                 |
+
+重复调用检测（同 run 同名同参第 5 次）结束 run 时 `agent_settled{warning:"repeated_tool_call"}`。
+
 ### `message_update` 与消息重建
 
 线上的 `message_update` 去掉了累计消息与 `partial`，只有增量：

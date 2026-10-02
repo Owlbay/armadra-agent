@@ -66,6 +66,8 @@ plan 模式让 ama 先只读调研、写出一份结构化的计划，经人批�
 
 客户端改过的全文（`editedMarkdown`，界面里「在外部编辑器里改」）先落一份新版本，交接消息用改后的全文。
 
+`-p` 在 `stop` 下停在「计划待审批」时：stderr 一行写明计划文件与审批办法，`--output-format json` 的结果带 `planPending{planId, version, filePath}`，退出码 **9**（计划已落盘、未执行；不复用 7「工具调用被拒」）。`approve` 下批准后照常执行，退出码按执行结果。
+
 ## 规划 / 执行分模型
 
 `plan.model`（`provider/model[@channel]`）与 `plan.thinkingLevel`：plan 下的**第一个提示**切到规划模型，**批准时**切回执行模型（手动退出后的下一个提示也切回）。只是经过 plan（Shift+Tab 循环）不会切。缺省不设。换模型后前缀缓存全部失效，下一次请求全价重读（记为 `cache_miss{model_changed}`），所以缺省关闭；搭配「在新上下文执行」最划算。切走的执行模型记在 `ama.plan_state` 里，resume 后批准仍能切回。

@@ -169,7 +169,7 @@ export const CONFIG_KEY_DOCS: Readonly<Record<string, string>> = Object.freeze({
   fallbackModel:
     "回退模型 provider/model[@channel]：可重试错误用尽或过载时切换重试一次，下一回合回主模型；只认用户级（第五波 W5-H2 起生效）",
   limits:
-    "会话预算，到限结束本次运行（-p 退出码 7）；--max-turns / --max-cost 覆盖；只认用户级（第五波 W5-H2 起生效）",
+    "会话预算，到限结束本次运行（-p 退出码 8）；--max-turns / --max-cost 覆盖；只认用户级（第五波 W5-H2 起生效）",
   "limits.maxTurns": "一次运行最多回合数",
   "limits.maxCostUsd": "一次运行的美元上限",
   reminders: "附在对话尾部的提醒（不改缓存前缀）；项目级可设（第五波 W5-H2 起生效）",

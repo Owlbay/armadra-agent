@@ -207,7 +207,7 @@ describe("请求空闲超时（W4-C）", () => {
 });
 
 describe("第五波装配（W5-C0）", () => {
-  it("--max-cost 与 config limits / fallbackModel 只透传到会话选项，并提示尚未生效", async () => {
+  it("[W5-H2] --max-cost 覆盖 config limits；fallbackModel 透传；--max-cost 不再提示未生效", async () => {
     h = composeHarness([{ text: "ok" }]);
     h.home.write(
       "home/.config/ama/config.json",
@@ -219,8 +219,22 @@ describe("第五波装配（W5-C0）", () => {
     expect(session.options.fallbackModel).toBe("fake/reasoning");
     expect(session.options.maxTurns).toBeUndefined();
     const warnings = runtime.warnings.join("\n");
-    expect(warnings).toContain("--max-cost 尚未实现");
+    expect(warnings).not.toContain("--max-cost 尚未实现");
     expect(warnings).not.toContain("--agent-dir 尚未实现"); // [W5-G] 已接入
+    await runtime.dispose();
+  });
+
+  it("[W5-H2] --max-turns 并入 limits.maxTurns（不再走 options.maxTurns）；subagents.maxConcurrent 生效", async () => {
+    h = composeHarness([{ text: "ok" }]);
+    h.home.write(
+      "home/.config/ama/config.json",
+      JSON.stringify({ version: 1, limits: { maxTurns: 9 }, subagents: { maxConcurrent: 2 } }),
+    );
+    const runtime = await h.boot(["-p", "--model", "fake/echo", "--max-turns", "3", "hi"]);
+    const session = runtime.session as AgentSessionImpl;
+    expect(session.options.limits).toEqual({ maxTurns: 3 });
+    expect(session.options.maxTurns).toBeUndefined();
+    expect(session.options.subagents).toEqual({ maxConcurrent: 2 });
     await runtime.dispose();
   });
 

@@ -10,12 +10,18 @@
  * - 将要停下时发 agent_before_settle 并跑 Stop（子 Agent 为 SubagentStop）Hook：block + reason →
  *   以 reason 作为新 user 消息再跑一轮（上限 3 次，stopHookActive 传给 Hook）。
  * - 最终失败后若 followUp 队列非空，照常投递。
+ * - [W5-H2] 模型回退：可重试错误在 overloaded 时、或重试用尽后，若配置了 `fallbackModel` 就切过去
+ *   重试一次本请求（`model_fallback` 事件），回退模型回复后切回主模型；每个周期最多一次。
+ * - [W5-H2] 扩展经 `noteSettleWarning` 登记的 warning（预算到限 `limit_reached`）写进本周期的 agent_settled；
+ *   `limit_reached:` 开头的错误回复（预算拦下请求）不重试。
+ * - [W5-H2] run 带 `warning`（重复调用检测 `repeated_tool_call`）：不跑 Stop Hook，agent_settled 带该 warning。
  */
 
 import type { AssistantMessage, ImageBlock, UserMessage } from "../ai/types.js";
 import { AmaError } from "../errors.js";
 import type { AgentMessage } from "../session/types.js";
 import type { RunOutcome } from "./loop.js";
+import { formatModelRef, modelRefOf } from "../ai/providers/channels.js";
 import { classifyFailure, retryDelayMs, sleep } from "./retry.js";
 import type { SessionCore } from "./session-core.js";
 import type { CompactionController } from "./session-compaction.js";
@@ -23,13 +29,30 @@ import type { PromptDisposition, RetrySettings } from "./types.js";
 
 export const MAX_STOP_HOOK_CONTINUATIONS = 3;
 export const ABORTED_CUSTOM_TYPE = "ama.aborted";
+/** [W5-H2] 预算拦下请求时错误回复的前缀（limits.ts）：判为最终失败，不重试、不回退。 */
+export const LIMIT_ERROR_PREFIX = "limit_reached:";
+
+/** [W5-H2] 扩展（limits）登记的 agent_settled warning：本周期收尾时取走。 */
+const settleWarnings = new WeakMap<SessionCore, string>();
+
+export function noteSettleWarning(core: SessionCore, warning: string): void {
+  if (!settleWarnings.has(core)) settleWarnings.set(core, warning);
+}
+
+function takeSettleWarning(core: SessionCore): string | undefined {
+  const warning = settleWarnings.get(core);
+  settleWarnings.delete(core);
+  return warning;
+}
 
 export type RunDecision =
   | { kind: "done" }
   | { kind: "aborted" }
   | { kind: "retry"; errorMessage: string }
   | { kind: "overflow" }
-  | { kind: "failed"; errorMessage: string };
+  | { kind: "failed"; errorMessage: string }
+  /** [W5-H2] 切到 `fallbackModel` 重试一次本请求（overloaded，或可重试错误的重试已用尽）。 */
+  | { kind: "fallback"; errorMessage: string };
 
 export interface RunCycleDeps {
   core: SessionCore;
@@ -52,6 +75,7 @@ export function decideAfterRun(
   outcome: RunOutcome,
   retryAttempt: number,
   overflowRecovered: boolean,
+  fallbackUsed = false,
 ): RunDecision {
   if (outcome.stopReason === "aborted") return { kind: "aborted" };
   const last = outcome.lastAssistant;
@@ -60,6 +84,7 @@ export function decideAfterRun(
   if (!failedStop) return { kind: "done" };
   const errorMessage =
     last.errorMessage ?? (last.stopReason === "length" ? "output hit the token limit" : "error");
+  if (errorMessage.startsWith(LIMIT_ERROR_PREFIX)) return { kind: "failed", errorMessage };
   const classifyOptions =
     deps.core.options.isContextOverflow === undefined
       ? {}
@@ -75,10 +100,74 @@ export function decideAfterRun(
     return recoverable ? { kind: "overflow" } : { kind: "failed", errorMessage };
   }
   const settings = deps.retry();
+  const canFallback =
+    kind === "retryable" && !fallbackUsed && fallbackTarget(deps.core) !== undefined;
+  if (canFallback && OVERLOADED.test(errorMessage)) return { kind: "fallback", errorMessage };
   if (kind === "retryable" && settings.enabled && retryAttempt < settings.maxRetries) {
     return { kind: "retry", errorMessage };
   }
+  if (canFallback) return { kind: "fallback", errorMessage };
   return { kind: "failed", errorMessage };
+}
+
+const OVERLOADED = /overloaded/i;
+
+/** 能切换模型的会话（AgentSessionImpl 的公开 `setModel`；SessionCore 不含它）。 */
+type ModelSwitcher = SessionCore & { setModel?(ref: string): Promise<void> };
+
+/** 配置了与当前模型不同、且能找到的回退模型时返回它的引用。 */
+function fallbackTarget(core: SessionCore): string | undefined {
+  const target = core.options.fallbackModel?.trim();
+  if (target === undefined || target === "") return undefined;
+  if ((core as ModelSwitcher).setModel === undefined) return undefined;
+  const current = core.model();
+  const refs = [formatModelRef(current), `${current.provider}/${current.id}`];
+  if (refs.includes(target)) return undefined;
+  // 找不到的回退模型等于没配：照常重试（启动时不校验，避免目录未加载时误报）
+  return core.options.providers.findModel(target).ok ? target : undefined;
+}
+
+/**
+ * [W5-H2] 模型回退（§8.3 H7）：经 `setModel` 切到回退模型（落 model_change、发 model_changed——缓存
+ * 未命中归因 `model_changed`，思考块按跨模型规则降级），发 `model_fallback{from, to, reason}`；
+ * 回退模型的第一条回复落盘后切回主模型（下一次请求仍用主模型）。返回「切回」函数；切换失败返回
+ * undefined（按最终失败处理）。
+ */
+async function switchToFallback(
+  core: SessionCore,
+  reason: string,
+): Promise<(() => Promise<void>) | undefined> {
+  const target = fallbackTarget(core);
+  const switcher = core as ModelSwitcher;
+  if (target === undefined || switcher.setModel === undefined) return undefined;
+  const primary = core.model();
+  try {
+    await switcher.setModel(target);
+  } catch (error) {
+    core.log("warn", `fallbackModel ${target} unavailable: ${String(error)}`);
+    return undefined;
+  }
+  core.emit({
+    type: "model_fallback",
+    from: modelRefOf(primary),
+    to: modelRefOf(core.model()),
+    reason,
+  });
+  let restored = false;
+  const restore = async (): Promise<void> => {
+    if (restored) return;
+    restored = true;
+    unsubscribe();
+    try {
+      await switcher.setModel?.(formatModelRef(primary));
+    } catch (error) {
+      core.log("warn", `cannot switch back to ${formatModelRef(primary)}: ${String(error)}`);
+    }
+  };
+  const unsubscribe = core.agent.subscribe(async (event) => {
+    if (event.type === "message_end" && event.message.role === "assistant") await restore();
+  });
+  return restore;
 }
 
 /** 用 context_edit 把失败尝试（助手消息与其后补的结果）从上下文剔除。 */
@@ -113,7 +202,34 @@ export function recordAbort(core: SessionCore): void {
   core.reloadMessages();
 }
 
+/**
+ * 会话周期：跑完一轮（到 agent_settled 与 onAgentSettled）后，若期间（Stop Hook、agent_settled 监听器、
+ * onAgentSettled 扩展）又有 steer / followUp 入队——宿主 `sendUser`、子 Agent 后台通知等在周期收尾
+ * 阶段调用时会话仍算忙，只能入队——就在同一周期里再开一轮投递它们（[W5-H2]，W5-G 发现的竞态）。
+ * abort 或已请求停止（Hook continue:false、预算到限）时不续投，消息留在队列。
+ */
 export async function runCycle(
+  deps: RunCycleDeps,
+  prompts: AgentMessage[],
+  signal: AbortSignal,
+): Promise<void> {
+  let next: AgentMessage[] = prompts;
+  for (;;) {
+    await runSettledCycle(deps, next, signal);
+    if (signal.aborted || deps.stopRequested()) return;
+    const queued = drainQueued(deps.core);
+    if (queued.length === 0) return;
+    next = queued;
+  }
+}
+
+/** 先取 steer（按其投递模式），没有再取 followUp。 */
+function drainQueued(core: SessionCore): AgentMessage[] {
+  const steering = core.agent.steeringQueue.drain();
+  return steering.length > 0 ? steering : core.agent.followUpQueue.drain();
+}
+
+async function runSettledCycle(
   deps: RunCycleDeps,
   prompts: AgentMessage[],
   signal: AbortSignal,
@@ -125,6 +241,8 @@ export async function runCycle(
   let stopHooks = 0;
   let warning: string | undefined;
   let announced = false;
+  let fallbackUsed = false;
+  let restoreModel: (() => Promise<void>) | undefined;
 
   const endRetry = (success: boolean, finalError?: string): void => {
     if (retryAttempt === 0) return;
@@ -145,8 +263,10 @@ export async function runCycle(
     const outcome = await core.agent.run(next, {
       signal,
       onRunEnd: (result) => {
-        decision = decideAfterRun(deps, result, retryAttempt, overflowRecovered);
-        return decision.kind === "retry" || decision.kind === "overflow";
+        decision = decideAfterRun(deps, result, retryAttempt, overflowRecovered, fallbackUsed);
+        return (
+          decision.kind === "retry" || decision.kind === "overflow" || decision.kind === "fallback"
+        );
       },
     });
     next = undefined;
@@ -186,7 +306,20 @@ export async function runCycle(
       next = [];
       continue;
     }
+    if (current.kind === "fallback") {
+      fallbackUsed = true;
+      endRetry(false, current.errorMessage);
+      restoreModel = await switchToFallback(core, current.errorMessage);
+      if (restoreModel !== undefined) {
+        excludeFailedAttempt(core, outcome.lastAssistant, "retry");
+        next = [];
+        continue;
+      }
+    }
     endRetry(current.kind === "done", current.kind === "failed" ? current.errorMessage : undefined);
+    // [W5-H2] harness 提前结束（重复调用检测）：带 warning 停下，不跑 Stop Hook、不续投队列
+    const harnessStop = outcome.warning;
+    if (harnessStop !== undefined) warning = harnessStop;
 
     if (current.kind === "overflow") {
       overflowRecovered = true;
@@ -201,15 +334,28 @@ export async function runCycle(
         continue;
       }
       warning = recovery.warning;
-    } else if (current.kind === "failed") {
+    } else if (current.kind === "failed" || current.kind === "fallback") {
       warning = current.errorMessage;
       void core.runHook("Notification", {
         notification: { kind: "error", message: current.errorMessage },
       });
     }
 
-    if (current.kind === "failed" && core.agent.followUpQueue.hasItems()) {
+    if (
+      (current.kind === "failed" || current.kind === "fallback") &&
+      core.agent.followUpQueue.hasItems()
+    ) {
       next = core.agent.followUpQueue.drain();
+      continue;
+    }
+    // [W5-H2] run 收尾时（循环已不再取队列）入队的 steer / followUp：本周期接着投递，不滞留到下次提示
+    const queuedNow = (): AgentMessage[] =>
+      harnessStop === undefined && !deps.stopRequested() && !signal.aborted
+        ? drainQueued(core)
+        : [];
+    let queued = queuedNow();
+    if (queued.length > 0) {
+      next = queued;
       continue;
     }
 
@@ -217,6 +363,7 @@ export async function runCycle(
     announced = true;
     if (
       current.kind === "done" &&
+      harnessStop === undefined &&
       !deps.stopRequested() &&
       stopHooks < MAX_STOP_HOOK_CONTINUATIONS
     ) {
@@ -233,10 +380,16 @@ export async function runCycle(
         continue;
       }
     }
+    queued = queuedNow(); // Stop Hook 期间入队的
+    if (queued.length > 0) next = queued;
   }
 
+  await restoreModel?.();
   if (!announced) core.emit({ type: "agent_before_settle" });
   const settled: Parameters<SessionCore["emit"]>[0] = { type: "agent_settled" };
+  const noted = takeSettleWarning(core);
+  if (noted !== undefined && (warning === undefined || warning.startsWith(LIMIT_ERROR_PREFIX)))
+    warning = noted;
   if (warning !== undefined) settled.warning = warning;
   core.emit(settled);
   void core.runHook("Notification", {
