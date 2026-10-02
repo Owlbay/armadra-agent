@@ -2,6 +2,77 @@
 
 内置供应商、模型引用、API Key、自定义供应商与中转站、各协议的 compat 开关，以及缓存。设计依据见 [design.md](design.md) §3、§9.1。
 
+## 配置目录
+
+缺省 `~/.config/ama/`（Windows `%APPDATA%\ama\`；`AMA_CONFIG_DIR` 优先，其次 `XDG_CONFIG_HOME/ama`）。数据
+（会话、models.dev 缓存）在另一个目录：`~/.local/share/ama/`（`AMA_DATA_DIR` / `XDG_DATA_HOME`）。
+
+```
+~/.config/ama/                 0700
+├── config.json                用户级配置：供应商、渠道、模型、权限、工具、缓存……（直接编辑）
+├── config.schema.json         config.json 的 JSON Schema（编辑器补全与校验；由 ama 生成，会被重写）
+├── auth.json                  API key（0600；只在 ama auth set / ama providers add 时创建）
+├── config.json.bak            ama 改写 config.json 前的备份
+├── hooks.json / trust.json / keybindings.json   （按需）
+└── skills/ prompts/           （按需）
+~/.local/share/ama/
+├── sessions/                  会话
+└── models-dev.json            models.dev 元数据缓存
+```
+
+- `ama init`：建目录（0700）并补齐缺失的 `config.json` 与 `config.schema.json`，逐个打印「已创建」或
+  「已存在，未改动」；已存在的 `config.json` 一律不覆盖（`--force` 也不），`config.schema.json` 不是用户文件，
+  每次 `init` 都重写为当前版本；不创建空的 `auth.json`。
+- **首次运行自动初始化**：CLI 启动时若配置目录不存在，静默建目录并写最小 `config.json` 与 schema
+  （`AMA_NO_INIT=1` 关闭；SDK 与测试不触发）。
+- 最小 `config.json`：
+
+  ```json
+  {
+    "$schema": "./config.schema.json",
+    "version": 1,
+    "thinkingLevel": "medium",
+    "permission": { "mode": "default" },
+    "tools": { "preset": "default" },
+    "providers": {}
+  }
+  ```
+
+  不写 `defaultModel`（零配置按「第一个有 key / 本地可达的供应商」挑选）。
+
+- `ama config path`：打印配置目录、数据目录与各文件路径（标出是否存在）；`ama config edit`：用
+  `$VISUAL` / `$EDITOR` 打开 `config.json`（不存在先 `init`），没有编辑器时打印路径。
+
+示例：一个三渠道中转 + 一个图像模型 + 内置供应商的覆盖。
+
+```json
+{
+  "$schema": "./config.schema.json",
+  "version": 1,
+  "defaultModel": "packy/kimi-k2.5",
+  "providers": {
+    "packy": {
+      "apiKey": "$PACKY_API_KEY",
+      "channels": {
+        "chat": { "api": "openai-completions", "baseUrl": "https://www.packyapi.com/v1" },
+        "responses": { "api": "openai-responses", "baseUrl": "https://www.packyapi.com/v1" },
+        "messages": { "api": "anthropic-messages", "baseUrl": "https://www.packyapi.com" }
+      },
+      "models": [
+        { "id": "kimi-k2.5", "channels": ["chat", "messages"] },
+        { "id": "grok-4.7", "channels": ["responses"] },
+        {
+          "id": "qwen3-vl-flash",
+          "input": ["text", "image"],
+          "modelsDev": "llmgateway/qwen3-vl-flash"
+        }
+      ]
+    },
+    "deepseek": { "modelOverrides": [{ "id": "deepseek-flash", "contextWindow": 131072 }] }
+  }
+}
+```
+
 ## 内置供应商
 
 | id           | 协议                                            | baseUrl                                             | API Key 环境变量（顺序）                                     |
@@ -95,7 +166,8 @@ export PACKY_API_KEY=sk-...
   `--probe` 对每个模型依次试供应商协议、completions、responses、messages 的最小请求，记第一个成功
   的（每模型最多 3 次，`--limit` 限制探测的模型数，缺省 30，执行前打印预估，401 / 403 / 429 即停）；
   `--write` 把结果合并进用户级 `config.json`（已有同 id 不覆盖，只写 `id` 与和供应商不同的 `api`，
-  原文件备份为 `config.json.bak`）。写入的条目没有 `contextWindow`，自动压缩随之关闭，需要时手动补。
+  原文件备份为 `config.json.bak`）。上下文等元数据在运行时从 models.dev 缓存补（见下文「模型元数据」），
+  匹配不到的条目没有 `contextWindow`，自动压缩随之关闭，需要时手动补。
 
 ```sh
 ama models discover packy --probe --write --limit 8
@@ -111,6 +183,136 @@ Claude Code 的通行约定），优先级低于 config 与 auth.json 的 `baseU
 ```sh
 OPENAI_BASE_URL=https://proxy.example/v1 OPENAI_API_KEY=$PACKY_API_KEY ama -p "hi" --model openai/qwen3.8-flash
 ```
+
+### 渠道（channels）：一个供应商、多种接口
+
+同一个中转常常同时开放 Chat Completions（`/v1/chat/completions`）、Responses（`/v1/responses`）与
+Anthropic Messages（`/v1/messages`），且每个模型只在其中一部分接口上可用。**渠道**是「协议 + 地址（+ 可选
+的 key / headers / compat）」，一个供应商可以有多个渠道，模型声明自己挂在哪些渠道上：
+
+```json
+{
+  "providers": {
+    "packy": {
+      "name": "Packy",
+      "apiKey": "$PACKY_API_KEY",
+      "channels": {
+        "chat": { "api": "openai-completions", "baseUrl": "https://www.packyapi.com/v1" },
+        "responses": { "api": "openai-responses", "baseUrl": "https://www.packyapi.com/v1" },
+        "messages": { "api": "anthropic-messages", "baseUrl": "https://www.packyapi.com" }
+      },
+      "defaultChannel": "chat",
+      "models": [
+        { "id": "kimi-k2.5", "channels": ["chat", "messages"] },
+        { "id": "grok-4.7", "channels": ["responses"] },
+        { "id": "deepseek-v4-flash", "channels": ["chat", "responses", "messages"] },
+        { "id": "glm-5" }
+      ]
+    }
+  }
+}
+```
+
+- **渠道字段**：`api`、`baseUrl` 必填；`apiKey`（同供应商级写法，`$ENV` / `!command` / 字面量；auth.json 里
+  `"<provider>@<channel>"` 条目同样生效）、`headers`、`compat`、`authHeader` 可选，缺省继承供应商级。渠道名
+  `[A-Za-z0-9][A-Za-z0-9_-]*`，不含 `/` 与 `@`。
+- **模型挂载**：`models[].channels` 列出可用渠道，第一个是首选；不写 → `defaultChannel`（缺省为 `channels`
+  的第一个键）。引用了不存在的渠道 → 配置校验报带路径的错误。
+- **模型引用**：`provider/model` 走首选渠道；`provider/model@channel` 显式指定（`--model`、`defaultModel`、
+  `/model`、SDK、RPC `set_model` 一致）。指定的渠道不在该模型的 `channels` 里 → 报错并列出可用的
+  `provider/model@channel`。`@` 之后不是该供应商的渠道名时整串仍按模型 id 处理（兼容 id 里本来带 `@` 的模型）。
+- **向后兼容**：没有 `channels` 的供应商（含全部内置供应商）按单渠道处理——供应商级 `api` + `baseUrl`
+  就是隐式的 `default` 渠道；模型级 `api` / `baseUrl` 仍然有效，覆盖在所选渠道之上（等价于一个匿名渠道）。
+  已有配置不用改。写了 `channels` 时供应商级 `api` / `baseUrl` 不再单独成渠道。
+- **运行时**：选中的模型带上该渠道的协议、地址、key、headers 与 compat；会话记录（`model_change`）与
+  `ModelRef` 带上 `channel`；缓存的端点键（三态、未命中、粒度推断）是 `供应商|主机|模型@渠道`，同一模型的
+  不同渠道分开统计。价格与 models.dev 元数据按模型共享。
+
+### 一键接入：`ama providers`
+
+只有 baseUrl 与 key 时，一条命令建好供应商、列出模型、补齐元数据：
+
+```sh
+ama providers add packy --base-url https://www.packyapi.com/v1 --key-env PACKY_API_KEY --probe --limit 8 --yes
+```
+
+```
+ama providers add <id> --base-url <url> [--channel <name>=<api>@<baseUrl> …] [--api <api>|auto]
+                       [--key-env <VAR>] [--probe] [--limit N] [--probe-models a,b,…]
+                       [--max-requests N] [--prefer chat,responses,messages] [--include-no-tools] [--yes]
+ama providers list
+ama providers channels <id>
+ama providers remove <id>
+ama providers refresh <id> [--probe …]
+```
+
+- **key**：缺省从 stdin 读（终端下不回显，不进命令行与 shell 历史），存 `auth.json`（0600）；给
+  `--key-env VAR` 时不读 stdin，`config.json` 里写 `"apiKey": "$VAR"`。供应商已有 key 时不再询问。
+- **候选渠道**：给了 `--channel`（可重复）就只用这些；否则从 `--base-url` 推出三个——`chat`
+  （openai-completions，baseUrl 原样）、`responses`（openai-responses，同上）、`messages`
+  （anthropic-messages，去掉末尾 `/v1` 的主机根）；`--api <api>` 只留对应的一个。
+- **模型列表**：`GET {baseUrl}/models`（第一个 OpenAI 系渠道的地址）。new-api 一类中转在条目上给
+  `supported_endpoint_types`（`openai` / `openai-response` / `anthropic`），据此把模型挂到对应渠道；没有提示
+  时挂到全部候选渠道里的第一个。
+- **`--probe`**：对选中的模型（`--probe-models` 列出的，缺省按 id 字母序不分大小写取前 `--limit` 个，缺省 30）
+  逐个渠道发一次最小请求（有提示时只试提示里的渠道），**探测成功的渠道全部写进模型的 `channels`**，顺序按
+  `--prefer`（缺省 chat、responses、messages）；全部失败的模型不写入；未探测的按提示写入并在表格里标「未探测」。
+  执行前打印请求数预估，超过 `--max-requests`（缺省 60）时截断模型数；401 / 403 / 429 立即停止。
+- **渠道收敛**：写入前删掉没有任何模型挂载的候选渠道；`defaultChannel` 取剩下的第一个（按 `--prefer`）。
+- **写入**：用户级 `config.json` 的 `providers.<id>`（先备份为 `config.json.bak`）。模型条目只写 `id` 与
+  `channels`；上下文、输出、图像、推理、价格**不写进配置**，运行时从 models.dev 缓存补（见下节），所以
+  `refresh` 不会覆盖手改的字段，手写的值永远优先。models.dev 标明不支持工具调用的模型缺省不写入（Agent
+  离不开工具调用），`--include-no-tools` 照写。对已存在的供应商再执行 `add`：只追加新渠道与新模型，已有
+  渠道定义与模型条目一字不改。
+- **确认**：写配置前打印摘要，终端里问一次 y/N；非 TTY 必须带 `--yes`（否则退出 2）。
+- 打印表格：id、渠道、上下文、输出、图像、推理、工具调用、价格（models.dev 的原厂价，$/M 输入 / 输出，
+  中转实际价格可能不同）、匹配方式。
+- `list`：全部供应商（config.json 里的与有 key 的内置供应商）→ 渠道（协议、地址、key 来源：auth.json /
+  `$VAR` / 字面量 / 无，从不显示 key）→ 模型数。`channels <id>`：每个渠道的协议、地址与挂载的模型数。
+  `remove`：删 `providers.<id>`（备份）与 auth.json 里该供应商的条目。`refresh`：重拉 `/models` 与
+  models.dev，只追加新模型（带 `--probe` 时同 add 的探测），已有条目不改；上游已下架的 id 只提示、不删。
+
+### 模型元数据：models.dev
+
+[models.dev](https://models.dev) 汇总了两百多家供应商的模型参数（`https://models.dev/api.json`，约 5 MB）。
+ama 用它给**没写元数据**的自定义模型补上下文、输出上限、输入模态、推理、价格与工具调用能力。
+
+- **何时联网**：只有 `ama providers add|refresh`、`ama models discover`、`ama models refresh-catalog`
+  会拉取；**启动不联网**，只读缓存。缓存在数据目录 `models-dev.json`（缺省 `~/.local/share/ama/`，只留用到的
+  字段，约 1.5 MB），记获取时间与 ETag，24 小时内不重拉（`refresh-catalog` 强制，带 `If-None-Match`）。离线或
+  失败时用旧缓存并 warning。`AMA_MODELS_DEV_URL` 换数据源（镜像或本地文件服务）。
+- **优先级**：用户配置（`models[]` / `modelOverrides[]` 里写了的字段）> 内置目录 > models.dev > 自定义缺省
+  （`maxTokens: 8192`、`input: ["text"]`、`reasoning: false`、不猜 `contextWindow`）。`ama models list` 与
+  `ama config show` 标出每个字段来自哪里（`config` / `目录` / `models.dev` / `缺省`）。
+- **字段映射**：`contextWindow = limit.context`；`maxTokens = min(limit.output, 65536, contextWindow)`——
+  `maxTokens` 每次请求都作为 `max_tokens` 发出，models.dev 给的是原厂上限（不少模型写的是与上下文相同的
+  1M），中转换了上游后常拒收超大值，Anthropic 协议的思考预算也从它推导，64k 对编码 Agent 的单轮输出足够，
+  需要更大时在配置里写；`input` 由 `modalities.input` 含不含 `image` 定为 `["text","image"]` 或 `["text"]`；
+  `reasoning`；`cost` 取 `input` / `output` / `cache_read` / `cache_write`（$/M），缺缓存价时按输入价算
+  （不假设有折扣，保温的经济性判断因此偏保守）。
+- **匹配规则**（同一个 id 常在几十家转售商下重复出现，取值不一）：
+  1. 模型上写了 `"modelsDev": "provider/model"` → 直接用该条目（写 `false` 关闭补全）；
+  2. id 形如 `vendor/model` 且 models.dev 正好有这个 `provider/model` → 用它；
+  3. 按 id 不分大小写找全部同名条目；有 `canonical_model_id` 的，取指向与 id 同名的那个（否则取票数最多的），
+     它若能在原厂供应商下找到 → 用原厂条目；
+  4. 否则在（同一 canonical 的）条目里优先原厂供应商：anthropic、openai、google、deepseek、moonshotai(-cn)、
+     zhipuai、zai、alibaba(-cn)、xai、mistral、minimax(-cn)、llama（Meta）、cohere、xiaomi、stepfun 等
+     （models.dev 里没有 `qwen` / `meta` 这样的供应商 id，通义在 `alibaba`，Llama 在 `llama`）；
+  5. 仍有多条 → 按 (上下文, 输出, 图像) 取多数，取值不一时记 warning；只有一条就用它；
+  6. 同名找不到时依次试归一化后的 id：去 `vendor/` 前缀、去 `:free` 一类后缀、去 `-latest`、去日期后缀
+     （`-0902`、`-20250514`、`-2025-05-14`）；
+  7. 都没有 → 「未匹配」，保持自定义缺省（不猜 `contextWindow`，自动压缩关闭）。
+
+### 图像输入
+
+- 四条协议都把图片放进用户消息：Chat Completions `image_url`（data URL）、Responses `input_image`、
+  Anthropic `image`（base64 source）、Gemini `inlineData`；工具结果里的图片同样映射。
+- 入口：`ama -p "描述这张图" --image a.png --image b.jpg`；交互界面与行式界面里写 `@图片路径`，或粘贴 /
+  拖入一个图片文件路径（整段输入里以 `.png` / `.jpg` / `.jpeg` / `.gif` / `.webp` 结尾且文件存在的词）。
+- 与 `read` 工具共用 MIME 检测（按文件头识别 PNG / JPEG / GIF / WebP，扩展名不符时以文件头为准）与大小上限
+  （单张 5 MB，取各家上限中最小的 Anthropic）。
+- 模型 `input` 不含 `image` 时直接拒绝并提示换模型（`-p` 退出 2，界面里给错误提示，不发请求）；`read`
+  工具读图时只返回路径、尺寸与「当前模型不接受图片」。
 
 接好之后：`ama models check packy/<id>` 发一次最小请求确认连通；`ama models cache-probe packy/<id>` 看这个端点报不报缓存（见下节「缓存」），中转上不报缓存的模型按建议设 `compat.cacheReporting: "silent"`，状态栏就显示「未报告」而不是 0%。
 
