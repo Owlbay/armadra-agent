@@ -8,11 +8,10 @@
  * - 概率 p：streaming 1、idle 0.15；`p·missCost − warmCost ≥ minSavingsUsd` 才发。
  * 无价格或价格全为 0 → 「经济性不可算」，不发（reason `no_price`）。
  *
- * `priceTokens` 是 C1a 在 `src/ai/cost.ts` 提供的同签名函数的本地实现（阶梯价按本次全部
- * 输入选档，与 calculateCost 同口径）；两批合入后改为从 cost.ts 导入。
+ * 计价用 `src/ai/cost.ts` 的 `priceTokens`（与 calculateCost 同一套阶梯与 1h 写入规则）。
  */
 
-import { calculateCost } from "../cost.js";
+import { priceTokens } from "../cost.js";
 import type { Model, Usage } from "../types.js";
 import type { WarmDecision, WarmingPhase } from "./types.js";
 
@@ -21,20 +20,7 @@ export const WARM_PROBABILITY: Readonly<Record<WarmingPhase, number>> = {
   idle: 0.15,
 };
 
-type PricedTokens = Partial<Pick<Usage, "input" | "output" | "cacheRead" | "cacheWrite">>;
-
-/** 美元；模型无价格 → undefined。 */
-export function priceTokens(model: Pick<Model, "cost">, tokens: PricedTokens): number | undefined {
-  if (model.cost === undefined) return undefined;
-  const usage: Usage = {
-    input: tokens.input ?? 0,
-    output: tokens.output ?? 0,
-    cacheRead: tokens.cacheRead ?? 0,
-    cacheWrite: tokens.cacheWrite ?? 0,
-    totalTokens: 0,
-  };
-  return calculateCost(model, usage)?.total;
-}
+export { priceTokens };
 
 function priced(model: Pick<Model, "cost">): boolean {
   const cost = model.cost;
