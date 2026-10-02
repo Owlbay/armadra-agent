@@ -8,7 +8,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect } from "vitest";
+import { strictEqual } from "node:assert/strict";
 import { composeHarness, type ComposeHarness } from "../../../test/helpers/compose-harness.js";
 import type { SessionEvent } from "../../agent/types.js";
 import type { AssistantContentBlock, AssistantMessage, Usage } from "../../ai/types.js";
@@ -62,7 +62,8 @@ export function golden(name: string, actual: string): void {
     mkdirSync(FIXTURES, { recursive: true });
     writeFileSync(file, actual);
   }
-  expect(actual).toBe(readFileSync(file, "utf8"));
+  // 不 import vitest（零依赖守卫只放过 *.test.ts）；node:assert 的差异输出同样逐行
+  strictEqual(actual, readFileSync(file, "utf8"));
 }
 
 export function snapshot(terminal: MemoryTerminal, label: string): string {
