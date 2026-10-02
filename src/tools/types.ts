@@ -155,6 +155,8 @@ export interface SubagentRunRequest {
   /** 续聊的会话 id（runner 自己的）。 */
   resume?: string;
   budgetUsd?: number;
+  /** [W5-EG] 发起的任务 id（审批标注 `context.taskId`、外部会话引用记账用）；可选。 */
+  taskId?: string;
   signal: AbortSignal;
   onEvent(event: SubagentEvent): void;
 }

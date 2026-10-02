@@ -114,6 +114,18 @@ export interface ExternalPermissionOrigin {
   options: { optionId: string; kind: ExternalPermissionOptionKind }[];
 }
 
+/**
+ * [W5-EG] `permission_request` 事件的发起方（`ApprovalRequestContext` 的线上子集，可 JSON 序列化）：
+ * 只在来自子 Agent / 外部 Agent 时出现。
+ */
+export interface PermissionRequestContext {
+  /** > 0：来自 task 子 Agent（对话框标 `[task:<agent>]`）。 */
+  depth?: number;
+  taskId?: string;
+  /** 外部 Agent 的权限请求（对话框标 `[claude · 会话 abc1]`）。 */
+  origin?: ExternalPermissionOrigin;
+}
+
 /** [W3-C0] 预览涉及的路径（bash 的 rm / mv / 重定向目标，write / edit 的目标文件）。 */
 export interface ActionPreviewTarget {
   path: string;

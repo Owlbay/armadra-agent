@@ -219,13 +219,14 @@ describe("parseArgs", () => {
 });
 
 describe("第五波参数（W5-C0：只解析与透传）", () => {
-  it("--mode acp 可解析；与 -p 互斥；decideMode 报尚未实现（退出码 2）", () => {
+  it("--mode acp 可解析；与 -p 互斥；decideMode 按 rpc 装配（W5-EG）", () => {
     expect(run(["--mode", "acp"]).mode).toBe("acp");
     expect(usage(["-p", "--mode", "acp", "hi"])).toContain("-p 与 --mode acp 不能同时使用");
     expect(usage(["-p", "--mode", "rpc", "hi"])).toContain("-p 与 --mode rpc 不能同时使用");
     expect(usage(["--mode", "grpc"])).toContain("rpc | acp");
     const io = { stdinIsTTY: true, stdoutIsTTY: true, env: {} };
-    expect(() => decideMode(run(["--mode", "acp"]), io)).toThrow(/--mode acp 尚未实现/);
+    expect(decideMode(run(["--mode", "acp"]), io)).toBe("rpc");
+    expect(decideMode(run(["--mode", "acp"]), { ...io, stdinIsTTY: false })).toBe("rpc");
     expect(decideMode(run(["--mode", "rpc"]), io)).toBe("rpc");
   });
 

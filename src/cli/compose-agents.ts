@@ -7,8 +7,10 @@
  * 排队上限与模型别名取自 config），`getStats().tasks` 汇总，会话 dispose 时停止后台任务。
  * task 子会话（depth ≥ 1）与没有 task 工具的会话不装。
  *
- * 外部 runner（claude / codex / acp:*）由 W5-E 的 ProcessRunner 在 G2 联调时经 `runners` 接入；
- * 嵌入宿主（有 profile host）时 ama 不自己 spawn 外部 Agent（D17），这里也不注册。
+ * [W5-EG] 外部 runner（claude / codex / acp:* / 宿主注入）经 agents/external.ts 接入 `runners`：每个主
+ * 会话一个 ExternalAgents（审批接 requestApproval，只交给人）；PATH 上的 claude / codex 登记进类型
+ * 目录；嵌入宿主（有宿主适配器）时 ama 不自己 spawn 外部 Agent、也不登记（D17），只认
+ * `HostApi.runners.provide` 注入的。`/agents` / RPC `get_agents` 的外部探测在会话建立时异步缓存。
  */
 
 import { subagentRegistryFor, type SubagentEnvironment } from "../agent/subagent-registry.js";
@@ -16,6 +18,13 @@ import type { SessionCore } from "../agent/session-core.js";
 import type { SessionExtension, SessionExtensionFactory } from "../agent/session-extensions.js";
 import { AgentCatalog } from "../agents/catalog.js";
 import { agentSources, discoverAgents } from "../agents/discover.js";
+import {
+  NO_AGENT_PROBE_ENV,
+  SessionExternalAgents,
+  registerExternalAgents,
+  type ExternalWiring,
+} from "../agents/external.js";
+import { hostRunnersOf } from "../host/api-impl.js";
 import { bindTaskAgents } from "../tools/task.js";
 import type { ComposeExtensionDeps } from "./compose-extensions.js";
 
@@ -62,12 +71,40 @@ export function subagentEnvironment(
   return env;
 }
 
+/** 外部 Agent 的装配材料（宿主、信任、探测开关取自装配材料与环境）。 */
+export function externalWiring(deps: ComposeExtensionDeps): ExternalWiring {
+  const { assembly } = deps;
+  const api = assembly.host.handle?.api;
+  const hostRunners = api === undefined ? undefined : hostRunnersOf(api);
+  const config = assembly.config;
+  const wiring: ExternalWiring = {
+    env: deps.env,
+    hosted: assembly.host.handle !== undefined,
+    dataDir: assembly.paths.dataDir,
+    trusted: assembly.trust.trusted,
+    probe: deps.env[NO_AGENT_PROBE_ENV] !== "1",
+  };
+  if (hostRunners !== undefined) wiring.hostRunners = hostRunners;
+  if (config.agents !== undefined) wiring.config = config.agents;
+  const defaultModel = config.subagents?.defaultModel;
+  if (defaultModel !== undefined) wiring.defaultModel = defaultModel;
+  return wiring;
+}
+
 /** 根会话的子 Agent 扩展：注册表、任务统计、dispose 时停止后台任务。 */
 export function createSubagentExtension(
   core: SessionCore,
   env: SubagentEnvironment,
+  wiring?: ExternalWiring,
 ): SessionExtension {
-  const registry = subagentRegistryFor(core, env);
+  const external =
+    wiring === undefined ? undefined : new SessionExternalAgents(core, wiring, env.catalog);
+  const registry = subagentRegistryFor(
+    core,
+    external === undefined ? env : { ...env, runners: (agent) => external.runner(agent) },
+  );
+  // RPC get_agents / `/agents` 的外部探测（异步，结果缓存）；-p 不需要
+  if (external !== undefined && core.options.unattended !== true) void external.refreshInfos();
   return {
     id: "ama.subagents",
     contributeStats(stats) {
@@ -76,6 +113,7 @@ export function createSubagentExtension(
     },
     dispose() {
       registry.dispose();
+      external?.dispose();
     },
   };
 }
@@ -87,7 +125,9 @@ export function createSubagentsFactory(deps: ComposeExtensionDeps): SessionExten
   );
   if (task === undefined) return () => undefined;
   const catalog = loadAgentCatalog(deps);
+  const wiring = externalWiring(deps);
+  registerExternalAgents(catalog, wiring);
   bindTaskAgents(task, catalog);
   const env = subagentEnvironment(deps, catalog);
-  return ({ core }) => (core.depth > 0 ? undefined : createSubagentExtension(core, env));
+  return ({ core }) => (core.depth > 0 ? undefined : createSubagentExtension(core, env, wiring));
 }

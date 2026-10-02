@@ -377,6 +377,7 @@ export class SubagentRegistry implements TaskControl {
       ...(record.modelRef === undefined ? {} : { model: record.modelRef }),
       ...(ref !== undefined && record.agent.runner !== "ama" ? { resume: ref.sessionId } : {}),
       ...(request.budgetUsd === undefined ? {} : { budgetUsd: request.budgetUsd }),
+      taskId: record.info.taskId,
       signal,
       onEvent: (event) => applyRunnerEvent(record, event, this.sink()),
     });

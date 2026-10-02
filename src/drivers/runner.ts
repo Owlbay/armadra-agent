@@ -264,6 +264,7 @@ class ProcessHandle implements RunnerHandle {
       runner: this.chosen.driver.kind,
       sessionId: session.sessionId,
       cwd: this.request.cwd,
+      ...(this.request.taskId !== undefined ? { taskId: this.request.taskId } : {}),
     });
   }
 
@@ -395,6 +396,7 @@ class ProcessHandle implements RunnerHandle {
               unattended: this.deps.unattended,
               approve: this.deps.approve,
               signal: AbortSignal.any([signal, this.lifetime.signal]),
+              ...(this.request.taskId !== undefined ? { taskId: this.request.taskId } : {}),
             }),
         });
       } finally {
