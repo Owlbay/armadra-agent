@@ -238,6 +238,38 @@ describe("保温接线（fake 计时器）", () => {
   });
 });
 
+describe("子会话（task）独立统计（§1.9）", () => {
+  it("子会话的未命中不进父链；结果带 cache，父会话汇总「子任务」", async () => {
+    const read = stubTool({ name: "read" });
+    const h = createHarness({
+      model: priced,
+      tools: [read],
+      script: [
+        { toolCalls: [{ name: "read", args: {} }], usage: { input: 0, cacheWrite: 30_000 } },
+        step({ input: 31_000 }), // 子会话 1：淘汰
+        step({ input: 100, cacheRead: 31_000 }), // 子会话 2
+      ],
+    });
+    const spawn = (id: string) =>
+      h.session.spawnSubagent({
+        prompt: "sub",
+        parentToolCallId: id,
+        signal: new AbortController().signal,
+      });
+    const first = await spawn("t1");
+    expect(first.cache).toMatchObject({ reBilledTokens: 30_000 });
+    expect(first.cache?.hitRate).toBe(0);
+    const second = await spawn("t2");
+    expect(second.cache?.reBilledTokens).toBe(0);
+    expect(second.cache?.hitRate).toBeCloseTo(31_000 / 31_100);
+    const cache = h.session.getStats().cache!;
+    expect(cache.misses.count).toBe(0);
+    expect(of(h, "cache_miss")).toEqual([]);
+    expect(cache.subagents).toMatchObject({ count: 2, reBilledTokens: 30_000 });
+    expect(cache.subagents?.hitRate).toBeCloseTo(31_000 / (30_000 + 31_000 + 31_100), 2);
+  });
+});
+
 describe("设置、TTL 与缓存键", () => {
   it("resolveCacheSettings 缺省值；cacheTtlMs 按保留档", () => {
     expect(resolveCacheSettings()).toEqual({
