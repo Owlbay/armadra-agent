@@ -30,6 +30,16 @@ const model: Model = {
   requiresApiKey: true,
 };
 
+/** 中转站上的 MiniMax（Anthropic Messages 同主机；`test/fixtures/sse/README.md`「实录」）。 */
+const relayModel: Model = {
+  ...model,
+  id: "MiniMax-M2.7",
+  name: "MiniMax M2.7",
+  provider: "packy",
+  baseUrl: "https://relay.example.test",
+  cost: { input: 0.3, output: 1.2, cacheRead: 0.06, cacheWrite: 0.375 },
+};
+
 const adaptive: Model = { ...model, id: "claude-opus-4-7", compat: { adaptiveThinking: true } };
 
 afterEach(() => vi.unstubAllGlobals());
@@ -41,13 +51,14 @@ const opts = (extra: Partial<StreamOptions> = {}): StreamOptions => ({
 });
 
 describe("anthropic-messages：SSE 样本黄金", () => {
-  it("text：多块 UTF-8、ping 被忽略、usage 与成本", async () => {
-    const run = await runFixture(anthropicMessagesApi, API, "text", model);
+  it("text（中转 MiniMax 实录）：ping 被忽略；空签名思考块；message_delta 的 usage 覆盖 message_start", async () => {
+    const run = await runFixture(anthropicMessagesApi, API, "text", relayModel);
     expect(run.terminal.type).toBe("done");
-    expect(run.final.content).toEqual([{ type: "text", text: "Hello, 世界 👋!" }]);
-    expect(run.final.responseId).toBe("msg_01TextSample");
-    expect(run.final.usage).toMatchObject({ input: 25, output: 12, totalTokens: 37 });
-    expect(run.final.usage.cost?.total).toBeCloseTo((25 * 3 + 12 * 15) / 1e6, 12);
+    expect(run.final.content.map((b) => b.type)).toEqual(["thinking", "text"]);
+    expect(run.final.content[1]).toEqual({ type: "text", text: "\n\n你好，世界！" });
+    expect(run.final.responseId).toBe("db3432e7-dd2d-4b7c-9eaf-beae41efe757");
+    expect(run.final.usage).toMatchObject({ input: 36, output: 96, cacheRead: 0, cacheWrite: 0 });
+    expect(run.final.usage.cost?.total).toBeCloseTo((36 * 0.3 + 96 * 1.2) / 1e6, 12);
     expect(run.final.rawStopReason).toBe("end_turn");
   });
 
@@ -69,17 +80,17 @@ describe("anthropic-messages：SSE 样本黄金", () => {
     expect(run.final.content[1]).toEqual({ type: "text", text: "Done." });
   });
 
-  it("tool-single：参数增量拼接为对象，stopReason toolUse", async () => {
-    const run = await runFixture(anthropicMessagesApi, API, "tool-single", model);
+  it("tool-single（中转 MiniMax 实录）：参数增量拼接为对象，stopReason toolUse", async () => {
+    const run = await runFixture(anthropicMessagesApi, API, "tool-single", relayModel);
     expect(run.terminal).toMatchObject({ type: "done", reason: "toolUse" });
     expect(run.final.content[1]).toEqual({
       type: "toolCall",
-      id: "toolu_01A09q90qw90lq917835lq9",
+      id: "toolu_function_3t97y4a8pst6_1",
       name: "read",
-      arguments: { path: "src/main.ts", limit: 200 },
+      arguments: { path: "README.md" },
     });
     const deltas = run.events.filter((e) => e.type === "toolcall_delta");
-    expect(deltas.length).toBe(3); // 空增量不发事件
+    expect(deltas.length).toBe(1); // 空增量不发事件
   });
 
   it("tool-multi：三个工具调用，空参数为 {}，转义正确", async () => {
@@ -92,9 +103,10 @@ describe("anthropic-messages：SSE 样本黄金", () => {
     ]);
   });
 
-  it("length：max_tokens → length", async () => {
-    const run = await runFixture(anthropicMessagesApi, API, "length", model);
+  it("length（中转 MiniMax 实录）：思考中途 max_tokens → length", async () => {
+    const run = await runFixture(anthropicMessagesApi, API, "length", relayModel);
     expect(run.terminal).toMatchObject({ type: "done", reason: "length" });
+    expect(run.final.usage).toMatchObject({ input: 30, output: 16 });
   });
 
   it("usage-cache：缓存读写与 1h 写入计价；delta 的 null 不覆盖", async () => {
@@ -109,6 +121,38 @@ describe("anthropic-messages：SSE 样本黄金", () => {
     });
     const expected = (12 * 3 + 5 * 15 + 30_000 * 0.3 + 1024 * 3.75 + 1024 * 3 * 2) / 1e6;
     expect(run.final.usage.cost?.total).toBeCloseTo(expected, 12);
+  });
+
+  it("proxy-thinking（中转实录）：思考块的签名为空串——保留为空，不当成 redacted", async () => {
+    const run = await runFixture(anthropicMessagesApi, API, "proxy-thinking", relayModel);
+    const block = run.final.content[0];
+    expect(block?.type).toBe("thinking");
+    expect(block).not.toHaveProperty("redacted");
+    expect(run.final.content[1]).toEqual({ type: "text", text: "\n\n9.9 is larger." });
+  });
+
+  it("proxy-tool-multi（中转实录）：思考 + 文本 + 三个工具调用", async () => {
+    const run = await runFixture(anthropicMessagesApi, API, "proxy-tool-multi", relayModel);
+    expect(run.terminal).toMatchObject({ type: "done", reason: "toolUse" });
+    const calls = run.final.content.flatMap((b) =>
+      b.type === "toolCall" ? [{ name: b.name, arguments: b.arguments }] : [],
+    );
+    expect(calls).toEqual([
+      { name: "read", arguments: { path: "a.ts" } },
+      { name: "read", arguments: { path: "b.ts" } },
+      { name: "ls", arguments: { dir: "src" } },
+    ]);
+  });
+
+  it("proxy-usage-cache（中转实录）：同一前缀第二次请求，cache_read_input_tokens 为读", async () => {
+    const run = await runFixture(anthropicMessagesApi, API, "proxy-usage-cache", relayModel);
+    expect(run.final.usage).toMatchObject({
+      input: 32,
+      cacheRead: 4475,
+      cacheWrite: 0,
+      output: 16,
+      cacheReported: true,
+    });
   });
 
   it("rate-limit-429：只有一个 error 事件，文案含状态码与类型", async () => {

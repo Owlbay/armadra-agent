@@ -9,12 +9,12 @@
   {
     "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": "The user"
+    "delta": "The"
   },
   {
     "type": "thinking_delta",
     "contentIndex": 0,
-    "delta": " wants a long story about a lighthouse keeper. I should write"
+    "delta": " user is asking me to reply with \"ok\". This is a"
   },
   {
     "type": "thinking_end",
@@ -28,7 +28,7 @@
       "content": [
         {
           "type": "thinking",
-          "thinking": "The user wants a long story about a lighthouse keeper. I should write",
+          "thinking": "The user is asking me to reply with \"ok\". This is a",
           "thinkingSignature": ""
         }
       ],
@@ -36,24 +36,24 @@
       "provider": "packy",
       "model": "MiniMax-M2.7",
       "usage": {
-        "input": 30,
+        "input": 32,
         "output": 16,
-        "cacheRead": 0,
+        "cacheRead": 4475,
         "cacheWrite": 0,
-        "totalTokens": 46,
+        "totalTokens": 4523,
         "cacheReported": true,
         "cost": {
-          "input": 0.000009,
+          "input": 0.0000096,
           "output": 0.0000192,
-          "cacheRead": 0,
+          "cacheRead": 0.0002685,
           "cacheWrite": 0,
-          "total": 0.0000282
+          "total": 0.0002973
         }
       },
       "stopReason": "length",
       "timestamp": 0,
       "thinkingLevel": "off",
-      "responseId": "46ac0f36-08b7-453b-8d9e-956310952321",
+      "responseId": "731d1eaa-835a-4a97-8b5b-587dd17423a9",
       "rawStopReason": "max_tokens"
     }
   }

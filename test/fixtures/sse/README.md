@@ -35,12 +35,15 @@ CI 不联网、没有真 key。
 
 | 协议 | 实录（模型） | 手工 |
 | --- | --- | --- |
+| anthropic-messages | text、tool-single、length、proxy-thinking、proxy-tool-multi、proxy-usage-cache（MiniMax-M2.7；usage-cache 为同一前缀第二次请求） | thinking（带签名）、redacted-thinking、tool-multi（空参数与转义）、usage-cache（1h 写入分档）、rate-limit-429、overflow-400、stream-error、disconnect |
 | openai-completions | text、tool-single、proxy-reasoning-deepseek、proxy-tool-multi、proxy-length（deepseek-v4-flash）；proxy-usage-kimi（kimi-k2.5，同一前缀第二次请求） | reasoning-deepseek、tool-multi（index 交错到达）、tool-noindex、stop-with-tools、length（Moonshot usage 位置）、usage-moonshot、usage-groq、rate-limit-429、overflow-400、stream-error、disconnect |
 
 中转实录里观察到、手工样本没有的形状：每个 delta 都带 `"content":""` 与 `role`（不能因此开空
 文本块）；usage 在 `finish_reason` 块与其后空 `choices` 块各出现一次；DeepSeek 的缓存读被改写成
 `prompt_tokens_details.cached_tokens`；`max_tokens` 只限正文，思考 token 另计（proxy-length 的
-output 521 / reasoning 504）。
+output 521 / reasoning 504）。Anthropic 形状的中转实录：思考块 `signature` 恒为空串（解析为
+`thinkingSignature: ""`，不当成 redacted）；`message_start` 的 `input_tokens` 与 `message_delta`
+不同，以后者为准；`message_delta.usage` 里多一个 OpenAI 形状的 `prompt_tokens_details`。
 
 ## 用例清单
 

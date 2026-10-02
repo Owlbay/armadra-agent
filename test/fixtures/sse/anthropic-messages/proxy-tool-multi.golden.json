@@ -1,0 +1,285 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "thinking_start",
+    "contentIndex": 0
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "The"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " user wants me"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " to read two"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " files ("
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": "a.ts and"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " b.ts) in"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " parallel,"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " and also"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " list the src directory"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": ". I can"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " do all"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " three operations"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " at"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " once"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " since"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " they're"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " independent"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " of"
+  },
+  {
+    "type": "thinking_delta",
+    "contentIndex": 0,
+    "delta": " each other"
+  },
+  {
+    "type": "thinking_end",
+    "contentIndex": 0
+  },
+  {
+    "type": "text_start",
+    "contentIndex": 1
+  },
+  {
+    "type": "text_delta",
+    "contentIndex": 1,
+    "delta": "\n\n\n"
+  },
+  {
+    "type": "text_end",
+    "contentIndex": 1
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 2,
+    "id": "toolu_01b2c8f5443a40d4999f72de",
+    "name": "read"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 2,
+    "delta": "{\"path\": \"a"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 2,
+    "delta": ".ts\""
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 2,
+    "delta": "}"
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 2,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "toolu_01b2c8f5443a40d4999f72de",
+      "name": "read",
+      "arguments": {
+        "path": "a.ts"
+      }
+    }
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 3,
+    "id": "toolu_cc4a33366f5244dab72f8715",
+    "name": "read"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 3,
+    "delta": "{\"path\": \"b"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 3,
+    "delta": ".ts\""
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 3,
+    "delta": "}"
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 3,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "toolu_cc4a33366f5244dab72f8715",
+      "name": "read",
+      "arguments": {
+        "path": "b.ts"
+      }
+    }
+  },
+  {
+    "type": "toolcall_start",
+    "contentIndex": 4,
+    "id": "toolu_f4cbb8127b5341549aae7e8f",
+    "name": "ls"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 4,
+    "delta": "{\"dir\": \"src"
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 4,
+    "delta": "\""
+  },
+  {
+    "type": "toolcall_delta",
+    "contentIndex": 4,
+    "delta": "}"
+  },
+  {
+    "type": "toolcall_end",
+    "contentIndex": 4,
+    "toolCall": {
+      "type": "toolCall",
+      "id": "toolu_f4cbb8127b5341549aae7e8f",
+      "name": "ls",
+      "arguments": {
+        "dir": "src"
+      }
+    }
+  },
+  {
+    "type": "done",
+    "reason": "toolUse",
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking": "The user wants me to read two files (a.ts and b.ts) in parallel, and also list the src directory. I can do all three operations at once since they're independent of each other",
+          "thinkingSignature": ""
+        },
+        {
+          "type": "text",
+          "text": "\n\n\n"
+        },
+        {
+          "type": "toolCall",
+          "id": "toolu_01b2c8f5443a40d4999f72de",
+          "name": "read",
+          "arguments": {
+            "path": "a.ts"
+          }
+        },
+        {
+          "type": "toolCall",
+          "id": "toolu_cc4a33366f5244dab72f8715",
+          "name": "read",
+          "arguments": {
+            "path": "b.ts"
+          }
+        },
+        {
+          "type": "toolCall",
+          "id": "toolu_f4cbb8127b5341549aae7e8f",
+          "name": "ls",
+          "arguments": {
+            "dir": "src"
+          }
+        }
+      ],
+      "api": "anthropic-messages",
+      "provider": "packy",
+      "model": "MiniMax-M2.7",
+      "usage": {
+        "input": 246,
+        "output": 105,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 351,
+        "cacheReported": true,
+        "cost": {
+          "input": 0.00007379999999999999,
+          "output": 0.000126,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0.00019979999999999998
+        }
+      },
+      "stopReason": "toolUse",
+      "timestamp": 0,
+      "thinkingLevel": "off",
+      "responseId": "347b9f08-4054-44c3-938a-ef19c05215ad",
+      "rawStopReason": "tool_use"
+    }
+  }
+]
