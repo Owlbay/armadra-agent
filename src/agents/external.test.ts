@@ -108,7 +108,7 @@ function fakeProbe(programs: string[], version: string): ProgramProbe {
   return new ProgramProbe({
     env: { PATH: "/fake" },
     platform: "linux",
-    isFile: (path) => programs.some((p) => path === `/fake/${p}`),
+    isFile: (path) => programs.some((p) => path.replace(/\\/g, "/") === `/fake/${p}`),
     runVersion: async () => `${version} choices: "manual"`,
   });
 }
