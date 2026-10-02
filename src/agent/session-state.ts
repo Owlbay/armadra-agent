@@ -98,7 +98,7 @@ export function computeStats(input: StatsInput): SessionStats {
     input.contextWindow <= 0
       ? undefined
       : Math.min(100, Math.round((input.contextTokens / input.contextWindow) * 1000) / 10);
-  return {
+  const stats: SessionStats = {
     sessionId: input.sessionId,
     sessionFile: input.sessionFile,
     userMessages,
@@ -111,6 +111,17 @@ export function computeStats(input: StatsInput): SessionStats {
     contextWindow: input.contextWindow,
     contextPercent,
   };
+  const rate = cacheHitRate(tokens);
+  if (rate !== undefined) stats.cacheHitRate = rate;
+  return stats;
+}
+
+/** 缓存命中率 = cacheRead /（input + cacheRead + cacheWrite）；分母为 0 → undefined（设计 §9.1）。 */
+export function cacheHitRate(
+  tokens: Pick<SessionStats["tokens"], "input" | "cacheRead" | "cacheWrite">,
+): number | undefined {
+  const denominator = tokens.input + tokens.cacheRead + tokens.cacheWrite;
+  return denominator > 0 ? tokens.cacheRead / denominator : undefined;
 }
 
 /** 最后一条有文本的助手消息（error / aborted 也算，供 UI 显示失败原因前的部分输出）。 */

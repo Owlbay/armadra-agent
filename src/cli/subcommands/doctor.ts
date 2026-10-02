@@ -18,6 +18,7 @@ import { AMA_VERSION } from "../../version.js";
 import { parseSubArgs } from "../args.js";
 import type { CliIo, RuntimeDeps } from "../deps.js";
 import { ExitCode } from "../exit-codes.js";
+import { describeModel } from "./config.js";
 import { buildRegistry, loadUserLevel, type UserLevel } from "./context.js";
 
 export const DOCTOR_USAGE = `用法：ama doctor [--profile <文件>] [--auth-file <文件>] [--trust | --no-trust]
@@ -124,6 +125,8 @@ async function keySection(
               : "无需";
         report.item(`${provider.id.padEnd(20)} ${text}`);
       }
+      const model = await describeModel(level.merged.config, registry);
+      report.item(`将使用的模型：${model.ref ?? "（无）"}（${model.reason}）`);
       return;
     } catch (error) {
       report.problem(`供应商注册表：${(error as Error).message}`);

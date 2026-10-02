@@ -290,6 +290,11 @@ export interface SessionStats {
   contextWindow: number | undefined;
   /** 0–100；无窗口时 undefined（显示 `ctx ?`）。 */
   contextPercent: number | undefined;
+  /**
+   * 缓存命中率 0–1 = cacheRead /（input + cacheRead + cacheWrite）（设计 §9.1）；
+   * 还没有任何输入用量时不给。
+   */
+  cacheHitRate?: number;
 }
 
 export interface AgentSession {

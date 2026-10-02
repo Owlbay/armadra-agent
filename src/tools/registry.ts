@@ -6,7 +6,8 @@
  * - `disable(name)` 后不再出现在 `list()` / `active()`，也不能被 `setActive` 选中；未注册的名字也
  *   记下（宿主可能先 disable 再由内置注册，例如 `disable("task")`）；
  * - 活动集缺省 = 全部已注册且未禁用；`setActive(names)` 之后只用这些（未知名 → tool_not_found）；
- * - `builtinTools()` 给出全部内置工具（skill 工具需要技能列表来源）。
+ * - `builtinTools()` 给出全部内置工具；Skill 正文由模型用 read 读取（设计 §5.6 删除了 skill 工具），
+ *   `/skill:` 命令展开在 skills/expand.ts。
  */
 
 import { AmaError } from "../errors.js";
@@ -20,9 +21,7 @@ import { createGrepTool } from "./grep.js";
 import { createGlobTool } from "./glob.js";
 import { createLsTool } from "./ls.js";
 import { createTodoTool } from "./todo.js";
-import { createSkillTool } from "./skill.js";
 import { createTaskTool, type TaskToolOptions } from "./task.js";
-import type { Skill } from "../skills/discover.js";
 
 export const TOOL_NAME_RE = /^[a-z][a-z0-9_]{1,63}$/;
 
@@ -109,14 +108,12 @@ export class ToolRegistry implements ToolRegistryApi {
 }
 
 export interface BuiltinToolOptions {
-  /** skill 工具的技能来源；缺省时不注册 skill。 */
-  getSkills?(): readonly Skill[];
   read?: ReadToolOptions;
   bash?: BashToolOptions;
   task?: TaskToolOptions;
 }
 
-/** 全部内置工具（read / write / edit / bash / grep / glob / ls / todo / skill / task）。 */
+/** 全部内置工具（read / write / edit / bash / grep / glob / ls / todo / task）。 */
 export function builtinTools(options: BuiltinToolOptions = {}): ToolDefinition[] {
   const tools = [
     createReadTool(options.read),
@@ -129,8 +126,6 @@ export function builtinTools(options: BuiltinToolOptions = {}): ToolDefinition[]
     createTodoTool(),
     createTaskTool(options.task),
   ] as ToolDefinition[];
-  if (options.getSkills)
-    tools.push(createSkillTool({ getSkills: options.getSkills }) as ToolDefinition);
   return tools;
 }
 

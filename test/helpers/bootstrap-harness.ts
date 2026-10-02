@@ -62,7 +62,16 @@ function registry(input: ProviderBuildInput, keys: Record<string, string>): Prov
         ? { apiKey: undefined, source: "none" }
         : { apiKey: key, source: "env", origin: "FAKE_API_KEY" };
     },
-    getApi: () => undefined,
+    // 零配置选模型跳过协议未实现的供应商：桩协议只需存在，测试不发请求。
+    getApi: (api) =>
+      api === "fake"
+        ? {
+            id: "fake",
+            stream: () => {
+              throw new Error("not used");
+            },
+          }
+        : undefined,
   };
 }
 

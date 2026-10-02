@@ -1,0 +1,131 @@
+import { afterEach, describe, expect, it } from "vitest";
+import { createTmpHome, type TmpHome } from "../test/helpers/tmp-home.js";
+import { createDefaultApiRegistry } from "./ai/apis/api.js";
+import { FakeProvider } from "./ai/fake/fake-provider.js";
+import type { FakeResponse } from "./ai/fake/fake-script.js";
+import { AgentSessionImpl } from "./agent/session.js";
+import * as sdk from "./index.js";
+import { createAgentSession, createRuntime } from "./sdk.js";
+import type { ToolDefinition } from "./tools/types.js";
+
+let home: TmpHome | undefined;
+afterEach(() => {
+  home?.cleanup();
+  home = undefined;
+});
+
+function fakeApis(script?: FakeResponse[]) {
+  const fake = new FakeProvider(script);
+  const apis = createDefaultApiRegistry();
+  apis.register(fake.api);
+  return { fake, apis };
+}
+
+const hello: ToolDefinition<{ name?: string }> = {
+  name: "sdk_hello",
+  description: "Say hello.",
+  parameters: { type: "object", properties: { name: { type: "string" } } },
+  permission: "read",
+  execute: async (input) => ({ content: `hello ${input.name ?? "world"}` }),
+};
+
+describe("SDK", () => {
+  it("index 再导出 createAgentSession / createRuntime 与常用实现类", () => {
+    expect(sdk.createAgentSession).toBe(createAgentSession);
+    expect(sdk.createRuntime).toBe(createRuntime);
+    for (const name of [
+      "SessionManager",
+      "ProviderRegistry",
+      "FakeProvider",
+      "loadConfig",
+      "createToolRegistry",
+    ])
+      expect(typeof (sdk as Record<string, unknown>)[name]).toBe("function");
+  });
+
+  it("createAgentSession：内存会话一次往返，tools: none 不发工具", async () => {
+    const { fake, apis } = fakeApis();
+    const session = await createAgentSession({
+      model: "fake/echo",
+      tools: "none",
+      apis,
+      auth: { kind: "none" },
+    });
+    expect(session).toBeInstanceOf(AgentSessionImpl);
+    await session.prompt("hi there");
+    expect(session.getLastAssistantText()).toBe("hi there");
+    expect(session.state.sessionFile).toBeUndefined();
+    expect(session.getTools()).toEqual([]);
+    expect(fake.calls).toHaveLength(1);
+    await session.dispose();
+  });
+
+  it("缺省预设 + extraTools；permission.ask 回调作答", async () => {
+    const { apis } = fakeApis([
+      { steps: [{ toolCall: { name: "sdk_hello", arguments: { name: "ama" } } }] },
+      { steps: [{ toolCall: { name: "bash", arguments: { command: "echo hi" } } }] },
+      { text: "done" },
+    ]);
+    const asked: string[] = [];
+    const session = await createAgentSession({
+      model: { provider: "fake", id: "echo" },
+      apis,
+      extraTools: [hello as ToolDefinition],
+      permission: { ask: async (request) => (asked.push(request.toolName), "deny") },
+    });
+    expect(session.getTools().map((t) => t.name)).toEqual([
+      "bash",
+      "edit",
+      "glob",
+      "grep",
+      "read",
+      "sdk_hello",
+      "write",
+    ]);
+    await session.prompt("go");
+    const results = session.messages.filter((m) => m.role === "toolResult");
+    expect(results.map((m) => [m.toolName, m.isError === true])).toEqual([
+      ["sdk_hello", false],
+      ["bash", true],
+    ]);
+    expect(asked).toEqual(["bash"]);
+    await session.dispose();
+  });
+
+  it("没有任何 key 也没给模型 → no_api_key；模型不存在 → model_not_found", async () => {
+    await expect(createAgentSession({ auth: { kind: "none" } })).rejects.toMatchObject({
+      code: "no_api_key",
+    });
+    await expect(createAgentSession({ model: "fake/nope" })).rejects.toMatchObject({
+      code: "model_not_found",
+    });
+  });
+
+  it("createRuntime 与 CLI 同一条启动序列：读用户级配置、AGENTS.md，不进入模式", async () => {
+    home = createTmpHome();
+    home.write("home/.config/ama/config.json", { version: 1, tools: { preset: "minimal" } });
+    home.write("work/AGENTS.md", "sdk rules");
+    const { fake, apis } = fakeApis();
+    const runtime = await createRuntime({
+      cwd: home.cwd,
+      env: { ...home.env, AMA_NO_LOCAL_PROBE: "1" },
+      model: "fake/echo",
+      unattended: true,
+      compose: { apis, probeLocal: false },
+    });
+    expect(runtime.mode).toBe("print");
+    expect(runtime.session.getTools().map((t) => t.name)).toEqual([
+      "bash",
+      "edit",
+      "read",
+      "write",
+    ]);
+    await runtime.session.prompt("ping");
+    expect(runtime.session.getLastAssistantText()).toBe("ping");
+    const system = fake.calls[0]?.context.messages[0];
+    expect(system?.role === "system" ? system.sections["project_context"] : "").toContain(
+      "sdk rules",
+    );
+    await runtime.dispose();
+  });
+});

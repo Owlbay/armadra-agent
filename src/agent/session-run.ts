@@ -254,7 +254,8 @@ export function makeUserMessage(
 
 /**
  * 一次提示：展开（expandPrompt）→ UserPromptSubmit Hook（block 拒绝；updatedPrompt 替换；
- * additionalContext 作为 custom_message 随提示进上下文）→ 阈值压缩检查 → system 同步 → 会话周期。
+ * additionalContext 作为 custom_message 随提示进上下文）→ 阈值压缩检查 → system 同步 →
+ * `before_agent_start`（宿主事件同名，由组装根桥接）→ 会话周期。
  */
 export async function runPrompt(
   deps: RunCycleDeps,
@@ -293,6 +294,7 @@ export async function runPrompt(
   await deps.compaction.checkThreshold(signal);
   if (signal.aborted) return "handled";
   deps.syncSystem();
+  core.emit({ type: "before_agent_start", prompt });
   await runCycle(deps, prompts, signal);
   return "started";
 }

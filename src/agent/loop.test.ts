@@ -32,6 +32,7 @@ describe("基本 run", () => {
       "entry_appended", // model_change
       "entry_appended", // thinking_level_change
       "entry_appended", // system
+      "before_agent_start",
       "agent_start",
       "turn_start",
       "message_start",

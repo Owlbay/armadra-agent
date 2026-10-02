@@ -1,9 +1,8 @@
 /**
  * `@armadra/agent`：SDK 公开面（设计 §13.1）。[B0] 所有。
  *
- * B0 只导出契约类型与少量契约内的值（版本、错误、校验器、退出码）。B6 完成 sdk.ts 后在
- * 「SDK」段追加 `createAgentSession`、`createRuntime`，B1 / B2 / B5 的
- * `ProviderRegistry`、`FakeProvider`、`SessionManager`、`loadConfig` 也由 B6 在此统一再导出。
+ * B0 导出契约类型与少量契约内的值（版本、错误、校验器、退出码）；「SDK」段（B6）导出
+ * `createAgentSession`、`createRuntime` 与常用实现类。
  */
 
 // 值
@@ -38,3 +37,16 @@ export type {
 } from "./cli/runtime.js";
 
 // SDK（B6 追加）
+export { createAgentSession, createRuntime } from "./sdk.js";
+export type { CreateSessionOptions, RuntimeOptions, SessionAuth } from "./sdk.js";
+export { AgentSessionImpl } from "./agent/session.js";
+export { SessionManager } from "./session/manager.js";
+export { ProviderRegistry } from "./ai/providers/registry.js";
+export { FakeProvider } from "./ai/fake/fake-provider.js";
+export { loadConfigFile as loadConfig } from "./config/load.js";
+export { createToolRegistry } from "./tools/registry.js";
+export { PRESET_TOOLS, effectiveCodemodeMode } from "./tools/presets.js";
+export { createRuntimeDeps, DEFAULT_TOOL_FACTORIES } from "./cli/compose.js";
+export type { ComposeOptions, ToolFactory, ToolFactoryContext } from "./cli/compose.js";
+export { currentSession, switchSession } from "./cli/compose-session.js";
+export type { SwitchRequest } from "./cli/compose-session.js";
