@@ -23,10 +23,19 @@ describe("detectMiss：不计的情形（§1.5 第 1 步）", () => {
 });
 
 describe("噪声下限与规模自适应（§1.5 第 2–3 步）", () => {
-  it("noiseFloor = max(1024, minTokens)", () => {
+  it("noiseFloor = max(1024, minTokens, 推断粒度)", () => {
     expect(noiseFloor(undefined)).toBe(1024);
     expect(noiseFloor(512)).toBe(1024);
     expect(noiseFloor(4096)).toBe(4096);
+    expect(noiseFloor(undefined, 2048)).toBe(2048);
+    expect(noiseFloor(4096, 2048)).toBe(4096);
+    expect(noiseFloor(undefined, 128)).toBe(1024);
+    const chunked = record({ input: 1100, cacheRead: 2048 });
+    const next = record({ input: 1150, cacheRead: 2048 });
+    expect(detectMiss(chunked, next, TTL, { reporting: "reported" })).toBeDefined();
+    expect(
+      detectMiss(chunked, next, TTL, { reporting: "reported", granularity: 2048 }),
+    ).toBeUndefined();
     const prev = record({ cacheRead: 3000 });
     expect(detectMiss(prev, record({ input: 1000, cacheRead: 2000 }), TTL)).toBeUndefined();
     expect(detectMiss(prev, record({ input: 1100, cacheRead: 1900 }), TTL)).toMatchObject({

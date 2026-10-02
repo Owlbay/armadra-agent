@@ -522,6 +522,7 @@ describe("循环、SDK、RPC、Runtime 契约", () => {
     expectTypeOf<SessionCacheStats["warming"]["mode"]>().toEqualTypeOf<
       "off" | "streaming" | "idle"
     >();
+    expectTypeOf<SessionCacheStats["granularity"]>().toEqualTypeOf<number | undefined>();
     expectTypeOf<SubagentResult["cache"]>().toEqualTypeOf<
       { hitRate?: number; reBilledTokens: number } | undefined
     >();

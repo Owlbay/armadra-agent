@@ -63,6 +63,33 @@ describe("SessionCacheController：未命中与统计", () => {
     expect(cache.estimatedTurnsLeft).toBeGreaterThan(0);
   });
 
+  it("按 2048 分块报读的端点：不足一块的尾部不算未命中，统计给出粒度；读骤降到 0 仍报", async () => {
+    // DeepSeek 经中转（E1 实测）：读 / 输入
+    const seq: [number, number][] = [
+      [0, 1339],
+      [0, 1873],
+      [2048, 2501],
+      [2048, 2943],
+      [2048, 3079],
+      [2048, 3138],
+      [4096, 4300],
+      [4096, 5200],
+      [0, 5300],
+    ];
+    const h = createHarness({
+      model: priced,
+      cache: { warming: "off" },
+      script: seq.map(([cacheRead, prompt]) => step({ input: prompt - cacheRead, cacheRead })),
+    });
+    for (let i = 0; i < seq.length - 1; i++) await h.session.prompt(`q${i}`);
+    expect(of(h, "cache_miss")).toEqual([]);
+    expect(h.session.getStats().cache?.granularity).toBe(2048);
+    await h.session.prompt("last");
+    expect(of(h, "cache_miss")).toEqual([
+      expect.objectContaining({ reason: "evicted", missedTokens: 5200 }),
+    ]);
+  });
+
   it("不报缓存的端点：4 个可比请求后 silent，命中率不给、不判未命中", async () => {
     const h = createHarness({
       model: priced,
@@ -74,6 +101,7 @@ describe("SessionCacheController：未命中与统计", () => {
     expect(cache.reporting).toBe("silent");
     expect(cache.lastHitRate).toBeUndefined();
     expect(cache.hitRate).toBeUndefined();
+    expect(cache.granularity).toBeUndefined();
     expect(cache.misses.count).toBe(0);
   });
 

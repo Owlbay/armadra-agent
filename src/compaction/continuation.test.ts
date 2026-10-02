@@ -5,16 +5,25 @@ import { afterEach, describe, expect, it } from "vitest";
 import { buildAnthropicRequest } from "../ai/apis/anthropic-request.js";
 import { buildOpenAIRequest } from "../ai/apis/openai-request.js";
 import { ProviderRegistry } from "../ai/providers/registry.js";
-import type { AssistantMessage, Message, Model, TranscriptContext } from "../ai/types.js";
+import type {
+  AssistantMessage,
+  Message,
+  Model,
+  StreamOptions,
+  TranscriptContext,
+} from "../ai/types.js";
 import { createHarness, isSummaryRequest } from "../agent/testing/harness.js";
 import { fakeModel, stubTool } from "../agent/testing/stubs.js";
 import type { ContextItem } from "../session/projection.js";
 import {
   SUMMARIZATION_SYSTEM_PROMPT,
   SUMMARY_CONTINUATION_PREAMBLE,
+  SUMMARY_CONTINUATION_TAIL,
+  completeByContinuation,
   countLlmMessages,
   excerptOf,
   prepareCompaction,
+  type StreamFn,
 } from "./summarize-tier.js";
 
 const dirs: string[] = [];
@@ -48,7 +57,7 @@ const isContinuation = (context: TranscriptContext): boolean =>
   lastUser(context).startsWith(SUMMARY_CONTINUATION_PREAMBLE);
 
 describe("压缩摘要走会话前缀续写（§1.8）", () => {
-  it("/compact：请求体前缀与上一次真实请求逐字节一致，tool_choice none、purpose summary、short", async () => {
+  it("/compact：请求体前缀（含 tools）与上一次真实请求逐字节一致，不发 tool_choice、purpose summary、short", async () => {
     const read = stubTool({
       name: "read",
       run: async () => ({ content: "file body ".repeat(40) }),
@@ -73,8 +82,8 @@ describe("压缩摘要走会话前缀续写（§1.8）", () => {
     expect(summaries.every((c) => isContinuation(c.context))).toBe(true);
     const summary = summaries[0]!;
     expect(isContinuation(summary.context)).toBe(true);
+    expect(summary.options).not.toHaveProperty("toolChoice");
     expect(summary.options).toMatchObject({
-      toolChoice: "none",
       purpose: "summary",
       cacheRetention: "short",
       sessionId: turn.options.sessionId,
@@ -83,17 +92,22 @@ describe("压缩摘要走会话前缀续写（§1.8）", () => {
     expect(prompt).toMatch(/messages 1–\d+ of the conversation above/);
     expect(prompt).toContain("keep ids");
     expect(prompt).toContain("## Goal");
+    expect(prompt).toContain("do not call any tools");
+    expect(prompt.endsWith(SUMMARY_CONTINUATION_TAIL)).toBe(true);
     // 逐字节：上一次真实请求的全部消息是摘要请求的前缀（两种协议的请求体）
     const n = turn.context.messages.length;
     expect(JSON.stringify(summary.context.messages.slice(0, n))).toBe(
       JSON.stringify(turn.context.messages),
     );
+    const { signal: _s, ...summaryOptions } = summary.options;
     for (const build of [
-      (c: TranscriptContext) => buildAnthropicRequest(anthropic, c, { signal }).body,
-      (c: TranscriptContext) => buildOpenAIRequest(openai, c, { signal }).body,
+      (c: TranscriptContext, o = {}) => buildAnthropicRequest(anthropic, c, { signal, ...o }).body,
+      (c: TranscriptContext, o = {}) => buildOpenAIRequest(openai, c, { signal, ...o }).body,
     ]) {
       const a = build(turn.context);
-      const b = build(summary.context);
+      const b = build(summary.context, summaryOptions);
+      expect(b).not.toHaveProperty("tool_choice");
+      expect(strip(a["tools"])).not.toEqual([]);
       expect(JSON.stringify(strip(b["system"]))).toBe(JSON.stringify(strip(a["system"])));
       expect(JSON.stringify(strip(b["tools"]))).toBe(JSON.stringify(strip(a["tools"])));
       const am = strip(a["messages"]) as Json[];
@@ -190,7 +204,56 @@ describe("压缩摘要走会话前缀续写（§1.8）", () => {
     const summary = h.scripted.calls.at(-1)!;
     expect(isContinuation(summary.context)).toBe(true);
     expect(lastUser(summary.context)).toContain("Messages 3–4 are the branch being left");
-    expect(summary.options.toolChoice).toBe("none");
+    expect(summary.options).not.toHaveProperty("toolChoice");
+  });
+});
+
+describe("completeByContinuation", () => {
+  it("调用方的 streamOptions 带 toolChoice 也不发；回复含工具调用抛 compaction_failed", async () => {
+    const seen: StreamOptions[] = [];
+    const reply = (content: AssistantMessage["content"]): StreamFn =>
+      ((_model: Model, _context: TranscriptContext, options: StreamOptions) => {
+        seen.push(options);
+        return {
+          result: async () => ({
+            role: "assistant",
+            content,
+            api: "fake",
+            provider: "fake",
+            model: "echo",
+            usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2 },
+            stopReason: "stop",
+            timestamp: 0,
+          }),
+        };
+      }) as never;
+    const input = {
+      prefix: { messages: [{ role: "user" as const, content: "hi", timestamp: 0 }] },
+      keepFrom: { index: 1, excerpt: "" },
+      instruction: "summarize",
+    };
+    const options = (stream: StreamFn) => ({
+      stream,
+      model: fakeModel(),
+      signal,
+      continuation: {
+        prefix: input.prefix,
+        streamOptions: { toolChoice: "none" as const, sessionId: "s1" },
+      },
+    });
+    const ok = await completeByContinuation(
+      options(reply([{ type: "text", text: "## Goal\nx" }])),
+      input,
+    );
+    expect(ok.text).toContain("## Goal");
+    expect(seen[0]).not.toHaveProperty("toolChoice");
+    expect(seen[0]).toMatchObject({ sessionId: "s1", purpose: "summary", cacheRetention: "short" });
+    await expect(
+      completeByContinuation(
+        options(reply([{ type: "toolCall", id: "c", name: "read", arguments: {} }])),
+        input,
+      ),
+    ).rejects.toMatchObject({ code: "compaction_failed" });
   });
 });
 
