@@ -3,7 +3,7 @@
 export const MAX_REQUESTS_PER_MODEL: number;
 
 export interface ProbeStep {
-  status: "pass" | "fail" | "skip" | "n/a";
+  status: "pass" | "fail" | "skip" | "n/a" | "warn";
   note?: string;
   ids?: string[];
   thinkingBlocks?: number;
@@ -49,3 +49,4 @@ export function probeModel(options: {
 export function renderTable(results: readonly ProbeResult[]): string;
 export function fixedPrefix(tokens?: number): string;
 export function usageUsd(usage: unknown): number;
+export function gate(result: ProbeResult): ProbeResult;

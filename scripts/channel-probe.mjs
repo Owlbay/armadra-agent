@@ -6,6 +6,7 @@
  *   node scripts/channel-probe.mjs --model deepseek/deepseek-v4-pro@messages
  *   node scripts/channel-probe.mjs --model zhipu/glm-5.3@messages,zhipu/glm-5.3@chat --json /tmp/probe.json
  *   node scripts/channel-probe.mjs --config /tmp/relay.json --model packy/kimi-k2.5@messages --gap-ms 8000
+ *   node scripts/channel-probe.mjs --render /tmp/probe.json      # 按当前判门重画已有结果，不发请求
  *
  * | 项 | 做法 | 请求 | 通过 |
  * | --- | --- | --- | --- |
@@ -14,6 +15,9 @@
  * | ③ thinking 两回合 | 接着 ② 的对话，thinking=medium 下读一个文件再回答（思考块随历史回放） | 2 | 第二次无错误且含口令（Messages 上无签名的思考块另行注明）；非推理模型记 n/a |
  * | ④ 缓存 | 同一约 3k token 的固定前缀相隔 `--gap-ms` 发两次 | 2 | 第二次 cacheRead > 0 |
  * | tool_use.id | ②③ 同一段对话里的全部工具调用 id | — | 互不相同（跨回合复用即不过） |
+ *
+ * ③ 往返成功但没有思考块、或 Messages 上的思考块没有签名（中转把上游 Chat 转成 Messages 时常见）记 ⚠：
+ * 签名回放没被验证，不算过门。
  *
  * 四项全过且 id 唯一 → 「过门」：该家缺省可切到这个渠道（builtin.ts 改一行 defaultChannel）。
  *
@@ -273,14 +277,7 @@ export async function probeModel({
       try {
         // ② 没走完（历史停在工具结果上）就另起一段
         if (result.tools.status !== "pass") history = fresh();
-        const r = await roundTrip(history, "osprey77", "medium", 1);
-        if (
-          r.status === "pass" &&
-          model.api === "anthropic-messages" &&
-          r.thinkingBlocks > r.signed
-        )
-          r.note = `${r.thinkingBlocks - r.signed} 个思考块无签名（降级为文本回放）`;
-        result.thinking = r;
+        result.thinking = await roundTrip(history, "osprey77", "medium", 1);
       } catch (error) {
         result.thinking = { status: "fail", note: String(error.message ?? error), ids: [] };
       }
@@ -322,13 +319,26 @@ export async function probeModel({
     result.cache = { status: "fail", note: String(error.message ?? error) };
   }
 
+  return gate(result);
+}
+
+/**
+ * 判门（也用于 `--render` 重算旧结果）：③ 往返通过但没出思考块、或 Messages 上思考块没有签名（回放降级为
+ * 文本，签名回放没被验证）记 `warn`；四项都是 pass / n/a 且 id 不重复才过门。
+ */
+export function gate(result) {
+  const t = result.thinking;
+  if (t.status === "pass" || t.status === "warn") {
+    const blocks = t.thinkingBlocks ?? 0;
+    const unsigned = blocks - (t.signed ?? 0);
+    if (blocks === 0) Object.assign(t, { status: "warn", note: "没有思考块" });
+    else if (result.api === "anthropic-messages" && unsigned > 0)
+      Object.assign(t, { status: "warn", note: `${unsigned}/${blocks} 个思考块无签名` });
+    else Object.assign(t, { status: "pass", note: undefined });
+  }
   const ok = (s) => s.status === "pass" || s.status === "n/a";
   result.pass =
-    ok(result.check) &&
-    ok(result.tools) &&
-    ok(result.thinking) &&
-    ok(result.cache) &&
-    result.idsUnique !== false;
+    ok(result.check) && ok(result.tools) && ok(t) && ok(result.cache) && result.idsUnique !== false;
   return result;
 }
 
@@ -339,7 +349,7 @@ const mark = (step) =>
       ? "n/a"
       : step.status === "skip"
         ? "—"
-        : `✗${step.note ? ` ${step.note.replace(/\|/g, "/").slice(0, 60)}` : ""}`;
+        : `${step.status === "warn" ? "⚠" : "✗"}${step.note ? ` ${step.note.replace(/\|/g, "/").slice(0, 60)}` : ""}`;
 
 /** 结果表（Markdown）。 */
 export function renderTable(results) {
@@ -392,9 +402,15 @@ async function main() {
       "gap-ms": { type: "string" },
       "max-requests": { type: "string" },
       "budget-usd": { type: "string" },
+      render: { type: "string" },
       help: { type: "boolean", short: "h" },
     },
   });
+  if (values.render) {
+    const results = JSON.parse(readFileSync(values.render, "utf8")).map(gate);
+    process.stdout.write(`${renderTable(results)}\n`);
+    return;
+  }
   const refs = (values.model ?? [])
     .flatMap((m) => m.split(","))
     .map((m) => m.trim())

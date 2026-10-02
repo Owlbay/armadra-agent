@@ -18,6 +18,7 @@ import { ProviderRegistry } from "./registry.js";
 import {
   MAX_REQUESTS_PER_MODEL,
   fixedPrefix,
+  gate,
   probeModel,
   renderTable,
 } from "../../../scripts/channel-probe.mjs";
@@ -168,6 +169,26 @@ describe("channel-probe（fake）", () => {
     });
     expect(missing.error).toContain("channel_not_found");
     expect(missing.requests).toBe(0);
+  });
+
+  it("Messages 上思考块无签名 → ③ 记 ⚠、不过门；Chat 上无签名照过", async () => {
+    const messages = await probeModel({
+      registry: registryWith(smartFake({ signed: false })),
+      ref: "fake/echo@messages",
+      gapMs: 0,
+    });
+    // fake 渠道的协议是 fake：按 Messages 判一次
+    const asMessages = gate({
+      ...messages,
+      api: "anthropic-messages",
+      thinking: { ...messages.thinking, status: "pass" },
+    });
+    expect(asMessages.thinking).toMatchObject({ status: "warn", note: "2/2 个思考块无签名" });
+    expect(asMessages.pass).toBe(false);
+    expect(renderTable([asMessages])).toContain("⚠ 2/2 个思考块无签名");
+    expect(messages.pass).toBe(true);
+    const none = gate({ ...messages, thinking: { status: "pass", thinkingBlocks: 0, signed: 0 } });
+    expect(none.thinking.status).toBe("warn");
   });
 
   it("固定前缀确定且约为给定 token 数", () => {
