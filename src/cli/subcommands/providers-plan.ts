@@ -78,15 +78,20 @@ const ENDPOINT_APIS: Readonly<Record<string, Api>> = {
   gemini: "google-generative-ai",
 };
 
-/** 模型列表的提示 → 候选渠道名；没有提示（或提示的协议都不在候选里）返回 undefined。 */
+/**
+ * 模型列表的提示 → 候选渠道名。没有提示（或提示里没有认识的协议）返回 undefined；有提示但候选渠道
+ * 一个都不支持返回 []（该模型在这些渠道上不可用）。
+ */
 export function hintedChannels(
   listed: ListedModel,
   candidates: readonly CandidateChannel[],
 ): string[] | undefined {
   if (listed.endpoints === undefined || listed.endpoints.length === 0) return undefined;
-  const apis = new Set(listed.endpoints.map((e) => ENDPOINT_APIS[e.toLowerCase()]));
-  const names = candidates.filter((c) => apis.has(c.api)).map((c) => c.name);
-  return names.length > 0 ? names : undefined;
+  const apis = new Set(
+    listed.endpoints.map((e) => ENDPOINT_APIS[e.toLowerCase()]).filter((a) => a !== undefined),
+  );
+  if (apis.size === 0) return undefined;
+  return candidates.filter((c) => apis.has(c.api)).map((c) => c.name);
 }
 
 /** 按 `prefer` 排序（不在 prefer 里的保持原顺序排在后面）。 */
@@ -134,7 +139,7 @@ export function listingTarget(
   return { channel, url };
 }
 
-export type ModelStatus = "ok" | "unprobed" | "failed" | "no-tools" | "existing";
+export type ModelStatus = "ok" | "unprobed" | "failed" | "no-tools" | "no-channel" | "existing";
 
 export interface ModelPlan {
   id: string;
@@ -223,6 +228,7 @@ const STATUS_TEXT: Record<ModelStatus, string> = {
   unprobed: "未探测",
   failed: "探测失败，不写入",
   "no-tools": "不支持工具调用，不写入",
+  "no-channel": "候选渠道都不支持，不写入",
   existing: "已存在，未改动",
 };
 

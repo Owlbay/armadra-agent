@@ -216,7 +216,9 @@ describe("ama providers add", () => {
       channels: ["chat"],
       contextWindow: 1000,
     });
-    expect(relay?.models?.map((m) => m.id)).toContain("grok-4.7");
+    // grok-4.7 只提示 responses，而这个供应商只有 chat 渠道 → 不追加
+    expect(relay?.models?.map((m) => m.id)).toContain("deepseek-flash");
+    expect(relay?.models?.map((m) => m.id)).not.toContain("grok-4.7");
     expect(Object.keys(relay?.channels ?? {})).toEqual(["chat"]);
     expect(out.join("")).toContain("上游已不再列出（未删除）：retired");
     expect(readFileSync(join(home.configDir, "config.json.bak"), "utf8")).toContain("retired");
@@ -245,7 +247,12 @@ describe("ama providers add", () => {
       requests.push({ url, headers });
       if (url === MD_URL) return Response.json(SAMPLE);
       if (headers["x-api-key"] === "sk-relay")
-        return Response.json({ data: [{ id: "kimi-k2.5" }] });
+        return Response.json({
+          data: [
+            { id: "kimi-k2.5" },
+            { id: "grok-4.7", supported_endpoint_types: ["openai-response"] },
+          ],
+        });
       return new Response("unauthorized", { status: 401 });
     });
     const code = await runProviders(
@@ -268,6 +275,7 @@ describe("ama providers add", () => {
       ["accept", "anthropic-version", "x-api-key"],
     ]);
     expect(config().providers?.["msg"]?.models).toEqual([{ id: "kimi-k2.5", channels: ["m"] }]);
+    expect(out.join("")).toMatch(/grok-4\.7 +— .*候选渠道都不支持，不写入/);
   });
 
   it("用法错误", async () => {

@@ -52,6 +52,9 @@ describe("providers-plan", () => {
     expect(hintedChannels(listed[0]!, CANDIDATES)).toEqual(["responses"]);
     expect(hintedChannels(listed[1]!, CANDIDATES)).toEqual(["chat", "messages"]);
     expect(hintedChannels(listed[2]!, CANDIDATES)).toBeUndefined();
+    // 有提示但候选渠道都不支持 → []；不认识的提示当作没有
+    expect(hintedChannels(listed[0]!, [CANDIDATES[2]!])).toEqual([]);
+    expect(hintedChannels({ id: "x", endpoints: ["jina-rerank"] }, CANDIDATES)).toBeUndefined();
     expect(parseModelList({})).toEqual([]);
   });
 

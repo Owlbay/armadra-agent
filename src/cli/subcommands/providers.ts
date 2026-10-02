@@ -206,12 +206,13 @@ async function plan(
   };
   const tryChannels = (id: string): string[] =>
     orderChannels(hint(id) ?? input.candidates.map((c) => c.name), prefer);
+  const probeable = (id: string): boolean => tryChannels(id).length > 0;
   const results = new Map<string, { ok: string[]; error?: string }>();
   let stopped: string | undefined;
   if (input.probe) {
     const only = list(ctx.values.get("probe-models"));
     const selected = probeSelection(
-      fresh.map((m) => m.id),
+      fresh.map((m) => m.id).filter(probeable),
       intValue(ctx, "limit", DEFAULT_LIMIT),
       only,
     );
@@ -270,6 +271,8 @@ async function plan(
       return { ...base, channels: orderChannels(probed.ok, prefer), status: "ok" };
     }
     const hinted = hint(listed.id);
+    if (hinted !== undefined && hinted.length === 0)
+      return { ...base, channels: [], status: "no-channel" };
     const channels =
       hinted !== undefined
         ? orderChannels(hinted, prefer)
