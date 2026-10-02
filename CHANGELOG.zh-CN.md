@@ -66,6 +66,11 @@
   `--children` 内嵌子会话预览，`--open` 用浏览器打开，`--now` 固定生成时间（输出确定）。RPC `get_trace` 实现：尾部分页（`turnLimit` /
   `before`）、按 `since` 增量（配合 `entry_appended`）、`taskId` 子轨迹、`content: "preview"` 附脱敏预览（结果新增可选字段 `task`、`previews`）。
   SDK `session.trace()`。见 [docs/sessions.md](docs/sessions.md)「轨迹」与 [docs/rpc.md](docs/rpc.md)「轨迹」。
+- **其余模式与领域的英文界面**（W6-I3）：`ama -p` 的 stderr（重试、预算到限、计划待审批、工具被拒）、RPC 的人读 `error` 与 ACP 的错误 /
+  审批选项名、斜杠命令说明与回执、`/session` `/cache` 报告与缓存提示、`--no-tui` 的启动期问答、`ama doctor`（新增「界面语言：zh（来源 …）」一行）、
+  `ama sessions list / show / prune`（用法补上 `ama sessions trace`）、会话 Markdown 导出、检查点 / 沙箱 / Hook / 宿主适配器 / 外部 Agent 的提示、
+  模型查找失败与 models.dev 说明随界面语言；中文输出逐字不变，RPC 与 `-p --output-format json` 的 JSON 字段不变。进 `task` 工具结果的错误
+  （未知外部 Agent、宿主独占、排队时中断）与「… N more tool calls」摘要行改为固定英文（与其它发给模型的文本一致）。
 
 ## 0.5.1（2026-10-03）
 
