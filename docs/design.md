@@ -46,18 +46,19 @@
 | 图像、剪贴板、状态行、界面集成        | [providers.md](providers.md)「图像输入」、[tui.md](tui.md)、[tui-design.md](tui-design.md) | §12                            |
 | 退出码 8 / 9                          | 下文 §11.3                                                                                | §11.3                          |
 
-### 第六波增补（0.6.0，实施中）
+### 第六波增补（0.6.0）
 
-第六波的决定表、契约与批次在 [wave6-plan.md](wave6-plan.md)，调研依据在 [research/wave6/](research/wave6/README.md)；本文不逐节回写，只记与本文约定的关系：
+第六波（0.6.0）同样不逐节回写；决定表、契约与批次在 [wave6-plan.md](wave6-plan.md)，调研依据在 [research/wave6/](research/wave6/README.md)，现状按主题见下表：
 
-| 主题                                   | 设计章节                              | 涉及本文                                                                 |
-| -------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------ |
-| Agent 栏与全屏子 Agent 视图            | [wave6-plan.md](wave6-plan.md) §1     | §12（主屏约束下的覆盖层；`Ctrl+B` 只在输入为空时生效）                   |
-| 轨迹（`ama.trace`、`/trace`、HTML、`get_trace`） | [wave6-plan.md](wave6-plan.md) §2 | §8（`custom` 条目不进上下文）、§13.2                                     |
-| Memory（缺省关闭）                     | [wave6-plan.md](wave6-plan.md) §3     | §9.1（节顺序加 `memory`，位于 `skills` 之后；关闭时字节不变）、§7、§10.2 |
-| ChatGPT 登录（SIWC 缺省、codex 备用）  | [wave6-plan.md](wave6-plan.md) §4     | §3.5（`KeySource` 加 `oauth`）、§10.1（`auth.json` 的 oauth 条目）       |
-| 中英双语                               | [wave6-plan.md](wave6-plan.md) §5、[i18n.md](i18n.md) | §2（零依赖消息目录；给模型的文本固定英文）                 |
-| `/config` 面板与 `ama config get \| set` | [wave6-plan.md](wave6-plan.md) §6   | §10.2（项目级只能收紧由同一函数判定）                                    |
+| 主题                                             | 现状文档                                                                                                                 | 涉及本文                                                                                 |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| Agent 栏与全屏子 Agent 视图                      | [tui.md](tui.md)「Agent 栏」「子 Agent 视图」                                                                            | §12（主屏约束下的覆盖层，高 `行数 − 1`；`Ctrl+B` 只在输入为空时生效）                    |
+| 轨迹（`ama.trace`、`/trace`、HTML、`get_trace`） | [tui.md](tui.md)「轨迹」、[sessions.md](sessions.md)「轨迹」、[rpc.md](rpc.md)「轨迹」、[session-format.md](session-format.md) | §8（`custom` 条目不进上下文、不改请求）、§13.2（RPC 43 条命令）                          |
+| Memory（缺省关闭）                               | [memory.md](memory.md)                                                                                                   | §9.1（节顺序加 `memory`，位于 `skills` 之后；关闭时字节不变）、§7（权限类 `memory`）、§10.2 |
+| ChatGPT 登录（SIWC 缺省、codex 备用）            | [providers.md](providers.md)「ChatGPT 登录」                                                                             | §3.3（内置供应商 18 家）、§3.5（`KeySource` 加 `oauth`）、§10.1（`auth.json` 的 oauth 条目与 `auth.json.lock`） |
+| 中英双语                                         | [i18n.md](i18n.md)、[en/](en/tui.md) 六篇英文版                                                                          | §2（零依赖消息目录；发给模型的文本固定英文，两种语言下请求逐字节相同）                   |
+| `/config` 面板与 `ama config get \| set`          | [tui.md](tui.md)「`/config` 设置面板与 `ama config`」                                                                    | §10.2（项目级只能收紧由同一函数判定）、§11.3（拒绝时退出码 3，无新退出码）               |
+| `ui.replyLanguage`                               | [tui.md](tui.md)「配置与排错」                                                                                           | §9.1（`rules` 节末尾追加一句英文规则；不设时零字节变化）                                 |
 
 ## §1 架构与目录树
 
@@ -825,7 +826,7 @@ tool_call（模型产出）
 
 | 要求 | 做法 | 测试 |
 | --- | --- | --- |
-| 前缀字节稳定 | 系统提示节顺序固定（preamble → tools → rules → project_context → skills → cwd → host），不含时间、随机数、绝对时间戳；工具按名排序；JSON Schema 序列化键序固定 | 同一会话连续 20 个回合，发给供应商的 system + tools 部分逐字节相同 |
+| 前缀字节稳定 | 系统提示节顺序固定（preamble → tools → rules → project_context → skills → memory → hooks → cwd → host → role；`memory` 是记忆索引，只在开启记忆时出现、会话开始定稿；`hooks` 是 SessionStart Hook 的 additionalContext；`role` 只有 task 子会话有，父会话的全部节是它的逐字节前缀；`rules` 末尾依次是 `--system-prompt` 的追加文本与 `ui.replyLanguage` 的 `Reply to the user in <语言>.`，都在会话开始时定稿），不含时间、随机数、绝对时间戳；工具按名排序；JSON Schema 序列化键序固定 | 同一会话连续 20 个回合，发给供应商的 system + tools 部分逐字节相同 |
 | 预设与工具表固定 | 会话开始时确定预设；宿主在 `create()` 阶段注册完工具再发首个请求；之后的变化只以 system 补丁追加在末尾 | 宿主中途注册工具后，前缀前段不变、只在末尾追加 |
 | Anthropic 显式断点 | system 块末、最后一个工具定义、最后一条 user 消息三处 `cache_control` | 请求体快照 |
 | OpenAI 系前缀缓存 | `prompt_cache_key = sessionId`（官方端点）；其它兼容端点依赖前缀不变 | 请求体快照 |
