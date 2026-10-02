@@ -8,7 +8,16 @@
  *   pid 已死视为陈旧，删除后重试。取锁后由调用方**重读文件**再决定要不要刷新。
  */
 
-import { closeSync, openSync, readFileSync, statSync, unlinkSync, writeSync } from "node:fs";
+import {
+  closeSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  statSync,
+  unlinkSync,
+  writeSync,
+} from "node:fs";
+import { dirname } from "node:path";
 import { writeAuthFile } from "../../config/auth-file.js";
 import { CONFIG_FILE_VERSION, type AuthFile } from "../../config/types.js";
 import { isOAuthEntry, type AuthFileEntry, type OAuthAuthEntry } from "../../config/types-w6.js";
@@ -105,6 +114,7 @@ export async function withRefreshLock<T>(
   options: LockOptions = {},
 ): Promise<T> {
   const path = lockPath(authFile);
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   const deadline = Date.now() + (options.waitMs ?? LOCK_WAIT_MS);
   for (;;) {
     if (tryAcquire(path)) break;

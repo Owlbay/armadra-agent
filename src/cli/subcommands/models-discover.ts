@@ -16,9 +16,15 @@
  *
  * models.dev：列表之后按需刷新缓存（24 小时内不重拉），每个模型标出上下文、输出、图片、工具调用与
  * 匹配结果；`--write` 跳过 models.dev 标明不支持工具调用的模型。元数据不写进配置——运行时从缓存补。
+ *
+ * [W6-O] `chatgpt`：按登录的 flavor 调对应后端的模型列表（SIWC `GET /v1/models` 筛 `visibility: list`；codex
+ * `GET /models?client_version=…`），只取 slug 与显示名；`--probe` 不适用（订阅后端只有一种协议）。
  */
 
 import { authHeaders, mergeHeaders } from "../../ai/http.js";
+import { listChatGptModels } from "../../auth/chatgpt/backend-client.js";
+import { CHATGPT_PROVIDER_ID } from "../../auth/chatgpt/presets.js";
+import { liveToken } from "../../auth/oauth/live.js";
 import { discoverLocalModels, materializeModel } from "../../ai/providers/registry.js";
 import { withCustomDefaults } from "../../ai/providers/catalog.js";
 import { describeModelsDev, loadModelsDevIndex } from "../../ai/providers/models-dev-cache.js";
@@ -62,6 +68,22 @@ export async function discoverModels(
   options: { timeoutMs?: number } = {},
 ): Promise<Model[]> {
   const timeoutMs = options.timeoutMs ?? DISCOVER_TIMEOUT_MS;
+  if (provider.id === CHATGPT_PROVIDER_ID && apiKey !== undefined) {
+    const live = liveToken(apiKey);
+    const flavor = live?.flavor ?? (provider.defaultChannel === "codex" ? "codex" : "siwc");
+    const channel = provider.channels?.find((c) => c.name === flavor);
+    const models = await listChatGptModels(fetch, channel?.baseUrl ?? provider.baseUrl, {
+      flavor,
+      accessToken: apiKey,
+      accountId: live?.accountId,
+      originator: channel?.headers?.["originator"],
+    });
+    return models.map((m) => {
+      const model = withCustomDefaults({ id: m.id }, provider.id, provider.api);
+      if (m.name !== undefined) model.name = m.name;
+      return model;
+    });
+  }
   if (!provider.requiresApiKey && apiKey === undefined)
     return discoverLocalModels(provider, { timeoutMs });
   const anthropic = provider.api === "anthropic-messages";
@@ -249,7 +271,7 @@ async function run(ctx: ModelsActionContext): Promise<number> {
     io.stdout(`  ${model.id}${known !== undefined ? `  已配置（${known.api}）` : ""}${meta}\n`);
   }
   const write = ctx.flags.has("write");
-  if (!ctx.flags.has("probe")) {
+  if (!ctx.flags.has("probe") || provider.id === CHATGPT_PROVIDER_ID) {
     if (write)
       writeEntries(
         ctx,
