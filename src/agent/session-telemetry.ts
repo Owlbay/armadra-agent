@@ -7,8 +7,9 @@
  * - 流式中按增量字符估算输出 token（CJK / 假名 / 谚文每字 1，其余 / 4，与 `compaction/estimate.ts`
  *   同口径，不逐块取整），瞬时速率取最近 2 s 滑动窗口；请求结束改用 `usage.output`（含 reasoning）；
  * - `tps = outputTokens / (doneAt − firstTokenAt)`；会话均速 = Σoutput / Σ(done − firstToken)，只计有首
- *   token 且非 error 的请求；
- * - 流式中经 `emit` 发 `telemetry_tick`，两次间隔 ≥ 500 ms（≤ 2 Hz，只由增量驱动、不起计时器）；
+ *   token、非 error 且生成时长 ≥ 250 ms 的请求（更短的整块到达，速率无意义，`tps` 留空）；
+ * - 流式中经 `emit` 发 `telemetry_tick`：首个在首 token 后 ≥ 500 ms，之后两次间隔 ≥ 500 ms（≤ 2 Hz，
+ *   只由增量驱动、不起计时器）；
  *   `ticks: false`（`ui.animation: false`）时不发，界面在 message_end 时刷新。
  *
  * 数据从 `getStats().telemetry` 取（`contributeStats`）：进行中的请求出了首 token 后 `last` 即指向它（只有
@@ -23,7 +24,7 @@ import type { RequestTelemetry, SessionTelemetry } from "./types-w5.js";
 
 export const TELEMETRY_TICK_MS = 500;
 export const TELEMETRY_WINDOW_MS = 2000;
-/** 窗口不足这么长时用「自首 token 起」的时长算瞬时速率，避免开头几块把速率放大。 */
+/** 不足这么长（自首 token 起）不算速率：开头几块或整块到达的回复会把速率放大到无意义。 */
 const MIN_SPAN_MS = 250;
 
 export interface TelemetryDeps {
@@ -126,7 +127,8 @@ class RequestTracker {
     const reported = message?.usage?.output;
     const output = reported !== undefined && reported > 0 ? reported : Math.round(this.estimate);
     record.outputTokens = output;
-    if (record.firstTokenAt !== undefined && at > record.firstTokenAt) {
+    // 太短（整块到达）的请求不算速率，免得显示成上万 tok/s
+    if (record.firstTokenAt !== undefined && at - record.firstTokenAt >= MIN_SPAN_MS) {
       record.tps = output / ((at - record.firstTokenAt) / 1000);
     }
   }
@@ -151,7 +153,7 @@ export function createTelemetryExtension(deps: TelemetryDeps = {}): TelemetryExt
     const failed = message === undefined || message.stopReason === "error";
     if (!failed && r.firstTokenAt !== undefined && r.doneAt !== undefined) {
       const ms = r.doneAt - r.firstTokenAt;
-      if (ms > 0) {
+      if (ms >= MIN_SPAN_MS) {
         sumOutput += r.outputTokens ?? 0;
         sumMs += ms;
       }
@@ -176,7 +178,9 @@ export function createTelemetryExtension(deps: TelemetryDeps = {}): TelemetryExt
         return;
       }
       if (!tracker.observe(event, at) || !ticks) return;
-      if (at - lastTickAt >= TELEMETRY_TICK_MS) {
+      // 首个 tick 在首 token 之后 500 ms：瞬时完成的短回复不发（RPC 事件序列不变）
+      const since = Math.max(lastTickAt, tracker.record.firstTokenAt ?? at);
+      if (at - since >= TELEMETRY_TICK_MS) {
         lastTickAt = at;
         deps.emit?.({ type: "telemetry_tick" });
       }

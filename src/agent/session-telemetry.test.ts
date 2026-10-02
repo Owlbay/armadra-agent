@@ -149,8 +149,8 @@ describe("会话遥测", () => {
       await push(r.text("abcd"));
     }
     await push(r.done(40));
-    // 4 s、每 100 ms 一块 → 最多 8 次（间隔 ≥ 500 ms）
-    expect(r.emitted.length).toBe(8);
+    // 4 s、每 100 ms 一块：首 token 后 500 ms 起、间隔 ≥ 500 ms → 7 次
+    expect(r.emitted.length).toBe(7);
     const quiet = rig(false);
     const q = quiet.open();
     quiet.advance(600);
