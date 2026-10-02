@@ -12,6 +12,9 @@
  *    从 0.6.0 起）/ `CHANGELOG.zh-CN.md`（中文，含 0.1–0.5.1 全部历史）、`docs/en/` 六篇都在，且列进
  *    `package.json files`；README 与 CHANGELOG 两份顶部互链；`CHANGELOG.zh-CN.md` 有当前版本段，版本 ≥ 0.6.0
  *    时 `CHANGELOG.md` 也要有（段标题 `## 0.6.0（…）` / `## 0.6.0 (…)`，「未发布 / Unreleased」不算）。
+ * 5. 英文文档滞后提示（§5.5，只提示不失败，`staleTranslations()`）：`docs/en/<篇>.md` 头部记着翻译时的中文版
+ *    提交（`as of commit \`abc1234\``）；中文版此后又改了超过 `STALE_COMMITS` 次时提示同步。浅克隆看不到
+ *    基准提交时跳过。
  *
  * 纯函数 `checkRelease()` 导出给测试；CLI 部分只负责读 git 与文件（`--root <dir>` 换仓库根，
  * 测试用）。CI 的 checkout 需要
@@ -189,6 +192,31 @@ export function checkDocs(input) {
   return { errors, notes };
 }
 
+/** 中文版在英文版基准之后改了超过这么多次就提示（不失败）。 */
+export const STALE_COMMITS = 5;
+
+/** 英文文档头部记的中文版基准提交。 */
+export function translationBasis(text) {
+  return /as of commit `([0-9a-f]{7,40})`/.exec(text ?? "")?.[1];
+}
+
+/**
+ * 英文文档滞后提示。
+ * @param {{ name: string, basis: string | undefined, commits: number | undefined }[]} docs
+ *   `commits`：中文版在 `basis` 之后的提交数（看不到基准时 undefined，跳过）。
+ * @returns {string[]} 提示
+ */
+export function staleTranslations(docs, threshold = STALE_COMMITS) {
+  const notes = [];
+  for (const { name, basis, commits } of docs) {
+    if (basis === undefined || commits === undefined || commits <= threshold) continue;
+    notes.push(
+      `docs/${name}.md 在 docs/en/${name}.md 的基准 ${basis} 之后改了 ${commits} 次（> ${threshold}），英文版可能需要同步`,
+    );
+  }
+  return notes;
+}
+
 function git(root, args) {
   try {
     return execFileSync("git", args, {
@@ -249,6 +277,16 @@ function main(argv) {
   });
   result.errors.push(...docResult.errors);
   result.notes.push(...docResult.notes);
+  const translations = EN_DOCS.map((name) => {
+    const basis = translationBasis(docs[`docs/en/${name}.md`]);
+    const count =
+      basis === undefined
+        ? undefined
+        : git(root, ["rev-list", "--count", `${basis}..HEAD`, "--", `docs/${name}.md`]);
+    const commits = count === undefined ? undefined : Number(count.trim());
+    return { name, basis, commits: Number.isInteger(commits) ? commits : undefined };
+  });
+  result.notes.push(...staleTranslations(translations));
   result.ok = result.errors.length === 0;
   for (const note of result.notes) process.stdout.write(`release-check: ${note}\n`);
   for (const error of result.errors) process.stderr.write(`release-check: ✗ ${error}\n`);
