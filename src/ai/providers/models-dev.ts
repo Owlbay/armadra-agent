@@ -11,20 +11,16 @@
 
 import type { Model, ModelCost } from "../types.js";
 
-/** 用到的模型字段（其余字段在写缓存时丢掉）。 */
+/** 用到的模型字段（name、推理、工具调用、输入模态、上下限、价格、canonical）；其余写缓存时丢掉。 */
 export interface ModelsDevModel {
   id: string;
   name?: string;
-  family?: string;
-  attachment?: boolean;
   reasoning?: boolean;
   tool_call?: boolean;
-  modalities?: { input?: string[]; output?: string[] };
+  modalities?: { input?: string[] };
   limit?: { context?: number; output?: number };
   cost?: { input?: number; output?: number; cache_read?: number; cache_write?: number };
   canonical_model_id?: string;
-  release_date?: string;
-  open_weights?: boolean;
 }
 
 export interface ModelsDevProvider {
@@ -113,18 +109,15 @@ function strings(value: unknown): string[] | undefined {
 function trimModel(id: string, raw: Record<string, unknown>): ModelsDevModel {
   const out: ModelsDevModel = { id };
   if (typeof raw["name"] === "string") out.name = raw["name"];
-  if (typeof raw["family"] === "string") out.family = raw["family"];
-  for (const key of ["attachment", "reasoning", "tool_call", "open_weights"] as const) {
+  for (const key of ["reasoning", "tool_call"] as const) {
     if (typeof raw[key] === "boolean") out[key] = raw[key];
   }
   if (typeof raw["canonical_model_id"] === "string")
     out.canonical_model_id = raw["canonical_model_id"];
-  if (typeof raw["release_date"] === "string") out.release_date = raw["release_date"];
   const modalities = raw["modalities"];
   if (isRecord(modalities)) {
     const input = strings(modalities["input"]);
-    const output = strings(modalities["output"]);
-    out.modalities = { ...(input ? { input } : {}), ...(output ? { output } : {}) };
+    if (input) out.modalities = { input };
   }
   const limit = raw["limit"];
   if (isRecord(limit)) {

@@ -30,7 +30,7 @@ export interface ModelMetadata {
 
 export type ModelsDevSource = ModelsDevIndex | (() => ModelsDevIndex | undefined) | undefined;
 
-/** 惰性取索引：只有真的要补字段时才读缓存（启动时没有自定义模型就不读 1.5 MB 文件）。 */
+/** 惰性取索引：只有真的要补字段时才读缓存（启动时没有自定义模型就不读约 2 MB 的缓存）。 */
 export function lazyIndex(source: ModelsDevSource): () => ModelsDevIndex | undefined {
   if (typeof source !== "function") return () => source;
   let loaded = false;

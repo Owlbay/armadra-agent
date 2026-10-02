@@ -279,7 +279,7 @@ ama 用它给**没写元数据**的自定义模型补上下文、输出上限、
 
 - **何时联网**：只有 `ama providers add|refresh`、`ama models discover`、`ama models refresh-catalog`
   会拉取；**启动不联网**，只读缓存。缓存在数据目录 `models-dev.json`（缺省 `~/.local/share/ama/`，只留用到的
-  字段，约 1.5 MB），记获取时间与 ETag，24 小时内不重拉（`refresh-catalog` 强制，带 `If-None-Match`）。离线或
+  字段，约 2.3 MB），记获取时间与 ETag，24 小时内不重拉（`refresh-catalog` 强制，带 `If-None-Match`）。离线或
   失败时用旧缓存并 warning。`AMA_MODELS_DEV_URL` 换数据源（镜像或本地文件服务）。
 - **优先级**：用户配置（`models[]` / `modelOverrides[]` 里写了的字段）> 内置目录 > models.dev > 自定义缺省
   （`maxTokens: 8192`、`input: ["text"]`、`reasoning: false`、不猜 `contextWindow`）。`ama models list` 与

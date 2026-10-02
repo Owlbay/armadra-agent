@@ -2,7 +2,7 @@
  * models.dev 缓存（docs/providers.md「模型元数据：models.dev」）。
  *
  * - 缓存文件 `<dataDir>/models-dev.json`：`{ version, url, fetchedAt, etag?, providers }`，providers 是
- *   `trimModelsDev()` 裁剪后的数据（约 1.5 MB）。写入走同目录临时文件 + rename。
+ *   `trimModelsDev()` 裁剪后的数据（约 2.3 MB，原始约 5 MB）。写入走同目录临时文件 + rename。
  * - **启动不联网**：`loadModelsDevIndex()` 只读缓存（按路径 + mtime 记忆，同一进程只解析一次）。
  * - 联网只在 `ama providers add|refresh`、`ama models discover`、`ama models refresh-catalog` 调
  *   `refreshModelsDev()` 时发生：缓存 24 小时内不重拉（`force` 例外），带 `If-None-Match`；304 只刷新时间；
@@ -55,7 +55,7 @@ export function readModelsDevCache(dataDir: string): ModelsDevCacheFile | undefi
 
 export function writeModelsDevCache(dataDir: string, file: ModelsDevCacheFile): void {
   const path = modelsDevCachePath(dataDir);
-  mkdirSync(dirname(path), { recursive: true });
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   const tmp = `${path}.${process.pid}.tmp`;
   writeFileSync(tmp, JSON.stringify(file));
   renameSync(tmp, path);
