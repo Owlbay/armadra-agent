@@ -15,6 +15,7 @@
 
 import type { Model, ProviderRegistryApi } from "../../ai/types.js";
 import { UsageError } from "../args.js";
+import { msg } from "../../i18n/index.js";
 
 export const PROBE_TIMEOUT_MS = 15_000;
 export const DEFAULT_PROBE_CONCURRENCY = 6;
@@ -59,7 +60,7 @@ export async function probeOnce(
   signal?: AbortSignal,
 ): Promise<ProbeOutcome> {
   const impl = registry.getApi(model.api);
-  if (impl === undefined) return { error: `协议 ${model.api} 尚未实现` };
+  if (impl === undefined) return { error: msg().subcommands.probe.apiNotImplemented(model.api) };
   if (signal?.aborted) return { aborted: true };
   const timeoutMs = tuning.timeoutMs ?? PROBE_TIMEOUT_MS;
   const settleMs = tuning.settleMs ?? PROBE_SETTLE_MS;
@@ -73,7 +74,7 @@ export async function probeOnce(
   signal?.addEventListener("abort", onAbort, { once: true });
   const verdict = (outcome: ProbeOutcome): ProbeOutcome => {
     if (signal?.aborted) return { aborted: true };
-    if (timedOut) return { error: `超时（${Math.round(timeoutMs / 1000)} s 内没有响应）` };
+    if (timedOut) return { error: msg().subcommands.probe.timeout(Math.round(timeoutMs / 1000)) };
     return outcome;
   };
   try {
@@ -179,7 +180,7 @@ export class ProbeScheduler {
       if (this.stopReason !== undefined) return { aborted: true };
       outcome = await probeOnce(this.registry, model, this.apiKey, this.options, this.signal);
       if (outcome.error !== undefined && RATE_LIMITED.test(outcome.error)) {
-        this.stop(`连续 429 限流：${outcome.error}`);
+        this.stop(msg().subcommands.probe.rateLimitedStop(outcome.error));
         return outcome;
       }
     }
@@ -248,7 +249,7 @@ export function parseProbeTuning(values: ReadonlyMap<string, string>): {
     if (raw === undefined) return fallback;
     const n = Number(raw);
     if (!Number.isInteger(n) || n < min || n > max)
-      throw new UsageError(`--${name} 需要 ${min}–${max} 的整数：${raw}`);
+      throw new UsageError(msg().subcommands.probe.intRange(name, min, max, raw));
     return n;
   };
   return {
@@ -264,7 +265,7 @@ export function describeProbePlan(
   timeoutMs: number,
 ): string {
   const worst = Math.ceil(requests / concurrency) * Math.ceil(timeoutMs / 1000);
-  return `并发 ${concurrency}，单次最长 ${Math.round(timeoutMs / 1000)} s，预计不超过 ${worst} s`;
+  return msg().subcommands.probe.plan(concurrency, Math.round(timeoutMs / 1000), worst);
 }
 
 /** 进度：TTY 下单行刷新「探测 18/60」；非 TTY 只在结束时打印一行汇总。 */
@@ -294,12 +295,12 @@ export class ProbeProgress {
   finish(): void {
     this.clear();
     const seconds = ((Date.now() - this.started) / 1000).toFixed(1);
-    this.write(`探测完成 ${this.done}/${this.total}，用时 ${seconds} s\n`);
+    this.write(msg().subcommands.probe.done(this.done, this.total, seconds));
   }
 
   private draw(): void {
     if (!this.tty) return;
-    this.write(`\r\x1b[2K探测 ${this.done}/${this.total}`);
+    this.write(`\r\x1b[2K${msg().subcommands.probe.progress(this.done, this.total)}`);
     this.shown = true;
   }
 

@@ -20,7 +20,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { messagesFor, msg } from "../i18n/index.js";
+import { msg } from "../i18n/index.js";
 import { CONFIG_SCHEMA_FILE, configSchemaText } from "./json-schema.js";
 import { AUTH_FILE, CONFIG_FILE } from "./paths.js";
 import { CONFIG_FILE_VERSION, type AmaConfig } from "./types.js";
@@ -98,12 +98,6 @@ export function autoInitConfigDir(
 export function initNextSteps(): string[] {
   return msg().config.init.nextSteps.split("\n");
 }
-
-/**
- * @deprecated 中文原文（第六波前的导出，供尚未迁移的调用方编译通过）；新代码用 `initNextSteps()`。
- */
-export const INIT_NEXT_STEPS: readonly string[] =
-  messagesFor("zh").config.init.nextSteps.split("\n");
 
 export function describeInit(result: InitResult): string {
   const m = msg().config.init;

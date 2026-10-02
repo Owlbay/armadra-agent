@@ -16,6 +16,7 @@ import { resolveFromMessage } from "../session/reuse.js";
 import { UsageError, type ParsedArgs } from "./args.js";
 import type { CliIo, ModeContext } from "./deps.js";
 import type { Runtime } from "./runtime.js";
+import { msg } from "../i18n/index.js";
 
 const EXT: Readonly<Record<string, string>> = {
   "image/png": "png",
@@ -37,7 +38,7 @@ export function applyFromOption(
   const spec = args.from;
   const plain: FromContext = { context: { args, prompt: args.prompt, io }, cleanup: () => {} };
   if (spec === undefined) return plain;
-  if (runtime.mode === "rpc") throw new UsageError("--from 不用于 --mode rpc");
+  if (runtime.mode === "rpc") throw new UsageError(msg().cli.fromPrompt.notWithRpc);
   const picked = resolveFromMessage(runtime.paths.sessionDir, spec, runtime.paths.cwd);
   const parts = [picked.text, args.prompt ?? ""].filter((p) => p.trim() !== "");
   const prompt = parts.length > 0 ? parts.join("\n\n") : undefined;
@@ -45,9 +46,7 @@ export function applyFromOption(
     return { context: { args, prompt, io }, cleanup: () => {} };
   }
   if (runtime.mode !== "print") {
-    io.stderr(
-      `ama: --from 的消息带 ${picked.images.length} 张图片，交互界面只带文本（-p 会一并发送）\n`,
-    );
+    io.stderr(msg().cli.fromPrompt.imagesDropped(picked.images.length));
     return { context: { args, prompt, io }, cleanup: () => {} };
   }
   const dir = mkdtempSync(join(tmpdir(), "ama-from-"));

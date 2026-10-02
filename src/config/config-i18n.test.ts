@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { messagesFor, setLocale } from "../i18n/index.js";
 import { CONFIG_SCHEMA_FILE, buildConfigJsonSchema, configSchemaText } from "./json-schema.js";
-import { describeInit, INIT_NEXT_STEPS, initConfigDir, initNextSteps } from "./init.js";
+import { describeInit, initConfigDir, initNextSteps } from "./init.js";
 import {
   CONFIG_KEY_DOCS,
   DYNAMIC_DEFAULTS,
@@ -128,13 +128,14 @@ describe("配置诊断与 init 文案的 en 版", () => {
     expect(() => parseJsonText("")).toThrow("JSON syntax error: the file is empty");
   });
 
-  it("下一步提示：initNextSteps 按语言，INIT_NEXT_STEPS 保留中文原文", () => {
-    expect(initNextSteps()).toEqual([...INIT_NEXT_STEPS]);
-    expect(INIT_NEXT_STEPS[0]).toBe("下一步：");
+  it("下一步提示：initNextSteps 按语言，中文原文不变", () => {
+    const zh = initNextSteps();
+    expect(zh[0]).toBe("下一步：");
+    expect(zh[4]).toBe("  ama config show                 查看生效配置与每项来源");
     setLocale("en");
     const steps = initNextSteps();
     expect(steps[0]).toBe("Next steps:");
-    expect(steps).toHaveLength(INIT_NEXT_STEPS.length);
+    expect(steps).toHaveLength(zh.length);
     for (const line of steps) expect(CJK.test(line)).toBe(false);
   });
 });

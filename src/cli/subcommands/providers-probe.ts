@@ -9,6 +9,7 @@ import type { ProviderData, ProviderRegistryApi } from "../../ai/types.js";
 import type { CliIo } from "../deps.js";
 import type { CandidateChannel } from "./providers-plan.js";
 import { ProbeProgress, ProbeScheduler, type ProbeOutcome } from "./probe-runner.js";
+import { msg } from "../../i18n/index.js";
 
 export interface ChannelProbeResult {
   /** 探测成功的渠道（按渠道尝试顺序）。 */
@@ -64,8 +65,8 @@ export async function probeChannels(
     concurrency: input.concurrency,
     timeoutMs: input.timeoutMs,
     retryDelayMs: input.retryDelayMs,
-    onThrottle: (n) => progress.line(`  遇到 429 限流，并发降到 ${n}，稍后重试一次\n`),
-    onRecover: (n) => progress.line(`  一段时间没再限流，并发回升到 ${n}\n`),
+    onThrottle: (n) => progress.line(msg().subcommands.probe.throttled(n)),
+    onRecover: (n) => progress.line(msg().subcommands.probe.recovered(n)),
   });
   let printed = 0;
   /** 按模型顺序输出：前面的模型都探完才输出后面的。 */
@@ -75,7 +76,7 @@ export async function probeChannels(
       if (!final && (pending.get(id) ?? 0) > 0) return;
       printed++;
       const result: ChannelProbeResult = { ok: [] };
-      const failed: string[] = [];
+      const failed: { name: string; error: string }[] = [];
       let complete = true;
       for (const name of input.channelsFor(id)) {
         const outcome = outcomes.get(`${id}\n${name}`);
@@ -83,16 +84,12 @@ export async function probeChannels(
         else if (outcome.error === undefined) result.ok.push(name);
         else {
           result.error = firstLine(outcome.error);
-          failed.push(`${name}：${result.error}`);
+          failed.push({ name, error: result.error });
         }
       }
       if (!complete && result.ok.length === 0) continue;
       results.set(id, result);
-      progress.line(
-        `  ${id}  ${result.ok.length > 0 ? result.ok.join(", ") : "全部失败"}` +
-          `${failed.length > 0 ? `（失败 ${failed.join("；")}）` : ""}` +
-          `${complete ? "" : "（探测提前停止，部分渠道未探）"}\n`,
-      );
+      progress.line(msg().subcommands.probe.modelLine(id, result.ok, failed, complete));
     }
   };
   await scheduler.run(

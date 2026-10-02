@@ -18,6 +18,7 @@ import {
   resolveAscii,
   visibleWidth,
 } from "../tui.js";
+import { msg } from "../i18n/index.js";
 
 export interface ChoiceInput {
   isTTY?: boolean;
@@ -89,7 +90,7 @@ export function promptChoice(options: PromptChoiceOptions): Promise<number | und
         item.keys === undefined ? "" : `  ${theme.fg("dim", item.keys.padEnd(keyWidth))}`;
       return (on ? theme.fg("accent", theme.bold(left)) : left) + keys;
     }),
-    theme.fg("dim", `${g.arrowUp}${g.arrowDown} 选择 · Enter 确认 · 1-${n} 直接选 · Esc 取消`),
+    theme.fg("dim", msg().cli.choicePrompt.hint(`${g.arrowUp}${g.arrowDown}`, n)),
   ];
   const draw = (lines: readonly string[]): void => {
     const up = drawn > 0 ? `\x1b[${drawn}A` : "";
@@ -110,7 +111,7 @@ export function promptChoice(options: PromptChoiceOptions): Promise<number | und
       input.off("data", onData);
       input.off("end", onEnd);
       process.off("exit", restore);
-      const answer = index === undefined ? "（已取消）" : items[index]!.label;
+      const answer = index === undefined ? msg().cli.choicePrompt.cancelled : items[index]!.label;
       draw([`${question} ${theme.fg("dim", answer)}`]);
       restore();
       input.pause?.();
@@ -162,14 +163,15 @@ export interface ConfirmOptions {
  * 否则回落为文本 `继续？[y/N]`（只有 y / yes 算同意）。
  */
 export async function confirmContinue(options: ConfirmOptions = {}): Promise<boolean> {
-  const question = options.question ?? "继续？";
+  const m = msg().cli.choicePrompt;
+  const question = options.question ?? m.continueQuestion;
   const input = options.input ?? process.stdin;
   if (canPromptChoice(input)) {
     const index = await promptChoice({
       question,
       options: [
-        { label: "继续", keys: "y" },
-        { label: "取消", keys: "n Esc" },
+        { label: m.continue, keys: "y" },
+        { label: m.cancel, keys: "n Esc" },
       ],
       selected: 1,
       input,
@@ -181,7 +183,7 @@ export async function confirmContinue(options: ConfirmOptions = {}): Promise<boo
   }
   const rl = createInterface({ input, output: options.output ?? process.stderr });
   try {
-    return /^y(es)?$/i.test((await rl.question(`${question}[y/N] `)).trim());
+    return /^y(es)?$/i.test((await rl.question(m.textQuestion(question))).trim());
   } finally {
     rl.close();
   }

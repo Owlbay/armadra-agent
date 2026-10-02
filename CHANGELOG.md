@@ -31,6 +31,10 @@ Wave 6 (docs/wave6-plan.md) contracts and infrastructure (W6-C0):
   `--memory` / `--no-memory`; `auth.json` can hold OAuth entries (`type: "oauth"`).
 - `ama memory`, `/config`, `/trace` and `/memory` are registered and currently reply "not available yet".
 - The bundle is emitted as UTF-8 (Chinese is no longer escaped as `\uXXXX`), about 40 KB smaller.
+- **English CLI interface** (W6-I1): `ama --help`, the startup screen and startup errors, exit code descriptions, and the
+  output and errors of `ama providers` / `models` / `stats` / `sessions export` · `search` / `init` follow the interface
+  language (`AMA_LANG=en` / `--lang en`); Chinese output is unchanged word for word. The `advice` of
+  `ama models cache-probe --json` is human-readable text and follows the interface language too.
 - **Bilingual docs and config descriptions** (W6-I4): `README.md` and `CHANGELOG.md` are now English (shown on the npm page);
   the Chinese versions moved to `README.zh-CN.md` and `CHANGELOG.zh-CN.md` (which keeps the full 0.1–0.5.1 history).
   `docs/en/` adds English versions of `tui`, `permissions`, `providers`, `rpc`, `host-api` and `sessions`; the Chinese docs keep

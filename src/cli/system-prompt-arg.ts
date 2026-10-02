@@ -13,6 +13,7 @@ import { isAbsolute, resolve } from "node:path";
 import { StartupError } from "../errors.js";
 import type { SystemPromptOverride } from "./deps.js";
 import { ExitCode } from "./exit-codes.js";
+import { msg } from "../i18n/index.js";
 
 export function resolveSystemPromptArg(
   value: string | undefined,
@@ -30,13 +31,13 @@ export function resolveSystemPromptArg(
     } catch {
       throw new StartupError(
         "config_invalid",
-        `--system-prompt 文件不存在：${path}`,
+        msg().cli.systemPrompt.fileMissing(path),
         ExitCode.Config,
       );
     }
   }
   text = text.trim();
   if (text === "")
-    throw new StartupError("config_invalid", "--system-prompt 的内容为空", ExitCode.Config);
+    throw new StartupError("config_invalid", msg().cli.systemPrompt.empty, ExitCode.Config);
   return { text, mode: mode ?? "append" };
 }
