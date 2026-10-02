@@ -65,6 +65,7 @@ import type { Component, Focusable, Theme } from "./tui/component.js";
 import type { SubagentResult, ToolContext, ToolDefinition, ToolResult } from "./tools/types.js";
 import type { Runtime } from "./cli/runtime.js";
 import type { RuntimeDeps, SessionAssembly } from "./cli/deps.js";
+import type { AgentSessionOptions } from "./agent/session-core.js";
 import type { HostApiBinding } from "./host/api-impl.js";
 import type { AmaConfig, ModelConfig, ModelOverride, PermissionConfig } from "./config/types.js";
 import type { ParsedArgs } from "./cli/args.js";
@@ -577,5 +578,21 @@ describe("循环、SDK、RPC、Runtime 契约", () => {
     expectTypeOf<Parameters<Runtime["notifier"]["set"]>>().toEqualTypeOf<
       [fn?: (message: string, level: "info" | "warn" | "error") => void]
     >();
+  });
+});
+
+describe("会话层缓存的装配面（W3-C1b 追加）", () => {
+  it("AgentSessionOptions.cache / warmingDecider 与 SessionAssembly.host.warmingDecider 均可选", () => {
+    expectTypeOf<AgentSessionOptions["cache"]>().toEqualTypeOf<
+      Partial<CacheSettings> | undefined
+    >();
+    expectTypeOf<ReturnType<NonNullable<AgentSessionOptions["warmingDecider"]>>>().toEqualTypeOf<
+      WarmingDecisionHandler | undefined
+    >();
+    expectTypeOf<
+      ReturnType<NonNullable<SessionAssembly["host"]["warmingDecider"]>>
+    >().toEqualTypeOf<WarmingDecisionHandler | undefined>();
+    const options: Pick<AgentSessionOptions, "cache"> = { cache: { warming: "off" } };
+    expect(options.cache?.warming).toBe("off");
   });
 });
