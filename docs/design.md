@@ -562,9 +562,12 @@ ama 不知道画布；Armadra 适配器经 `HostApi.tools.register` 注册 `canv
 - 逐个工具：`ls` 默认关（glob 已覆盖，且诱导逐层翻目录）；`todo` 默认关（每次更新多一次往返；长任务在脚本里用）；`task` 默认关（`+task` 打开；嵌入 Armadra 时禁用）；**删除 `skill` 工具**（Skill 正文用 `read` 读，`/skill:` 命令保留）；Windows 上若没有 bash，`default` 预设自动退化为 PowerShell 版 bash，grep / glob 照常可用。
 - 配置：`tools.preset`（缺省 `default`）+ `tools.default` 的 `+name` / `-name` 微调；命令行 `--tools-preset <名>`、`--tools a,b,c`（整组替换）。
 - 预设在会话开始时确定并写进首条 system 消息；会话中途改预设按工具表补丁处理（§9.1）。
-- 描述精简：每个工具的描述 + 参数控制在 150 token 内（现 task 250、grep 230 需压缩）。
+- 描述精简：每个工具的描述 + 参数控制在 150 token 内（已落实：内置工具合计 1548 → 1186 token，`src/tools/descriptions.test.ts` 守住）。
 - 最终缺省值以实测为准：B9 的基准任务比较 `default` / `minimal` / `codemode` 三种预设的往返次数、累计输入 + 缓存读取、费用与成功率，结果写进本节。
-- 基准结论（待 `docs/benchmarks/presets-2026-10-02.md`）：
+- 基准结论（`docs/benchmarks/presets-2026-10-02.md`，真实中转，Kimi / MiniMax / DeepSeek × fix-bug / search-summarize / multi-file-refactor，22 组全部成功）：
+  - 三个预设都能完成这三类小任务，差别只在成本；平均每组估价 default $0.0076、minimal $0.0076、codemode $0.0087。
+  - codemode 在小任务上不划算：平均输入 token 比 default 多约 45%（工具声明每轮都在前缀里），顶层轮数没有减少（5.3 对 5.0）；只在检索类、一次脚本能并行多次调用的场景省一轮（DeepSeek search-summarize）。
+  - 结论：缺省保持 `default`；工具调用密集的长流程任务再用 `codemode`；`minimal` 适合工具描述占比大的小模型 / 小上下文。
 
 ## §6 两层 Hook
 
