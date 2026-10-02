@@ -1,0 +1,134 @@
+# 会话统计、检索、复用与导出
+
+这几条命令都只读会话目录（`<数据目录>/sessions`，`--session-dir` 可改；文件格式见 [session-format.md](session-format.md)）：不加锁、不修复半行、不改文件，正在运行的会话也能读。范围缺省是**当前目录**的会话，`--all` 看全部。
+
+## 统计：`ama stats`
+
+```
+ama stats [--since 7d|30d|today|YYYY-MM-DD] [--until …]
+          [--by day|week|month|provider|channel|model|project]
+          [--project <目录> | --all] [--top N] [--json] [--no-cache]
+```
+
+```
+$ ama stats --by model
+全部时间 · 项目 /home/me/proj · 2 个会话
+请求         9（对话 7 · permission_classify 1 · cache_warm 1）
+回合         3 · 平均耗时 23.3s
+Token        输入 8.7k · 输出 1.7k · 缓存读 74.3k · 缓存写 0
+缓存命中率   89.5%（报告缓存的端点 2/2，其余不进分母）
+费用         $0.0398（另有 3 次请求无价，未计入）
+错误 / 重试  0 / 0
+
+                             会话  请求  回合  输入  输出  缓存读  缓存写  命中率     费用
+anthropic/claude-sonnet-4-5     1     6     2  4.1k   731   72.3k       0   94.6%  $0.0398
+packy/deepseek-v4-flash         1     3     1  4.6k   980      2k       0   30.8%        —
+
+工具调用 Top 5
+  read  3
+  edit  2
+  …
+```
+
+- `--since` / `--until`：`7d` 是含今天的最近 7 天，`today` 是今天，日期是本地日期；两端都含。
+- `--by project` 没给 `--project` 时看全部项目。`--json` 输出同样的数据（另带 `files`：扫描 / 命中缓存 / 无效的文件数）。
+
+### 口径
+
+| 项          | 怎么算                                                                                                                                                                                                                |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 请求        | 每次模型请求一次：回合里的 assistant 消息记「对话」；`usage` 条目按 `kind` 分开（`cache_warm` 保温、`permission_classify` auto 分类…）；`compaction` / `branch_summary` 带的用量记同名 kind。失败后重试的那次也算请求 |
+| 回合        | 一条非 `steer` 的用户消息开始一个回合，到下一条为止；至少有一条 assistant 才计。耗时 = 最后一条 assistant 的落盘时间 − 用户消息的落盘时间                                                                             |
+| token       | `input` 不含缓存部分（同会话层）；缓存读 / 写分开列                                                                                                                                                                   |
+| 缓存命中率  | cacheRead /（input + cacheRead + cacheWrite），只算**报告缓存**的端点：同一 `provider/model@channel` 在扫描范围内出现过任何非零缓存读写才算；其余端点不进分母（与会话层三态一致，不报缓存的中转不会把命中率拉成 0）   |
+| 费用        | 只加带 `usage.cost` 的请求（模型有价格）；无价请求数单独报，全部无价时只给 token                                                                                                                                      |
+| 工具调用    | assistant 里的工具调用块按名字计；codemode 脚本内的调用不展开                                                                                                                                                         |
+| 错误 / 重试 | `stopReason: "error"` 的 assistant；`context_edit{reason:"retry"}`（自动重试剔除的失败尝试）                                                                                                                          |
+| 渠道        | 最近一条 `model_change` 与请求同 provider / model 时取它的 `channel`                                                                                                                                                  |
+
+`task` 子会话是独立文件，按它自己的 cwd 计入。
+
+### 性能与索引
+
+- 扫描按行进行；`toolResult`、`custom`、`label` 等与统计无关的行按行首的 `{"type":…,"message":{"role":…` 直接跳过、不解析（ama 写的行 type 总是第一个键；别的程序写的行退回完整解析）。
+- 每个文件的摘要缓存在 `<数据目录>/stats-index.json`，按文件 mtime 与大小失效；时区变化整份作废；扫描全部时顺带删掉已不存在的文件。`--no-cache` 不读也不写。
+- 实测（本机，`src/session/stats-perf.test.ts`）：1000 个会话、67 MB（每个 12 回合、24 次工具调用、2 KB 工具结果），冷扫描约 160 ms，命中索引约 15 ms。
+
+## 检索：`ama sessions search`
+
+```
+ama sessions search <关键词|/正则/标志> [--all] [--role user|assistant|tool] [--since 7d] [--limit N] [--json]
+```
+
+```
+$ ama sessions search parser
+3f9a1c2e#1    2026-09-29 01:00  /home/me/proj  user       修复 parser 在空输入时崩溃的 bug
+3f9a1c2e@4    2026-09-29 01:00  /home/me/proj  tool       src/parser.ts:42: if (input.length === 0)
+```
+
+- 关键词不区分大小写；`/…/` 是 JavaScript 正则（标志照写，如 `/todo|fixme/i`）。
+- 检索用户文本、助手文本与工具调用（`名字 参数 JSON`）、工具结果；不检索思考、system 与 custom。`--role` 可逗号分隔多个。
+- 每行：会话 id 前 8 位 + 编号（user 是 `#n`，可直接给 `--from`；其它是条目序号 `@k`，即文件里第 k 条条目）、时间、项目、角色、片段。stdout 是终端且没设 `NO_COLOR` 时命中处高亮，否则纯文本。`--json` 每条命中一行。
+- 最新的会话在前；`--limit` 缺省 20。关键词不含引号与反斜杠时先在原始行上预筛，不命中的行不解析。
+
+## 复用：`sessions show` 编号与 `--from`
+
+`ama sessions show <id>` 在末尾列出用户消息，按文件顺序编号（含插话 `steer`、排队 `followUp` 与宿主注入，标出 origin 与图片数）：
+
+```
+用户消息（ama --from 3f9a1c2e#<编号> 复用）：
+  #1   2026-09-29 01:00:06  修复 parser 在空输入时崩溃的 bug
+  #2   2026-09-29 01:00:44  顺便把错误信息改成中文
+```
+
+`--from <id>[#编号]` 用那条消息作新提示（不写编号取最后一条），开的是新会话，可以换模型：
+
+```sh
+ama -p --from 3f9a1c2e#1 --model packy/deepseek-v4-flash      # 同一个问题换个模型问
+ama -p --from 3f9a1c2e "只改测试，不动实现"                   # 位置参数接在原文后面（空一行）
+ama --from 3f9a1c2e#2                                          # 交互界面：作为初始提示直接发送
+```
+
+- `-p` 时原消息里的图片一并发送（写进临时目录、走 `--image` 的校验，模型不收图片时退出 2；运行后删除）。交互 / 行式界面只带文本，有图片时在 stderr 提示一行。
+- 编号越界、格式不对 → 退出 2；会话不存在 → 退出 5。`--mode rpc` 不支持。
+
+## 导出：`ama sessions export`
+
+```
+ama sessions export <id> [--format md|json|jsonl] [--output <文件>] [--branch leaf|all]
+```
+
+| 格式         | 内容                                                                                                                                                                     |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `md`（缺省） | 给人读：用户消息（带编号）、助手文本、工具调用（参数 JSON 截到 500 字符）与结果（截到 2000 字符）、压缩 / 分支摘要、切换模型、末尾用量表；思考与 system 不写，图片写占位 |
+| `json`       | `{ format: "ama.session-export", version: 1, session, branch, leafId, userMessages, usage, entries }`，`entries` 是原条目                                                |
+| `jsonl`      | 头 + 所选条目，与会话文件同形状，可以再被 ama 读回（不带 `leaf` 行）                                                                                                     |
+
+- `--branch leaf`（缺省）是根到当前叶子的分支（与 `/tree` 当前位置一致）；`all` 是文件里全部条目。
+- `--output` 写文件（权限 0600），否则写 stdout。
+- **脱敏**：导出前把 key / token 形态的字符串换成 `[REDACTED]`——`sk-…`、`sk-ant-…`、`ghp_…`、`github_pat_…`、`xox?-…`、`AIza…`、`AKIA…`、`npm_…`、JWT、`Bearer` / `Basic` 凭据、PEM 私钥块，以及 `apiKey` / `secret` / `token` / `password` / `authorization` 之后紧跟 `:` 或 `=` 的值；json / jsonl 里键名像机密的字符串值整段遮掉。图片的 base64 保留。只认形态，不保证遮全，分享前仍请自己看一遍。
+
+## 请求明细（设计，未实现）
+
+计划在会话里追加 `custom{customType:"ama.request"}`（不进上下文），每次模型请求一条：
+
+```json
+{
+  "type": "custom",
+  "customType": "ama.request",
+  "data": {
+    "purpose": "turn",
+    "provider": "packy",
+    "model": "kimi-k2.5",
+    "channel": "messages",
+    "startedAt": "…",
+    "firstByteMs": 820,
+    "durationMs": 6400,
+    "httpStatus": 200,
+    "attempt": 1,
+    "stopReason": "toolUse"
+  }
+}
+```
+
+暂不实现的原因：HTTP 状态与首字节时间只在协议层（`src/ai/http.ts`、各 `apis/*`）可见，重试在 `agent/session-run.ts`，记录点要同时碰这几处，正与超时 / 重试反馈的改动重叠。现阶段 `ama stats` 用已有数据近似：回合耗时取落盘时间差，重试取 `context_edit{reason:"retry"}`，失败取 `stopReason: "error"`。实现时在 `StreamOptions.onResponse` 旁加一个请求结束回调，由会话层把上面的字段写成 `custom` 条目；`ama stats` 读到后按请求给出耗时分布与 HTTP 状态计数。

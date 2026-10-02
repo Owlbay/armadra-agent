@@ -116,4 +116,5 @@
 ## 读取方
 
 - `ama sessions list|show`、交互模式 `/resume`、RPC `get_entries{since}`（以 entry id 为游标返回 `{ entries, leafId }`）、`get_tree`。
+- 只读扫描（不加锁、不修复）：`ama stats`、`ama sessions search|export`、`--from`，见 [sessions.md](sessions.md)。
 - 嵌入方可以直接读文件：按行解析，首行为头，跳过 `type: "leaf"` 的行后按 `parentId` 建树；遇到不认识的条目类型保留但不进上下文。
