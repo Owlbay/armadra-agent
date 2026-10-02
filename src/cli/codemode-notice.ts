@@ -14,6 +14,7 @@ import { join } from "node:path";
 import type { SandboxCapability } from "../codemode/capability.js";
 import type { AmaConfig } from "../config/types.js";
 import { resolveCodemodeMode } from "../tools/presets.js";
+import { msg } from "../i18n/index.js";
 
 export const NOTICES_FILE = "notices.json";
 const KEY = "codemodeNonStrictDefault";
@@ -40,10 +41,7 @@ function readNotices(path: string): NoticesFile {
 }
 
 export function codemodeNoticeText(capability: Pick<SandboxCapability, "nodeMajor">): string {
-  return (
-    `Node ${capability.nodeMajor} < 25 且没有可用的操作系统沙箱：codemode 沙箱的网络未隔离，codemode 缺省关闭；` +
-    "用 `--codemode on` 或 config 的 codemode.mode 开启（每个配置目录只提示一次）"
-  );
+  return msg().cli.codemodeNotice(capability.nodeMajor);
 }
 
 /** 需要提示时返回文案并记下（之后同一配置目录不再提示）；不需要时 undefined。 */

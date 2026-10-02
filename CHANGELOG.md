@@ -20,6 +20,9 @@
   命令行 `--memory` / `--no-memory`；`auth.json` 可存 OAuth 条目（`type: "oauth"`）。
 - `ama memory`、`/config`、`/trace`、`/memory` 已登记，当前回「尚未提供」。
 - bundle 改用 UTF-8 输出（中文不再转成 `\uXXXX`），体积约减 40 KB。
+- **CLI 英文界面**（W6-I1）：`ama --help`、启动画面与启动报错、退出码说明、`ama providers` / `models` / `stats` /
+  `sessions export` · `search` / `init` 的输出与报错随界面语言（`AMA_LANG=en` / `--lang en`）；中文输出逐字不变。
+  `ama models cache-probe --json` 的 `advice` 是人读文本，也随界面语言。
 
 ## 0.5.1（2026-10-03）
 

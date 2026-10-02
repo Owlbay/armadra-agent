@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { HELP_TEXT, parseArgs, parseSubArgs, UsageError, type ParsedArgs } from "./args.js";
+import { helpText, parseArgs, parseSubArgs, UsageError, type ParsedArgs } from "./args.js";
 import { ExitCode, describeExitCode } from "./exit-codes.js";
 import { applyProfile, decideMode } from "./startup-steps.js";
 
@@ -25,7 +25,7 @@ describe("parseArgs", () => {
     for (const mode of ["plan", "allowlist", "default", "auto-edit", "auto", "full-auto"]) {
       expect(run(["--permission-mode", mode]).permissionMode).toBe(mode);
     }
-    expect(HELP_TEXT).toContain("default | auto-edit | plan | auto | full-auto | allowlist");
+    expect(helpText()).toContain("default | auto-edit | plan | auto | full-auto | allowlist");
   });
 
   it("全部参数", () => {
@@ -212,7 +212,7 @@ describe("parseArgs", () => {
       "ama models",
       "ama doctor",
     ]) {
-      expect(HELP_TEXT).toContain(flag);
+      expect(helpText()).toContain(flag);
     }
     expect(run(["--help", "--continue", "--resume"]).help).toBe(true);
   });
@@ -241,7 +241,7 @@ describe("第五波参数（W5-C0：只解析与透传）", () => {
     // --max-turns 维持原状：只用于 -p
     expect(usage(["--max-turns", "3", "hi"])).toContain("--max-turns 只用于 -p");
     for (const flag of ["--mode acp", "--max-cost", "--agent-dir"])
-      expect(HELP_TEXT).toContain(flag);
+      expect(helpText()).toContain(flag);
   });
 
   it("profile agentDirs 排在 --agent-dir 之后", () => {
@@ -262,6 +262,6 @@ describe("第五波参数（W5-C0：只解析与透传）", () => {
     expect(ExitCode.LimitReached).toBe(8);
     expect(ExitCode.ToolDenied).toBe(7);
     expect(describeExitCode(8)).toContain("预算上限");
-    expect(HELP_TEXT).toContain("8 -p 到达预算上限");
+    expect(helpText()).toContain("8 -p 到达预算上限");
   });
 });
