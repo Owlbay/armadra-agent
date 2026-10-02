@@ -6,7 +6,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { BASIC_CONTEXT } from "../../../test/ai/golden.js";
 import { loadFixture, stubFetchWithFixture } from "../../../test/ai/fixture-fetch.js";
 import type { Api, Model, StreamOptions, TranscriptContext } from "../types.js";
-import { buildAnthropicRequest } from "./anthropic-request.js";
+import { anthropicMessagesApi } from "./anthropic-messages.js";
+import {
+  anthropicMessagesUrl,
+  buildAnthropicRequest,
+  enforceCacheTtlOrder,
+} from "./anthropic-request.js";
 import { buildGoogleRequest } from "./google-request.js";
 import { buildOpenAIRequest } from "./openai-request.js";
 import { openAICompletionsApi } from "./openai-completions.js";
@@ -192,5 +197,75 @@ describe("toolChoice: none 四协议映射（有工具才发）", () => {
       expect(body).not.toHaveProperty("tool_choice");
       expect(body).not.toHaveProperty("toolConfig");
     }
+  });
+});
+
+describe("anthropic-messages：长保留降级、TTL 顺序、/v1 去重", () => {
+  const OFFICIAL_ANTHROPIC = "https://api.anthropic.com";
+  const anthropic = (baseUrl: string, compat?: Model["compat"]) =>
+    model("anthropic-messages", baseUrl, compat);
+  const ttls = (body: Record<string, unknown>) =>
+    JSON.stringify(body).match(/"cache_control":\{[^}]*\}/g) ?? [];
+
+  it("long：官方端点 1h；中转缺省降为 5m；中转声明 supportsLongCacheRetention 后 1h", () => {
+    const long = opts({ cacheRetention: "long" });
+    const official = buildAnthropicRequest(anthropic(OFFICIAL_ANTHROPIC), BASIC_CONTEXT, long);
+    expect(ttls(official.body).every((m) => m.includes('"ttl":"1h"'))).toBe(true);
+    const relay = buildAnthropicRequest(anthropic(RELAY), BASIC_CONTEXT, long);
+    expect(ttls(relay.body).length).toBeGreaterThan(0);
+    expect(JSON.stringify(relay.body)).not.toContain("ttl");
+    const declared = buildAnthropicRequest(
+      anthropic(RELAY, { supportsLongCacheRetention: true }),
+      BASIC_CONTEXT,
+      long,
+    );
+    expect(JSON.stringify(declared.body)).toContain('"ttl":"1h"');
+  });
+
+  it("AMA_CACHE_RETENTION：未指定时生效；none 不打断点", () => {
+    vi.stubEnv("AMA_CACHE_RETENTION", "long");
+    const env = buildAnthropicRequest(anthropic(OFFICIAL_ANTHROPIC), BASIC_CONTEXT, opts());
+    expect(JSON.stringify(env.body)).toContain('"ttl":"1h"');
+    vi.stubEnv("AMA_CACHE_RETENTION", "none");
+    const none = buildAnthropicRequest(anthropic(OFFICIAL_ANTHROPIC), BASIC_CONTEXT, opts());
+    expect(JSON.stringify(none.body)).not.toContain("cache_control");
+  });
+
+  it("TTL 顺序：tools → system → messages 里 5m 之后出现 1h → 全部降为 5m；顺序正确不动", () => {
+    const h1 = () => ({ type: "ephemeral", ttl: "1h" });
+    const m5 = () => ({ type: "ephemeral" });
+    const bad: Record<string, unknown> = {
+      tools: [{ name: "t", cache_control: m5() }],
+      system: [{ type: "text", text: "s", cache_control: h1() }],
+      messages: [{ role: "user", content: [{ type: "text", text: "u", cache_control: h1() }] }],
+    };
+    expect(enforceCacheTtlOrder(bad)).toBe(true);
+    expect(JSON.stringify(bad)).not.toContain("ttl");
+    expect(ttls(bad)).toHaveLength(3);
+    const good: Record<string, unknown> = {
+      tools: [{ name: "t", cache_control: h1() }],
+      system: [{ type: "text", text: "s", cache_control: h1() }],
+      messages: [{ role: "user", content: [{ type: "text", text: "u", cache_control: m5() }] }],
+    };
+    expect(enforceCacheTtlOrder(good)).toBe(false);
+    expect(JSON.stringify(good).match(/"ttl":"1h"/g)).toHaveLength(2);
+  });
+
+  it("/v1 去重：baseUrl 以 /v1 结尾时拼 /messages，否则 /v1/messages", async () => {
+    expect(anthropicMessagesUrl("https://api.anthropic.com")).toBe(
+      "https://api.anthropic.com/v1/messages",
+    );
+    expect(anthropicMessagesUrl("https://www.packyapi.com/v1/")).toBe(
+      "https://www.packyapi.com/v1/messages",
+    );
+    expect(anthropicMessagesUrl("https://relay.test/anthropic")).toBe(
+      "https://relay.test/anthropic/v1/messages",
+    );
+    expect(anthropicMessagesUrl("https://relay.test/v1beta")).toBe(
+      "https://relay.test/v1beta/v1/messages",
+    );
+    const captured = stubFetchWithFixture(loadFixture("anthropic-messages", "text"));
+    await anthropicMessagesApi.stream(anthropic(RELAY), BASIC_CONTEXT, opts()).result();
+    expect(captured[0]?.url).toBe("https://www.packyapi.com/v1/messages");
   });
 });

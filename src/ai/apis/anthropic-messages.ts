@@ -1,5 +1,6 @@
 /**
- * anthropic-messages 协议（设计 §3.1）：POST `{baseUrl}/v1/messages`（stream），SSE → 事件。
+ * anthropic-messages 协议（设计 §3.1）：POST `{baseUrl}/v1/messages`（stream；baseUrl 已以 `/v1`
+ * 结尾时不重复），SSE → 事件。
  *
  * SSE 事件：message_start（id、初始 usage）→ content_block_start / delta / stop（text、
  * thinking + signature_delta、redacted_thinking、tool_use + input_json_delta）→ message_delta
@@ -12,7 +13,7 @@
  */
 
 import { AssistantEventStreamImpl } from "../event-stream.js";
-import { USER_AGENT, authHeaders, describeErrorJson, joinUrl, mergeHeaders } from "../http.js";
+import { USER_AGENT, authHeaders, describeErrorJson, mergeHeaders } from "../http.js";
 import { readSseEvents } from "../sse.js";
 import type {
   AnthropicMessagesCompat,
@@ -26,6 +27,7 @@ import type {
 import { postWithCacheFallback } from "./cache-params.js";
 import {
   ANTHROPIC_VERSION,
+  anthropicMessagesUrl,
   buildAnthropicRequest,
   detectAnthropicCompat,
 } from "./anthropic-request.js";
@@ -195,7 +197,7 @@ async function run(
     const replaced = options.onPayload?.(request.body);
     const body = replaced === undefined ? request.body : replaced;
     const baseUrl = model.baseUrl ?? "https://api.anthropic.com";
-    const response = await postWithCacheFallback(model, joinUrl(baseUrl, "/v1/messages"), {
+    const response = await postWithCacheFallback(model, anthropicMessagesUrl(baseUrl), {
       headers: buildHeaders(model, options, request.betas),
       body,
       signal: options.signal,
