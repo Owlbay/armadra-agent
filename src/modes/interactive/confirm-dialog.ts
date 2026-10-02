@@ -9,6 +9,7 @@
  * 用途：进入 Bypass permissions 前的确认（`confirmBypass`，permissions/bypass.ts）。
  */
 
+import { msg } from "../../i18n/index.js";
 import {
   BYPASS_DEFAULT_CHOICE,
   bypassChoices,
@@ -108,9 +109,7 @@ export class ChoiceDialog implements Component, Focusable {
     lines.push(
       theme.fg(
         "dim",
-        compact
-          ? `${arrows} Enter · 1-${n} · Esc`
-          : `${arrows} 选择 · Enter 确认 · 1-${n} 直接选 · Esc 取消`,
+        compact ? `${arrows} Enter · 1-${n} · Esc` : msg().approval.choiceHint(arrows, n),
       ),
     );
     return lines.map((l) => truncateToWidth(l, width));

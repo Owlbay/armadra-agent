@@ -22,6 +22,7 @@
  * broker 链本身串行化审批，所以同一时刻最多一个对话框。
  */
 
+import { msg } from "../../i18n/index.js";
 import { autoLayerText, isPermissionMode, permissionModeLabel } from "../../permissions/modes.js";
 import { previewDisplayLines } from "../../permissions/preview.js";
 import type { ApprovalBroker, ApprovalDecision, ApprovalRequest } from "../../permissions/types.js";
@@ -101,7 +102,8 @@ export function sourceLabel(
 ): string | undefined {
   const context = request.context;
   const origin = context?.origin;
-  if (origin !== undefined) return `[${origin.agent} · 会话 ${origin.sessionId.slice(0, 8)}]`;
+  if (origin !== undefined)
+    return msg().approval.originLabel(origin.agent, origin.sessionId.slice(0, 8));
   if ((context?.depth ?? 0) <= 0) return undefined;
   const taskId = context?.taskId;
   const agent = taskId === undefined ? undefined : taskAgent?.(taskId);
@@ -111,13 +113,14 @@ export function sourceLabel(
 /** 原因 → 标题文字（带来源标注）。 */
 export function approvalTitle(request: ApprovalRequest, taskAgent?: TaskAgentLookup): string {
   const label = sourceLabel(request, taskAgent);
+  const t = msg().approval.title;
   const reason = isFirstRunRequest(request)
-    ? "首次运行外部 Agent"
+    ? t.firstRun
     : request.reason === "dangerous"
-      ? "危险命令"
+      ? t.dangerous
       : request.reason === "hook"
-        ? "Hook 要求确认"
-        : "需要确认";
+        ? t.hook
+        : t.confirm;
   return label === undefined ? reason : `${label} ${reason}`;
 }
 
@@ -131,12 +134,12 @@ function originLines(
   for (const path of (origin.toolCall.locations ?? []).slice(0, 3))
     out.push(theme.fg("muted", displayPath(path, cwd)));
   const hidden = (origin.toolCall.locations?.length ?? 0) - 3;
-  if (hidden > 0) out.push(theme.fg("dim", `… 另 ${hidden} 个路径`));
+  if (hidden > 0) out.push(theme.fg("dim", msg().approval.morePaths(hidden)));
   const summary = origin.toolCall.inputSummary;
   if (summary !== undefined && summary.trim() !== "") {
     const { shown, hidden: more } = lines(summary, COMMAND_LINES);
     out.push(...shown.map((l) => theme.fg("code", l)));
-    if (more > 0) out.push(theme.fg("dim", `… 另 ${more} 行`));
+    if (more > 0) out.push(theme.fg("dim", msg().approval.moreLines(more)));
   }
   return out;
 }
@@ -147,6 +150,7 @@ export function describeRequest(
   theme: Theme,
   options: DescribeOptions = {},
 ): string[] {
+  const m = msg().approval;
   const out: string[] = [];
   const label = sourceLabel(request, options.taskAgent);
   const task = label === undefined ? "" : theme.fg("warning", `${label} `);
@@ -154,12 +158,12 @@ export function describeRequest(
   const firstRun = isFirstRunRequest(request);
   const tag =
     request.reason === "dangerous"
-      ? theme.fg("error", "危险命令")
+      ? theme.fg("error", m.tag.dangerous)
       : request.reason === "hook"
-        ? theme.fg("warning", "Hook 要求确认")
+        ? theme.fg("warning", m.tag.hook)
         : origin !== undefined
           ? theme.fg("dim", origin.toolCall.kind)
-          : theme.fg("dim", firstRun ? "首次运行" : "需要确认");
+          : theme.fg("dim", firstRun ? m.tag.firstRun : m.tag.confirm);
   const input = record(request.input);
   const name =
     origin !== undefined
@@ -168,7 +172,7 @@ export function describeRequest(
         ? theme.bold(theme.fg("tool", `task ${String(input["agent"] ?? "")}`.trim()))
         : theme.bold(theme.fg("tool", request.toolName));
   out.push(options.compact === true ? `${task}${name}` : `${task}${name}  ${tag}`);
-  const more = (n: number): string => theme.fg("dim", `… 另 ${n} 行（v 查看）`);
+  const more = (n: number): string => theme.fg("dim", m.moreLinesView(n));
   if (origin !== undefined && options.expanded !== true) {
     out.push(...originLines(origin, theme, options.cwd));
   } else if (firstRun && options.expanded !== true) {
@@ -176,24 +180,26 @@ export function describeRequest(
     const mode = input["mode"];
     if (typeof mode === "string")
       out.push(
-        theme.fg("dim", `模式 ${isPermissionMode(mode) ? permissionModeLabel(mode) : mode}`),
+        theme.fg("dim", m.firstRunMode(isPermissionMode(mode) ? permissionModeLabel(mode) : mode)),
       );
   } else if (options.expanded === true) {
     const json = JSON.stringify(request.input, null, 2) ?? String(request.input);
     const { shown, hidden } = lines(json, FULL_INPUT_LINES);
     out.push(...shown.map((l) => theme.fg("code", l)));
-    if (hidden > 0) out.push(theme.fg("dim", `… 另 ${hidden} 行`));
+    if (hidden > 0) out.push(theme.fg("dim", m.moreLines(hidden)));
   } else if (request.toolName === "bash" && typeof input["command"] === "string") {
     const { shown, hidden } = lines(input["command"], COMMAND_LINES);
     out.push(...shown.map((l, i) => theme.fg("code", (i === 0 ? "$ " : "  ") + l)));
     if (hidden > 0) out.push(more(hidden));
   } else if (request.toolName === "write" && typeof input["content"] === "string") {
     const count = lines(input["content"], Number.MAX_SAFE_INTEGER).shown.length;
-    out.push(`${toolSummary("write", input, options.cwd)}  ${theme.fg("dim", `写入 ${count} 行`)}`);
+    out.push(
+      `${toolSummary("write", input, options.cwd)}  ${theme.fg("dim", m.writeLines(count))}`,
+    );
   } else if (request.toolName === "edit" && Array.isArray(input["edits"])) {
     const edits = input["edits"] as { oldText?: unknown; newText?: unknown }[];
     out.push(
-      `${toolSummary("edit", input, options.cwd)}  ${theme.fg("dim", `${edits.length} 处修改`)}`,
+      `${toolSummary("edit", input, options.cwd)}  ${theme.fg("dim", m.editCount(edits.length))}`,
     );
     for (const edit of edits.slice(0, 2)) {
       for (const [sign, text, color] of [
@@ -206,7 +212,7 @@ export function describeRequest(
         if (hidden > 0) out.push(more(hidden));
       }
     }
-    if (edits.length > 2) out.push(theme.fg("dim", `… 另 ${edits.length - 2} 处`));
+    if (edits.length > 2) out.push(theme.fg("dim", m.moreEdits(edits.length - 2)));
   } else {
     const summary = toolSummary(request.toolName, input, options.cwd);
     if (summary !== "") out.push(summary);
@@ -217,12 +223,7 @@ export function describeRequest(
         : undefined;
     // 与首次运行确认合并（approval-merge.ts）：允许即同意本会话以你的登录运行该 CLI
     if (runner !== undefined)
-      out.push(
-        theme.fg(
-          "warning",
-          `外部 Agent ${agent}：以你在 ${runner} CLI 的登录运行（含本会话首次运行确认）`,
-        ),
-      );
+      out.push(theme.fg("warning", m.externalRunner(String(agent), runner)));
   }
   const severity = request.preview?.severity;
   const color = severity === "danger" ? "error" : severity === "warn" ? "warning" : "dim";
@@ -230,18 +231,18 @@ export function describeRequest(
   const auto = request.autoDecision;
   if (origin !== undefined || firstRun) {
     // 外部 Agent 的请求由它自己的策略决定要问；首次运行确认的说明已在正文
-    if (origin !== undefined) out.push(theme.fg("dim", `${origin.agent} 请求确认`));
-    else out.push(theme.fg("dim", "本会话首次以你的登录运行该 CLI"));
+    if (origin !== undefined) out.push(theme.fg("dim", m.originAsks(origin.agent)));
+    else out.push(theme.fg("dim", m.firstRunLogin));
   } else if (request.reason === "hook") {
-    out.push(theme.fg("warning", `Hook：${request.hookReason ?? "（无说明）"}`));
+    out.push(theme.fg("warning", m.hookReason(request.hookReason)));
   } else if (request.reason === "dangerous") {
-    out.push(theme.fg("error", "这条命令可能有破坏性，请确认"));
+    out.push(theme.fg("error", m.dangerousWarn));
   } else if (auto !== undefined) {
-    out.push(theme.fg("warning", `Auto ${autoLayerText(auto.layer)}：${auto.reason}`));
+    out.push(theme.fg("warning", m.autoReason(autoLayerText(auto.layer), auto.reason)));
   } else if (options.permissionMode !== undefined) {
     const mode = options.permissionMode;
     const label = isPermissionMode(mode) ? permissionModeLabel(mode) : mode;
-    out.push(theme.fg("dim", `权限模式 ${label} 下需要确认`));
+    out.push(theme.fg("dim", m.modeNeedsConfirm(label)));
   }
   return out;
 }
@@ -253,10 +254,25 @@ interface ApprovalOption {
   keys: string;
 }
 
+/** 选项文字随界面语言（取用时求值）。 */
+function option(
+  decision: ApprovalDecision,
+  key: "allow" | "allowSession" | "deny",
+  keys: string,
+): ApprovalOption {
+  return {
+    decision,
+    keys,
+    get label() {
+      return msg().approval.option[key];
+    },
+  };
+}
+
 export const APPROVAL_OPTIONS: readonly ApprovalOption[] = [
-  { decision: "allow", label: "允许", keys: "y" },
-  { decision: "allow_session", label: "本会话允许同类", keys: "a" },
-  { decision: "deny", label: "拒绝", keys: "n Esc" },
+  option("allow", "allow", "y"),
+  option("allow_session", "allowSession", "a"),
+  option("deny", "deny", "n Esc"),
 ];
 
 /** 宽度低于它（Box 外宽）时用紧凑布局。 */
@@ -319,9 +335,7 @@ class ApprovalDialog implements Component, Focusable {
     lines.push(...this.optionLines(width, compact));
     if (!compact) lines.push("");
     const arrows = theme.glyphs.arrowUp + theme.glyphs.arrowDown;
-    const hint = compact
-      ? `${arrows} Enter · v 完整输入`
-      : `${arrows} 选择 · Enter 确认 · v 完整输入`;
+    const hint = compact ? msg().approval.hintCompact(arrows) : msg().approval.hint(arrows);
     lines.push(theme.fg("dim", hint));
     return lines.map((l) => truncateToWidth(l, width));
   }
@@ -408,14 +422,15 @@ export function approvalOutcomeText(
   const origin = request.context?.origin;
   const tool = origin !== undefined ? flat(origin.toolCall.title, 60) : request.toolName;
   const what = `${label === undefined ? "" : `${label} `}${tool}`;
+  const m = msg().approval.outcome;
   switch (outcome) {
     case "allow":
-      return `已允许 ${what}`;
+      return m.allow(what);
     case "allow_session":
-      return `已允许 ${what}（本会话同类不再询问）`;
+      return m.allowSession(what);
     case "deny":
-      return `已拒绝 ${what}`;
+      return m.deny(what);
     case "cancelled":
-      return `审批已取消（超时或中断）：${what}`;
+      return m.cancelled(what);
   }
 }
