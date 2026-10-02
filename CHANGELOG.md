@@ -1,170 +1,178 @@
 # 更新记录
 
-## 未发布
+## 0.5.0（2026-10-03）
 
-- **外部 Agent 子进程剥离 `ARMADRA_*`**（`ARMADRA_ASKPASS_*` 除外）：在 Armadra 画布终端里直接运行 ama 时，子 Agent 不再继承该终端节点的身份，Armadra 的 Hook 不会把子 Agent 的事件记到这个节点名下。
-- **底部信息行**（第五波 W5-A，docs/tui.md「状态栏」）：独立终端缺省两行——上方速率行 `tps: 100 tok/s • 546 tok / 5.5s (avg 100 · ttft 1.4s)`（流式中
-  为 2 s 窗口瞬时值），`↑ ↓`、缓存、重计费等用量项移到这一行，行尾 `[-]`；
-  下方状态栏为 `模式 | 模型 思考 | Ctx 3.0% | 目录 ⎇ 分支 短提交 (+a,-d) | $费用 | 会话时长`（git 直接读 `.git/HEAD`，增删行在回合
-  边界后台跑 `git diff --numstat`，≥ 10 s 一次、2 s 超时即停用，`AMA_STATUS_GIT=0` 关闭）。有 profile 的嵌入宿主缺省
-  一行（`ui.statusLine: "compact"`，即原状态栏加 git 与时长，最后一行、模式最左、`·` 分隔不变）；`Ctrl+G` 或
-  `/statusline [full|compact]` 本会话内切换。费用计入外部 Agent 的美元用量。RPC 新增 `telemetry_tick` 事件（流式中
-  ≤ 2 Hz）与 `get_session_stats` 的 `telemetry`。图片因请求上限被省略时提示一次，「compaction did not shrink」显示中文说明。
-- **内置渠道与缺省协议**（docs/providers.md「内置供应商」）：多协议的内置供应商带内置渠道，`provider/model@channel`
-  直接可选；缺省协议 Messages / Responses 优先、Chat 回落——**OpenAI、xAI 全部模型改走 Responses**（`@chat` 换回
-  Chat），**通义改走 Messages**（`/apps/anthropic`，执行 `cache_control`）；DeepSeek、智谱、Kimi 维持 Chat，另有
-  `@messages` 等渠道，过了官方直连的实测门再切。用户 `channels` 同名字段级覆盖、新名追加，`defaultChannel` 或只写
-  `api` 也能选内置渠道；改了供应商级 `baseUrl`（含 `OPENAI_BASE_URL`）时内置渠道作废、按单渠道回落（OpenAI / xAI
-  的目录模型在中转上仍走 Responses）。新增内置供应商 MiniMax、阶跃、火山方舟、腾讯 TokenHub（共 17 家）；Coding Plan
-  类订阅端点不做内置渠道，只给配置示例。
-- **Anthropic 兼容端点按主机推断 compat**：交错思考 beta 头只发给官方端点与中转上的 Claude 模型，DeepSeek 不再打
-  `cache_control`（文档写明忽略）；新开关 `sendInterleavedThinkingBeta`、`sendCacheControl`。
-- **缓存能力按主机**：xAI、Mistral、Kimi 官方端点缺省发 `prompt_cache_key`，腾讯 TokenHub 发键并支持 1h 保留。
-  这些端点的请求体因此多一个字段，**升级后首个请求可能未命中一次**。
-- **内置目录吃 `ama models refresh` 的数据**（缺字段的条目退回内置快照）。价格核对：OpenRouter 的 kimi-k3、glm-5.3
-  改用 OpenRouter 现价；DeepSeek 维持官方高峰价。
-- `scripts/channel-probe.mjs`：渠道实测门（每模型 ≤ 8 请求，输出结果表），中转上五家 messages / chat 对比见
-  docs/providers.md「渠道实测」。
+第五波：回滚与检查点、操作系统沙箱、子 Agent、外部 Agent 与 ACP、Plan 模式、压缩与 harness 修订、模型元数据快照与内置渠道、
+图像、状态行与界面集成。设计依据见 docs/wave5-plan.md，各主题的现状文档见下文链接。
 
-- **操作系统级沙箱**（docs/sandbox.md）：新模块 `src/sandbox/` 探测 macOS `sandbox-exec`、Linux bubblewrap（退而
-  `unshare -r -n`），用目标配置跑一次最小探针确认真能用（嵌套沙箱、无用户命名空间会降级），结果进程内缓存。codemode
-  子进程经它启动，内核拒绝网络（含 DNS）与一切写入：**Node 22 / 24 在有操作系统沙箱时与 Node ≥ 25 一样网络隔离**——
-  `codemode` 按只读类、`default` 预设缺省开启、状态栏不再标 `net!`；没有时（Windows 等）保持原样。Node ≥ 25 叠加作纵深
-  防御。新配置 `sandbox.enabled`（`auto` | `off`，只认用户级 / profile，`AMA_SANDBOX=off` 覆盖）；`ama doctor` 显示沙箱
-  能力，`ama config show` 写明网络由谁隔离。bash 沙箱与「沙箱内命令免审批」是第二阶段。
-- **bash 沙箱与沙箱内命令免审批**（docs/sandbox.md「第二阶段」、docs/permissions.md「判定顺序」）：新配置
-  `sandbox.bash`（`off` 缺省 | `auto`）、`sandbox.network`（`deny` 缺省 | `allow`）、`sandbox.writable`（追加可写目录，
-  `~/…` 展开），只认用户级 / profile，项目级只接受收紧的 `network: "deny"`。`auto` 且有 `sandbox-exec` / bwrap（`unshare`
-  不算）时，bash（含后台 bash）经 OS 沙箱运行：可写只限工作区、系统临时目录、ama 输出目录与配置追加的目录，工作区的
-  `.ama/`、`.git/hooks`、`.git/config` 只读，`~/.ssh` 等凭据目录与 `auth.json` 不可读。`default` / `auto-edit` 模式下沙箱内
-  且拒绝网络的命令免审批（危险命令、deny 规则、Hook ask、碰机密路径的命令仍按原样处理）；`auto` 模式沙箱信息只作为分类器
-  输入。被沙箱拒绝时输出末尾提示可用 `bash{…, sandbox: false}` 不经沙箱重跑——这一调用一律走正常审批、无人值守拒绝。
-  `ama doctor` / `ama config show` 显示 bash 沙箱状态。**开启 `sandbox.bash: auto` 后 bash 工具多一个参数与一句描述，
-  首个请求未命中缓存一次**；不开启时工具定义逐字节不变。
-- **系统提示维护**：规则节加两条通用规则——破坏性命令（`rm -rf`、`git reset --hard`、强推、删分支）除非用户要求否则先问；
-  独立的只读工具调用放在同一轮（只在 read 可直接调用时出现）。edit 描述写明多处修改用一次调用的 `edits[]`、`oldText` 按原文件
-  匹配、唯一、尽量短、不重叠。新增内置 Skill `ama-docs`（配置速查，按需读取，同名时用户的优先）；Skill 索引改为每条一行、
-  说明压到一行。新增提示长度预算测试（`default` ≤ 2 000、`minimal` ≤ 800、`codemode-only` ≤ 1 775 token）。
-  系统提示前缀因此变化，**升级后每个会话的首个请求缓存未命中一次**（恢复的旧会话追加一条 system 补丁）。
+### 破坏性变更与升级注意
 
-- **Agent harness**（第五波 W5-H2，docs/wave5-plan.md §8.3）：会话层通用截断改为保留头 70% + 尾 30%（中间写省略字符数与全文
-  路径；bash 仍尾截断、read 仍头截断）。重复调用检测：同一 run 里同名同参（规范化 JSON）第 3、4 次在结果末尾提醒，第 5 次
-  不执行并结束 run（`agent_settled{warning:"repeated_tool_call"}`；`task_ctl` 与后台 bash 的查询豁免）。预算：config
-  `limits.maxTurns / maxCostUsd` 与 `--max-turns`、`--max-cost`（不再提示未生效）按一次运行计，到限发 `limit_reached`，
-  **`-p` 退出码改为 8**（`--max-turns` 原来是 1）。提醒通道 `ama.reminder`：todo 连续 `todo.reminder`（缺省 10）回合未更新
-  时复述、读过的文件被外部改动、上下文 70% / 85%、预算剩余 < 20%、后台命令退出；`reminders.*` 逐项可关。后台 bash：
-  `bash{command, background:true}` 立即返回 jobId，`bash{job, action: wait | output | stop}` 查询（权限按只读），会话结束时
-  回收进程树。模型回退 `fallbackModel`：overloaded 或重试用尽时切过去重试一次，事件 `model_fallback`。`-p` 在计划待审批
-  时给出提示与**新退出码 9**；`--image` 按 `images.resize` 缩放；`subagents.maxConcurrent` 生效。周期收尾阶段入队的
-  steer / followUp（宿主 `sendUser`、子 Agent 后台通知）不再滞留到下一次提示。bash 工具描述与参数变化，**升级后每个会话的
-  首个请求缓存未命中一次**。D20 基准见 docs/benchmarks/presets-todo-2026-10-02.md（按门保留 todo 在 default）。
+- **退出码**：`-p` 到达 `--max-turns` 由 **1 改为 8**（`--max-cost`、`limits.*` 同为 8，`json` 结果带 `limitReached`）；
+  新增 **9** = Plan 模式下计划已落盘、待审批（`plan.unattended: stop`，缺省）。7 仍是「工具调用被拒」。按退出码判断的脚本需要更新。
+- **Node 22 / 24 在有操作系统沙箱时（macOS、多数 Linux）`default` 预设缺省带上 `codemode`**（原来只有 Node ≥ 25），工具表因此
+  变化。`todo` 仍不在 `default` 里（D20 复测未过门，见下文「基准」）。
+- **升级后每个会话的首个请求缓存未命中一次**：系统提示规则节新增两条、Skill 索引改为每条一行、edit / bash 工具描述与 bash 参数变化、
+  上一条的 codemode；xAI、Mistral、Kimi 官方端点与腾讯 TokenHub 请求体多了 `prompt_cache_key`；开启 `sandbox.bash: auto`
+  时 bash 多一个参数。恢复的旧会话追加一条 system 补丁，之后照常命中。
+- **缺省协议变化**：OpenAI、xAI 全部模型改走 Responses（`@chat` 换回 Chat），通义改走 Messages（`/apps/anthropic`）。改了
+  供应商级 `baseUrl` 的中转不受影响（按单渠道回落，OpenAI / xAI 目录模型在中转上仍走 Responses）。
+- **模型元数据**：`ama models refresh-catalog` 改名 `ama models refresh`（旧名仍可用）；不再读取旧版的全量缓存
+  `models-dev.json`（version 1），`ama providers add|refresh`、`ama models discover` 不再拉 models.dev。
+- **图像上限**改按 base64 后计算并按端点分档（中转与未知主机 5 MB，原来按原始字节 5 MB），超 8000 px 拒绝。
+- **压缩**：token 估算中文按字计，中文会话的自动压缩比以前早触发；会话层通用截断改为头 70% + 尾 30%。
+- **交互界面**：Plan 审批不再是「回复 1 / 2 / 3」的文本（TUI 改为对话框；line 模式保留并新增 `/plan approve|reject`）；独立终端的
+  底部信息行缺省两行（`ui.statusLine: "full"`），有 profile 的嵌入宿主仍是一行、`·` 分隔与模式最左不变；审批框标题带来源前缀。
+- **外部 Agent 子进程**剥离 `ARMADRA_*`（`ARMADRA_ASKPASS_*` 除外）、供应商 key、`*_BASE_URL`、`AMA_*`。
+- 协议版本常量（`RPC_PROTOCOL_VERSION`、`HOST_API_VERSION`、会话格式版本）不变；新增的事件、命令、字段全部可选。
 
-- **图像能力**（第五波 W5-I，docs/providers.md「图像输入」）：单图上限改按 base64 后计算并按端点分档（官方 Anthropic
-  10 MB、Gemini / OpenAI 20 MB、中转与未知 5 MB，原来按原始字节 5 MB），任一边超 8000 px 拒绝；超限时按
-  `images.resize`（缺省 `auto`）用 `sips` / ImageMagick 缩放。请求图片总量超预算（Anthropic 32 MB、其它 20 MB）时把
-  最旧的图换成占位文本，写成 `context_edit{reason:"image_budget"}`。新增剪贴板图片读取（`pasteClipboardImage`，
-  界面接线在后续批次），`ama sessions prune` 清理超过 7 天的剪贴板文件。
-- **外部 Agent 接入 task**（第五波 W5-EG，docs/agents.md「在 task 里使用」）：`task(agent="claude" | "codex" | "acp:<程序>")`
-  经各 CLI 自己的登录运行，前台 / 后台通知 / `taskId` 续聊（被停止过的以外部会话 id `resume` 重开）/ `task_ctl` 与 ama 子会话
-  一致；PATH 上的 claude / codex 写进 task 描述。每个会话首次以某个外部 Agent 运行时确认一次（allow 规则 `task(<id>)` 或
-  full-auto 放行，allowlist 与 `-p` 无规则时拒绝）；外部 Agent 的权限请求只交给人，RPC `permission_request` 新增可选
-  `context`（`depth`、`taskId`、`origin`）。嵌入宿主时不自启外部 CLI，`HostApi.runners.provide` 注入的 runner 以同一入口出现。
-  `get_agents` 带外部 Agent 的安装与版本（异步探测缓存）。SDK 直接 `bootstrap(--mode acp)` 不再报「尚未实现」。
-- **子 Agent**（第五波 W5-G，docs/agents.md「子 Agent」）：定义文件 `.ama/agents/*.md`（项目级需信任）与
-  `~/.config/ama/agents/*.md`，`--agent-dir` / profile `agentDirs` / config `agents.dirs` 追加目录；内置 `general`、
-  `explore`、`plan`（后两者以 plan 模式强制只读，不弹审批）。`task` 新增 `agent`、`background`、`taskId`（续聊）、
-  `isolation: "worktree"`、`budgetUsd`；同一回复里的多个 task 并行（池 `subagents.maxConcurrent`，排队上限
-  `subagents.maxPending`）；结果超过 50 KB 保留头尾并全文落 `outputs/`；轮数用尽以 `toolChoice:"none"` 收尾一轮要报告。
-  后台任务完成后以 `<task-notification>` 通知父会话；`task_ctl` 支持 list / wait / stop / output / send。子会话工具表
-  与父逐字节相同（`task` 保留、运行时拒绝），首个请求可复用父的缓存前缀；角色说明是系统提示末位的 `role` 节。
-  事件 `subagent_start / update / end`，`getStats().tasks`，父会话 `custom{ama.task}` 记任务快照、resume 时重建。
-- **检查点核心**（docs/rewind-plan.md，回滚的会话接线与界面在后续批次）：edit / write 第一次写文件前备份，
-  每个新回合重拍已跟踪文件；备份按内容 sha256 存 `<数据目录>/file-history/blobs/`。恢复做冲突检测与安全检查
-  （符号链接、硬链接、非普通文件、父目录移动；非 Windows 用 `O_NOFOLLOW`），可预览行级增删。
-  `ama sessions prune` 结束后清理未引用的备份，`ama doctor` 显示占用。新配置 `checkpoints.mode`
-  （`AMA_CHECKPOINTS` 覆盖）、`checkpoints.maxFileBytes`、`checkpoints.keep`。
-- **会话回滚（接口层）**（设计见 docs/rewind-plan.md）：`AgentSession.rewindPoints()` 列出活动路径上开启新回合的用户消息；
-  `rewind({ entryId, mode: both | conversation | code, dryRun?, onConflict? })` 回到该消息之前——对话复用 `/tree` 换叶子、
-  代码经检查点后端恢复，返回原消息草稿、恢复结果与 git HEAD 变化提示；全部失败报 `rewind_failed`，运行中报 `busy`。
-  「已读」集合按新路径重算并去掉被恢复 / 不一致的文件；仅对话或仅代码时在下一次提示前追加 `ama.rewind-note`，前缀不变、缓存照常命中。
-  `summarizeFrom` / `summarizeUpTo` 对应「从这里摘要」「摘要到这里」；`canUndoAbortedTurn` / `undoAbortedTurn` 供中断即撤回，
-  新配置 `ui.restoreOnCancel`（缺省 true）。新回合用户消息落盘后建检查点，`task` 子会话的编辑记到父会话当前回合。
-- **回滚界面**（docs/tui.md「回滚」）：`/rewind` 与空闲时双击 Esc 打开回滚列表（高亮行右侧显示代码改动统计，
-  没有检查点的标「仅对话」），确认面板给出恢复代码和对话 / 恢复对话 / 恢复代码 / 从这里摘要 / 摘要到这里 / 取消，
-  每项带预览，列出冲突与无法恢复的文件（冲突可选择覆盖），git HEAD 变化时给出两条命令（不执行）；对话类操作后
-  原消息回填输入框。输入框有字时双击 Esc 清空并存进输入历史。运行中 Esc 中断且本回合还没有输出时自动撤回并回填
-  （`ui.restoreOnCancel`）。line 模式 `/rewind` 列编号，`/rewind <n> [both|conversation|code] [overwrite]`、
-  `/rewind <n> summarize-from|summarize-up-to [说明]`。新键位动作 `app.rewind`（缺省 Esc）。
-- RPC 新增 `get_rewind_points`、`rewind`、`summarize_from`、`summarize_up_to` 与事件 `session_rewound`（命令表 37 条）；
-  命令式 Hook 新增 `PostRewind`（`{ entryId, mode, files }`，不可阻止）；SDK 导出回滚类型。
-- **影子 git 检查点**（`checkpoints.mode: "shadow-git"`，docs/sessions.md「影子 git 模式」）：每个新回合把工作目录快照进
-  `<数据目录>/file-history/shadow/` 下的独立仓库，bash 与手动的新增、修改、删除、重命名也能回滚；尊重 `.gitignore`，
-  不碰用户仓库。git 不在 PATH、文件数超过 20 000 或快照超过 3 秒时本会话降级为 `tools`；家目录与根目录不启用。
-  `ama doctor` 显示影子仓库占用。
-- **`default` 预设加 `todo`**（第五波 D20）：会话开始时随工具表固定，不中途开启；系统提示 tools 节与工具表多约 150 token，
-  升级后续接的旧会话会有一次缓存未命中。**这是待复测的决定**：W5-H2 的 `bench-presets default,default+todo` 若费用增幅
-  超过 5% 或成功率下降，就撤回到「plan 交接时用 `[DONE:n]` 文本标记」。
-- **Plan 模式**（docs/plan.md，第五波 W5-F）：plan 下模式说明以 `custom_message{ama.plan_mode}` 追加在尾部（首个提示完整版、
-  每 5 个提示简版、每第 5 次与压缩后完整版），手动退出追加 `ama.plan_mode_exit`，前缀不变；`ama.plan_state` 让 resume 回到 plan。
-  模型输出 `<proposed_plan>` 块，ama 提取步骤、落 `ama.plan` 与 `<数据目录>/plans/<会话>-v<N>.md`（`plan.directory` 可指到项目内），
-  发 `plan_proposed`；审批四选项（批准执行 / 指定模式 / 新上下文执行 / 继续修改）与放弃，批准后步骤转 todo、切回进入前的模式、
-  以 `ama.plan_approved` 交接开新回合。无人值守缺省 `plan.unattended: stop`（落盘后停下，不替人批准）。交互模式暂以文本回复
-  `1` / `2` / `3` 审批（审批框随界面批次）。可选 `plan.model` / `plan.thinkingLevel`：plan 下首个提示切换、批准时切回。
-- **plan 权限细化**（docs/permissions.md）：plan 放行只读命令子集（`ls`、`cat`、`rg`、`git log / diff / show` 等，无重定向 /
-  命令替换 / 嵌套 shell，配置 `plan.bash`）与 `task`；`todo set / update` 在 plan 下拒绝；被拒说明带指引。`allowlist` 同步放行
-  同一只读子集与 `task`，严格度 `plan ⊆ allowlist ⊆ default` 不变。模式选择器里 Plan 的说明改为「只读调研，只跑只读命令，
-  出计划后审批执行」。
-- `todo` 新增 `update`（按 id 只改给出的字段）与条目字段 `planStep`；会话事件 `todo_updated`。
-- RPC 实现 `plan_response` / `get_plan` / `get_todos` / `get_tasks` / `get_agents`（后两者读注册表只读视图，未装配时回空表），
-  能力 `plans` 声明后计划审批交客户端；黄金记录 `test/fixtures/rpc/plan.out.jsonl`。SDK `createAgentSession({ plan })`
-  （`onProposed` 审批回调）与 `session.plan.current() / respond() / todos()`。
-- **自动压缩修订**（第五波 W5-H1，docs/design.md §9）：档一按工具结果新旧计边界（保留最近 `compaction.prune.keepResults`
-  个与最近 min(40k, 0.2×预算) token 的工具输出），修好「只有一条用户消息的长任务永不裁剪」；可省不足
-  `compaction.prune.clearAtLeast`（auto = max(20k, 0.1×预算)）不动，动就一次清到 0.5×预算；缓存已冷时提前裁；
-  Skill 文件、AGENTS.md、todo、`keepInContext` 工具与 `compaction.pruneExclude` 的结果不裁。token 估算中文按字计，
-  中文会话的压缩会比以前早触发。熔断改为连续 3 次失败或连续 3 次快速回填才停（不再限每 run 一次）。
-  摘要模板补用户原话、错误与修复、文件与代码三节，缺 `## Goal` 重试再回落，压缩后不变小判失败；split turn 两份摘要并行。
-  压缩后在摘要末尾回注 todo、计划、已加载 Skill、最近文件与转录路径（只有清单与指针）。新 Hook 事件 `PostCompact`。
-- 新工具 `task_ctl`（列出 / 等待 / 停止 / 读取后台子 Agent 任务）与 `task` 同进退：`+task`、`--tools …,task` 一起暴露，
-  `-task`、宿主 `disable("task")` 一起去掉；本版本执行时返回「尚未实现」（第五波 W5-G 实现）。
+### 回滚与检查点
 
-- 第五波契约与扩展点（docs/wave5-plan.md §9–§10，全部可选、向后兼容；`RPC_PROTOCOL_VERSION` / `HOST_API_VERSION` /
-  会话格式版本不变）：会话扩展点 `SessionExtension`（`cli/compose-extensions.ts` 组装表）；新事件 `subagent_*`、`plan_*`、
-  `todo_updated`、`limit_reached`、`model_fallback`、`background_job`、`telemetry_tick`；RPC 命令 `plan_response / get_plan /
-get_todos / get_tasks / get_agents`（命令表 42 条，实现前回 `not_implemented`）与能力 `plans`；Hook 事件 `PostCompact`；
-  `HostApi.runners` 可选面；`@armadra/agent/acp` 子路径（驱动类型与 NDJSON 分帧）；第五波配置键的校验、说明与 JSON Schema
-  （行为随各批次生效）。命令行新增 `--mode acp`、`--max-cost`、`--agent-dir`（实现前分别报「尚未实现」或提示不生效），
-  退出码 8 = `-p` 到达预算上限（7 仍是工具被拒）。
-- **外部 Agent 驱动与 ACP**（docs/agents.md「外部 Agent」、docs/acp.md）：`src/drivers/` 以 ACP 词汇统一驱动 Claude Code
-  （stream-json 原生协议，`can_use_tool` 交人、中断看门狗、续聊与成本）、Codex（`app-server` 的 thread / turn 与服务端审批）、
-  任意 ACP Agent（零依赖 ACP 客户端）与一次性打印模式（只读兜底）。`ProcessRunner` 把它们接成子 Agent runner，供
-  `task(agent=…)` 使用（接线在 W5-G）。外部 Agent 的审批**只交给人**（宿主 → 界面 → 无人值守拒绝，分类器与模型不参与；
-  提问类请求不代答），模式不得比 ama 当前模式宽（plan / allowlist 下只读），子进程缺省剥离供应商 key、`*_BASE_URL`、
-  `AMA_*`（防订阅被切成 API 计费，`agents.<id>.env.passthrough` 放回），只在已信任目录里启动；并发池、美元预算、
-  看门狗、空闲关闭与孤儿进程清理；每回合写 `custom{ama.agent-usage}`，`get_session_stats` 新增 `external`。
-  有宿主时不自己启动外部 CLI，只用 `HostApi.runners` 注入的 runner。
-- **`ama --mode acp`**：ama 作为 ACP Agent（会话新开 / 回放 / 续接 / 列表 / 关闭、prompt 事件映射、审批经
-  `session/request_permission` 交给客户端、`session/cancel`、`session/set_mode`）。`@armadra/agent/acp` 导出 ACP 类型、
-  JSON-RPC 对等端、`AcpClient`、`AcpDriver` 与假 ACP Agent（`runFakeAcpAgent` / `fakeAcpAgentPath()`）。
-- **models.dev 快照入库**（docs/providers.md「模型元数据」，第五波 §2）：22 家主流厂商的裁剪快照随包携带（内联数据约 180 KB，
-  MIT 声明见 `THIRD_PARTY_NOTICES.md`），**启动与运行都不联网**；`ama providers add|refresh`、`ama models discover`
-  不再拉 models.dev。新命令 `ama models refresh [--provider <id>]` 显式联网刷新到数据目录（晚于快照才叠加，
-  `refresh-catalog` 为旧名）；旧版的全量缓存 `models-dev.json`（version 1）不再读取。内置目录 `catalog/*.json`
-  改为「快照 ⊕ 覆盖」：数值从快照继承，目录只写覆盖项与 ama 特有字段，与快照相同的值由测试报冗余；dashscope
-  补上了价格，gemini 2.5 / 3.1 pro、openrouter 部分模型补上了阶梯价；模型新增 `family` / `knowledge` /
-  `releaseDate` / `inputLimit` / `status` 元数据。每周的 `.github/workflows/models-dev.yml` 刷新快照并开 PR。
-- **界面集成**（第五波 W5-U，docs/tui.md「Plan 审批」「子 Agent」「剪贴板图片」）：Plan 的计划审批改为底部对话框——
-  批准并执行 / 批准后在新上下文执行（新建会话、带上计划与待办、以计划全文开场）/ 继续修改（框内或外部编辑器写意见）/
-  放弃并退出 Plan；批准时选执行模式（回到进入前的模式 / Accept edits / Auto），`e` 在 `$VISUAL` / `$EDITOR` 里改计划，
-  Esc 放弃但留在 Plan。交互界面不再用「回复 1 / 2 / 3」的文本审批与提示行（line 模式保留，并新增 `/plan`、
-  `/plan approve [模式|fresh]`、`/plan reject`）；`/plan <目标>` 进入 Plan 模式。消息区不再显示 `<proposed_plan>` 标签。
-  子 Agent：task 工具行折叠显示 `类型 · 状态 · 轮数 · 最近 3 个工具 · ↑↓`，后台任务有跟随状态，`<task-notification>`
-  只显示一行；`/tasks`（查看输出、停止）、`/agents`（含外部 Agent 安装状态与版本）；`/session` 增「子 Agent」行与
-  「外部 Agent」段。审批框标注来源 `[task:<类型>]`、`[claude · 会话 abc12345]`（标题 / 种类 / 路径取自外部 Agent），
-  外部 Agent 首次运行单独标题；Manual 模式下 `task(agent="claude")` 的两次确认合并为一次（只在允许 task 调用后紧接着、
-  同一任务时自动通过首次运行确认）。外部 Agent 的提示显示在消息区。`Ctrl+V` / `/paste` 粘贴剪贴板图片（插入
-  `@<路径>`），交互与 line 模式的 `@图片` 按 `images.resize` 缩放。模型回退时状态栏显示 `主模型 → 回退模型`，bash 沙箱生效时多一个 `沙箱` 标记；预算到限、
-  模型回退、后台命令启动 / 退出各给一行中文提示。新键位动作 `app.paste.image`（缺省 Ctrl+V）。
+- **检查点**（docs/rewind-plan.md、docs/sessions.md）：edit / write 第一次写文件前备份，每个新回合重拍已跟踪文件；备份按内容 sha256
+  存 `<数据目录>/file-history/blobs/`。`checkpoints.mode: "shadow-git"` 把工作目录快照进独立的影子仓库，bash 与手动改动也能回滚（尊重
+  `.gitignore`，不碰用户仓库；git 不在 PATH、超过 20 000 个文件或快照超过 3 秒时本会话降级为 `tools`）。新配置 `checkpoints.mode`
+  （`AMA_CHECKPOINTS`）、`checkpoints.maxFileBytes`、`checkpoints.keep`；`ama sessions prune` 清理未引用备份，`ama doctor` 显示占用。
+- **恢复**做冲突检测（回合外被改过的文件缺省跳过，可覆盖）与安全检查（符号链接、硬链接、非普通文件、父目录移动；非 Windows 用
+  `O_NOFOLLOW`），可预览行级增删。
+- **回滚**：`/rewind` 与空闲时双击 Esc 打开回滚列表，确认面板给出恢复代码和对话 / 恢复对话 / 恢复代码 / 从这里摘要 / 摘要到这里，
+  每项带预览，git HEAD 变化时给出两条命令（不执行）；输入框有字时双击 Esc 清空并存进历史；运行中 Esc 中断且本回合还没有输出时
+  自动撤回并回填（`ui.restoreOnCancel`）。line 模式 `/rewind <n> [both|conversation|code] [overwrite]`。新键位动作 `app.rewind`。
+- 接口：`AgentSession.rewindPoints()` / `rewind()` / `summarizeFrom()` / `summarizeUpTo()` / `undoAbortedTurn()`；RPC
+  `get_rewind_points`、`rewind`、`summarize_from`、`summarize_up_to` 与事件 `session_rewound`；Hook 事件 `PostRewind`；SDK 导出回滚
+  类型。仅对话或仅代码时下一次提示前追加 `ama.rewind-note`，前缀不变。
+
+### 操作系统沙箱
+
+- docs/sandbox.md。新模块探测 macOS `sandbox-exec`、Linux bubblewrap（退而 `unshare -r -n`），用目标配置跑最小探针确认可用。
+- **codemode** 子进程经沙箱启动，内核拒绝网络（含 DNS）与一切写入：Node 22 / 24 有沙箱时与 Node ≥ 25 一样按只读类处理、
+  `default` 预设缺省开启、状态栏不再标 `net!`。新配置 `sandbox.enabled`（`AMA_SANDBOX=off`）。
+- **bash 沙箱**（缺省关闭）：`sandbox.bash: "auto"`、`sandbox.network`、`sandbox.writable`。bash（含后台 bash）只能写工作区、临时目录
+  与追加目录，`.ama/`、`.git/hooks`、`.git/config` 只读，凭据目录不可读；`default` / `auto-edit` 下沙箱内且拒绝网络的命令免审批
+  （危险命令、deny 规则、Hook ask 照旧），被拒时可请求 `sandbox: false` 不经沙箱重跑（照常审批）。`ama doctor` / `config show` 显示状态，
+  状态栏多一个 `沙箱` 标记。
+
+### 子 Agent
+
+- docs/agents.md「子 Agent」。定义文件 `~/.config/ama/agents/*.md`、`.ama/agents/*.md`（需信任）、`--agent-dir` / profile `agentDirs` /
+  `agents.dirs`；内置 `general`、`explore`、`plan`（后两者强制只读、不弹审批）。
+- `task` 新增 `agent`、`background`、`taskId`（续聊）、`isolation: "worktree"`、`budgetUsd`；同一回复里的多个 task 并行
+  （`subagents.maxConcurrent` / `maxPending`）；结果超过 50 KB 保留头尾、全文落 `outputs/`；轮数用尽以 `toolChoice:"none"` 收尾一轮。
+  后台任务完成后以 `<task-notification>` 通知父会话；新工具 `task_ctl`（list / wait / stop / output / send）与 `task` 同进退。
+- 子会话工具表与父逐字节相同，首个请求复用父的缓存前缀；角色说明是系统提示末位的 `role` 节。事件 `subagent_start / update / end`，
+  `getStats().tasks`，`custom{ama.task}` 记任务快照、resume 时重建。
+- 界面：task 工具行折叠显示 `类型 · 状态 · 轮数 · 最近 3 个工具 · ↑↓`，后台任务有跟随状态，`<task-notification>` 只显示一行；
+  `/tasks`（查看输出、停止）、`/agents`；`/session` 增「子 Agent」行。
+
+### 外部 Agent 与 ACP
+
+- docs/agents.md「外部 Agent」、docs/acp.md。`task(agent="claude" | "codex" | "acp:<程序>")` 经各 CLI 自己的登录运行：Claude Code
+  （stream-json 原生协议）、Codex（`app-server`）、任意 ACP Agent（零依赖客户端）与一次性打印模式（只读兜底）；前台 / 后台通知 /
+  `taskId` 续聊（被停止过的以外部会话 id `resume` 重开）/ `task_ctl` 与 ama 子会话一致；PATH 上的 claude / codex 写进 task 描述。
+- **审批只交给人**（宿主 → 界面 → 无人值守拒绝，分类器与模型不参与，提问类请求不代答）；每个会话首次以某个外部 Agent 运行时确认
+  一次（allow 规则 `task(<id>)` 或 full-auto 放行），Manual 模式下与 task 调用的审批合并为一次。模式不比 ama 当前模式宽；子进程缺省
+  剥离供应商 key 等（`agents.<id>.env.passthrough` 放回），只在已信任目录里启动；并发池、美元预算、看门狗、空闲关闭与孤儿进程清理；
+  每回合写 `custom{ama.agent-usage}`，`get_session_stats` 新增 `external`。
+- 嵌入宿主时不自启外部 CLI，只用 `HostApi.runners.provide` 注入的 runner。RPC `permission_request` 新增可选 `context`（`depth`、
+  `taskId`、`origin`）；`get_agents` 带外部 Agent 的安装与版本。
+- **`ama --mode acp`**：ama 作为 ACP Agent（会话新开 / 回放 / 续接 / 列表 / 关闭、事件映射、`session/request_permission`、
+  `session/cancel`、`session/set_mode`）。`@armadra/agent/acp` 导出 ACP 类型、JSON-RPC 对等端、`AcpClient`、`AcpDriver` 与假 ACP Agent。
+- 界面：审批框标注来源（`[task:<类型>]`、`[claude · 会话 abc12345]`、「首次运行外部 Agent」）；外部 Agent 的提示显示在消息区；
+  `/agents` 列出安装状态与版本，`/session` 增「外部 Agent」段。
+
+### Plan 模式
+
+- docs/plan.md。plan 下模式说明以 `custom_message{ama.plan_mode}` 追加在尾部（前缀不变），`ama.plan_state` 让 resume 回到 plan。
+  模型输出 `<proposed_plan>` 块，ama 提取步骤、落 `ama.plan` 与 `<数据目录>/plans/<会话>-v<N>.md`（`plan.directory`），发 `plan_proposed`。
+- **审批**：交互界面是底部对话框——批准并执行 / 批准后在新上下文执行（新建会话，以计划全文开场）/ 继续修改（框内或外部编辑器写意见）/
+  放弃并退出 Plan；批准时选执行模式（回到进入前的模式 / Accept edits / Auto），`e` 在 `$VISUAL` / `$EDITOR` 里改计划，Esc 放弃但留在
+  Plan。批准后步骤转待办（`ama.todo`；todo 工具新增 `update` 与条目字段 `planStep`，事件 `todo_updated`）、切模式、以 `ama.plan_approved` 交接。line 模式
+  `/plan`、`/plan approve [模式|fresh]`、`/plan reject`（也接受回复 1 / 2 / 3）；`/plan <目标>` 进入 Plan。
+- 无人值守缺省 `plan.unattended: stop`（落盘后停下，`-p` 退出 9，`json` 带 `planPending`），`approve` 自动批准执行。可选
+  `plan.model` / `plan.thinkingLevel` 分模型规划。
+- **权限细化**（docs/permissions.md）：plan 放行只读命令子集（`ls`、`cat`、`rg`、`git log / diff / show` 等，`plan.bash`）与 `task`；
+  `todo set / update` 在 plan 下拒绝；`allowlist` 同步放行同一子集与 `task`，`plan ⊆ allowlist ⊆ default` 不变。模式选择器里 Plan 的
+  说明改为「只读调研，只跑只读命令，出计划后审批执行」。
+- RPC `plan_response` / `get_plan` / `get_todos` / `get_tasks` / `get_agents` 与能力 `plans`（`hello.capabilities` 列出；声明后计划审批
+  交客户端）；SDK `createAgentSession({ plan: { onProposed } })` 与 `session.plan.current() / respond() / todos()`，包入口导出
+  `SessionPlanOptions`、`SessionPlanApi`、`PlanDecision`、`PlanResponse`、`PlanResponseResult`、`SdkAgentSession`。
+- **进度记法**：活动工具集里有 `todo` 时交接请模型 `todo update`；没有时（`default` 预设缺省不含 todo）请模型每完成一步单独一行写
+  `[DONE:<步骤>]`，ama 读标记推进计划待办（照常落 `ama.todo`、发 `todo_updated`）。`tools.default: ["+todo"]` 可加回 todo。
+
+### 压缩与 harness
+
+- **自动压缩修订**（docs/design.md §9）：档一按工具结果新旧计边界（保留最近 `compaction.prune.keepResults` 个与最近
+  min(40k, 0.2×预算) token 的工具输出），修好「只有一条用户消息的长任务永不裁剪」；可省不足 `compaction.prune.clearAtLeast`
+  不动，动就一次清到 0.5×预算；缓存已冷时提前裁；Skill 文件、AGENTS.md、todo、`keepInContext` 工具与 `compaction.pruneExclude`
+  的结果不裁。熔断改为连续 3 次失败或连续 3 次快速回填才停。摘要模板补用户原话、错误与修复、文件与代码三节，压缩后不变小判失败；
+  split turn 两份摘要并行；压缩后在摘要末尾回注 todo、计划、已加载 Skill、最近文件与转录路径。新 Hook 事件 `PostCompact`。
+- **harness**：通用截断头 70% + 尾 30%（中间写省略字符数与全文路径）；重复调用检测（同名同参第 3、4 次提醒，第 5 次结束 run，
+  `agent_settled{warning:"repeated_tool_call"}`）；预算 `limits.maxTurns / maxCostUsd` 与 `--max-turns`、`--max-cost`（事件
+  `limit_reached`）；提醒通道 `ama.reminder`（todo 复述、读过的文件被外部改动、上下文 70% / 85%、预算剩余 < 20%、后台命令退出，
+  `reminders.*` 逐项可关）；后台 bash（`bash{command, background:true}` 返回 jobId，`bash{job, action: wait | output | stop}`，会话结束
+  回收进程树）；模型回退 `fallbackModel`（overloaded 或重试用尽时切过去重试一次，事件 `model_fallback`）。周期收尾阶段入队的
+  steer / followUp 不再滞留到下一次提示。
+- **系统提示维护**：规则节加两条（破坏性命令先问；独立的只读工具调用放在同一轮）；edit 描述写明多处修改用一次调用的 `edits[]`；
+  新增内置 Skill `ama-docs`（配置速查）；Skill 索引改为每条一行；新增提示长度预算测试。
+
+### 模型元数据与渠道
+
+- **models.dev 快照入库**（docs/providers.md「模型元数据」）：22 家主流厂商的裁剪快照随包携带（内联约 180 KB，MIT 声明见
+  `THIRD_PARTY_NOTICES.md`），**启动与运行都不联网**；`ama models refresh [--provider <id>]` 显式联网刷新到数据目录（晚于快照才叠加）。
+  内置目录改为「快照 ⊕ 覆盖」，与快照相同的值由测试报冗余；dashscope、gemini 2.5 / 3.1 pro、openrouter 部分模型补上价格 / 阶梯价；
+  模型新增 `family` / `knowledge` / `releaseDate` / `inputLimit` / `status`。每周的 `.github/workflows/models-dev.yml` 刷新快照并开 PR，
+  CI 在每个 PR 上校验这个 workflow 并以 fixture 跑刷新脚本的 dry-run。
+- **内置渠道与缺省协议**（docs/providers.md「内置供应商」）：多协议的内置供应商带内置渠道，`provider/model@channel` 直接可选；缺省
+  Messages / Responses 优先、Chat 回落（OpenAI、xAI、火山方舟 Responses；通义、MiniMax、阶跃、腾讯 Messages；DeepSeek、智谱、Kimi 暂
+  维持 Chat）。用户 `channels` 同名字段级覆盖、新名追加；改了供应商级 `baseUrl` 时内置渠道作废、按单渠道回落。新增内置供应商
+  MiniMax、阶跃、火山方舟、腾讯 TokenHub（共 17 家）；Coding Plan 类订阅端点只给配置示例。
+- Anthropic 兼容端点按主机推断 compat（交错思考 beta 头只发给官方端点与中转上的 Claude 模型，DeepSeek 不再打 `cache_control`），
+  新开关 `sendInterleavedThinkingBeta`、`sendCacheControl`；缓存能力按主机（xAI、Mistral、Kimi 官方端点发 `prompt_cache_key`，
+  腾讯 TokenHub 另支持 1h 保留）。价格核对：OpenRouter 的 kimi-k3、glm-5.3 改用现价。
+- `scripts/channel-probe.mjs`：渠道实测门（每模型 ≤ 8 请求），中转上五家对比见 docs/providers.md「渠道实测」。
+
+### 图像
+
+- docs/providers.md「图像输入」。单图上限按 base64 后计算并按端点分档（官方 Anthropic 10 MB、Gemini / OpenAI 20 MB、中转与未知 5 MB），
+  任一边超 8000 px 拒绝；超限时按 `images.resize`（缺省 `auto`）用 `sips` / ImageMagick 缩放（`--image`、`@图片`、粘贴的图片都适用）。
+  请求图片总量超预算（Anthropic 32 MB、其它 20 MB）时把最旧的图换成占位文本（`context_edit{reason:"image_budget"}`），提示一次。
+- 剪贴板图片：`Ctrl+V` / `/paste` 存进 `<数据目录>/clipboard/` 并插入 `@<路径>`（新键位动作 `app.paste.image`）；
+  `ama sessions prune` 清理超过 7 天的剪贴板文件。
+
+### 状态行与界面
+
+- **底部信息行**（docs/tui.md「状态栏」）：独立终端缺省两行——上方速率行 `tps: 100 tok/s • 546 tok / 5.5s (avg 100 · ttft 1.4s)`
+  与用量项，下方 `模式 | 模型 思考 | Ctx 3.0% | 目录 ⎇ 分支 短提交 (+a,-d) | $费用 | 会话时长`（git 直接读 `.git/HEAD`，增删行在
+  回合边界后台跑 `git diff --numstat`，≥ 10 s 一次、2 s 超时即停用，`AMA_STATUS_GIT=0` 关闭）。嵌入宿主缺省一行
+  （`ui.statusLine: "compact"`）。`Ctrl+G` 或 `/statusline [full|compact]` 本会话内切换。费用计入外部 Agent 的美元用量。RPC 新增
+  `telemetry_tick` 事件（≤ 2 Hz）与 `get_session_stats` 的 `telemetry`。
+- 模型回退时状态栏显示 `主模型 → 回退模型`；预算到限、模型回退、后台命令启动 / 退出各给一行中文提示；「compaction did not shrink」
+  显示中文说明。
+
+### 接口、测试与发布
+
+- 第五波契约（docs/wave5-plan.md §9–§10，全部可选、向后兼容）：会话扩展点 `SessionExtension`（`cli/compose-extensions.ts` 组装表）；
+  RPC 命令表 42 条；`HostApi.runners` 可选面；子路径 `@armadra/agent/acp`；第五波配置键的校验、说明与 JSON Schema。
+- bundle 级 e2e 新增 ACP（ama 经 `task(agent="acp:ama")` 驱动另一个 ama）、Plan（`-p` 退出 9 与 `unattended: approve`）、子 Agent
+  （前台与后台通知）、回滚（RPC 与跨进程）。
+- npm 包增带 `docs/plan.md`、`docs/agents.md`、`docs/acp.md`、`docs/rewind-plan.md`、`docs/tui-design.md`；README 里其余设计文档改用
+  GitHub 链接。
+- `scripts/bench-presets.mjs` 新增三个多步长任务（`--tasks long`）；对照组名 `default+todo` 改为显式 `tools.default: ["+todo"]`
+  （原来是 `default` 的别名），`default-todo` 不变。
+
+### 基准
+
+- **D20：todo 不进 `default` 预设**。开发期间曾把 `todo` 加进 `default`，以 `bench-presets` 复测为门（估价涨幅 ≤ 5% 且成功数
+  不降）。W5-H2 的小任务首测（docs/benchmarks/presets-todo-2026-10-02.md，5 对、模型从未调用 todo）按门保留；本版用三个多步长任务
+  （`--tasks long`）、kimi-k2.5 与 deepseek-v4-flash、每组 3 次复测（docs/benchmarks/presets-todo-2026-10-03.md，18 对）：含 todo 组成功
+  17/18、对照 18/18，统一估价 +4.6%、输入 token +15.8%、保守计价 +11.3%，36 次运行里只有 1 次调用了 todo → **按门撤出**，计划交接改用
+  `[DONE:n]`。复测 212 次请求，约 $0.27。
+
+### 已知限制
+
+- Linux 沙箱未在真机上验证（bubblewrap 路径只在 CI 与单元测试里跑过；没有 bwrap 时退到 `unshare`，不能用于 bash 沙箱）。
+- 外部 Agent 的真实 CLI 端到端只在本地跑：本机已登录 `claude` / `codex` 时 `AMA_E2E_AGENTS=1`（会用订阅额度）；CI 只跑录制回放与
+  ama 驱动 ama。
+- DeepSeek、智谱、Kimi 缺省仍走 Chat，等官方直连过了实测门再切 Messages。
+- models.dev 每周刷新的 PR 需要仓库 secret `MODELS_DEV_PR_TOKEN` 才会触发 CI（没有时 workflow 自跑 `pnpm run ci` 并写进 PR 描述）。
 
 ## 0.4.0（2026-10-02）
 

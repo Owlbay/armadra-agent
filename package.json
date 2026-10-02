@@ -1,6 +1,6 @@
 {
   "name": "@armadra/agent",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "可独立使用、可嵌入 Armadra 的编码 / 协调 Agent",
   "type": "module",
   "keywords": [
@@ -65,7 +65,12 @@
     "docs/providers.md",
     "docs/codemode.md",
     "docs/sandbox.md",
+    "docs/plan.md",
+    "docs/agents.md",
+    "docs/acp.md",
+    "docs/rewind-plan.md",
     "docs/tui.md",
+    "docs/tui-design.md",
     "docs/session-format.md",
     "docs/sessions.md",
     "CHANGELOG.md",
