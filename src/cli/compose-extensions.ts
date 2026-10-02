@@ -20,6 +20,7 @@
  */
 
 import type { SessionExtensionFactory } from "../agent/session-extensions.js";
+import { createImageBudgetExtension } from "../agent/session-images.js";
 import type { SessionAssembly } from "./deps.js";
 
 export interface ComposeExtensionDeps {
@@ -35,6 +36,7 @@ export function composeExtensions(_deps: ComposeExtensionDeps): SessionExtension
     // [W5-F]  createPlanExtension(...)
     // [W5-H2] createRemindersExtension(...), createLimitsExtension(...)
     // [W5-I]  createImageBudgetExtension(...)
+    ({ core }) => createImageBudgetExtension(core),
     // [W5-A]  createTelemetryExtension(...)
   ];
 }
