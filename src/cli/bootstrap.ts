@@ -314,6 +314,7 @@ export async function bootstrap(
     };
     const overrides: NonNullable<SessionAssembly["overrides"]> = {};
     if (args.maxTurns !== undefined) overrides.maxTurns = args.maxTurns;
+    if (args.noSession) overrides.noSession = true;
     const systemPrompt = await step(ExitCode.Config, "--system-prompt", () =>
       resolveSystemPromptArg(args.systemPrompt, args.systemPromptMode, io.cwd),
     );

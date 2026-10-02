@@ -82,6 +82,7 @@ export function applyProfile(args: ParsedArgs, profile: ProfileOptions): ParsedA
 }
 
 export function sessionRequestOf(args: ParsedArgs): SessionRequest | "pick" {
+  if (args.noSession) return { kind: "memory" };
   if (args.continue) return { kind: "continue" };
   if (args.resume)
     return args.resumeId === undefined ? "pick" : { kind: "resume", id: args.resumeId };
@@ -95,7 +96,7 @@ export function sourceOf(
   manager: SessionManagerApi,
 ): SessionAssembly["source"] {
   if (request.kind === "fork") return "fork";
-  if (request.kind === "new") return "startup";
+  if (request.kind === "new" || request.kind === "memory") return "startup";
   return manager.entries().length > 0 ? "resume" : "startup";
 }
 

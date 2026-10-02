@@ -69,6 +69,8 @@ export interface ParsedArgs {
   toolsPreset?: ToolsPreset;
   /** `--codemode`：覆盖 config `codemode.mode`。 */
   codemode?: CodemodeMode;
+  /** `--no-session`：会话只在内存里，不写会话文件。 */
+  noSession: boolean;
   /** `--system-prompt <文本|@文件>`：缺省追加进系统提示的 rules 节。 */
   systemPrompt?: string;
   /** `--system-prompt-mode`：append（缺省）| replace（替换开头的 preamble）。 */
@@ -139,6 +141,7 @@ export const HELP_TEXT = `用法：ama [选项] [提示]
   --session-id <id>            使用指定 id 的会话（不存在则新建）
   --fork <id>                  从指定会话分叉出新会话
   --session-dir <目录>         会话目录（缺省 ~/.local/share/ama/sessions）
+  --no-session                 会话只在内存里，不写会话文件（之后无法 --resume）
 
 权限与信任
   --permission-mode <模式>     default | auto-edit | plan | auto | full-auto | allowlist
@@ -284,6 +287,7 @@ export function emptyArgs(): ParsedArgs {
     resume: false,
     print: false,
     noTui: false,
+    noSession: false,
     stdin: false,
     positionals: [],
   };
@@ -399,6 +403,9 @@ function applyFlag(args: ParsedArgs, name: string): boolean {
     case "no-tui":
       args.noTui = true;
       return true;
+    case "no-session":
+      args.noSession = true;
+      return true;
     case "trust":
     case "no-trust": {
       const value = name === "trust";
@@ -422,6 +429,9 @@ function validate(args: ParsedArgs): void {
     args.fork !== undefined ? "--fork" : undefined,
   ].filter((f): f is string => f !== undefined);
   if (sessionFlags.length > 1) throw new UsageError(`${sessionFlags.join(" 与 ")} 不能同时使用`);
+  if (args.noSession && sessionFlags.length > 0) {
+    throw new UsageError(`--no-session 与 ${sessionFlags[0]} 不能同时使用`);
+  }
   if (args.apiKey !== undefined && args.model === undefined) {
     throw new UsageError("--api-key 需要同时给出 --model");
   }

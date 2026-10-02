@@ -37,7 +37,9 @@ export type SessionRequest =
   | { kind: "continue" }
   | { kind: "resume"; id: string }
   | { kind: "session-id"; id: string }
-  | { kind: "fork"; id: string };
+  | { kind: "fork"; id: string }
+  /** `--no-session`：内存会话，从不落盘。 */
+  | { kind: "memory" };
 
 export interface ProviderBuildInput {
   config: AmaConfig;
@@ -107,7 +109,7 @@ export interface SessionAssembly {
   sessionStartContext(): string | undefined;
   /** print：ask → deny。 */
   unattended: boolean;
-  /** 命令行对会话的覆盖（W4-C）：`-p --max-turns`、`--system-prompt`。 */
+  /** 命令行对会话的覆盖（W4-C）：`-p --max-turns`、`--system-prompt`、`--no-session`。 */
   overrides?: SessionOverrides;
   warn(message: string): void;
 }
@@ -117,6 +119,8 @@ export interface SessionOverrides {
   maxTurns?: number;
   /** `--system-prompt`：追加进 rules 节，或替换 preamble。 */
   systemPrompt?: SystemPromptOverride;
+  /** `--no-session`：`/new` 等切换出的新会话也只在内存里。 */
+  noSession?: boolean;
 }
 
 export interface SystemPromptOverride {

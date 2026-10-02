@@ -432,7 +432,10 @@ export async function switchSession(
   let source: "new" | "resume" | "fork";
   switch (request.kind) {
     case "new":
-      manager = SessionManager.create(sessionDirForCwd(sessionDir, old.cwd), old.cwd);
+      manager =
+        assembly.overrides?.noSession === true
+          ? SessionManager.inMemory(old.cwd)
+          : SessionManager.create(sessionDirForCwd(sessionDir, old.cwd), old.cwd);
       source = "new";
       break;
     case "open":
