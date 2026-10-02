@@ -1,0 +1,150 @@
+{
+  "id": "groq",
+  "models": {
+    "llama-3.1-8b-instant": {
+      "cost": {
+        "input": 0.05,
+        "output": 0.08
+      },
+      "family": "llama",
+      "knowledge": "2023-12",
+      "limit": {
+        "context": 131072,
+        "output": 131072
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "Llama 3.1 8B",
+      "reasoning": false,
+      "release_date": "2024-07-23"
+    },
+    "llama-3.3-70b-versatile": {
+      "cost": {
+        "input": 0.59,
+        "output": 0.79
+      },
+      "family": "llama",
+      "knowledge": "2023-12",
+      "limit": {
+        "context": 131072,
+        "output": 32768
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "Llama 3.3 70B",
+      "reasoning": false,
+      "release_date": "2024-12-06"
+    },
+    "openai/gpt-oss-120b": {
+      "canonical_model_id": "openai/gpt-oss-120b",
+      "cost": {
+        "cache_read": 0.075,
+        "input": 0.15,
+        "output": 0.6
+      },
+      "family": "gpt-oss",
+      "limit": {
+        "context": 131072,
+        "output": 65536
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "GPT OSS 120B",
+      "reasoning": true,
+      "release_date": "2025-08-05"
+    },
+    "openai/gpt-oss-20b": {
+      "cost": {
+        "cache_read": 0.0375,
+        "input": 0.075,
+        "output": 0.3
+      },
+      "family": "gpt-oss",
+      "limit": {
+        "context": 131072,
+        "output": 65536
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "GPT OSS 20B",
+      "reasoning": true,
+      "release_date": "2025-08-05"
+    },
+    "openai/gpt-oss-safeguard-20b": {
+      "cost": {
+        "input": 0.075,
+        "output": 0.3
+      },
+      "family": "gpt-oss",
+      "limit": {
+        "context": 131072,
+        "output": 65536
+      },
+      "modalities": {
+        "input": [
+          "text"
+        ]
+      },
+      "name": "Safety GPT OSS 20B",
+      "reasoning": true,
+      "release_date": "2025-10-29",
+      "status": "beta"
+    },
+    "qwen/qwen3.6-27b": {
+      "canonical_model_id": "alibaba/qwen3.6-27b",
+      "cost": {
+        "cache_read": 0.3,
+        "input": 0.6,
+        "output": 3
+      },
+      "family": "qwen",
+      "limit": {
+        "context": 131072,
+        "output": 16384
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ]
+      },
+      "name": "Qwen3.6 27B",
+      "reasoning": true,
+      "release_date": "2026-04-22"
+    },
+    "qwen/qwen3.8-27b": {
+      "canonical_model_id": "alibaba/qwen3.8-27b",
+      "cost": {
+        "input": 0.8,
+        "output": 4
+      },
+      "family": "qwen",
+      "limit": {
+        "context": 131042,
+        "output": 16384
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ]
+      },
+      "name": "Qwen3.8 27B",
+      "reasoning": true,
+      "release_date": "2026-08-14"
+    }
+  },
+  "name": "Groq"
+}

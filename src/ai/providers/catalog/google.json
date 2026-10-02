@@ -1,20 +1,10 @@
 {
   "version": 1,
   "provider": "google",
+  "modelsDev": "google",
   "models": [
     {
       "id": "gemini-3.8-flash",
-      "name": "Gemini 3.8 Flash",
-      "contextWindow": 1048576,
-      "maxTokens": 65536,
-      "reasoning": true,
-      "input": ["text", "image"],
-      "cost": {
-        "input": 0.75,
-        "output": 3.75,
-        "cacheRead": 0.075,
-        "cacheWrite": 0
-      },
       "thinkingLevelMap": {
         "off": null,
         "minimal": null,
@@ -26,17 +16,6 @@
     },
     {
       "id": "gemini-3.7-flash",
-      "name": "Gemini 3.7 Flash",
-      "contextWindow": 1048576,
-      "maxTokens": 65536,
-      "reasoning": true,
-      "input": ["text", "image"],
-      "cost": {
-        "input": 0.75,
-        "output": 3.75,
-        "cacheRead": 0.075,
-        "cacheWrite": 0
-      },
       "thinkingLevelMap": {
         "off": null,
         "minimal": null,
@@ -48,17 +27,6 @@
     },
     {
       "id": "gemini-3.5-flash",
-      "name": "Gemini 3.5 Flash",
-      "contextWindow": 1048576,
-      "maxTokens": 65536,
-      "reasoning": true,
-      "input": ["text", "image"],
-      "cost": {
-        "input": 1.5,
-        "output": 9,
-        "cacheRead": 0.15,
-        "cacheWrite": 0
-      },
       "thinkingLevelMap": {
         "off": null,
         "minimal": "minimal",
@@ -70,17 +38,6 @@
     },
     {
       "id": "gemini-3.5-flash-lite",
-      "name": "Gemini 3.5 Flash Lite",
-      "contextWindow": 1048576,
-      "maxTokens": 65536,
-      "reasoning": true,
-      "input": ["text", "image"],
-      "cost": {
-        "input": 0.3,
-        "output": 2.5,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
       "thinkingLevelMap": {
         "off": null,
         "minimal": "minimal",
@@ -92,17 +49,6 @@
     },
     {
       "id": "gemini-3.1-pro-preview",
-      "name": "Gemini 3.1 Pro Preview",
-      "contextWindow": 1048576,
-      "maxTokens": 65536,
-      "reasoning": true,
-      "input": ["text", "image"],
-      "cost": {
-        "input": 2,
-        "output": 12,
-        "cacheRead": 0.2,
-        "cacheWrite": 0
-      },
       "thinkingLevelMap": {
         "off": null,
         "minimal": null,
@@ -114,17 +60,6 @@
     },
     {
       "id": "gemini-3-flash-preview",
-      "name": "Gemini 3 Flash Preview",
-      "contextWindow": 1048576,
-      "maxTokens": 65536,
-      "reasoning": true,
-      "input": ["text", "image"],
-      "cost": {
-        "input": 0.5,
-        "output": 3,
-        "cacheRead": 0.05,
-        "cacheWrite": 0
-      },
       "thinkingLevelMap": {
         "off": null,
         "minimal": "minimal",
@@ -136,17 +71,6 @@
     },
     {
       "id": "gemini-2.5-pro",
-      "name": "Gemini 2.5 Pro",
-      "contextWindow": 1048576,
-      "maxTokens": 65536,
-      "reasoning": true,
-      "input": ["text", "image"],
-      "cost": {
-        "input": 1.25,
-        "output": 10,
-        "cacheRead": 0.125,
-        "cacheWrite": 0
-      },
       "thinkingLevelMap": {
         "off": null,
         "minimal": 128,
@@ -157,17 +81,6 @@
     },
     {
       "id": "gemini-2.5-flash",
-      "name": "Gemini 2.5 Flash",
-      "contextWindow": 1048576,
-      "maxTokens": 65536,
-      "reasoning": true,
-      "input": ["text", "image"],
-      "cost": {
-        "input": 0.3,
-        "output": 2.5,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
       "thinkingLevelMap": {
         "minimal": 128,
         "low": 2048,
@@ -177,17 +90,6 @@
     },
     {
       "id": "gemini-2.5-flash-lite",
-      "name": "Gemini 2.5 Flash-Lite",
-      "contextWindow": 1048576,
-      "maxTokens": 65536,
-      "reasoning": true,
-      "input": ["text", "image"],
-      "cost": {
-        "input": 0.1,
-        "output": 0.4,
-        "cacheRead": 0.01,
-        "cacheWrite": 0
-      },
       "thinkingLevelMap": {
         "minimal": 512,
         "low": 2048,

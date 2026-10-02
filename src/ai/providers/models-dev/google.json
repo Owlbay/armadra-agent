@@ -1,0 +1,607 @@
+{
+  "id": "google",
+  "models": {
+    "deep-research-max-preview-04-2026": {
+      "canonical_model_id": "google/deep-research-max-preview-04-2026",
+      "cost": {
+        "cache_read": 0.2,
+        "context_over_200k": {
+          "cache_read": 0.4,
+          "input": 4,
+          "output": 18
+        },
+        "input": 2,
+        "output": 12,
+        "tiers": [
+          {
+            "cache_read": 0.4,
+            "input": 4,
+            "output": 18,
+            "tier": {
+              "size": 200000,
+              "type": "context"
+            }
+          }
+        ]
+      },
+      "family": "gemini-pro",
+      "knowledge": "2025-01",
+      "limit": {
+        "context": 131072,
+        "output": 65536
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ]
+      },
+      "name": "Deep Research Max Preview (Apr-21-2026)",
+      "reasoning": true,
+      "release_date": "2026-04-21"
+    },
+    "deep-research-preview-04-2026": {
+      "canonical_model_id": "google/deep-research-preview-04-2026",
+      "cost": {
+        "cache_read": 0.2,
+        "context_over_200k": {
+          "cache_read": 0.4,
+          "input": 4,
+          "output": 18
+        },
+        "input": 2,
+        "output": 12,
+        "tiers": [
+          {
+            "cache_read": 0.4,
+            "input": 4,
+            "output": 18,
+            "tier": {
+              "size": 200000,
+              "type": "context"
+            }
+          }
+        ]
+      },
+      "family": "gemini-pro",
+      "knowledge": "2025-01",
+      "limit": {
+        "context": 131072,
+        "output": 65536
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ]
+      },
+      "name": "Deep Research Preview (Apr-21-2026)",
+      "reasoning": true,
+      "release_date": "2026-04-21"
+    },
+    "gemini-2.5-computer-use-preview-10-2025": {
+      "canonical_model_id": "google/gemini-2.5-computer-use-preview-10-2025",
+      "cost": {
+        "context_over_200k": {
+          "input": 2.5,
+          "output": 15
+        },
+        "input": 1.25,
+        "output": 10,
+        "tiers": [
+          {
+            "input": 2.5,
+            "output": 15,
+            "tier": {
+              "size": 200000,
+              "type": "context"
+            }
+          }
+        ]
+      },
+      "family": "gemini-pro",
+      "knowledge": "2025-01",
+      "limit": {
+        "context": 128000,
+        "output": 64000
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ]
+      },
+      "name": "Gemini 2.5 Computer Use Preview 10-2025",
+      "reasoning": true,
+      "release_date": "2025-10-07"
+    },
+    "gemini-2.5-flash": {
+      "canonical_model_id": "google/gemini-2.5-flash",
+      "cost": {
+        "cache_read": 0.03,
+        "input": 0.3,
+        "output": 2.5
+      },
+      "family": "gemini-flash",
+      "knowledge": "2025-01",
+      "limit": {
+        "context": 1048576,
+        "output": 65536
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ]
+      },
+      "name": "Gemini 2.5 Flash",
+      "reasoning": true,
+      "release_date": "2025-06-17"
+    },
+    "gemini-2.5-flash-lite": {
+      "cost": {
+        "cache_read": 0.01,
+        "input": 0.1,
+        "output": 0.4
+      },
+      "family": "gemini-flash-lite",
+      "knowledge": "2025-01",
+      "limit": {
+        "context": 1048576,
+        "output": 65536
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ]
+      },
+      "name": "Gemini 2.5 Flash-Lite",
+      "reasoning": true,
+      "release_date": "2025-06-17"
+    },
+    "gemini-2.5-pro": {
+      "canonical_model_id": "google/gemini-2.5-pro",
+      "cost": {
+        "cache_read": 0.125,
+        "context_over_200k": {
+          "cache_read": 0.25,
+          "input": 2.5,
+          "output": 15
+        },
+        "input": 1.25,
+        "output": 10,
+        "tiers": [
+          {
+            "cache_read": 0.25,
+            "input": 2.5,
+            "output": 15,
+            "tier": {
+              "size": 200000,
+              "type": "context"
+            }
+          }
+        ]
+      },
+      "family": "gemini-pro",
+      "knowledge": "2025-01",
+      "limit": {
+        "context": 1048576,
+        "output": 65536
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ]
+      },
+      "name": "Gemini 2.5 Pro",
+      "reasoning": true,
+      "release_date": "2025-06-17"
+    },
+    "gemini-3-flash-preview": {
+      "cost": {
+        "cache_read": 0.05,
+        "input": 0.5,
+        "output": 3
+      },
+      "family": "gemini-flash",
+      "knowledge": "2025-01",
+      "limit": {
+        "context": 1048576,
+        "output": 65536
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ]
+      },
+      "name": "Gemini 3 Flash Preview",
+      "reasoning": true,
+      "release_date": "2025-12-17"
+    },
+    "gemini-3.1-flash-lite": {
+      "cost": {
+        "cache_read": 0.025,
+        "input": 0.25,
+        "output": 1.5
+      },
+      "family": "gemini-flash-lite",
+      "knowledge": "2025-01",
+      "limit": {
+        "context": 1048576,
+        "output": 65536
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ]
+      },
+      "name": "Gemini 3.1 Flash Lite",
+      "reasoning": true,
+      "release_date": "2026-05-07"
+    },
+    "gemini-3.1-flash-lite-image": {
+      "canonical_model_id": "google/gemini-3.1-flash-lite-image",
+      "cost": {
+        "input": 0.25,
+        "output": 30
+      },
+      "family": "gemini-flash-lite",
+      "knowledge": "2025-01",
+      "limit": {
+        "context": 65536,
+        "output": 4096
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ]
+      },
+      "name": "Nano Banana 2 Lite",
+      "reasoning": true,
+      "release_date": "2026-06-30"
+    },
+    "gemini-3.1-flash-live-preview": {
+      "canonical_model_id": "google/gemini-3.1-flash-live-preview",
+      "cost": {
+        "input": 0.75,
+        "output": 4.5
+      },
+      "family": "gemini-flash",
+      "knowledge": "2025-01",
+      "limit": {
+        "context": 131072,
+        "output": 65536
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ]
+      },
+      "name": "Gemini 3.1 Flash Live Preview",
+      "reasoning": true,
+      "release_date": "2026-03-26"
+    },
+    "gemini-3.1-pro-preview": {
+      "cost": {
+        "cache_read": 0.2,
+        "context_over_200k": {
+          "cache_read": 0.4,
+          "input": 4,
+          "output": 18
+        },
+        "input": 2,
+        "output": 12,
+        "tiers": [
+          {
+            "cache_read": 0.4,
+            "input": 4,
+            "output": 18,
+            "tier": {
+              "size": 200000,
+              "type": "context"
+            }
+          }
+        ]
+      },
+      "family": "gemini-pro",
+      "knowledge": "2025-01",
+      "limit": {
+        "context": 1048576,
+        "output": 65536
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ]
+      },
+      "name": "Gemini 3.1 Pro Preview",
+      "reasoning": true,
+      "release_date": "2026-02-19"
+    },
+    "gemini-3.1-pro-preview-customtools": {
+      "cost": {
+        "cache_read": 0.2,
+        "context_over_200k": {
+          "cache_read": 0.4,
+          "input": 4,
+          "output": 18
+        },
+        "input": 2,
+        "output": 12,
+        "tiers": [
+          {
+            "cache_read": 0.4,
+            "input": 4,
+            "output": 18,
+            "tier": {
+              "size": 200000,
+              "type": "context"
+            }
+          }
+        ]
+      },
+      "family": "gemini-pro",
+      "knowledge": "2025-01",
+      "limit": {
+        "context": 1048576,
+        "output": 65536
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ]
+      },
+      "name": "Gemini 3.1 Pro Preview Custom Tools",
+      "reasoning": true,
+      "release_date": "2026-02-19"
+    },
+    "gemini-3.5-flash": {
+      "cost": {
+        "cache_read": 0.15,
+        "input": 1.5,
+        "output": 9
+      },
+      "family": "gemini-flash",
+      "knowledge": "2025-01",
+      "limit": {
+        "context": 1048576,
+        "output": 65536
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ]
+      },
+      "name": "Gemini 3.5 Flash",
+      "reasoning": true,
+      "release_date": "2026-05-19"
+    },
+    "gemini-3.5-flash-lite": {
+      "canonical_model_id": "google/gemini-3.5-flash-lite",
+      "cost": {
+        "cache_read": 0.03,
+        "input": 0.3,
+        "output": 2.5
+      },
+      "family": "gemini-flash-lite",
+      "knowledge": "2026-03",
+      "limit": {
+        "context": 1048576,
+        "output": 65536
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ]
+      },
+      "name": "Gemini 3.5 Flash Lite",
+      "reasoning": true,
+      "release_date": "2026-07-21"
+    },
+    "gemini-3.6-flash": {
+      "canonical_model_id": "google/gemini-3.6-flash",
+      "cost": {
+        "cache_read": 0.075,
+        "input": 0.75,
+        "output": 3.75
+      },
+      "family": "gemini-flash",
+      "knowledge": "2026-03",
+      "limit": {
+        "context": 1048576,
+        "output": 65536
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ]
+      },
+      "name": "Gemini 3.6 Flash",
+      "reasoning": true,
+      "release_date": "2026-07-21"
+    },
+    "gemini-3.7-flash": {
+      "canonical_model_id": "google/gemini-3.7-flash",
+      "cost": {
+        "cache_read": 0.075,
+        "input": 0.75,
+        "output": 3.75
+      },
+      "family": "gemini-flash",
+      "knowledge": "2026-03",
+      "limit": {
+        "context": 1048576,
+        "output": 65536
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ]
+      },
+      "name": "Gemini 3.7 Flash",
+      "reasoning": true,
+      "release_date": "2026-08-13"
+    },
+    "gemini-3.8-flash": {
+      "canonical_model_id": "google/gemini-3.8-flash",
+      "cost": {
+        "cache_read": 0.075,
+        "input": 0.75,
+        "output": 3.75
+      },
+      "family": "gemini-flash",
+      "limit": {
+        "context": 1048576,
+        "output": 65536
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ]
+      },
+      "name": "Gemini 3.8 Flash",
+      "reasoning": true,
+      "release_date": "2026-09-02"
+    },
+    "gemini-flash-latest": {
+      "cost": {
+        "cache_read": 0.075,
+        "input": 0.75,
+        "output": 3.75
+      },
+      "family": "gemini-flash",
+      "knowledge": "2026-03",
+      "limit": {
+        "context": 1048576,
+        "output": 65536
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ]
+      },
+      "name": "Gemini Flash Latest",
+      "reasoning": true,
+      "release_date": "2026-08-13"
+    },
+    "gemini-flash-lite-latest": {
+      "cost": {
+        "cache_read": 0.03,
+        "input": 0.3,
+        "output": 2.5
+      },
+      "family": "gemini-flash-lite",
+      "knowledge": "2026-03",
+      "limit": {
+        "context": 1048576,
+        "output": 65536
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ]
+      },
+      "name": "Gemini Flash-Lite Latest",
+      "reasoning": true,
+      "release_date": "2026-07-21"
+    },
+    "gemma-4-26b-a4b-it": {
+      "family": "gemma",
+      "limit": {
+        "context": 262144,
+        "output": 32768
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ]
+      },
+      "name": "Gemma 4 26B A4B IT",
+      "reasoning": true,
+      "release_date": "2026-04-02"
+    },
+    "gemma-4-31b-it": {
+      "family": "gemma",
+      "limit": {
+        "context": 262144,
+        "output": 32768
+      },
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ]
+      },
+      "name": "Gemma 4 31B IT",
+      "reasoning": true,
+      "release_date": "2026-04-02"
+    }
+  },
+  "name": "Google"
+}

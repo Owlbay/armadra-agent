@@ -68,6 +68,13 @@ get_todos / get_tasks / get_agents`（命令表 42 条，实现前回 `not_imple
 - **`ama --mode acp`**：ama 作为 ACP Agent（会话新开 / 回放 / 续接 / 列表 / 关闭、prompt 事件映射、审批经
   `session/request_permission` 交给客户端、`session/cancel`、`session/set_mode`）。`@armadra/agent/acp` 导出 ACP 类型、
   JSON-RPC 对等端、`AcpClient`、`AcpDriver` 与假 ACP Agent（`runFakeAcpAgent` / `fakeAcpAgentPath()`）。
+- **models.dev 快照入库**（docs/providers.md「模型元数据」，第五波 §2）：22 家主流厂商的裁剪快照随包携带（内联数据约 180 KB，
+  MIT 声明见 `THIRD_PARTY_NOTICES.md`），**启动与运行都不联网**；`ama providers add|refresh`、`ama models discover`
+  不再拉 models.dev。新命令 `ama models refresh [--provider <id>]` 显式联网刷新到数据目录（晚于快照才叠加，
+  `refresh-catalog` 为旧名）；旧版的全量缓存 `models-dev.json`（version 1）不再读取。内置目录 `catalog/*.json`
+  改为「快照 ⊕ 覆盖」：数值从快照继承，目录只写覆盖项与 ama 特有字段，与快照相同的值由测试报冗余；dashscope
+  补上了价格，gemini 2.5 / 3.1 pro、openrouter 部分模型补上了阶梯价；模型新增 `family` / `knowledge` /
+  `releaseDate` / `inputLimit` / `status` 元数据。每周的 `.github/workflows/models-dev.yml` 刷新快照并开 PR。
 
 ## 0.4.0（2026-10-02）
 

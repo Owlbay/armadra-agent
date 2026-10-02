@@ -1,0 +1,39 @@
+{
+  "prefixes": {
+    "openrouter": [
+      "anthropic",
+      "deepseek",
+      "google",
+      "minimax",
+      "moonshotai",
+      "openai",
+      "qwen",
+      "x-ai",
+      "z-ai"
+    ]
+  },
+  "providers": [
+    "alibaba",
+    "alibaba-cn",
+    "anthropic",
+    "deepseek",
+    "google",
+    "groq",
+    "meta",
+    "minimax",
+    "minimax-cn",
+    "mistral",
+    "moonshotai",
+    "moonshotai-cn",
+    "openai",
+    "openrouter",
+    "stepfun",
+    "stepfun-ai",
+    "tencent-tokenhub",
+    "volcengine",
+    "xai",
+    "xiaomi",
+    "zai",
+    "zhipuai"
+  ]
+}
