@@ -54,7 +54,7 @@ import {
 } from "../../tui.js";
 import { BYPASS_MODE, createBypassGate } from "../../permissions/bypass.js";
 import { onTerminationSignals } from "../shared.js";
-import { AgentUi } from "./agent-ui.js";
+import { AgentUi, agentCommandHooks } from "./agent-ui.js";
 import { ApprovalDialogBroker, approvalOutcomeText } from "./approval-dialog.js";
 import { mergingBroker } from "./approval-merge.js";
 import { ALL_COMMANDS, runInteractiveCommand, type CommandUi } from "./commands.js";
@@ -405,6 +405,7 @@ export function runInteractiveMode(
     exit: (code) => exit(code),
     now,
     extra: (name, args) => agentUi.command(name, args),
+    ...agentCommandHooks(() => agentUi),
   };
 
   const runCommand = (line: string): Promise<boolean> =>
@@ -454,6 +455,7 @@ export function runInteractiveMode(
       runCommand: (line) => void runCommand(line),
       exit: (code) => exit(code),
       onInterrupted: (empty) => void rewind.afterInterrupt(empty),
+      agents: () => agentUi.keys,
     }),
   );
 
@@ -492,6 +494,7 @@ export function runInteractiveMode(
     dialog: { theme, keybindings: keys, ...overlayHooks },
     displayPath: (path) => tildePath(path, home),
     ...(options.clipboard !== undefined ? { clipboard: options.clipboard } : {}),
+    area,
   });
   const taskAgent = (taskId: string): string | undefined =>
     taskRegistryView(session.state.sessionId)?.get(taskId)?.agent;
