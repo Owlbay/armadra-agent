@@ -484,6 +484,7 @@ Armadra 以 `ama --profile <path>` 启动 ama。profile 是一个 JSON 文件，
 | [docs/design.md](docs/design.md)                                                                     | 总体设计与决策记录                                      |
 | [docs/benchmarks/](docs/benchmarks/)                                                                 | 三预设基准与缓存验收实验（报告与原始数据）              |
 | [docs/implementation-plan.md](docs/implementation-plan.md)、[docs/wave3-plan.md](docs/wave3-plan.md) | 实施计划（追溯用）                                      |
+| [docs/rewind-plan.md](docs/rewind-plan.md)                                                           | 检查点与回滚（设计，实施中）                            |
 
 ## 开发
 

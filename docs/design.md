@@ -760,6 +760,10 @@ tool_call（模型产出）
 - 投影规则、分叉（新文件）、`/tree`（同文件换叶子）、`branch_summary`、prune（移到 trash 7 天）同 v1。
 - `get_entries{since}` 以 entry id 为游标返回 `{entries, leafId}`。
 
+### §8.1 检查点与回滚
+
+新回合的用户消息之后记 `ama.checkpoint`（已跟踪文件的内容哈希），edit / write 第一次碰文件前补 `ama.checkpoint-track`；备份按 sha256 存 `<dataDir>/file-history/blobs/`。`/rewind` 与空闲时双击 Esc 提供「对话 + 代码 / 仅对话 / 仅代码 / 从这里摘要 / 摘要到这里」；对话回滚复用 `/tree` 换叶子，代码回滚带冲突检测与符号链接、硬链接、父目录移动的安全检查，git 只提示不操作。完整设计、契约（`src/checkpoints/types.ts`）与批次见 [rewind-plan.md](rewind-plan.md)。
+
 ## §9 压缩（`compaction/`）
 
 | 项       | v2 决定                                                                                                                                                                                                                            |
