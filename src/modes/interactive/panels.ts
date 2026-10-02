@@ -11,6 +11,7 @@
 
 import type { AgentSession } from "../../agent/types.js";
 import type { Runtime } from "../../cli/runtime.js";
+import { msg } from "../../i18n/index.js";
 import { autoLayerText, permissionModeLabel } from "../../permissions/modes.js";
 import {
   Card,
@@ -67,7 +68,10 @@ export function keyValue(rows: readonly KeyValueRow[], theme: Theme, wrap = fals
 }
 
 function cacheSection(session: AgentSession, theme: Theme, now: number): (Component | string)[] {
-  return [theme.bold("缓存"), new Indent(keyValue(cacheRows(session, now), theme), 2)];
+  return [
+    theme.bold(msg().panels.cache.title),
+    new Indent(keyValue(cacheRows(session, now), theme), 2),
+  ];
 }
 
 export function sessionPanel(
@@ -75,6 +79,7 @@ export function sessionPanel(
   theme: Theme,
   options: { now?: number; home?: string } = {},
 ): Component {
+  const m = msg().panels.session;
   const now = options.now ?? Date.now();
   const state = session.state;
   const stats = session.getStats();
@@ -91,43 +96,43 @@ export function sessionPanel(
         `${stats.contextWindow === undefined ? "?" : formatTokenCount(stats.contextWindow)}`;
   const rows: KeyValueRow[] = [
     {
-      key: "模型",
+      key: m.model,
       value:
         theme.fg("accent", model) +
         sep +
-        `思考 ${state.thinkingLevel}` +
+        m.thinking(state.thinkingLevel) +
         sep +
-        `权限 ${permissionModeLabel(state.permissionMode)}`,
+        m.permission(permissionModeLabel(state.permissionMode)),
     },
     {
-      key: "消息",
+      key: m.messages,
       value: [
-        `用户 ${stats.userMessages}`,
-        `助手 ${stats.assistantMessages}`,
-        `工具调用 ${stats.toolCalls}`,
+        m.user(stats.userMessages),
+        m.assistant(stats.assistantMessages),
+        m.toolCalls(stats.toolCalls),
       ].join(sep),
     },
     {
-      key: "用量",
+      key: m.usage,
       value: [
-        `输入 ${formatTokenCount(t.input)}`,
-        `输出 ${formatTokenCount(t.output)}`,
-        `缓存读 ${formatTokenCount(t.cacheRead)}`,
-        `缓存写 ${formatTokenCount(t.cacheWrite)}`,
+        m.input(formatTokenCount(t.input)),
+        m.output(formatTokenCount(t.output)),
+        m.cacheRead(formatTokenCount(t.cacheRead)),
+        m.cacheWrite(formatTokenCount(t.cacheWrite)),
         formatUsd(stats.cost),
       ].join(sep),
     },
-    { key: "上下文", value: meter + window },
+    { key: m.context, value: meter + window },
   ];
   const tasks = taskStatsText(session);
-  if (tasks !== undefined) rows.push({ key: "子 Agent", value: tasks });
+  if (tasks !== undefined) rows.push({ key: m.subagents, value: tasks });
   const external = externalRows(session);
   const externalSection: (Component | string)[] =
     external.length > 0
-      ? ["", theme.bold("外部 Agent"), new Indent(keyValue(external, theme), 2)]
+      ? ["", theme.bold(m.external), new Indent(keyValue(external, theme), 2)]
       : [];
   const file =
-    state.sessionFile === undefined ? "未落盘" : tildePath(state.sessionFile, options.home);
+    state.sessionFile === undefined ? m.notSaved : tildePath(state.sessionFile, options.home);
   const parts = [
     keyValue(rows, theme),
     "",
@@ -136,13 +141,16 @@ export function sessionPanel(
   ];
   return new Card(new Stack(parts), {
     theme,
-    title: `会话 ${state.sessionId.slice(0, 8)}`,
+    title: m.title(state.sessionId.slice(0, 8)),
     subtitle: file,
   });
 }
 
 export function cachePanel(session: AgentSession, theme: Theme, now = Date.now()): Component {
-  return new Card(keyValue(cacheRows(session, now), theme), { theme, title: "缓存" });
+  return new Card(keyValue(cacheRows(session, now), theme), {
+    theme,
+    title: msg().panels.cache.title,
+  });
 }
 
 const DECISION_COLOR: Record<string, SemanticColor> = {
@@ -156,26 +164,26 @@ export function permissionsPanel(
   session: AgentSession,
   theme: Theme,
 ): Component {
+  const m = msg().panels.permissions;
   const rules = runtime.permission.rules;
   const mode = session.state.permissionMode;
   const order =
-    mode === "auto"
-      ? "deny 规则 → Hook deny → 危险命令确认 → 规则层（受保护路径、项目外写入、网络、删除类）→ Hook ask → allow 规则 / Hook allow / 本会话记忆 → 静态判定（只读、项目内写入、安全名单）→ 模型分类器 → 询问"
-      : mode === "allowlist"
-        ? "deny 规则 → Hook deny → 危险命令（拒绝）→ 只读工具 / allow 规则 / Hook allow 放行 → 其余拒绝（从不询问）"
-        : "deny 规则 → Hook deny → 危险命令确认 → 权限模式 → allow 规则 / Hook allow / 本会话记忆 → 询问";
+    mode === "auto" ? m.orderAuto : mode === "allowlist" ? m.orderAllowlist : m.orderDefault;
   const effect = (decision: string): string =>
     theme.fg(DECISION_COLOR[decision] ?? "text", decision.padEnd(5));
   const parts: (Component | string)[] = [
     keyValue(
       [
-        { key: "权限模式", value: `${permissionModeLabel(mode)}${theme.fg("dim", `（${mode}）`)}` },
-        { key: "判定顺序", value: order },
+        {
+          key: m.mode,
+          value: m.modeValue(permissionModeLabel(mode), mode, (t) => theme.fg("dim", t)),
+        },
+        { key: m.order, value: order },
       ],
       theme,
       true,
     ),
-    theme.bold(rules.length === 0 ? "规则（无）" : `规则（${rules.length}）`),
+    theme.bold(rules.length === 0 ? m.rulesNone : m.rules(rules.length)),
   ];
   if (rules.length > 0) {
     parts.push(
@@ -193,7 +201,7 @@ export function permissionsPanel(
   }
   const recent = runtime.permission.autoDecisions?.() ?? [];
   if (recent.length > 0) {
-    parts.push(theme.bold(`最近的 auto 判定（${recent.length}）`));
+    parts.push(theme.bold(m.recentAuto(recent.length)));
     parts.push(
       new Indent(
         keyValue(
@@ -201,7 +209,7 @@ export function permissionsPanel(
             key: autoLayerText(d.layer),
             value:
               `${effect(d.decision)}  ${d.toolName} ${d.summary} — ${d.reason}` +
-              (d.cached === true ? theme.fg("dim", "（缓存）") : ""),
+              (d.cached === true ? theme.fg("dim", m.cached) : ""),
           })),
           theme,
         ),

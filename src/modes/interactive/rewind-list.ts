@@ -9,7 +9,7 @@
 import type { RewindPoint, RewindResult } from "../../checkpoints/types.js";
 import { msg } from "../../i18n/index.js";
 import { Box, SelectList, type SelectItem } from "../../tui.js";
-import { PICKER_FOOTER, type PickerHost } from "./pickers.js";
+import { pickerFooter, type PickerHost } from "./pickers.js";
 import { badgeText, hasCodeChanges, oneLine, rewindErrorText } from "./rewind-text.js";
 import { relativeTime } from "./startup-ui.js";
 
@@ -126,7 +126,7 @@ export function openRewindList(
       maxVisible: 10,
       filterable: points.length > 8,
       ...(host.keybindings !== undefined ? { keybindings: host.keybindings } : {}),
-      footer: PICKER_FOOTER.replace("↑↓", host.theme.glyphs.arrowUp + host.theme.glyphs.arrowDown),
+      footer: pickerFooter(host.theme.glyphs.arrowUp + host.theme.glyphs.arrowDown),
       onSelect: (item) => close(points.find((p) => p.entryId === item.value)),
       onCancel: () => close(undefined),
       onSelectionChange: (item) => {
