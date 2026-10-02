@@ -9,6 +9,7 @@
 
 import { existsSync } from "node:fs";
 import { blobUsage, fileHistoryDir } from "../../checkpoints/blobs.js";
+import { shadowUsage } from "../../checkpoints/shadow-git.js";
 import { formatBytes } from "../../checkpoints/gc.js";
 import { baseUrlEnvOf } from "../../ai/providers/registry.js";
 import { classifyKeyValue, isModeTooOpen, fileMode, readAuthFile } from "../../config/auth-file.js";
@@ -214,8 +215,11 @@ function proxySection(report: Report, io: CliIo): void {
 async function fileHistoryLine(report: Report, dataDir: string): Promise<void> {
   try {
     const usage = await blobUsage(dataDir);
+    const shadow = await shadowUsage(dataDir);
+    const shadowText =
+      shadow.repos === 0 ? "" : `；影子仓库 ${shadow.repos} 个，${formatBytes(shadow.bytes)}`;
     report.item(
-      `file-history：${usage.blobs} 个备份，${formatBytes(usage.bytes)}（${fileHistoryDir(dataDir)}；ama sessions prune 清理）`,
+      `file-history：${usage.blobs} 个备份，${formatBytes(usage.bytes)}${shadowText}（${fileHistoryDir(dataDir)}；ama sessions prune 清理）`,
     );
   } catch (error) {
     report.item(`file-history：读取失败（${(error as Error).message}）`);
