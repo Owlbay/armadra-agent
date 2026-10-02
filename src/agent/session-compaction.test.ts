@@ -1,0 +1,66 @@
+import { describe, expect, it } from "vitest";
+import type { ScriptCall, ScriptStep } from "./testing/scripted-api.js";
+import { createHarness, isSummaryRequest } from "./testing/harness.js";
+import { fakeModel, stubTool } from "./testing/stubs.js";
+import type { SessionEntry } from "../session/types.js";
+
+/** 窗口 60k、预留 10k → 预算 50k：档一触发 35k、目标 25k、保护 10k。 */
+const model = fakeModel({ contextWindow: 60_000 });
+const readTool = stubTool({
+  name: "read",
+  properties: { path: { type: "string" } },
+  run: (input) => ({ content: `${String(input["path"])}\n${"x".repeat(4000)}` }), // ≈ 1 000 token
+});
+
+/** 单条提示里连续 n 次 read，之后回文本。 */
+function toolLoop(n: number): (call: ScriptCall) => ScriptStep {
+  let made = 0;
+  return (call) => {
+    if (isSummaryRequest(call.context)) return { text: "## Goal\nsummary" };
+    if (made >= n) return { text: "done" };
+    made++;
+    return { toolCalls: [{ name: "read", args: { path: `f${made}.ts` } }] };
+  };
+}
+
+const prunes = (entries: readonly SessionEntry[]) =>
+  entries.filter((e) => e.type === "context_edit" && e.reason === "prune");
+
+describe("档一在会话里（C1 / C2）", () => {
+  it("单 user 消息 + 50 次工具调用触发档一；一次清到目标，之后回合不再逐回合推进（回差）", async () => {
+    const h = createHarness({
+      model,
+      tools: [readTool],
+      compaction: { reserveTokens: 10_000, prune: { clearAtLeast: 2000 } } as never,
+      script: toolLoop(50),
+    });
+    await h.session.prompt("只有这一条用户消息：把 50 个文件都读一遍");
+    const edits = prunes(h.manager.branch());
+    expect(edits.length).toBeGreaterThan(0);
+    // 按 context_edit 的追加位置分批：同一批连续出现
+    const batches: number[] = [];
+    let last = -2;
+    h.manager.branch().forEach((entry, i) => {
+      if (entry.type !== "context_edit" || entry.reason !== "prune") return;
+      if (i !== last + 1) batches.push(0);
+      batches[batches.length - 1]!++;
+      last = i;
+    });
+    // 每批至少省 clearAtLeast（≈ 2 个结果），而不是每回合 1 个
+    expect(batches.every((n) => n >= 2)).toBe(true);
+    // 50 次调用跨过阈值多次，但裁剪批次远少于回合数
+    expect(batches.length).toBeLessThanOrEqual(3);
+    expect(h.events.some((e) => e.type === "compaction_start")).toBe(false);
+  });
+
+  it("没到 0.7 不裁", async () => {
+    const h = createHarness({
+      model,
+      tools: [readTool],
+      compaction: { reserveTokens: 10_000, prune: { clearAtLeast: 0 } } as never,
+      script: toolLoop(20),
+    });
+    await h.session.prompt("读 20 个文件");
+    expect(prunes(h.manager.branch())).toEqual([]);
+  });
+});

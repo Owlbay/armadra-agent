@@ -1,8 +1,9 @@
 /**
  * 会话侧的压缩调度（设计 §9）。[B2]
  *
- * - 阈值检查（新提示前、`prepareNextTurn` 里）：估算 > 0.7 ×（窗口 − 预留）→ 档一裁剪；仍 > 窗口 − 预留
- *   且熔断允许 → 档二摘要（trigger `threshold`）。
+ * - 阈值检查（新提示前、`prepareNextTurn` 里）：估算 > 0.7 ×（窗口 − 预留）→ 档一裁剪（[W5-H1] 按工具
+ *   结果新旧计边界，可省 ≥ clearAtLeast 才动，一次清到 0.5 ×）；仍 > 窗口 − 预留且熔断允许 → 档二摘要
+ *   （trigger `threshold`）。
  * - 溢出恢复（会话 run 结束后，失败尝试已用 context_edit 剔除）：PreCompact Hook → 档二摘要（trigger
  *   `overflow`，不受「每 run 一次」限制但受跳闸限制）→ 压缩后估算 ≤ 0.8 × 窗口才重试。
  * - 手动 `/compact`：PreCompact（trigger `manual`）→ 摘要；成功清零熔断。
@@ -14,7 +15,8 @@
 import { AmaError } from "../errors.js";
 import { CompactionBreaker } from "../compaction/breaker.js";
 import { estimateProjectedTokens, type ContextEstimate } from "../compaction/estimate.js";
-import { planPrune, shouldPrune } from "../compaction/prune-tier.js";
+import { planPrune, prunePolicy, type PrunePolicy } from "../compaction/prune-tier.js";
+import type { CompactionConfig } from "../config/types.js";
 import {
   prepareCompaction,
   prepareCompactionAt,
@@ -48,10 +50,16 @@ export class CompactionController {
   settings: CompactionSettings;
   private readonly core: SessionCore;
   private compacting = false;
+  /** [W5-H1] config `compaction.prune / pruneExclude`（组装根把整段 config.compaction 展开传入）。 */
+  private readonly pruneConfig: Pick<CompactionConfig, "prune" | "pruneExclude">;
 
   constructor(core: SessionCore, settings: Partial<CompactionSettings> = {}) {
     this.core = core;
     this.settings = { ...DEFAULT_COMPACTION_SETTINGS, ...settings };
+    const extra = settings as CompactionConfig;
+    this.pruneConfig = {};
+    if (extra.prune !== undefined) this.pruneConfig.prune = extra.prune;
+    if (extra.pruneExclude !== undefined) this.pruneConfig.pruneExclude = extra.pruneExclude;
     this.breaker = new CompactionBreaker(this.settings.enabled, core.model().contextWindow);
   }
 
@@ -111,11 +119,23 @@ export class CompactionController {
     return options;
   }
 
-  /** 档一；返回是否裁剪了内容。 */
-  prune(): boolean {
+  /** 档一参数；无窗口时 undefined。 */
+  prunePolicy(): PrunePolicy | undefined {
+    const budget = this.budget();
+    return budget === undefined ? undefined : prunePolicy(budget, this.pruneConfig.prune);
+  }
+
+  /**
+   * 档一；`need` = 清到目标还要省多少（undefined = 全部候选）。返回省下的 token 估算（0 = 未裁）。
+   */
+  prune(policy: PrunePolicy, need: number | undefined): number {
     const branch = this.core.manager.branch();
-    const plan = planPrune(buildProjection(branch).items, { outputDir: this.core.outputDir() });
-    for (const item of plan) {
+    const plan = planPrune(buildProjection(branch).items, {
+      policy,
+      need,
+      outputDir: this.core.outputDir(),
+    });
+    for (const item of plan.items) {
       this.core.appendEntry({
         type: "context_edit",
         targetId: item.targetId,
@@ -123,18 +143,20 @@ export class CompactionController {
         reason: "prune",
       });
     }
-    if (plan.length > 0) this.core.reloadMessages();
-    return plan.length > 0;
+    if (plan.items.length > 0) this.core.reloadMessages();
+    return plan.savedTokens;
   }
 
   /** 阈值检查（档一 → 档二）。失败只记录，不打断 run。 */
   async checkThreshold(signal: AbortSignal): Promise<void> {
     if (!this.breaker.autoEnabled || this.compacting || signal.aborted) return;
-    const window = this.core.model().contextWindow as number;
-    const reserve = this.settings.reserveTokens;
+    const policy = this.prunePolicy();
+    const budget = this.budget();
+    if (policy === undefined || budget === undefined) return;
     let tokens = this.estimate().tokens;
-    if (shouldPrune(tokens, window, reserve) && this.prune()) tokens = this.estimate().tokens;
-    if (tokens <= window - reserve || !this.breaker.canSummarize()) return;
+    if (tokens > policy.triggerTokens && this.prune(policy, tokens - policy.targetTokens) > 0)
+      tokens = this.estimate().tokens;
+    if (tokens <= budget || !this.breaker.canSummarize()) return;
     await this.summarize("threshold", signal);
   }
 
