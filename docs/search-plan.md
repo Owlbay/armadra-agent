@@ -406,3 +406,154 @@ parameters: { query: string (required), limit?: integer (default 5, max 10), rec
 | C8  | 是否先只做「最小可用版本」（§8.3）                                                   | 建议先做最小版（S-0 + S-A + S-B + S-C），看两周实际使用再决定 S-D / S-E / S-F       |
 | C9  | 是否把 `docs/gap-audit-2026-10.md` 中「不做内置 WebFetch / WebSearch」改标为被推翻   | 是，只加一行备注，不改原文                                                          |
 | C10 | 第二期协议里 Kimi `$web_search`（2026-10-20 前后停用）是否还做                       | 不做，等其独立 REST 接口                                                            |
+
+## §8 效果演示（纯文本示意，供取舍）
+
+以下为实施后的预期体验。终端图示省略颜色；`⌕` / `↓` 等记号沿用现有工具行风格。
+
+### §8.1 本地：模型用 grep / glob 找代码（S-A 之后，`default` 预设）
+
+```text
+> 哪些文件读了 process.env？
+
+  ⌕ grep "process\.env"  filesOnly                      3 files
+    src/jobs/cleanup.js · src/server/auth.js · src/server/http.js
+  ⌕ grep "process\.env"  context=1                      6 matches in 3 files
+  ↓ read src/server/auth.js:1-40
+
+  读取环境变量的有三处：
+  - src/jobs/cleanup.js — RETENTION_DAYS、DRY_RUN
+  - src/server/auth.js — JWT_SECRET、TOKEN_TTL
+  - src/server/http.js — PORT、HOST
+```
+
+对比今天 `minimal` 预设下的体验（E3）：`bash grep` 被拒 → `read .`「use the ls tool」→ 连猜 20 个文件名全部 not found → 6 轮用尽无答案。S-A 之后 `read .` 会说 `use glob (pattern "*")`，`-p` 的 stderr 会说 `minimal 预设没有 grep / glob，可用 tools.default: ["+grep","+glob"]`。
+
+### §8.2 `web_fetch` 抓文档页（S-B 之后，`default` 模式）
+
+```text
+> 看一下 https://vitest.dev/guide/cli 里 --reporter 有哪些取值
+
+┌ Approve tool call ───────────────────────────────────────────────┐
+│ web_fetch  vitest.dev/guide/cli                                   │
+│ GET https://vitest.dev/guide/cli  (public host 76.76.21.21)      │
+│ [a] allow  [s] allow vitest.dev this session  [d] deny            │
+└───────────────────────────────────────────────────────────────────┘
+
+  ⇩ fetch vitest.dev/guide/cli                     Command Line Interface · 18.4 KB · markdown
+    # Command Line Interface
+    Source: https://vitest.dev/guide/cli
+    ## Options
+    ### --reporter <name>
+    Specify reporters: default, verbose, dot, json, junit, tap, …   [expand ▸]
+
+  `--reporter` 可取 default、verbose、dot、json、junit、tap、tap-flat、hanging-process、github-actions、
+  blob，也可以传自定义 reporter 的路径；可重复给多个。
+
+  Sources:
+  1. Command Line Interface — https://vitest.dev/guide/cli
+```
+
+跨主机重定向时工具行显示 `↷ redirected to docs.example.org/… (not followed)`，模型再调一次、再审批一次。私网目标直接返回 `Refused: 10.0.0.5 is a private address`，不发请求。`-p`（无人值守）下 `web_fetch` 在 `default` 模式被拒，stderr 与今天 bash 被拒同一句提示；`--permission-mode auto` 下由分类器放行文档类域名。
+
+### §8.3 原生 `web_search`（S-D + S-E 之后，例如 `packy/grok-4.7` 或 `openai/gpt-5.5`）
+
+TUI：
+
+```text
+> vitest 现在最新稳定版是哪个？
+
+  ⌕ web_search "latest stable version of vitest npm"        server · 4 sources
+    vitest.dev/blog/vitest-5 · newreleases.io/project/npm/vitest · security.snyk.io/… · github.com/vitest-dev/vitest/releases
+
+  Vitest 最新稳定版是 5.0.3 [1]，5.0 大版本于本月发布 [2]。
+
+  Sources:
+  1. vitest versions | Snyk — https://security.snyk.io/package/npm/vitest/versions
+  2. Vitest 5.0 is out! — https://vitest.dev/blog/vitest-5.html
+```
+
+`-p --output-format json`（节选）：
+
+```json
+{
+  "type": "done",
+  "message": {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "serverTool",
+        "id": "ws_7f3a…",
+        "name": "web_search",
+        "summary": "latest stable version of vitest npm",
+        "sources": [
+          { "url": "https://vitest.dev/blog/vitest-5.html", "title": "Vitest 5.0 is out!" }
+        ]
+      },
+      {
+        "type": "text",
+        "text": "Vitest 最新稳定版是 5.0.3，5.0 大版本于本月发布。",
+        "citations": [
+          {
+            "url": "https://security.snyk.io/package/npm/vitest/versions",
+            "title": "vitest versions | Snyk",
+            "start": 12,
+            "end": 17
+          },
+          {
+            "url": "https://vitest.dev/blog/vitest-5.html",
+            "title": "Vitest 5.0 is out!",
+            "start": 18,
+            "end": 30
+          }
+        ]
+      }
+    ],
+    "usage": {
+      "input": 3248,
+      "cacheRead": 13312,
+      "output": 202,
+      "serverTools": { "web_search": 1 },
+      "cost": { "total": 0.0149, "tools": 0.01 }
+    }
+  }
+}
+```
+
+`-p` 纯文本：正文后追加 `Sources:` 两行。RPC / `stream-json` 多出 `{"type":"tool_execution_start","toolName":"web_search","server":true,…}`。
+
+### §8.4 外部后端 `web_search`（S-C 之后，例如 DeepSeek + Tavily）
+
+```text
+  ⌕ search "vitest latest stable version"                   tavily · 5 results
+    1. vitest - npm — https://www.npmjs.com/package/vitest
+       5.0.3 • Public • Published 3 days ago …
+    2. Releases · vitest-dev/vitest — https://github.com/vitest-dev/vitest/releases
+    …
+  ⇩ fetch www.npmjs.com/package/vitest                        vitest - npm · 9.1 KB · markdown   (approved: npmjs.com this session)
+
+  npm 上 vitest 最新稳定版是 5.0.3（3 天前发布）。
+
+  Sources:
+  1. vitest - npm — https://www.npmjs.com/package/vitest
+```
+
+### §8.5 没有搜索能力时的降级（模型无原生、也没配任何 key）
+
+启动头多一行（每个配置目录只提示一次）：
+
+```text
+  model   packy/deepseek-v4-flash · chat         tools  default (+web_fetch)
+  search  off — no native search for this model and no search key; `ama auth set tavily` enables web_search
+```
+
+模型侧没有 `web_search` 工具，遇到「最新版本」会用 `web_fetch` 直接抓 `registry.npmjs.org/vitest/latest`（E4 / E5 里它们本来就想 curl 这个地址）——在 `default` 模式弹一次审批、`auto` 下由分类器放行。相比今天的「5 次 bash 全拒、无答案」，这是最小改动就能达到的体验。
+
+### §8.6 两档范围与工作量
+
+| 档           | 包含                                                                                                                                                                | 用户得到                                                                                                                    | 估量（含测试与文档）               |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| **最小可用** | S-0 契约（只做 `network` 类、`activeTools`、配置键）+ S-A 本地增强 + S-B `web_fetch` + S-C 外部 `web_search`（Tavily、Brave 两家先上，Exa / Serper / SearXNG 随后） | §8.1、§8.2、§8.4、§8.5：任何模型都能查文档、搜网页，带审批与私网保护；来源以工具行与结果列表呈现（无脚注引用）              | 约 4 人日；2 个代理并行 2–3 天     |
+| **完整**     | 最小可用 + S-D 原生搜索（Responses / Anthropic）+ S-E 引用脚注、RPC / SDK、`/config` + S-F 第二期协议（Gemini、OpenRouter、通义、智谱）                             | 加上 §8.3：支持原生搜索的模型自动用服务端搜索、带 `[n]` 引用；ChatGPT 订阅用户零配置可搜；各家费用单列；宿主经 RPC 拿到引用 | 再加约 6 人日；3 个代理并行约 1 周 |
+
+两档都不改变无网络 / 关闭 web 工具时的请求字节（`web.fetch.enabled:false` + `search.provider:"off"` 的会话与 0.6.3 逐字节相同，测试锁定）。
