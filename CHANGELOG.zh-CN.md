@@ -6,6 +6,12 @@
 
 ## 未发布
 
+- **后台子 Agent 的配置、`-p` 与 RPC**：新增 `subagents.background: "auto" | "always" | "never"`（缺省 auto：交互界面 / RPC / ACP
+  下 task 缺省后台，`-p` 下前台；调用参数与类型定义的 `background:` 优先）与 `subagents.autoBackgroundAfterMs`（前台任务运行超过
+  该毫秒数自动转后台，缺省 0 关闭），两键项目级也认、`/config` 面板可改。`-p` 主回合结束后若还有后台任务在跑，stderr 一行提示并
+  等它们结束、跑完通知回合再输出（受 `--max-turns` / `--max-cost` 约束，到限退出 8；Ctrl+C 照常中止），json 结果带 `tasks`。
+  RPC 新增 `background_task { taskId? }` → `{ backgrounded }` 与事件 `subagent_background`（共 44 条命令），SDK 为
+  `session.backgroundTask(taskId?)`。文档：docs/agents.md「前台与后台」、docs/rpc.md。
 - **ChatGPT 订阅模型的上下文窗口取后端值**：ChatGPT 后端模型列表给的上下文窗口（codex 的 `context_window`，siwc 条目带了也取）
   现在优先于 models.dev——后者记的是 API 版窗口（部分模型 1.1M），订阅后端实际只收 272k，自动压缩按大窗口规划，长会话超过
   272k 后请求被拒。models.dev 仍补后端没给的字段（输出上限等），但不再覆盖后端给的输入模态与推理强度；两边都没有上下文窗口时，

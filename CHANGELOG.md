@@ -7,6 +7,14 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 
 ## Unreleased
 
+- **Background sub-agents: config, `-p` and RPC**: new `subagents.background: "auto" | "always" | "never"` (default auto:
+  task runs in the background by default in the TUI / RPC / ACP and in the foreground with `-p`; the call argument and the
+  agent type's `background:` take precedence) and `subagents.autoBackgroundAfterMs` (move a foreground task to the background
+  after it has run this long; default 0, off). Both are accepted at project level and editable in `/config`. When background
+  tasks are still running after the main turn, `-p` prints one stderr line and waits for them and their notification turns
+  before printing the result (bounded by `--max-turns` / `--max-cost`, exit 8 at the limit; Ctrl+C still stops); the json
+  result carries `tasks`. RPC adds `background_task { taskId? }` → `{ backgrounded }` and the `subagent_background` event
+  (44 commands), and the SDK `session.backgroundTask(taskId?)`. Docs: docs/agents.md, docs/rpc.md.
 - **ChatGPT subscription models use the backend's context window**: the context window reported by the ChatGPT backend's
   model list (codex `context_window`, and siwc entries when they carry it) now takes precedence over models.dev, which lists
   the API window (1.1M for some models) while the subscription backend accepts less (272k); auto-compaction used to plan for
