@@ -13,6 +13,7 @@
  * - 事件 `subagent_start / update / end`；父会话 `custom{ama.task}` 记任务快照（带 `status`），
  *   resume 时据此重建（未完成标 `interrupted`）。
  * - [W6-A] 子 Agent 视图的 `live()` / `message()`（实现在 subagent-direct.ts）。
+ * - [W7-B1] 缺省后台、前台转后台 `background()`、通知投递与 `settled()`（subagent-background.ts）。
  */
 
 import { tmpdir } from "node:os";
@@ -28,12 +29,7 @@ import type {
 } from "../tools/types.js";
 import { DEFAULT_AGENT } from "../agents/builtin.js";
 import { AgentCatalog, resolveAgentModel, type AgentModelConfig } from "../agents/catalog.js";
-import {
-  MAX_TURNS_NOTE,
-  capTaskText,
-  taskNotification,
-  writeTaskOutput,
-} from "../agents/result.js";
+import { MAX_TURNS_NOTE, capTaskText, writeTaskOutput } from "../agents/result.js";
 import {
   SubagentPool,
   TASK_CUSTOM_TYPE,
@@ -42,6 +38,8 @@ import {
   newRecord,
   rebuildRecords,
   recordData,
+  startEvent,
+  taskStats,
   type AmaRunnerSpec,
   type ProgressSink,
   type TaskHandle,
@@ -60,12 +58,24 @@ import type { SessionTaskStats } from "./types.js";
 import { createWorktree, finishWorktree } from "./worktree.js";
 import { appendTraceEntry } from "./session-trace-writer.js";
 import { directMessage, drainDirect, liveOf } from "./subagent-direct.js";
+import {
+  TaskNotifier,
+  WaitDetach,
+  backgroundRecords,
+  blockingTasks,
+  foregroundWaiter,
+  settleTasks,
+  startedResult,
+  waitForTask,
+  type BackgroundReason,
+} from "./subagent-background.js";
 
 export const DEFAULT_SUBAGENT_CONCURRENCY = 4;
 export const DEFAULT_MAX_PENDING = 16;
 export const DEFAULT_RETAINED = 16;
 
 export { SubagentPool, TASK_CUSTOM_TYPE, type AmaRunnerSpec, type TaskHandle };
+export type { BackgroundReason };
 export type AmaRunnerFactory = (spec: AmaRunnerSpec) => SubagentRunner;
 
 export interface SubagentEnvironment {
@@ -77,6 +87,10 @@ export interface SubagentEnvironment {
   /** 外部 / 宿主 runner（W5-E `ProcessRunner`、HostApi.runners）；没有返回 undefined。 */
   runners?(agent: AgentDefinition): SubagentRunner | undefined;
   now?(): number;
+  /** [W7-B1] `task` 未指定 background 且类型也没指定时的缺省（`subagents.background` 解析后）；缺省前台。 */
+  background?: boolean;
+  /** [W7-B1] 前台任务运行超过该毫秒数自动转后台（`subagents.autoBackgroundAfterMs`）；0 / 不设关闭。 */
+  autoBackgroundAfterMs?: number;
 }
 
 /** 注册表需要的父会话能力（`SessionCore`；followUp 为 AgentSessionImpl 的公开方法）。 */
@@ -138,7 +152,8 @@ export class SubagentRegistry implements TaskControl {
   private readonly retained: string[] = [];
   private seq = 0;
   private disposed = false;
-  private delivery: Promise<void> = Promise.resolve();
+  private readonly notifier: TaskNotifier;
+  private readonly waits = new WaitDetach();
 
   constructor(
     private readonly host: RegistryHost,
@@ -149,6 +164,7 @@ export class SubagentRegistry implements TaskControl {
     const rebuilt = rebuildRecords(host.manager.branch(), this.catalog, host.cwd);
     this.tasks = rebuilt.records;
     this.seq = rebuilt.seq;
+    this.notifier = new TaskNotifier(host, () => this.disposed);
   }
 
   private now(): number {
@@ -169,14 +185,7 @@ export class SubagentRegistry implements TaskControl {
   }
 
   stats(): SessionTaskStats | undefined {
-    if (this.tasks.size === 0) return undefined;
-    const byStatus: SessionTaskStats["byStatus"] = {};
-    let running = 0;
-    for (const { info } of this.tasks.values()) {
-      if (info.status === "running") running++;
-      else byStatus[info.status] = (byStatus[info.status] ?? 0) + 1;
-    }
-    return { total: this.tasks.size, running, byStatus };
+    return taskStats(this.tasks.values());
   }
 
   /** 运行中任务的已有输出（`task_ctl output`）；结束后为最终文本。 */
@@ -184,20 +193,49 @@ export class SubagentRegistry implements TaskControl {
     return this.tasks.get(taskId)?.text;
   }
 
-  /** 等任务结束或超时；超时返回 undefined。 */
-  async wait(taskId: string, timeoutMs: number): Promise<SubagentResult | undefined> {
+  /** 等结束；超时或 signal（缺省本任务的转后台信号，`background()` 触发）返回 undefined。[W7-B1] */
+  async wait(
+    taskId: string,
+    timeoutMs: number,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<SubagentResult | undefined> {
     const record = this.tasks.get(taskId);
     if (record === undefined) throw new AmaError("task_not_found", `unknown task ${taskId}`);
-    if (record.running === undefined) return record.last;
-    let timer: NodeJS.Timeout | undefined;
-    const timeout = new Promise<undefined>((resolve) => {
-      timer = setTimeout(() => resolve(undefined), timeoutMs);
+    return waitForTask(record, timeoutMs, options.signal ?? this.waits.signal(taskId), this.waits);
+  }
+
+  /** [W7-B1] `task_ctl wait` 用的打断信号（`background()` 触发后换新）。 */
+  detachSignal(taskId: string): AbortSignal {
+    return this.waits.signal(taskId);
+  }
+
+  /** [W7-B1] 正在阻塞父回合的任务：运行中的前台任务与有 `task_ctl wait` 在等的任务。 */
+  blocking(): string[] {
+    return blockingTasks(this.tasks.values(), this.waits);
+  }
+
+  /**
+   * [W7-B1] 前台任务转后台（§2.5，subagent-background.ts），并打断等它的 `task_ctl wait`；不给 taskId =
+   * 全部。返回被转后台或被打断等待的 taskId（不在运行时为空）。
+   */
+  background(taskId?: string, reason: BackgroundReason = "user"): string[] {
+    if (this.disposed) return [];
+    const one = taskId === undefined ? undefined : this.tasks.get(taskId);
+    const records =
+      taskId === undefined ? [...this.tasks.values()] : one === undefined ? [] : [one];
+    const moved = backgroundRecords(records, reason, {
+      emit: (event) => this.host.emit(event),
+      persist: (record) => this.persist(record),
+      notify: (record, result) => this.notifier.notify(record, result),
+      afterMs: this.env.autoBackgroundAfterMs ?? 0,
+      outputFile: (id) => this.outputFileFor(id),
     });
-    try {
-      return await Promise.race([record.running, timeout]);
-    } finally {
-      clearTimeout(timer);
-    }
+    return [...new Set([...moved, ...this.waits.detach(taskId)])];
+  }
+
+  /** [W7-B1] `-p` 收尾：等到没有运行中的任务、通知回合也已跑完；会话关闭立即返回。 */
+  settled(): Promise<void> {
+    return settleTasks(this.tasks, this.notifier, () => this.disposed);
   }
 
   /** [W6-A] 子 Agent 视图读的实时数据；未知任务 undefined。 */
@@ -241,7 +279,7 @@ export class SubagentRegistry implements TaskControl {
       );
     const model = resolveAgentModel(agent, request.model, this.env.modelConfig ?? {});
     if (model.warning !== undefined) this.host.log("warn", `agent ${name}: ${model.warning}`);
-    const background = request.background ?? agent.background;
+    const background = request.background ?? agent.background ?? this.env.background ?? false;
     const taskId = `t${++this.seq}`;
     const record = newRecord(
       {
@@ -278,7 +316,8 @@ export class SubagentRegistry implements TaskControl {
       return Promise.resolve(
         failed(`Task ${taskId} cannot be continued (its session was not saved).`),
       );
-    return this.launch(record, request, ama, request.background ?? false);
+    const background = request.background ?? record.agent.background ?? this.env.background;
+    return this.launch(record, request, ama, background ?? false);
   }
 
   private launch(
@@ -300,32 +339,34 @@ export class SubagentRegistry implements TaskControl {
     if (parentSignal?.aborted) controller.abort();
     else parentSignal?.addEventListener("abort", onParentAbort, { once: true });
     this.persist(record);
+    let timer: NodeJS.Timeout | undefined;
     const running = this.execute(record, request, ama, controller.signal).finally(() => {
+      clearTimeout(timer);
       parentSignal?.removeEventListener("abort", onParentAbort);
+      delete record.foregroundWaiter;
       delete record.running;
       delete record.controller;
       if (!this.disposed) drainDirect(record, this.host);
     });
     record.running = running;
-    if (!background) return running;
-    void running.then((result) => this.notify(record, result));
-    return Promise.resolve(this.startedResult(record));
-  }
-
-  private startedResult(record: TaskRecord): SubagentResult {
-    const result: SubagentResult = {
-      text:
-        `Started background task ${record.info.taskId} (agent ${record.agent.name}). ` +
-        "A <task-notification> arrives when it finishes; use task_ctl to wait, stop or read output.",
-      usage: { ...ZERO_USAGE },
-      stopReason: "stop",
-      isError: false,
-      taskId: record.info.taskId,
-      status: "running",
-    };
     const file = this.outputFileFor(record.info.taskId);
-    if (file !== undefined) result.outputFile = file;
-    return result;
+    if (background) {
+      void running.then((result) => this.notifier.notify(record, result));
+      return Promise.resolve(startedResult(record, file));
+    }
+    // [W7-B1] 前台：转后台（background()）时等待者先行 resolve，工具调用立即返回
+    const { waiter, promise } = foregroundWaiter(() => {
+      clearTimeout(timer);
+      parentSignal?.removeEventListener("abort", onParentAbort);
+      delete record.onUpdate;
+    });
+    record.foregroundWaiter = waiter;
+    const after = this.env.autoBackgroundAfterMs ?? 0;
+    if (after > 0) {
+      timer = setTimeout(() => this.background(record.info.taskId, "timeout"), after);
+      timer.unref?.();
+    }
+    return Promise.race([running, promise]);
   }
 
   private async execute(
@@ -419,19 +460,7 @@ export class SubagentRegistry implements TaskControl {
   }
 
   private emitStart(record: TaskRecord, handle: TaskHandle): void {
-    const event: Extract<Parameters<RegistryHost["emit"]>[0], { type: "subagent_start" }> = {
-      type: "subagent_start",
-      taskId: record.info.taskId,
-      parentToolCallId: record.parentToolCallId,
-      agent: record.agent.name,
-      runner: record.agent.runner,
-      description: record.info.description,
-      background: record.info.background,
-      cwd: record.cwd,
-    };
-    if (handle.model !== undefined) event.model = handle.model;
-    if (handle.sessionFile !== undefined) event.sessionFile = handle.sessionFile;
-    this.host.emit(event);
+    this.host.emit(startEvent(record, handle));
   }
 
   private sink(): ProgressSink {
@@ -504,35 +533,6 @@ export class SubagentRegistry implements TaskControl {
     this.host.emit(end);
     this.retain(info.taskId);
     return final;
-  }
-
-  private notify(record: TaskRecord, result: SubagentResult): void {
-    // 被停止的任务（task_ctl stop、会话关闭）不再通知：发起停止的一方已经知道
-    if (this.disposed || result.status === "aborted") return;
-    const info = record.info;
-    const text = taskNotification({
-      taskId: info.taskId,
-      agent: info.agent,
-      status: (result.status ?? "completed") as SubagentStatus,
-      ...(info.turns === undefined ? {} : { turns: info.turns }),
-      ...(info.usage === undefined ? {} : { usage: info.usage }),
-      ...(info.outputFile === undefined ? {} : { outputFile: info.outputFile }),
-      report: result.text,
-    });
-    const host = this.host;
-    const followUp = host.followUp;
-    if (followUp === undefined) {
-      host.log("warn", `task ${info.taskId} finished but the session cannot be notified`);
-      return;
-    }
-    // 父空闲时投递（开新回合）；父正忙则等这一周期结束再投——周期收尾阶段入队的 followUp 会滞留到
-    // 下一次提示。串行投递保证按完成顺序到达。
-    this.delivery = this.delivery
-      .then(async () => {
-        await host.waitForIdle?.();
-        if (!this.disposed) await followUp.call(host, text, { origin: "task" });
-      })
-      .catch((error: unknown) => host.log("warn", `task notification failed: ${String(error)}`));
   }
 
   // -------------------------------------------------------------------------

@@ -83,6 +83,34 @@ export function taskNotification(input: NotificationInput): string {
   return `<task-notification ${attrs.join(" ")}>\n${input.report}\n</task-notification>`;
 }
 
+// [W7-B1] 后台任务的固定英文文案（docs/agents-concurrency-plan.md §2.5；工具结果不进缓存前缀，但要
+// 稳定，便于测试与模型学习）。
+
+export const NOTIFY_HINT =
+  "A <task-notification> arrives when it finishes; use task_ctl to wait, stop or read output.";
+
+export function startedText(taskId: string, agent: string): string {
+  return `Started background task ${taskId} (agent ${agent}). ${NOTIFY_HINT}`;
+}
+
+/** 前台转后台的工具结果（§2.5.3）：固定英文；task 工具在前面加 `[task tN] `。 */
+export function backgroundedText(reason: "user" | "timeout" | "host", afterMs: number): string {
+  const head =
+    reason === "timeout"
+      ? `Still running after ${Math.round(afterMs / 1000)}s and moved to the background`
+      : "Moved to the background by the user";
+  return `${head}; it was not interrupted. ${NOTIFY_HINT} Do not wait for it unless the user asks.`;
+}
+
+/** `task_ctl wait` 被转后台打断时的文案（§2.5.4）。 */
+export function waitDetachedText(taskId: string): string {
+  return (
+    `Task ${taskId} is still running and was moved to the background by the user; do not wait ` +
+    "again — a <task-notification> arrives when it finishes."
+  );
+}
+
 /** 系统提示 rules 节的一句（task 工具的 promptGuidelines；会话开始即固定）。 */
 export const TASK_NOTIFICATION_RULE =
-  "A <task-notification> message is a background task's report, not the user speaking.";
+  "A <task-notification> is a background task's report, not the user speaking; never sleep or " +
+  "poll for it.";
