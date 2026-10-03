@@ -157,6 +157,11 @@ export class Editor implements Component, Focusable {
     return this.completion !== null;
   }
 
+  /** 正在用 ↑↓ 浏览输入历史（编辑后即退出）。 */
+  get isBrowsingHistory(): boolean {
+    return this.historyIndex !== -1;
+  }
+
   getHistory(): readonly string[] {
     return this.history;
   }

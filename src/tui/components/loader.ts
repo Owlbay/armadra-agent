@@ -2,7 +2,8 @@
  * 运行指示（设计 §12.1、§12.6；终端界面视觉设计 v1 §3.7）。[B4]
  *
  * 一行 `⠋ 动词 · 已用时 · 附加项…`：spinner `accent`、动词正文色、其余 `dim`，以 ` · ` 连接。
- * - `setVerb(verb, extras, { elapsed })` 换动词（思考中 / 回复中 / 运行 bash / 等待确认……）；
+ * - `setVerb(verb, extras, { elapsed, optional })` 换动词（思考中 / 回复中 / 运行 bash / 等待确认……）；
+ *   `optional` 是排在附加项之后的可丢弃项（按键提示），整行放不下时从后往前丢，而不是被截断；
  *   `setMessage(text)` 是只换动词的旧接口。
  * - 帧取 `theme.glyphs.spinner`（Unicode 10 帧 80 ms、ASCII 4 帧 250 ms）；`frame` 暴露当前帧字形，
  *   `onFrame` 让别的组件（运行中的工具摘要行）与 Loader 同帧换字，保证一帧只多改一行。
@@ -11,7 +12,7 @@
  */
 
 import type { Component, Theme } from "../component.js";
-import { truncateToWidth } from "../ansi.js";
+import { truncateToWidth, visibleWidth } from "../ansi.js";
 import { UNICODE_GLYPHS } from "../glyphs.js";
 
 /** Unicode 帧表（兼容旧导出；实际帧取 `theme.glyphs.spinner`）。 */
@@ -33,6 +34,12 @@ export interface LoaderOptions {
 export interface LoaderVerbOptions {
   /** 本动词是否显示已用时（缺省跟随 `showElapsed`）。 */
   elapsed?: boolean;
+  /** 可丢弃的附加项：宽度不够时从后往前整项丢掉（缺省没有）。 */
+  optional?: readonly string[];
+}
+
+function sameList(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((e, i) => e === b[i]);
 }
 
 export function formatElapsed(ms: number): string {
@@ -49,6 +56,7 @@ export class Loader implements Component {
   private startedAt: number;
   private verb: string;
   private extras: readonly string[] = [];
+  private optional: readonly string[] = [];
   private verbElapsed: boolean | undefined;
   private lastElapsed = "";
   private readonly listeners = new Set<(frame: string) => void>();
@@ -94,11 +102,12 @@ export class Loader implements Component {
     const same =
       verb === this.verb &&
       options.elapsed === this.verbElapsed &&
-      extras.length === this.extras.length &&
-      extras.every((e, i) => e === this.extras[i]);
+      sameList(extras, this.extras) &&
+      sameList(options.optional ?? [], this.optional);
     if (same) return;
     this.verb = verb;
     this.extras = [...extras];
+    this.optional = [...(options.optional ?? [])];
     this.verbElapsed = options.elapsed;
     this.requestRender();
   }
@@ -169,7 +178,13 @@ export class Loader implements Component {
     if (this.verbElapsed ?? this.options.showElapsed !== false) parts.push(dim(elapsed));
     for (const extra of this.extras) parts.push(dim(extra));
     const spinner = theme ? theme.fg("accent", this.frame) : this.frame;
-    return [truncateToWidth(`${spinner} ${parts.join(dim(" · "))}`, width)];
+    const line = (items: readonly string[]): string => `${spinner} ${items.join(dim(" · "))}`;
+    for (const extra of this.optional) {
+      const next = [...parts, dim(extra)];
+      if (visibleWidth(line(next)) > width) break;
+      parts.push(dim(extra));
+    }
+    return [truncateToWidth(line(parts), width)];
   }
 
   invalidate(): void {}
