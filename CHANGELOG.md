@@ -5,7 +5,7 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 > This file is in English starting with 0.6.0. Release notes for 0.1 through 0.5.1 are in Chinese in
 > [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md). New entries go into both files.
 
-## Unreleased
+## 0.6.6 (2026-10-03)
 
 - **Local search hints**: when both `grep` and `glob` are directly available, the system prompt's rules gain one line
   ("Locate code with grep/glob before reading; do not guess file paths."); the `grep` / `glob` descriptions now say when
