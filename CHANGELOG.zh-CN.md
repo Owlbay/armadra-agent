@@ -4,7 +4,7 @@
 
 > 从 0.6.0 起 [CHANGELOG.md](CHANGELOG.md) 为英文，本文件保留中文记录（0.1–0.5.1 的完整历史在此）。新条目两份都要加。
 
-## 未发布
+## 0.6.5（2026-10-03）
 
 - **`AcpClient` 开会话可传 MCP 服务器**：`newSession`、`resumeSession`、`loadSession` 新增可选的第三个参数
   `{ mcpServers }`，原样随 `session/new|resume|load` 发出（缺省仍是 `[]`，不传时线路不变）；宿主用
