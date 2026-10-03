@@ -292,6 +292,13 @@ describe("工具视图：结果摘要", () => {
         { content: "No matches found", details: { matches: 0, files: 0 } },
       )[1],
     ).toBe("  ⎿ 无匹配");
+    expect(
+      done(
+        "grep",
+        { pattern: "x", filesOnly: true },
+        { content: "a.ts\nb.ts", details: { files: 2, filesOnly: true, limited: false } },
+      )[1],
+    ).toBe("  ⎿ 2 个文件");
     expect(done("glob", { pattern: "*" }, { content: "a\nb", details: { count: 42 } })[1]).toBe(
       "  ⎿ 42 个文件",
     );

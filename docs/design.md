@@ -503,6 +503,7 @@ export interface ToolContext {
   readonly signal: AbortSignal; readonly depth: number;      // task 深度
   onUpdate(partial: string): void;
   readFiles: ReadonlySet<string>;                             // 本会话已 read 的绝对路径（write 先读后写检查）
+  activeTools?: ReadonlySet<string>;                          // [S-A] 会话活动集快照（read 目录提示用）
   tools: { executeTool(name: string, input: unknown): Promise<ToolResult> };   // task 用，受同一管线
   log(level: "debug" | "info" | "warn", message: string): void;
 }
@@ -520,7 +521,7 @@ export interface ToolResult {
 | `write` | `path, content`                                                               | write / sequential   | 整文件覆盖，自动建父目录；文件存在且不在 `readFiles` → 错误「先 read」；保留原文件的 BOM 与换行风格（若存在）；`details: { bytes, created }`                                                                                                                                                                                             |
 | `edit`  | `path, edits: [{oldText, newText}], replaceAll?`                              | write / sequential   | 每处在**原文**上匹配、必须唯一且互不重叠（`replaceAll` 例外）；先精确再模糊（NFKC、行尾空白、引号 / 破折号归 ASCII）；不唯一 → 错误含出现次数与首两处行号；保留 BOM / CRLF；`details.diff` 统一 diff 给 TUI；要求先 read                                                                                                                 |
 | `bash`  | `command, timeoutMs?(缺省 120000，上限 600000), cwd?, description?`           | execute / sequential | shell：`AMA_SHELL` → POSIX `/bin/bash` → `sh`；Windows `AMA_SHELL` → Git Bash 已知路径 → `powershell -NoProfile -Command`；`spawn(shell, ["-c", command], { detached: !win, stdio: [ignore, pipe, pipe] })`；滚动尾部流式 `onUpdate`；超限（2000 行 / 50 KB）**尾截断**并给 `full_output_path`；结果 `{output, exit_code, truncated, wall_time_seconds}`；信号退出 `128+signo`；注入 `AMA_SESSION_ID / AMA_SESSION_FILE / AMA_PROVIDER / AMA_MODEL / AMA_THINKING / AMA_DEPTH`；退出时清理所有活子进程 |
-| `grep`  | `pattern, path?, glob?, ignoreCase?, literal?, context?(0–5), limit?(100)`    | read / parallel      | 内置：按 `.gitignore` / `.ignore` 过滤，跳过二进制与 > 2 MB 文件，并发 16 文件；匹配行截 500 字符；输出格式 `path:line: text`；超 limit 提示                                                                                                                                                                                             |
+| `grep`  | `pattern, path?, glob?, ignoreCase?, literal?, context?(0–5), limit?(100), filesOnly?` | read / parallel      | 内置：按 `.gitignore` / `.ignore` 过滤，跳过二进制与 > 2 MB 文件，并发 16 文件；匹配行截 500 字符；输出格式 `path:line: text`；超 limit 提示；`filesOnly` 只列命中文件（去重、按路径排序，limit 按文件数计，`context` 不生效）                                                                                                                                                                                             |
 | `glob`  | `pattern, path?, limit?(1000)`                                                | read / parallel      | 内置 glob：`**`、`{a,b}`、`[...]`、`!`；按 mtime 倒序；尊重 ignore                                                                                                                                                                                                                                                                      |
 | `ls`    | `path?, limit?(500)`                                                          | read / parallel      | 目录项 `name/`、大小、符号链接标注                                                                                                                                                                                                                                                                                                      |
 | `todo`  | `action: "set" \| "get", items?: [{id, text, status: pending\|in_progress\|done}]` | read / parallel  | 写 `custom{customType:"ama.todo"}` 条目（不进上下文，TUI 渲染清单）；`get` 返回当前列表                                                                                                                                                                                                                                                 |
@@ -596,13 +597,14 @@ ama 不知道画布；Armadra 适配器经 `HostApi.tools.register` 注册 `canv
 | 预设          | 模型直接看到                                         | 脚本内可调用（codemode）              | 用途                                         |
 | ------------- | ---------------------------------------------------- | ------------------------------------- | -------------------------------------------- |
 | `default`     | read、edit、write、bash、grep、glob（第五波 D20 曾加 todo，0.5.0 复测未过门撤回）；网络隔离时另加 codemode | 全部内置工具（含 ls、todo、task）      | 独立编码，缺省                               |
-| `minimal`     | read、edit、write、bash                              | —（显式 `on` 时全部内置工具）          | 与 Pi 一致；适合 `full-auto`                 |
+| `minimal`     | read、edit、write、bash                              | —（显式 `on` 时全部内置工具）          | 与 Pi 一致；适合 `full-auto`；没有 grep / glob，检索走 bash（见下） |
 | `codemode-only` | codemode                                           | 全部内置工具（含 ls、todo、task）      | 长流程、工具密集任务                         |
 | `coordinator` | read、宿主注册的 canvas_* / context_*（codemode 可选） | 只有活动集：read 与 canvas_* 等       | 嵌入 Armadra 的协调者：不写文件、不跑 bash   |
 
 - 预设名：`codemode-only` 是 2026-10 起的规范名，0.3.0 的 `codemode` 作别名保留（配置、命令行、RPC 的 argv、SDK、schema 都接受；配置合并与命令行解析后只见规范名，`ama config show` 显示规范名并提示）。项目级「只能更严」按规范名比较。
 
 - 逐个工具：`ls` 默认关（glob 已覆盖，且诱导逐层翻目录）；`todo` 默认关（每次更新多一次往返；长任务在脚本里用；第五波曾进 `default` 预设，0.5.0 用多步长任务复测未过门撤回，计划交接改用 `[DONE:n]` 文本标记，见 [wave5-plan.md](wave5-plan.md) D20 与 docs/benchmarks/presets-todo-2026-10-03.md）；`task` 默认关（`+task` 打开；嵌入 Armadra 时禁用）；**删除 `skill` 工具**（Skill 正文用 `read` 读，`/skill:` 命令保留）；Windows 上若没有 bash，`default` 预设自动退化为 PowerShell 版 bash，grep / glob 照常可用。
+- 检索取舍（[docs/search-plan.md](search-plan.md) §1.3、§4.2）：`minimal` / `coordinator` 不带 grep / glob，模型找代码只能用 `bash grep` / `rg` / `find`——`default` 权限模式下每次审批，`-p` 下直接被拒，实测模型随后连猜文件名、回合用尽也没有答案。需要检索又想要小工具表时用 `tools.default: ["+grep","+glob"]`；`-p` 下这类 bash 被拒时 stderr 会补一行同样的提示。grep 与 glob 都直接可用时 `rules` 节多一句「先 grep / glob 定位再 read，不要猜路径」；`read` 收到目录时按活动集指向 `ls` / `glob` / 目录里的文件（`ToolContext.activeTools`）。
 - 配置：`tools.preset`（缺省 `default`）+ `tools.default` 的 `+name` / `-name` 微调；命令行 `--tools-preset <名>`、`--tools a,b,c`（整组替换）。
 - 预设在会话开始时确定并写进首条 system 消息；会话中途改预设按工具表补丁处理（§9.1）。
 - 描述精简：每个工具的描述 + 参数控制在 150 token 内（已落实：内置工具合计 1548 → 1186 token，`src/tools/descriptions.test.ts` 守住）。

@@ -239,6 +239,11 @@ export interface ToolContext {
   readonly readFiles: ReadonlySet<string>;
   markRead(absolutePath: string): void;
   /**
+   * [S-A] 本次调用时模型可直接调用的工具名（会话活动集，只读快照）；工具据此给出可执行的提示
+   * （如 read 收到目录时说用 ls 还是 glob）。宿主 / SDK 自建上下文可不给。
+   */
+  readonly activeTools?: ReadonlySet<string>;
+  /**
    * 嵌套调用其它工具（codemode 脚本、task），受同一管线；按全部未禁用工具查找（不限于活动集），
    * 发带 `parentToolCallId` 的 tool_execution_* 事件。`signal`：与 ctx.signal 合并，用于提前取消
    * 这一次嵌套调用（codemode 脚本结束时取消仍在跑的调用）。

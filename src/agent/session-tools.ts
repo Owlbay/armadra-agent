@@ -304,6 +304,7 @@ export function createToolContext(
     markRead: (path) => {
       core.readFiles.add(path);
     },
+    activeTools: new Set(core.activeToolNames()),
     tools: {
       executeTool: (name, input, options) => {
         nested++;

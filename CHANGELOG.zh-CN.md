@@ -4,6 +4,15 @@
 
 > 从 0.6.0 起 [CHANGELOG.md](CHANGELOG.md) 为英文，本文件保留中文记录（0.1–0.5.1 的完整历史在此）。新条目两份都要加。
 
+## 未发布
+
+- **本地检索提示**：`grep` 与 `glob` 都直接可用时，系统提示的规则节多一句「先 grep / glob 定位再 read，不要猜路径」；`grep` /
+  `glob` 的描述写明何时用；`grep` 新增 `filesOnly: true`，只列命中文件（去重、按路径排序，`limit` 按文件数计）。`read` 收到目录时
+  指向模型当前真能调用的工具：有 `ls` 说用 ls，否则有 `glob` 说用 glob（例如 `pattern "src/*"`），都没有则说读目录里的文件。`-p`
+  下 `minimal` / `coordinator` 预设里 bash 的 `grep` / `rg` / `find` 被拒时，stderr 补一行怎么加回
+  （`tools.default: ["+grep","+glob"]`）。工具经可选、只读的 `ToolContext.activeTools` 拿到会话活动集。`default` 前缀因此
+  变化（约 +35 token），升级后首个请求缓存未命中一次。文档：docs/design.md §5.6、docs/codemode.md。
+
 ## 0.6.5（2026-10-03）
 
 - **`AcpClient` 开会话可传 MCP 服务器**：`newSession`、`resumeSession`、`loadSession` 新增可选的第三个参数

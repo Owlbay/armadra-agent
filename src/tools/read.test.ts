@@ -76,6 +76,43 @@ describe("read", () => {
     expect(isBinary(Buffer.from("abc"))).toBe(false);
   });
 
+  it("[S-A] 目录：按活动集指向 ls / glob / 目录里的文件，活动集未知时沿用旧文案", async () => {
+    mkdirSync(join(tmp.dir, "src", "app"), { recursive: true });
+    mkdirSync(join(tmp.dir, "[id]"));
+    const run = async (path: string, active?: string[]) => {
+      const ctx = makeToolContext(
+        tmp.dir,
+        active === undefined ? {} : { activeTools: new Set(active) },
+      );
+      const r = await tool.execute({ path }, ctx);
+      expect(r.isError).toBe(true);
+      return r.content;
+    };
+    expect(await run("src", ["glob", "ls", "read"])).toBe(
+      "src is a directory; use the ls tool instead",
+    );
+    expect(await run("src/app", ["glob", "grep", "read"])).toBe(
+      'src/app is a directory; use glob (e.g. pattern "src/app/*")',
+    );
+    expect(await run(".", ["glob", "read"])).toBe('. is a directory; use glob (e.g. pattern "*")');
+    expect(await run("[id]", ["glob", "read"])).toBe(
+      '[id] is a directory; use glob (e.g. path "[id]", pattern "*")',
+    );
+    const outside = makeTmpDir();
+    try {
+      const shown = outside.dir.split("\\").join("/");
+      expect(await run(outside.dir, ["glob", "read"])).toBe(
+        `${shown} is a directory; use glob (e.g. path ${JSON.stringify(shown)}, pattern "*")`,
+      );
+    } finally {
+      outside.cleanup();
+    }
+    expect(await run("src", ["bash", "edit", "read", "write"])).toBe(
+      "src is a directory; read a file inside it",
+    );
+    expect(await run("src")).toBe("src is a directory; use the ls tool instead");
+  });
+
   it("图片作为 ImageBlock；模型不支持时只给尺寸", async () => {
     writeFileSync(join(tmp.dir, "p.png"), PNG_1x2);
     const ctx = makeToolContext(tmp.dir);

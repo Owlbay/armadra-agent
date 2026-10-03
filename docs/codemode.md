@@ -24,6 +24,8 @@
 
 缺省配置里不写 `codemode.mode`（`ama init` 生成的 `config.json` 也不写），所以这张映射以后调整时老用户同样生效。`ama config show` / `ama doctor` 显示生效模式与原因（跟随哪个预设、网络由 Node 还是操作系统沙箱隔离）；`ama doctor` 另列操作系统沙箱能力。
 
+`minimal` / `coordinator` 预设缺省不带 codemode，也没有 grep / glob：模型找代码只能用 bash（`default` 权限模式下每次审批、`-p` 下被拒）。要检索就 `tools.default: ["+grep","+glob"]` 直接加上，比为了检索打开 codemode 便宜（见 [design.md](design.md) §5.6）；`codemode-only` 的脚本里 `tools.grep()` / `tools.glob()` / `tools.ls()` 都可调用。
+
 `coordinator` 预设即使显式 `on`，脚本里能调用的工具也只限它的活动集（read 与宿主工具）：`tools.bash`、`tools.write` 在脚本里同样不存在，协调者「不写文件、不跑 bash」的约定不能经 codemode 绕过。
 
 `codemode` 本身的权限类随沙箱能力：网络隔离（Node ≥ 25，或有操作系统沙箱，见下文沙箱）时是 `read` 类，`default` 权限模式下免审批——脚本只能经 `tools.*` 做事，每次内层调用仍逐个经过权限管线；网络未隔离（Node 22 / 24 且没有操作系统沙箱）时是 `execute` 类，`default` 模式下每次都要审批，`-p` 等无人值守场景直接拒绝，此时常用做法是在配置里放行它：

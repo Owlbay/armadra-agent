@@ -1,8 +1,9 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ApprovalRequest } from "../permissions/types.js";
+import { createReadTool } from "../tools/read.js";
 import { createHarness } from "./testing/harness.js";
 import { stubPermission, stubTool } from "./testing/stubs.js";
 
@@ -80,5 +81,48 @@ describe("gateToolCall：审批请求带 readFiles 与执行前预览", () => {
       undefined,
     ]);
     expect("preview" in (events[2] ?? {})).toBe(false);
+  });
+});
+
+describe("[S-A] ToolContext.activeTools：会话活动集的只读快照", () => {
+  it("read 收到目录时按活动集给提示；setActiveTools 之后的调用看到新集合", async () => {
+    mkdirSync(join(cwd, "src"));
+    const seen: string[][] = [];
+    const probe = stubTool({
+      name: "probe",
+      run: (_input, ctx) => {
+        seen.push([...(ctx.activeTools ?? [])].sort());
+        return { content: "ok" };
+      },
+    });
+    const glob = stubTool({ name: "glob" });
+    const ls = stubTool({ name: "ls" });
+    const h = createHarness({
+      cwd,
+      tools: [createReadTool(), probe, glob, ls],
+      activeTools: ["read", "probe", "glob"],
+      script: [
+        {
+          toolCalls: [
+            { name: "read", args: { path: "src" } },
+            { name: "probe", args: {} },
+          ],
+        },
+        { text: "done" },
+        { toolCalls: [{ name: "read", args: { path: "src" } }] },
+        { text: "done" },
+      ],
+    });
+    await h.session.prompt("go");
+    h.session.setActiveTools(["read", "probe", "ls"]);
+    await h.session.prompt("again");
+    expect(seen).toEqual([["glob", "probe", "read"]]);
+    const results = h.events.flatMap((e) =>
+      e.type === "tool_execution_end" && e.toolName === "read" ? [e.result.content] : [],
+    );
+    expect(results).toEqual([
+      'src is a directory; use glob (e.g. pattern "src/*")',
+      "src is a directory; use the ls tool instead",
+    ]);
   });
 });

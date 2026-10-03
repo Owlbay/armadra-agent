@@ -16,6 +16,7 @@ import { detectSandboxCapability } from "../codemode/capability.js";
 import type { Model, SystemMessage, ToolDecl } from "../ai/types.js";
 import { resolveBashSandbox } from "../sandbox/bash.js";
 import type { ComposeOptions } from "./compose.js";
+import { LOCATE_RULE } from "../agent/prompt-rules.js";
 
 let h: ComposeHarness | undefined;
 afterEach(() => h?.cleanup());
@@ -197,7 +198,18 @@ describe("提示长度预算（字符 / 4 估算）", () => {
     };
     expect(h.fake.calls.length).toBeGreaterThanOrEqual(2);
     expect(prefix(h.fake.calls.length - 1)).toBe(prefix(0));
+    // [S-A] 定位规则与 grep filesOnly 在 default 前缀里，且同样逐字节稳定
+    expect(prefix(0)).toContain(LOCATE_RULE);
+    expect(prefix(0)).toContain('"filesOnly"');
     await runtime.dispose();
+  });
+
+  it("[S-A] 定位规则只在 grep 与 glob 直接可用时进前缀：minimal / codemode-only 不带", async () => {
+    for (const preset of ["minimal", "codemode-only"] as const) {
+      const { body } = await measurePreset(preset);
+      expect(JSON.stringify(body["system"]), preset).not.toContain(LOCATE_RULE);
+      h?.cleanup();
+    }
   });
 
   it("超出预算会失败并给出逐项明细", () => {

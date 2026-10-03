@@ -213,6 +213,7 @@ export function resultSummary(input: SummaryInput, theme: Theme): string {
     case "grep": {
       const matches = num(details["matches"]);
       if (matches === 0) return muted(m.noMatch);
+      if (details["filesOnly"] === true) return muted(m.files(num(details["files"]) ?? count));
       if (matches === undefined) return muted(m.lines(count));
       return muted(m.matches(matches, num(details["files"])));
     }

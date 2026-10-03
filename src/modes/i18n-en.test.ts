@@ -52,6 +52,17 @@ describe("ama -p（en）", () => {
     ]);
   });
 
+  it("[S-A] minimal 预设下 bash grep 被拒的补充提示是英文", async () => {
+    const grepCall = {
+      steps: [{ toolCall: { name: "bash", arguments: { command: "rg process.env" } } }],
+    };
+    h = composeHarness([grepCall, { text: "done" }], { env: EN });
+    expect(await h.run(["-p", "w", "--model", "fake/echo", "--tools-preset", "minimal"])).toBe(7);
+    expect(h.stderr()).toContain(
+      'ama: the minimal preset has no grep / glob; add them with tools.default: ["+grep","+glob"]\n',
+    );
+  });
+
   it("重试行与回合上限是英文", async () => {
     h = composeHarness([{ error: { kind: "overloaded" } }, { text: "ok" }], { env: EN });
     h.home.write("home/.config/ama/config.json", {
