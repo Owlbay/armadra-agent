@@ -21,6 +21,10 @@
  * - [W5-H2] plan 模式产出计划、`plan.unattended: stop`（缺省）没人审批：stderr 一行（计划文件与审批办法）、
  *   json 带 `planPending{planId, version, filePath}`、退出码 9。
  * - [W5-H2] `--image` / `@图片` 超限时按 config `images.resize` 缩放（缺省 auto）。
+ * - [W7-B2] 后台子 Agent（显式 `background:true` 或 `subagents.background: always`）：主回合结束后若还有任务
+ *   在跑或通知待投递，stderr 一行提示并等它们结束、跑完通知回合再输出（最终文本 = 最后一条助手回复）；
+ *   受 `--max-turns` / `--max-cost` / `limits.*` 约束（到限即停止等待，退出码 8），SIGINT / SIGTERM 照常中止
+ *   （未结束的任务随会话关闭被停止）；json 结果带 `tasks`（同 `getStats().tasks`）。
  * - 退出码：最终助手消息 `error / aborted` 或提示被拒 → 1；有工具调用被拒 → 7；到达预算 → 8；
  *   计划待审批 → 9；SIGINT 130、SIGTERM 143（先 abort）。
  */
@@ -34,6 +38,9 @@ import { toJsonLine, toWireEvent } from "./json-event.js";
 import { formatUsd } from "../../agent/limits.js";
 import type { LimitReachedEvent, PlanProposedEvent, SessionEvent } from "../../agent/types.js";
 import type { ImageBlock } from "../../ai/types.js";
+import type { AgentSession } from "../../agent/types.js";
+import { registryOf } from "../../agent/subagent-registry.js";
+import type { TaskInfo } from "../../tools/types.js";
 import { promptImages, sessionModel } from "../image-input.js";
 import { msg } from "../../i18n/index.js";
 
@@ -139,9 +146,15 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
   const denied: DeniedTool[] = [];
   let limit: LimitReachedEvent | undefined;
   let plan: PlanProposedEvent | undefined;
+  let stopWaiting: () => void = () => undefined;
+  const stopped = new Promise<void>((resolve) => {
+    stopWaiting = resolve;
+  });
   const unsubscribe = session.subscribe((event) => {
-    if (event.type === "limit_reached") limit ??= event;
-    else if (event.type === "plan_proposed") plan = event;
+    if (event.type === "limit_reached") {
+      limit ??= event;
+      stopWaiting();
+    } else if (event.type === "plan_proposed") plan = event;
     else if (event.type === "plan_resolved" && event.planId === plan?.planId) plan = undefined;
     if (event.type === "tool_execution_end" && event.denied === true)
       denied.push({
@@ -163,16 +176,27 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
   let signalled: number | undefined;
   const offSignals = onTerminationSignals((code) => {
     signalled ??= code;
+    stopWaiting();
     void session.abort();
   });
   let stdoutClosed = false;
   const offEpipe = onStdoutClosed(() => {
     stdoutClosed = true;
+    stopWaiting();
     void session.abort();
   });
   let failure: string | undefined;
   try {
     await session.prompt(prompt, images.length > 0 ? { images } : {});
+    const ended = lastAssistant(session)?.stopReason;
+    if (
+      signalled === undefined &&
+      !stdoutClosed &&
+      limit === undefined &&
+      ended !== "error" &&
+      ended !== "aborted"
+    )
+      await waitBackgroundTasks(session, stopped, io);
   } catch (error) {
     failure = errorText(error);
   } finally {
@@ -205,6 +229,7 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
         cost: stats.cost,
         cacheHitRate: stats.cacheHitRate,
         ...(stats.cache !== undefined ? { cache: stats.cache } : {}),
+        ...(stats.tasks !== undefined ? { tasks: stats.tasks } : {}),
         ...(denied.length > 0 ? { deniedTools: denied } : {}),
         ...(plan !== undefined
           ? {
@@ -247,6 +272,28 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
   }
   if (denied.length > 0) return ExitCode.ToolDenied;
   return ExitCode.Ok;
+}
+
+/** [W7-B2] 注册表的落定等待（B1 `SubagentRegistry.settled()`：无运行中任务且通知投递链（含通知回合）结束）。 */
+interface SettleableTasks {
+  list(): readonly TaskInfo[];
+  settled?(): Promise<void>;
+}
+
+/**
+ * [W7-B2] 主回合结束后等后台任务与它们的通知回合（docs/agents-concurrency-plan.md §2.6、§6 Q5）。
+ * `stopped`：SIGINT / SIGTERM、stdout 关闭或预算到限时 resolve，立即停止等待。没有子 Agent 注册表时直接返回。
+ */
+export async function waitBackgroundTasks(
+  session: AgentSession,
+  stopped: Promise<void>,
+  io: Pick<CliIo, "stderr">,
+): Promise<void> {
+  const registry = registryOf(session.state.sessionId) as SettleableTasks | undefined;
+  if (registry?.settled === undefined) return;
+  const running = registry.list().filter((task) => task.status === "running").length;
+  if (running > 0) io.stderr(msg().print.print.waitingTasks(running));
+  await Promise.race([registry.settled(), stopped]);
 }
 
 /** stderr 一行：计划已落盘待审批（-p 不替人批准）。 */
