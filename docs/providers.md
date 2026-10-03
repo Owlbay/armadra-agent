@@ -189,8 +189,10 @@ ama auth logout chatgpt                # siwc 先撤销 refresh token 再删本�
 模型列表接口（siwc `GET /v1/models`、codex `GET /models?client_version=…`，只读、不消耗额度；失败静默，改提示
 `ama models discover chatgpt`），把账户可用的 slug 与显示名连同 flavor、时间戳缓存到
 `<dataDir>/models/discovered/chatgpt.json`——返回 0 个也写空表，免得残留另一种登录方式的缓存；`ama models discover
-chatgpt` 也重写这份缓存，`ama auth logout chatgpt` 删掉它。组装注册表时缓存并入模型表为空的供应商，元数据用 models.dev
-快照补全（codex 后端另给的上下文窗口、输入模态、推理强度也存进缓存，models.dev 补不到时用它），`/model` 选择器、
+chatgpt` 也重写这份缓存，`ama auth logout chatgpt` 删掉它。组装注册表时缓存并入模型表为空的供应商，后端给的上下文窗口、
+输入模态、推理强度（codex 后端给；siwc 条目带了也取）存进缓存并优先于 models.dev 快照——订阅后端的生效窗口（如 272k）
+可能远小于 models.dev 记的 API 版窗口，压缩阈值按后端窗口算；后端没给的字段（输出上限等）用 models.dev 补，两边都没有
+上下文窗口时按保守缺省 128k。旧版本写的缓存不含窗口就照旧用 models.dev，重新 `ama models discover chatgpt` 即刷新。`/model` 选择器、
 `ama models list` 照常列出；缓存的 flavor 与当前登录不符时视为过期、不并入（选择器提示重新发现）。缓存里没有的 slug
 仍可 `--model chatgpt/<slug>` 使用。
 
