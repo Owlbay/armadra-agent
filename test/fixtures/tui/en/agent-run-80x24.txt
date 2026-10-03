@@ -1,0 +1,25 @@
+# foreground task running · viewport 80x24
+|✻ ama <version> · fake/echo · Bypass permissions · /help
+|
+|› scan it
+|
+|⏺ task scan
+|  ⎿ ⠋ explore · running <t>
+|
+|<spin> Running task · <t> · Esc to interrupt · ↓ Agent bar
+|────────────────────────────────────────────────────────────────────────────────
+|› Type a message, / for commands, @ for files, Shift+Enter for newline
+|────────────────────────────────────────────────────────────────────────────────
+|⏺ t1 explore · running <t>  scan
+|<状态栏>
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
