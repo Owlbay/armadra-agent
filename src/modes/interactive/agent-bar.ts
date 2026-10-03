@@ -13,7 +13,9 @@
  * - 显示条件：有排队 / 运行中 / 等审批的任务，或本会话里看着结束、还没查看过的任务（结束后最多 10 分钟）；
  *   `ui.agentBar: "off"`（嵌入宿主缺省）整个不显示。
  * - 聚焦（`Ctrl+B` / 空输入 `↓` / `/tasks`）：列出本会话全部任务，`›` 标当前项，窗口跟着选择滚动，
- *   末行是按键提示。按键处理在 agent-ui.ts。
+ *   末行是按键提示（`↑↓ 选择 · Enter 打开 · b 转后台 · x 停止 · Esc 返回`，放不下时丢 b / x 说明）。
+ *   按键处理在 agent-ui.ts。
+ * - [W7-C] 等审批的行（含停靠在栏里的后台任务审批）整行警告色。
  * - 状态来自任务注册表（`TaskInfo`、`live().queued`）、子 Agent 折叠视图的跟踪（轮数、最近工具、用时，界面时钟）
  *   与 `permission_request.context.taskId`（等审批）。
  */
@@ -22,7 +24,13 @@ import type { SubagentRegistry } from "../../agent/subagent-registry.js";
 import type { SubagentStatus } from "../../agent/types.js";
 import { msg } from "../../i18n/index.js";
 import type { TaskInfo } from "../../tools/types.js";
-import { formatElapsed, truncateToWidth, type Component, type Theme } from "../../tui.js";
+import {
+  formatElapsed,
+  truncateToWidth,
+  visibleWidth,
+  type Component,
+  type Theme,
+} from "../../tui.js";
 import type { SubagentTracker } from "./subagent-view.js";
 
 export const BAR_ROWS = 3;
@@ -255,7 +263,11 @@ export class AgentBar implements Component {
     const hidden = rows.length - shown.length;
     const tail: string[] = [];
     if (hidden > 0) tail.push(m.bar.more(hidden));
-    if (focused) tail.push(m.bar.keys(t.glyphs.arrowUp, t.glyphs.arrowDown));
+    if (focused) {
+      const [up, down] = [t.glyphs.arrowUp, t.glyphs.arrowDown];
+      const full = [...tail, m.bar.keysFull(up, down)].join(" · ");
+      tail.push(visibleWidth(full) <= width ? m.bar.keysFull(up, down) : m.bar.keys(up, down));
+    }
     if (tail.length > 0)
       out.push(truncateToWidth(t.fg("dim", tail.join(" · ")), width, t.glyphs.ellipsis));
     return out;
@@ -267,7 +279,9 @@ export class AgentBar implements Component {
     const agent = agentLabel(row);
     const lead = focused ? (selected ? t.fg("accent", g.prompt) : " ") + " " : "";
     const marker = t.fg(statusColor(row.status), g.tool);
-    const id = selected ? t.bold(row.taskId) : row.taskId;
+    const approval = row.status === "approval";
+    const plainId = selected || approval ? t.bold(row.taskId) : row.taskId;
+    const id = approval ? t.fg("warning", plainId) : plainId;
     const description = row.description.replace(/\s+/g, " ").trim();
     const text =
       `${lead}${marker} ${id} ${t.fg("tool", agent)}` +

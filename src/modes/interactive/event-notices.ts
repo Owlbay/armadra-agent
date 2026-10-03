@@ -3,7 +3,8 @@
  *
  * - W5-I：`entry_appended` 里 `reason: "image_budget"` 的 `context_edit`（一次降级会连写多条，每条一个消息）
  *   合并成一条「已省略 N 张早期图片以符合请求上限」，N 按占位文本数；
- * - W5-H1：`compaction_end.error` 的「compaction did not shrink」换成中文说明（其余错误原样）。
+ * - W5-H1：`compaction_end.error` 的「compaction did not shrink」换成中文说明（其余错误原样）；
+ * - W7-C：`subagent_background`（超时自动 / 宿主转后台）一行提示。
  */
 
 import { msg } from "../../i18n/index.js";
@@ -89,4 +90,13 @@ export function backgroundJobText(
     case "stopped":
       return m.backgroundStopped(event.jobId, short);
   }
+}
+
+/** [W7-C] `subagent_background`：超时自动 / 宿主转后台的一行提示（人按 Ctrl+B 的已有底部提示）。 */
+export function subagentBackgroundText(
+  event: Extract<SessionEvent, { type: "subagent_background" }>,
+  agent: string,
+): string {
+  const m = msg().agents.background;
+  return event.reason === "timeout" ? m.timeout(event.taskId, agent) : m.host(event.taskId, agent);
 }

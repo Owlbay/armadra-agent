@@ -12,6 +12,7 @@
  * 后台任务的工具调用立即返回，工具行下面多一行跟随状态（`↳ t2 explore · 完成 · 7 轮 …`，运行中每秒刷新）；
  * 完成后父会话收到的 `<task-notification>` 只显示一行（`notificationSummary`），失败 / 停止另有一行提示。
  * 外部 runner（claude / codex）同一组事件，用量可能缺。
+ * [W7-C] `subagent_background`（前台转后台）：置 `background`，工具行出跟随行。
  */
 
 import { msg } from "../../i18n/index.js";
@@ -75,6 +76,12 @@ export class SubagentTracker {
           if (state.tools.length > RECENT_TOOLS)
             state.tools.splice(0, state.tools.length - RECENT_TOOLS);
         }
+        return state;
+      }
+      case "subagent_background": {
+        const state = this.tasks.get(event.taskId);
+        if (state === undefined) return undefined;
+        state.background = true;
         return state;
       }
       case "subagent_end": {
