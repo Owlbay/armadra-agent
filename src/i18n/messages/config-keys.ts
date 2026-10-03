@@ -122,9 +122,11 @@ const keysEn = {
   "ui.quietStartup": "How much the startup screen shows",
   "ui.ascii":
     "ASCII glyphs (> * L, + - |); when unset it is detected: on when the locale lacks UTF-8, TERM=linux or a legacy conhost; AMA_ASCII=1/0 overrides",
-  "ui.compact": "No blank lines between message blocks and no box around the startup header",
+  "ui.compact": "No blank lines between message blocks and no AMA logo in the startup header",
+  "ui.logo":
+    "AMA logo in the startup header: auto draws it when the terminal is at least 48 columns wide, off shows only the info lines",
   "ui.animation":
-    "false: the spinner stays still while running and redraws only when seconds change",
+    "false: the spinner stays still while running and redraws only when seconds change; the startup logo does not animate",
   "ui.restoreOnCancel":
     "When Esc interrupts a run before any reply or tool call in this turn, withdraw the turn and put the message back into the input box",
   "ui.statusLine":
@@ -284,8 +286,9 @@ const keysZh = {
   "ui.quietStartup": "启动画面详略",
   "ui.ascii":
     "ASCII 字形（> * L、+ - |）；不写时自动检测：区域设置不含 UTF-8、TERM=linux、旧 conhost 时开启；AMA_ASCII=1/0 覆盖",
-  "ui.compact": "消息区块间不空行、启动头不画框",
-  "ui.animation": "false：运行中 spinner 静止，只在秒数变化时重绘",
+  "ui.compact": "消息区块间不空行、启动头不画 AMA 字符画",
+  "ui.logo": "启动头的 AMA 字符画：auto 在终端宽 48 列以上时画，off 只显示信息行",
+  "ui.animation": "false：运行中 spinner 静止，只在秒数变化时重绘；启动字符画不播放动画",
   "ui.restoreOnCancel":
     "运行中 Esc 中断、本回合还没有任何回复或工具调用时，撤回该回合并把原消息放回输入框",
   "ui.statusLine":

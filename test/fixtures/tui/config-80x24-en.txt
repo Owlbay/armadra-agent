@@ -7,6 +7,7 @@
 |▎   Thinking display          collapsed         now
 |▎   Compact layout            false             now
 |▎   Spinner animation         true              now
+|▎   Startup logo              auto              restart
 |▎   Status line               (unset)           now
 |▎   Restore on cancel         true              new session
 |▎   Startup screen            header            restart              [locked] c…
@@ -15,7 +16,6 @@
 |▎   Reply language            (unset)           new session · cache
 |▎   Agent bar                 (unset)           restart
 |▎ Model
-|▎   Default model             (unset)           now · cache
 |▎ ──────────────────────────────────────────────────────────────────────────────
 |▎ Color theme: dark, light, or auto (guessed from COLORFGBG without querying the
 |▎ terminal; dark when unsure)

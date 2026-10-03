@@ -349,6 +349,7 @@ export function validateConfig(value: unknown): Diagnostic[] {
       "quietStartup",
       "ascii",
       "compact",
+      "logo",
       "animation",
       "restoreOnCancel",
       ...W5_UI_KEYS,
@@ -362,6 +363,7 @@ export function validateConfig(value: unknown): Diagnostic[] {
       c.oneOf(s, "quietStartup", p, ["normal", "header", "silent"]);
       c.boolean(s, "ascii", p);
       c.boolean(s, "compact", p);
+      c.oneOf(s, "logo", p, ["auto", "off"]);
       c.boolean(s, "animation", p);
       c.boolean(s, "restoreOnCancel", p);
       checkUiW5(c, s, p);
