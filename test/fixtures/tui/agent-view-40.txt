@@ -1,5 +1,5 @@
 # /tasks t1 · viewport 40x16
-|⏺ task 找测试缺口
+|
 |t1 explore · 完成 0s · 1 轮 · Esc 返回
 |› 找出 src/tui 的测试缺口
 |

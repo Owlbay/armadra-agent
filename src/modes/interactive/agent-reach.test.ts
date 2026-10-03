@@ -81,7 +81,9 @@ async function finish(s: Started): Promise<void> {
 describe("运行提示行与 ↓ 进栏（前台 task 运行中）", () => {
   it("zh 80×24：提示行带 ↓ Agent 栏；有字时 ↓ 给提示；清空后 ↓ 进栏", async () => {
     const s = await running(80, /运行 task .*↓ Agent 栏/);
-    expect(s.terminal.viewport().join("\n")).toMatch(/运行 task · \d+s · Esc 中断 · ↓ Agent 栏/);
+    expect(s.terminal.viewport().join("\n")).toMatch(
+      /运行 task · \d+s · Esc 中断 · Ctrl\+B 转后台 · ↓ Agent 栏/,
+    );
     golden("agent-run-80x24", shot(s, "前台 task 运行中"));
     s.type("ab");
     s.type(DOWN);

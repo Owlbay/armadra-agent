@@ -13,7 +13,7 @@ info:/help  List commands
 /cache [warm off|streaming|idle | fingerprint]  Cache stats; switch warming for this session; print the prefix fingerprint
 /statusline [full|compact]  Footer info two lines / one line (Ctrl+G)
 /plan [goal] | approve [mode|fresh] | reject  Show the plan and status; with a goal, enter Plan mode; approve / discard a pending plan
-/tasks [id] | stop <id>  Sub-agent tasks: status, output, stop
+/tasks [id] | stop <id> | bg [id]  Sub-agent tasks: status, output, stop, background
 /agents  Sub-agent types and external agents (installed, version)
 /paste  Paste an image from the clipboard (Ctrl+V)
 /exit  Exit
@@ -31,5 +31,6 @@ Idle Esc Esc: empty input = rewind (/rewind), with text = clear (↑ to restore)
 Shift+Tab / Tab (empty input) cycle permission mode (confirm before Bypass)  Ctrl+L model  Ctrl+T thinking level  Ctrl+O expand tool output and thinking
 Approval: 1–3 or ↑↓ Enter to choose, y allow  a allow for this session  n / Esc deny  v full input
 Plan approval: 1 approve  2 run in a fresh context  3 keep revising  4 reject and leave Plan  e edit plan  Esc stay in Plan
+Ctrl+B move foreground sub-agent tasks to the background (in tmux: C-b C-b)  ↓ (empty input) Agent bar: b background  x twice to stop  Enter open
 Ctrl+V paste a clipboard image (inserts @path)  Ctrl+G footer two rows / one row
 Ctrl+C clear input (again to quit)  Ctrl+D quit on empty input  Tab complete  @ reference a file
