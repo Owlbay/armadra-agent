@@ -71,6 +71,12 @@ describe("回滚交互（MemoryTerminal + fake）", () => {
     expect(screen).toContain("再按 Esc 回滚");
     screen = await press(s, "\x1b", 80);
     expect(screen).toContain("回滚到哪条消息之前");
+    // 改动统计是异步预览（dryRun），负载高时 80 ms 内可能还没回来：等到出现为止
+    for (let i = 0; i < 40 && !/把 alpha 改成大写.*1 文件 \+1 −1/.test(screen); i++) {
+      await tick(50);
+      s.frame();
+      screen = s.terminal.viewport().join("\n");
+    }
     expect(screen).toMatch(/把 alpha 改成大写.*1 文件 \+1 −1/);
 
     screen = await press(s, "\r", 50);

@@ -31,7 +31,11 @@ export function createSessionEventHandler(deps: SessionEventDeps): (event: Sessi
   const { view, tools, status, area, agentUi, indicator, session, setQueue, notice, render } = deps;
   const images = new ImageBudgetNotices((text) => notice("info", text));
   return (event: SessionEvent): void => {
-    if (area.onEvent(event) || agentUi().onEvent(event)) return render();
+    if (area.onEvent(event) || agentUi().onEvent(event)) {
+      // [W7-A] 子任务出现 / 结束：运行提示行的「↓ Agent 栏」跟着变
+      if (event.type === "subagent_start" || event.type === "subagent_end") indicator.sync();
+      return render();
+    }
     images.onEvent(event);
     switch (event.type) {
       case "agent_settled":

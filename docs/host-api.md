@@ -159,4 +159,8 @@ interface WarmDecision {
 
 ## 嵌入 Armadra
 
-Armadra 用 profile 启动 ama：`ama --profile <path>`，profile 的 `host` 指向它的适配器（`ama-armadra.cjs`），另带 instructions、skillDirs、hooksFile、authFile、sessionDir、`trustProject`。适配器在 `ARMADRA_NODE_ID` 缺失时返回 `undefined`，同一个 profile 在画布外退化为普通 ama。契约细节见 Armadra 仓库 [docs/design/coordinator-agent.md](https://github.com/yovinchen/Armadra/blob/main/docs/design/coordinator-agent.md)。
+Armadra 用 profile 启动 ama：`ama --profile <path>`，profile 的 `host` 指向它的适配器（`ama-armadra.cjs`），另带 instructions、skillDirs、hooksFile、authFile、sessionDir、`trustProject`。适配器在 `ARMADRA_NODE_ID` 缺失时返回 `undefined`，同一个 profile 在画布外退化为普通 ama。
+
+有 profile 时的界面缺省：`ui.quietStartup: "header"`、`ui.statusLine: "compact"`（最后一行是状态栏，宿主按 `·` 解析）。Agent 栏（`ui.agentBar`）不再缺省关闭，与独立终端一样是 `auto`；宿主自己展示子任务、不要栏时在 profile 的 `config` 指向的配置文件里写 `{ "ui": { "agentBar": "off" } }`。
+
+契约细节见 Armadra 仓库 [docs/design/coordinator-agent.md](https://github.com/yovinchen/Armadra/blob/main/docs/design/coordinator-agent.md)。

@@ -13,7 +13,7 @@ function setup() {
   const indicator = new RunIndicator({ theme, loader, slot, tools, render: () => undefined });
   const verb = (): string => (slot.children.length === 0 ? "" : lines(slot, 60)[0]!);
   const send = (event: unknown): void => indicator.onEvent(event as SessionEvent);
-  return { indicator, tools, verb, send, loader };
+  return { indicator, tools, verb, send, loader, slot };
 }
 
 describe("运行指示", () => {
@@ -47,6 +47,27 @@ describe("运行指示", () => {
     send({ type: "agent_settled" });
     expect(verb()).toBe("");
     expect(loader.running).toBe(false);
+  });
+
+  it("[W7-A] 有子 Agent 任务时带「↓ Agent 栏」，窄屏整项丢掉；任务出现 / 消失按帧刷新", () => {
+    const { indicator, tools, verb, send, loader, slot } = setup();
+    let agents = false;
+    indicator.agents = () => agents;
+    send({ type: "agent_start" });
+    tools.start({ toolCallId: "a", toolName: "task", args: {} });
+    send({ type: "tool_execution_start" });
+    expect(verb()).toBe("⠋ 运行 task · 0s · Esc 中断");
+    // 子任务在工具开始之后才登记：下一帧补上
+    agents = true;
+    loader.tick();
+    expect(verb()).toBe("⠙ 运行 task · 0s · Esc 中断 · ↓ Agent 栏");
+    expect(lines(slot, 28)[0]).toBe("⠙ 运行 task · 0s · Esc 中断");
+    indicator.setApproval(true);
+    expect(verb()).toBe("⠙ 等待确认 · 0s");
+    indicator.setApproval(false);
+    agents = false;
+    loader.tick();
+    expect(verb()).toBe("⠹ 运行 task · 0s · Esc 中断");
   });
 
   it("排队消息：缩进 2 列、中文标签、超过 3 条折叠、末行按键提示", () => {

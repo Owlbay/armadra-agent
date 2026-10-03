@@ -57,8 +57,9 @@ export const DEFAULT_CONFIG: Readonly<AmaConfig> = Object.freeze({
 
 /** 嵌入宿主（有 profile）时的缺省覆盖（§12.10）。 */
 export const PROFILE_DEFAULTS: Readonly<Partial<AmaConfig>> = Object.freeze({
-  // [W5-A] 嵌入宿主以「最后一行 = 状态栏」锚定，底部信息行缺省单行；[W6-C0] 宿主自己展示节点，Agent 栏缺省关
-  ui: { quietStartup: "header", statusLine: "compact", agentBar: "off" },
+  // [W5-A] 嵌入宿主以「最后一行 = 状态栏」锚定，底部信息行缺省单行；[W7-A] Agent 栏不再缺省关，
+  // 宿主要关就在自己的 profile 写 `ui.agentBar: "off"`
+  ui: { quietStartup: "header", statusLine: "compact" },
 } satisfies Partial<AmaConfig>);
 
 export type ConfigLayerName = "default" | "user" | "profile" | "project" | "cli";

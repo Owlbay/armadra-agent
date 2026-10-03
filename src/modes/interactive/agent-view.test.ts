@@ -2,8 +2,8 @@
  * Agent 栏键位与子 Agent 视图的交互集成（MemoryTerminal + fake 供应商）与外部 Agent 视图的帧黄金
  * （docs/wave6-plan.md §1.1–§1.4）。[W6-A]
  *
- * - 空输入 `Ctrl+B` 进栏、有字时仍是光标左移；空输入 `↓` 进栏（tmux 前缀吃掉 `Ctrl+B` 时）；栏里可打印
- *   字符回到输入框；Esc 返回不中断。
+ * - 空输入 `↓` 进栏（有任务即可，栏收起也行）、有字时交给编辑器并提示；`Ctrl+B` 不再进栏（W7-A）；
+ *   栏里可打印字符回到输入框；Esc 返回不中断。
  * - `/tasks <id>` 直接进视图；视图帧黄金 80×24 / 40×16；Esc 返回后主区帧与回滚不变。
  * - 视图里发消息：已结束的任务 → 后台续聊（子会话 user 消息 origin direct）。
  * - 子 Agent 的审批在视图上弹出、带来源，标题显示「等待审批」。
@@ -120,42 +120,60 @@ async function finishedTask(columns = 80, rows = 24, extra: FakeResponse[] = [])
 }
 
 describe("Agent 栏键位", () => {
-  it("空输入 Ctrl+B 进栏、有字时仍左移；↓ 进栏；可打印字符回到输入框；Esc 返回不回滚", async () => {
+  it("空输入 ↓ 进栏；有字时 ↓ 交给编辑器并提示；Ctrl+B 不进栏；可打印字符回到输入框；Esc 返回不回滚", async () => {
     const s = await finishedTask();
     expect(screenOf(s)).toContain("⏺ t1 explore · 完成");
+    // Ctrl+B 不再进栏（tmux 缺省前缀；留给转后台）：空输入不进栏，有字仍是光标左移
+    s.type(CTRL_B);
+    expect(screenOf(s)).not.toContain("Enter 打开");
     s.type("ab");
     s.type(CTRL_B);
     s.type("X");
     expect(s.handle.editor.getText()).toBe("aXb");
+    // 有字时 ↓ 交给编辑器，给一行提示
+    s.type(DOWN);
+    expect(screenOf(s)).not.toContain("Enter 打开");
+    expect(screenOf(s)).toContain("输入框有字；清空后再按 ↓ 进 Agent 栏");
     s.handle.editor.clear();
-    s.type(CTRL_B);
+    s.type(DOWN);
     expect(screenOf(s)).toContain("Enter 打开");
     esc(s);
     expect(screenOf(s)).not.toContain("Enter 打开");
     expect(screenOf(s)).not.toContain("再按 Esc 回滚");
-    // tmux 的前缀吃掉 Ctrl+B：空输入 ↓
     s.type(DOWN);
     expect(screenOf(s)).toContain("Enter 打开");
     s.type("h");
     expect(s.handle.editor.getText()).toBe("h");
     expect(screenOf(s)).not.toContain("Enter 打开");
-    // 有字时 ↓ 交给编辑器
-    s.type(DOWN);
-    expect(screenOf(s)).not.toContain("Enter 打开");
     s.handle.editor.clear();
     // ↑ 越过第一项回到输入框
-    s.type(CTRL_B);
+    s.type(DOWN);
     s.type("\x1b[A");
     expect(screenOf(s)).not.toContain("Enter 打开");
     s.handle.exit(0);
     await s.done;
   });
 
-  it("没有任务：Ctrl+B 照常交给编辑器，↓ 不进栏，/tasks 给一行提示", async () => {
+  it("任务查看过、栏收起后 ↓ 仍能进栏（有任务即可）", async () => {
+    const s = await finishedTask();
+    s.type("/tasks t1\r");
+    await waitFor(s, (x) => x.includes("发给 t1"), "view");
+    esc(s);
+    expect(screenOf(s)).not.toContain("⏺ t1 explore");
+    s.type(DOWN);
+    expect(screenOf(s)).toContain("Enter 打开");
+    expect(screenOf(s)).toContain("t1 explore · 完成");
+    s.handle.exit(0);
+    await s.done;
+  });
+
+  it("没有任务：↓ 给一行提示、不进栏，Ctrl+B 照常交给编辑器，/tasks 给一行提示", async () => {
     const s = await start([], {});
     s.type(CTRL_B);
+    expect(screenOf(s)).not.toContain("还没有子 Agent 任务");
     s.type(DOWN);
     expect(screenOf(s)).not.toContain("Enter 打开");
+    expect(screenOf(s)).toContain("还没有子 Agent 任务");
     s.type("/tasks\r");
     await waitFor(s, (x) => x.includes("还没有子 Agent 任务"), "empty");
     s.handle.exit(0);
@@ -199,7 +217,7 @@ describe("子 Agent 视图", () => {
 
   it("已结束的任务：视图里发消息 → 后台续聊（origin direct），Esc 清空输入、再 Esc 返回", async () => {
     const s = await finishedTask(80, 24, [{ text: "补充看了 tests" }, { text: "收到第二次通知" }]);
-    s.type(CTRL_B);
+    s.type(DOWN);
     s.type("\r");
     await waitFor(s, (x) => x.includes("发给 t1"), "view");
     s.type("再看看 tests 目录\r");
@@ -250,7 +268,7 @@ describe("子 Agent 视图", () => {
     await waitFor(s, (x) => x.includes("需要确认"), "task approval");
     s.type("y");
     await waitFor(s, (x) => x.includes("t1 general · 运行中"), "bar running");
-    s.type(CTRL_B);
+    s.type(DOWN);
     s.type("\r");
     await waitFor(s, (x) => x.includes("发给 t1"), "view");
     await waitFor(s, (x) => x.includes("[task:general]"), "child approval");

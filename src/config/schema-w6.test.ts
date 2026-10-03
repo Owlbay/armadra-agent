@@ -97,9 +97,15 @@ describe("项目级（只能收紧）", () => {
 });
 
 describe("层级", () => {
-  it("嵌入宿主（有 profile）Agent 栏缺省 off；独立终端不设（auto）", () => {
-    expect(mergeBaseLayers({ hasProfile: true }).config.ui?.agentBar).toBe("off");
+  it("Agent 栏缺省都不设（auto）：嵌入宿主（有 profile）不再强制 off [W7-A]", () => {
+    expect(mergeBaseLayers({ hasProfile: true }).config.ui?.agentBar).toBeUndefined();
     expect(mergeBaseLayers({}).config.ui?.agentBar).toBeUndefined();
+    // 宿主要关就在自己的 profile 写；其余 profile 缺省照旧
+    const off = mergeBaseLayers({
+      hasProfile: true,
+      profile: { version: 1, ui: { agentBar: "off" } },
+    });
+    expect(off.config.ui).toMatchObject({ agentBar: "off", statusLine: "compact" });
   });
 
   it("--memory / --no-memory 覆盖 memory.enabled（命令行最后叠加）", () => {
