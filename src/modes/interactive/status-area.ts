@@ -8,6 +8,9 @@
  *   session_rewound、/tree 之后；结果变化时重画。
  * - [W5-U] `model_fallback` 之后状态栏模型项显示 `主模型 → 回退模型`，切回主模型（`model_changed`）后消失。
  * - `telemetry_tick`（流式中 ≤ 2 Hz）只重取统计并重画（速率行），状态栏的内容这时不变。
+ * - [W6] 订阅配额（status-quota.ts）：记住最近一次 `quota_update`（账户级，换会话不清；换到别的供应商不显示），
+ *   full 时在状态栏下方占第三行、compact 时在行尾追加短项；第三行显示中每分钟重画一次（重置倒计时），
+ *   不显示时不挂计时器。Ctrl+G 折叠时第三行与速率行一起收起。
  */
 
 import { msg } from "../../i18n/index.js";
@@ -24,9 +27,13 @@ import { effectiveCodemodeMode } from "../../tools/presets.js";
 import { truncateToWidth, type Component, type Theme } from "../../tui.js";
 import { StatusBar, type StatusBarSource } from "./status-bar.js";
 import { StatusLine } from "./status-line.js";
+import { QuotaLine, type QuotaView } from "./status-quota.js";
+import type { QuotaUpdateEvent } from "../../agent/types-w6.js";
 
 /** 结束后可能改了工作区的工具。 */
 const WRITE_TOOLS = new Set(["write", "edit", "bash", "task"]);
+/** 配额行重画间隔（倒计时只到分钟）。 */
+export const QUOTA_TICK_MS = 60_000;
 
 /** 一行提示；空时不占行。 */
 export class HintLine implements Component {
@@ -63,6 +70,10 @@ export class StatusArea {
   readonly hint = new HintLine();
   readonly bar: StatusBar;
   readonly rate: StatusLine;
+  /** [W6] 订阅配额行（full 第三行）。 */
+  readonly quota: QuotaLine;
+  private lastQuota: QuotaUpdateEvent | undefined;
+  private ticker: ReturnType<typeof setInterval> | undefined;
   private mode: StatusLineMode;
   private startedAt: number;
   private git: GitInfoWatcher | undefined;
@@ -105,10 +116,56 @@ export class StatusArea {
           .session()
           .getTools()
           .some((tool) => tool.name === "bash"),
+      quota: () => this.quotaView(),
     };
     this.bar = new StatusBar(source, deps.theme);
     this.rate = new StatusLine(this.bar, source, deps.theme);
+    this.quota = new QuotaLine(
+      { layout: () => this.mode, quota: () => this.quotaView(), now: () => deps.now() },
+      deps.theme,
+    );
     this.watchGit();
+    this.syncTicker();
+  }
+
+  /** [W6] 当前模型走 ChatGPT 订阅时的配额；codex 还没数据为 pending，SIWC 没数据或非订阅模型不显示。 */
+  quotaView(): QuotaView {
+    const model = this.deps.session().state.model;
+    if (model === undefined) return undefined;
+    const backend = this.backendOf(formatModelRef(model));
+    if (backend === undefined) return undefined;
+    const quota = this.lastQuota ?? this.deps.session().getStats().subscription?.quota;
+    if (quota !== undefined && quota.provider === model.provider) return { quota };
+    return backend === "codex" ? "pending" : undefined;
+  }
+
+  private backendMemo: { ref: string; backend: "codex" | "siwc" | undefined } | undefined;
+
+  /** 模型的 ChatGPT 订阅后端（渠道 compat `chatgptBackend`）；按引用记住上次结果。 */
+  private backendOf(ref: string): "codex" | "siwc" | undefined {
+    if (this.backendMemo?.ref === ref) return this.backendMemo.backend;
+    const found = this.deps.runtime.providers.findModel(ref);
+    const value = found.ok
+      ? (found.model.compat as { chatgptBackend?: unknown } | undefined)?.chatgptBackend
+      : undefined;
+    const backend = value === "codex" || value === "siwc" ? value : undefined;
+    this.backendMemo = { ref, backend };
+    return backend;
+  }
+
+  /** 第三行显示且有重置时间时每分钟重画；否则不挂计时器。 */
+  private syncTicker(): void {
+    const view = this.mode === "full" ? this.quotaView() : undefined;
+    const ticking =
+      typeof view === "object" &&
+      (view.quota.primary?.resetsAt !== undefined || view.quota.secondary?.resetsAt !== undefined);
+    if (ticking && this.ticker === undefined) {
+      this.ticker = setInterval(() => this.deps.render(), QUOTA_TICK_MS);
+      this.ticker.unref?.();
+    } else if (!ticking && this.ticker !== undefined) {
+      clearInterval(this.ticker);
+      this.ticker = undefined;
+    }
   }
 
   layout(): StatusLineMode {
@@ -123,6 +180,7 @@ export class StatusArea {
   setLayout(mode: StatusLineMode): void {
     if (mode === this.mode) return;
     this.mode = mode;
+    this.syncTicker();
     (this.deps.redraw ?? this.deps.render)();
   }
 
@@ -141,6 +199,7 @@ export class StatusArea {
     this.fallback = undefined;
     this.watchGit();
     this.bar.refresh();
+    this.syncTicker();
   }
 
   refreshGit(): void {
@@ -152,6 +211,10 @@ export class StatusArea {
     switch (event.type) {
       case "telemetry_tick":
         this.bar.refresh();
+        return true;
+      case "quota_update":
+        this.lastQuota = event;
+        this.syncTicker();
         return true;
       case "agent_settled":
       case "session_rewound":
@@ -172,6 +235,7 @@ export class StatusArea {
         if (this.fallback !== undefined && model !== undefined) {
           if (formatModelRef(model) === this.fallback.from) this.fallback = undefined;
         }
+        this.syncTicker();
         return false;
       }
       default:
@@ -180,6 +244,12 @@ export class StatusArea {
   }
 
   dispose(): void {
+    this.disposeGit();
+    if (this.ticker !== undefined) clearInterval(this.ticker);
+    this.ticker = undefined;
+  }
+
+  private disposeGit(): void {
     this.offGit();
     this.git?.dispose();
     this.git = undefined;
@@ -194,7 +264,7 @@ export class StatusArea {
   private watchGit(): void {
     const cwd = this.deps.session().state.cwd;
     if (cwd === this.gitCwd && this.git !== undefined) return;
-    this.dispose();
+    this.disposeGit();
     this.gitCwd = cwd;
     const git = new GitInfoWatcher(cwd, this.deps.env !== undefined ? { env: this.deps.env } : {});
     this.git = git;

@@ -194,6 +194,7 @@ export function runInteractiveMode(
   tui.addChild(hint);
   tui.addChild(area.rate);
   tui.addChild(status);
+  tui.addChild(area.quota);
 
   // ---- 小工具 ---------------------------------------------------------------
 
