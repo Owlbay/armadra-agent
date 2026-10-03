@@ -375,12 +375,7 @@ export const handlers: RpcHandlers = {
     const taskId = p?.taskId;
     if (taskId !== undefined && typeof taskId !== "string")
       throw new AmaError("invalid_arguments", msg().print.rpc.badTaskId);
-    const session = ctx.session() as AgentSession & {
-      backgroundTask?(taskId?: string): string[];
-    };
-    if (typeof session.backgroundTask !== "function")
-      throw new AmaError("not_implemented", msg().print.rpc.unsupported);
-    return { backgrounded: session.backgroundTask(taskId) };
+    return { backgrounded: ctx.session().backgroundTask(taskId) };
   },
 };
 

@@ -59,6 +59,8 @@ export type {
   SessionPlanOptions,
 } from "./sdk.js";
 export { AgentSessionImpl } from "./agent/session.js";
+// [W7-B2] 前台任务转后台：`session.backgroundTask(taskId?, reason?)` 的原因（事件 `subagent_background`）
+export type { BackgroundReason } from "./agent/subagent-background.js";
 export { SessionManager } from "./session/manager.js";
 export { ProviderRegistry } from "./ai/providers/registry.js";
 export { FakeProvider } from "./ai/fake/fake-provider.js";

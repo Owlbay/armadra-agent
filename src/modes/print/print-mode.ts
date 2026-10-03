@@ -40,7 +40,6 @@ import type { LimitReachedEvent, PlanProposedEvent, SessionEvent } from "../../a
 import type { ImageBlock } from "../../ai/types.js";
 import type { AgentSession } from "../../agent/types.js";
 import { registryOf } from "../../agent/subagent-registry.js";
-import type { TaskInfo } from "../../tools/types.js";
 import { promptImages, sessionModel } from "../image-input.js";
 import { msg } from "../../i18n/index.js";
 
@@ -274,23 +273,18 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
   return ExitCode.Ok;
 }
 
-/** [W7-B2] 注册表的落定等待（B1 `SubagentRegistry.settled()`：无运行中任务且通知投递链（含通知回合）结束）。 */
-interface SettleableTasks {
-  list(): readonly TaskInfo[];
-  settled?(): Promise<void>;
-}
-
 /**
  * [W7-B2] 主回合结束后等后台任务与它们的通知回合（docs/agents-concurrency-plan.md §2.6、§6 Q5）。
- * `stopped`：SIGINT / SIGTERM、stdout 关闭或预算到限时 resolve，立即停止等待。没有子 Agent 注册表时直接返回。
+ * `settled()`（subagent-background.ts）等到没有运行中任务且通知投递链（含通知回合）结束；`stopped`：SIGINT /
+ * SIGTERM、stdout 关闭或预算到限时 resolve，立即停止等待。没有子 Agent 注册表时直接返回。
  */
 export async function waitBackgroundTasks(
   session: AgentSession,
   stopped: Promise<void>,
   io: Pick<CliIo, "stderr">,
 ): Promise<void> {
-  const registry = registryOf(session.state.sessionId) as SettleableTasks | undefined;
-  if (registry?.settled === undefined) return;
+  const registry = registryOf(session.state.sessionId);
+  if (registry === undefined) return;
   const running = registry.list().filter((task) => task.status === "running").length;
   if (running > 0) io.stderr(msg().print.print.waitingTasks(running));
   await Promise.race([registry.settled(), stopped]);
