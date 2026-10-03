@@ -5,7 +5,7 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 > This file is in English starting with 0.6.0. Release notes for 0.1 through 0.5.1 are in Chinese in
 > [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md). New entries go into both files.
 
-## Unreleased
+## 0.6.1 (2026-10-03)
 
 - **The model picker shows only configured models; ChatGPT models can be picked**: `/model` (and the startup picker and
   `/config` model items) lists only providers with a key, a valid OAuth sign-in or a local server, one row per model on
