@@ -5,6 +5,18 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 > This file is in English starting with 0.6.0. Release notes for 0.1 through 0.5.1 are in Chinese in
 > [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md). New entries go into both files.
 
+## Unreleased
+
+- **Local search hints**: when both `grep` and `glob` are directly available, the system prompt's rules gain one line
+  ("Locate code with grep/glob before reading; do not guess file paths."); the `grep` / `glob` descriptions now say when
+  to use them; `grep` takes `filesOnly: true` to list only the matching files (deduplicated, sorted by path, `limit` counts
+  files). `read` on a directory now points at a tool the model can actually call: `ls` when active, otherwise `glob`
+  (e.g. `pattern "src/*"`), otherwise a file inside it. In `-p` with the `minimal` / `coordinator` preset, a denied bash
+  `grep` / `rg` / `find` adds one stderr line on how to bring the tools back (`tools.default: ["+grep","+glob"]`). Tools
+  get the session's active tool set as the optional, read-only `ToolContext.activeTools`. This changes the `default`
+  prefix (about +35 tokens), so the first request after upgrading misses the cache once. Docs: docs/design.md §5.6,
+  docs/codemode.md.
+
 ## 0.6.5 (2026-10-03)
 
 - **`AcpClient` can pass MCP servers when opening a session**: `newSession`, `resumeSession` and `loadSession` take an
