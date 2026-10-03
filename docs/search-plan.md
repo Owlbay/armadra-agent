@@ -115,3 +115,294 @@ Rules:
 | Gemini CLI  | `web_fetch(prompt 含 ≤ 20 个 URL)`：优先 Gemini `urlContext`，失败回落本地抓取 + HTML→文本；拒私网 / 环回 / 内网，连接钉在解析出的 IP；弹确认框（Plan 模式必问）                                     | `google_web_search(query)`：另发一次带 `google_search` 的 Gemini 请求，返回综合文本 + 来源列表                                                                                                                                               | fetch 确认、search 不确认                                                                                         |
 
 借鉴的结论：fetch 要有审批与私网保护；search 本身低风险可不审批；引用要回到用户；跨主机重定向不自动跟是便宜又安全的做法；不做「二次模型提取」（ama 缓存优先、零依赖，多一次模型调用既花钱又让结果有损）。
+
+## §3 能力分层
+
+```text
+L0  本地检索（已有）         grep / glob / read / ls         → 只改描述、规则、错误文案；grep 加 filesOnly
+L1  web_fetch（新）          URL → 正文                     → 内置、零依赖、权限类 network
+L2  web_search（新）         查询 → 结果列表 / 原生带引用回答
+      L2a 原生（服务端工具）  OpenAI Responses / Anthropic / Gemini / xAI …   → 协议层加服务端工具，不是 ama 函数工具
+      L2b 外部 API           Tavily / Brave / Exa / Serper / SearXNG         → ama 函数工具 web_search
+      L2c 都没有             不注册 web_search；web_fetch 仍在；描述里不提搜索
+```
+
+`search.provider: "auto"` 的解析在**会话开始**时做一次：`resolveWebCapabilities(model, provider, config, auth)` → `{ fetch: boolean; search: { kind: "native"; server: ServerToolSpec } | { kind: "external"; backend: SearchBackend } | undefined }`。结果写进会话状态与缓存指纹，会话内不变；`/model` 切换后重算，差异以工具表补丁追加（§9.1 允许）。
+
+## §4 设计
+
+### §4.1 契约变更（`src/ai/types.ts`、`src/tools/types.ts`，走契约变更流程）
+
+```ts
+// ai/types.ts
+export interface Citation {
+  url: string;
+  title?: string;
+  /** 在所属文本块内的字符区间（有则渲染为该段脚注；无则挂在块末）。 */
+  start?: number;
+  end?: number;
+  /** 供应商给的摘录（≤ 300 字符）。 */
+  citedText?: string;
+}
+export interface TextBlock {
+  type: "text";
+  text: string;
+  textSignature?: string;
+  citations?: Citation[];
+  /** 供应商原始引用对象（Anthropic 的 encrypted_index 等），只回放给同 provider / model / api。 */
+  citationsRaw?: unknown;
+}
+/** 服务端工具调用及其结果（原生 web_search / web_fetch）；原始 JSON 不透明保存，只回放给同 provider / model / api。 */
+export interface ServerToolBlock {
+  type: "serverTool";
+  id: string;
+  name: "web_search" | "web_fetch" | (string & {});
+  /** 人读摘要：query 或 url。 */
+  summary: string;
+  /** 归一化的来源（给 TUI / -p / RPC）。 */
+  sources?: { url: string; title?: string }[];
+  /** 原始调用块（Anthropic `server_tool_use`、Responses `web_search_call` 项）。 */
+  raw: unknown;
+  /** 原始结果块（Anthropic `web_search_tool_result`，含 encrypted_content）；Responses 无单独结果块时缺省。 */
+  rawResult?: unknown;
+}
+export type AssistantContentBlock = TextBlock | ThinkingBlock | ToolCallBlock | ServerToolBlock;
+
+export interface Usage {
+  // …现有字段
+  /** 服务端工具调用次数（按名）；协议解析到才有。 */
+  serverTools?: Record<string, number>;
+}
+
+/** 会话开始定稿、会话内不变的服务端工具（进缓存指纹）。 */
+export interface ServerToolSpec {
+  name: "web_search" | "web_fetch";
+  /** 协议层按 api 翻译：Responses `{type:"web_search", …}`、Anthropic `{type:"web_search_20250305", …}`、Gemini `{google_search:{}}`。 */
+  options?: {
+    maxUses?: number;
+    allowedDomains?: string[];
+    blockedDomains?: string[];
+    externalWebAccess?: boolean;
+  };
+}
+export interface StreamOptions {
+  // …现有字段
+  serverTools?: readonly ServerToolSpec[];
+}
+
+export interface Model {
+  // …现有字段
+  /** 原生搜索能力（目录覆盖项 / 发现缓存写入；缺省 = 无）。 */
+  nativeSearch?: {
+    kind: "responses" | "anthropic" | "google" | "kimi" | "dashscope" | "zhipu" | "openrouter";
+    costPer1k?: number;
+  };
+}
+
+// tools/types.ts
+export type ToolPermission = "read" | "write" | "execute" | "memory" | "network";
+```
+
+- `ModelCost` 不动；服务端工具费用由 `ai/cost.ts` 按 `nativeSearch.costPer1k × usage.serverTools.web_search` 加进 `cost.total`（新字段 `cost.tools?`），`/session` 与 `ama stats` 单列「搜索 n 次 $x」。
+- `transform.ts` 跨模型回放：`serverTool` 块降为一行文本 `[web_search: <summary>] sources: url1, url2`；`citations` 保留（纯数据），`citationsRaw` 丢弃。
+- `session-format.md` 增 `serverTool` 块与 `citations` 字段说明（会话文件向后兼容：旧版本读到未知块类型按文本降级，需在 `projection.ts` 加兜底）。
+
+### §4.2 本地检索增强（[S-A]）
+
+| 改动                                                                                                                                                                                                                | 文件                                                        | 前缀影响                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ----------------------------- |
+| 新规则（只在 `grep` 与 `glob` 都在活动集时）：`Locate code with grep/glob before reading; do not guess file paths.`                                                                                                 | `agent/prompt-rules.ts`                                     | +≈ 16 token，`default` 才出现 |
+| `read` 收到目录：按活动集给提示——有 `ls` 说 `use ls`，否则有 `glob` 说 `use glob (e.g. pattern "dir/*")`，都没有说 `read a file inside it`；实现：`ToolContext` 加只读 `activeTools: ReadonlySet<string>`           | `tools/read.ts`、`tools/types.ts`、`agent/session-tools.ts` | 0（错误文案不在前缀）         |
+| `grep` 加 `filesOnly?: boolean`：只输出命中文件路径（去重、按路径排序），描述加一句 `filesOnly lists matching files.`                                                                                               | `tools/grep.ts`                                             | +≈ 12 token                   |
+| `glob` 描述补 `Use to discover files before read.`；`grep` 描述补 `Use to find where a symbol or text appears.`                                                                                                     | `tools/glob.ts`、`tools/grep.ts`                            | +≈ 14 token                   |
+| `-p` 下 `minimal` / `coordinator` 预设遇到 bash 被拒已有 stderr 提示；补一句「`minimal` 预设没有 grep / glob，`tools.default: ["+grep","+glob"]` 可加」进 i18n `print` 文案（只在被拒命令形如 grep / rg / find 时） | `modes/print/*`、`i18n/messages/print.ts`                   | 0                             |
+| 文档：`docs/design.md` §5.6 表与 `docs/codemode.md` 说明 `minimal` 的检索取舍                                                                                                                                       | docs                                                        | —                             |
+
+不做：模糊文件名（glob 的 `*name*` 已够）、符号 / 定义跳转（需要语言解析或 LSP，零依赖做不到可用质量；留给 Skill 调 `rg` / `ctags`）、语义检索、跨仓库（`path` 参数本就允许仓库外绝对路径，受 deny 规则约束）。大仓库性能：现实现每个文件整读再逐行 `test`，百万行级仓库 100 命中上限会很快到；`filesOnly` + `glob` 过滤是给模型的缩范围手段，流式按行读取留作 [S-A] 的可选优化（不改输出形状）。
+
+### §4.3 `web_fetch`（[S-B]）
+
+```text
+name: web_fetch     label: Fetch     permission: network     executionMode: parallel
+annotations: { readOnly: true, openWorld: true }
+promptSnippet: "web_fetch: fetch a public web page as text"
+description: "Fetch a public http(s) URL and return its main content as Markdown (HTML) or text (JSON, plain text).
+  Truncated at maxChars (default 50 KB) with an offset to continue; PDFs and binaries are not parsed.
+  Cross-host redirects are reported, not followed."
+parameters: { url: string (required), maxChars?: integer, offset?: integer, raw?: boolean }
+```
+
+行为规格：
+
+- 仅 `http:` / `https:`；拒绝 URL 里的 userinfo（`user:pass@`）；URL ≤ 2 048 字符；主机名必须含 `.`（无点主机名与 `localhost` 一律拒：本机服务请模型用 bash curl 走审批）。
+- **私网防护**：`dns.lookup(host, { all: true })` 全部地址都不得落在环回、链路本地（含 169.254.169.254 元数据）、RFC 1918、ULA（`fc00::/7`）、组播、`0.0.0.0/8`、IPv4 映射的以上段；用 `node:http(s).request` 并通过 `lookup` 选项钉住已检查的地址（防 DNS 重绑定）；每一跳重定向重新检查。`search.searxng.url` 指向私网时为它单独放行（仅该主机 + 端口，仅 `web_search` 后端用，`web_fetch` 不放行）。
+- 重定向：同主机最多 5 跳自动跟；**跨主机不跟**，返回 `Redirected to <url>; call web_fetch with it if appropriate.`（模型下一次调用再过一次权限）。
+- 限制：总超时 30 s、首字节 15 s；响应体上限 5 MB（流式读、超限截断并标注）；`Accept: text/markdown, text/html, text/plain, application/json;q=0.9, */*;q=0.1`；`User-Agent: ama/<version> (+https://github.com/Owlbay/armadra-agent)`；不发 cookie、不带任何自定义头、不支持 POST。
+- 内容处理（`tools/web/html-to-markdown.ts`，零依赖、单文件 ≤ 600 行）：去 `script` / `style` / `noscript` / `svg` / `nav` / `footer` / `aside`；优先 `<main>` / `<article>` / `role=main`；保留标题层级、段落、列表、链接 `[text](url)`、行内 / 块代码、简单表格、图片只留 alt；解码实体；按 `<meta charset>` / `Content-Type` 处理编码（Node `TextDecoder` 支持的集合）。`raw:true` 返回原文（仍受 maxChars）。`application/json` 美化输出；`text/*` 原样；`application/pdf` 与其它二进制返回 `Binary content (<type>, <bytes>); not parsed.`（不进上下文全文）。
+- 输出：首行 `# <title>` + `Source: <final url>`（+ `Retrieved: <ISO>` 不进内容、放 `details`，避免前缀变化——工具结果不在前缀，这里只是保持确定性），正文头截断到 `maxChars`（缺省 50 000，上限 200 000），末尾 `[Truncated at N chars; continue with offset=M]`；全文落 `outputs/<toolCallId>.txt`。`details: { status, contentType, bytes, truncated, cached, finalUrl }`。
+- 缓存：会话内内存缓存 15 分钟（键 = 最终 URL + raw），`details.cached: true`；不落盘。
+- 代理：Node 24.5+ 的 `http.setGlobalProxyFromEnv()` 已由 `cli/proxy.ts` 调用，`http.request` 同样生效；Node 22 不读代理环境变量（与模型请求一致，文档注明）。
+- 结果进上下文走 `tool-runner` 的 `maxToolResultChars` 截断与档一裁剪（web 结果属可裁剪类，不进保护集）。
+
+### §4.4 `web_search`（[S-C] 外部后端；[S-D] 原生）
+
+函数工具（外部后端时注册）：
+
+```text
+name: web_search    label: Search    permission: read（见 §4.6 的理由）    executionMode: parallel
+annotations: { readOnly: true, openWorld: true }
+promptSnippet: "web_search: search the web (titles, URLs, snippets)"
+description: "Search the web and return up to `limit` results as `n. title — url` with a snippet.
+  Use for current information (versions, docs, errors); read a result with web_fetch."
+parameters: { query: string (required), limit?: integer (default 5, max 10), recency?: "day"|"week"|"month"|"year", domains?: string[] }
+```
+
+- 输出确定性：结果按后端返回顺序编号；每条 `n. <title> — <url>\n   <snippet ≤ 300 字符>`；`details: { backend, count, tookMs }`；`structured: { results: [{title,url,snippet,publishedAt?}] }`（codemode 脚本与宿主用）。
+- 后端接口 `tools/web/search-backend.ts`：`interface SearchBackend { readonly id: string; search(input: SearchInput, ctx: { signal, fetch }): Promise<SearchResult[]> }`，四家 + SearXNG 各一个 ≤ 150 行文件（`backends/{tavily,brave,exa,serper,searxng}.ts`），HTTP 走 `ai/http.ts` 的 `postJson` / 新增 `getJson`（统一超时 15 s、错误文案、key 不进错误信息）。
+- key 发现：`resolveApiKey("<backend-id>")` 复用供应商的三级顺序（`config.search.<id>.apiKey` → `auth.json.providers["<id>"]` → 环境变量）；`ama auth set tavily` 直接可用（`auth set` 的 id 校验放开到搜索后端 id 列表）；`ama doctor` 新增一行「搜索：后端 / key 来源」。
+- 速率与费用：会话内每次调用计 `usage{kind:"web_search"}` 自定义条目（不是模型 usage），`/session` 显示「搜索 n 次」；外部 API 不估价（各家计费单位不同），文档列价。
+- 原生（§4.5）时**不注册**本函数工具，但系统提示 `tools` 节仍要让模型知道能搜：原生搜索由服务端决定何时触发，不需要描述；为稳定前缀，`tools` 节不列、`rules` 节不加。实测两家（Responses / Anthropic）都会在问「最新版本」时自动搜（P-A）。
+
+### §4.5 原生搜索的协议层
+
+**会话开始**：`resolveWebCapabilities()` 判定 `search.kind === "native"` 的条件：`search.provider` 为 `auto` 或 `native`；模型 `nativeSearch` 有值（目录覆盖 / 发现缓存 / 用户 `models[].nativeSearch`）；`compat.nativeWebSearch !== false`（官方主机缺省 true；**非官方 baseUrl 缺省 false**，中转用户要显式 `providers.packy.compat.nativeWebSearch: true`，或跑 `ama models search-probe packy/grok-4.7` 探测后写回——探测就是 P-A 那一次请求，约 $0.05）；没有 `permission.deny` 命中 `web_search`。满足则 `StreamOptions.serverTools = [{ name: "web_search", options }]`，并把 `serverTools` 的 JSON 加进缓存指纹（`ai/cache/fingerprint.ts`）。
+
+**请求侧**：
+
+| 协议                 | 翻译                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| openai-responses     | `tools` 数组**开头**插 `{type:"web_search", search_context_size: search.native.contextSize ?? "medium", filters?: {allowed_domains}, external_web_access: search.native.liveWeb ?? true}`（放开头让「最后一个工具」仍是函数工具，与现有缓存逻辑无关但保持确定）；`chatgptBackend` 白名单放行该项；codex 后端缺省 `external_web_access` 跟 Codex 的 cached 语义（`false`），用户 `search.native.liveWeb: true` 改 live |
+| anthropic-messages   | `tools` 开头插 `{type:"web_search_20250305", name:"web_search", max_uses: 5, allowed_domains?}`（基础版，ZDR 可用、不需要 `allowed_callers`）；`cache_control` 仍打在最后一个函数工具上                                                                                                                                                                                                                               |
+| google-generative-ai | `tools:[{google_search:{}}, {functionDeclarations:[…]}]`（Gemini 3 起同列；Gemini 2.x 不同列时不启用原生，回落外部）                                                                                                                                                                                                                                                                                                  |
+| openai-completions   | 第二期：Kimi `builtin_function`、通义顶层字段、智谱工具项、OpenRouter `plugins`，各按 compat 开关                                                                                                                                                                                                                                                                                                                     |
+
+**响应侧**（流解析 → `AssistantMessage.content`）：
+
+- Responses：`response.output_item.added/done` 的 `web_search_call` → `serverTool` 块（`summary` = `action.query` 或 `action.url`，`sources` = `action.sources`，`raw` = 整个 item）；`message` 项 `content[].annotations[]` 的 `url_citation` → 所属文本块 `citations`；`usage` 解析 `num_server_side_tools_used` / `server_side_tool_usage_details` → `usage.serverTools`。回放：`convertAssistant` 在同模型时把 `serverTool.raw` 原样放回 `input`（Codex 的做法；若端点拒绝则按 400 文案去掉并记 compat `replayServerToolItems: false`，待实测）。
+- Anthropic：`content_block_start` 的 `server_tool_use` → 开 `serverTool` 块并累积 `input_json_delta`；`web_search_tool_result` / `web_fetch_tool_result` → 配对 `tool_use_id` 填 `rawResult` 与 `sources`；文本块的 `citations_delta` → `citations` + `citationsRaw`；`usage.server_tool_use.web_search_requests`。回放：`convertAssistant` 把 `raw` / `rawResult` / `citationsRaw` 原样放回（同模型），这是硬要求。`stop_reason: "pause_turn"` 当前映射为 `stop`——改为新内部停因 `pause`，循环把该助手消息原样再发一次（上限 3 次），不算回合、不触发工具执行；与客户端工具混用的 `tool_use`（服务端工具无结果块）照常执行客户端工具后继续，服务端工具下一请求才有结果块（解析时按 `tool_use_id` 补到上一条助手消息的 `serverTool.rawResult`——需要 `session-run.ts` 允许回填上一条助手消息；如改动过大，首期把结果块作为新助手消息的首块单独保存并在回放时按原顺序发出）。
+- Gemini：`groundingMetadata` 在最后一个 chunk；`groundingChunks` → 一个合成的 `serverTool{name:"web_search", summary: webSearchQueries.join(" | "), sources}` 块，`groundingSupports` → `citations`。
+
+**事件**：`serverTool` 块流式到达时发 `tool_execution_start/end`，带新字段 `server: true`（RPC / `-p stream-json` 原样；TUI 用它渲染「服务端」标记、不走权限管线、不进重复调用检测）。`message_end` 后的 `AssistantMessage` 含 `citations`。
+
+**权限**：服务端搜索不能逐次拦截。规则：`permission.deny` 含 `web_search` → 不发服务端工具；其它模式一律允许（搜索关键词外泄到模型供应商的风险，与把整个对话发给它相比不新增威胁面）。`plan` 模式同样允许（只读调研正是 plan 的用途）。
+
+### §4.6 权限类 `network`（[S-B]）
+
+参照 `memory` 类的做法（`permissions/memory-class.ts` 折成已有类走真值表），新建 `permissions/network-class.ts`：
+
+| 模式        | `web_fetch`（network）                                                                                                                                                                                                                                                 | `web_search`（read；外部后端） |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| `plan`      | **询问**（`-p` 下拒绝）：只读但可外泄，Gemini CLI 同样在 Plan 下必问                                                                                                                                                                                                   | 放行                           |
+| `allowlist` | 只放行 allow 规则命中（`web_fetch(*.github.com)`、`web_fetch(https://docs.python.org/**)`），其余拒绝                                                                                                                                                                  | 放行（只读工具）               |
+| `default`   | 询问；对话框选项 allow / deny / **allow for this domain this session**（`allow_session` 的归一化前缀 = 域名）                                                                                                                                                          | 放行                           |
+| `auto-edit` | 同 default                                                                                                                                                                                                                                                             | 放行                           |
+| `auto`      | 规则层：私网 / 非 http(s) → deny（执行层也会拒，双保险）；allow 规则 / 会话记忆 → allow；静态判定：域名在 `web.fetch.allowDomains`（缺省空）→ allow；其余交分类器（分类器提示补一句「fetching a public documentation or package-registry page read-only is routine」） | 放行                           |
+| `full-auto` | 放行                                                                                                                                                                                                                                                                   | 放行                           |
+
+- 规则语法：`web_fetch(<glob>)`，glob 对「`host/path`」匹配（不含 scheme），`*` 不跨 `/`、`**` 跨；裸域名 `example.com` 等价 `example.com/**` 并含子域（与 Anthropic / Claude Code 的域名语义一致）。`web_search` 规则不带括号。
+- 危险命令表不适用；Hook PreToolUse 照常可拦（输入里有 `url`）。
+- 与沙箱的关系：`web_fetch` / `web_search` 在 ama 进程内执行，不受 `sandbox.bash` / `sandbox.network` 影响——这正是设计意图：**bash 断网免审批 + web 工具显式受控联网**。文档在 `docs/sandbox.md`「已知绕过」节写明：模型可以用 `web_fetch` 把本地文件内容拼进 URL 外泄（`?q=<secret>`），所以 `web_fetch` 的 URL 查询串长度限制为 ≤ 1 024 字符、含 `=`/`&` 的查询串在审批预览里高亮；分类器提示把「URL 查询串里出现像密钥 / 长随机串的内容」列为 ask。
+- 项目级 `.ama/config.json`：可设 `web.fetch.enabled: false`、`search.provider: "off"`、追加 `permission.deny`；`web.fetch.allowDomains` 只认用户级 / profile（放宽项）。
+- Armadra 嵌入：宿主 `tools.disable("web_fetch")` / `tools.disable("web_search")` 即可（`host-api.md` 已有）；profile 新增 `web?: { fetch?: boolean; search?: boolean }` 作等价开关（画布节点间的「协作上下文」不经网络，不受影响）。
+
+### §4.7 工具表、预设与缓存
+
+- `default` 预设：`web_fetch` 固定加入（`PRESET_TOOLS.default` 加名字；`web.fetch.enabled: false` 或宿主禁用时 `available()` 为假、自然不出现）；`web_search` 由会话开始的解析结果决定是否注册（外部后端注册函数工具；原生不注册；都没有不注册）。`minimal` / `coordinator` 不加，`codemode-only` 脚本内可调（`tools.web_fetch()` / `tools.web_search()`）。
+- 预算：两工具合计 ≈ 250 token，`default` 实测 960（strict ≈ 1 350）→ ≈ 1 600，`PROMPT_BUDGETS.default = 2000` 不动；`descriptions.test.ts` 的单工具 150 token 门照守。
+- 缓存前缀：工具按名排序，`web_fetch` / `web_search` 排在 `write` 前，整个会话不变；原生服务端工具在 `StreamOptions.serverTools`，进缓存指纹与请求体快照测试；`cache-stability.test.ts` 加「20 回合 serverTools 字节相同」用例。
+- 中途 `/model`：重算能力；`native → external` 时追加 `web_search` 函数工具（system 补丁 `toolsAdded`），`external → native` 时 `toolsRemoved`；都会打断前缀，但 `/model` 本来就打断（`model_changed` 已是未命中归因之一）。
+- `get_tools`（RPC）与 `/tools` 列出 `web_fetch` / `web_search`，并多一列 `backend: "native" | "<id>" | undefined`。
+
+### §4.8 引用与来源呈现
+
+| 面                     | 呈现                                                                                                                                                                                                                                                                            |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TUI 消息区             | 文本块里按 `citations[].start/end` 在段末插 `[n]`（无区间的挂块末）；消息末尾「Sources」块列 `n. title — url`（`ui.citations: "footnotes"（缺省）\| "inline"（直接 `[title](url)`）\| "off"`）。服务端工具调用渲染成工具行 `⌕ web_search "query"` + 折叠的来源列表，标 `server` |
+| TUI 工具行             | `web_fetch`：标题 `fetch host/path`（`renderCall`），结果首行 `title · 12.3 KB · markdown`，展开看正文；`web_search`：标题 `search "query"`，结果列表 n 行                                                                                                                      |
+| `-p` text              | 正文后空一行追加 `Sources:` 列表（有引用时）                                                                                                                                                                                                                                    |
+| `-p json`              | `message.content[].citations` 原样；`serverTool` 块原样（`raw` 保留，宿主可丢）                                                                                                                                                                                                 |
+| `-p stream-json` / RPC | `tool_execution_start/end{server:true}`；`message_update` 增量里 `citations` 随文本块结束一次性给出（Anthropic 的 `citations_delta` 合并后再发，避免半截引用）                                                                                                                  |
+| ACP                    | `tool_call{kind:"fetch"}`（已有映射），引用放 `content[].annotations`（ACP 规范允许的扩展字段）                                                                                                                                                                                 |
+| 会话文件               | 原样落盘；`ama sessions show` 打印 `[n]` 与来源                                                                                                                                                                                                                                 |
+
+### §4.9 配置键与缺省
+
+| 键                                                                | 类型 / 取值                                                                            | 缺省                                                 | 层级                       | `/config` 面板 |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------- | -------------------------- | -------------- |
+| `web.fetch.enabled`                                               | boolean                                                                                | `true`                                               | 项目级只能设 `false`       | tools 组       |
+| `web.fetch.maxChars`                                              | 1 000–200 000                                                                          | `50000`                                              | 项目级只能调小             | tools 组       |
+| `web.fetch.timeoutMs`                                             | 5 000–120 000                                                                          | `30000`                                              | 用户级 / profile           | 否             |
+| `web.fetch.allowDomains`                                          | string[]（auto 静态放行；default 下不免审批）                                          | `[]`                                                 | 用户级 / profile（放宽项） | 否（列表）     |
+| `search.provider`                                                 | `"auto" \| "native" \| "off" \| "tavily" \| "brave" \| "exa" \| "serper" \| "searxng"` | `"auto"`                                             | 项目级只能设 `"off"`       | tools 组       |
+| `search.fallback`                                                 | 后端 id 列表（`auto` 的回落顺序）                                                      | `["tavily","brave","exa","serper","searxng"]`        | 用户级 / profile           | 否             |
+| `search.maxResults`                                               | 1–10                                                                                   | `5`                                                  | 任意                       | tools 组       |
+| `search.native.liveWeb`                                           | boolean（Responses `external_web_access`；codex 后端缺省随 Codex 为 cached）           | 官方 / 中转 `true`；`chatgptBackend:"codex"` `false` | 用户级 / profile           | 否             |
+| `search.native.contextSize`                                       | `"low" \| "medium" \| "high"`（Responses `search_context_size`）                       | `"medium"`                                           | 用户级 / profile           | 否             |
+| `search.native.maxUses`                                           | 1–20（Anthropic `max_uses`）                                                           | `5`                                                  | 用户级 / profile           | 否             |
+| `search.searxng.url`                                              | `http(s)://…`（允许私网主机，仅此后端）                                                | 无                                                   | 用户级 / profile           | 否             |
+| `search.<backend>.apiKey`                                         | `"$ENV"` 或明文（同 `providers.<id>.apiKey` 规则）                                     | 无                                                   | 用户级 / profile           | 否             |
+| `ui.citations`                                                    | `"footnotes" \| "inline" \| "off"`                                                     | `"footnotes"`                                        | 任意                       | ui 组          |
+| `providers.<id>.compat.nativeWebSearch` / `models[].nativeSearch` | 见 §4.5                                                                                | 官方主机 true / 其余 false                           | 用户级                     | 否             |
+| profile `web`                                                     | `{ fetch?: boolean; search?: boolean }`                                                | 都 `true`                                            | 宿主                       | —              |
+
+环境变量：`AMA_WEB_FETCH=0` 等价 `web.fetch.enabled:false`；`AMA_SEARCH_PROVIDER` 覆盖 `search.provider`；各后端 key 的标准变量名见 D10。`config.schema.json`、`key-docs.ts`、`settings-registry.ts`、`config-keys.ts`（中英）同步。
+
+### §4.10 i18n
+
+- 模型侧文本（工具描述、规则、工具结果）仍为英文（与现有工具一致，不进 i18n）。
+- 进 i18n 的：TUI 工具行标题模板（`msg().tools.webFetch.title(host)` 等）、`Sources` 标题、审批对话框的 `web_fetch` 文案与「本会话允许该域名」选项、`/config` 分组与键说明、`ama doctor` 的搜索行、`-p` 的降级提示（§4.11）、错误文案（私网拒绝、重定向、超时、后端缺 key）。新领域文件 `src/i18n/messages/web.ts`（en 为形状源），`catalog.ts` 登记一次。
+- 工具 `label`（`Fetch` / `Search`）保持英文短词，与 `Bash` / `Grep` 一致。
+
+### §4.11 RPC / SDK / 子命令 / 文档
+
+- RPC：`get_tools` 行加 `backend?`；`session_start` 事件加 `web?: { fetch: boolean; search?: "native" | string }`；新增 `get_web_capabilities`（同形状，宿主随时可查）；事件新字段 `server`。`docs/rpc.md` 与 `docs/en/rpc.md` 同步。
+- SDK：`createRuntime({ web?: { fetch?, search? } })` 与 `extraTools` 并列；`SearchBackend` 接口与 `defineSearchBackend()` 导出，宿主可注入自己的后端（Armadra 以后可接画布级搜索）。
+- 子命令：`ama models search-probe <provider/model>`（一次最小请求测原生搜索透传并写回 `compat.nativeWebSearch`）；`ama doctor` 新行；`ama auth set <backend>` 接受搜索后端 id。
+- 降级提示：会话开始若 `search.provider` 为 `auto` 且解析为「无」，TUI 启动头信息列加一行 `search: off (no native support, no search key — see ama auth set tavily)`（每配置目录提示一次，记 `notices.json`，与 codemode 提示同机制）；`-p` 不提示。模型侧不说，前缀不变。
+- 文档：`docs/tools-web.md`（新，中文，含 en 版 `docs/en/tools-web.md`）：工具行为、权限、后端配置、费用、隐私声明；`docs/permissions.md` 加 `network` 类与 `web_fetch(...)` 规则；`docs/sandbox.md` 已知绕过节；`docs/providers.md` 原生搜索小节与 compat 键；`docs/design.md` §5.2 / §5.6 / §7 回写并链接本文；README 功能段加一句；`docs/gap-audit-2026-10.md` 的两行标「已被 search-plan.md 推翻」。
+
+## §5 分批实施（2–3 个代理并行，文件所有权互不重叠）
+
+| 批次 | 内容                                                                                                                                                                                                                                                                                                                               | 文件所有权                                                                                                                                                                                                                                                                                                                                                                                              | 依赖                | 验收                                                                                                                                                                                                                                                                                                              | 估量   |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| S-0  | **契约**：§4.1 类型；`ToolPermission` 加 `network`；`ToolContext.activeTools`；`StreamOptions.serverTools`；`Usage.serverTools`；`SessionEvent` 工具事件 `server?`；RPC 类型；配置类型与 schema / key-docs / settings-registry / config-keys 中英；`projection.ts` 未知块兜底；`transform.ts` 降级；fingerprint 纳入 `serverTools` | `src/ai/types.ts`、`src/tools/types.ts`、`src/agent/types*.ts`、`src/rpc.ts`、`src/config/{types,schema,json-schema,key-docs,settings-registry,merge}.ts`、`src/i18n/messages/config-keys.ts`、`src/session/projection.ts`、`src/agent/transform.ts`、`src/ai/cache/fingerprint.ts`、`src/contracts-search.test.ts`（新）、`docs/session-format.md`                                                     | —                   | `tsc` 通过；契约测试锁定新字段可选、旧会话文件可读；json-schema 一致性测试通过；`pnpm check:i18n`                                                                                                                                                                                                                 | 0.5 天 |
+| S-A  | **本地检索增强**（§4.2）                                                                                                                                                                                                                                                                                                           | `src/tools/{read,grep,glob}.ts`、`src/agent/prompt-rules.ts`、`src/agent/session-tools.ts`（只加 `activeTools`）、对应测试、`src/modes/print/print-mode.ts` 提示句 + `src/i18n/messages/print.ts`、`docs/design.md` §5.6、`docs/codemode.md`                                                                                                                                                            | S-0                 | `descriptions.test.ts` 每工具 ≤ 150；`prompt-budget.test.ts` 不变通过；`prompt-rules.test.ts` 新规则只在 grep+glob 同在时出现；`read.test.ts` 三种目录提示；`grep.test.ts` `filesOnly` 确定性排序；复跑 E3（minimal）与 E1 看行为不劣化（可选、花钱）                                                             | 1 天   |
+| S-B  | **`web_fetch` + `network` 权限类**（§4.3、§4.6）                                                                                                                                                                                                                                                                                   | `src/tools/web/{fetch,html-to-markdown,url-guard,http-get}.ts`（新）、`src/permissions/network-class.ts`（新）、`src/permissions/{pipeline,rules,auto-safe,classifier}.ts` 的接入点、`src/modes/interactive/approval-dialog.ts` 域名选项、`src/i18n/messages/web.ts`（新，与 S-C 共用需先建骨架）、`PRESET_TOOLS.default`、`docs/permissions.md`、`docs/sandbox.md`、`docs/tools-web.md` 新建           | S-0                 | 单测：私网 / 环回 / 元数据 / IPv6 映射 / 无点主机 / userinfo 全拒；跨主机重定向返回提示不跟；5 MB 与 maxChars 截断；HTML→MD 固定样例快照；本地 `http.createServer` 端到端（DNS 钉住用 `lookup` 注入）；权限真值表六模式 × allow 规则 × 会话记忆；`-p` default 下 `web_fetch` 被拒且 stderr 提示；前缀预算测试通过 | 2 天   |
+| S-C  | **`web_search` 外部后端**（§4.4）：后端接口、五个后端、key 发现、`ama auth set` 放开、`doctor` 行、启动头降级提示、`-p` / TUI 结果渲染                                                                                                                                                                                             | `src/tools/web/{search,search-backend}.ts`、`src/tools/web/backends/*.ts`（新）、`src/cli/compose.ts`（`resolveWebCapabilities` 的外部分支 + 工厂）、`src/cli/subcommands/{auth,doctor}.ts`、`src/cli/web-notice.ts`（新）、`src/modes/interactive/tool-view.ts` 的两条 `renderCall/renderResult`（经工具自身的 `renderCall` 实现，不改 tool-view）、`docs/tools-web.md` 后端节、`docs/en/tools-web.md` | S-0                 | 每个后端用录制的 JSON fixture 单测（请求头含 key 不进错误与日志，`no-leak` 风格断言）；`auto` 回落顺序与 `off`；缺 key 不注册且 `get_tools` 不列；`structured.results` 形状；SearXNG 私网放行只对该主机                                                                                                           | 1.5 天 |
+| S-D  | **原生搜索：Responses + Anthropic**（§4.5）：请求侧服务端工具、响应侧 `serverTool` / `citations` / usage、回放、`pause_turn`、混合调用、`chatgpt-backend` 白名单与降级、能力字段入目录 / 发现缓存、`compat.nativeWebSearch`、`ama models search-probe`、cost                                                                       | `src/ai/apis/{openai-responses-request,openai-responses,anthropic-request,anthropic-messages,chatgpt-backend,cache-usage}.ts`、`src/ai/cost.ts`、`src/ai/providers/catalog/{openai,xai,anthropic,chatgpt}.json`、`src/auth/chatgpt/{backend-client,discovered}.ts`、`src/agent/{session-run,loop}.ts` 的 `pause` 停因、`src/cli/subcommands/models-search-probe.ts`（新）、`docs/providers.md`          | S-0                 | 请求体快照（服务端工具在前、缓存断点位置不变、`serverTools` 不变时 20 回合字节相同）；流解析 fixture（P-A 的真实响应脱敏入库；Anthropic 按官方文档样例）；回放原样含 `encrypted_*`；跨模型降级；`pause_turn` 续发 ≤ 3；真实 probe 用中转 grok-4.7 跑一次（≈ $0.05）                                               | 2.5 天 |
+| S-E  | **呈现与接口**（§4.8、§4.11）：TUI 脚注 / Sources / 服务端工具行、`-p` text Sources、RPC `get_web_capabilities` 与事件字段、SDK 导出、`/config` 面板行、`ama sessions show`                                                                                                                                                        | `src/modes/interactive/{message-view,tool-view}.ts`（引用渲染；与状态栏文件无交集）、`src/modes/print/print-mode.ts` 的 Sources（与 S-A 的一句提示分不同函数，顺序合入）、`src/modes/rpc/*`、`src/sdk.ts`、`src/modes/interactive/config-panel.ts`、`docs/{rpc,tui}.md` + `docs/en/*`、README 两份                                                                                                      | S-0、S-D 的 fixture | 消息视图快照（有 / 无引用、inline / footnotes / off）；`-p json` 含 `citations`；RPC e2e：`get_web_capabilities` 三态；`docs-links.test.ts` 通过                                                                                                                                                                  | 1.5 天 |
+| S-F  | **第二期协议**：Gemini `google_search` + `groundingMetadata`；OpenRouter `plugins` + `annotations`；通义 / 智谱 compat（只对官方端点）；Kimi `$web_search` 视其停用时间决定是否做                                                                                                                                                  | `src/ai/apis/{google-request,google-generative-ai,openai-request,openai-completions}.ts`、目录 JSON、`docs/providers.md`                                                                                                                                                                                                                                                                                | S-D                 | 各协议 fixture 单测；真实 probe 需用户自己的 key（中转不透传）                                                                                                                                                                                                                                                    | 2 天   |
+
+并行安排：S-0 先行（半天，一个代理）；之后 **A 代理 S-A → S-E**，**B 代理 S-B → S-C**，**C 代理 S-D → S-F**；S-E 的引用渲染用 S-D 提供的 fixture 先写快照，不等 S-D 合入。全部合入后由主会话复跑 §1.3 的 E1–E5 与 P-A 并把结果回写 §1.3，再发 0.7.0。
+
+状态栏文件（`src/modes/interactive/status-*.ts`）本计划不碰；若想在状态栏显示「搜索 n 次」，交给负责状态栏的代理在其之后加一个只读字段。
+
+## §6 风险
+
+| 风险                                                                                         | 应对                                                                                                                                                                                          |
+| -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 提示注入：抓回的网页正文进入上下文，可能携带「忽略之前指令」                                 | 工具结果已是「数据」位置；在 `web_fetch` 结果前加一行固定前缀 `Content fetched from <url> (untrusted):`；分类器把 URL 查询串含疑似密钥列为 ask；文档声明与 Anthropic 的 exfiltration 警告同义 |
+| 数据外泄：模型把本地内容拼进 URL                                                             | 查询串 ≤ 1 024 字符；审批预览高亮查询串；`auto` 下交分类器；`sandbox.md` 写明这是已知面，`web.fetch.enabled:false` 或 deny 规则可关                                                           |
+| SSRF / DNS 重绑定                                                                            | 解析后检查并钉住 IP（`lookup` 选项），每跳重检；元数据地址与无点主机名硬拒；单测覆盖                                                                                                          |
+| 中转站对服务端工具的支持参差：有的透传、有的 400、有的静默吞掉                               | 非官方主机缺省不开原生；`search-probe` 一次写回 compat；400 含工具类型文案时本会话降级为外部后端并提示（不自动重试多次）                                                                      |
+| Anthropic 回放严格：块顺序、`encrypted_*` 任何改动都 400；与客户端工具混用时结果块在下一请求 | 原始 JSON 不透明保存、按原顺序回放；fixture 覆盖混用场景；首期 `max_uses: 5` 限制长搜索循环；`pause_turn` 续发上限 3                                                                          |
+| 费用：原生搜索内容 token 大（P-A 一次 16.5k 输入）；Anthropic / OpenAI $10 / 1k 次           | `/session` 与 `ama stats` 单列搜索次数与估价；`search.native.contextSize` 缺省 medium；`--max-cost` 照常生效（服务端工具费用计入）；文档列价                                                  |
+| 前缀与缓存：`web_search` 的有无随 key / 模型变化，用户换模型后前缀变                         | 只在会话开始与 `/model` 时变；指纹纳入 `serverTools`，未命中归因能说出「serverTools changed」                                                                                                 |
+| 零依赖 HTML→Markdown 质量有限（SPA、复杂表格）                                               | 优先 `main` / `article`；`raw:true` 兜底；文档声明不支持 JS 渲染页面（Anthropic 的 web_fetch 也不支持）                                                                                       |
+| Kimi `$web_search` 将停用、通义 / 智谱私有字段中转不透传                                     | 放第二期，且只对官方端点开；不为它们改通用契约                                                                                                                                                |
+| 会话文件兼容：旧版 ama 读新文件遇到 `serverTool` 块                                          | `projection.ts` 未知块按文本降级（S-0 先做）；`session-format.md` 记版本                                                                                                                      |
+
+## §7 需用户确认事项（附推荐）
+
+| #   | 事项                                                                                 | 推荐                                                                                |
+| --- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| C1  | `web_fetch` 是否缺省进 `default` 预设（前缀 +≈ 130 token、每次请求都带）             | **是**。没有它，「查文档」只能走 bash；minimal 不加                                 |
+| C2  | `web_fetch` 在 `default` 模式下询问还是放行？                                        | **询问**，带「本会话允许该域名」；`auto` 交分类器。与 Claude Code / Gemini CLI 一致 |
+| C3  | `plan` 模式下 `web_fetch` 询问还是放行                                               | **询问**（`-p` 下拒绝）；`web_search` 放行                                          |
+| C4  | 外部搜索后端首期接哪几家                                                             | Tavily、Brave、Exa、Serper、SearXNG 五个；不接 DuckDuckGo                           |
+| C5  | 原生搜索对非官方 baseUrl（中转）缺省关、需 `search-probe` 或手写 compat 打开         | **是**（透传不可预测；一次探测 ≈ $0.05）                                            |
+| C6  | ChatGPT codex 后端缺省 `external_web_access: false`（跟 Codex 的 cached），还是 live | **cached**，`search.native.liveWeb: true` 可改                                      |
+| C7  | 引用缺省脚注（`[n]` + Sources）还是行内链接                                          | **脚注**                                                                            |
+| C8  | 是否先只做「最小可用版本」（§8.3）                                                   | 建议先做最小版（S-0 + S-A + S-B + S-C），看两周实际使用再决定 S-D / S-E / S-F       |
+| C9  | 是否把 `docs/gap-audit-2026-10.md` 中「不做内置 WebFetch / WebSearch」改标为被推翻   | 是，只加一行备注，不改原文                                                          |
+| C10 | 第二期协议里 Kimi `$web_search`（2026-10-20 前后停用）是否还做                       | 不做，等其独立 REST 接口                                                            |
