@@ -12,6 +12,8 @@
  *   `plan.unattended`；`approve_fresh` 在这里新建会话并以计划全文开新回合。`get_tasks / get_agents`
  *   读 `RpcContext.tasks / agents`（W5-G 的注册表与发现结果；未装配时回空表）。
  * - [W7-B2] `background_task { taskId? }` → `{ backgrounded }`（`session.backgroundTask`，B1）。
+ * - 打断并发送：`prompt / steer` 的 `interrupt: true` → `session.prompt(message, { interrupt })`（中止当前回合、
+ *   立刻以「排队的 steer + 本条」开新回合），应答 `started`。
  */
 
 import { formatModelRef } from "../../ai/providers/channels.js";
@@ -121,6 +123,13 @@ function applyPlanAttendance(ctx: RpcContext): void {
 }
 
 /** 开始一次运行：开始 / 入队 / 被处理后即返回，不等运行结束。 */
+/** `prompt / steer` 的 `interrupt`：可选布尔。 */
+function interruptFlag(value: unknown): boolean {
+  if (value !== undefined && typeof value !== "boolean")
+    throw new AmaError("invalid_arguments", "interrupt must be a boolean");
+  return value === true;
+}
+
 async function startRun(
   ctx: RpcContext,
   run: () => Promise<PromptDisposition | "queued" | "handled">,
@@ -202,9 +211,18 @@ export const handlers: RpcHandlers = {
       ctx.session().prompt(p.message, {
         ...(p.images !== undefined ? { images: p.images } : {}),
         ...(p.streamingBehavior !== undefined ? { streamingBehavior: p.streamingBehavior } : {}),
+        ...(interruptFlag(p.interrupt) ? { interrupt: true } : {}),
       }),
     ),
-  steer: (p, ctx) => startRun(ctx, () => ctx.session().steer(p.message)),
+  steer: (p, ctx) =>
+    startRun(ctx, () =>
+      interruptFlag(p.interrupt)
+        ? ctx.session().prompt(p.message, {
+            interrupt: true,
+            ...(p.images !== undefined ? { images: p.images } : {}),
+          })
+        : ctx.session().steer(p.message),
+    ),
   follow_up: (p, ctx) => startRun(ctx, () => ctx.session().followUp(p.message)),
   abort: async (_p, ctx) => {
     await ctx.session().abort();
