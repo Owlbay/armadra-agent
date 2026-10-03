@@ -25,7 +25,10 @@
  * - [W6] compact 在行尾（宿主状态之后）追加订阅配额短项 `5h 10% wk 31%`（status-quota.ts），最先丢；
  *   既有记号顺序不变。full 的配额在状态栏下方单独一行。
  * - [W5-U] bash 在操作系统沙箱里跑时（S2）用量类项多一个 `沙箱`（与 codemode 同一丢弃优先级）。
- * - [W5-U] 模型回退中（`model_fallback`）模型项显示 `主模型 → 回退模型`，切回主模型后恢复。
+ * - [W5-U] 模型回退中（`model_fallback`）compact 模型项显示 `主模型 → 回退模型`，切回主模型后恢复；[W7] full
+ *   本行只显示主模型，`→ 回退模型` 作为开关类项在速率行左区。
+ * - [W7] full 左右分区：左 = 状态（权限模式、`shift+tab` 提示），右 = 模型与度量；开关类项在速率行左区，
+ *   配额在第三行右区（status-line.ts / status-quota.ts）。
  * - 模型名缩写：宽 < 100 去掉供应商前缀，< 60 再去掉 `@渠道`，< 48 去掉版本后缀（第一个 `-数字` 起）。
  * - ASCII：`⎇` → `git`（字形表 `branch`）、`−` → `-`、`♨` → `~`。
  * - 宽度不够时按优先级丢弃（数字大的先丢，表见 §1.2）；会变的数字按最宽形状占位（`reserve`），
@@ -181,9 +184,10 @@ export function layoutRow(
   let kept = [...parts];
   const zone = (z: Part["zone"]): Part[] => kept.filter((p) => p.zone === z);
   const fits = (): boolean => {
-    const l = join(zone("left"))[1];
+    const left = zone("left");
     const right = zone("right");
-    return l + (right.length === 0 ? 0 : sep.length + join(right)[1]) <= width;
+    const between = left.length === 0 || right.length === 0 ? 0 : sep.length;
+    return join(left)[1] + between + join(right)[1] <= width;
   };
   while (!fits()) {
     const droppable = kept.filter((p) => p.priority !== undefined);
@@ -194,7 +198,15 @@ export function layoutRow(
   const l = join(zone("left"))[0];
   const r = join(zone("right"))[0];
   const gap = width - visibleWidth(l) - visibleWidth(r);
-  const line = r === "" ? l : gap >= MIN_GAP ? l + " ".repeat(gap) + r : l + dim(sep) + r;
+  // 左区为空时右区右对齐（[W7] full 的速率行没有开关、配额行）
+  const line =
+    r === ""
+      ? l
+      : l === ""
+        ? " ".repeat(Math.max(0, gap)) + r
+        : gap >= MIN_GAP
+          ? l + " ".repeat(gap) + r
+          : l + dim(sep) + r;
   return truncateToWidth(line, width);
 }
 
@@ -369,8 +381,8 @@ export class StatusBar implements Component {
     const model =
       state.model === undefined ? "?" : abbreviateModel(formatModelRef(state.model), width);
     const p = full ? FULL : COMPACT;
-    const fallback = this.source.fallback?.();
-    // 回退中：`主模型 → 回退模型`（回退模型 warning），切回主模型后恢复原样
+    // 回退中：compact 显示 `主模型 → 回退模型`（回退模型 warning）；full 本行只留主模型，`→ 回退模型` 在速率行左区
+    const fallback = full ? undefined : this.source.fallback?.();
     const modelText =
       fallback === undefined
         ? theme.fg("accent", model)
