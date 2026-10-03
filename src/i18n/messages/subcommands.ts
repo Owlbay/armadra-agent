@@ -9,9 +9,11 @@
 import { plural } from "../format.js";
 import type { Messages } from "../types.js";
 import * as configShow from "./subcommands-config.js";
+import * as modelsEnabled from "./subcommands-models.js";
 
 export const en = {
   ...configShow.en,
+  ...modelsEnabled.en,
   /** 多个子命令共用。 */
   common: {
     warning: (text: string) => `ama: warning: ${text}\n`,
@@ -319,6 +321,7 @@ export const en = {
 
 export const zh = {
   ...configShow.zh,
+  ...modelsEnabled.zh,
   common: {
     warning: (text) => `ama: 警告：${text}\n`,
     cancelled: "ama: 已取消\n",
