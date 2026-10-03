@@ -87,6 +87,17 @@ export interface SubagentEndEvent {
   worktree?: { branch: string; changed: boolean };
 }
 
+/**
+ * [W7-B1] 前台任务转后台（docs/agents-concurrency-plan.md §2.5）：`user` = 人（TUI `Ctrl+B` 等），
+ * `timeout` = `subagents.autoBackgroundAfterMs` 到时，`host` = 宿主 / SDK（`session.backgroundTask`）。
+ */
+export interface SubagentBackgroundEvent {
+  type: "subagent_background";
+  taskId: string;
+  parentToolCallId: string;
+  reason: "user" | "timeout" | "host";
+}
+
 // ---------------------------------------------------------------------------
 // 计划与 todo（§6.3、§6.5，W5-F）
 // ---------------------------------------------------------------------------
@@ -190,6 +201,7 @@ export type SessionEventW5 =
   | SubagentStartEvent
   | SubagentUpdateEvent
   | SubagentEndEvent
+  | SubagentBackgroundEvent
   | PlanProposedEvent
   | PlanResolvedEvent
   | TodoUpdatedEvent

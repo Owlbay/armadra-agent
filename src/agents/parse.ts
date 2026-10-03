@@ -101,8 +101,9 @@ export function parseAgentDefinition(
   const isolation = data["isolation"] ?? "none";
   if (isolation !== "none" && isolation !== "worktree")
     return fail("isolation must be none or worktree");
-  const background = data["background"] ?? false;
-  if (typeof background !== "boolean") return fail("background must be true or false");
+  const background = data["background"];
+  if (background !== undefined && typeof background !== "boolean")
+    return fail("background must be true or false");
 
   if (runner !== "ama") {
     const ignored = ["tools", "disallowed-tools", "permission-mode"].filter(
@@ -120,12 +121,12 @@ export function parseAgentDefinition(
     model: model.trim(),
     maxTurns,
     isolation,
-    background,
     runner,
     prompt: fm.body.trim(),
     source,
     filePath,
   };
+  if (background !== undefined) agent.background = background;
   if (tools !== undefined) agent.tools = tools;
   if (disallowedTools !== undefined) agent.disallowedTools = disallowedTools;
   if (typeof thinking === "string") agent.thinking = thinking as ModelThinkingLevel;

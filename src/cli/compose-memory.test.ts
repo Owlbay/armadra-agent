@@ -259,7 +259,11 @@ describe("会话里的记忆", () => {
 
   it("子会话：工具定义与 memory 节同父，写命令在执行层被拒（full-auto 也拒）", async () => {
     h = composeHarness([
-      { steps: [{ toolCall: { name: "task", arguments: { prompt: "remember x" } } }] },
+      {
+        steps: [
+          { toolCall: { name: "task", arguments: { prompt: "remember x", background: false } } },
+        ],
+      },
       {
         steps: [
           {

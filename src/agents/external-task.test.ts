@@ -95,7 +95,7 @@ describe("task(agent=acp:ama)：ama 驱动 ama", () => {
   it("前台：首次运行确认 → 子 ama 的 bash 审批交给人（带来源）→ 结果回到父", async () => {
     const p = await setup(
       [
-        taskCall({ prompt: "run it", agent: "acp:ama", description: "child" }),
+        taskCall({ prompt: "run it", agent: "acp:ama", description: "child", background: false }),
         { text: "parent done" },
       ],
       [
@@ -146,8 +146,8 @@ describe("task(agent=acp:ama)：ama 驱动 ama", () => {
   it("续聊：task{taskId} 在同一外部会话里追加一轮（不重开进程）", async () => {
     const p = await setup(
       [
-        taskCall({ prompt: "first", agent: "acp:ama" }),
-        taskCall({ prompt: "second", taskId: "t1" }),
+        taskCall({ prompt: "first", agent: "acp:ama", background: false }),
+        taskCall({ prompt: "second", taskId: "t1", background: false }),
         { text: "parent done" },
       ],
       [{ text: "child one" }, { text: "child two" }],
@@ -190,7 +190,7 @@ describe("task(agent=acp:ama)：ama 驱动 ama", () => {
         // 先等子 ama 的模型调用真正开始（之后再 stop，续聊才拿到脚本的下一条）
         ctl({ action: "wait", taskId: "t1", timeoutMs: 200 }),
         ctl({ action: "stop", taskId: "t1" }),
-        taskCall({ prompt: "resume please", taskId: "t1" }),
+        taskCall({ prompt: "resume please", taskId: "t1", background: false }),
         { text: "parent done" },
       ],
       [{ delayMs: 10_000, text: "late" }, { text: "resumed" }],
@@ -237,7 +237,10 @@ describe("task(agent=acp:ama)：ama 驱动 ama", () => {
   });
 
   it("未信任的项目：外部 Agent 不启动并提示 ama trust", async () => {
-    const h = composeHarness([taskCall({ prompt: "x", agent: "acp:ama" }), { text: "ok" }]);
+    const h = composeHarness([
+      taskCall({ prompt: "x", agent: "acp:ama", background: false }),
+      { text: "ok" },
+    ]);
     harnesses.push(h);
     externalTesting.driverDeps = {
       spawn: () => {
