@@ -16,8 +16,8 @@
  *   切换（只影响本会话）。
  * - 第五波（W5-U，agent-ui.ts）：计划审批框、子 Agent 折叠视图、`/tasks` `/agents` `/paste` 与 Ctrl+V、审批来源
  *   标注与外部 Agent 首次运行的合并确认（approval-merge.ts）、harness 提示。
- * - 启动头按 `ui.quietStartup`（startup-header.ts）：normal 框 + 模型 / 目录 / 模式 / 资源清单（窄屏或
- *   `ui.compact` 去框），header 一行，silent 不输出。
+ * - 启动头按 `ui.quietStartup`（startup-header.ts）：normal「AMA」字符画 + 信息列（启动时点亮扫描一次，
+ *   startup-logo.ts；窄屏 / `ui.logo: off` / `ui.compact` 不画字符画），header 一行，silent 不输出。
  */
 
 import { promptImages, sessionModel } from "../image-input.js";
@@ -67,6 +67,7 @@ import { modelPickerFor } from "./model-picker.js";
 import { createRewindFlow } from "./rewind-flow.js";
 import { openTraceView } from "./trace-view.js";
 import { StartupHeader } from "./startup-header.js";
+import { playStartupAnimation, type LogoAnimation } from "./startup-logo.js";
 import { QueueView, RunIndicator } from "./run-indicator.js";
 import { StatusArea, statusLineSlash } from "./status-area.js";
 import type { StatusBar } from "./status-bar.js";
@@ -246,7 +247,7 @@ export function runInteractiveMode(
   const home = env["HOME"] ?? env["USERPROFILE"];
   const info = startupInfo(runtime, home);
   const header = (level: "normal" | "header"): StartupHeader =>
-    new StartupHeader(info, { theme, level, ...(ui.compact === true ? { compact: true } : {}) });
+    new StartupHeader(info, { theme, level, logo: ui.logo, compact: ui.compact });
   /** 清空消息区（切换会话、/tree）：只留一行头。 */
   const resetView = (): void => {
     view.reset();
@@ -522,6 +523,7 @@ export function runInteractiveMode(
   function exit(code: number): void {
     if (finished) return;
     finished = true;
+    logoAnimation?.finish();
     if (hintTimer !== undefined) clearTimeout(hintTimer);
     loader.stop();
     area.dispose();
@@ -544,7 +546,9 @@ export function runInteractiveMode(
       });
   }
 
-  if (startupLevel !== "silent") view.add(header(startupLevel));
+  const startHeader = startupLevel === "silent" ? undefined : header(startupLevel);
+  let logoAnimation: LogoAnimation | undefined;
+  if (startHeader !== undefined) view.add(startHeader);
   for (const warning of startupWarnings) view.addNotice("warn", warning);
   replay();
   status.refresh();
@@ -571,6 +575,8 @@ export function runInteractiveMode(
     agentUi.attach(session);
     offSignals = onTerminationSignals((code) => exit(code));
     tui.setFocus(editor);
+    const gate = { animation: ui.animation, host: info.host !== undefined, env, ...context };
+    logoAnimation = playStartupAnimation(tui, startHeader, theme, gate);
     options.onReady?.({
       tui,
       editor,
