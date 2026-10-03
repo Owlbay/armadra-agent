@@ -55,7 +55,7 @@ describe("定义文件解析", () => {
     });
   });
 
-  it("缺省值：名字取文件名、inherit、30 轮、前台、ama", () => {
+  it("缺省值：名字取文件名、inherit、30 轮、ama；background 未指定（由 subagents.background 决定）", () => {
     const { agent } = parseAgentDefinition(
       "---\ndescription: d\ndisallowed-tools: [edit, write]\n---\nbody",
       "/x/tester.md",
@@ -67,10 +67,10 @@ describe("定义文件解析", () => {
       model: "inherit",
       maxTurns: 30,
       isolation: "none",
-      background: false,
       runner: "ama",
       disallowedTools: ["edit", "write"],
     });
+    expect(agent).not.toHaveProperty("background");
   });
 
   it.each([

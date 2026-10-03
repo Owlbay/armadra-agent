@@ -7,9 +7,11 @@
  *   与父一致，运行时拒绝；
  * - `wait` / `output` 是轮询类调用（`annotations.pollable`，重复调用检测豁免）；
  * - `send` = 续聊放后台：等价于 `task{taskId, prompt, background:true}`，完成后同样收到通知。
+ * - [W7-B1] `wait` 被转后台（`background()`，TUI `Ctrl+B` / RPC `background_task`）打断时立即返回固定
+ *   文案，要求模型不要再等。
  */
 
-import { capTaskText, formatTokens } from "../agents/result.js";
+import { capTaskText, formatTokens, waitDetachedText } from "../agents/result.js";
 import { taskControl } from "../agents/task-control.js";
 import type { TaskInfo, ToolContext, ToolDefinition, ToolResult } from "./types.js";
 
@@ -104,7 +106,9 @@ export function createTaskCtlTool(): ToolDefinition<TaskCtlInput> {
         }
         case "wait": {
           const timeout = Math.min(Math.max(input.timeoutMs ?? DEFAULT_WAIT_MS, 0), MAX_WAIT_MS);
-          const result = await control.wait(taskId, timeout);
+          const signal = control.detachSignal(taskId);
+          const result = await control.wait(taskId, timeout, { signal });
+          if (result === undefined && signal.aborted) return { content: waitDetachedText(taskId) };
           if (result === undefined) {
             const turns = control.get(taskId)?.turns ?? 0;
             return {

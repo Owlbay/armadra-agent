@@ -5,6 +5,8 @@
  * - `agent`：子 Agent 类型（内置 general / explore / plan、`.ama/agents/*.md`）或外部 Agent；缺省
  *   general。描述里列出可用类型（catalog 由 compose-agents.ts 经 `bindTaskAgents` 绑定；没绑定时
  *   只列内置类型）。
+ * - [W7-B1] 缺省前台 / 后台由 `subagents.background` 决定（交互 / RPC / ACP 后台，`-p` 前台），描述随之
+ *   二选一（`bindTaskBackground`）；前台任务可被 `background()` 转后台，工具立即以固定文案返回。
  * - `background`：立即返回 taskId，完成后父会话收到 `<task-notification>`；`taskId`：向已有子会话
  *   追加消息（续聊，忽略 agent / tools / model）；`isolation: "worktree"`：在独立 git worktree 里跑。
  * - **parallel**：同一回复里的多个 task 真并行（会话注册表的池限流，缺省 4）；与 sequential 工具
@@ -46,19 +48,36 @@ export interface TaskInput {
 /** 预留（并发上限在会话的任务注册表，见 agent/subagent-registry.ts）。 */
 export interface TaskToolOptions {}
 
-const BASE_DESCRIPTION =
+/** 缺省前台（`-p`、`subagents.background: never`）时的描述。 */
+export const FOREGROUND_DESCRIPTION =
   "Delegate to a sub-agent (fresh context; give full instructions). Returns its final report. " +
   "Tasks in one reply run in parallel; writers should use isolation worktree. background: " +
   "returns a taskId now (see task_ctl); taskId: continue that task.";
+
+/** [W7-B1] 缺省后台（交互 / RPC / ACP，docs/agents-concurrency-plan.md §2.6）时的描述。 */
+export const BACKGROUND_DESCRIPTION =
+  "Delegate to a sub-agent (fresh context; give full instructions). Runs in the background by " +
+  "default: returns a taskId; a <task-notification> follows when done, so keep working. " +
+  "background:false if your next step needs the result. taskId: continue a task. Tasks in one " +
+  "reply run in parallel; writers use isolation worktree.";
 
 /** 描述里类型清单的标题（清单本身另有 400 token 预算，见 agents/catalog.ts）。 */
 export const TASK_AGENTS_HEADING = "\nAgents:\n";
 
 const catalogs = new WeakMap<object, AgentCatalog>();
+const backgrounds = new WeakMap<object, boolean>();
 
 /** 组装根把会话的类型目录绑到 task 工具上（描述里的类型清单）。 */
 export function bindTaskAgents(tool: ToolDefinition | undefined, catalog: AgentCatalog): void {
   if (tool !== undefined) catalogs.set(tool, catalog);
+}
+
+/**
+ * [W7-B1] 组装根把本进程的缺省前台 / 后台（`subagents.background` 按运行模式解析后）绑到 task 工具：
+ * 决定描述用哪一版。会话内不变（缓存前缀稳定）；没绑定按缺省前台。
+ */
+export function bindTaskBackground(tool: ToolDefinition | undefined, background: boolean): void {
+  if (tool !== undefined) backgrounds.set(tool, background);
 }
 
 function fail(message: string): ToolResult {
@@ -105,7 +124,8 @@ export function createTaskTool(_options: TaskToolOptions = {}): ToolDefinition<T
     label: "Task",
     get description(): string {
       const catalog = catalogs.get(tool) ?? new AgentCatalog();
-      return `${BASE_DESCRIPTION}${TASK_AGENTS_HEADING}${catalog.describe()}`;
+      const base = backgrounds.get(tool) === true ? BACKGROUND_DESCRIPTION : FOREGROUND_DESCRIPTION;
+      return `${base}${TASK_AGENTS_HEADING}${catalog.describe()}`;
     },
     parameters: {
       type: "object",

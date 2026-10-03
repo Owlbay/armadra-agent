@@ -73,7 +73,6 @@ function definition(
     model: "inherit",
     maxTurns: 30,
     isolation: "none",
-    background: false,
     // 驱动表 id（gemini 等）与宿主 id 不在 AgentRunnerSpec 的字面量里，线上照样是字符串
     runner: runner as AgentRunnerSpec,
     prompt: "",

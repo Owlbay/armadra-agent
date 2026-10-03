@@ -15,6 +15,16 @@ English · [简体中文](CHANGELOG.zh-CN.md)
   before printing the result (bounded by `--max-turns` / `--max-cost`, exit 8 at the limit; Ctrl+C still stops); the json
   result carries `tasks`. RPC adds `background_task { taskId? }` → `{ backgrounded }` and the `subagent_background` event
   (44 commands), and the SDK `session.backgroundTask(taskId?)`. Docs: docs/agents.md, docs/rpc.md.
+- **Sub-agents run in the background by default; foreground tasks can be moved to the background**: in the TUI, RPC and
+  ACP a `task` without `background` now returns a taskId at once and the result arrives later as a `<task-notification>`;
+  `-p` keeps waiting in the foreground (setting `subagents.background`: `auto` (default) / `always` / `never`; an agent
+  definition's `background:` and the call's own argument still win, and built-in types no longer pin `background: false`).
+  A blocking foreground `task` or `task_ctl wait` can be moved to the background (`session.backgroundTask(taskId?)`, event
+  `subagent_background`): the tool returns a fixed "Moved to the background …; it was not interrupted" result, the task is
+  detached from the parent turn (Esc no longer stops it) and reports with the usual notification;
+  `subagents.autoBackgroundAfterMs` (default 0, off) does the same after a timeout. The `task` description and its one rule
+  were rewritten for the background default (session constants; the tool table differs between the TUI and `-p`).
+
 - **ChatGPT subscription models use the backend's context window**: the context window reported by the ChatGPT backend's
   model list (codex `context_window`, and siwc entries when they carry it) now takes precedence over models.dev, which lists
   the API window (1.1M for some models) while the subscription backend accepts less (272k); auto-compaction used to plan for

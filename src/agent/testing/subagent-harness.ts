@@ -91,7 +91,6 @@ export function agentDef(name: string, extra: Partial<AgentDefinition> = {}): Ag
     model: "inherit",
     maxTurns: 30,
     isolation: "none",
-    background: false,
     runner: "ama",
     prompt: `${name} role`,
     source: "user",

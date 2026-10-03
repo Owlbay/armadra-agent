@@ -35,6 +35,7 @@ import { CompactionController } from "./session-compaction.js";
 import { makeUserMessage, normalizeOrigin, runPrompt, type RunCycleDeps } from "./session-run.js";
 import { buildSessionState, computeStats, lastAssistantText } from "./session-state.js";
 import { DEFAULT_SUBAGENT_CONCURRENCY, SubagentPool, runSubagent } from "./session-subagent.js";
+import { registryOf, type BackgroundReason } from "./subagent-registry.js";
 import { persistMessage, runHookWithEvents, syncSystemMessage } from "./session-sync.js";
 import { SessionExtensions } from "./session-extensions.js";
 import { SessionSettings, providerStream, type StaticSystemInput } from "./session-settings.js";
@@ -395,6 +396,14 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
 
   waitForIdle(): Promise<void> {
     return this.cycle?.promise ?? Promise.resolve();
+  }
+
+  /**
+   * [W7-B1] 把阻塞中的前台子 Agent 任务转后台（不给 taskId = 全部）：工具调用立即返回，任务继续，完成后
+   * 照常 `<task-notification>`。返回被转后台（或被打断等待）的 taskId。
+   */
+  backgroundTask(taskId?: string, reason: BackgroundReason = "host"): string[] {
+    return registryOf(this.manager.id)?.background(taskId, reason) ?? [];
   }
 
   clearQueue(): { steering: string[]; followUp: string[] } {
