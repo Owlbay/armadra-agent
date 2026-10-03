@@ -7,6 +7,9 @@
  *   `GIT_OPTIONAL_LOCKS=0`；两次之间 ≥ `minIntervalMs`（缺省 10 s），超过 `timeoutMs`（缺省 2 s）或
  *   非零退出 / 起不来就省略增删项，并在本实例（本会话）停用 numstat，HEAD 仍照常显示。
  *   `AMA_STATUS_GIT=0` 直接关闭 numstat（排错用）。
+ * - [W6] 领先 / 落后上游：当前分支在 git 配置里有 `branch.<名>.merge`（零依赖读 config，不起进程判断）时，
+ *   numstat 之后同一节流周期再跑 `git rev-list --left-right --count @{upstream}...HEAD`（同样的超时与环境）；
+ *   没有上游、detached、非零退出就省略；超时则本会话不再统计领先 / 落后。`AMA_STATUS_GIT=0` 同样关闭。
  * - 非 git 目录 `current()` 为 undefined（状态行整段省略）。
  * - `refresh()` 在回合边界调用（agent_settled、写类工具结束、回滚、/tree），只发起读取、不阻塞；
  *   结果有变化时通知 `onChange` 的监听者。
@@ -14,7 +17,7 @@
 
 import { spawn as nodeSpawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { findGitDir, readGitHead } from "../checkpoints/git-head.js";
 
 export interface GitInfo {
@@ -25,6 +28,9 @@ export interface GitInfo {
   /** 工作区（含暂存）相对 HEAD；拿不到为 undefined。 */
   insertions?: number;
   deletions?: number;
+  /** [W6] 领先 / 落后上游的提交数；没有上游为 undefined。 */
+  ahead?: number;
+  behind?: number;
 }
 
 /** numstat 子进程的最小接口（测试注入）。 */
@@ -65,6 +71,32 @@ export function parseNumstat(text: string): { insertions: number; deletions: num
   return { insertions, deletions };
 }
 
+/** `git rev-list --left-right --count @{upstream}...HEAD` 的输出：左（上游独有）= 落后，右 = 领先。 */
+export function parseLeftRight(text: string): { ahead: number; behind: number } | undefined {
+  const match = /^\s*(\d+)\s+(\d+)\s*$/.exec(text);
+  return match === null ? undefined : { behind: Number(match[1]), ahead: Number(match[2]) };
+}
+
+/** 分支在 git 配置里有没有上游（`[branch "<名>"]` 段里的 `merge`）；worktree 读主仓库的 config。 */
+export async function hasUpstream(cwd: string, branch: string): Promise<boolean> {
+  const gitDir = await findGitDir(cwd);
+  if (gitDir === undefined) return false;
+  const common = (await readFile(join(gitDir, "commondir"), "utf8").catch(() => undefined))?.trim();
+  const dir = common === undefined ? gitDir : isAbsolute(common) ? common : resolve(gitDir, common);
+  const text = await readFile(join(dir, "config"), "utf8").catch(() => "");
+  let inBranch = false;
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    const section = /^\[\s*([^\]\s"]+)(?:\s+"((?:[^"\\]|\\.)*)")?\s*\]/.exec(line);
+    if (section !== null) {
+      inBranch = section[1]?.toLowerCase() === "branch" && section[2] === branch;
+      continue;
+    }
+    if (inBranch && /^merge\s*=\s*\S/i.test(line)) return true;
+  }
+  return false;
+}
+
 async function readHead(cwd: string): Promise<Pick<GitInfo, "branch" | "shortHead"> | undefined> {
   const head = await readGitHead(cwd);
   if (head !== undefined) {
@@ -86,6 +118,8 @@ const sameInfo = (a: GitInfo | undefined, b: GitInfo | undefined): boolean =>
   a?.shortHead === b?.shortHead &&
   a?.insertions === b?.insertions &&
   a?.deletions === b?.deletions &&
+  a?.ahead === b?.ahead &&
+  a?.behind === b?.behind &&
   (a === undefined) === (b === undefined);
 
 export class GitInfoWatcher {
@@ -103,6 +137,8 @@ export class GitInfoWatcher {
   private headAgain = false;
   private disposed = false;
   private diff: { insertions: number; deletions: number } | undefined;
+  private upstream: { ahead: number; behind: number } | undefined;
+  private upstreamDisabled: boolean;
 
   constructor(
     private readonly cwd: string,
@@ -114,6 +150,7 @@ export class GitInfoWatcher {
     this.timeoutMs = deps.timeoutMs ?? GIT_NUMSTAT_TIMEOUT_MS;
     this.env = deps.env ?? process.env;
     this.numstatDisabled = this.env["AMA_STATUS_GIT"] === "0";
+    this.upstreamDisabled = this.numstatDisabled;
   }
 
   current(): GitInfo | undefined {
@@ -162,6 +199,7 @@ export class GitInfoWatcher {
         : {
             ...head,
             ...(this.diff !== undefined && head.shortHead !== undefined ? this.diff : {}),
+            ...(this.upstream !== undefined && head.branch !== undefined ? this.upstream : {}),
           };
     if (sameInfo(this.info, next)) return;
     this.info = next;
@@ -175,25 +213,49 @@ export class GitInfoWatcher {
     if (at - this.lastNumstatAt < this.minIntervalMs) return Promise.resolve();
     this.lastNumstatAt = at;
     this.numstatRunning = true;
-    return this.numstat().then((diff) => {
-      this.numstatRunning = false;
+    return this.numstat().then(async (diff) => {
       if (this.disposed) return;
       if (diff === undefined) {
         this.numstatDisabled = true;
         this.diff = undefined;
       } else this.diff = diff;
+      await this.leftRight();
+      this.numstatRunning = false;
+      if (this.disposed) return;
       const info = this.info;
       if (info === undefined) return;
-      const { insertions: _i, deletions: _d, ...head } = info;
+      const { insertions: _i, deletions: _d, ahead: _a, behind: _b, ...head } = info;
       this.update(head);
     });
   }
 
-  private numstat(): Promise<{ insertions: number; deletions: number } | undefined> {
+  /** 领先 / 落后上游：只在配置里有上游时起进程；超时本会话停用，非零退出只省略这一次。 */
+  private async leftRight(): Promise<void> {
+    const branch = this.info?.branch;
+    if (this.upstreamDisabled || branch === undefined || !(await hasUpstream(this.cwd, branch))) {
+      this.upstream = undefined;
+      return;
+    }
+    const result = await this.run(["rev-list", "--left-right", "--count", "@{upstream}...HEAD"]);
+    if (result === "timeout") this.upstreamDisabled = true;
+    this.upstream =
+      typeof result === "object" && result.code === 0 ? parseLeftRight(result.out) : undefined;
+  }
+
+  private async numstat(): Promise<{ insertions: number; deletions: number } | undefined> {
+    const result = await this.run(["diff", "--numstat", "HEAD"]);
+    return typeof result === "object" && result.code === 0 ? parseNumstat(result.out) : undefined;
+  }
+
+  /** 后台起一次 git；起不来为 undefined，超时杀掉并返回 `"timeout"`。 */
+  private run(
+    args: readonly string[],
+  ): Promise<{ code: number | null; out: string } | "timeout" | undefined> {
     return new Promise((resolve) => {
       let settled = false;
       let timer: ReturnType<typeof setTimeout> | undefined;
-      const done = (value: { insertions: number; deletions: number } | undefined): void => {
+      type Result = { code: number | null; out: string } | "timeout" | undefined;
+      const done = (value: Result): void => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
@@ -201,7 +263,7 @@ export class GitInfoWatcher {
       };
       let child: NumstatProcess;
       try {
-        child = this.spawn("git", ["diff", "--numstat", "HEAD"], {
+        child = this.spawn("git", args, {
           cwd: this.cwd,
           env: { ...this.env, GIT_OPTIONAL_LOCKS: "0" },
         });
@@ -211,7 +273,7 @@ export class GitInfoWatcher {
       }
       timer = setTimeout(() => {
         child.kill("SIGKILL");
-        done(undefined);
+        done("timeout");
       }, this.timeoutMs);
       timer.unref?.();
       let out = "";
@@ -220,7 +282,7 @@ export class GitInfoWatcher {
         out += String(chunk);
       });
       child.on("error", () => done(undefined));
-      child.on("close", (code) => done(code === 0 ? parseNumstat(out) : undefined));
+      child.on("close", (code) => done({ code, out }));
     });
   }
 }
