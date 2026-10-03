@@ -21,6 +21,7 @@
  * `GET /models?client_version=<codexClientVersion>`，另带上下文窗口 / 输入模态 / 推理强度），取 slug 与显示名；
  * `--probe` 不适用（订阅后端只有一种协议）。结果另写进发现缓存 `<dataDir>/models/discovered/chatgpt.json`
  * （discovered-cache.ts，0 个也写），`/model` 选择器由此列出；codex 返回 0 个时提示 codexClientVersion 可能过旧。
+ * 后端给了上下文窗口就显示它（标「后端」），注册表同样以它为准；没给的列出来，说明改用 models.dev。
  */
 
 import { authHeaders, mergeHeaders } from "../../ai/http.js";
@@ -275,13 +276,22 @@ async function run(ctx: ModelsActionContext): Promise<number> {
     const fields = match !== undefined ? modelsDevFields(match.model) : undefined;
     if (fields?.toolCall === false) noTools.add(model.id);
     if (match === undefined) unmatched.add(model.id);
+    // 后端给的上下文窗口优先于 models.dev（订阅后端的生效窗口可能远小于 API 版）
+    const backendCtx =
+      model.contextWindow !== undefined
+        ? `  ctx ${compactTokens(model.contextWindow)}${m.fromBackend}`
+        : undefined;
     const meta =
       fields === undefined
-        ? m.unmatched
-        : `  ctx ${compactTokens(fields.contextWindow)} · out ${compactTokens(fields.maxTokens)}` +
+        ? `${backendCtx ?? ""}${m.unmatched}`
+        : `${backendCtx ?? `  ctx ${compactTokens(fields.contextWindow)}`} · out ${compactTokens(fields.maxTokens)}` +
           `${fields.input?.includes("image") ? m.image : ""}${fields.reasoning ? m.reasoning : ""}` +
           `${fields.toolCall === false ? m.noTools : ""} · ${matchLabel(match)}`;
     io.stdout(`  ${model.id}${known !== undefined ? m.configured(known.api) : ""}${meta}\n`);
+  }
+  if (provider.id === CHATGPT_PROVIDER_ID) {
+    const missing = found.filter((x) => x.contextWindow === undefined).map((x) => x.id);
+    if (missing.length > 0) io.stdout(m.noBackendWindow(missing.join(", ")));
   }
   const write = ctx.flags.has("write");
   if (!ctx.flags.has("probe") || provider.id === CHATGPT_PROVIDER_ID) {
