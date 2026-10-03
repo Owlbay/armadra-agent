@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { listChatGptModels, usageUrl } from "./backend-client.js";
+import { DEFAULT_CODEX_CLIENT_VERSION, codexClientVersion } from "./presets.js";
 
 function recorder(body: unknown): {
   fetch: (url: string | URL, init?: RequestInit) => Promise<Response>;
@@ -54,5 +55,43 @@ describe("ChatGPT 模型列表", () => {
     expect(usageUrl("https://chatgpt.com/backend-api/codex/")).toBe(
       "https://chatgpt.com/backend-api/wham/usage",
     );
+  });
+
+  it("codex：client_version 缺省是 Codex CLI 版本（不是 ama 版本），可覆盖；元数据只取认识的形状", async () => {
+    const r = recorder({
+      models: [
+        {
+          slug: "gpt-6-sol",
+          context_window: 272000,
+          input_modalities: ["text", "image", "audio"],
+          supported_reasoning_levels: [{ effort: "low", description: "x" }, "high", { effort: 3 }],
+        },
+        { slug: "odd", context_window: "big", input_modalities: ["image"] },
+      ],
+    });
+    const auth = { flavor: "codex" as const, accessToken: "t" };
+    const models = await listChatGptModels(r.fetch, "https://h/codex", auth);
+    expect(r.calls[0]?.url).toBe(
+      `https://h/codex/models?client_version=${DEFAULT_CODEX_CLIENT_VERSION}`,
+    );
+    expect(models).toEqual([
+      {
+        id: "gpt-6-sol",
+        contextWindow: 272000,
+        input: ["text", "image"],
+        reasoningLevels: ["low", "high"],
+      },
+      { id: "odd" },
+    ]);
+    await listChatGptModels(r.fetch, "https://h/codex", { ...auth, clientVersion: "0.150.0" });
+    expect(r.calls[1]?.url).toBe("https://h/codex/models?client_version=0.150.0");
+    expect(codexClientVersion({ codexClientVersion: "0.170.0" }, {})).toBe("0.170.0");
+    expect(
+      codexClientVersion(
+        { codexClientVersion: "0.170.0" },
+        { AMA_CHATGPT_CODEX_CLIENT_VERSION: " 0.180.0 " },
+      ),
+    ).toBe("0.180.0");
+    expect(codexClientVersion(undefined, {})).toBe(DEFAULT_CODEX_CLIENT_VERSION);
   });
 });

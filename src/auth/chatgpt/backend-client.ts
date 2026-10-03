@@ -2,16 +2,17 @@
  * ChatGPT 后端的只读查询（[W6-O]）：模型列表（`ama models discover chatgpt`）与 codex 的 `wham/usage`。
  *
  * - SIWC：`GET {base}/models`，只留 `visibility === "list"`（没有该字段的也留）；
- * - codex：`GET {base}/models?client_version=<ama 版本>`，`models[].slug`（同样按 visibility 筛）；
+ * - codex：`GET {base}/models?client_version=<Codex CLI 版本>`（`codexClientVersion()`；后端按每个模型的
+ *   `minimal_client_version` 过滤，发 ama 自己的版本号会一个都拿不到），`models[].slug`（同样按 visibility 筛），
+ *   另取 `context_window`、`input_modalities`、`supported_reasoning_levels` 作元数据（models.dev 补不到时用）；
  *   `GET https://chatgpt.com/backend-api/wham/usage`（由 codex base 推出），私有格式，解析失败返回 undefined。
- * 只取 slug 与显示名，上下文窗口不猜。请求带 Bearer；codex 另带 `ChatGPT-Account-ID` 与 `originator`。
+ * SIWC 只取 slug 与显示名。请求带 Bearer；codex 另带 `ChatGPT-Account-ID` 与 `originator`。
  */
 
 import { parseUsagePayload, type QuotaSnapshot } from "../../ai/apis/chatgpt-rate-limits.js";
 import type { ChatGptFlavor } from "../../config/types-w6.js";
-import { AMA_VERSION } from "../../version.js";
 import type { FetchLike } from "../oauth/token-client.js";
-import { DEFAULT_ORIGINATOR } from "./presets.js";
+import { DEFAULT_CODEX_CLIENT_VERSION, DEFAULT_ORIGINATOR } from "./presets.js";
 
 export const BACKEND_TIMEOUT_MS = 15_000;
 
@@ -20,6 +21,8 @@ export interface BackendAuth {
   accessToken: string;
   accountId?: string | undefined;
   originator?: string | undefined;
+  /** codex 模型列表的 `client_version`，缺省 `DEFAULT_CODEX_CLIENT_VERSION`。 */
+  clientVersion?: string | undefined;
 }
 
 function headers(auth: BackendAuth): Record<string, string> {
@@ -37,11 +40,43 @@ function headers(auth: BackendAuth): Record<string, string> {
 export interface DiscoveredModel {
   id: string;
   name?: string;
+  /** 以下只有 codex 后端给。 */
+  contextWindow?: number;
+  input?: ("text" | "image")[];
+  /** 支持的推理强度（`none` / `minimal` / `low` / `medium` / `high` / `xhigh` …）。 */
+  reasoningLevels?: string[];
 }
 
 function listed(item: Record<string, unknown>): boolean {
   const visibility = item["visibility"];
   return visibility === undefined || visibility === "list";
+}
+
+/** codex 模型条目里的元数据；字段缺失或形状不对就不填。 */
+function codexMetadata(item: Record<string, unknown>): Omit<DiscoveredModel, "id" | "name"> {
+  const out: Omit<DiscoveredModel, "id" | "name"> = {};
+  const window = item["context_window"];
+  if (typeof window === "number" && Number.isInteger(window) && window > 0)
+    out.contextWindow = window;
+  const modalities = item["input_modalities"];
+  if (Array.isArray(modalities)) {
+    const input = (["text", "image"] as const).filter((x) => modalities.includes(x));
+    if (input.includes("text")) out.input = input;
+  }
+  const levels = item["supported_reasoning_levels"];
+  if (Array.isArray(levels)) {
+    const efforts = levels
+      .map((level: unknown) =>
+        typeof level === "string"
+          ? level
+          : typeof level === "object" && level !== null
+            ? (level as Record<string, unknown>)["effort"]
+            : undefined,
+      )
+      .filter((x): x is string => typeof x === "string" && x !== "");
+    if (efforts.length > 0) out.reasoningLevels = [...new Set(efforts)];
+  }
+  return out;
 }
 
 export async function listChatGptModels(
@@ -50,9 +85,10 @@ export async function listChatGptModels(
   auth: BackendAuth,
 ): Promise<DiscoveredModel[]> {
   const base = baseUrl.replace(/\/+$/, "");
+  const version = auth.clientVersion ?? DEFAULT_CODEX_CLIENT_VERSION;
   const url =
     auth.flavor === "codex"
-      ? `${base}/models?client_version=${encodeURIComponent(AMA_VERSION)}`
+      ? `${base}/models?client_version=${encodeURIComponent(version)}`
       : `${base}/models`;
   const response = await fetchFn(url, {
     headers: headers(auth),
@@ -72,7 +108,11 @@ export async function listChatGptModels(
     if (typeof id !== "string" || id === "" || seen.has(id)) continue;
     seen.add(id);
     const name = item["display_name"];
-    out.push(typeof name === "string" && name !== "" ? { id, name } : { id });
+    out.push({
+      id,
+      ...(typeof name === "string" && name !== "" ? { name } : {}),
+      ...(auth.flavor === "codex" ? codexMetadata(item) : {}),
+    });
   }
   return out;
 }
