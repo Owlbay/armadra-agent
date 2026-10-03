@@ -5,7 +5,7 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 > This file is in English starting with 0.6.0. Release notes for 0.1 through 0.5.1 are in Chinese in
 > [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md). New entries go into both files.
 
-## Unreleased
+## 0.6.3 (2026-10-03)
 
 - **TUI: `Ctrl+B` moves foreground tasks to the background; background approvals dock in the agent bar**: while the main
   turn waits for a foreground sub-agent task (or `task_ctl wait`), `Ctrl+B` moves it to the background whatever is in the
