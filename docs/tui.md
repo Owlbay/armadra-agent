@@ -182,7 +182,14 @@ Accept edits     claude-opus-5-5 medium | Ctx 3.0% | proj ⎇ main 5ae9e54 (+12,
 - `/fork`（无参数）：同样选一条用户消息，从它之前复制出新会话。
 - `/model`、`/resume`、`/permission`、`/thinking` 不带参数时打开选择器；`/permissions` 显示权限判定顺序、已加载规则与最近 20 条 auto 判定（层、结果、原因）。
 - `/permission` 选择器标题「权限模式」：Manual / Accept edits / Plan / Auto / Bypass permissions / Allowlist only，每项一行说明，右侧数字 1–6 直接选；当前模式打 `✓`，配置里的缺省模式标 `Default`，Auto 标 `Recommended`，底部一行按键提示。`/permission auto`、`/permission Accept edits` 直接切换。状态栏最左是模式的显示名。auto 模式下需要确认时，审批对话框多一行「Auto 规则层 / 分类器：原因」。详见 [permissions.md](permissions.md)。
-- 选择器底部一行按键提示（`↑↓ 选择 · Enter 确认 · Esc 取消`），选中行有底色（≥ 256 色；更少时强调色粗体）。`/model` 选择器给当前模型打 `✓`，并带 `(i/n)` 计数；按「供应商 · 渠道」分组（多渠道模型在每个渠道下各一项，非首选渠道带 `@渠道`），说明里有上下文与 `img`（收图片）；`/model packy/kimi-k2.5@messages` 直接切到指定渠道。
+- 选择器底部一行按键提示（`↑↓ 选择 · Enter 确认 · Esc 取消`），选中行有底色（≥ 256 色；更少时强调色粗体）。
+- `/model` 选择器（`Ctrl+L` 同）给当前模型打 `✓`，并带 `(i/n)` 计数，说明里有上下文与 `img`（收图片）：
+  - **缺省只列已配置的供应商**：有 key、OAuth 已登录（需重新登录的不算）或本地服务；组标题是「供应商 · 状态」。当前模型不在列表里时置顶一行（组「当前」）。
+  - **`Tab` 切到「全部」**（再按切回，筛选文本保留）：另列没配置的供应商，组标题标「未配置 key」；选中它们的模型不切换，底部提示 `ama auth set <供应商>`（自定义供应商用 `ama providers add`）。选 `Tab` 而不是列表底部的「添加模型」项：不占列表位置、不混进筛选结果，筛到一半也能切。
+  - **`Space` 把高亮的模型加入 / 移出清单**（用户级 `models.enabled`，写回 config.json）：设置了清单后「已配置」视图只列清单内的模型（加当前模型）；清单移空时删掉这个键。经 `provider/*` 列入的不能单独移出，按提示用 `ama models disable`。已在用清单时，从「全部」选中清单外的模型会先加入清单再切换。`Space` 因此不再用作筛选的分词（筛选按一个词匹配，`provider/model` 也能筛）。
+  - **多渠道供应商每个模型一行**（首选渠道），说明里写「另有 @渠道」；筛选文本里带 `@`（如 `@messages`）时列出 `模型@渠道` 行，直接选中即用该渠道。选 `@` 而不是 `→` 展开：与 `provider/model@channel` 的写法一致，启动选择器里也能用同一习惯。`/model packy/kimi-k2.5@messages` 仍可直接切到指定渠道。
+  - **ChatGPT 订阅**：`ama auth login chatgpt` 后自动拉取账户可用的模型（只读的模型列表接口，不消耗额度）缓存到 `<dataDir>/models/discovered/chatgpt.json`，选择器里按普通模型列出；没缓存时 chatgpt 组有一行「运行 ama models discover chatgpt 获取模型」（见 [providers.md](providers.md#chatgpt-登录)）。
+  - 命令行同一份清单：`ama models enable <provider/model[@channel]|provider/*>…`、`ama models disable …`、`ama models list --enabled`（没设清单时列出选择器缺省显示的模型）。
 - 输入里的 `@图片路径`（可加引号，Tab 补全路径）或粘贴 / 拖入的图片文件路径作为图片附件随消息发送；当前模型不收图片时 `@` 附件报错、不发送，未加 `@` 的路径忽略（见 [providers.md](providers.md)「图像输入」）。
 - `/statusline [full|compact]`：切换底部信息行（无参数时在两者间切换，同 `Ctrl+G`），只影响本会话；line 模式没有底部信息行。
 - `/session`、`/cache`：会话用量与缓存统计面板（见上文「缓存与上下文」）；`/permissions` 同样是面板，allow 绿、deny 红，判定顺序折行对齐。`/session` 有子 Agent 任务时多一行「子 Agent」（任务数与各状态），用过外部 Agent 时多一段「外部 Agent」（每个 Agent 的运行次数与用量，美元 / token / 请求数按各自单位，不换算）。

@@ -187,7 +187,7 @@ function w5Sections(): Record<string, Schema> {
       },
     ),
     subagents: object({ maxConcurrent: num(1, 64), maxPending: num(0, 1024), defaultModel: str() }),
-    models: object({ aliases: object({ fast: str(), strong: str() }) }),
+    models: object({ aliases: object({ fast: str(), strong: str() }), enabled: strings }),
     fallbackModel: str(),
     limits: object({ maxTurns: num(1), maxCostUsd: num(0) }),
     reminders: object({

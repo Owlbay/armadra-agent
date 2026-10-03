@@ -20,7 +20,7 @@ import { formatModelRef } from "../../ai/providers/channels.js";
 import { AgentSessionImpl } from "../../agent/session.js";
 import type { AgentSession, RewindDraftText } from "../../agent/types.js";
 import { THINKING_LEVELS } from "../../ai/thinking.js";
-import type { ModelThinkingLevel } from "../../ai/types.js";
+import type { ModelThinkingLevel, ProviderRegistryApi } from "../../ai/types.js";
 import type { SwitchRequest } from "../../cli/compose-session.js";
 import { listSessions } from "../../cli/compose-store.js";
 import { hideFakeProvider } from "../../cli/fake-visibility.js";
@@ -110,6 +110,11 @@ export interface CommandUi {
   memoryPanel?(args: string): void | Promise<void>;
   /** [W6-C0] 设置面板（W6-S；`/config`，`/config key=value` 直接设一项）。 */
   configPanel?(args: string): void | Promise<void>;
+  /** `/model` 选择器（model-picker.ts：Tab 视图、Space 清单）；没有时回落为 `pick` + `modelItems`。 */
+  pickModel?(
+    providers: ProviderRegistryApi,
+    current: string | undefined,
+  ): Promise<string | undefined>;
 }
 
 /**
@@ -234,20 +239,29 @@ async function handlePick(
     case "model": {
       const current = session.state.model;
       const ref = current === undefined ? undefined : `${current.provider}/${current.id}`;
-      const picked = await ui.pick({
-        title: m.modelTitle,
-        items: await modelItems(
-          ui.env === undefined
-            ? ui.runtime.providers
-            : hideFakeProvider(ui.runtime.providers, ui.env),
-        ),
-        filterable: true,
-        showCount: true,
-        ...(ref !== undefined ? { selected: ref, currentValue: ref } : {}),
-      });
+      const providers =
+        ui.env === undefined
+          ? ui.runtime.providers
+          : hideFakeProvider(ui.runtime.providers, ui.env);
+      const picked =
+        ui.pickModel !== undefined
+          ? await ui.pickModel(providers, ref)
+          : (
+              await ui.pick({
+                title: m.modelTitle,
+                items: await modelItems(providers, {
+                  current: ref,
+                  enabled: ui.runtime.config.models?.enabled,
+                  hints: false,
+                }),
+                filterable: true,
+                showCount: true,
+                ...(ref !== undefined ? { selected: ref, currentValue: ref } : {}),
+              })
+            )?.value;
       if (picked === undefined) return;
-      await session.setModel(picked.value);
-      ui.notice("info", m.modelSet(picked.value));
+      await session.setModel(picked);
+      ui.notice("info", m.modelSet(picked));
       return;
     }
     case "session": {

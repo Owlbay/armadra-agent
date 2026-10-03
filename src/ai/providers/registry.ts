@@ -117,6 +117,8 @@ export class ProviderRegistry implements ProviderRegistryApi {
   private readonly envBaseUrls = new Map<string, string>();
   /** baseUrl 指向非官方主机的内置供应商：接受目录外的 model id。 */
   private readonly relayed = new Set<string>();
+  /** 模型表只来自发现缓存的供应商：表外的 id 照样合成（与空表相同）。 */
+  private readonly openTables = new Set<string>();
   /** config 里写了自己 `channels` 的供应商（内置渠道不因改 baseUrl 作废）。 */
   private readonly userChannels = new Set<string>();
   /** config 里写了供应商级 `api` 的供应商（单渠道回落时目录模型跟它走）。 */
@@ -412,6 +414,8 @@ export class ProviderRegistry implements ProviderRegistryApi {
   ): void {
     const provider = this.providers.get(providerId);
     if (!provider) return;
+    if (source === "discovered" && provider.models.length === 0 && provider.requiresApiKey)
+      this.openTables.add(providerId);
     for (const raw of models) {
       this.raw.delete(`${providerId}/${raw.id}`);
       const model = this.materialize(provider, { ...raw, provider: providerId });
@@ -471,7 +475,8 @@ export class ProviderRegistry implements ProviderRegistryApi {
         const id = trimmed.slice(slash + 1);
         const model = provider.models.find((m) => m.id === id);
         if (model) return { ok: true, model, provider };
-        const relayed = provider.models.length === 0 || this.relayed.has(provider.id);
+        const open = this.relayed.has(provider.id) || this.openTables.has(provider.id);
+        const relayed = provider.models.length === 0 || open;
         if (synthesize && relayed && id.length > 0) {
           const synthesized = this.synthesize(provider, id);
           if (channel !== undefined && provider.channels?.some((c) => c.name === channel))

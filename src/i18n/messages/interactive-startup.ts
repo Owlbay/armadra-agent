@@ -36,8 +36,6 @@ export const en = {
     hintNumbers: (arrows: string, n: number) =>
       `${arrows} select · Enter confirm · 1-${n} pick · Esc cancel`,
     hint: (arrows: string) => `${arrows} select · Enter confirm · Esc cancel`,
-    local: "local",
-    noKey: "no key",
     justNow: "just now",
     minutesAgo: (n: number) => `${n}m ago`,
     hoursAgo: (n: number) => `${n}h ago`,
@@ -85,8 +83,6 @@ export const zh = {
     hintFilter: (arrows) => `输入过滤 · ${arrows} 选择 · Enter 确认 · Esc 取消`,
     hintNumbers: (arrows, n) => `${arrows} 选择 · Enter 确认 · 1-${n} 直接选 · Esc 取消`,
     hint: (arrows) => `${arrows} 选择 · Enter 确认 · Esc 取消`,
-    local: "本地",
-    noKey: "无 key",
     justNow: "刚刚",
     minutesAgo: (n) => `${n} 分钟前`,
     hoursAgo: (n) => `${n} 小时前`,

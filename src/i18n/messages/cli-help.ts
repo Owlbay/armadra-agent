@@ -94,6 +94,8 @@ Subcommands
                                Timeline of turns, requests, tools and subagents (text / HTML / JSON)
   ama models list [--provider <id>]  List models (with source and key status)
   ama models check <provider/id>     Send one minimal request to check availability
+  ama models enable|disable <provider/model|provider/*>…
+                               Edit the /model list (models.enabled); list --enabled shows it
   ama models discover <provider> [--probe] [--write] [--limit N]
                                List models from a relay's /v1/models, probe protocols, write the config
   ama models refresh [--provider <id>]  Refresh models.dev metadata into the data directory (startup stays
@@ -210,6 +212,8 @@ export const zh = {
                                回合、请求、工具与子 Agent 的时间线（文本 / HTML / JSON）
   ama models list [--provider <id>]  列出模型（含来源与 key 状态）
   ama models check <provider/id>     发一次最小请求检查可用性
+  ama models enable|disable <provider/model|provider/*>…
+                               编辑 /model 的模型清单（models.enabled）；list --enabled 查看
   ama models discover <provider> [--probe] [--write] [--limit N]
                                从中转 /v1/models 列出模型，探测协议并写入配置
   ama models refresh [--provider <id>]  联网刷新 models.dev 元数据到数据目录（启动不联网；

@@ -1,0 +1,85 @@
+# configured · 72
+╭─ Select model ───────────────────────────────────────────────────────╮
+│ ›                                                                    │
+│ packy · key ✓                                                        │
+│ › ✓ claude-opus-4  200k · also @chat                                 │
+│     gpt-5          400k                                              │
+│ ollama · local                                                       │
+│     qwen3                                                            │
+│ (1/3) Tab all · Space list · @ channels · Enter switch · Esc cancel  │
+╰──────────────────────────────────────────────────────────────────────╯
+# all · 72
+╭─ Select model ───────────────────────────────────────────────────────╮
+│ ›                                                                    │
+│ packy · key ✓                                                        │
+│ › ✓ claude-opus-4  200k · also @chat                                 │
+│     gpt-5          400k                                              │
+│ ollama · local                                                       │
+│     qwen3                                                            │
+│ openai · no key configured                                           │
+│     gpt-5                                                            │
+│     gpt-5-mini                                                       │
+│ (1/5) Tab configured · Space list · @ channels · Enter switch · Esc… │
+╰──────────────────────────────────────────────────────────────────────╯
+# all + @ · 72
+╭─ Select model ───────────────────────────────────────────────────────╮
+│ › @                                                                  │
+│ packy · key ✓                                                        │
+│ › ✓ claude-opus-4       200k · also @chat                            │
+│     claude-opus-4@chat  200k                                         │
+│ (1/2) Tab configured · Space list · @ channels · Enter switch · Esc… │
+╰──────────────────────────────────────────────────────────────────────╯
+# space · 72
+╭─ Select model ───────────────────────────────────────────────────────╮
+│ ›                                                                    │
+│ current                                                              │
+│   ✓ packy/claude-opus-4  200k                                        │
+│ packy · key ✓                                                        │
+│ ›   gpt-5                400k                                        │
+│ (2/2) Tab all · Space list · @ channels · Enter switch · Esc cancel  │
+│ Added packy/gpt-5 to models.enabled; /model now shows only listed    │
+│ models (Tab shows all)                                               │
+╰──────────────────────────────────────────────────────────────────────╯
+# configured · 38
+╭─ Select model ─────────────────────╮
+│ ›                                  │
+│ packy · key ✓                      │
+│ › ✓ claude-opus-4  200k · also @c… │
+│     gpt-5          400k            │
+│ ollama · local                     │
+│     qwen3                          │
+│ (1/3) Tab all · Space list · @ ch… │
+╰────────────────────────────────────╯
+# all · 38
+╭─ Select model ─────────────────────╮
+│ ›                                  │
+│ packy · key ✓                      │
+│ › ✓ claude-opus-4  200k · also @c… │
+│     gpt-5          400k            │
+│ ollama · local                     │
+│     qwen3                          │
+│ openai · no key configured         │
+│     gpt-5                          │
+│     gpt-5-mini                     │
+│ (1/5) Tab configured · Space list… │
+╰────────────────────────────────────╯
+# all + @ · 38
+╭─ Select model ─────────────────────╮
+│ › @                                │
+│ packy · key ✓                      │
+│ › ✓ claude-opus-4       200k · al… │
+│     claude-opus-4@chat  200k       │
+│ (1/2) Tab configured · Space list… │
+╰────────────────────────────────────╯
+# space · 38
+╭─ Select model ─────────────────────╮
+│ ›                                  │
+│ current                            │
+│   ✓ packy/claude-opus-4  200k      │
+│ packy · key ✓                      │
+│ ›   gpt-5                400k      │
+│ (2/2) Tab all · Space list · @ ch… │
+│ Added packy/gpt-5 to               │
+│ models.enabled; /model now shows   │
+│ only listed models (Tab shows all) │
+╰────────────────────────────────────╯

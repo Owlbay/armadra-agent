@@ -270,9 +270,11 @@ describe("ama models / sessions（依赖注入）", () => {
       "cache-probe",
       "refresh",
       "refresh-catalog",
+      "enable",
+      "disable",
     ]);
     expect(modelsUsage()).toMatch(
-      /^用法：ama models list \[--provider <id>\]\n {6}ama models check <provider\/id>\n {6}ama models discover /,
+      /^用法：ama models list \[--provider <id>\] \[--enabled\]\n {6}ama models check <provider\/id>\n {6}ama models discover /,
     );
     expect(await ama(["models", "--help"], stubDeps())).toBe(0);
     expect(out.join("")).toContain(modelsUsage());

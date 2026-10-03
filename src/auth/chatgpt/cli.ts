@@ -4,7 +4,9 @@
  * - login：flavor 取 `--flavor` > 用户级 `auth.chatgpt.flavor` > siwc；`--paste` / `--device`（只 codex）/ 缺省
  *   浏览器；codex 首次在 TTY 下一次性确认「非官方、仅个人使用」（非 TTY 需 `--yes`），`acknowledgedAt` 入条目；
  *   成功后在刷新锁下写 auth.json（0600）。
- * - logout：SIWC 先撤销 refresh token（失败照样删本地，提示到 ChatGPT 设置里断开）；codex 只删本地。
+ *   成功后查一次模型列表写发现缓存（`<dataDir>/models/discovered/chatgpt.json`，失败静默）。
+ * - logout：SIWC 先撤销 refresh token（失败照样删本地，提示到 ChatGPT 设置里断开）；codex 只删本地；
+ *   同时删发现缓存。
  * - status：flavor、计划、掩码邮箱、access token 剩余、needsLogin；codex 另查 `wham/usage` 显示配额。
  *
  * 输出里从不出现 token、code、账户 id；错误按码渲染（i18n），不回显响应原文。
@@ -29,7 +31,8 @@ import { openBrowser, type BrowserOpener } from "../oauth/browser.js";
 import type { LoginStep } from "../oauth/flows.js";
 import { readOAuthEntry, withRefreshLock, writeOAuthEntry } from "../oauth/token-store.js";
 import type { FetchLike } from "../oauth/token-client.js";
-import { fetchCodexUsage } from "./backend-client.js";
+import { clearDiscoveredCache, writeDiscoveredCache } from "../../ai/providers/discovered-cache.js";
+import { fetchCodexUsage, listChatGptModels } from "./backend-client.js";
 import { maskEmail } from "./claims.js";
 import { loginChatGpt, revokeChatGpt, type LoginMethod } from "./login.js";
 import { CHATGPT_PROVIDER_ID, chatgptBaseUrl } from "./presets.js";
@@ -85,7 +88,7 @@ export function loginErrorText(error: unknown, flavor: ChatGptFlavor): string {
     case "oauth_timeout":
       return m.timeout;
     case "oauth_denied":
-      return m.denied(detail.error ?? "error");
+      return m.denied(detail.error ?? "error", flavor === "siwc");
     case "oauth_state_mismatch":
       return m.stateMismatch;
     case "oauth_no_code":
@@ -216,8 +219,39 @@ export async function runLogin(
   io.stdout(`${m.loggedIn(flavor, entry.planType, maskEmail(entry.email), args.path)}\n`);
   if (entry.planType === "free") io.stdout(`${m.freePlanHint(entry.planType)}\n`);
   if (flavor === "siwc") io.stdout(`${m.siwcLimitHint}\n`);
-  io.stdout(`${m.modelHint}\n`);
+  const count = await cacheModels(io, entry, config, deps);
+  io.stdout(`${count === undefined ? m.modelHint : m.modelsCached(count)}\n`);
   return ExitCode.Ok;
+}
+
+/**
+ * 登录后查一次账户可用的模型（只读的模型列表接口，不消耗额度）并写发现缓存，`/model` 由此列出；
+ * 任何失败静默（返回 undefined，调用方改提示 `ama models discover chatgpt`）。
+ */
+async function cacheModels(
+  io: CliIo,
+  entry: OAuthAuthEntry,
+  config: ChatGptAuthConfig | undefined,
+  deps: AuthCliDeps,
+): Promise<number | undefined> {
+  try {
+    const models = await listChatGptModels(
+      deps.fetch ?? fetch,
+      chatgptBaseUrl(entry.flavor, io.env),
+      {
+        flavor: entry.flavor,
+        accessToken: entry.accessToken,
+        accountId: entry.accountId,
+        originator: config?.originator,
+      },
+    );
+    if (models.length === 0) return undefined;
+    const dataDir = resolveDataDir({ env: io.env });
+    writeDiscoveredCache(dataDir, CHATGPT_PROVIDER_ID, { models, flavor: entry.flavor });
+    return models.length;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function runLogout(
@@ -242,6 +276,7 @@ export async function runLogout(
     io.stderr(`ama: ${loginErrorText(error, entry.flavor)}\n`);
     return ExitCode.RuntimeError;
   }
+  clearDiscoveredCache(resolveDataDir({ env: io.env }), provider);
   const text =
     revoked === undefined
       ? m.local(provider, args.path)

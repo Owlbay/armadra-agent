@@ -18,7 +18,8 @@
  * 匹配结果；`--write` 跳过 models.dev 标明不支持工具调用的模型。元数据不写进配置——运行时从缓存补。
  *
  * [W6-O] `chatgpt`：按登录的 flavor 调对应后端的模型列表（SIWC `GET /v1/models` 筛 `visibility: list`；codex
- * `GET /models?client_version=…`），只取 slug 与显示名；`--probe` 不适用（订阅后端只有一种协议）。
+ * `GET /models?client_version=…`），只取 slug 与显示名；`--probe` 不适用（订阅后端只有一种协议）。结果另写进
+ * 发现缓存 `<dataDir>/models/discovered/chatgpt.json`（discovered-cache.ts），`/model` 选择器由此列出。
  */
 
 import { authHeaders, mergeHeaders } from "../../ai/http.js";
@@ -26,6 +27,7 @@ import { listChatGptModels } from "../../auth/chatgpt/backend-client.js";
 import { CHATGPT_PROVIDER_ID } from "../../auth/chatgpt/presets.js";
 import { liveToken } from "../../auth/oauth/live.js";
 import { discoverLocalModels, materializeModel } from "../../ai/providers/registry.js";
+import { writeDiscoveredCache } from "../../ai/providers/discovered-cache.js";
 import { withCustomDefaults } from "../../ai/providers/catalog.js";
 import { describeModelsDev, loadModelsDevIndex } from "../../ai/providers/models-dev-cache.js";
 import { matchLabel, modelsDevFields } from "../../ai/providers/models-dev.js";
@@ -247,6 +249,7 @@ async function run(ctx: ModelsActionContext): Promise<number> {
   }
   const configured = new Map(provider.models.map((m) => [m.id, m]));
   io.stdout(m.found(provider.id, found.length, modelsUrl(provider)));
+  if (provider.id === CHATGPT_PROVIDER_ID) cacheChatGpt(ctx, found, key.apiKey);
   // models.dev 只读本地（快照 ⊕ `ama models refresh` 的覆盖），不联网。
   const mdIndex = loadModelsDevIndex(ctx.level.dataDir);
   io.stdout(`${describeModelsDev(ctx.level.dataDir)}\n`);
@@ -307,6 +310,18 @@ async function run(ctx: ModelsActionContext): Promise<number> {
     return ExitCode.RuntimeError;
   }
   return ExitCode.Ok;
+}
+
+/** chatgpt 的发现结果写进发现缓存（选择器与注册表读它）；写失败不影响列表输出。 */
+function cacheChatGpt(ctx: ModelsActionContext, found: Model[], apiKey: string | undefined): void {
+  try {
+    const flavor = liveToken(apiKey)?.flavor;
+    const models = found.map((m) => ({ id: m.id, ...(m.name !== m.id ? { name: m.name } : {}) }));
+    const path = writeDiscoveredCache(ctx.level.dataDir, CHATGPT_PROVIDER_ID, { models, flavor });
+    ctx.io.stdout(msg().subcommands.discover.cached(path));
+  } catch (error) {
+    ctx.io.stderr(`ama: ${(error as Error).message}\n`);
+  }
 }
 
 export const DISCOVER_ACTION: ModelsAction = {

@@ -63,6 +63,7 @@ import { configUiFor } from "./config-ui.js";
 import { createKeyDispatch } from "./key-dispatch.js";
 import { MessageView, exitSummaryLines, type NoticeLevel } from "./message-view.js";
 import { openPicker } from "./pickers.js";
+import { modelPickerFor } from "./model-picker.js";
 import { createRewindFlow } from "./rewind-flow.js";
 import { openTraceView } from "./trace-view.js";
 import { StartupHeader } from "./startup-header.js";
@@ -373,6 +374,7 @@ export function runInteractiveMode(
       return next;
     },
     pick: (spec) => openPicker(pickerHost, spec),
+    pickModel: modelPickerFor(pickerHost, runtime, context),
     confirmMode,
     rewind: () => rewind.open(),
     setDraft,

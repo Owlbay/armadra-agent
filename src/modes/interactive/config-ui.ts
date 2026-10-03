@@ -290,6 +290,7 @@ export class ConfigUi {
       items = [
         ...(await modelItems(
           hideFakeProvider(this.deps.runtime.providers, this.deps.context.io.env),
+          { current, enabled: this.deps.runtime.config.models?.enabled, hints: false },
         )),
         { value: "", label: s.defaultChoice },
       ];

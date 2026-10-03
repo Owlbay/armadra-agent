@@ -5,6 +5,32 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 > This file is in English starting with 0.6.0. Release notes for 0.1 through 0.5.1 are in Chinese in
 > [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md). New entries go into both files.
 
+## Unreleased
+
+- **The model picker shows only configured models; ChatGPT models can be picked**: `/model` (and the startup picker and
+  `/config` model items) lists only providers with a key, a valid OAuth sign-in or a local server, one row per model on
+  multi-channel providers (other channels in the description; type `@` in the filter for `model@channel` rows); the current
+  model is pinned when it is not listed. `Tab` switches to "all" (unconfigured providers marked "no key configured", with an
+  `ama auth set` hint), `Space` adds / removes the highlighted model to / from the new user-level `models.enabled` list
+  (`provider/model[@channel]`, `provider/*`), which, once set, is all the picker shows; `ama models enable | disable` and
+  `ama models list --enabled` edit and show it. `ama auth login chatgpt` now fetches the models available to the account
+  (read-only, no usage) into `<dataDir>/models/discovered/chatgpt.json`, `ama models discover chatgpt` rewrites it and
+  logout deletes it; the registry merges the cache into providers with an empty model table, so ChatGPT models appear in
+  `/model` and `ama models list`. Note: with only a ChatGPT sign-in and no `defaultModel`, the first cached ChatGPT model can
+  now be chosen as the default model. Docs: docs/en/tui.md, docs/en/providers.md "ChatGPT login".
+
+- **`ama auth login chatgpt` explains a refused sign-in**: when the OAuth callback carries `error=access_denied` (or another
+  error) the message now lists the likely causes (the authorization page was cancelled or plan usage was not checked; the
+  account / plan is not eligible — sharing is Plus / Pro only, Team / Enterprise workspaces may not offer it, the browser may be
+  signed in to another account; the region is not supported) and, for siwc, suggests the fallback
+  `ama auth login chatgpt --flavor codex`. Nothing is retried or switched automatically.
+
+- **`ama config set` reports the written value when a higher layer overrides it**: with e.g. `AMA_LANG=zh`,
+  `ama config set ui.language en` used to print the effective value `zh` labelled "(user)". The first line is now the value just
+  written and its layer (`ui.language = en (written to user)`), and the second line names the override and the effective value
+  (`Still overridden by AMA_LANG (zh); the effective value is zh`). `ama config get` still shows the effective value and its
+  real source.
+
 ## 0.6.0 (2026-10-03)
 
 Wave 6: the agent bar and sub-agent view, traces, memory, ChatGPT login, the `/config` settings panel, and a bilingual

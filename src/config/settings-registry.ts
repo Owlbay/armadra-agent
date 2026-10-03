@@ -154,6 +154,7 @@ export const SETTING_HINTS = [
   { key: "agents.<id>", hint: "agents" },
   { key: "hooks", hint: "hooks" },
   { key: "auth.chatgpt", hint: "auth" },
+  { key: "models.enabled", hint: "modelsEnabled" },
 ] as const;
 
 export type SettingHintId = (typeof SETTING_HINTS)[number]["hint"];

@@ -77,7 +77,10 @@ describe("交互命令", () => {
     const rt = await boot();
     const hidden = recordingUi(rt);
     await runInteractiveCommand("/model", { ...hidden.ui, env: {} });
-    expect(hidden.picks[0]?.items.some((i) => i.value.startsWith("fake/"))).toBe(false);
+    // 只剩置顶的当前模型（正在用的模型总是列出），fake 的其它模型不列
+    expect(
+      hidden.picks[0]?.items.filter((i) => i.value.startsWith("fake/")).map((i) => i.group),
+    ).toEqual(["当前"]);
     const shown = recordingUi(rt);
     await runInteractiveCommand("/model", { ...shown.ui, env: { AMA_SHOW_FAKE: "1" } });
     expect(shown.picks[0]?.items.some((i) => i.value === "fake/echo")).toBe(true);

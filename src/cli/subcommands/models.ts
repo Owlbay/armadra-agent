@@ -9,6 +9,8 @@
  * 选项表与必填位置参数都从表里来。
  *
  * [W5-M1] `refresh`：models.dev 显式刷新（`refresh-catalog` 保留为别名）。
+ *
+ * `enable` / `disable` / `list --enabled`：模型选择器清单 `models.enabled`（models-enable.ts）。
  */
 
 import { formatModelRef, modelRefOf } from "../../ai/providers/channels.js";
@@ -25,6 +27,7 @@ import { ExitCode } from "../exit-codes.js";
 import { buildRegistry, loadUserLevel, type UserLevel } from "./context.js";
 import { CACHE_PROBE_ACTION } from "./models-cache-probe.js";
 import { DISCOVER_ACTION } from "./models-discover.js";
+import { DISABLE_ACTION, ENABLE_ACTION, listEnabled } from "./models-enable.js";
 import { metadataOf, modelFlags, sourcesLine } from "./model-meta.js";
 import { msg } from "../../i18n/index.js";
 
@@ -162,9 +165,13 @@ const REFRESH_ACTION: ModelsAction = {
 /** 动作表：键是子命令名，顺序即用法文本顺序。 */
 export const MODELS_ACTIONS: Readonly<Record<string, ModelsAction>> = Object.freeze({
   list: {
-    usage: "ama models list [--provider <id>]",
+    usage: "ama models list [--provider <id>] [--enabled]",
     valueOptions: ["provider"],
-    run: (ctx) => list(ctx.io, ctx.registry, ctx.values.get("provider")),
+    flagOptions: ["enabled"],
+    run: (ctx) =>
+      ctx.flags.has("enabled")
+        ? listEnabled(ctx)
+        : list(ctx.io, ctx.registry, ctx.values.get("provider")),
   },
   check: {
     usage: "ama models check <provider/id>",
@@ -181,6 +188,8 @@ export const MODELS_ACTIONS: Readonly<Record<string, ModelsAction>> = Object.fre
       return msg().subcommands.models.refreshCatalogUsage;
     },
   },
+  enable: ENABLE_ACTION,
+  disable: DISABLE_ACTION,
 });
 
 export function modelsUsage(): string {

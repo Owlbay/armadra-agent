@@ -108,7 +108,7 @@ describe("用法错误与说明", () => {
     out = [];
     expect(await en(["models", "--help"])).toBe(0);
     expect(out.join("")).toMatch(
-      /^Usage: ama models list \[--provider <id>\]\n {7}ama models check <provider\/id>\n/,
+      /^Usage: ama models list \[--provider <id>\] \[--enabled\]\n {7}ama models check <provider\/id>\n/,
     );
     expect(out.join("")).toContain("ama models refresh-catalog (old name of refresh)");
     setLocale("en");

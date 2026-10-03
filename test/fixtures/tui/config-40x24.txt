@@ -1,7 +1,6 @@
 # config · 40 columns, wrapped to last row · viewport 40x24 cursor=21,0
 |▎ 设置  写入：用户级 ~/.config/ama/conf…
 |▎ / 搜索
-|▎   外部 Agent 预算    （未设）
 |▎   子 Agent 并发      4
 |▎   子 Agent 排队上限  16
 |▎ 记忆
@@ -15,7 +14,8 @@
 |▎   sandbox.writable   ama config set …
 |▎   agents.<id>        agents.<id>：am…
 |▎   hooks              hooks.json · /h…
-|▎ › auth.chatgpt       ama auth
+|▎   auth.chatgpt       ama auth
+|▎ › models.enabled     /model（Space）…
 |▎ ──────────────────────────────────────
 |▎ ↑↓ · Enter · / · Tab · Esc
 |

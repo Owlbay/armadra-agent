@@ -87,9 +87,17 @@ export interface SubagentsConfig {
   defaultModel?: string;
 }
 
+/** `models.enabled` 的一项：`provider/model[@channel]` 或 `provider/*`。 */
+export const MODELS_ENABLED_REF = /^[^/\s]+\/\S+$/;
+
 /** [W5-G] 模型别名（子 Agent 定义的 `model: fast | strong`）。 */
 export interface ModelsConfig {
   aliases?: { fast?: string; strong?: string };
+  /**
+   * 模型选择器的显式清单（`provider/model[@channel]`，`provider/*` 整个供应商）：设置后 `/model` 只显示清单内
+   * 的模型（加当前模型）；不设时显示已配置 key / 登录 / 本地可达的供应商的全部模型。只认用户级。
+   */
+  enabled?: string[];
 }
 
 /** [W5-H1] 档一裁剪参数（其余随窗口缩放的常量不暴露）。 */

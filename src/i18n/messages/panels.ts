@@ -60,6 +60,32 @@ export const en = {
     thinkingUnsupported: "The current model does not support thinking",
     emptyText: "(empty)",
   },
+  /** 模型选择器（`/model`、启动选择器、`/config` 的模型项）。 */
+  model: {
+    local: "local",
+    key: "key ✓",
+    oauth: "signed in ✓",
+    needsLogin: "sign in again",
+    noKey: "no key configured",
+    current: "current",
+    listed: "listed",
+    otherChannels: (names: string) => `also ${names}`,
+    discoverHint: (provider: string) => `Run ama models discover ${provider} to list its models`,
+    loginHint: (provider: string) => `Run ama auth login ${provider} to sign in`,
+    footerConfigured: "Tab all · Space list · @ channels · Enter switch · Esc cancel",
+    footerAll: "Tab configured · Space list · @ channels · Enter switch · Esc cancel",
+    emptyConfigured: "(no configured models; Tab shows all)",
+    added: (ref: string) => `Added ${ref} to models.enabled`,
+    addedFirst: (ref: string) =>
+      `Added ${ref} to models.enabled; /model now shows only listed models (Tab shows all)`,
+    removed: (ref: string) => `Removed ${ref} from models.enabled`,
+    wildcard: (ref: string, pattern: string) =>
+      `${ref} is listed through ${pattern}; remove it with ama models disable ${pattern}`,
+    noKeyHint: (provider: string) =>
+      `${provider} has no key: run ama auth set ${provider} (custom providers: ama providers add)`,
+    needsLoginHint: (provider: string) =>
+      `${provider} needs a new sign-in: run ama auth login ${provider}`,
+  },
   plan: {
     title: "Plan",
     titleVersion: (version: number) => `Plan v${version}`,
@@ -154,6 +180,30 @@ export const zh = {
     permissionFooter: (arrows) => `${arrows} 选择 · 1-6 直接选 · Enter 确认 · Esc 取消`,
     thinkingUnsupported: "当前模型不支持思考",
     emptyText: "（空）",
+  },
+  model: {
+    local: "本地",
+    key: "key ✓",
+    oauth: "已登录 ✓",
+    needsLogin: "需重新登录",
+    noKey: "未配置 key",
+    current: "当前",
+    listed: "清单内",
+    otherChannels: (names) => `另有 ${names}`,
+    discoverHint: (provider) => `运行 ama models discover ${provider} 获取模型`,
+    loginHint: (provider) => `运行 ama auth login ${provider} 登录`,
+    footerConfigured: "Tab 全部 · Space 清单 · @ 渠道 · Enter 切换 · Esc 取消",
+    footerAll: "Tab 已配置 · Space 清单 · @ 渠道 · Enter 切换 · Esc 取消",
+    emptyConfigured: "（没有已配置的模型，Tab 看全部）",
+    added: (ref) => `已把 ${ref} 加入 models.enabled`,
+    addedFirst: (ref) =>
+      `已把 ${ref} 加入 models.enabled；/model 之后只显示清单内的模型（Tab 看全部）`,
+    removed: (ref) => `已把 ${ref} 移出 models.enabled`,
+    wildcard: (ref, pattern) =>
+      `${ref} 经 ${pattern} 列入清单；用 ama models disable ${pattern} 移除`,
+    noKeyHint: (provider) =>
+      `${provider} 未配置 key：运行 ama auth set ${provider}（自定义供应商用 ama providers add）`,
+    needsLoginHint: (provider) => `${provider} 需要重新登录：运行 ama auth login ${provider}`,
   },
   plan: {
     title: "计划",

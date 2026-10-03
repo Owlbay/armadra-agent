@@ -85,17 +85,29 @@ afterEach(() => {
 });
 
 describe("启动期 UI", () => {
-  it("modelItems：有 key / 本地的供应商排前，组标题带 key 状态", async () => {
+  it("modelItems：只列有 key / 本地的供应商，组标题带 key 状态；全部视图另列未配置的", async () => {
     const items = await modelItems(registry({ anthropic: true }));
     expect(items.map((i) => i.value)).toEqual([
       "anthropic/claude-sonnet",
       "anthropic/claude-haiku",
       "ollama/qwen",
-      "openai/gpt-5",
     ]);
     expect(items[0]?.group).toBe("anthropic · key ✓");
     expect(items[2]?.group).toBe("ollama · 本地");
-    expect(items[3]).toMatchObject({ group: "openai · 无 key", description: "GPT-5" });
+    const all = await modelItems(registry({ anthropic: true }), { view: "all" });
+    expect(all[3]).toMatchObject({ group: "openai · 未配置 key", description: "GPT-5" });
+  });
+
+  it("pickModel：一个已配置的都没有时列全部", async () => {
+    const { ui, last } = harness();
+    const pending = ui.pickModel(
+      { ...registry({}), list: () => registry({}).list().slice(0, 2) },
+      "没有可用模型",
+    );
+    await tick();
+    expect(last().viewport().join("\n")).toContain("openai · 未配置 key");
+    last().sendInput("\r");
+    expect(await pending).toBe("openai/gpt-5");
   });
 
   it("pickModel：下移一项 Enter 返回 provider/id，问答收成一行留在屏幕上", async () => {

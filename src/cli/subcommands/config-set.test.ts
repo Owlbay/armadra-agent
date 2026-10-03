@@ -94,7 +94,35 @@ describe("ama config set / get / unset", () => {
     out = [];
     // user level is now hidden by the project's plan
     expect(await ama(["config", "set", "permission.mode", "auto-edit"])).toBe(0);
-    expect(stdout()).toContain("permission.mode 仍被 project 覆盖");
+    // 回执第一行是刚写入的值与写入层，第二行是覆盖来源与生效值
+    expect(stdout()).toBe(
+      "permission.mode = auto-edit（已写入用户级）\n当前仍被 project（plan）覆盖，生效值为 plan\n",
+    );
+  });
+
+  it("set 被环境变量覆盖：第一行写入的值与写入层，第二行覆盖来源与生效值；get 仍显示生效值与真实来源", async () => {
+    expect(await ama(["config", "set", "ui.language", "en"], { AMA_LANG: "zh" })).toBe(0);
+    expect(stdout()).toBe(
+      "ui.language = en（已写入用户级）\n当前仍被 AMA_LANG（zh）覆盖，生效值为 zh\n",
+    );
+    expect(JSON.parse(readFileSync(userPath(), "utf8")).ui).toEqual({ language: "en" });
+    out = [];
+    expect(await ama(["config", "get", "ui.language"], { AMA_LANG: "zh" })).toBe(0);
+    expect(stdout()).toContain("ui.language = zh（env AMA_LANG");
+    out = [];
+    // 没被覆盖时回执不变
+    expect(await ama(["config", "set", "ui.theme", "light"], { AMA_LANG: "zh" })).toBe(0);
+    expect(stdout()).toBe("ui.theme = light（用户级）\n");
+  });
+
+  it("set 被覆盖时的回执（en）", async () => {
+    setLocale("en");
+    expect(await runConfigEdit("set", ["ui.theme", "light"], io({ AMA_LANG: "en" }))).toBe(0);
+    out = [];
+    expect(await runConfigEdit("set", ["ui.language", "zh"], io({ AMA_LANG: "en" }))).toBe(0);
+    expect(stdout()).toBe(
+      "ui.language = zh (written to user)\nStill overridden by AMA_LANG (en); the effective value is en\n",
+    );
   });
 
   it("full-auto needs --yes off a TTY and a confirmation on a TTY", async () => {

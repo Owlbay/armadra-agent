@@ -92,20 +92,22 @@ function scopeLabel(scope: EditScope): string {
   return msg().settings.scope[scope];
 }
 
-function report(io: CliIo, result: EditResult, unset: boolean): void {
+/**
+ * Receipt of a write. When a higher layer (env, project, cli, profile) still hides the key, the first line shows the
+ * value just written and its layer, and the second line names the overriding source and the effective value.
+ */
+function report(io: CliIo, result: EditResult, written: unknown): void {
   const s = msg().settings;
-  const value = formatSettingValue(result.after.value);
+  const effective = formatSettingValue(result.after.value);
+  const scope = scopeLabel(result.scope);
+  const by = result.after.envName ?? result.overriddenBy;
+  if (written === undefined) io.stdout(`${s.unsetDone(result.key, effective, scope)}\n`);
+  else if (by === undefined) io.stdout(`${s.setDone(result.key, effective, scope)}\n`);
+  else io.stdout(`${s.writtenTo(result.key, formatSettingValue(written), scope)}\n`);
+  if (by === undefined) return;
   io.stdout(
-    `${
-      unset
-        ? s.unsetDone(result.key, value, scopeLabel(result.scope))
-        : s.setDone(result.key, value, scopeLabel(result.scope))
-    }\n`,
+    `${written === undefined ? s.stillOverridden(result.key, by) : s.overriddenNow(by, effective)}\n`,
   );
-  if (result.overriddenBy !== undefined) {
-    const by = result.after.envName ?? result.overriddenBy;
-    io.stdout(`${s.stillOverridden(result.key, by)}\n`);
-  }
 }
 
 /** Confirm persisting `permission.mode full-auto`: TTY asks, otherwise `--yes` is required. */
@@ -162,7 +164,7 @@ export async function runConfigEdit(
     return ExitCode.Ok;
   }
   if (action === "unset") {
-    report(io, setConfigValue({ ...input, scope, key, value: undefined }), true);
+    report(io, setConfigValue({ ...input, scope, key, value: undefined }), undefined);
     return ExitCode.Ok;
   }
   const raw = positionals.slice(1).join(" ");
@@ -174,6 +176,6 @@ export async function runConfigEdit(
   // first write to a fresh config dir: lay out config.json + config.schema.json like `ama init`
   if (scope === "user" && !existsSync(join(input.configDir, CONFIG_FILE)))
     initConfigDir(input.configDir);
-  report(io, setConfigValue({ ...input, scope, key, value }), value === undefined);
+  report(io, setConfigValue({ ...input, scope, key, value }), value);
   return ExitCode.Ok;
 }
