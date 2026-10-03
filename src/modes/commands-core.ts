@@ -126,6 +126,7 @@ export const BUILTIN_COMMANDS: readonly CommandInfo[] = [
   command("tasks", "tasks", "[id] | stop <id> | bg [id]"),
   command("agents", "agents"),
   command("paste", "paste"),
+  command("interrupt", "interrupt", { key: "interruptArgs" }),
   command("exit", "exit"),
   // [W6-C0] 第六波（W6-S / W6-T1 / W6-M 实现）
   command("config", "config", "[key=value]"),
@@ -314,6 +315,14 @@ export async function runSlashCommand(
       return planCommand(session, args, ctx);
     case "tasks":
       return { kind: "handled", message: await tasksCommand(session, args) };
+    case "interrupt": {
+      // 打断并立即发送：运行中中止当前回合、以「排队的插话 + 本条」开新回合；空闲时就是普通提示
+      if (args === "") throw new AmaError("invalid_arguments", msg().report.command.interruptUsage);
+      const { isStreaming, isCompacting } = session.state;
+      if (!isStreaming && !isCompacting) return { kind: "prompt", text: args };
+      void session.prompt(args, { interrupt: true }).catch(() => undefined);
+      return { kind: "handled", message: msg().report.command.interruptSent(args) };
+    }
     case "agents":
       return { kind: "handled", message: describeAgents(session.state.sessionId) };
     case "paste": {

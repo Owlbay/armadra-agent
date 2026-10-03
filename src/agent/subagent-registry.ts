@@ -57,7 +57,7 @@ import type { SessionCore } from "./session-core.js";
 import type { SessionTaskStats } from "./types.js";
 import { createWorktree, finishWorktree } from "./worktree.js";
 import { appendTraceEntry } from "./session-trace-writer.js";
-import { directMessage, drainDirect, liveOf } from "./subagent-direct.js";
+import { directMessage, drainDirect, liveOf, type DirectReply } from "./subagent-direct.js";
 import {
   TaskNotifier,
   WaitDetach,
@@ -245,10 +245,10 @@ export class SubagentRegistry implements TaskControl {
   }
 
   /** [W6-A] 人在子 Agent 视图里发的消息（subagent-direct.ts）。 */
-  async message(taskId: string, text: string): Promise<"steered" | "queued" | "resumed"> {
+  async message(taskId: string, text: string, interrupt = false): Promise<DirectReply> {
     const record = this.tasks.get(taskId);
     if (record === undefined) throw new AmaError("task_not_found", `unknown task ${taskId}`);
-    return directMessage(record, text, this.host);
+    return directMessage(record, text, this.host, interrupt);
   }
 
   async stop(taskId: string): Promise<SubagentResult | undefined> {

@@ -24,6 +24,7 @@ export const en = {
       host: "host",
       task: "subagent notice",
       plan: "plan",
+      interrupt: "interrupt",
     },
     planHandoff: "Start executing the approved plan",
     thinkingStreaming: (glyph: string, ellipsis: string) => `${glyph} Thinking${ellipsis}`,
@@ -55,6 +56,14 @@ export const en = {
     thinking: "Thinking",
     queueMore: (ellipsis: string, n: number) => `${ellipsis} ${n} more`,
     queueHint: (arrow: string) => `Alt+${arrow} take back · Esc refill and interrupt`,
+    /** 有排队的插话时（`key` = 立即送出它们的键：专用键，或 interrupt 模式下的 Enter）。 */
+    queueHintNow: (arrow: string, key: string) =>
+      `Alt+${arrow} take back · ${key} send now · Esc refill and interrupt`,
+    /** 输入框有字时：Enter 与专用键各做什么（`ui.enterWhileRunning`）。 */
+    sendHint: (mode: "queue" | "interrupt", key: string) =>
+      mode === "queue"
+        ? `Enter queue · ${key} interrupt & send`
+        : `Enter interrupt & send · ${key} queue`,
   },
   tool: {
     interrupted: "interrupted",
@@ -98,6 +107,7 @@ export const zh = {
       host: "宿主",
       task: "子 Agent 通知",
       plan: "计划",
+      interrupt: "打断",
     },
     planHandoff: "按批准的计划开始执行",
     thinkingStreaming: (glyph, ellipsis) => `${glyph} 思考中${ellipsis}`,
@@ -127,6 +137,9 @@ export const zh = {
     thinking: "思考中",
     queueMore: (ellipsis, n) => `${ellipsis} 另 ${n} 条`,
     queueHint: (arrow) => `Alt+${arrow} 取回 · Esc 回填并中断`,
+    queueHintNow: (arrow, key) => `Alt+${arrow} 取回 · ${key} 立即发送 · Esc 回填并中断`,
+    sendHint: (mode, key) =>
+      mode === "queue" ? `Enter 排队 · ${key} 打断并发送` : `Enter 打断并发送 · ${key} 排队`,
   },
   tool: {
     interrupted: "已中断",

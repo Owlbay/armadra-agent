@@ -1,0 +1,51 @@
+# draft while running · viewport 100x24 cursor=10,14
+|✻ ama <version> · fake/echo · Manual · /help
+|
+|› first
+|
+|Working on it
+|
+|  ↳ 插话  also this
+|    Alt+↑ 取回 · Ctrl+X 立即发送 · Esc 回填并中断
+|⠋ 回复中 · 0s · ↓≈4 · Esc 中断 · Enter 排队 · Ctrl+X 打断并发送
+|────────────────────────────────────────────────────────────────────────────────────────────────────
+|› do Y instead
+|────────────────────────────────────────────────────────────────────────────────────────────────────
+|Manual · shift+tab 切换                            fake/echo · medium · ctx 0% · work · 0s · queue 1
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+
+# after Ctrl+X · viewport 100x24 cursor=15,2
+|✻ ama <version> · fake/echo · Manual · /help
+|
+|› first
+|
+|Working on it
+|
+|已中断
+|
+|↳ 打断  also this
+|
+|  do Y instead
+|
+|OK, switching.
+|
+|────────────────────────────────────────────────────────────────────────────────────────────────────
+|› 输入消息，/ 命令，@ 文件，Shift+Enter 换行
+|────────────────────────────────────────────────────────────────────────────────────────────────────
+|已打断，立即发送
+|Manual · shift+tab 切换        fake/echo · medium · ↑<n> ↓4 · cache — · $0.001 · ctx 1% · work · 0s
+|
+|
+|
+|
+|

@@ -166,7 +166,8 @@ export interface SystemMessage {
   timestamp: number;
 }
 
-export type KnownMessageOrigin = "steer" | "followUp" | "host";
+/** `interrupt`：打断当前回合并立即发送（`prompt / steer` 的 `interrupt: true`）开的新回合。 */
+export type KnownMessageOrigin = "steer" | "followUp" | "host" | "interrupt";
 export type MessageOrigin = KnownMessageOrigin | (string & {});
 
 export interface UserMessage {

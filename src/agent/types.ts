@@ -353,12 +353,19 @@ export interface PromptOptions {
   streamingBehavior?: "steer" | "followUp";
   /** 落盘到 user 消息的 origin（宿主注入为 "host"）；缺省：空闲时不填，入队时为 streamingBehavior。 */
   origin?: MessageOrigin;
+  /**
+   * 打断并立即发送：运行中先取走排队的 steer、中止当前回合（工具按 abort 收尾），再以「steer… + 本条」
+   * 开新回合（origin 缺省 `"interrupt"`）；空闲时等同不填。优先于 `streamingBehavior`。
+   */
+  interrupt?: boolean;
 }
 
 /** steer / followUp 的可选项。 */
 export interface EnqueueOptions {
   /** 缺省为 "steer" / "followUp"；`"user"` 表示普通用户输入（不写 origin）。 */
   origin?: MessageOrigin;
+  /** 打断并立即发送（同 `PromptOptions.interrupt`；运行中 origin 缺省 `"interrupt"`）。 */
+  interrupt?: boolean;
 }
 
 export interface SessionState {

@@ -212,6 +212,8 @@ export interface UiConfig extends UiConfigW6 {
   animation?: boolean;
   /** 运行中 Esc 中断、本回合还没有任何输出时撤回该回合并回填原消息，缺省 true。 */
   restoreOnCancel?: boolean;
+  /** 运行中按 Enter：queue（缺省）排队插话，interrupt 打断并立即发送（与 `app.message.interrupt` 互换）。 */
+  enterWhileRunning?: "queue" | "interrupt";
   /** [W5-C0] 底部信息行（W5-A）：缺省独立终端 full、嵌入宿主（有 profile）compact。 */
   statusLine?: StatusLineMode;
 }

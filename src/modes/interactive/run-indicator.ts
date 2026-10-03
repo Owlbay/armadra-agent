@@ -14,8 +14,11 @@
  * [W7-C] 有阻塞中的前台任务时可丢弃项前面加 `Ctrl+B 转后台`；有停靠的审批时 `↓ Agent 栏` 换成
  * `↓ 处理审批`。顺序 `Esc 中断 · Ctrl+B 转后台 · ↓ Agent 栏`，窄屏从后往前丢。
  *
+ * [打断并发送] 输入框有字时可丢弃项最前面加 `Enter 排队 · Ctrl+X 打断并发送`（`ui.enterWhileRunning:
+ * "interrupt"` 时语义互换），顺序 `Esc 中断 · Enter 排队 · Ctrl+X 打断并发送 · Ctrl+B 转后台 · ↓ Agent 栏`。
+ *
  * 排队消息：缩进 2 列（挂在当前回合下），`↳ 插话 / 之后  文本` 整体 muted、标签 dim；超过 3 条首行
- * `… 另 N 条`；末行 `Alt+↑ 取回 · Esc 回填并中断`。
+ * `… 另 N 条`；末行 `Alt+↑ 取回 · Esc 回填并中断`，有插话时中间加 `Ctrl+X 立即发送`（interrupt 模式是 Enter）。
  */
 
 import { msg } from "../../i18n/index.js";
@@ -37,7 +40,12 @@ export interface RunIndicatorDeps {
   render(): void;
   /** [W7-C] `app.tasks.background` 的按键标签（`Ctrl+B`）；没有绑定时不提示。 */
   backgroundKey?: string;
+  /** `app.message.interrupt` 的按键标签（`Ctrl+X`）；没有绑定时不提示。 */
+  interruptKey?: string;
 }
+
+/** 运行中 Enter 的语义（`ui.enterWhileRunning`）。 */
+export type EnterMode = "queue" | "interrupt";
 
 function oneLine(text: string): string {
   return text.replace(/\s+/g, " ").trim();
@@ -71,13 +79,20 @@ export class RunIndicator {
   background: () => boolean = () => false;
   /** [W7-C] 有停靠在 Agent 栏的审批。 */
   docked: () => boolean = () => false;
+  /** 输入框有字（显示 Enter / 专用键的提示）。 */
+  draft: () => boolean = () => false;
+  /** 运行中 Enter 的语义。 */
+  enterMode: () => EnterMode = () => "queue";
   private hintKey = "";
 
   constructor(private readonly deps: RunIndicatorDeps) {
-    deps.loader.onFrame(() => {
-      if (this.busy && !this.approval && this.optionalHints().join("\n") !== this.hintKey)
-        this.applyVerb();
-    });
+    deps.loader.onFrame(() => this.refreshHints());
+  }
+
+  /** 可丢弃提示变了才换动词（每帧、输入框内容变化时调）。 */
+  refreshHints(): void {
+    if (this.busy && !this.approval && this.optionalHints().join("\n") !== this.hintKey)
+      this.applyVerb();
   }
 
   /** 可丢弃的按键提示（按丢弃的逆序排列）。 */
@@ -85,6 +100,9 @@ export class RunIndicator {
     const down = this.deps.theme.glyphs.arrowDown;
     const key = this.deps.backgroundKey;
     const out: string[] = [];
+    const send = this.deps.interruptKey;
+    if (send !== undefined && this.draft())
+      out.push(msg().interactive.view.run.sendHint(this.enterMode(), send));
     if (key !== undefined && this.background()) out.push(msg().agents.background.runHint(key));
     if (this.docked()) out.push(msg().agents.approval.runHint(down));
     else if (this.agents()) out.push(msg().agents.bar.runHint(down));
@@ -213,7 +231,13 @@ export class RunIndicator {
 
 /** 排队消息（插话 / 之后），挂在 Loader 之上。 */
 export class QueueView extends Text {
-  constructor(private readonly theme: Theme) {
+  /**
+   * @param nowKey 立即送出排队插话的键（专用键；interrupt 模式下是 Enter）；undefined 不提示。
+   */
+  constructor(
+    private readonly theme: Theme,
+    private readonly nowKey: () => string | undefined = () => undefined,
+  ) {
     super("");
   }
 
@@ -236,7 +260,13 @@ export class QueueView extends Text {
       );
     }
     if (rows.length > 0) {
-      shown.push("    " + t.fg("dim", msg().interactive.view.run.queueHint(t.glyphs.arrowUp)));
+      const run = msg().interactive.view.run;
+      const now = steering.length > 0 ? this.nowKey() : undefined;
+      const hint =
+        now === undefined
+          ? run.queueHint(t.glyphs.arrowUp)
+          : run.queueHintNow(t.glyphs.arrowUp, now);
+      shown.push("    " + t.fg("dim", hint));
     }
     this.setText(shown.join("\n"));
   }

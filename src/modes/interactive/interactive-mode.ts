@@ -61,6 +61,7 @@ import { InteractiveCompletion } from "./completion.js";
 import { confirmBypass } from "./confirm-dialog.js";
 import { configUiFor } from "./config-ui.js";
 import { createKeyDispatch } from "./key-dispatch.js";
+import { enterModeOf, interruptKeys, interruptSender } from "./interrupt-send.js";
 import { MessageView, exitSummaryLines, type NoticeLevel } from "./message-view.js";
 import { openPicker } from "./pickers.js";
 import { modelPickerFor } from "./model-picker.js";
@@ -68,7 +69,7 @@ import { createRewindFlow } from "./rewind-flow.js";
 import { openTraceView } from "./trace-view.js";
 import { StartupHeader } from "./startup-header.js";
 import { playStartupAnimation, type LogoAnimation } from "./startup-logo.js";
-import { QueueView, RunIndicator } from "./run-indicator.js";
+import { QueueView, RunIndicator, type EnterMode } from "./run-indicator.js";
 import { StatusArea, statusLineSlash } from "./status-area.js";
 import type { StatusBar } from "./status-bar.js";
 import { createSessionEventHandler } from "./session-events.js";
@@ -145,7 +146,9 @@ export function runInteractiveMode(
     spinner: () => loader.frame,
     subagent: (toolCallId) => subagents.forToolCall(toolCallId),
   });
-  const queueView = new QueueView(theme);
+  const enterMode = (): EnterMode => enterModeOf(runtime);
+  const sendKeys = interruptKeys(keys, enterMode);
+  const queueView = new QueueView(theme, sendKeys.now);
   const loaderSlot = new Container();
   const loader = new Loader(() => tui.requestRender(), {
     theme,
@@ -186,6 +189,7 @@ export function runInteractiveMode(
     requestRender: () => tui.requestRender(),
     ...(historyFile !== undefined ? { historyFile } : {}),
     onSubmit: (text) => submit(text, "enter"),
+    onChange: () => indicator.refreshHints(),
   });
 
   tui.addChild(view);
@@ -226,7 +230,9 @@ export function runInteractiveMode(
   const indicator = new RunIndicator({
     ...{ theme, loader, slot: loaderSlot, tools, render },
     ...(backgroundKey !== undefined ? { backgroundKey } : {}),
+    ...(sendKeys.key !== undefined ? { interruptKey: sendKeys.key } : {}),
   });
+  Object.assign(indicator, { draft: () => !editor.isEmpty(), enterMode });
   const setQueue = (steering: readonly string[], followUp: readonly string[]): void => {
     status.setQueue(steering.length, followUp.length);
     queueView.setQueue(steering, followUp);
@@ -453,6 +459,12 @@ export function runInteractiveMode(
       onPasteImage: () => void agentUi.paste(),
       confirmMode,
       submit: (text, via) => submit(text, via),
+      enterWhileRunning: enterMode,
+      interruptSend: interruptSender({
+        session: () => session,
+        takeImages: () => draftImages.splice(0),
+        showHint,
+      }),
       runCommand: (line) => void runCommand(line),
       exit: (code) => exit(code),
       onInterrupted: (empty) => void rewind.afterInterrupt(empty),

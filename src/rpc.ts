@@ -63,8 +63,18 @@ export type NoParams = Record<never, never>;
 
 export interface RpcCommandMap {
   // 提示
-  prompt: { message: string; images?: ImageBlock[]; streamingBehavior?: "steer" | "followUp" };
-  steer: { message: string; images?: ImageBlock[] };
+  /**
+   * `interrupt: true`：运行中中止当前回合（工具按 abort 收尾），立刻以「排队的 steer + 本条」开新回合
+   * （user 消息 origin `interrupt`），应答 `started`；空闲时等同不填。优先于 `streamingBehavior`。
+   */
+  prompt: {
+    message: string;
+    images?: ImageBlock[];
+    streamingBehavior?: "steer" | "followUp";
+    interrupt?: boolean;
+  };
+  /** `interrupt: true` 同 `prompt`。 */
+  steer: { message: string; images?: ImageBlock[]; interrupt?: boolean };
   follow_up: { message: string; images?: ImageBlock[] };
   abort: NoParams;
   clear_queue: NoParams;

@@ -10,7 +10,7 @@
  */
 
 import { join } from "node:path";
-import type { Model, ModelThinkingLevel, UserMessage } from "../ai/types.js";
+import type { ImageBlock, Model, ModelThinkingLevel, UserMessage } from "../ai/types.js";
 import { AmaError } from "../errors.js";
 import type { HookEvent, HookEventPayload, HookOutcome } from "../hooks/types.js";
 import type { PermissionClassifier } from "../permissions/classifier.js";
@@ -27,7 +27,7 @@ import type {
 import type { SubagentRequest, SubagentResult, ToolDefinition } from "../tools/types.js";
 import { Agent } from "./agent.js";
 import type { StreamFn } from "./loop.js";
-import { queuedText } from "./queue.js";
+import { mergeForInterrupt, queuedText } from "./queue.js";
 import { resolveRetrySettings } from "./retry.js";
 import type { AgentSessionOptions, SessionCore } from "./session-core.js";
 import { SessionCacheController, resolveCacheSettings } from "./session-cache.js";
@@ -336,6 +336,8 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
 
   async prompt(text: string, options: PromptOptions = {}): Promise<PromptDisposition> {
     this.assertUsable();
+    if (options.interrupt === true && this.cycle !== undefined)
+      return this.interruptWith(text, options.images, options.origin);
     if (this.cycle !== undefined) {
       const behavior = options.streamingBehavior;
       if (behavior === undefined) {
@@ -369,7 +371,9 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
     options: EnqueueOptions,
   ): Promise<"queued" | "handled"> {
     this.assertUsable();
-    const origin = normalizeOrigin(options.origin ?? queue);
+    if (options.interrupt === true && this.cycle !== undefined)
+      return this.interruptWith(text, undefined, options.origin).then(() => "handled" as const);
+    const origin = normalizeOrigin(options.origin ?? (options.interrupt === true ? "user" : queue));
     if (this.cycle === undefined) {
       await this.startCycle((signal) => runPrompt(this.runDeps(), text, undefined, origin, signal));
       return "handled";
@@ -384,6 +388,20 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
 
   followUp(text: string, options: EnqueueOptions = {}): Promise<"queued" | "handled"> {
     return this.enqueueOrRun(text, "followUp", options);
+  }
+
+  /**
+   * 打断并立即发送：取走排队的 steer、中止当前周期（工具按 abort 收尾），以「steer… + 本条」开新回合；
+   * followUp 留在队列。没有可发的内容 → invalid_arguments（不打断）。
+   */
+  private async interruptWith(text: string, images?: ImageBlock[], origin?: string) {
+    const merged = mergeForInterrupt(this.agent.steeringQueue.snapshot(), text, images);
+    if (merged === undefined) throw new AmaError("invalid_arguments", "nothing to send");
+    this.agent.steeringQueue.clear();
+    this.emitQueue();
+    while (this.cycle !== undefined) await this.abort();
+    const kind = normalizeOrigin(origin ?? "interrupt");
+    return this.startCycle((s) => runPrompt(this.runDeps(), merged.text, merged.images, kind, s));
   }
 
   async abort(): Promise<void> {

@@ -422,6 +422,8 @@ export class AgentUi {
       close: () => this.closeView(),
       stop: (id) => stopTask(this.deps.session().state.sessionId, id),
       background: (id) => this.deps.session().backgroundTask(id, "user"),
+      enterMode: () =>
+        this.deps.area?.ui().enterWhileRunning === "interrupt" ? "interrupt" : "queue",
       messages: {
         ...(ui.showThinking !== undefined ? { showThinking: ui.showThinking } : {}),
         ...(ui.markdown !== undefined ? { markdown: ui.markdown } : {}),

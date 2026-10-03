@@ -18,6 +18,8 @@
  * 所查看的任务在等审批时标题显示「等待审批」，审批框照常以覆盖层弹在视图上面。
  * [W7-C] `Ctrl+B`（`app.tasks.background`）转后台正在看的任务（只对前台任务有效，否则落回编辑器）；
  * 视图里另认 `/tasks bg [id]`。
+ * [打断并发送] `Ctrl+X`（`app.message.interrupt`）= 打断该子 Agent 当前回合并立即发送（`registry.message` 的
+ * interrupt）；外部 Agent 的驱动不能中断回合时退回排队并提示。`ui.enterWhileRunning: "interrupt"` 时与 Enter 互换。
  */
 
 import type { SessionEvent } from "../../agent/types.js";
@@ -65,6 +67,8 @@ export interface AgentViewDeps {
   background?(taskId: string): string[];
   /** 消息区的显示选项（思考块、Markdown、紧凑）。 */
   messages?: Omit<MessageViewOptions, "theme">;
+  /** `ui.enterWhileRunning`：`interrupt` 时 Enter 打断并发送、专用键排队。 */
+  enterMode?(): "queue" | "interrupt";
 }
 
 type Body = (AmaTranscript | ExternalTranscript) & { readonly isEmpty: boolean };
@@ -91,7 +95,7 @@ export class AgentView implements Component, Focusable {
       maxVisibleLines: 4,
       placeholder: msg().agents.view.placeholder(taskId),
       requestRender: () => deps.render(),
-      onSubmit: (text) => void this.submit(text),
+      onSubmit: (text) => void this.submit(text, this.enterInterrupts()),
     });
     this.attach();
   }
@@ -187,7 +191,11 @@ export class AgentView implements Component, Focusable {
     this.deps.onSwitch?.(next);
   }
 
-  private async submit(text: string): Promise<void> {
+  private enterInterrupts(): boolean {
+    return this.deps.enterMode?.() === "interrupt";
+  }
+
+  private async submit(text: string, interrupt = false): Promise<void> {
     const m = msg().agents.view;
     const trimmed = text.trim();
     if (trimmed === "") return;
@@ -213,7 +221,7 @@ export class AgentView implements Component, Focusable {
     const registry = this.deps.registry();
     try {
       if (registry === undefined) throw new Error(m.unknown(taskId));
-      const reply = await registry.message(taskId, text);
+      const reply = await registry.message(taskId, text, interrupt);
       this.flash = m[reply](taskId);
     } catch (error) {
       this.flash = m.sendFailed(error instanceof Error ? error.message : String(error));
@@ -233,6 +241,11 @@ export class AgentView implements Component, Focusable {
         this.flash = backgroundedText(moved);
         return;
       }
+    }
+    if (keys.matches(data, "app.message.interrupt") && !this.editor.isCompletionOpen) {
+      const text = this.editor.takeSubmission();
+      if (text !== null) void this.submit(text, !this.enterInterrupts());
+      return;
     }
     if (keys.matches(data, "tui.select.cancel") && !this.editor.isCompletionOpen) {
       if (!empty) this.editor.clear();
