@@ -34,6 +34,7 @@ import type {
   AgentDriver,
   DriverCapabilities,
   DriverEvent,
+  DriverKind,
   DriverSession,
   DriverTurnResult,
 } from "./types.js";
@@ -212,6 +213,17 @@ interface HandleDeps extends ProcessRunnerDeps {
   unattended: boolean;
 }
 
+/**
+ * 能中断单个回合、进程留着接着用的驱动（ACP `session/cancel`、Claude stream-json interrupt、Codex
+ * `turn/interrupt`）；oneshot 每回合一个进程（中断 = 杀进程），宿主驱动不归 ama 管——这两种「打断并发送」退回排队。
+ */
+const TURN_INTERRUPT: ReadonlySet<DriverKind> = new Set([
+  "acp",
+  "acp-adapter",
+  "claude-stream",
+  "codex-app-server",
+]);
+
 class ProcessHandle implements RunnerHandle {
   private session: DriverSession | undefined;
   private sessionId = "";
@@ -291,8 +303,23 @@ class ProcessHandle implements RunnerHandle {
     this.chain = this.chain.then(() => this.runTurn(text));
   }
 
-  wait(): Promise<SubagentResult> {
-    return this.chain;
+  /** 跟到链尾：回合进行中被 `interrupt` 接上的下一回合也算在这次运行里。 */
+  async wait(): Promise<SubagentResult> {
+    for (;;) {
+      const chain = this.chain;
+      const result = await chain;
+      if (chain === this.chain) return result;
+    }
+  }
+
+  /** 子 Agent 视图的「打断并发送」：中断当前回合，紧接着以 `text` 开下一回合。 */
+  async interrupt(text: string): Promise<boolean> {
+    const session = this.session;
+    if (this.stopped || !this.busy || session === undefined) return false;
+    if (!TURN_INTERRUPT.has(this.chosen.driver.kind)) return false;
+    this.chain = this.chain.then(() => this.runTurn(text));
+    await session.cancel();
+    return true;
   }
 
   async stop(): Promise<void> {

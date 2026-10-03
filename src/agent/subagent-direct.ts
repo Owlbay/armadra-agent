@@ -7,13 +7,16 @@
  *   外部 Agent 运行中 / 还在排队 → 等本次运行结束后续聊（`queued`）；已结束 → 同 `task_ctl send` 的后台续聊
  *   （`resumed`，完成后父会话照常收 `<task-notification>`）。子会话 user 消息记 `origin: "direct"`；
  * - `drainDirect`：运行结束时把排着的消息合成一条续聊；任务被停止时丢弃（停止的一方不想它再跑）。
+ * - 打断并发送（`interrupt`）：ama 运行中 → 子会话 `prompt{interrupt}`（中止本轮、立即开新回合，`interrupted`）；
+ *   外部 Agent 运行中且驱动能中断回合 → 连同排着的消息一起 `handle.interrupt`（`interrupted`）；驱动不能中断
+ *   或任务还在并发池排队 → 照常排到运行结束（`queuedNoInterrupt`，视图提示）；已结束 → 同上的后台续聊。
  */
 
 import { AmaError } from "../errors.js";
 import type { TaskLive, TaskRecord } from "../agents/task-record.js";
 import type { SubagentRequest, SubagentResult } from "../tools/types.js";
 
-export type DirectReply = "steered" | "queued" | "resumed";
+export type DirectReply = "steered" | "queued" | "resumed" | "interrupted" | "queuedNoInterrupt";
 
 export interface DirectHost {
   spawnSubagent?(request: SubagentRequest): Promise<SubagentResult>;
@@ -39,10 +42,17 @@ export async function directMessage(
   record: TaskRecord,
   text: string,
   host: DirectHost,
+  interrupt = false,
 ): Promise<DirectReply> {
   if (text.trim() === "") throw new AmaError("invalid_arguments", "empty message");
   if (record.running !== undefined) {
     const handle = record.handle;
+    if (interrupt && record.queued !== true && (await interruptRun(record, text)))
+      return "interrupted";
+    if (interrupt) {
+      (record.direct ??= []).push(text);
+      return "queuedNoInterrupt";
+    }
     if (handle?.message !== undefined && record.queued !== true) {
       try {
         await handle.message(text, "followUp");
@@ -57,6 +67,27 @@ export async function directMessage(
   }
   await resumeDirect(record, text, host);
   return "resumed";
+}
+
+/** 打断运行中的任务并立即发送；做不到返回 false（不改动排队）。 */
+async function interruptRun(record: TaskRecord, text: string): Promise<boolean> {
+  const handle = record.handle;
+  if (handle?.message !== undefined) {
+    try {
+      await handle.message(text, "interrupt");
+      return true;
+    } catch (error) {
+      if (error instanceof AmaError && error.code === "task_idle") return false;
+      throw error;
+    }
+  }
+  if (handle?.interrupt === undefined) return false;
+  // 外部 Agent：排着的消息（运行中在视图里发的）在前，一起作为新回合
+  const queued = record.direct ?? [];
+  const merged = [...queued, text].join("\n\n");
+  if (!(await handle.interrupt(merged))) return false;
+  queued.splice(0);
+  return true;
 }
 
 async function resumeDirect(record: TaskRecord, text: string, host: DirectHost): Promise<void> {
