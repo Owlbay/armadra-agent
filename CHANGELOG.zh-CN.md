@@ -4,6 +4,14 @@
 
 > 从 0.6.0 起 [CHANGELOG.md](CHANGELOG.md) 为英文，本文件保留中文记录（0.1–0.5.1 的完整历史在此）。新条目两份都要加。
 
+## 未发布
+
+- **ChatGPT 订阅模型的上下文窗口取后端值**：ChatGPT 后端模型列表给的上下文窗口（codex 的 `context_window`，siwc 条目带了也取）
+  现在优先于 models.dev——后者记的是 API 版窗口（部分模型 1.1M），订阅后端实际只收 272k，自动压缩按大窗口规划，长会话超过
+  272k 后请求被拒。models.dev 仍补后端没给的字段（输出上限等），但不再覆盖后端给的输入模态与推理强度；两边都没有上下文窗口时，
+  `chatgpt` 模型按保守缺省 128k，不再关闭自动压缩。`ama models discover chatgpt` 显示后端窗口并标「（后端）」，列出后端没给窗口
+  的模型。旧版本写的缓存不含窗口时照旧用 models.dev，重新 `ama models discover chatgpt` 即刷新。
+
 ## 0.6.2（2026-10-03）
 
 - **ChatGPT codex 方式能列出模型，渠道跟随登录方式**：codex 模型列表（`GET /models?client_version=…`）原来发 ama 自己的版本号，
