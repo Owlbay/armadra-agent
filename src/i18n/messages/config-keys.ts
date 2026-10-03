@@ -28,7 +28,7 @@ const dynamicDefaultsEn = {
   "limits.maxTurns": "unset: unlimited",
   "limits.maxCostUsd": "unset: unlimited",
   "ui.replyLanguage": "unset: no reply-language rule is appended (zero-byte change)",
-  "ui.agentBar": "auto in a standalone terminal, off in an embedding host (with a profile)",
+  "ui.agentBar": "auto (embedding hosts turn it off in their profile)",
   "auth.chatgpt.clientId":
     "siwc registers dynamically on first login; codex uses the public client id (AMA_CHATGPT_CLIENT_ID overrides)",
   "auth.chatgpt.redirectPorts": "siwc 1455 → any free port; codex 1455 → 1457",
@@ -53,7 +53,7 @@ const dynamicDefaultsZh = {
   "limits.maxTurns": "不设：不限",
   "limits.maxCostUsd": "不设：不限",
   "ui.replyLanguage": "不设：不追加回复语言规则（零字节变化）",
-  "ui.agentBar": "独立终端 auto，嵌入宿主（有 profile）off",
+  "ui.agentBar": "auto（嵌入宿主要关在自己的 profile 写 off）",
   "auth.chatgpt.clientId":
     "siwc 首次登录动态注册；codex 用公开客户端 id（AMA_CHATGPT_CLIENT_ID 覆盖）",
   "auth.chatgpt.redirectPorts": "siwc 1455 → 任意空闲端口；codex 1455 → 1457",
@@ -136,7 +136,7 @@ const keysEn = {
   "ui.replyLanguage":
     "Reply language for the model (e.g. Chinese): one English rule is appended to the end of the rules section at session start; zero-byte change when unset; user level only (effective from wave 6)",
   "ui.agentBar":
-    "Agent bar (sub-agent list above the status line): auto shows it while tasks exist, off hides it; enter with Ctrl+B or ↓ on an empty input (effective from wave 6 W6-A)",
+    "Agent bar (sub-agent list above the status line): auto shows it while tasks exist, off hides it; press ↓ on an empty input to enter it",
   memory:
     "Cross-session memory (docs/memory.md): off by default, requests are byte-identical while off; project level can only set enabled: false (effective from wave 6 W6-M)",
   "memory.enabled": "Master switch; --memory / --no-memory and AMA_MEMORY=0|1 override",
@@ -298,7 +298,7 @@ const keysZh = {
   "ui.replyLanguage":
     "模型回复语言（如 Chinese）：会话开始在 rules 节末尾追加一句英文规则；不设时零字节变化；只认用户级（第六波起生效）",
   "ui.agentBar":
-    "Agent 栏（状态行上方的子 Agent 列表）：auto 有任务时显示，off 不显示；Ctrl+B / 空输入时 ↓ 进入（第六波 W6-A 起生效）",
+    "Agent 栏（状态行上方的子 Agent 列表）：auto 有任务时显示，off 不显示；空输入时按 ↓ 进入",
   memory:
     "跨会话记忆（docs/memory.md）：缺省关闭，关闭时请求逐字节不变；项目级只能设 enabled: false（第六波 W6-M 起生效）",
   "memory.enabled": "总开关；--memory / --no-memory、AMA_MEMORY=0|1 覆盖",
