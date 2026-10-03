@@ -275,7 +275,9 @@ describe("交互模式", () => {
 
   it("normal 档播放动画；按键立即定格、字符进输入框，回滚区无残影", async () => {
     const timers = vi.spyOn(globalThis, "setTimeout");
-    const s = await start([], { quietStartup: "normal", theme: dark(), columns: 80, rows: 24 });
+    // 临时 HOME 的环境抄自 process.env：在 CI 上清掉 CI，否则按设计不播放
+    const env = { CI: "" };
+    const s = await start([], { quietStartup: "normal", theme: dark(), env, columns: 80 });
     const frames = () => timers.mock.calls.filter(([, ms]) => ms === FRAME_MS).length;
     expect(frames()).toBeGreaterThan(0);
     s.type("x");
@@ -291,11 +293,12 @@ describe("交互模式", () => {
     await s.done;
   });
 
-  it("header 档与无色主题不播放", async () => {
+  it("header 档、无色主题与 CI 环境不播放", async () => {
     const timers = vi.spyOn(globalThis, "setTimeout");
     for (const options of [
-      { quietStartup: "header" as const, theme: dark() },
-      { quietStartup: "normal" as const, theme: plainTheme() },
+      { quietStartup: "header" as const, theme: dark(), env: { CI: "" } },
+      { quietStartup: "normal" as const, theme: plainTheme(), env: { CI: "" } },
+      { quietStartup: "normal" as const, theme: dark(), env: { CI: "true" } },
     ]) {
       const s = await start([], options);
       s.handle.exit(0);
