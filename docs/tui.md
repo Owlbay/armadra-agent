@@ -9,16 +9,12 @@
 视觉规格（配色、字形、逐屏样稿）见 [tui-design.md](tui-design.md)。层级用缩进表达：第 0 列是用户 `›`、工具 `⏺` 与提示符号，第 2 列是结果连接符 `⎿`，第 4 列是工具输出；去掉颜色（`NO_COLOR`、`capture-pane` 不带 `-e`）也读得出结构。
 
 ```
-╭──────────────────────────────────────────────────────────────╮
-│ ✻ ama 0.3.0                                                  │   ← 启动头（normal 档）
-│                                                              │
-│ 模型   anthropic/claude-sonnet-4-5 · 思考 medium             │
-│ 目录   ~/Projects/demo · 已信任（trust.json）                │
-│ 模式   Accept edits · 预设 default                           │
-│ 已加载 AGENTS.md · 2 Skill                                   │
-│                                                              │
-│ /help 命令 · Shift+Tab 切模式 · Ctrl+O 展开工具输出          │
-╰──────────────────────────────────────────────────────────────╯
+ ▄███▄  ██▄   ▄██  ▄███▄    ama 0.6.2                     ← 启动头（normal 档）
+██▀ ▀██ ███▄ ▄███ ██▀ ▀██   anthropic/claude-sonnet-4-5@messages · 思考 medium
+███████ ██ ▀█▀ ██ ███████   ~/Projects/demo · 已信任（trust.json）
+██   ██ ██     ██ ██   ██   Accept edits · 预设 default
+▀▀   ▀▀ ▀▀     ▀▀ ▀▀   ▀▀   AGENTS.md · 2 Skill
+                            /help 命令 · Shift+Tab 切模式 · Ctrl+O 展开工具输出
 
 › 读一下 README                                    ← 用户消息（续行缩进 2 列）
 
@@ -420,7 +416,7 @@ t2 explore · 运行中 1m05s · 3 轮 · ↑12k ↓3.4k · Esc 返回 · /tasks
 
 ## 启动画面
 
-`ui.quietStartup` / `--quiet-startup`：`normal` 显示带框的启动头——标题、模型与思考级别、目录（`~` 缩写）与信任状态、权限模式 / 预设 / codemode、已加载的上下文文件 / Skill / 提示模板 / Hook、警告数与常用按键；窄于 56 列或 `ui.compact` 时去框、每项一行。`header` 只有一行 `✻ ama 版本 · 模型 · 模式 · /help`（profile 缺省）；`silent` 不显示。`--resume` 不带 id、模型没有 key、会话目录不存在、项目资源需要信任时，界面启动前会先出现一个小的选择 / 输入提示，答完收成一行留在屏幕上。
+`ui.quietStartup` / `--quiet-startup`：`normal` 显示「AMA」字符画与信息列——版本、模型与思考级别、目录（`~` 缩写）与信任状态、权限模式 / 预设 / codemode、已加载的上下文文件 / Skill / 提示模板 / Hook、警告数与常用按键；宽 ≥ 72 列字符画在左、信息在右，48–71 列字符画在上，窄于 48 列退回两行简洁头（版本 · 模型 · 思考 / 模式 · 目录 · 信任）；`ui.logo: "off"` 或 `ui.compact` 只显示信息列。字符画按字母取主题的 accent → user → tool 三色，ASCII 模式换成 `_ / \ |` 拼的字形。启动时播放一次约 1 秒的「点亮」扫描（字形先暗后亮，高亮带从左扫到右，结束定格），只在原地重画、不在回滚里留帧；按任意键立即定格，按键照常进入输入框。以下情况直接显示定格帧：`ui.animation: false`、`NO_COLOR` / 无色终端、非 TTY、嵌入宿主（profile.host）、`CI` 环境、启动即带提示（`ama "…"`）、终端矮于 16 行或内容超出一屏；行式界面、`-p`、RPC、ACP 不画启动头。`header` 只有一行 `✻ ama 版本 · 模型 · 模式 · /help`（profile 缺省）；`silent` 不显示。`--resume` 不带 id、模型没有 key、会话目录不存在、项目资源需要信任时，界面启动前会先出现一个小的选择 / 输入提示，答完收成一行留在屏幕上。
 
 ## 在 tmux / Armadra 终端节点里
 
@@ -437,8 +433,9 @@ t2 explore · 运行中 1m05s · 3 轮 · ↑12k ↓3.4k · Esc 返回 · /tasks
 | ----------------- | ----------- | --------------------------------------------------------------------------------------------- |
 | `ui.theme`        | `dark`      | `dark` / `light` / `auto`；auto 只看 `COLORFGBG`（不发终端查询），猜不出用 dark，建议显式配置 |
 | `ui.ascii`        | 自动检测    | ASCII 字形（`›` → `>`、`⏺` → `*`、`⎿` → `L`、框线 → `+ - \|`、spinner 4 帧）                  |
-| `ui.compact`      | `false`     | 消息区块间不空行、启动头无框                                                                  |
-| `ui.animation`    | `true`      | `false`：运行中 spinner 静止为 `·`，只在秒数变化时重绘                                        |
+| `ui.compact`      | `false`     | 消息区块间不空行、启动头不画字符画                                                            |
+| `ui.logo`         | `auto`      | 启动头的「AMA」字符画；`off` 只显示信息列                                                     |
+| `ui.animation`    | `true`      | `false`：运行中 spinner 静止为 `·`，只在秒数变化时重绘；启动字符画不播放动画                  |
 | `ui.markdown`     | `true`      | `false`：助手正文不做 Markdown 渲染                                                           |
 | `ui.showThinking` | `collapsed` | 见「布局」                                                                                    |
 | `ui.quietStartup` | `normal`    | 见「启动画面」                                                                                |
@@ -534,7 +531,7 @@ tui.start();
 帧黄金都在 `test/fixtures/tui/`，`MemoryTerminal` 还原屏幕（无色，只验布局与字形）：
 
 - `src/modes/interactive/interactive-mode.test.ts`：80x24、40x24 跑一次完整的读文件 run（启动、输入、工具运行中、结束、`Ctrl+O` 展开、退出摘要）→ `run-*.txt`；审批、缓存提示等。
-- `src/modes/interactive/interactive-frames.test.ts`：启动头（`startup-normal-*`、`header-quiet-*`）、工具层级（`tools-*`）、提示（`notices-*`）、运行中动词（`loader-verbs-*`）、`/session` 面板（`panel-session-*`）、ASCII 模式整条 run（`ascii-run-*`）。
+- `src/modes/interactive/interactive-frames.test.ts`：启动头（`startup-normal-*`、`header-quiet-*`；字符画各变体与动画见 `startup-logo.test.ts` / `startup-logo-*`）、工具层级（`tools-*`）、提示（`notices-*`）、运行中动词（`loader-verbs-*`）、`/session` 面板（`panel-session-*`）、ASCII 模式整条 run（`ascii-run-*`）。
 - 第五波（W5-U）：`plan-dialog.test.ts`（`plan-dialog-*`：四选项、执行模式、修改意见、外部编辑、ASCII、40 列）、`approval-origin.test.ts`（`approval-origin-*`、`approval-task-agent-*`、`approval-first-run-*`、`approval-task-external-*` 与首次运行合并）、`subagent-view.test.ts`（`subagent-view-*`）、`tasks-panel.test.ts`（`tasks-picker-*`、`tasks-output-*`、`agents-panel-*`）、`harness-notices.test.ts`（`harness-notices-*`）、`interactive-w5.test.ts`（plan → 审批 → 执行、`/plan`、后台任务进 `/tasks`、Ctrl+V，`interactive-plan-*`、`interactive-tasks-*`）。
 - `src/tui/tui-frames.test.ts`：组件级（对话、Markdown、编辑器占位 / 多行 / 粘贴 / 补全）；`status-bar.test.ts` 的 `status-widths.txt`；`approval-dialog.test.ts`、`pickers.test.ts` 的审批与模式选择器。
 

@@ -5,6 +5,16 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 > This file is in English starting with 0.6.0. Release notes for 0.1 through 0.5.1 are in Chinese in
 > [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md). New entries go into both files.
 
+## Unreleased
+
+- **Startup header with an AMA logo and a short light-up animation**: the boxed info block is replaced by a 5-row "AMA" logo
+  (block characters, colored letter by letter with the theme's accent → user → tool; a `_ / \ |` version in ASCII mode) with
+  the version, model, directory, mode and key hints beside it (72+ columns) or below it (48–71 columns); below 48 columns a
+  two-line header is shown. On startup a one-off sweep of about a second lights the logo up and settles in place, leaving no
+  frames in the scrollback; any key settles it at once and still reaches the input box. It does not play with
+  `ui.animation: false`, without colors, outside a TTY, in an embedding host, under `CI`, with a command-line prompt or in a
+  short terminal. New `ui.logo: "auto" | "off"` (off shows only the info lines). Docs: docs/en/tui.md "Startup screen".
+
 ## 0.6.2 (2026-10-03)
 
 - **ChatGPT codex sign-in lists models, and the channel follows the sign-in method**: the codex model list
