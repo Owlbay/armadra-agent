@@ -5,6 +5,7 @@
 
 import { describeLookupFailure } from "../ai/providers/suggest.js";
 import { formatModelRef } from "../ai/providers/channels.js";
+import { CHATGPT_PROVIDER_ID } from "../auth/chatgpt/presets.js";
 import { statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import type { Model, ModelThinkingLevel, ProviderData, ProviderRegistryApi } from "../ai/types.js";
@@ -158,11 +159,13 @@ export async function resolveModel(
   } else {
     const change = lastEntry(manager, (e) => e.type === "model_change");
     if (change?.type === "model_change") {
+      // ChatGPT 的渠道跟随当前登录方式：会话里记的渠道不当显式渠道（可能是换登录前的）
+      const channel = change.provider === CHATGPT_PROVIDER_ID ? undefined : change.channel;
       const found = registry.findModel(
         formatModelRef({
           provider: change.provider,
           id: change.modelId,
-          ...(change.channel !== undefined ? { channel: change.channel } : {}),
+          ...(channel !== undefined ? { channel } : {}),
         }),
       );
       if (found.ok) choice = { model: found.model, provider: found.provider };

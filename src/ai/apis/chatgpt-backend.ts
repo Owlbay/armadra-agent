@@ -10,12 +10,15 @@
  * - 出错恢复（每种至多一次）：401 → 强制刷新重试；SIWC 400 `subscription_sharing_unsupported_capability` → 删去
  *   `error.param` 重试；codex 400 `Instructions are not valid` → 本会话切 developer-message 重试；
  * - 错误映射（文案带码前缀，宿主按码判断）：429 配额 → `quota_exceeded`（不重试）；失效 → `auth_expired`；
- *   SIWC 403 `subscription_sharing_user_not_eligible` → `not_eligible`；503 留给会话层现有重试；
+ *   SIWC 403 `subscription_sharing_user_not_eligible` → `not_eligible`（i18n 文案列出原因）；503 留给会话层现有重试；
+ * - 渠道跟随登录方式由会话层做（auth/chatgpt/follow.ts）；到这里仍不符说明用户显式写了 `@渠道`，报
+ *   `chatgpt_flavor_mismatch`（i18n）；
  * - 用量：`cost = 0`、`billing: "subscription"`。
  */
 
 import { liveToken, type LiveToken } from "../../auth/oauth/live.js";
 import { authExpiredError } from "../../auth/oauth/refresh.js";
+import { msg } from "../../i18n/index.js";
 import type { HttpError } from "../http.js";
 import type { Model, OpenAIResponsesCompat, StreamOptions, Usage } from "../types.js";
 import {
@@ -112,7 +115,10 @@ export function transformChatGptBody(
   return out;
 }
 
-/** 发请求前：needsLogin 直接报 auth_expired；登录 flavor 与渠道不符报错。 */
+/**
+ * 发请求前：needsLogin 直接报 auth_expired；登录 flavor 与渠道不符报错（没写 `@渠道` 的模型会话层已改到登录的
+ * 渠道，走到这里的是显式指定了另一渠道）。
+ */
 export function chatgptPrecheck(
   model: Model,
   compat: OpenAIResponsesCompat,
@@ -122,8 +128,10 @@ export function chatgptPrecheck(
   if (live === undefined) return;
   if (live.needsLogin === true) throw authExpiredError(live.provider);
   if (live.flavor !== compat.chatgptBackend) {
+    const pinned = String(compat.chatgptBackend);
+    const ref = `${model.provider}/${model.id}@${pinned}`;
     throw new Error(
-      `chatgpt_flavor_mismatch: logged in with ${live.flavor} but ${model.provider}/${model.id} uses the ${String(compat.chatgptBackend)} channel; run \`ama auth login ${live.provider} --flavor ${String(compat.chatgptBackend)}\` or switch channel`,
+      `chatgpt_flavor_mismatch: ${msg().auth.request.flavorMismatch(live.flavor, ref, pinned)}`,
     );
   }
 }
@@ -258,9 +266,7 @@ export function recoverChatGptError(
   )
     return {
       kind: "fail",
-      error: new Error(
-        "not_eligible: this ChatGPT account cannot share plan usage with ama (403 subscription_sharing_user_not_eligible)",
-      ),
+      error: new Error(`not_eligible: ${msg().auth.request.notEligible}`),
     };
   if (
     backend === "siwc" &&
