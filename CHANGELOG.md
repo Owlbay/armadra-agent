@@ -7,6 +7,23 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 
 ## Unreleased
 
+- **ChatGPT subscription models use the backend's context window**: the context window reported by the ChatGPT backend's
+  model list (codex `context_window`, and siwc entries when they carry it) now takes precedence over models.dev, which lists
+  the API window (1.1M for some models) while the subscription backend accepts less (272k); auto-compaction used to plan for
+  the larger window, so long sessions were rejected past 272k. models.dev still fills fields the backend leaves out (output
+  limit and the like) but no longer overrides input modalities or reasoning efforts the backend reports; when neither has a
+  context window, `chatgpt` models use a conservative 128k instead of turning auto-compaction off. `ama models discover chatgpt`
+  shows the backend window marked "(backend)" and lists models the backend reported none for. Caches written by older
+  versions without windows keep the models.dev value until `ama models discover chatgpt` refreshes them.
+
+- **Status line: subscription quota line and reference colors**: with a ChatGPT subscription model the `full` layout gets a
+  third line below the status bar, `Session: 10.0% | Reset: 2h 18m | Weekly: 31.0% | Weekly Reset: 6d 5h` (from
+  `quota_update`; refreshed once a minute; `5h 10% ↻2h18m · wk 31% ↻6d5h` below 80 columns; the codex flavor shows a
+  placeholder until the first request, siwc without data and non-subscription models show nothing). `compact` only appends a
+  short `5h 10% wk 31%` item at the end, keeping the existing order. The `full` lines are recolored after the reference (dim
+  labels; purple rates, durations and reset times; blue model, thinking level and amounts; green directory and branch; yellow
+  cost; threshold-colored percentages), and the branch shows `↑N` / `↓N` ahead of / behind its upstream. Docs: docs/tui.md
+  "Layout".
 - **Startup header with an AMA logo and a short light-up animation**: the boxed info block is replaced by a 5-row "AMA" logo
   (block characters, colored letter by letter with the theme's accent → user → tool; a `_ / \ |` version in ASCII mode) with
   the version, model, directory, mode and key hints beside it (72+ columns) or below it (48–71 columns); below 48 columns a

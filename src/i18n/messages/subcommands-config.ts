@@ -74,6 +74,9 @@ export const en = {
     found: (provider: string, count: number, url: string) =>
       `${provider}: found ${plural(count, "model")} (${url})\n`,
     unmatched: "  models.dev: no match",
+    fromBackend: " (backend)",
+    noBackendWindow: (ids: string) =>
+      `The backend did not report a context window for ${ids}; using models.dev (128k when unmatched)\n`,
     image: " · image",
     reasoning: " · reasoning",
     noTools: " · no tool calling",
@@ -140,6 +143,9 @@ export const zh = {
     listFailed: (provider, error) => `ama: ${provider} 模型列表获取失败：${error}\n`,
     found: (provider, count, url) => `${provider}：发现 ${count} 个模型（${url}）\n`,
     unmatched: "  models.dev 未匹配",
+    fromBackend: "（后端）",
+    noBackendWindow: (ids) =>
+      `后端没有给出 ${ids} 的上下文窗口，改用 models.dev 的值（未匹配时按 128k）\n`,
     image: " · 图片",
     reasoning: " · 思考",
     noTools: " · 不支持工具调用",

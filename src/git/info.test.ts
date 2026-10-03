@@ -1,6 +1,6 @@
 /**
  * 状态行 git 信息（wave5-plan §1.3、§1.4）：分支 / 短提交、detached、worktree、unborn、非 git 目录、
- * numstat 节流、超时与失败降级、AMA_STATUS_GIT=0。[W5-A]
+ * numstat 节流、超时与失败降级、AMA_STATUS_GIT=0；[W6] 领先 / 落后上游。[W5-A]
  */
 
 import { execFileSync } from "node:child_process";
@@ -10,7 +10,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { GitInfoWatcher, parseNumstat, type NumstatProcess, type NumstatSpawn } from "./info.js";
+import {
+  GitInfoWatcher,
+  hasUpstream,
+  parseLeftRight,
+  parseNumstat,
+  type NumstatProcess,
+  type NumstatSpawn,
+} from "./info.js";
 
 const HAS_GIT = (() => {
   try {
@@ -211,5 +218,77 @@ describe.skipIf(!HAS_GIT)("GitInfoWatcher（真实 git）", () => {
     const unborn = new GitInfoWatcher(fresh, { env: GIT_ENV });
     await unborn.refresh();
     expect(unborn.current()).toEqual({ branch: "trunk" });
+  });
+});
+
+describe("[W6] 领先 / 落后上游", () => {
+  it("parseLeftRight：左 = 落后、右 = 领先；不认识的输出 undefined", () => {
+    expect(parseLeftRight("2\t5\n")).toEqual({ behind: 2, ahead: 5 });
+    expect(parseLeftRight("0 0")).toEqual({ behind: 0, ahead: 0 });
+    expect(parseLeftRight("fatal: no upstream")).toBeUndefined();
+  });
+
+  it.skipIf(!HAS_GIT)(
+    "hasUpstream 读 config 的 branch 段（含 worktree 的主仓库 config）",
+    async () => {
+      const dir = repo();
+      expect(await hasUpstream(dir, "main")).toBe(false);
+      git(dir, "checkout", "-q", "-b", "feature", "--track", "main");
+      expect(await hasUpstream(dir, "feature")).toBe(true);
+      expect(await hasUpstream(dir, "main")).toBe(false);
+      const wt = join(root, "wt");
+      git(dir, "worktree", "add", "-q", wt, "main");
+      expect(await hasUpstream(wt, "feature")).toBe(true);
+      expect(await hasUpstream(join(root, "nowhere"), "feature")).toBe(false);
+    },
+  );
+
+  it.skipIf(!HAS_GIT)("真实 git：↑ 领先、↓ 落后；无上游与 detached 不显示", async () => {
+    const dir = repo();
+    const plain = new GitInfoWatcher(dir, { env: GIT_ENV });
+    await plain.refresh();
+    expect(plain.current()?.ahead).toBeUndefined();
+    git(dir, "checkout", "-q", "-b", "feature", "--track", "main");
+    writeFileSync(join(dir, "b.txt"), "b\n");
+    git(dir, "add", ".");
+    git(dir, "commit", "-q", "-m", "feature 1");
+    git(dir, "checkout", "-q", "main");
+    writeFileSync(join(dir, "c.txt"), "c\n");
+    git(dir, "add", ".");
+    git(dir, "commit", "-q", "-m", "main 1");
+    git(dir, "commit", "-q", "--allow-empty", "-m", "main 2");
+    git(dir, "checkout", "-q", "feature");
+    const watcher = new GitInfoWatcher(dir, { env: GIT_ENV });
+    await watcher.refresh();
+    expect(watcher.current()).toMatchObject({ branch: "feature", ahead: 1, behind: 2 });
+    git(dir, "checkout", "-q", "--detach");
+    const detached = new GitInfoWatcher(dir, { env: GIT_ENV });
+    await detached.refresh();
+    expect(detached.current()?.ahead).toBeUndefined();
+  });
+
+  it.skipIf(!HAS_GIT)("rev-list 超时：本会话停用领先 / 落后，numstat 照常", async () => {
+    const dir = repo();
+    git(dir, "checkout", "-q", "-b", "feature", "--track", "main");
+    let now = 0;
+    const fake = fakeSpawn();
+    const watcher = new GitInfoWatcher(dir, { spawn: fake.spawn, now: () => now, timeoutMs: 50 });
+    const first = watcher.refresh();
+    await fake.finish("1\t0\ta.txt\n");
+    await first;
+    expect(fake.calls.map((c) => c.args[0])).toEqual(["diff", "rev-list"]);
+    expect(fake.calls[1]?.args).toEqual([
+      "rev-list",
+      "--left-right",
+      "--count",
+      "@{upstream}...HEAD",
+    ]);
+    expect(watcher.current()).toMatchObject({ insertions: 1, deletions: 0 });
+    expect(watcher.current()?.ahead).toBeUndefined();
+    now = 60_000;
+    const again = watcher.refresh();
+    await fake.finish("1\t0\ta.txt\n");
+    await again;
+    expect(fake.calls.map((c) => c.args[0])).toEqual(["diff", "rev-list", "diff"]);
   });
 });
