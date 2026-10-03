@@ -50,10 +50,12 @@ export const DEFAULT_KEYBINDINGS = {
   /** [W5-U] 粘贴剪贴板图片（写进数据目录，输入框插入 `@路径`）。 */
   "app.paste.image": ["ctrl+v"],
   /**
-   * [W6-A] 进入 Agent 栏：只在输入为空时生效（有字时 `Ctrl+B` 仍是光标左移、`↓` 仍是下移 / 历史）；
-   * `↓` 另要求栏可见。tmux 缺省前缀吃掉 `Ctrl+B` 时用 `↓`。
+   * [W6-A / W7-A] 进入 Agent 栏：输入为空、补全未开、有子 Agent 任务即可（不要求栏可见）；有字时 `↓` 仍是
+   * 下移 / 历史，并给一次提示。`Ctrl+B` 不再进栏（tmux 缺省前缀会吃掉它），留给 `app.tasks.background`。
    */
-  "app.agents.focus": ["ctrl+b", "down"],
+  "app.agents.focus": ["down"],
+  /** [W7-C 预留] 前台子 Agent 任务转后台；批次 C 接入后缺省 `ctrl+b`，现在不绑定。 */
+  "app.tasks.background": [],
 } as const satisfies Record<string, readonly string[]>;
 
 export type ActionId = keyof typeof DEFAULT_KEYBINDINGS;

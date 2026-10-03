@@ -10,8 +10,9 @@
  * [RW-C] 空闲时双击 Esc（`app.rewind`，double-esc.ts）：输入框为空打开回滚列表，有字则清空并存进
  * 输入历史；运行中 Esc 仍为中断，中断后交给 `onInterrupted`（中断即撤回）。
  *
- * [W6-A] Agent 栏（agent-ui.ts）：栏聚焦时它先收键（Esc 是「返回」，不中断、不回滚）；输入为空、补全没开时
- * `app.agents.focus`（缺省 `Ctrl+B` / `↓`）先问它要不要进栏，不要就照常交给编辑器（光标左移、历史下一条）。
+ * [W6-A] Agent 栏（agent-ui.ts）：栏聚焦时它先收键（Esc 是「返回」，不中断、不回滚）；补全没开、没在浏览
+ * 历史时 `app.agents.focus`（缺省 `↓`）先问它要不要进栏，不要就照常交给编辑器（下移、历史下一条）。
+ * [W7-A] 落空给一行提示：输入有字（每段草稿一次，光标在末行时）、栏关闭、没有任务。
  */
 
 import { msg } from "../../i18n/index.js";
@@ -26,13 +27,21 @@ import type { StatusBar } from "./status-bar.js";
 import type { ToolTracker } from "./tool-view.js";
 
 const DOUBLE_CTRL_C_MS = 1500;
+/** [W7-A] 进栏落空提示的停留时间。 */
+export const FOCUS_HINT_MS = 3000;
+
+/**
+ * [W7-A] 进栏键的结果：true 已进栏；false 不管（交给编辑器，不提示）；其余是落空原因——
+ * `busy-input` 输入框有字、`disabled` `ui.agentBar: "off"`（有任务时）、`empty` 没有任务。
+ */
+export type AgentFocusResult = boolean | "busy-input" | "disabled" | "empty";
 
 /** [W6-A] Agent 栏的按键入口。 */
 export interface AgentKeys {
   /** 栏聚焦时先消费按键；返回 true 已处理。 */
   handleKey(data: string): boolean;
-  /** `app.agents.focus`（输入为空）：进栏返回 true，否则交给编辑器。 */
-  focus(data: string): boolean;
+  /** `app.agents.focus`：输入为空且有任务时进栏返回 true，否则返回落空原因（按键仍交给编辑器）。 */
+  focus(data: string): AgentFocusResult;
 }
 
 export interface KeyDispatchDeps {
@@ -68,6 +77,8 @@ export interface KeyDispatchDeps {
   doubleEscMs?: number;
   /** [W6-A] Agent 栏（晚绑定）。 */
   agents?(): AgentKeys | undefined;
+  /** [W7-A] 提示里的 `↓` 字形（ASCII 主题 `v`；缺省 `↓`）。 */
+  downGlyph?: string;
 }
 
 /** 返回输入监听器：已处理返回 true，交给编辑器返回 false。 */
@@ -75,6 +86,10 @@ export function createKeyDispatch(deps: KeyDispatchDeps): (data: string) => bool
   const { keys, editor, tools, status } = deps;
   let ctrlCArmedAt = Number.NEGATIVE_INFINITY;
   const esc = new DoubleEscape(deps.doubleEscMs);
+  /** 本段草稿已给过「输入框有字」提示（输入清空后重置）。 */
+  let busyInputHinted = false;
+  /** 底部正显示着进栏落空提示（进栏后撤掉）。 */
+  let focusHintShown = false;
 
   const doubleEscape = (): void => {
     switch (esc.press(deps.now(), editor.isEmpty())) {
@@ -140,8 +155,37 @@ export function createKeyDispatch(deps: KeyDispatchDeps): (data: string) => bool
     else void answer.then(settle);
   };
 
+  /** 光标在最后一行（`↓` 不再下移，只会到行尾）。 */
+  const atLastLine = (): boolean => editor.cursor.line >= editor.getText().split("\n").length - 1;
+
+  /** `app.agents.focus`：进栏返回 true；落空给提示后返回 false（按键照常交给编辑器）。 */
+  const focusAgents = (agents: AgentKeys, data: string): boolean => {
+    if (editor.isCompletionOpen || editor.isBrowsingHistory) return false;
+    const result = agents.focus(data);
+    if (result === true) {
+      // 进栏了：撤掉之前的落空提示
+      if (focusHintShown) deps.showHint("");
+      focusHintShown = false;
+      return true;
+    }
+    const m = msg().agents;
+    let text: string | undefined;
+    if (result === "busy-input") {
+      if (busyInputHinted || !atLastLine()) return false;
+      busyInputHinted = true;
+      text = m.focus.busyInput(deps.downGlyph ?? "↓");
+    } else if (result === "disabled") text = m.focus.disabled;
+    else if (result === "empty") text = m.bar.empty;
+    if (text !== undefined) {
+      deps.showHint(text, FOCUS_HINT_MS);
+      focusHintShown = true;
+    }
+    return false;
+  };
+
   return (data) => {
     if (deps.inactive()) return false;
+    if (editor.isEmpty()) busyInputHinted = false;
     const is = (action: Parameters<Keybindings["matches"]>[1]): boolean =>
       keys.matches(data, action);
     if (!is("app.rewind")) esc.reset();
@@ -150,14 +194,7 @@ export function createKeyDispatch(deps: KeyDispatchDeps): (data: string) => bool
       esc.reset();
       return true;
     }
-    if (
-      agents !== undefined &&
-      is("app.agents.focus") &&
-      editor.isEmpty() &&
-      !editor.isCompletionOpen &&
-      agents.focus(data)
-    )
-      return true;
+    if (agents !== undefined && is("app.agents.focus") && focusAgents(agents, data)) return true;
     if (is("app.clear")) {
       if (!editor.isEmpty()) {
         editor.clear();
