@@ -21,7 +21,7 @@ import { createTheme, plainTheme, stripAnsi, visibleWidth, type Theme } from "..
 import { StatusArea, QUOTA_TICK_MS } from "./status-area.js";
 import { StatusBar, type StatusBarSource } from "./status-bar.js";
 import { StatusLine } from "./status-line.js";
-import { QuotaLine, formatRemaining, type QuotaView } from "./status-quota.js";
+import { QuotaLine, compactQuotaItem, formatRemaining, type QuotaView } from "./status-quota.js";
 import { golden, lines } from "./test-support.js";
 
 const NOW = Date.UTC(2026, 9, 3, 12, 0, 0);
@@ -167,9 +167,10 @@ describe("配额文本", () => {
         { layout: () => "full", quota: () => ({ quota }), now: () => NOW },
         plainTheme(),
       );
-      expect(lines(line, 120)).toEqual([
-        "5 小时：10.0% | 重置：2h 18m | 本周：31.0% | 本周重置：6d 5h",
-      ]);
+      const [row] = lines(line, 120);
+      expect(row).toMatch(
+        /^ {4,}5 小时：10\.0% \| 重置：2h 18m \| 本周：31\.0% \| 本周重置：6d 5h$/,
+      );
     }
   });
 
@@ -183,8 +184,74 @@ describe("配额文本", () => {
       { layout: () => "full", quota: () => ({ quota }), now: () => NOW },
       plainTheme(),
     );
-    expect(lines(line, 120)).toEqual(["1d：100.0% | 1d重置：3h 0m"]);
-    expect(lines(line, 60)).toEqual(["1d 100% ↻3h0m"]);
+    expect(lines(line, 120).map((l) => l.trim())).toEqual(["1d：100.0% | 1d重置：3h 0m"]);
+    expect(lines(line, 60).map((l) => l.trim())).toEqual(["1d 100% ↻3h0m"]);
+  });
+});
+
+describe("[W7] 配额标签按窗口时长认（0.6.3 的 `7d: … | 0d: 0.0%`）", () => {
+  const line = (quota: QuotaUpdateEvent, width = 120): string[] =>
+    lines(
+      new QuotaLine(
+        { layout: () => "full", quota: () => ({ quota }), now: () => NOW },
+        plainTheme(),
+      ),
+      width,
+    ).map((l) => l.trim());
+  const ev = (q: Partial<QuotaUpdateEvent>): QuotaUpdateEvent => ({
+    type: "quota_update",
+    provider: "chatgpt",
+    ...q,
+  });
+  const WEEK_RESET = NOW + 6 * 24 * HOUR + 19 * HOUR;
+  /** 0.6.3 照搬进会话统计的形状：周窗口在 primary，secondary 全 0。 */
+  const OLD = ev({
+    primary: { usedPercent: 0, windowMinutes: 10_080, resetsAt: WEEK_RESET },
+    secondary: { usedPercent: 0, windowMinutes: 0 },
+  });
+
+  it("用户截图复现：周窗口在 primary → Weekly / 本周；全 0 的 secondary 不渲染成 0d", () => {
+    setLocale("en");
+    expect(line(OLD)).toEqual(["Weekly: 0.0% | Weekly Reset: 6d 19h"]);
+    expect(line(OLD, 60)).toEqual(["wk 0% ↻6d19h"]);
+    setLocale("zh");
+    expect(line(OLD)).toEqual(["本周：0.0% | 本周重置：6d 19h"]);
+    const sec = String(WEEK_RESET / 1000);
+    const parsed = parseQuotaHeaders(
+      new Headers({
+        "x-codex-primary-used-percent": "0",
+        "x-codex-primary-window-minutes": "10080",
+        "x-codex-primary-reset-at": sec,
+        "x-codex-secondary-used-percent": "0",
+        "x-codex-secondary-window-minutes": "0",
+      }),
+    );
+    expect(line(ev({ ...parsed }))).toEqual(["本周：0.0% | 本周重置：6d 19h"]);
+  });
+
+  it("有 5 小时窗口就显示 5 小时 / Session，且排在本周之前（槽位对调也一样）", () => {
+    const swapped = ev({ primary: QUOTA.secondary!, secondary: QUOTA.primary! });
+    expect(line(swapped)).toEqual(["5 小时：10.0% | 重置：2h 18m | 本周：31.0% | 本周重置：6d 5h"]);
+    setLocale("en");
+    expect(line(swapped)).toEqual([
+      "Session: 10.0% | Reset: 2h 18m | Weekly: 31.0% | Weekly Reset: 6d 5h",
+    ]);
+  });
+
+  it("缺时长按槽位推断（primary 5 小时、secondary 本周），撞名时取另一种；时长 0 视同缺失", () => {
+    expect(line(ev({ primary: { usedPercent: 7 }, secondary: { usedPercent: 3 } }))).toEqual([
+      "5 小时：7.0% | 本周：3.0%",
+    ]);
+    expect(
+      line(
+        ev({
+          primary: { usedPercent: 7, windowMinutes: 10_080 },
+          secondary: { usedPercent: 3, windowMinutes: 0 },
+        }),
+      ),
+    ).toEqual(["5 小时：3.0% | 本周：7.0%"]);
+    expect(compactQuotaItem(OLD, plainTheme())).toBe("周 0%");
+    expect(line(ev({ secondary: { usedPercent: 0 } }))).toEqual([]);
   });
 });
 
@@ -257,7 +324,7 @@ describe("配色（深色 truecolor 带 ANSI 的黄金 + 语义色断言）", ()
     expect(bar).toContain("<dim>(</><success>+0</><dim>,</><error>-0</><dim>)</>");
     expect(bar).toContain("<warning>$168.96</>");
     expect(bar).toContain("<tool>21h46m</>");
-    expect(quota).toBe(
+    expect(quota!.trimStart()).toBe(
       "<dim>5 小时：</><success>10.0%</><dim> | </><dim>重置：</><tool>2h 18m</><dim> | </>" +
         "<dim>本周：</><success>31.0%</><dim> | </><dim>本周重置：</><tool>6d 5h</>",
     );
