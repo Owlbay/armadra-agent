@@ -64,6 +64,9 @@ stdin 关闭后等已开始的运行结束再退出（0）；SIGINT / SIGTERM �
 - `session/request_permission` 交给 `onPermission`；没有处理器时回首个 `reject_once`（无人值守）。
 - `cancel(sessionId)` 发 `session/cancel`，并让该会话挂起的权限请求回 `cancelled`（规范要求）。
 - 只接受 Agent 自己给出的 `optionId`。
+- 开会话（`newSession` / `resumeSession` / `loadSession`）的 `mcpServers` 缺省为空数组；宿主可传第三个参数
+  `{ mcpServers }`（如 stdio 的 `{ name, command, args, env: [{ name, value }] }`），原样转发给 Agent。
+  `AcpClient.features.mcpServers === true` 表示支持（旧版没有 `features`）。ama 自己作客户端时仍不传。
 
 `AcpDriver` 在客户端之上实现驱动契约（`AgentDriver`）：续接优先 `session/resume`，其次 `session/load`（回放的历史丢弃），都不支持就新开并提示；按 ama 模式 `session/set_mode`，只读模式找不到对应模式 id 时拒绝启动。
 
