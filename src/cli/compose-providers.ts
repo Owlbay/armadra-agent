@@ -12,11 +12,14 @@
  * - [W6-O] ChatGPT 登录（docs/wave6-plan.md D14）：`chatgpt` 的缺省渠道按 auth.json 条目的 flavor 定（用户写了
  *   `defaultChannel` 时不动）；`AMA_CHATGPT_BASE_URL` 改该渠道地址；`auth.chatgpt.originator` 改 codex 渠道的
  *   `originator` 头；OAuth 刷新拿到 `auth.chatgpt` 配置与同一份 env。
+ * - 发现缓存（`<dataDir>/models/discovered/<provider>.json`）并入模型表为空的供应商（discovered-cache.ts）。
  */
 
 import type { ApiRegistry } from "../ai/apis/api.js";
 import { loadModelsDevIndex } from "../ai/providers/models-dev-cache.js";
 import { ProviderRegistry, discoverLocalModels } from "../ai/providers/registry.js";
+import { mergeDiscoveredModels } from "../ai/providers/discovered-cache.js";
+import { lazyIndex } from "../ai/providers/enrich.js";
 import type { ProviderData } from "../ai/types.js";
 import { readOAuthEntry } from "../auth/oauth/token-store.js";
 import { CHATGPT_BASE_URLS, CHATGPT_PROVIDER_ID } from "../auth/chatgpt/presets.js";
@@ -136,6 +139,13 @@ export async function buildProviderRegistry(
     }
     if (provider !== undefined) registry = make({ provider, apiKey: cli.apiKey });
   }
+  // 发现缓存（`ama auth login chatgpt` / `ama models discover chatgpt`）并入模型表为空的供应商
+  if (dataDir !== undefined)
+    mergeDiscoveredModels(
+      registry,
+      dataDir,
+      lazyIndex(() => loadModelsDevIndex(dataDir)),
+    );
   const probe = options.probeLocal ?? env[NO_LOCAL_PROBE_ENV] !== "1";
   if (probe && config.defaultModel === undefined && !anyKeyConfigured(registry)) {
     await probeLocalProviders(registry, options.probeTimeoutMs ?? LOCAL_PROBE_TIMEOUT_MS);
