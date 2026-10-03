@@ -4,6 +4,18 @@
 
 > 从 0.6.0 起 [CHANGELOG.md](CHANGELOG.md) 为英文，本文件保留中文记录（0.1–0.5.1 的完整历史在此）。新条目两份都要加。
 
+## 未发布
+
+- **ChatGPT codex 方式能列出模型，渠道跟随登录方式**：codex 模型列表（`GET /models?client_version=…`）原来发 ama 自己的版本号，
+  后端按每个模型的最低 Codex 客户端版本过滤，于是一个模型都不返回；现在发 Codex CLI 版本号（缺省 `0.160.0`，新增用户级
+  `auth.chatgpt.codexClientVersion` 与环境变量 `AMA_CHATGPT_CODEX_CLIENT_VERSION`），仍为 0 个时提示调高。codex 响应里的上下文
+  窗口、输入模态、推理强度写进发现缓存，models.dev 补不到时用它。`chatgpt` 的请求在请求时按当前登录方式选渠道：没写 `@渠道` 的
+  模型跟随登录，运行中的会话在 siwc 与 codex 之间换登录后照常继续，恢复会话时也不沿用记录的渠道；只有显式写了不符的 `@渠道`
+  才报 `chatgpt_flavor_mismatch`，文案更清楚。登录先删旧发现缓存再重写（0 个也写空表），缓存 flavor 与当前登录不符视为过期。
+  `not_eligible` 改为列出可能原因（套餐、工作空间账户、地区受限或预览期未开放——Pro 账户最可能是这一条）并提示
+  `--flavor codex`；siwc 登录成功后说明能否共享额度要到首次请求才能确认。另修复：表外 slug 显式写 `@渠道`
+  （`chatgpt/<slug>@siwc`）时仍用缺省渠道的地址。文档：docs/providers.md「ChatGPT 登录」。
+
 ## 0.6.1（2026-10-03）
 
 - **模型选择器只显示已配置的模型，ChatGPT 模型可选**：`/model`（以及启动选择器、`/config` 的模型项）只列有 key、OAuth 已登录或

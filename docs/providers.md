@@ -185,14 +185,25 @@ ama auth logout chatgpt                # siwc 先撤销 refresh token 再删本�
 | 配额     | 只在超限（429）时可知；在 ChatGPT → 设置 → Usage → App limits 给 ama 设周上限                                                                       | 响应头、`codex.rate_limits` 事件、`ama auth status` 查 `wham/usage`                                                                                   |
 | 登出     | 调 `revocation_endpoint` 撤销，再删本地                                                                                                             | 只删本地                                                                                                                                              |
 
-**模型列表**：`chatgpt` 没有内置模型表（`chatgpt/<slug>` 任意接受）。`ama auth login chatgpt` 成功后自动调一次模型
-列表接口（siwc `GET /v1/models`、codex `GET /models`，只读、不消耗额度；失败静默，改提示 `ama models discover chatgpt`），
-把账户可用的 slug 与显示名连同 flavor、时间戳缓存到 `<dataDir>/models/discovered/chatgpt.json`；`ama models discover
+**模型列表**：`chatgpt` 没有内置模型表（`chatgpt/<slug>` 任意接受）。`ama auth login chatgpt` 成功后先删旧缓存，再调一次
+模型列表接口（siwc `GET /v1/models`、codex `GET /models?client_version=…`，只读、不消耗额度；失败静默，改提示
+`ama models discover chatgpt`），把账户可用的 slug 与显示名连同 flavor、时间戳缓存到
+`<dataDir>/models/discovered/chatgpt.json`——返回 0 个也写空表，免得残留另一种登录方式的缓存；`ama models discover
 chatgpt` 也重写这份缓存，`ama auth logout chatgpt` 删掉它。组装注册表时缓存并入模型表为空的供应商，元数据用 models.dev
-快照补全，`/model` 选择器、`ama models list` 照常列出；缓存里没有的 slug 仍可 `--model chatgpt/<slug>` 使用。
+快照补全（codex 后端另给的上下文窗口、输入模态、推理强度也存进缓存，models.dev 补不到时用它），`/model` 选择器、
+`ama models list` 照常列出；缓存的 flavor 与当前登录不符时视为过期、不并入（选择器提示重新发现）。缓存里没有的 slug
+仍可 `--model chatgpt/<slug>` 使用。
 
-`chatgpt` 的缺省渠道在组装时按 auth.json 条目的 flavor 决定；`provider/model@siwc|codex` 可显式指定，但必须与登录的
-flavor 一致（否则报 `chatgpt_flavor_mismatch`）。
+**codex 的 `client_version`**：codex 后端按 `client_version` 过滤模型（每个模型有最低客户端版本，不带参数报 400），
+ama 发的是 Codex CLI 的版本号（缺省 `0.160.0`），而不是 ama 自己的版本。登录或 discover 时 codex 返回 0 个模型，多半是
+这个版本过旧：用 `ama config set auth.chatgpt.codexClientVersion <版本>`（用户级）或环境变量
+`AMA_CHATGPT_CODEX_CLIENT_VERSION`（优先）设成较新的 Codex CLI 版本，再 `ama models discover chatgpt`。推理请求不带版本号。
+
+**渠道跟随登录方式**：`chatgpt` 的缺省渠道在组装时按 auth.json 条目的 flavor 决定；此外每次请求按当次 token 所属的
+flavor 选渠道——模型引用没写 `@渠道` 时自动用当前登录方式的渠道（端点、`originator` 等渠道头、请求体白名单一起换），
+所以运行中的会话在 `ama auth logout` 后换另一种方式登录，下一次请求就走新渠道，不用重启；恢复会话时，会话里记录的渠道
+也不算显式。只有显式写了 `provider/model@siwc|codex` 且与登录方式不符时才报 `chatgpt_flavor_mismatch`（提示去掉
+`@渠道` 或换登录方式）。
 
 **凭据**：auth.json 的 `{ "type": "oauth", … }` 条目（文件 0600），`ama auth list` 只显示 `oauth · <flavor> · <计划>`。
 access token 剩余不到 5 分钟或请求返回 401 时自动刷新；多个 ama 进程（画布上的多个节点）共享一个 auth.json，刷新经
@@ -214,15 +225,19 @@ developer 消息（前缀依然稳定）。compat `toolsInNamespace: true` 时�
 | ---------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------- |
 | `quota_exceeded` | siwc 429 `subscription_sharing_usage_limit_exceeded`；codex 429 `usage_limit_reached` / `usage_not_included` | 不重试；附重置时间并发 `quota_update` |
 | `auth_expired`   | 401 刷新一次仍失败、刷新永久失败、条目 `needsLogin`                                                          | 不重试；重新 `ama auth login chatgpt` |
-| `not_eligible`   | siwc 403 `subscription_sharing_user_not_eligible`                                                            | 不重试、不重登                        |
+| `not_eligible`   | siwc 403 `subscription_sharing_user_not_eligible`                                                            | 不重试、不重登；排查见下              |
 | （原样）         | 503 等                                                                                                       | 走会话层现有的退避重试                |
+
+**`not_eligible` 排查**：账户不能把套餐额度共享给 ama。可能的原因：账户套餐（额度共享只对 Plus / Pro 开放）；工作空间
+账户（Team / Enterprise / Edu 可能未开放）；地区受限或预览期尚未开放——**Pro 账户仍报此错时最可能是这一条**。可以改用
+`ama auth login chatgpt --flavor codex`。siwc 登录成功只说明授权通过，能否共享额度要到首次请求才能确认。
 
 **用量**：订阅请求 `usage.cost = 0` 并标 `billing: "subscription"`；`/session` 单列「订阅用量」（请求数、token、
 缓存命中率，不折算美元）与最近一次配额；事件 `quota_update`（RPC 原样转发，宿主事件同名）。
 
-**覆盖**（测试或将来换自有客户端用）：`auth.chatgpt.clientId` / `issuer` / `originator` / `redirectPorts`（只认用户级
-与 profile），环境变量 `AMA_CHATGPT_CLIENT_ID`、`AMA_CHATGPT_ISSUER`、`AMA_CHATGPT_BASE_URL`（改当前 flavor 渠道的
-地址）。
+**覆盖**（测试或将来换自有客户端用）：`auth.chatgpt.clientId` / `issuer` / `originator` / `codexClientVersion` /
+`redirectPorts`（只认用户级与 profile），环境变量 `AMA_CHATGPT_CLIENT_ID`、`AMA_CHATGPT_ISSUER`、`AMA_CHATGPT_BASE_URL`
+（改当前 flavor 渠道的地址）、`AMA_CHATGPT_CODEX_CLIENT_VERSION`。
 
 **嵌入宿主**：有 profile 时 ama 不发起交互式登录；用到 `chatgpt` 而登录失效时请求报 `auth_expired`，由宿主引导用户
 在终端执行 `ama auth login chatgpt --paste`。宿主不读、不存、不转发 token，只消费 `quota_update` 与

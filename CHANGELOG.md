@@ -5,6 +5,23 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 > This file is in English starting with 0.6.0. Release notes for 0.1 through 0.5.1 are in Chinese in
 > [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md). New entries go into both files.
 
+## Unreleased
+
+- **ChatGPT codex sign-in lists models, and the channel follows the sign-in method**: the codex model list
+  (`GET /models?client_version=…`) used to send ama's own version, which the backend filters against each model's minimum
+  Codex client version, so it returned no models; it now sends a Codex CLI version (default `0.160.0`, new user-level
+  `auth.chatgpt.codexClientVersion`, environment `AMA_CHATGPT_CODEX_CLIENT_VERSION`) and suggests raising it when codex still
+  returns none. The context window, input modalities and reasoning efforts from the codex response go into the discovery cache
+  and are used when models.dev has no data. Requests to `chatgpt` now pick the channel from the current sign-in at request time:
+  a model without an explicit `@channel` follows it, so a running session keeps working after switching between siwc and codex,
+  and a resumed session ignores the channel it recorded; only an explicit `@channel` that differs reports
+  `chatgpt_flavor_mismatch`, now with a clearer message. Login always rewrites the discovery cache (an empty list included)
+  after deleting the old one, and a cache whose flavor differs from the current sign-in counts as stale. `not_eligible` now
+  lists the likely causes (plan, workspace account, region or preview rollout — the most likely one for Pro accounts) and
+  suggests `--flavor codex`; a siwc login notes that eligibility is only confirmed on the first request. Also fixed: an
+  unlisted slug with an explicit `@channel` (`chatgpt/<slug>@siwc`) kept the default channel's endpoint. Docs:
+  docs/en/providers.md "ChatGPT login".
+
 ## 0.6.1 (2026-10-03)
 
 - **The model picker shows only configured models; ChatGPT models can be picked**: `/model` (and the startup picker and
