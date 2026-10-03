@@ -228,17 +228,20 @@ describe("[W6] 领先 / 落后上游", () => {
     expect(parseLeftRight("fatal: no upstream")).toBeUndefined();
   });
 
-  it.skipIf(!HAS_GIT)("hasUpstream 读 config 的 branch 段（含 worktree 的主仓库 config）", async () => {
-    const dir = repo();
-    expect(await hasUpstream(dir, "main")).toBe(false);
-    git(dir, "checkout", "-q", "-b", "feature", "--track", "main");
-    expect(await hasUpstream(dir, "feature")).toBe(true);
-    expect(await hasUpstream(dir, "main")).toBe(false);
-    const wt = join(root, "wt");
-    git(dir, "worktree", "add", "-q", wt, "main");
-    expect(await hasUpstream(wt, "feature")).toBe(true);
-    expect(await hasUpstream(join(root, "nowhere"), "feature")).toBe(false);
-  });
+  it.skipIf(!HAS_GIT)(
+    "hasUpstream 读 config 的 branch 段（含 worktree 的主仓库 config）",
+    async () => {
+      const dir = repo();
+      expect(await hasUpstream(dir, "main")).toBe(false);
+      git(dir, "checkout", "-q", "-b", "feature", "--track", "main");
+      expect(await hasUpstream(dir, "feature")).toBe(true);
+      expect(await hasUpstream(dir, "main")).toBe(false);
+      const wt = join(root, "wt");
+      git(dir, "worktree", "add", "-q", wt, "main");
+      expect(await hasUpstream(wt, "feature")).toBe(true);
+      expect(await hasUpstream(join(root, "nowhere"), "feature")).toBe(false);
+    },
+  );
 
   it.skipIf(!HAS_GIT)("真实 git：↑ 领先、↓ 落后；无上游与 detached 不显示", async () => {
     const dir = repo();
