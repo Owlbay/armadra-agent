@@ -5,7 +5,7 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 > This file is in English starting with 0.6.0. Release notes for 0.1 through 0.5.1 are in Chinese in
 > [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md). New entries go into both files.
 
-## Unreleased
+## 0.6.2 (2026-10-03)
 
 - **ChatGPT codex sign-in lists models, and the channel follows the sign-in method**: the codex model list
   (`GET /models?client_version=…`) used to send ama's own version, which the backend filters against each model's minimum
