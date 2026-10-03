@@ -19,13 +19,7 @@
 import { msg } from "../../i18n/index.js";
 import type { QuotaUpdateEvent, QuotaWindow } from "../../agent/types-w6.js";
 import type { StatusLineMode } from "../../config/types.js";
-import {
-  levelColor,
-  truncateToWidth,
-  visibleWidth,
-  type Component,
-  type Theme,
-} from "../../tui.js";
+import { levelColor, visibleWidth, type Component, type Theme } from "../../tui.js";
 import { layoutRow, type Part } from "./status-bar.js";
 
 /** 配额行的数据：有数据 / 等首次请求 / 不显示（undefined）。 */
@@ -143,7 +137,7 @@ export function quotaParts(
     parts.push({
       text: dim(name) + percent(theme, w.usedPercent, !narrow),
       priority: first ? undefined : 2,
-      zone: "left",
+      zone: "right",
       ...(group !== undefined ? { group } : {}),
     });
     if (w.resetsAt === undefined) return;
@@ -153,7 +147,7 @@ export function quotaParts(
         ? theme.fg("tool", `${theme.glyphs.retry}${left}`)
         : dim(label.reset) + theme.fg("tool", left),
       priority: first ? 3 : 1,
-      zone: "left",
+      zone: "right",
       // 宽格式按最宽形状占位（`23h 59m`），数值变化不让某项时有时无
       reserve: narrow ? 0 : visibleWidth(label.reset) + 7,
       ...(group !== undefined ? { group } : {}),
@@ -180,7 +174,8 @@ export class QuotaLine implements Component {
     if (view === undefined) return [];
     const theme = this.theme;
     if (view === "pending") {
-      return [truncateToWidth(theme.fg("dim", msg().interactive.statusLine.quota.pending), width)];
+      const text = theme.fg("dim", msg().interactive.statusLine.quota.pending);
+      return [layoutRow([{ text, priority: undefined, zone: "right" }], width, theme)];
     }
     const parts = quotaParts(view.quota, width, this.source.now(), theme);
     if (parts.length === 0) return [];

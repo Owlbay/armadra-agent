@@ -167,9 +167,10 @@ describe("配额文本", () => {
         { layout: () => "full", quota: () => ({ quota }), now: () => NOW },
         plainTheme(),
       );
-      expect(lines(line, 120)).toEqual([
-        "5 小时：10.0% | 重置：2h 18m | 本周：31.0% | 本周重置：6d 5h",
-      ]);
+      const [row] = lines(line, 120);
+      expect(row).toMatch(
+        /^ {4,}5 小时：10\.0% \| 重置：2h 18m \| 本周：31\.0% \| 本周重置：6d 5h$/,
+      );
     }
   });
 
@@ -183,8 +184,8 @@ describe("配额文本", () => {
       { layout: () => "full", quota: () => ({ quota }), now: () => NOW },
       plainTheme(),
     );
-    expect(lines(line, 120)).toEqual(["1d：100.0% | 1d重置：3h 0m"]);
-    expect(lines(line, 60)).toEqual(["1d 100% ↻3h0m"]);
+    expect(lines(line, 120).map((l) => l.trim())).toEqual(["1d：100.0% | 1d重置：3h 0m"]);
+    expect(lines(line, 60).map((l) => l.trim())).toEqual(["1d 100% ↻3h0m"]);
   });
 });
 
@@ -323,7 +324,7 @@ describe("配色（深色 truecolor 带 ANSI 的黄金 + 语义色断言）", ()
     expect(bar).toContain("<dim>(</><success>+0</><dim>,</><error>-0</><dim>)</>");
     expect(bar).toContain("<warning>$168.96</>");
     expect(bar).toContain("<tool>21h46m</>");
-    expect(quota).toBe(
+    expect(quota!.trimStart()).toBe(
       "<dim>5 小时：</><success>10.0%</><dim> | </><dim>重置：</><tool>2h 18m</><dim> | </>" +
         "<dim>本周：</><success>31.0%</><dim> | </><dim>本周重置：</><tool>6d 5h</>",
     );
