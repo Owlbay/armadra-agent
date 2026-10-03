@@ -424,7 +424,7 @@ The `task` tool hands a sub-task to a sub-agent with a fresh context (same proce
 - Built-in types `general` (default), `explore` and `plan` (the last two are forced read-only and never prompt for approval); define your own types (tool allowlist, model, permissions, turns, worktree isolation) in `~/.config/ama/agents/*.md`, `.ama/agents/*.md` (requires trust) or `--agent-dir`.
 - Several tasks in one reply run in parallel (`subagents.maxConcurrent`, default 4); `background: true` returns a `taskId` immediately and the parent session receives a `<task-notification>` when done; `task{taskId}` continues the conversation; `task_ctl` lists / waits / stops / reads output; `isolation: "worktree"` runs in a separate git worktree.
 - The sub-session's tool table is byte-identical to the parent's, so its first request reuses the parent's cache prefix. In the interface the task tool line folds and shows progress; `/agents` lists the available types.
-- **Agent bar and sub-agent view**: running tasks are listed above the status line; with an empty input press `↓` to focus the bar, ↑↓ to pick and Enter to open a full-screen live view of that sub-agent, where your input goes straight to it (Esc goes back without interrupting). `/tasks` focuses the bar, `/tasks <id>` opens a view, `/tasks stop <id>` stops a task. See [docs/en/tui.md](docs/en/tui.md) "Agent bar".
+- **Agent bar and sub-agent view**: running tasks are listed above the status line; with an empty input press `↓` to focus the bar, ↑↓ to pick and Enter to open a full-screen live view of that sub-agent, where your input goes straight to it (Esc goes back without interrupting). `/tasks` focuses the bar, `/tasks <id>` opens a view, `/tasks stop <id>` stops a task. While a foreground task blocks the turn, `Ctrl+B` (or `b` in the bar, `/tasks bg`) moves it to the background so you can keep chatting; approvals of background tasks dock in the bar until the main session is idle. See [docs/en/tui.md](docs/en/tui.md) "Agent bar".
 
 See [docs/agents.md](docs/agents.md) (Chinese) "Sub-agents".
 
@@ -483,6 +483,7 @@ Running `ama` (with stdin / stdout both TTYs) enters interactive mode. The inter
 | Ctrl+G               | Bottom info line, two lines ↔ one (same as `/statusline`)                               |
 | Ctrl+V               | Paste an image from the clipboard and insert `@<path>` (same as `/paste`)               |
 | ↓ (empty input)      | Focus the agent bar when there are sub-agent tasks                                      |
+| Ctrl+B               | Move blocking foreground sub-agent tasks to the background (in tmux: `C-b C-b`)         |
 | Ctrl+C               | Clear the input; on an empty input, press again within 1.5 s to quit                    |
 | Tab                  | Complete: `/` commands, templates and Skills, `@` file paths                            |
 

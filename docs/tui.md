@@ -42,7 +42,7 @@ Accept edits     claude-opus-5-5 medium | Ctx 3.0% | proj ⎇ main 5ae9e54 ↑2 
 - **思考块**：`ui.showThinking` = `collapsed`（缺省，`✻ 思考中…` → `✻ 思考 · 1.2k token`，`Ctrl+O` 展开为缩进的正文，最多 60 行）/ `full`（总是展开）/ `hidden`。
 - **工具调用**：标题 `⏺ 工具名 摘要`，`⏺` 运行中为强调色、成功绿、失败红；第二行 `⎿` 后是结果摘要——`读取 N 行`、`N 处修改 · +a −b`、`退出 0 · 2.1s · 48 行`、`14 处匹配 · 6 个文件`、`N 个内层调用 · 脚本输出 M 行`、`子 Agent · 运行中 1m05s` / `完成 · 1m42s · ↑28k ↓4.1k`；运行中摘要行带与底部同帧的 spinner 与秒数。正文折叠显示前 3 行，`edit` 显示 diff（前 12 行，≥ 60 列带行号），`bash` 运行中滚动显示最后 8 行。`Ctrl+O` 展开 / 折叠全部（含思考块）。codemode 脚本里的内层调用挂在外层调用下面（折叠时只列最近 5 个的标题与摘要）。
 - **提示**：`✗` 错误、`↻ 重试 n/m`、`!` 警告（缓存未命中、上下文余量）、`⛔ Hook 阻止`、宿主通知、审批被拒或超时的说明；压缩 / 分支摘要是左竖条卡片（`▎ 上下文已压缩  128k → 24k token`）。
-- **运行中**：`⠋ 动词 · 已用时 · …`，动词按当前最深状态取：`等待确认`（审批打开）、`运行 bash` / `运行 3 个工具`、`重试 2/3 · 2s 后`、`压缩上下文`、`回复中 · ↓≈1.2k`（本条输出的估算 token）、`思考中`。Agent 栏里有任务时末尾加 `↓ Agent 栏`（`⠏ 运行 task · 4s · Esc 中断 · ↓ Agent 栏`），一行放不下时整项丢掉。
+- **运行中**：`⠋ 动词 · 已用时 · …`，动词按当前最深状态取：`等待确认`（审批打开）、`运行 bash` / `运行 3 个工具`、`重试 2/3 · 2s 后`、`压缩上下文`、`回复中 · ↓≈1.2k`（本条输出的估算 token）、`思考中`。有阻塞中的前台子 Agent 任务时加 `Ctrl+B 转后台`，Agent 栏里有任务时加 `↓ Agent 栏`（有停靠的审批时换成 `↓ 处理审批`）：`⠏ 运行 task · 4s · Esc 中断 · Ctrl+B 转后台 · ↓ Agent 栏`，一行放不下时从后往前整项丢掉。
 - **状态栏**：模式永远在最左；除 full 布局下的订阅配额行外，状态栏是最后一行（`compact` 永远是最后一行）。`compact` 的分隔符固定为 `·`（嵌入宿主按此解析），`full` 用 `|`。布局由 `ui.statusLine` 决定：独立终端缺省 `full`（两行），有 profile 的嵌入宿主缺省 `compact`（一行，布局与以前相同）；运行时 `Ctrl+G` 或 `/statusline [full|compact]` 切换，只影响本会话。`full` 时输入框在倒数第 4 行（`compact` 仍是倒数第 3 行）。
   - **`full` 上行（速率行）**：`tps: <速率> tok/s • <输出 token> tok / <耗时> (avg <会话均速> · ttft <首 token 延迟>)`——速率在流式中是最近 2 s 的瞬时值（`tps:` 强调色），结束后是该请求的平均值，生成不足 0.25 s 的整块回复不算速率、显示 `—`；耗时从首 token 起；ASCII 下 `•` 为 `*`。右区是用量类项 `↑` 输入（含缓存读写）`↓` 输出 · 缓存 · 重计费 · 排队数 · codemode · 工具预设（非 default 时）· 宿主状态，行尾 `[-]` 提示可折叠。只统计对话请求（压缩摘要、保温、分类器不计）。窄时依次丢弃 输出量 / 耗时、codemode、排队数、token、缓存、重计费、预设、宿主状态、avg、ttft；`tps` 与 `[-]` 不丢。
   - **`full` 下行**：左区 `权限模式 | shift+tab 切换`，右区 `模型 思考级别 | Ctx 3.0% | <目录名> ⎇ <分支> <短提交> ↑N ↓N (+a,-d) | $费用 | 会话时长`（Ctx 一位小数，宽屏也不换余量表）；窄时依次丢弃切换提示、思考级别、增删行、目录名、分支与提交、时长、费用、上下文、模型。
@@ -115,7 +115,7 @@ Accept edits     claude-opus-5-5 medium | Ctx 3.0% | proj ⎇ main 5ae9e54 ↑2 
 | Enter                | 发送；运行中 = steer（插到当前轮）                                                                                                                               |
 | Alt+Enter            | 运行中排到本轮之后（followUp）；空闲时等同 Enter                                                                                                                 |
 | Shift+Enter / Ctrl+J | 换行                                                                                                                                                             |
-| Esc                  | 中断：排队的消息回填到输入框，然后停止当前运行；补全打开时先关补全                                                                                               |
+| Esc                  | 中断：排队的消息回填到输入框，然后停止当前运行（连带前台子 Agent 任务；后台任务不受影响，提示里写明）；补全打开时先关补全                                        |
 | Esc Esc（空闲）      | 输入框为空：打开回滚列表（同 `/rewind`）；有字：清空并存进输入历史                                                                                               |
 | Alt+↑                | 取回最后一条排队消息                                                                                                                                             |
 | Shift+Tab / Tab      | 循环权限模式 Manual → Accept edits → Plan → Auto → Bypass permissions（Tab 只在输入为空、补全未打开时，否则仍是补全；进入 Bypass 前确认，见下文「进入 Bypass」） |
@@ -128,8 +128,9 @@ Accept edits     claude-opus-5-5 medium | Ctx 3.0% | proj ⎇ main 5ae9e54 ↑2 
 | Tab                  | 补全                                                                                                                                                             |
 | ↑ / ↓                | 单行时浏览历史（`<数据目录>/history`，500 条）                                                                                                                   |
 | ↓（空输入）          | 进入 Agent 栏（有子 Agent 任务即可）；有字时仍是下移 / 历史并提示一次，见「子 Agent」                                                                            |
+| Ctrl+B               | 有阻塞中的前台子 Agent 任务（或 `task_ctl wait`）时全部转后台，不看输入框有没有字；没有时是光标左移。tmux 里按 `C-b C-b`，见「子 Agent」                         |
 
-按键可在 `~/.config/ama/keybindings.json` 覆盖，键是动作 id（`app.interrupt`、`app.rewind`、`app.message.followUp`、`app.statusLine.toggle`、`app.paste.image`、`app.agents.focus`、`tui.editor.newLine` ……），值是按键或按键数组，空数组表示禁用。`app.rewind` 是空闲时双击的那个键（缺省 Esc，两次间隔 ≤ 800 ms）。
+按键可在 `~/.config/ama/keybindings.json` 覆盖，键是动作 id（`app.interrupt`、`app.rewind`、`app.message.followUp`、`app.statusLine.toggle`、`app.paste.image`、`app.agents.focus`、`app.tasks.background`、`tui.editor.newLine` ……），值是按键或按键数组，空数组表示禁用。`app.rewind` 是空闲时双击的那个键（缺省 Esc，两次间隔 ≤ 800 ms）。
 
 ## 回滚
 
@@ -307,12 +308,17 @@ Plan 模式（Shift+Tab、`/permission plan`、`/plan <目标>`、`--permission-
 ⏺ task 检查 src/tui 的测试覆盖缺口
   ⎿ ⠋ explore · 运行中 1m05s · 3 轮 · read grep bash · ↑12k ↓3.4k
 ⏺ task 后台审查
-  ⎿ 完成 · 0.0s
+  ⎿ 已在后台启动
     ↳ t2 explore · 运行中 40s · 1 轮 · read
+⏺ task scan
+  ⎿ 已转后台 · 12s
+    ↳ t3 explore · 运行中 30s · 2 轮 · grep
 ```
 
-- 状态行是类型（外部 Agent 写 `claude（claude）` 这类 runner）、状态与耗时、轮数、最近 3 个工具、用量；前台任务结束后换成结果摘要。后台任务（`background: true`）的工具调用立即返回，下面多一行跟随状态（运行中每秒刷新）；完成后模型收到的 `<task-notification>` 在消息区只显示一行「↳ 子 Agent 通知 t2 explore 完成 · 7 轮 · /tasks 查看输出」，失败或被停止时另有一行黄色提示。
-- `/tasks`：聚焦 Agent 栏（见下）；`/tasks <id>` 直接打开该任务的子 Agent 视图；`/tasks stop <id>` 停止。`ui.agentBar: "off"` 时 `/tasks` 仍是任务选择器（新的在上，Enter 查看输出、运行中可停止）。line 模式 `/tasks` 列表、`/tasks <id>` 输出、`/tasks stop <id>` 停止。
+- 状态行是类型（外部 Agent 写 `claude（claude）` 这类 runner）、状态与耗时、轮数、最近 3 个工具、用量；前台任务结束后换成结果摘要。后台任务（交互界面缺省后台，见 [agents.md](agents.md)「前台与后台」）的工具调用立即返回，摘要行是「已在后台启动」，下面多一行跟随状态（运行中每秒刷新）；前台任务转后台后摘要行是「已转后台 · 已用时」，同样带跟随行（给模型的说明文字不显示，`Ctrl+O` 展开可见）；超时自动转后台（`subagents.autoBackgroundAfterMs`）或宿主转的另有一行提示；完成后模型收到的 `<task-notification>` 在消息区只显示一行「↳ 子 Agent 通知 t2 explore 完成 · 7 轮 · /tasks 查看输出」，失败或被停止时另有一行黄色提示。
+- `/tasks`：聚焦 Agent 栏（见下）；`/tasks <id>` 直接打开该任务的子 Agent 视图；`/tasks stop <id>` 停止；`/tasks bg [id]` 转后台（不给 id = 全部阻塞中的前台任务，同 `Ctrl+B`）。`ui.agentBar: "off"` 时 `/tasks` 仍是任务选择器（新的在上，Enter 查看输出、运行中可停止）。line 模式 `/tasks` 列表、`/tasks <id>` 输出、`/tasks stop <id>` 停止、`/tasks bg [id]` 转后台（运行中输入也按命令处理，不当插话）。
+- 转后台（`Ctrl+B`，键位动作 `app.tasks.background`）：主回合在等前台任务（`task` 带 `background: false`、`-p` 缺省，或 `task_ctl wait`）时按下，工具调用立即返回、任务继续跑，主回合接着往下走，你可以继续发消息；任务结束后照常收到 `<task-notification>` 并开一轮。底部提示「已转后台：t2，完成后会通知」。没有可转的任务时 `Ctrl+B` 落回编辑器（光标左移），不吞键。tmux 的缺省前缀就是 `C-b`：在 tmux 里按 `C-b C-b`（缺省 `send-prefix`）把它透传给 ama，或进栏按 `b`；也可在 `keybindings.json` 改成别的键。
+- Esc 只中断前台：运行中按 Esc 停主回合，连带还在前台的子任务；已转后台的任务继续跑，中断提示写「已中断（后台任务 t2 仍在运行，Esc 不影响）」。
 - `/agents`：可用类型——名字、runner、来源（内置 / 用户 / 项目 / profile / 宿主），外部 Agent 带「已安装 版本」或「未安装」，再加一行说明。
 - 外部 Agent 自己报告的提示（预算用尽、超时、模式降级等）在消息区显示为一行 `[claude · t3] …`。
 
@@ -327,12 +333,12 @@ Plan 模式（Shift+Tab、`/permission plan`、`/plan <目标>`、`--permission-
 另 1 个
 ```
 
-- 状态：排队（并发池满）/ 运行中（用时、轮数、最近一个工具）/ 等待审批（审批框里正有它的请求）/ 完成 / 失败 / 已停止（以及轮数耗尽、已中断）；`⏺` 运行中强调色、完成绿、失败红、其余黄 / 暗；ASCII 下是 `*`。
+- 状态：排队（并发池满）/ 运行中（用时、轮数、最近一个工具）/ 等待审批（审批框里正有它的请求，或停靠在栏里，整行黄色）/ 完成 / 失败 / 已停止（以及轮数耗尽、已中断）；`⏺` 运行中强调色、完成绿、失败红、其余黄 / 暗；ASCII 下是 `*`。
 - 什么时候显示：有排队、运行中或等审批的任务；本会话里结束、还没在视图里看过的任务保留到看过为止，最多 10 分钟。resume 进来时已经结束的任务不显示（`/tasks` 里能看到）。
 - 进入：输入框为空、补全没开时按 `↓`，本会话有任务即可（栏收起了也行，与 `/tasks` 一致）；tmux 内外一样。运行中也能进，运行提示行末尾的 `↓ Agent 栏` 就是提醒。键位动作 `app.agents.focus`（缺省只有 `down`），可在 `keybindings.json` 改。
 - 按了没进去时底部提示一行（3 秒）：输入框有字——「输入框有字；清空后再按 ↓ 进 Agent 栏」（每段草稿一次，光标在末行时；`↓` 照常下移）；栏关闭——「Agent 栏已关闭（ui.agentBar），用 /tasks」；没有任务——「还没有子 Agent 任务」。在用 `↑` `↓` 浏览输入历史时 `↓` 只翻历史。
-- `Ctrl+B` 不再进栏：tmux 的缺省前缀就是 `C-b`，在 tmux 客户端里按不到 ama。它留给后续的「前台任务转后台」；在那之前仍是光标左移。想要原来的行为可在 `keybindings.json` 写 `"app.agents.focus": ["down", "ctrl+b"]`。
-- 栏里：`↑` `↓` 选（列出本会话全部任务，窗口跟着滚；在第一项再按 `↑` 回到输入框），Enter 打开子 Agent 视图，Esc 回到输入框；直接打字则回到输入框并把字填进去。末行是按键提示。
+- `Ctrl+B` 不进栏，是「前台任务转后台」（见上）。想要原来的「`Ctrl+B` 进栏」可在 `keybindings.json` 写 `"app.agents.focus": ["down", "ctrl+b"]` 并把 `app.tasks.background` 改成别的键。
+- 栏里：`↑` `↓` 选（列出本会话全部任务，窗口跟着滚；在第一项再按 `↑` 回到输入框），Enter 打开子 Agent 视图（选中的任务有停靠的审批时随即弹出），`b` / `Ctrl+B` 把选中的前台任务转后台（不是前台运行中的给一行提示），`x` 停止选中的任务（第一次提示「再按 x 停止 t2」，1.5 秒内再按才停），Esc 回到输入框；其它字母回到输入框并把字填进去。末行是按键提示 `↑↓ 选择 · Enter 打开 · b 转后台 · x 停止 · Esc 返回`，窄屏丢掉 `b` / `x` 两项。
 - 嵌入宿主（有 profile）不再缺省关闭栏；宿主自己展示子任务、不要栏时在 profile 里写 `ui.agentBar: "off"`（见 [host-api.md](host-api.md)「嵌入 Armadra」）。关闭后栏不显示，`↓` 在有任务时提示改用 `/tasks`。
 
 ### 子 Agent 视图
@@ -354,8 +360,17 @@ t2 explore · 运行中 1m05s · 3 轮 · ↑12k ↓3.4k · Esc 返回 · /tasks
 - 正文实时跟随：ama 子 Agent 显示子会话的全部消息与工具调用（与消息区同样的渲染）；子会话句柄已被释放（保留上限 16 个）或会话是 resume 进来的，就只读加载子会话文件，任务再次运行时接上实时事件。外部 Agent（claude / codex / ACP）显示本进程内存里的实时输出（文本、思考、工具起止、回合、提示；最多 2000 条 / 1 MB，不落盘）；ama 重启后只剩一行说明「用原 CLI resume <会话 id> 查看全文」。
 - 输入框为空时：`↑` / PgUp 上翻（暂停跟随，底部提示「已暂停跟随 · End 继续」），`↓` / PgDn 下翻，End（暂停时也可按 `f`）回到跟随；`←` `→` 切到上一个 / 下一个任务；Esc 返回主界面。输入框有字时 Esc 先清空。
 - Enter 把输入发给这个子 Agent（会话里记为 `origin: "direct"` 的 user 消息，见 [session-format.md](session-format.md)）：ama 子 Agent 运行中 → 排到它本轮结束时送达；外部 Agent 运行中或任务还在排队 → 等本次运行结束后续聊；已结束 → 后台续聊（同 `task_ctl send`，完成后主会话照常收到 `<task-notification>`）。底部一行提示发送结果。父会话的模型不知道你直接和子 Agent 说过话，结果经结束通知自然带回。
-- 视图里不中断任何东西：Esc 只是返回。停止子任务用 `/tasks stop <id>`——在视图输入框里也能用（视图里只认这一条命令）。
-- 正在看的任务等审批时标题显示「等待审批」，审批框照常弹在视图上面（带 `[task:<类型>]` 来源）。
+- 视图里不中断任何东西：Esc 只是返回。停止子任务用 `/tasks stop <id>`，转后台用 `Ctrl+B` 或 `/tasks bg [id]`——在视图输入框里也能用（视图里只认这两条命令）。
+- 正在看的任务等审批时标题显示「等待审批」，审批框照常弹在视图上面（带 `[task:<类型>]` 来源）；它的审批停靠在栏里时，打开视图即弹出。
+
+### 后台任务的审批停靠
+
+后台任务（含转后台的）要审批时，不打断你正在做的事：
+
+- 主会话在运行、输入框有草稿或已有别的覆盖层时，不弹框，先**停靠**：Agent 栏该任务行显示「等待审批」（黄色），运行提示行附 `↓ 处理审批`；子任务在这期间等着。
+- 主会话空闲、输入框为空、没有覆盖层时自动弹出；进栏选中它按 Enter（打开视图）立即弹出。
+- 停靠期间主会话自己或前台任务又要审批：审批是串行的，先弹停靠的这个，再弹它们，主会话的审批不会被挡住。
+- 前台任务与主会话自己的审批照旧立即弹出；超时（缺省 10 分钟按拒绝）、中止与无人值守规则不变。RPC 客户端照常收到 `permission_request`，自己决定怎么呈现。
 
 审批框的来源标注：
 
@@ -427,6 +442,7 @@ t2 explore · 运行中 1m05s · 3 轮 · ↑12k ↓3.4k · Esc 返回 · /tasks
 
 - 括号粘贴：启动时开启；粘贴的多行内容整体进入输入框（超过 10 行或 1 000 字符折叠为 `[粘贴 #N · M 行]`），粘贴后紧跟的回车直接发送，适合由外部程序写入。
 - 不查询终端能力、不开鼠标与 Kitty 键盘协议，避免回包混进输入；tmux ≥ 3.4 透传同步输出，旧版本也能正常显示。
+- tmux 的缺省前缀 `C-b` 会被 tmux 客户端吃掉：转后台按 `C-b C-b`（`send-prefix` 透传），或 `↓` 进 Agent 栏按 `b`；进栏用 `↓`，不受前缀影响。
 - 窗口尺寸变化时整屏重画最后一屏，回滚里的历史不受影响。
 - 自动降级：非 TTY、`TERM=dumb`、`--no-tui` 或终端初始化失败时使用行式界面，命令与审批问答相同。
 

@@ -7,6 +7,16 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 
 ## Unreleased
 
+- **TUI: `Ctrl+B` moves foreground tasks to the background; background approvals dock in the agent bar**: while the main
+  turn waits for a foreground sub-agent task (or `task_ctl wait`), `Ctrl+B` moves it to the background whatever is in the
+  input box: the tool line turns into `⎿ moved to the background · 12s` with a follow-up status line, the main turn carries
+  on and you can keep chatting, and the task reports back with a `<task-notification>` turn. With nothing to move, `Ctrl+B`
+  still moves the cursor left. The running line shows `Ctrl+B to background`; in tmux press `C-b C-b`. In the agent bar, `b`
+  moves the selected task to the background and `x` stops it (press twice); `/tasks bg [id]` does the same from the command
+  line (line mode too). Esc interrupts only the foreground and says which background tasks keep running. Approvals of
+  background tasks no longer pop up while the main session is busy or the input box has a draft: they dock in the agent bar
+  ("needs approval", running line `↓ handle approval`) and pop up once the main session is idle with an empty input, or
+  when you open that task's view; approvals of the main session and of foreground tasks are unchanged. Docs: docs/tui.md.
 - **Background sub-agents: config, `-p` and RPC**: new `subagents.background: "auto" | "always" | "never"` (default auto:
   task runs in the background by default in the TUI / RPC / ACP and in the foreground with `-p`; the call argument and the
   agent type's `background:` take precedence) and `subagents.autoBackgroundAfterMs` (move a foreground task to the background
