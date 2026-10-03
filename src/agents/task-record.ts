@@ -4,7 +4,11 @@
  * 编排在 agent/subagent-registry.ts。
  */
 
-import type { SubagentUpdateEvent } from "../agent/types-w5.js";
+import type {
+  SessionTaskStats,
+  SubagentStartEvent,
+  SubagentUpdateEvent,
+} from "../agent/types-w5.js";
 import type { MessageOrigin } from "../ai/types.js";
 import type { SessionEvent } from "../agent/types.js";
 import type { TraceExternalTurnData } from "../trace/types.js";
@@ -216,6 +220,11 @@ export interface TaskRecord {
   direct?: string[];
   /** [W6-A] 下一次续聊是人在视图里发的（子会话 user 消息记 `origin: "direct"`）。 */
   directNext?: boolean;
+  /**
+   * [W7-B1] 前台等待者：launch 时建，转后台时 resolve（工具调用先返回）；结束时删掉。
+   * `detachParent` 解绑父 signal 与进度回调（父回合 Esc 不再连带停止它）。
+   */
+  foregroundWaiter?: { resolve(result: SubagentResult): void; detachParent(): void };
 }
 
 export function newRecord(
@@ -335,6 +344,36 @@ function recordDisplay(record: TaskRecord, event: SubagentEvent, now: number): v
     default:
       return;
   }
+}
+
+/** `subagent_start` 事件（新开或续聊都发）。 */
+export function startEvent(record: TaskRecord, handle: TaskHandle): SubagentStartEvent {
+  const event: SubagentStartEvent = {
+    type: "subagent_start",
+    taskId: record.info.taskId,
+    parentToolCallId: record.parentToolCallId,
+    agent: record.agent.name,
+    runner: record.agent.runner,
+    description: record.info.description,
+    background: record.info.background,
+    cwd: record.cwd,
+  };
+  if (handle.model !== undefined) event.model = handle.model;
+  if (handle.sessionFile !== undefined) event.sessionFile = handle.sessionFile;
+  return event;
+}
+
+/** `getStats().tasks`：没有任务时 undefined。 */
+export function taskStats(records: Iterable<TaskRecord>): SessionTaskStats | undefined {
+  const byStatus: SessionTaskStats["byStatus"] = {};
+  let total = 0;
+  let running = 0;
+  for (const { info } of records) {
+    total++;
+    if (info.status === "running") running++;
+    else byStatus[info.status] = (byStatus[info.status] ?? 0) + 1;
+  }
+  return total === 0 ? undefined : { total, running, byStatus };
 }
 
 /** 父会话 `custom{ama.task}` 的 data：TaskInfo + 父 toolCallId + 运行目录（带 `status`）。 */

@@ -28,7 +28,12 @@ const script: FakeResponse[] = [
       {
         toolCall: {
           name: "task",
-          arguments: { prompt: "find the config loader", agent: "explore", description: "find" },
+          arguments: {
+            prompt: "find the config loader",
+            agent: "explore",
+            description: "find",
+            background: false,
+          },
         },
       },
     ],

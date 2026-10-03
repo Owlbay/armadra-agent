@@ -29,7 +29,11 @@ export interface AgentDefinition {
   /** 缺省 30。 */
   maxTurns: number;
   isolation: "none" | "worktree";
-  background: boolean;
+  /**
+   * 显式覆盖缺省前台 / 后台；不设由 `subagents.background` 决定（[W7-B1]，优先级：调用参数 > 类型
+   * 定义 > 配置）。
+   */
+  background?: boolean;
   runner: AgentRunnerSpec;
   /** 正文：追加到子会话系统提示末尾的角色说明。 */
   prompt: string;

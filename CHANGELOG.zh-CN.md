@@ -11,6 +11,13 @@
   `"app.agents.focus": ["down", "ctrl+b"]`）。输入框有字、`ui.agentBar: "off"` 或没有任务时按 `↓` 给一行提示，不再无声落空；
   浏览输入历史时 `↓` 照旧翻历史。Agent 栏有任务时运行提示行末尾带 `↓ Agent 栏`（窄屏整项丢掉）。嵌入宿主（有 profile）
   不再缺省关闭 Agent 栏，不要栏的宿主在 profile 的配置文件里写 `ui.agentBar: "off"`。
+- **子 Agent 缺省后台、前台任务可转后台**：TUI、RPC 与 ACP 下不写 `background` 的 `task` 立即返回 taskId，结果随后以
+  `<task-notification>` 到达；`-p` 仍缺省前台等待（配置 `subagents.background`：`auto`（缺省）/ `always` / `never`；类型
+  定义的 `background:` 与调用参数仍优先，内置类型不再固定 `background: false`）。阻塞中的前台 `task` 或 `task_ctl wait`
+  可以转后台（`session.backgroundTask(taskId?)`，事件 `subagent_background`）：工具立即返回固定文案「Moved to the
+  background …; it was not interrupted」，任务与父回合解绑（Esc 不再连带停止），完成后照常通知；
+  `subagents.autoBackgroundAfterMs`（缺省 0 关闭）到时自动转后台。`task` 描述与规则句按缺省后台改写（会话内不变；TUI 与
+  `-p` 的工具表因此不同）。
 
 - **ChatGPT 订阅模型的上下文窗口取后端值**：ChatGPT 后端模型列表给的上下文窗口（codex 的 `context_window`，siwc 条目带了也取）
   现在优先于 models.dev——后者记的是 API 版窗口（部分模型 1.1M），订阅后端实际只收 272k，自动压缩按大窗口规划，长会话超过

@@ -246,7 +246,12 @@ describe("子 Agent 视图", () => {
           {
             toolCall: {
               name: "task",
-              arguments: { prompt: "写 a.txt", description: "写文件", agent: "general" },
+              arguments: {
+                prompt: "写 a.txt",
+                description: "写文件",
+                agent: "general",
+                background: false,
+              },
             },
           },
         ],

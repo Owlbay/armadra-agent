@@ -5,7 +5,8 @@
  * `agentDirs` → config `agents.dirs` → 用户级 → 项目级（需信任）），建类型目录并绑到 task 工具
  * （描述里的类型清单）；工厂给每个根会话装一个扩展：建任务注册表（subagent-registry.ts，并发 /
  * 排队上限与模型别名取自 config），`getStats().tasks` 汇总，会话 dispose 时停止后台任务。
- * task 子会话（depth ≥ 1）与没有 task 工具的会话不装。
+ * task 子会话（depth ≥ 1）与没有 task 工具的会话不装。[W7-B1] `subagents.background`（auto：交互 / RPC /
+ * ACP 后台、`-p` 前台）解析成本进程的缺省，同时决定 task 描述的版本；`autoBackgroundAfterMs` 透传。
  *
  * [W5-EG] 外部 runner（claude / codex / acp:* / 宿主注入）经 agents/external.ts 接入 `runners`：每个主
  * 会话一个 ExternalAgents（审批接 requestApproval，只交给人）；PATH 上的 claude / codex 登记进类型
@@ -25,7 +26,8 @@ import {
   type ExternalWiring,
 } from "../agents/external.js";
 import { hostRunnersOf } from "../host/api-impl.js";
-import { bindTaskAgents } from "../tools/task.js";
+import { bindTaskAgents, bindTaskBackground } from "../tools/task.js";
+import { resolveTaskBackground, type BackgroundSetting } from "../agent/subagent-background.js";
 import type { ComposeExtensionDeps } from "./compose-extensions.js";
 import { msg } from "../i18n/index.js";
 
@@ -69,6 +71,12 @@ export function subagentEnvironment(
   if (max !== undefined) env.maxConcurrent = max;
   const pending = config.subagents?.maxPending;
   if (pending !== undefined) env.maxPending = pending;
+  // [W7-B1] 缺省后台与自动转后台（配置键由 W7-B2 登记；这里按可选值读）
+  const sub = config.subagents as
+    { background?: BackgroundSetting; autoBackgroundAfterMs?: number } | undefined;
+  env.background = resolveTaskBackground(sub?.background, deps.assembly.unattended === true);
+  const after = sub?.autoBackgroundAfterMs;
+  if (typeof after === "number" && after > 0) env.autoBackgroundAfterMs = after;
   return env;
 }
 
@@ -130,5 +138,6 @@ export function createSubagentsFactory(deps: ComposeExtensionDeps): SessionExten
   registerExternalAgents(catalog, wiring);
   bindTaskAgents(task, catalog);
   const env = subagentEnvironment(deps, catalog);
+  bindTaskBackground(task, env.background === true);
   return ({ core }) => (core.depth > 0 ? undefined : createSubagentExtension(core, env, wiring));
 }
