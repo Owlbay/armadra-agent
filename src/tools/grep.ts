@@ -5,6 +5,8 @@
  * - 文件按路径排序处理，输出确定；匹配行 `path:line: text`，上下文行 `path-line- text`，
  *   不相邻的组之间 `--`；匹配行截 500 字符；
  * - 匹配数到 limit（缺省 100）即停并提示；整体输出再按 50 KB 头截断。
+ * - [S-A] `filesOnly`：只列命中文件（去重、按路径排序，每个文件命中一行即停），limit 按文件数计；
+ *   给模型在大仓库里先缩范围（docs/search-plan.md §4.2）。
  */
 
 import { readFile, stat } from "node:fs/promises";
@@ -23,6 +25,7 @@ export interface GrepInput {
   literal?: boolean;
   context?: number;
   limit?: number;
+  filesOnly?: boolean;
 }
 
 export const DEFAULT_GREP_LIMIT = 100;
@@ -52,7 +55,11 @@ interface FileHits {
   hits: number[];
 }
 
-async function searchFile(abs: string, regex: RegExp): Promise<FileHits | undefined> {
+async function searchFile(
+  abs: string,
+  regex: RegExp,
+  firstOnly = false,
+): Promise<FileHits | undefined> {
   try {
     const info = await stat(abs);
     if (!info.isFile() || info.size > GREP_MAX_FILE_BYTES) return undefined;
@@ -61,9 +68,11 @@ async function searchFile(abs: string, regex: RegExp): Promise<FileHits | undefi
     const lines = buf.toString("utf8").replace(/\r\n/g, "\n").split("\n");
     if (lines[lines.length - 1] === "") lines.pop();
     const hits: number[] = [];
-    lines.forEach((line, i) => {
-      if (regex.test(line)) hits.push(i);
-    });
+    for (let i = 0; i < lines.length; i++) {
+      if (!regex.test(lines[i] as string)) continue;
+      hits.push(i);
+      if (firstOnly) break;
+    }
     return hits.length > 0 ? { lines, hits } : undefined;
   } catch {
     return undefined;
@@ -135,6 +144,7 @@ export async function executeGrep(input: GrepInput, ctx: ToolContext): Promise<T
   }
 
   const files = await candidateFiles(root, rootIsFile, input.glob, ctx.signal);
+  if (input.filesOnly === true) return grepFilesOnly(files, regex, limit, ctx);
   const blocks: string[] = [];
   let matches = 0;
   let matchedFiles = 0;
@@ -177,6 +187,38 @@ export async function executeGrep(input: GrepInput, ctx: ToolContext): Promise<T
     content,
     details: { matches, files: matchedFiles, limited, truncated: cut.truncated },
   };
+}
+
+/** [S-A] filesOnly：命中文件的显示路径，去重并按路径排序；limit 按文件数计。 */
+async function grepFilesOnly(
+  files: readonly string[],
+  regex: RegExp,
+  limit: number,
+  ctx: ToolContext,
+): Promise<ToolResult> {
+  const sorted = [...new Set(files)].sort();
+  const shown: string[] = [];
+  let limited = false;
+  outer: for (let i = 0; i < sorted.length; i += GREP_CONCURRENCY) {
+    if (ctx.signal.aborted) return { content: "aborted by user", isError: true };
+    const batch = sorted.slice(i, i + GREP_CONCURRENCY);
+    const results = await Promise.all(batch.map((f) => searchFile(f, regex, true)));
+    for (let j = 0; j < batch.length; j++) {
+      if (!results[j]) continue;
+      if (shown.length >= limit) {
+        limited = true;
+        break outer;
+      }
+      shown.push(displayPath(batch[j] as string, ctx.cwd));
+    }
+  }
+  if (shown.length === 0) {
+    return { content: "No matches found", details: { matches: 0, files: 0, filesOnly: true } };
+  }
+  const unique = [...new Set(shown)].sort();
+  let content = unique.join("\n");
+  if (limited) content += `\n\n[Stopped at ${limit} files. Narrow the search or raise limit.]`;
+  return { content, details: { files: unique.length, filesOnly: true, limited } };
 }
 
 export function createGrepTool(): ToolDefinition<GrepInput> {

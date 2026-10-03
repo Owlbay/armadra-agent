@@ -206,6 +206,39 @@ describe("grep 工具", () => {
     expect(r.details).toMatchObject({ matches: 3, limited: true });
   });
 
+  it("[S-A] filesOnly：命中文件去重、按路径排序；与 glob / path / limit 组合；context 不生效", async () => {
+    const ctx = makeToolContext(root);
+    const all = await tool.execute({ pattern: "TODO", filesOnly: true, context: 2 }, ctx);
+    expect(all.content).toBe(
+      [
+        "docs/a/b/x.md",
+        "keep.log",
+        "src/a.ts",
+        "src/b.tsx",
+        "src/build/keep.ts",
+        "src/nested/c.ts",
+      ].join("\n"),
+    );
+    expect(all.details).toMatchObject({ files: 6, filesOnly: true, limited: false });
+    const ts = await tool.execute({ pattern: "TODO", filesOnly: true, glob: "*.ts" }, ctx);
+    expect(ts.content).toBe(["src/a.ts", "src/build/keep.ts", "src/nested/c.ts"].join("\n"));
+    const sub = await tool.execute({ pattern: "TODO", filesOnly: true, path: "src/nested" }, ctx);
+    expect(sub.content).toBe("src/nested/c.ts");
+    const one = await tool.execute(
+      { pattern: "line", filesOnly: true, path: "src/nested/c.ts" },
+      ctx,
+    );
+    expect(one.content).toBe("src/nested/c.ts");
+    const cut = await tool.execute({ pattern: "TODO", filesOnly: true, limit: 2 }, ctx);
+    expect(cut.content).toBe(
+      "docs/a/b/x.md\nkeep.log\n\n[Stopped at 2 files. Narrow the search or raise limit.]",
+    );
+    expect(cut.details).toMatchObject({ files: 2, limited: true });
+    const none = await tool.execute({ pattern: "zzz_nothing", filesOnly: true }, ctx);
+    expect(none.content).toBe("No matches found");
+    expect(none.details).toMatchObject({ matches: 0, files: 0 });
+  });
+
   it("formatFileHits 截断长行", () => {
     const out = formatFileHits("f", { lines: ["x".repeat(600)], hits: [0] }, 0, 10);
     expect(out.text[0]).toMatch(/^f:1: x{500}… \[100 more chars\]$/);
