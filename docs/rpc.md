@@ -159,7 +159,17 @@
 - 整个 `data` 都经过脱敏；节点里只有 id、时间、计数与用量，正文只在 `previews` 里。运行中没有结果的工具标 `running`。
 - 错误：`invalid_arguments`（参数越界、`before` 不是本分支的回合 id、`before` 与 `since` 同用）、`task_not_found`。
 
-合计 43 条命令，名字即 `RpcCommandMap` 的键。
+### 后台子 Agent（第七波）
+
+| 命令              | 参数      | `data`                                                                                                                                                                     |
+| ----------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `background_task` | `taskId?` | `{ backgrounded: string[] }`：实际转了后台的 `taskId`。不给 `taskId` = 全部前台运行中任务；已结束、已在后台或不存在的任务回空表；`taskId` 不是字符串 → `invalid_arguments` |
+
+被转的前台任务不中断，其 `task` 调用立即以 `tool_execution_end` 返回（结果文本以 `[task tN] Moved to the background` 开头，
+`details.status: "running"`），随后发 `subagent_background`；任务结束时照常 `subagent_end`，父会话空闲后收到 `origin: "task"`
+的通知消息。语义与交互界面的 `Ctrl+B` 相同，见 [agents.md](agents.md)「前台与后台」。
+
+合计 44 条命令，名字即 `RpcCommandMap` 的键。
 
 ## 事件
 
@@ -204,11 +214,12 @@
 
 `task` / `task_ctl` 起的子 Agent（ama 子会话与外部 Agent 同一组事件，见 [agents.md](agents.md)「子 Agent」）：
 
-| 事件              | 字段                                                                                                                                                                                     |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `subagent_start`  | `taskId`、`parentToolCallId`、`agent`、`runner`（`ama` / `claude` / `codex` / `acp:<程序>`）、`description`、`background`、`model?`、`sessionFile?`、`cwd`；同一 `taskId` 续聊时再发一次 |
-| `subagent_update` | `taskId`、`kind: tool \| text \| turn`、`toolName?`、`textDelta?`（≥ 250 ms 合并）、`turn`、`usage?`                                                                                     |
-| `subagent_end`    | `taskId`、`status: completed \| failed \| aborted \| max_turns \| interrupted`、`usage?`、`cache?`、`outputFile?`、`worktree?: { branch, changed }`                                      |
+| 事件                  | 字段                                                                                                                                                                                     |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `subagent_start`      | `taskId`、`parentToolCallId`、`agent`、`runner`（`ama` / `claude` / `codex` / `acp:<程序>`）、`description`、`background`、`model?`、`sessionFile?`、`cwd`；同一 `taskId` 续聊时再发一次 |
+| `subagent_update`     | `taskId`、`kind: tool \| text \| turn`、`toolName?`、`textDelta?`（≥ 250 ms 合并）、`turn`、`usage?`                                                                                     |
+| `subagent_background` | `taskId`、`parentToolCallId`、`reason: user \| timeout \| host`（前台任务转后台：交互界面手动、`subagents.autoBackgroundAfterMs` 到时、RPC / SDK 调用；第七波）                          |
+| `subagent_end`        | `taskId`、`status: completed \| failed \| aborted \| max_turns \| interrupted`、`usage?`、`cache?`、`outputFile?`、`worktree?: { branch, changed }`                                      |
 
 子会话与外部 Agent 的审批照常以 `permission_request` 发给本连接，`context`（可选）标出来源（第六波起本会话工具调用的审批也带
 `context.toolCallId`——触发审批的工具调用 id，轨迹据此算审批等待；外部 Agent 的请求不带）：
@@ -225,7 +236,8 @@
 只有类型目录，见 `cachedAgentInfos`，`src/agents/external.ts`）。
 `test/fixtures/rpc/subagent.out.jsonl` 是一次前台 `task(agent="explore")` 加 `get_tasks` / `get_agents` 的黄金记录（只保留
 响应、`tool_execution_*`、`subagent_*` 与 `agent_settled`），由
-`src/agent/subagent-rpc.test.ts` 用 `UPDATE_GOLDEN=1` 更新。
+`src/agent/subagent-rpc.test.ts` 用 `UPDATE_GOLDEN=1` 更新。`test/fixtures/rpc/background.out.jsonl` 是前台 `task` 运行中
+`background_task` 转后台、随后任务结束并投递通知回合的黄金记录，由 `src/modes/rpc/rpc-background.test.ts` 更新。
 
 ### 速率遥测（第五波）
 
