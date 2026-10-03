@@ -5,6 +5,17 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 > This file is in English starting with 0.6.0. Release notes for 0.1 through 0.5.1 are in Chinese in
 > [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md). New entries go into both files.
 
+## Unreleased
+
+- **ChatGPT subscription models use the backend's context window**: the context window reported by the ChatGPT backend's
+  model list (codex `context_window`, and siwc entries when they carry it) now takes precedence over models.dev, which lists
+  the API window (1.1M for some models) while the subscription backend accepts less (272k); auto-compaction used to plan for
+  the larger window, so long sessions were rejected past 272k. models.dev still fills fields the backend leaves out (output
+  limit and the like) but no longer overrides input modalities or reasoning efforts the backend reports; when neither has a
+  context window, `chatgpt` models use a conservative 128k instead of turning auto-compaction off. `ama models discover chatgpt`
+  shows the backend window marked "(backend)" and lists models the backend reported none for. Caches written by older
+  versions without windows keep the models.dev value until `ama models discover chatgpt` refreshes them.
+
 ## 0.6.2 (2026-10-03)
 
 - **ChatGPT codex sign-in lists models, and the channel follows the sign-in method**: the codex model list

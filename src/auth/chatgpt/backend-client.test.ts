@@ -34,6 +34,24 @@ describe("ChatGPT 模型列表", () => {
     expect(r.calls[0]?.headers).toEqual({ authorization: "Bearer t", accept: "application/json" });
   });
 
+  it("SIWC：条目带 context_window 同样取（max_context_window / auto_compact_token_limit 不取）", async () => {
+    const r = recorder({
+      data: [
+        {
+          id: "gpt-6-sol",
+          context_window: 272000,
+          max_context_window: 1000000,
+          auto_compact_token_limit: 244800,
+        },
+      ],
+    });
+    const models = await listChatGptModels(r.fetch, "https://api.openai.com/v1", {
+      flavor: "siwc",
+      accessToken: "t",
+    });
+    expect(models).toEqual([{ id: "gpt-6-sol", contextWindow: 272000 }]);
+  });
+
   it("codex：client_version、slug 与显示名、账户头与 originator", async () => {
     const r = recorder({
       models: [

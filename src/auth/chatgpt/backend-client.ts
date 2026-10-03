@@ -1,12 +1,13 @@
 /**
  * ChatGPT 后端的只读查询（[W6-O]）：模型列表（`ama models discover chatgpt`）与 codex 的 `wham/usage`。
  *
- * - SIWC：`GET {base}/models`，只留 `visibility === "list"`（没有该字段的也留）；
+ * - SIWC：`GET {base}/models`，只留 `visibility === "list"`（没有该字段的也留）；条目若带下述元数据字段同样取；
  * - codex：`GET {base}/models?client_version=<Codex CLI 版本>`（`codexClientVersion()`；后端按每个模型的
  *   `minimal_client_version` 过滤，发 ama 自己的版本号会一个都拿不到），`models[].slug`（同样按 visibility 筛），
- *   另取 `context_window`、`input_modalities`、`supported_reasoning_levels` 作元数据（models.dev 补不到时用）；
- *   `GET https://chatgpt.com/backend-api/wham/usage`（由 codex base 推出），私有格式，解析失败返回 undefined。
- * SIWC 只取 slug 与显示名。请求带 Bearer；codex 另带 `ChatGPT-Account-ID` 与 `originator`。
+ *   另取 `context_window`、`input_modalities`、`supported_reasoning_levels` 作元数据（后端给了就优先于 models.dev，
+ *   见 discovered-cache.ts；`max_context_window` 是可调上限而非生效值、`auto_compact_token_limit` 没有对应的模型字段，
+ *   都不取）；`GET https://chatgpt.com/backend-api/wham/usage`（由 codex base 推出），私有格式，解析失败返回 undefined。
+ * 请求带 Bearer；codex 另带 `ChatGPT-Account-ID` 与 `originator`。
  */
 
 import { parseUsagePayload, type QuotaSnapshot } from "../../ai/apis/chatgpt-rate-limits.js";
@@ -40,7 +41,7 @@ function headers(auth: BackendAuth): Record<string, string> {
 export interface DiscoveredModel {
   id: string;
   name?: string;
-  /** 以下只有 codex 后端给。 */
+  /** 以下是后端给的元数据（codex 后端给；SIWC 条目带了也取）。 */
   contextWindow?: number;
   input?: ("text" | "image")[];
   /** 支持的推理强度（`none` / `minimal` / `low` / `medium` / `high` / `xhigh` …）。 */
@@ -52,8 +53,8 @@ function listed(item: Record<string, unknown>): boolean {
   return visibility === undefined || visibility === "list";
 }
 
-/** codex 模型条目里的元数据；字段缺失或形状不对就不填。 */
-function codexMetadata(item: Record<string, unknown>): Omit<DiscoveredModel, "id" | "name"> {
+/** 模型条目里的元数据；字段缺失或形状不对就不填。 */
+function backendMetadata(item: Record<string, unknown>): Omit<DiscoveredModel, "id" | "name"> {
   const out: Omit<DiscoveredModel, "id" | "name"> = {};
   const window = item["context_window"];
   if (typeof window === "number" && Number.isInteger(window) && window > 0)
@@ -111,7 +112,7 @@ export async function listChatGptModels(
     out.push({
       id,
       ...(typeof name === "string" && name !== "" ? { name } : {}),
-      ...(auth.flavor === "codex" ? codexMetadata(item) : {}),
+      ...backendMetadata(item),
     });
   }
   return out;

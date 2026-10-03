@@ -3,9 +3,13 @@
  *
  * 模型表为空、接受任意 slug 的供应商（`chatgpt` 的订阅后端）在选择器里原本一个模型都看不到。
  * `ama auth login chatgpt` 成功后与 `ama models discover chatgpt` 把账户可用的 slug 写进这里；组装注册表时
- * （`mergeDiscoveredModels`）并入**模型表仍为空**的供应商，元数据用 models.dev（快照 ⊕ 用户刷新）补全。
- * `ama auth logout chatgpt` 删掉它。只存 slug、显示名、后端给的元数据（codex：上下文窗口、输入模态、推理强度，
- * models.dev 补不到时用）、flavor 与时间戳——没有 token、账户 id。
+ * （`mergeDiscoveredModels`）并入**模型表仍为空**的供应商。`ama auth logout chatgpt` 删掉它。只存 slug、显示名、
+ * 后端给的元数据（上下文窗口、输入模态、推理强度）、flavor 与时间戳——没有 token、账户 id。
+ *
+ * 元数据优先级：后端明确给的 > models.dev（快照 ⊕ 用户刷新）> 自定义缺省。上下文窗口尤其如此：订阅后端的生效
+ * 窗口（如 codex 的 272k）可能远小于 models.dev 记的 API 版窗口（1.1M），按后者算压缩阈值会让请求超窗被拒。
+ * 旧版本写的缓存（siwc 不含上下文窗口）照旧用 models.dev；`chatgpt` 两边都没有时用保守缺省
+ * `SUBSCRIPTION_FALLBACK_CONTEXT_WINDOW`，不让自动压缩关闭。
  *
  * ChatGPT 的缓存带登录 flavor；组装时与当前登录的 flavor 不符视为过期、不并入（选择器提示重新发现）。
  */
@@ -129,32 +133,41 @@ export function thinkingMapOf(
   return map;
 }
 
-/** models.dev 没补上的字段用后端给的元数据。 */
-function withBackendMetadata(model: Model, cached: DiscoveredCacheModel, matched: boolean): void {
-  if (model.contextWindow === undefined && cached.contextWindow !== undefined)
+/** 订阅后端：models.dev 与后端都没给上下文窗口时的保守缺省。 */
+export const SUBSCRIPTION_FALLBACK_CONTEXT_WINDOW = 128_000;
+const SUBSCRIPTION_PROVIDERS: ReadonlySet<string> = new Set(["chatgpt"]);
+
+/** 后端明确给的元数据覆盖 models.dev 补的；没给的字段保留 models.dev 的（maxTokens 只来自 models.dev）。 */
+function withBackendMetadata(model: Model, cached: DiscoveredCacheModel): void {
+  if (cached.contextWindow !== undefined) {
     model.contextWindow = cached.contextWindow;
-  if (matched) return;
+    // models.dev 的输入上限是 API 版的，超过后端窗口就没有意义
+    if (model.inputLimit !== undefined && model.inputLimit >= cached.contextWindow)
+      delete model.inputLimit;
+  }
   if (cached.input !== undefined) model.input = [...cached.input];
-  const efforts = (cached.reasoningLevels ?? []).filter((x) => x !== "none");
-  if (efforts.length > 0) {
+  if (cached.reasoningLevels === undefined) return;
+  if (cached.reasoningLevels.some((x) => x !== "none")) {
     model.reasoning = true;
-    model.thinkingLevelMap = thinkingMapOf(cached.reasoningLevels ?? []);
+    model.thinkingLevelMap = thinkingMapOf(cached.reasoningLevels);
+  } else {
+    model.reasoning = false;
+    delete model.thinkingLevelMap;
   }
 }
 
-/** 缓存里的模型 → 注册表模型（models.dev 补元数据，补不到用后端给的，再补不到用自定义缺省）。 */
+/** 缓存里的模型 → 注册表模型（后端给的元数据优先，其次 models.dev，再次自定义缺省）。 */
 export function discoveredModels(
   file: DiscoveredCacheFile,
   provider: ProviderData,
   modelsDev: () => ModelsDevIndex | undefined,
 ): Model[] {
   return file.models.map((m) => {
-    const { entry, metadata } = enrichEntry(
-      m.name ? { id: m.id, name: m.name } : { id: m.id },
-      modelsDev,
-    );
+    const { entry } = enrichEntry(m.name ? { id: m.id, name: m.name } : { id: m.id }, modelsDev);
     const model = withCustomDefaults(entry, provider.id, provider.api);
-    withBackendMetadata(model, m, metadata.match !== undefined);
+    withBackendMetadata(model, m);
+    if (model.contextWindow === undefined && SUBSCRIPTION_PROVIDERS.has(provider.id))
+      model.contextWindow = SUBSCRIPTION_FALLBACK_CONTEXT_WINDOW;
     // 只挂发现时登录的 flavor 对应的渠道（订阅后端的另一条渠道用不了，不在说明与 `@` 行里出现）；
     // 缓存没写 flavor 或渠道不存在时用供应商的缺省渠道
     const names = (provider.channels ?? []).map((c) => c.name);
