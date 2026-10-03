@@ -66,6 +66,31 @@ describe("第五波键的层级", () => {
       expect(text).toContain(key);
   });
 
+  it("[W7-B2] 项目级接受 subagents.background / autoBackgroundAfterMs；并发与模型仍只认用户级", () => {
+    const result = restrictProjectConfig(
+      project({
+        subagents: {
+          background: "never",
+          autoBackgroundAfterMs: 60000,
+          maxConcurrent: 64,
+          defaultModel: "x/y",
+        },
+      }),
+      "default",
+    );
+    expect(result.accepted).toEqual({
+      subagents: { background: "never", autoBackgroundAfterMs: 60000 },
+    });
+    const text = result.warnings.join("\n");
+    expect(text).toContain("subagents.maxConcurrent");
+    expect(text).toContain("subagents.defaultModel");
+    const merged = mergeConfigLayers({
+      user: project({ subagents: { maxConcurrent: 2, background: "always" } }),
+      project: project({ subagents: { background: "never" } }),
+    });
+    expect(merged.config.subagents).toEqual({ maxConcurrent: 2, background: "never" });
+  });
+
   it("agents.dirs 跨层累加；plan.bash 收紧以用户级为基准", () => {
     const merged = mergeConfigLayers({
       user: project({ agents: { dirs: ["/u"] }, plan: { bash: "ask" } }),

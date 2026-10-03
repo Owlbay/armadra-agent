@@ -50,7 +50,7 @@ const IMPLICIT_DEFAULTS: Partial<AmaConfig> = {
   images: { resize: "auto" },
   plan: { bash: "readonly", unattended: "stop" },
   agents: { maxConcurrent: 3, dirs: [] },
-  subagents: { maxConcurrent: 4, maxPending: 16 },
+  subagents: { maxConcurrent: 4, maxPending: 16, background: "auto", autoBackgroundAfterMs: 0 },
   reminders: { todo: true, fileChanges: true, contextPressure: true, budget: true },
   todo: { reminder: 10 },
 };

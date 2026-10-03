@@ -77,6 +77,10 @@ export function agentEntry(
   return typeof entry === "object" && !Array.isArray(entry) ? entry : undefined;
 }
 
+/** [W7-B2] 子 Agent 缺省前台还是后台（docs/agents-concurrency-plan.md §2.6）。 */
+export const SUBAGENT_BACKGROUND_MODES = ["auto", "always", "never"] as const;
+export type SubagentBackgroundMode = (typeof SUBAGENT_BACKGROUND_MODES)[number];
+
 /** [W5-G] ama 自己的子会话。 */
 export interface SubagentsConfig {
   /** 同时运行的子会话，缺省 4。 */
@@ -85,6 +89,13 @@ export interface SubagentsConfig {
   maxPending?: number;
   /** 子会话缺省模型；不设继承父会话。 */
   defaultModel?: string;
+  /**
+   * [W7-B2] task 缺省后台：auto（缺省）= 交互 / RPC / ACP 下后台、`-p` 下前台；always / never 固定。
+   * 优先级：调用参数 > 类型定义 > 本键。用户 / 项目 / 宿主级都认。
+   */
+  background?: SubagentBackgroundMode;
+  /** [W7-B2] 前台任务运行超过该毫秒数自动转后台；缺省 0 关闭。用户 / 项目级都认。 */
+  autoBackgroundAfterMs?: number;
 }
 
 /** `models.enabled` 的一项：`provider/model[@channel]` 或 `provider/*`。 */

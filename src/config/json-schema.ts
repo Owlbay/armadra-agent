@@ -31,7 +31,7 @@ import {
   MEMORY_SUBAGENT_MODES,
 } from "./types.js";
 import { AGENT_ID_PATTERN } from "./schema-w5.js";
-import { AGENTS_RESERVED_KEYS } from "./types-w5.js";
+import { AGENTS_RESERVED_KEYS, SUBAGENT_BACKGROUND_MODES } from "./types-w5.js";
 
 type Schema = Record<string, unknown>;
 
@@ -186,7 +186,13 @@ function w5Sections(): Record<string, Schema> {
         },
       },
     ),
-    subagents: object({ maxConcurrent: num(1, 64), maxPending: num(0, 1024), defaultModel: str() }),
+    subagents: object({
+      maxConcurrent: num(1, 64),
+      maxPending: num(0, 1024),
+      defaultModel: str(),
+      background: oneOf(SUBAGENT_BACKGROUND_MODES),
+      autoBackgroundAfterMs: num(0),
+    }),
     models: object({ aliases: object({ fast: str(), strong: str() }), enabled: strings }),
     fallbackModel: str(),
     limits: object({ maxTurns: num(1), maxCostUsd: num(0) }),

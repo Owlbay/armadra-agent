@@ -9,7 +9,7 @@
  *   `compaction`、`tools.disabled`、`tools.preset`（只能更严）、`codemode.mode: "off"`、`ui`、
  *   `checkpoints.mode: "off"`、`checkpoints.maxFileBytes`（只能调小）、（W5-C0）`plan.bash`（只能更严）、
  *   `reminders`；`compaction.prune / pruneExclude` 与第五波其余段只认用户级；（W6-C0）`ui.language` /
- *   `ui.agentBar` 随 `ui` 段、`memory.enabled: false`；`ui.replyLanguage`、`memory` 其余键、`auth` 只认用户级；
+ *   `ui.agentBar` 随 `ui` 段、`memory.enabled: false`；（W7-B2）`subagents.background / autoBackgroundAfterMs`；`ui.replyLanguage`、`memory` 其余键、`auth` 只认用户级；
  *   其它字段与放宽项（含 `permission.builtinDeny / autoModel / autoSafeCommands`）被忽略并记 warning。
  * - 同时产出带来源的权限规则清单（`ruleSpecs`），交给权限管线（B3 的 rules.ts 解析）。
  */
@@ -21,6 +21,7 @@ import type {
   PermissionConfig,
   PlanBashMode,
   PlanConfig,
+  SubagentsConfig,
   ToolsConfig,
   ToolsPresetInput,
 } from "./types.js";
@@ -172,6 +173,26 @@ export function restrictProjectConfig(
         if (project.reminders !== undefined)
           accepted.reminders = structuredClone(project.reminders);
         break;
+      case "subagents": {
+        // [W7-B2] 前台 / 后台只影响呈现与等待，不放宽权限：项目级可设；并发、模型仍只认用户级
+        const subagents = project.subagents ?? {};
+        const result: SubagentsConfig = {};
+        for (const sub of Object.keys(subagents)) {
+          if (sub !== "background" && sub !== "autoBackgroundAfterMs")
+            warnings.push(
+              msg().config.merge.projectOnlyKeys(
+                label,
+                "subagents.background / subagents.autoBackgroundAfterMs",
+                `subagents.${sub}`,
+              ),
+            );
+        }
+        if (subagents.background !== undefined) result.background = subagents.background;
+        if (subagents.autoBackgroundAfterMs !== undefined)
+          result.autoBackgroundAfterMs = subagents.autoBackgroundAfterMs;
+        if (Object.keys(result).length > 0) accepted.subagents = result;
+        break;
+      }
       case "plan": {
         const plan = restrictPlan(project.plan ?? {}, currentPlanBash, label, warnings);
         if (plan !== undefined) accepted.plan = plan;
