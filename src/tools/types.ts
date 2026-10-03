@@ -185,6 +185,12 @@ export interface RunnerHandle {
   send(text: string): Promise<void>;
   wait(): Promise<SubagentResult>;
   stop(): Promise<void>;
+  /**
+   * 打断当前回合并立即以 `text` 开下一回合（子 Agent 视图的「打断并发送」）；`wait()` 跟到这一回合结束。
+   * 驱动能中断回合（ACP `session/cancel`、Claude stream-json interrupt、Codex `turn/interrupt`）且正在
+   * 运行时返回 true；否则 false（调用方退回排队）。
+   */
+  interrupt?(text: string): Promise<boolean>;
 }
 
 /** `ama`（AmaRunner）| `claude` | `codex` | `acp:<program>`（ProcessRunner，W5-E）| 宿主 id。 */

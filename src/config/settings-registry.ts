@@ -81,6 +81,7 @@ const ROWS: readonly Row[] = [
   row("ui.logo", "ui", "restart", "any"),
   row("ui.statusLine", "ui", "now", "any"),
   row("ui.restoreOnCancel", "ui", "nextSession", "any"),
+  row("ui.enterWhileRunning", "ui", "now", "any"),
   row("ui.quietStartup", "ui", "restart", "any"),
   row("ui.ascii", "ui", "restart", "any", { envOverride: "AMA_ASCII" }),
   row("ui.language", "ui", "restart", "any", { envOverride: "AMA_LANG" }),

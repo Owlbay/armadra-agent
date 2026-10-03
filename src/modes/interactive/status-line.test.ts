@@ -140,7 +140,7 @@ describe("速率行", () => {
     const r = rig("full");
     const [top, bottom] = r.rows(200);
     expect(top).toMatch(
-      /^tps: 99 tok\/s • 546 tok \/ 5\.5s \(avg 100 · ttft 1\.4s\) {4,}↑12k ↓1\.2k · cache 83% ♨ · \[-\]$/,
+      /^ {4,}tps: 99 tok\/s • 546 tok \/ 5\.5s \(avg 100 · ttft 1\.4s\) · ↑12k ↓1\.2k · cache 83% ♨ · \[-\]$/,
     );
     expect(bottom).toMatch(
       /^Manual \| shift\+tab 切换 {4,}anthropic\/claude-opus-5-5 medium \| Ctx 3\.0% \| vitaweave ⎇ main 5ae9e54 \(\+12,-3\) \| \$0\.26 \| 2h24m$/,
@@ -171,10 +171,10 @@ describe("速率行", () => {
       },
     });
     expect(r.rows(200)[0]).toMatch(
-      /^tps: 123 tok\/s • 1\.2k tok \/ 9\.9s \(avg 80 · ttft 0\.9s\) /,
+      /^ +tps: 123 tok\/s • 1\.2k tok \/ 9\.9s \(avg 80 · ttft 0\.9s\) /,
     );
     r.set({ telemetry: { sessionStartedAt: 0 } });
-    expect(r.rows(200)[0]).toMatch(/^tps: — {4,}↑12k/);
+    expect(r.rows(200)[0]).toMatch(/^ +tps: — · ↑12k/);
     const tagged = Object.assign(Object.create(plainTheme()) as Theme, {
       fg: (c: string, t: string) => `<${c}>${t}`,
     });
@@ -188,7 +188,7 @@ describe("速率行", () => {
     expect(rig("full", { theme: tagged }).line.render(200)[0]).toContain("<dim>tps");
   });
 
-  it("速率行丢弃顺序：tok/耗时 → codemode → queue → token → cache → rebill → 预设 → 宿主 → avg → ttft；tps 与 [-] 不丢", () => {
+  it("[W7] 速率行左右分区与丢弃顺序：右区度量先丢（tok/耗时 → token → cache → rebill → avg → ttft），左区开关后丢（宿主 → queue → 预设 → codemode）；tps 与 [-] 不丢", () => {
     const base = stats();
     const r = rig("full", {
       stats: {
@@ -202,20 +202,43 @@ describe("速率行", () => {
     });
     r.bar.setQueue(1, 0);
     const at = (w: number): string => r.rows(w)[0]!.replace(/ {4,}/, " ‖ ");
+    const SW = "codemode on · preset codemode · queue 1 · [x]";
     expect(at(200)).toBe(
-      "tps: 99 tok/s • 546 tok / 5.5s (avg 100 · ttft 1.4s) ‖ ↑12k ↓1.2k · cache 83% ♨ · rebill $0.05 · queue 1 · codemode on · preset codemode · [x] · [-]",
+      `${SW} ‖ tps: 99 tok/s • 546 tok / 5.5s (avg 100 · ttft 1.4s) · ↑12k ↓1.2k · cache 83% ♨ · rebill $0.05 · [-]`,
+    );
+    expect(at(140)).toBe(
+      `${SW} ‖ tps: 99 tok/s (avg 100 · ttft 1.4s) · ↑12k ↓1.2k · cache 83% ♨ · rebill $0.05 · [-]`,
     );
     expect(at(130)).toBe(
-      "tps: 99 tok/s (avg 100 · ttft 1.4s) ‖ ↑12k ↓1.2k · cache 83% ♨ · rebill $0.05 · queue 1 · preset codemode · [x] · [-]",
+      `${SW} ‖ tps: 99 tok/s (avg 100 · ttft 1.4s) · cache 83% ♨ · rebill $0.05 · [-]`,
     );
-    expect(at(100)).toBe(
-      "tps: 99 tok/s (avg 100 · ttft 1.4s) ‖ cache 83% ♨ · rebill $0.05 · preset codemode · [x] · [-]",
+    expect(at(110)).toBe(`${SW} ‖ tps: 99 tok/s (avg 100 · ttft 1.4s) · rebill $0.05 · [-]`);
+    expect(at(100)).toBe(`${SW} ‖ tps: 99 tok/s (avg 100 · ttft 1.4s) · [-]`);
+    expect(at(80)).toBe(`${SW} ‖ tps: 99 tok/s (ttft 1.4s) · [-]`);
+    expect(at(70)).toBe(`${SW} ‖ tps: 99 tok/s · [-]`);
+    expect(at(64)).toBe("codemode on · preset codemode · queue 1 ‖ tps: 99 tok/s · [-]");
+    expect(at(60)).toBe("codemode on · preset codemode ‖ tps: 99 tok/s · [-]");
+    expect(at(40)).toBe("codemode on ‖ tps: 99 tok/s · [-]");
+    // 没有开关：右区右对齐，左边不出分隔符
+    expect(r.rows(24)[0]).toBe("     tps: 99 tok/s · [-]");
+    const plainRow = rig("full").rows(100)[0]!;
+    expect(plainRow).toMatch(
+      /^ +tps: 99 tok\/s • 546 tok \/ 5\.5s \(avg 100 · ttft 1\.4s\) · ↑12k ↓1\.2k · cache 83% ♨ · \[-\]$/,
     );
-    expect(at(70)).toBe("tps: 99 tok/s (avg 100 · ttft 1.4s) ‖ preset codemode · [x] · [-]");
-    expect(at(52)).toBe("tps: 99 tok/s (avg 100 · ttft 1.4s) ‖ [x] · [-]");
-    expect(at(46)).toBe("tps: 99 tok/s (avg 100 · ttft 1.4s) ‖ [-]");
-    expect(at(38)).toBe("tps: 99 tok/s (ttft 1.4s) ‖ [-]");
-    expect(at(28)).toBe("tps: 99 tok/s ‖ [-]");
+  });
+
+  it("[W7] 回退中：速率行左区 `→ 回退模型`（按宽度缩写），状态栏只留主模型；compact 仍是 `主 → 回退`", () => {
+    const fallback = () => ({ from: "anthropic/claude-opus-5-5", to: "openai/gpt-5.5" });
+    const full = rig("full", { source: { fallback } });
+    expect(full.rows(200)[0]).toMatch(/^→ openai\/gpt-5\.5 {4,}tps: /);
+    expect(full.rows(90)[0]).toMatch(/^→ gpt-5\.5 {4,}tps: /);
+    expect(full.rows(200)[1]).toContain(" anthropic/claude-opus-5-5 medium | Ctx");
+    expect(full.rows(200)[1]).not.toContain("→");
+    const ascii = rig("full", { source: { fallback }, theme: plainTheme({ ascii: true }) });
+    expect(ascii.rows(200)[0]).toMatch(/^-> openai\/gpt-5\.5 /);
+    expect(rig("compact", { source: { fallback } }).rows(200)[0]).toContain(
+      "anthropic/claude-opus-5-5 → openai/gpt-5.5 · medium",
+    );
   });
 
   it("状态行（full）丢弃顺序：思考 → 增删 → 目录 → 分支 → 时长 → 费用 → ctx → 模型；模式不丢", () => {

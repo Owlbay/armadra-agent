@@ -11,7 +11,7 @@
 import { registryOf } from "../../agent/subagent-registry.js";
 import type { AgentSession } from "../../agent/types.js";
 import { msg } from "../../i18n/index.js";
-import type { Keybindings } from "../../tui.js";
+import type { ActionId, Keybindings } from "../../tui.js";
 
 /** 栏内 `x` 两次之间的最长间隔。 */
 export const STOP_CONFIRM_MS = 1500;
@@ -44,7 +44,7 @@ export function backgroundedText(ids: readonly string[]): string {
 }
 
 /** `ctrl+b` → `Ctrl+B`（提示行用）；动作没有绑定时 undefined。 */
-export function keyLabel(keys: Keybindings, action: "app.tasks.background"): string | undefined {
+export function keyLabel(keys: Keybindings, action: ActionId): string | undefined {
   const id = keys.keys(action)[0];
   if (id === undefined) return undefined;
   return id

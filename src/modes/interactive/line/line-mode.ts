@@ -3,6 +3,7 @@
  *
  * - stdin 是 TTY 且可开 raw：自带单行编辑器（line-editor.ts：历史、括号粘贴折叠），运行中回车
  *   = steer；Ctrl+C 运行中中断、空闲时连按两次退出（130）；空行 Ctrl+D 退出；审批 y / a / N 单键问答。
+ *   运行中 `/interrupt <文本>` = 打断当前回合并立即以它开新回合（排队的插话在前）。
  *   问句之前逐行打印执行前预览（`request.preview`，W3-B9a-2）。
  * - 否则（管道）：逐行读 stdin，每行依次执行（等上一条运行结束）；没有审批 UI，ask → deny。
  *   模型错误在运行结束时只打印一次（重试中只显示 ↻）；有运行最终失败时退出码 1。
@@ -169,12 +170,13 @@ export async function runLineMode(
         );
         void ed.ask(`\n${preview.join("")}${question}`, "n").then((answer) => {
           resolve(answer === "y" ? "allow" : answer === "a" ? "allow_session" : "deny");
-          if (!busy) ed.render();
+          if (running === 0) ed.render();
         });
       }),
   });
   runtime.notifier.set((message, level) => err(`ama: [${level}] ${message}\n`));
-  let busy = false;
+  /** 进行中的提示（`/interrupt` 开的新回合与被它中止的那一轮可能短暂重叠）；> 0 = 运行中。 */
+  let running = 0;
   let lastInterrupt = 0;
   return new Promise<number>((resolve) => {
     let finished = false;
@@ -197,19 +199,32 @@ export async function runLineMode(
         });
     };
     const run = (text: string): void => {
-      busy = true;
+      running++;
       void handle(text).then((outcome) => {
-        busy = false;
+        running--;
         if (outcome === "exit") finish(ExitCode.Ok);
-        else ed.render();
+        else if (running === 0) ed.render();
       });
+    };
+    /** 运行中 `/interrupt <文本>`：打断当前回合并立即以它（排队的插话在前）开新回合。 */
+    const interruptWith = (text: string): void => {
+      if (text === "") return err(`ama: ${msg().report.command.interruptUsage}\n`);
+      out(`${msg().report.command.interruptSent(text)}\n`);
+      running++;
+      void session
+        .prompt(text, { interrupt: true })
+        .catch((error: unknown) => err(`ama: ${errorText(error)}\n`))
+        .finally(() => {
+          printer.endLine();
+          if (--running === 0) ed.render();
+        });
     };
     let flushTimer: NodeJS.Timeout | undefined;
     const apply = (actions: ReturnType<LineEditor["feed"]>): void => {
       for (const action of actions) {
         if (action.kind === "eof") return finish(ExitCode.Ok);
         if (action.kind === "interrupt") {
-          if (busy) {
+          if (running > 0) {
             void session.abort();
             err(`${msg().interactive.line.interrupted}\n`);
           } else if (Date.now() - lastInterrupt < DOUBLE_INTERRUPT_MS) {
@@ -221,7 +236,12 @@ export async function runLineMode(
           }
           continue;
         }
-        if (busy) {
+        if (running > 0) {
+          const forced = /^\/interrupt(?:\s+([\s\S]*))?$/.exec(action.text.trim());
+          if (forced !== null) {
+            interruptWith((forced[1] ?? "").trim());
+            continue;
+          }
           // [W7-C] 运行中 `/tasks bg [id]` 照样是命令（转后台阻塞中的前台任务），不当插话
           if (/^\/tasks\s+bg(\s+\S+)?\s*$/.test(action.text.trim())) {
             void handle(action.text.trim());

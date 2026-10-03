@@ -48,7 +48,7 @@
 ### 消息
 
 - `system`：`{ role: "system", sections, toolsAdded?, toolsRemoved?, timestamp }`。首条是全量：系统提示的命名节（固定顺序 `preamble → tools → rules → project_context → skills → memory → hooks → cwd → host → role`；`memory` 是第六波的记忆索引节，未开启记忆时不出现）与工具声明表；之后只落**补丁**——节名级替换、值为 `null` 表示删除该节，`toolsAdded` / `toolsRemoved` 增删工具。依次重放得到当前系统提示；请求时由协议层重装全量。首条 system 消息在首次请求前落盘，也就是建文件的时刻。
-- `user`：`content`、`origin?`（缺省 = 普通用户输入；`steer` / `followUp` 是运行中插话与排队，`host` 是宿主 `sendUser` 注入，`direct` 是用户在子 Agent 视图里直接发给该子 Agent 的消息（第六波 W6-A，写在子会话里；投影与普通 user 消息相同），其它字符串原样记录）。
+- `user`：`content`、`origin?`（缺省 = 普通用户输入；`steer` / `followUp` 是运行中插话与排队，`host` 是宿主 `sendUser` 注入，`interrupt` 是打断并立即发送开的新回合（TUI `Ctrl+X`、line 模式 `/interrupt`、RPC / SDK 的 `interrupt: true`；投影与普通 user 消息相同），`direct` 是用户在子 Agent 视图里直接发给该子 Agent 的消息（第六波 W6-A，写在子会话里；投影与普通 user 消息相同），其它字符串原样记录）。
 - `assistant`：`content`（文本 / 思考 / 工具调用块）、`api`、`provider`、`model`、`usage`、`stopReason`，以及可选的 `responseId`、`thinkingLevel`、`providerThinkingLevel`、`rawStopReason`、`errorMessage`。`usage` 是 `{ input, output, cacheRead, cacheWrite, cacheWrite1h?, reasoning?, totalTokens, cost?, cacheReported? }`：`input` 不含缓存部分，`cost` 是 `{ input, output, cacheRead, cacheWrite, total }`（美元，模型无价格时缺省），`cacheReported` 表示原始响应里出现过缓存字段。
 - `toolResult`：对应工具调用的结果（`toolCallId`、`toolName`、`content`、`isError`、`details?`）。
 

@@ -6,7 +6,7 @@
 |⏺ task scan
 |  ⎿ ⠋ explore · running <t>
 |
-|<spin> Running task · <t> · Esc to interrupt · Ctrl+B to background · ↓ Agent bar
+|<spin> Running task · <t> · Esc to interrupt · Enter queue · Ctrl+X interrupt & send
 |────────────────────────────────────────────────────────────────────────────────
 |› ab
 |────────────────────────────────────────────────────────────────────────────────

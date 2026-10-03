@@ -1,0 +1,44 @@
+# 120 订阅配额
+|codemode on                                      tps: 18 tok/s • 185 tok / 10.4s (avg 18 · ttft 6.3s) · ↑1.2k ↓185 · [-]|
+|Bypass permissions | shift+tab 切换                         chatgpt/gpt-6-astra@codex medium | Ctx 0.5% | yovinchen | 1m|
+|                                                           5 小时：12.0% | 重置：2h 18m | 本周：31.0% | 本周重置：6d 19h|
+# 80 订阅配额
+|codemode on                tps: 18 tok/s (avg 18 · ttft 6.3s) · ↑1.2k ↓185 · [-]|
+|Bypass permissions          gpt-6-astra@codex medium | Ctx 0.5% | yovinchen | 1m|
+|                   5 小时：12.0% | 重置：2h 18m | 本周：31.0% | 本周重置：6d 19h|
+# 60 订阅配额
+|codemode on         tps: 18 tok/s (avg 18 · ttft 6.3s) · [-]|
+|Bypass permissions         gpt-6-astra@codex | Ctx 0.5% | 1m|
+|                               5h 12% ↻2h18m · 周 31% ↻6d19h|
+# 40 订阅配额
+|codemode on          tps: 18 tok/s · [-]|
+|Bypass permissions        gpt | Ctx 0.5%|
+|           5h 12% ↻2h18m · 周 31% ↻6d19h|
+# 120 非订阅
+|codemode on                                      tps: 18 tok/s • 185 tok / 10.4s (avg 18 · ttft 6.3s) · ↑1.2k ↓185 · [-]|
+|Bypass permissions | shift+tab 切换                         anthropic/claude-opus-5-5 medium | Ctx 0.5% | yovinchen | 1m|
+# 80 非订阅
+|codemode on                tps: 18 tok/s (avg 18 · ttft 6.3s) · ↑1.2k ↓185 · [-]|
+|Bypass permissions            claude-opus-5-5 medium | Ctx 0.5% | yovinchen | 1m|
+# 60 非订阅
+|codemode on         tps: 18 tok/s (avg 18 · ttft 6.3s) · [-]|
+|Bypass permissions           claude-opus-5-5 | Ctx 0.5% | 1m|
+# 40 非订阅
+|codemode on          tps: 18 tok/s · [-]|
+|Bypass permissions           claude-opus|
+# 120 开关齐全（预设、沙箱、net!、回退）
+|codemode on net! · 沙箱 · preset minimal · → anthropic/claude-sonnet-5          tps: 18 tok/s (avg 18 · ttft 6.3s) · [-]|
+|Bypass permissions | shift+tab 切换                         chatgpt/gpt-6-astra@codex medium | Ctx 0.5% | yovinchen | 1m|
+|                                                           5 小时：12.0% | 重置：2h 18m | 本周：31.0% | 本周重置：6d 19h|
+# 80 开关齐全（预设、沙箱、net!、回退）
+|codemode on net! · 沙箱 · → claude-sonnet-5                  tps: 18 tok/s · [-]|
+|Bypass permissions          gpt-6-astra@codex medium | Ctx 0.5% | yovinchen | 1m|
+|                   5 小时：12.0% | 重置：2h 18m | 本周：31.0% | 本周重置：6d 19h|
+# 40 开关齐全（预设、沙箱、net!、回退）
+|codemode on net!     tps: 18 tok/s · [-]|
+|Bypass permissions        gpt | Ctx 0.5%|
+|           5h 12% ↻2h18m · 周 31% ↻6d19h|
+# 80 ASCII
+|codemode on net! · 沙箱 · -> claude-sonnet-5                 tps: 18 tok/s · [-]|
+|Bypass permissions          gpt-6-astra@codex medium | Ctx 0.5% | yovinchen | 1m|
+|                   5 小时：12.0% | 重置：2h 18m | 本周：31.0% | 本周重置：6d 19h|

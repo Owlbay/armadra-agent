@@ -41,6 +41,13 @@ export const DEFAULT_KEYBINDINGS = {
   "app.exit": ["ctrl+d"],
   "app.message.followUp": ["alt+enter"],
   "app.message.dequeue": ["alt+up"],
+  /**
+   * 运行中打断当前回合并立即发送输入框的文字（连同排队的插话）；`ui.enterWhileRunning: "interrupt"` 时与
+   * Enter 互换（它变成排队）。缺省 `Ctrl+X`：各终端（macOS Terminal、iTerm2、tmux、Windows Terminal）都原样
+   * 送达 0x18，且没有别的绑定；`Ctrl+Enter` 不开 kitty 键盘协议时与 Enter 无法区分，`Ctrl+S` 可能被 XOFF
+   * 流控吃掉，`Alt+Enter` 已是 followUp，`Alt+<字母>` 在 macOS 缺省不送 Meta，`Ctrl+]` 在非美式键盘难按。
+   */
+  "app.message.interrupt": ["ctrl+x"],
   "app.permission.cycle": ["shift+tab", "tab"],
   "app.tools.expand": ["ctrl+o"],
   "app.model.select": ["ctrl+l"],

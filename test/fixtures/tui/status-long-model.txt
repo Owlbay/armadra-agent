@@ -1,15 +1,15 @@
 # full 40
-|tps: 99 tok/s (ttft 1.4s)            [-]|
+|         tps: 99 tok/s (ttft 1.4s) · [-]|
 |Manual            qwen3.8-max | Ctx 3.0%|
 # full 60
-|tps: 99 tok/s (avg 100 · ttft 1.4s)        cache 83% ♨ · [-]|
+|     tps: 99 tok/s (avg 100 · ttft 1.4s) · cache 83% ♨ · [-]|
 |Manual       qwen3.8-max@messages | Ctx 3.0% | $0.26 | 2h24m|
 # full 80
-|tps: 99 tok/s (avg 100 · ttft 1.4s)               ↑12k ↓1.2k · cache 83% ♨ · [-]|
+|            tps: 99 tok/s (avg 100 · ttft 1.4s) · ↑12k ↓1.2k · cache 83% ♨ · [-]|
 |Manual          qwen3.8-max@messages | Ctx 3.0% | ⎇ main 5ae9e54 | $0.26 | 2h24m|
 # full 110
-|tps: 99 tok/s • 546 tok / 5.5s (avg 100 · ttft 1.4s)                            ↑12k ↓1.2k · cache 83% ♨ · [-]|
+|                         tps: 99 tok/s • 546 tok / 5.5s (avg 100 · ttft 1.4s) · ↑12k ↓1.2k · cache 83% ♨ · [-]|
 |Manual           dashscope/qwen3.8-max@messages | Ctx 3.0% | vitaweave ⎇ main 5ae9e54 (+12,-3) | $0.26 | 2h24m|
 # full 140
-|tps: 99 tok/s • 546 tok / 5.5s (avg 100 · ttft 1.4s)                                                          ↑12k ↓1.2k · cache 83% ♨ · [-]|
+|                                                       tps: 99 tok/s • 546 tok / 5.5s (avg 100 · ttft 1.4s) · ↑12k ↓1.2k · cache 83% ♨ · [-]|
 |Manual | shift+tab 切换                 dashscope/qwen3.8-max@messages medium | Ctx 3.0% | vitaweave ⎇ main 5ae9e54 (+12,-3) | $0.26 | 2h24m|

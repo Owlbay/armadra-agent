@@ -109,10 +109,10 @@ export type TaskHandle = RunnerHandle & {
   recent?(): readonly ExternalDisplayEvent[];
   /**
    * [W6-A] 人在子 Agent 视图里直接发的消息（子会话 user 消息 `origin: "direct"`）：`followUp` = 本轮运行中
-   * 排到回合结束（不在运行中抛 `task_idle`，由注册表排队到运行结束后续聊）；`send` = 空闲时开新一轮（同 `send`）。
-   * ama 子会话提供。
+   * 排到回合结束（不在运行中抛 `task_idle`，由注册表排队到运行结束后续聊）；`send` = 空闲时开新一轮（同 `send`）；
+   * `interrupt` = 打断子会话当前回合并立即以它开新回合（不在运行中同样抛 `task_idle`）。ama 子会话提供。
    */
-  message?(text: string, when: "followUp" | "send"): Promise<void>;
+  message?(text: string, when: "followUp" | "send" | "interrupt"): Promise<void>;
 };
 
 /** [W6-A] 外部 Agent 环形缓冲的上限（docs/wave6-plan.md D2）。 */

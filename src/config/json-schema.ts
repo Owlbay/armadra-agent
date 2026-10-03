@@ -318,6 +318,7 @@ function buildBaseSchema(): Schema {
         logo: oneOf(["auto", "off"]),
         animation: bool(),
         restoreOnCancel: bool(),
+        enterWhileRunning: oneOf(["queue", "interrupt"]),
         statusLine: oneOf(STATUS_LINE_MODES),
         language: oneOf(LANGUAGE_SETTINGS),
         replyLanguage: str(),

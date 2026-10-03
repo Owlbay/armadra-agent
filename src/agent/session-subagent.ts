@@ -89,7 +89,7 @@ function brokersForChild(
 export interface ChildSession {
   readonly manager: SessionManager;
   readonly messages: readonly AgentMessage[];
-  prompt(text: string, options?: { origin?: MessageOrigin }): Promise<unknown>;
+  prompt(text: string, options?: { origin?: MessageOrigin; interrupt?: boolean }): Promise<unknown>;
   /** [W6-A] 视图里直接发的消息（运行中排到回合结束）。 */
   followUp?(text: string, options?: { origin?: MessageOrigin }): Promise<unknown>;
   /** [W6-A] 取出排队消息（一轮收尾时才入队、没被消费的）。 */
@@ -278,6 +278,8 @@ async function startAmaChild(
   let billed = { cacheRead: 0, prompt: 0, reBilled: 0 };
 
   let active = false;
+  /** 视图里「打断并发送」开的回合（runOnce 等它们跑完再收尾）。 */
+  const forced: Promise<unknown>[] = [];
   const runOnce = async (prompt: string, origin?: MessageOrigin): Promise<SubagentResult> => {
     const startTurns = turns;
     let error: string | undefined;
@@ -287,6 +289,7 @@ async function startAmaChild(
       await child.prompt(prompt, origin === undefined ? {} : { origin });
       // [W6-A] 收尾阶段才入队的 followUp（只可能来自视图）留在队列里：接着再跑一轮
       for (;;) {
+        while (forced.length > 0) await forced.shift();
         const left = child.clearQueue?.().followUp ?? [];
         if (left.length === 0 || run.signal.aborted) break;
         await child.prompt(left.join("\n\n"), { origin: "direct" });
@@ -333,6 +336,11 @@ async function startAmaChild(
       }
       if (!active || child.followUp === undefined)
         throw new AmaError("task_idle", "the sub-agent is not running");
+      if (when === "interrupt") {
+        // 同步登记：被中止的那一轮一结束，runOnce 就接着等这一轮
+        forced.push(child.prompt(text, { origin: "direct", interrupt: true }));
+        return;
+      }
       await child.followUp(text, { origin: "direct" });
     },
     wait: () => current,

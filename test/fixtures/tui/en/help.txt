@@ -16,6 +16,7 @@ info:/help  List commands
 /tasks [id] | stop <id> | bg [id]  Sub-agent tasks: status, output, stop, background
 /agents  Sub-agent types and external agents (installed, version)
 /paste  Paste an image from the clipboard (Ctrl+V)
+/interrupt <text>  Interrupt the current turn and send this now, queued steers first (Ctrl+X)
 /exit  Exit
 /config [key=value]  Settings panel; key=value sets one item directly (user level)
 /trace [task id]  Trace: timing and usage of turns, requests and tools
@@ -27,6 +28,7 @@ info:/help  List commands
 
 Enter send (while running = steer)  Alt+Enter queue after this turn  Shift+Enter / Ctrl+J newline
 Esc interrupt (queued messages go back to the editor)  Alt+↑ take back the last queued message
+Ctrl+X (while running) interrupt the current turn and send the input now, queued steers first; ui.enterWhileRunning: interrupt swaps it with Enter
 Idle Esc Esc: empty input = rewind (/rewind), with text = clear (↑ to restore)
 Shift+Tab / Tab (empty input) cycle permission mode (confirm before Bypass)  Ctrl+L model  Ctrl+T thinking level  Ctrl+O expand tool output and thinking
 Approval: 1–3 or ↑↓ Enter to choose, y allow  a allow for this session  n / Esc deny  v full input

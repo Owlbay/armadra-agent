@@ -7,6 +7,25 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 
 ## Unreleased
 
+- **Interrupt and send now**: while a run is in progress, Enter still queues the message as a steer (delivered at the next
+  delivery point), and the new `Ctrl+X` (key action `app.message.interrupt`) stops the current turn at once (model stream and
+  running tools; every tool call keeps exactly one result, `aborted by user`) and immediately starts a new turn with the
+  input, queued steers joined in front (`origin: "interrupt"`, `↳ interrupt` in the message area); with an empty input it
+  sends the queued steers now. Esc is unchanged. `ui.enterWhileRunning: "queue" | "interrupt"` (default queue, editable in
+  `/config`) swaps Enter and `Ctrl+X`. The running line shows `Enter queue · Ctrl+X interrupt & send` while the input box has
+  text. The sub-agent view supports the same key: an ama sub-agent stops its turn and starts a new one with the message; an
+  external agent is interrupted when its driver can cancel a single turn (ACP, Claude stream-json, Codex) and otherwise the
+  message is queued with a hint. Line mode accepts `/interrupt <text>`; RPC `prompt` / `steer` and the SDK take
+  `interrupt: true`. The new request keeps the interrupted request as its prefix, so the cache keeps hitting. Docs:
+  docs/tui.md, docs/rpc.md.
+- **Status line split into sides; quota labels fixed**: the `full` layout now keeps state and switches on the left and
+  metrics and the model on the right. The rate line's left side holds `codemode on` (with `net!`) · sandbox · preset ·
+  `→ fallback model` · queue count · host status, and its right side `tps … (avg · ttft) · ↑ ↓ · cache · re-billing · [-]`;
+  the status bar keeps the permission mode and the `shift+tab` hint on the left; the quota line is right-aligned. When
+  narrow, right-side metrics drop before left-side switches; the permission mode, `tps` and `[-]` never drop; the
+  single-line `compact` layout keeps its token order. Quota labels follow the window length: a weekly window sent as
+  primary reads `Weekly` instead of `7d:`, and the 5-hour window comes first; the all-zero "no such window" the server
+  sends is no longer rendered as `0d: 0.0%` (filtered both when parsing and when rendering). Docs: docs/tui.md.
 - **`AcpClient` can pass MCP servers when opening a session**: `newSession`, `resumeSession` and `loadSession` take an
   optional third argument `{ mcpServers }` that is forwarded as-is in `session/new|resume|load` (default still `[]`, the
   wire is unchanged when it is omitted). `AcpClient.features.mcpServers` lets a host detect support. ama itself still

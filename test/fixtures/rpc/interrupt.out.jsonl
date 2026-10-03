@@ -1,0 +1,18 @@
+{"type":"agent_start"}
+{"id":"p","type":"response","command":"prompt","success":true,"data":{"disposition":"started"}}
+{"type":"message_end","message":{"role":"user","content":"start","timestamp":0}}
+{"type":"queue_update","steering":["note first"],"followUp":[]}
+{"id":"s","type":"response","command":"steer","success":true,"data":{"disposition":"queued"}}
+{"type":"queue_update","steering":[],"followUp":[]}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"working"}],"api":"fake","provider":"fake","model":"echo","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"aborted","timestamp":0,"thinkingLevel":"medium","errorMessage":"Request was aborted"}}
+{"type":"agent_settled"}
+{"type":"agent_start"}
+{"id":"i","type":"response","command":"steer","success":true,"data":{"disposition":"started"}}
+{"type":"message_end","message":{"role":"user","content":"note first\n\ndo B now","timestamp":0,"origin":"interrupt"}}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"switched"}],"api":"fake","provider":"fake","model":"echo","usage":{"input":30,"output":2,"cacheRead":0,"cacheWrite":0,"totalTokens":32,"cost":{"input":0.00003,"output":0.000004,"cacheRead":0,"cacheWrite":0,"total":0.000034}},"stopReason":"stop","timestamp":0,"thinkingLevel":"medium"}}
+{"type":"agent_settled"}
+{"type":"agent_start"}
+{"id":"idle","type":"response","command":"prompt","success":true,"data":{"disposition":"started"}}
+{"type":"message_end","message":{"role":"user","content":"hello","timestamp":0}}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"idle answer"}],"api":"fake","provider":"fake","model":"echo","usage":{"input":40,"output":2,"cacheRead":0,"cacheWrite":0,"totalTokens":42,"cost":{"input":0.00004,"output":0.000004,"cacheRead":0,"cacheWrite":0,"total":0.000044000000000000006}},"stopReason":"stop","timestamp":0,"thinkingLevel":"medium"}}
+{"type":"agent_settled"}

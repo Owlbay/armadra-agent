@@ -352,6 +352,7 @@ export function validateConfig(value: unknown): Diagnostic[] {
       "logo",
       "animation",
       "restoreOnCancel",
+      "enterWhileRunning",
       ...W5_UI_KEYS,
       ...W6_UI_KEYS,
     ],
@@ -366,6 +367,7 @@ export function validateConfig(value: unknown): Diagnostic[] {
       c.oneOf(s, "logo", p, ["auto", "off"]);
       c.boolean(s, "animation", p);
       c.boolean(s, "restoreOnCancel", p);
+      c.oneOf(s, "enterWhileRunning", p, ["queue", "interrupt"]);
       checkUiW5(c, s, p);
       checkUiW6(c, s, p);
     },

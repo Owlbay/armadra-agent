@@ -36,15 +36,17 @@
 
 ### 提示
 
-| 命令          | 参数                                                                                    | `data`                                                       |
-| ------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `prompt`      | `message: string`、`images?: ImageBlock[]`、`streamingBehavior?: "steer" \| "followUp"` | `{ disposition: "started" \| "queued" \| "handled" }`        |
-| `steer`       | `message`、`images?`                                                                    | 同上                                                         |
-| `follow_up`   | `message`、`images?`                                                                    | 同上                                                         |
-| `abort`       | —                                                                                       | `{}`（回到空闲后应答；不清队列）                             |
-| `clear_queue` | —                                                                                       | `{ steering: string[], followUp: string[] }`（被清掉的文本） |
+| 命令          | 参数                                                                                                           | `data`                                                       |
+| ------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `prompt`      | `message: string`、`images?: ImageBlock[]`、`streamingBehavior?: "steer" \| "followUp"`、`interrupt?: boolean` | `{ disposition: "started" \| "queued" \| "handled" }`        |
+| `steer`       | `message`、`images?`、`interrupt?: boolean`                                                                    | 同上                                                         |
+| `follow_up`   | `message`、`images?`                                                                                           | 同上                                                         |
+| `abort`       | —                                                                                                              | `{}`（回到空闲后应答；不清队列）                             |
+| `clear_queue` | —                                                                                                              | `{ steering: string[], followUp: string[] }`（被清掉的文本） |
 
 提示类命令**不等运行结束**：会话开始运行（`before_agent_start` / `agent_start`）、消息入队或被处理（例如斜杠命令、Hook 阻止）后立刻应答，运行进展走事件。运行中发 `prompt` 且不带 `streamingBehavior` → 失败，`code: "busy"`；带上 `steer` / `followUp` 则入队。应答发出之后的运行失败以 `{"type":"notification","level":"error","message":…}` 报告。
+
+**打断并立即发送**：`prompt` / `steer` 带 `interrupt: true`（优先于 `streamingBehavior`）时，运行中先取走排队的 steer、中止当前回合（模型流断开，正在执行的工具按中断收尾，每个工具调用恰有一个结果 `aborted by user`，被打断的 assistant 消息以 `stopReason: "aborted"` 落盘），再立刻以「排队的 steer… + 本条」（空行拼接）开新回合，应答 `{ disposition: "started" }`；新回合的 user 消息 `origin: "interrupt"`。排在本轮之后的 followUp 留在队列，新回合结束后照常投递；后台子 Agent 不受影响。空闲时等同不带。`interrupt` 不是布尔 → `invalid_arguments`；运行中但本条与排队的 steer 都为空 → `invalid_arguments`（不中断）。事件顺序：`queue_update`（steer 被取走）→ 旧回合 `message_end`（aborted）→ `agent_settled` → `agent_start` → 应答 → 新的 user `message_end` ……（黄金记录 `test/fixtures/rpc/interrupt.out.jsonl`）。新请求以被打断那次请求的全部消息为前缀，缓存照常命中。SDK 对应 `session.prompt(text, { interrupt: true })` / `session.steer(text, { interrupt: true })`。
 
 ### 状态
 
