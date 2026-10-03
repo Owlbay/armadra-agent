@@ -185,6 +185,12 @@ ama auth logout chatgpt                # siwc 先撤销 refresh token 再删本�
 | 配额     | 只在超限（429）时可知；在 ChatGPT → 设置 → Usage → App limits 给 ama 设周上限                                                                       | 响应头、`codex.rate_limits` 事件、`ama auth status` 查 `wham/usage`                                                                                   |
 | 登出     | 调 `revocation_endpoint` 撤销，再删本地                                                                                                             | 只删本地                                                                                                                                              |
 
+**模型列表**：`chatgpt` 没有内置模型表（`chatgpt/<slug>` 任意接受）。`ama auth login chatgpt` 成功后自动调一次模型
+列表接口（siwc `GET /v1/models`、codex `GET /models`，只读、不消耗额度；失败静默，改提示 `ama models discover chatgpt`），
+把账户可用的 slug 与显示名连同 flavor、时间戳缓存到 `<dataDir>/models/discovered/chatgpt.json`；`ama models discover
+chatgpt` 也重写这份缓存，`ama auth logout chatgpt` 删掉它。组装注册表时缓存并入模型表为空的供应商，元数据用 models.dev
+快照补全，`/model` 选择器、`ama models list` 照常列出；缓存里没有的 slug 仍可 `--model chatgpt/<slug>` 使用。
+
 `chatgpt` 的缺省渠道在组装时按 auth.json 条目的 flavor 决定；`provider/model@siwc|codex` 可显式指定，但必须与登录的
 flavor 一致（否则报 `chatgpt_flavor_mismatch`）。
 

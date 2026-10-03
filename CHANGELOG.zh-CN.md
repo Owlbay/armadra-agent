@@ -4,6 +4,17 @@
 
 > 从 0.6.0 起 [CHANGELOG.md](CHANGELOG.md) 为英文，本文件保留中文记录（0.1–0.5.1 的完整历史在此）。新条目两份都要加。
 
+## 未发布
+
+- **模型选择器只显示已配置的模型，ChatGPT 模型可选**：`/model`（以及启动选择器、`/config` 的模型项）只列有 key、OAuth 已登录或
+  本地服务的供应商；多渠道供应商每个模型一行（其它渠道写在说明里，筛选文本输入 `@` 列出 `模型@渠道` 行）；当前模型不在列表里时
+  置顶。`Tab` 切到「全部」（没配置的供应商标「未配置 key」，选中时提示 `ama auth set`），`Space` 把高亮的模型加入 / 移出新的
+  用户级清单 `models.enabled`（`provider/model[@channel]`、`provider/*`），设置后选择器只列清单内的模型；`ama models enable |
+disable` 与 `ama models list --enabled` 在命令行编辑和查看。`ama auth login chatgpt` 成功后拉取账户可用的模型（只读、不消耗
+  额度）缓存到 `<dataDir>/models/discovered/chatgpt.json`，`ama models discover chatgpt` 重写、logout 删除；注册表把缓存并入模型
+  表为空的供应商，ChatGPT 模型因此出现在 `/model` 与 `ama models list` 里。注意：只登录了 ChatGPT、没设 `defaultModel` 时，
+  缺省模型现在可能选中缓存里的第一个 ChatGPT 模型。文档：docs/tui.md、docs/providers.md「ChatGPT 登录」。
+
 ## 0.6.0（2026-10-03）
 
 第六波：Agent 栏与子 Agent 视图、轨迹、记忆（Memory）、ChatGPT 登录、`/config` 设置面板、中英双语界面。设计依据与决定表见
