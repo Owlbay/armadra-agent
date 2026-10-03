@@ -1,0 +1,51 @@
+# draft while running · viewport 100x24 cursor=10,14
+|✻ ama <version> · fake/echo · Manual · /help
+|
+|› first
+|
+|Working on it
+|
+|  ↳ steer  also this
+|    Alt+↑ take back · Ctrl+X send now · Esc refill and interrupt
+|⠋ Replying · 0s · ↓≈4 · Esc to interrupt · Enter queue · Ctrl+X interrupt & send
+|────────────────────────────────────────────────────────────────────────────────────────────────────
+|› do Y instead
+|────────────────────────────────────────────────────────────────────────────────────────────────────
+|Manual · shift+tab to cycle                        fake/echo · medium · ctx 0% · work · 0s · queue 1
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+
+# after Ctrl+X · viewport 100x24 cursor=15,2
+|✻ ama <version> · fake/echo · Manual · /help
+|
+|› first
+|
+|Working on it
+|
+|Interrupted
+|
+|↳ interrupt  also this
+|
+|  do Y instead
+|
+|OK, switching.
+|
+|────────────────────────────────────────────────────────────────────────────────────────────────────
+|› Type a message, / for commands, @ for files, Shift+Enter for newline
+|────────────────────────────────────────────────────────────────────────────────────────────────────
+|Interrupted · sending now
+|Manual                         fake/echo · medium · ↑1.2k ↓4 · cache — · $0.001 · ctx 1% · work · 0s
+|
+|
+|
+|
+|
