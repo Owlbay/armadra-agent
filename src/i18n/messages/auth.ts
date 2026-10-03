@@ -63,6 +63,20 @@ export const en = {
       "Use it with --model chatgpt/<model>; list the models your account can use with ama models discover chatgpt.",
     modelsCached: (count: number) =>
       `Your account can use ${count} model(s); pick one with /model or --model chatgpt/<model>.`,
+    siwcEligibilityHint:
+      "Whether this account can share its plan usage with ama is only confirmed on the first request.",
+    codexNoModels: (version: string) =>
+      `The codex backend returned no models. codexClientVersion (${version}) may be too old: set a newer Codex CLI version with ama config set auth.chatgpt.codexClientVersion <version>, then run ama models discover chatgpt.`,
+  },
+  request: {
+    notEligible:
+      "this ChatGPT account cannot share plan usage with ama (403 subscription_sharing_user_not_eligible). Possible causes:\n" +
+      "  1. Plan: plan usage is shared with Plus / Pro only\n" +
+      "  2. Workspace account: Team / Enterprise / Edu workspaces may not offer it\n" +
+      "  3. Region restriction, or not yet rolled out during the preview (most likely when a Pro account still gets this error)\n" +
+      "You can sign in the other way instead: ama auth login chatgpt --flavor codex",
+    flavorMismatch: (current: string, ref: string, pinned: string) =>
+      `signed in with ${current}, but ${ref} pins the @${pinned} channel. Drop @${pinned} so the channel follows the sign-in, or run ama auth login chatgpt --flavor ${pinned}`,
   },
   errors: {
     portsBusy: (ports: string, codex: boolean) =>
@@ -184,6 +198,19 @@ export const zh = {
     modelHint:
       "用 --model chatgpt/<模型> 使用；账户可用的模型用 ama models discover chatgpt 查看。",
     modelsCached: (count) => `账户可用 ${count} 个模型，用 /model 或 --model chatgpt/<模型> 选择。`,
+    siwcEligibilityHint: "这个账户能否把套餐额度共享给 ama，要到首次请求时才能确认。",
+    codexNoModels: (version) =>
+      `codex 后端没有返回模型，可能是 codexClientVersion（${version}）过旧：用 ama config set auth.chatgpt.codexClientVersion <版本> 设为较新的 Codex CLI 版本，再运行 ama models discover chatgpt。`,
+  },
+  request: {
+    notEligible:
+      "这个 ChatGPT 账户不能把套餐额度共享给 ama（403 subscription_sharing_user_not_eligible）。可能的原因：\n" +
+      "  1. 账户套餐：额度共享只对 Plus / Pro 开放\n" +
+      "  2. 工作空间账户：Team / Enterprise / Edu 工作空间可能未开放\n" +
+      "  3. 地区受限，或预览期尚未开放（Pro 账户仍报此错时最可能是这一条）\n" +
+      "可以改用另一种登录方式：ama auth login chatgpt --flavor codex",
+    flavorMismatch: (current, ref, pinned) =>
+      `当前以 ${current} 方式登录，但 ${ref} 显式指定了 @${pinned} 渠道。去掉 @${pinned} 让渠道跟随登录方式，或运行 ama auth login chatgpt --flavor ${pinned}`,
   },
   errors: {
     portsBusy: (ports, codex) =>

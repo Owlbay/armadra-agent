@@ -379,6 +379,11 @@ export interface Model {
   requiresApiKey?: boolean;
   /** 所选渠道名（registry 物化时填入；隐式 `default` 渠道不填）。 */
   channel?: string;
+  /**
+   * 渠道是引用里显式写的 `@渠道`（`findModel("p/m@c")` 填 true）。ChatGPT 订阅供应商据此区分：没写的渠道在
+   * 请求时跟随当前登录方式，写了的不跟随（不符时报 `chatgpt_flavor_mismatch`）。
+   */
+  channelPinned?: boolean;
   /** 该模型挂载的全部渠道，首个为首选（多渠道供应商才有）。 */
   channels?: string[];
   // [W5-C0] models.dev 元数据（docs/wave5-plan.md §2.1；快照与目录物化时填入，缺省 = 未知）

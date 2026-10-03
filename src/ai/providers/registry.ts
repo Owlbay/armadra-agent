@@ -446,8 +446,8 @@ export class ProviderRegistry implements ProviderRegistryApi {
         candidates: available.filter(Boolean).map((c) => `${provider.id}/${model.id}@${c}`),
       };
     }
-    if (channel === model.channel) return { ok: true, model, provider };
-    return { ok: true, model: this.materialize(provider, model, channel), provider };
+    const picked = channel === model.channel ? model : this.materialize(provider, model, channel);
+    return { ok: true, model: { ...picked, channelPinned: true }, provider };
   }
 
   /**
@@ -478,9 +478,10 @@ export class ProviderRegistry implements ProviderRegistryApi {
         const open = this.relayed.has(provider.id) || this.openTables.has(provider.id);
         const relayed = provider.models.length === 0 || open;
         if (synthesize && relayed && id.length > 0) {
-          const synthesized = this.synthesize(provider, id);
-          if (channel !== undefined && provider.channels?.some((c) => c.name === channel))
-            synthesized.channels = [...new Set([...(synthesized.channels ?? []), channel])];
+          // 按所要的渠道直接物化（先按缺省渠道物化再换渠道会留下缺省渠道的地址与 compat）
+          const known = provider.channels?.some((c) => c.name === channel) ? channel : undefined;
+          const synthesized = this.synthesize(provider, id, known);
+          if (known) synthesized.channels = [...new Set([...(synthesized.channels ?? []), known])];
           return { ok: true, model: synthesized, provider };
         }
         return { ok: false, reason: "not_found", candidates: this.similar(id, provider.id) };

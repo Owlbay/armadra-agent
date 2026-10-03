@@ -60,6 +60,11 @@ export interface ChatGptAuthConfig {
   issuer?: string;
   /** codex flavor 的 `originator` 请求头，缺省 codex_cli_rs。 */
   originator?: string;
+  /**
+   * codex flavor 模型列表的 `client_version`（Codex CLI 版本号，后端按它过滤模型），缺省见
+   * `DEFAULT_CODEX_CLIENT_VERSION`；`AMA_CHATGPT_CODEX_CLIENT_VERSION` 优先。
+   */
+  codexClientVersion?: string;
   /** 本地回调端口（依次尝试；0 = 任意空闲端口）。 */
   redirectPorts?: number[];
 }

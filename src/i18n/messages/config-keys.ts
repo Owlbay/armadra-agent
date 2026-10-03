@@ -153,6 +153,8 @@ const keysEn = {
   "auth.chatgpt.clientId": "OAuth client id",
   "auth.chatgpt.issuer": "Authorization server (override with AMA_CHATGPT_ISSUER for tests)",
   "auth.chatgpt.originator": "originator request header for the codex flavor",
+  "auth.chatgpt.codexClientVersion":
+    "Codex CLI version sent as client_version when listing codex-flavor models (the backend hides models newer than it); AMA_CHATGPT_CODEX_CLIENT_VERSION overrides",
   "auth.chatgpt.redirectPorts": "Local callback ports, tried in order; 0 = any free port",
   skills: "Skills",
   "skills.dirs": "Extra skill directories; accumulated across levels",
@@ -309,6 +311,8 @@ const keysZh = {
   "auth.chatgpt.clientId": "OAuth 客户端 id",
   "auth.chatgpt.issuer": "授权服务器（测试用 AMA_CHATGPT_ISSUER 覆盖）",
   "auth.chatgpt.originator": "codex flavor 的 originator 请求头",
+  "auth.chatgpt.codexClientVersion":
+    "codex flavor 列模型时作为 client_version 发送的 Codex CLI 版本号（后端不给比它新的模型）；AMA_CHATGPT_CODEX_CLIENT_VERSION 优先",
   "auth.chatgpt.redirectPorts": "本地回调端口，依次尝试；0 = 任意空闲端口",
   skills: "Skill",
   "skills.dirs": "追加的 Skill 目录；各层累加",

@@ -4,7 +4,8 @@
  * OAuth：authorize（记参数、302 回 redirect_uri；SIWC 注册时带签发的 client_id 与 scope）、token（校验 PKCE；
  * 授权码 / 刷新；刷新轮换，旧 refresh token 再用 → `refresh_token_reused`）、deviceauth、discovery + JWKS
  * （现场生成 RSA 密钥对）、revoke。后端：`/v1/responses`、`/codex/responses`、`/v1/models`、`/codex/models`、
- * `/wham/usage`，按脚本回放。
+ * `/wham/usage`，按脚本回放；给了 `codexModels` 时 `/codex/models` 改按 `client_version` 过滤（不带 → 400，
+ * 低于条目的 `minimal_client_version` 不给），与真实 codex 后端一致。
  */
 
 import { createHash, generateKeyPairSync, randomBytes, sign, type KeyObject } from "node:crypto";
@@ -43,6 +44,19 @@ export interface FakeOAuthOptions {
   /** 设备码轮询先返回几次 403。 */
   devicePending?: number;
   marker?: string;
+  /** codex 模型目录（`/codex/models` 按 `client_version` 过滤后返回 `{ models }`）。 */
+  codexModels?: Record<string, unknown>[];
+}
+
+/** `a.b.c` 比较；非数字段按 0。 */
+function compareVersion(a: string, b: string): number {
+  const pa = a.split(".").map((x) => Number.parseInt(x, 10) || 0);
+  const pb = b.split(".").map((x) => Number.parseInt(x, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
 }
 
 function b64url(value: unknown): string {
@@ -253,6 +267,17 @@ export class FakeOAuthServer {
           authorization_code: code,
           code_verifier: verifier,
           code_challenge: "x",
+        });
+      }
+      case "/codex/models": {
+        const catalog = this.options.codexModels;
+        if (catalog === undefined) return this.backend(res);
+        const version = url.searchParams.get("client_version");
+        if (version === null) return json(400, { error: { message: "client_version required" } });
+        return json(200, {
+          models: catalog.filter(
+            (m) => compareVersion(version, String(m["minimal_client_version"] ?? "0")) >= 0,
+          ),
         });
       }
       case "/revoke":

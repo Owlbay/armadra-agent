@@ -12,6 +12,7 @@ import { readOAuthEntry, writeOAuthEntry } from "../../auth/oauth/token-store.js
 import { FakeOAuthServer, completedEvents } from "../../auth/testing/fake-oauth.js";
 import { ProviderRegistry } from "../providers/registry.js";
 import type { AssistantMessage, Model, StreamOptions, TranscriptContext } from "../types.js";
+import { setLocale } from "../../i18n/index.js";
 import { resetChatGptState, transformChatGptBody } from "./chatgpt-backend.js";
 import { openAIResponsesApi } from "./openai-responses.js";
 
@@ -186,6 +187,31 @@ describe("SIWC 后端", () => {
     const ok = await ctx.run();
     expect(ok.stopReason).toBe("stop");
     expect(lastBody()["reasoning"]).toBeUndefined();
+  });
+
+  it("not_eligible 文案列出原因（套餐 / 工作空间 / 地区或预览期）并提示 codex 方式；zh 与 en", async () => {
+    const ctx = await setup("siwc");
+    const forbidden = {
+      status: 403,
+      body: { error: { code: "subscription_sharing_user_not_eligible" } },
+    };
+    server.responses.push(forbidden);
+    const zh = (await ctx.run()).errorMessage ?? "";
+    expect(zh).toMatch(/^not_eligible: 这个 ChatGPT 账户不能把套餐额度共享给 ama/);
+    for (const part of ["Plus / Pro", "工作空间", "地区受限", "预览期", "Pro 账户仍报此错时最可能"])
+      expect(zh).toContain(part);
+    expect(zh).toContain("ama auth login chatgpt --flavor codex");
+    setLocale("en");
+    try {
+      server.responses.push(forbidden);
+      const en = (await ctx.run()).errorMessage ?? "";
+      expect(en).toMatch(/^not_eligible: this ChatGPT account cannot share plan usage/);
+      for (const part of ["Plus / Pro", "Workspace", "Region", "preview", "Pro account"])
+        expect(en).toContain(part);
+      expect(en).toContain("ama auth login chatgpt --flavor codex");
+    } finally {
+      setLocale("zh");
+    }
   });
 
   it("401 → 强制刷新一次重试；仍 401 → auth_expired", async () => {

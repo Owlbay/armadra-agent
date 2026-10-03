@@ -78,6 +78,7 @@ describe("ChatGPT 发现缓存", () => {
     expect(h.out.join("")).toContain(
       "账户可用 2 个模型，用 /model 或 --model chatgpt/<模型> 选择。",
     );
+    expect(h.out.join("")).toContain("能否把套餐额度共享给 ama，要到首次请求时才能确认");
     const listing = server!.requests.find((r) => r.path === "/v1/models");
     expect(listing?.method).toBe("GET");
     const cache = readDiscoveredCache(h.dataDir, "chatgpt");

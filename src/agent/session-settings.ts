@@ -7,6 +7,7 @@
  */
 
 import type { Model, ModelThinkingLevel, ProviderRegistryApi } from "../ai/types.js";
+import { followChatGptLogin } from "../auth/chatgpt/follow.js";
 import { AmaError } from "../errors.js";
 import type { PermissionMode } from "../permissions/types.js";
 import type { ToolDefinition } from "../tools/types.js";
@@ -15,9 +16,17 @@ import type { AgentSessionOptions, SessionCore } from "./session-core.js";
 import { appendModelChange, findModelOrThrow, sessionStartEvent } from "./session-sync.js";
 import type { SystemPromptInput } from "./system-prompt.js";
 
-/** 按模型的协议分派到已注册的实现（会话流的最内层）。 */
+/**
+ * 按模型的协议分派到已注册的实现（会话流的最内层）。ChatGPT 订阅模型先按本次 token 的登录方式改渠道
+ * （没写 `@渠道` 时；auth/chatgpt/follow.ts），会话中途换登录方式不用重启。
+ */
 export function providerStream(providers: ProviderRegistryApi): StreamFn {
-  return (model, context, streamOptions) => {
+  return (requested, context, streamOptions) => {
+    const model = followChatGptLogin(
+      requested,
+      providers.get(requested.provider),
+      streamOptions.apiKey,
+    );
     const api = providers.getApi(model.api);
     if (api === undefined) {
       throw new AmaError("provider_not_found", `no implementation registered for api ${model.api}`);
