@@ -14,6 +14,8 @@
  * - 丢弃顺序（§1.2，数字大先丢；`tps` 与 `[-]` 永不丢）：tok/耗时 10 → codemode 9 → queue 8 → token 7 →
  *   cache 6 → rebill 5 → 预设 4 → 宿主 3 → avg 2 → ttft 1；数字按最宽形状占位，不随数值抖动；
  * - `compact` 时不占行（render 返回空）。
+ * - [W6] 配色（用户参考）：标签、单位、`•`、括号 dim；速率数字 `tool`（紫）；输出量与耗时、avg 数字 accent（蓝）；
+ *   ttft 数字 `tool`；右区用量项不变。
  */
 
 import { truncateToWidth, type Component, type Theme } from "../../tui.js";
@@ -86,32 +88,41 @@ export class StatusLine implements Component {
       if (text !== undefined) parts.push({ text, priority, zone: "right" });
     };
 
+    const blue = (text: string): string => theme.fg("accent", text);
+    const purple = (text: string): string => theme.fg("tool", text);
+    const amountText = (tokens: number, ms: number): string =>
+      `${blue(formatTokens(tokens))}${dim(" tok / ")}${blue(formatSeconds(ms))}`;
     let tps: number | undefined;
     let amount: string | undefined;
     if (live !== undefined) {
       tps = live.tps;
-      amount = `${formatTokens(live.outputTokens)} tok / ${formatSeconds(live.elapsedMs)}`;
+      amount = amountText(live.outputTokens, live.elapsedMs);
     } else if (last?.doneAt !== undefined) {
       tps = last.tps;
       if (last.outputTokens !== undefined && last.firstTokenAt !== undefined) {
-        amount = `${formatTokens(last.outputTokens)} tok / ${formatSeconds(last.doneAt - last.firstTokenAt)}`;
+        amount = amountText(last.outputTokens, last.doneAt - last.firstTokenAt);
       }
     }
     const label = live !== undefined ? theme.fg("accent", "tps:") : dim("tps:");
     left(
-      `${label} ${dim(tps === undefined ? "—" : `${formatRate(tps)} tok/s`)}`,
+      `${label} ${tps === undefined ? dim("—") : `${purple(formatRate(tps))}${dim(" tok/s")}`}`,
       undefined,
       RESERVE.tps,
     );
     if (amount !== undefined) {
-      left(dim(amount), PRIORITY.amount, RESERVE.amount, { lead: ` ${theme.glyphs.dot} ` });
+      left(amount, PRIORITY.amount, RESERVE.amount, { lead: ` ${theme.glyphs.dot} ` });
     }
     const stat = { group: "stats", lead: " " };
     if (telemetry?.avgTps !== undefined) {
-      left(dim(`avg ${formatRate(telemetry.avgTps)}`), PRIORITY.avg, RESERVE.avg, stat);
+      left(`${dim("avg ")}${blue(formatRate(telemetry.avgTps))}`, PRIORITY.avg, RESERVE.avg, stat);
     }
     if (last?.ttftMs !== undefined) {
-      left(dim(`ttft ${formatSeconds(last.ttftMs)}`), PRIORITY.ttft, RESERVE.ttft, stat);
+      left(
+        `${dim("ttft ")}${purple(formatSeconds(last.ttftMs))}`,
+        PRIORITY.ttft,
+        RESERVE.ttft,
+        stat,
+      );
     }
 
     const usage = usageItems(stats, this.bar.queued(), this.source, theme);

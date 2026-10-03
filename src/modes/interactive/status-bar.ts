@@ -19,6 +19,11 @@
  * - 费用 = `stats.cost` + 外部 Agent 以美元计的用量（`stats.external`，W5-E；其它单位只在 /session 显示）。
  * - 着色：整行 dim；模式名正文色（Bypass permissions warning、Plan accent）；模型 accent；ctx 按阈值
  *   success / warning / error；rebill、queue warning；`net!` error。宽 ≥ 110 时 ctx 用余量表。
+ *   [W6] full 本行按用户参考配色：思考级别 `user`（浅蓝）、目录与分支 success、短提交 dim、`↑N` 领先 `code`（橙）/
+ *   `↓N` 落后 error、`(+a,-d)` 的 +a success / -d error、费用 warning、时长 `tool`（紫）；compact 着色不变。
+ * - [W6] git 段在短提交后显示领先 / 落后上游 `↑N ↓N`（只 full；为 0 不显示，没有上游不显示）。
+ * - [W6] compact 在行尾（宿主状态之后）追加订阅配额短项 `5h 10% wk 31%`（status-quota.ts），最先丢；
+ *   既有记号顺序不变。full 的配额在状态栏下方单独一行。
  * - [W5-U] bash 在操作系统沙箱里跑时（S2）用量类项多一个 `沙箱`（与 codemode 同一丢弃优先级）。
  * - [W5-U] 模型回退中（`model_fallback`）模型项显示 `主模型 → 回退模型`，切回主模型后恢复。
  * - 模型名缩写：宽 < 100 去掉供应商前缀，< 60 再去掉 `@渠道`，< 48 去掉版本后缀（第一个 `-数字` 起）。
@@ -33,6 +38,7 @@ import { permissionModeLabel } from "../../permissions/modes.js";
 import { formatModelRef } from "../../ai/providers/channels.js";
 import type { StatusLineMode } from "../../config/types.js";
 import type { GitInfo } from "../../git/info.js";
+import { compactQuotaItem, type QuotaView } from "./status-quota.js";
 import {
   Meter,
   levelColor,
@@ -64,6 +70,8 @@ export interface StatusBarSource {
   bashSandbox?(): boolean;
   /** [W5-U] 模型回退中（`model_fallback` 之后、切回主模型之前）：主模型与回退模型的引用。 */
   fallback?(): { from: string; to: string } | undefined;
+  /** [W6] 订阅配额（当前模型走 ChatGPT 订阅时）；compact 行尾短项用。 */
+  quota?(): QuotaView;
 }
 
 export function formatTokens(count: number): string {
@@ -289,6 +297,7 @@ const COMPACT = {
   preset: 14,
   host: 15,
   hint: 16,
+  quota: 17,
 } as const;
 
 /** full 布局本行的优先级（§1.2 下行表）。 */
@@ -370,7 +379,8 @@ export class StatusBar implements Component {
           theme.fg("warning", abbreviateModel(fallback.to, width));
     right(modelText, p.model, full ? { group: "model" } : {});
     if (state.thinkingLevel !== "off") {
-      right(dim(state.thinkingLevel), p.thinking, full ? { group: "model" } : {});
+      const level = full ? theme.fg("user", state.thinkingLevel) : dim(state.thinkingLevel);
+      right(level, p.thinking, full ? { group: "model" } : {});
     }
     const usage = full ? {} : usageItems(stats, this.queue, this.source, theme);
     if (usage.tokens !== undefined) right(usage.tokens, COMPACT.tokens);
@@ -383,39 +393,62 @@ export class StatusBar implements Component {
       const cost = statusCost(stats);
       const used = stats.tokens.input + stats.tokens.output + stats.tokens.cacheRead > 0;
       if (cost === undefined && used) right(dim("$?"), FULL.cost);
-      else if (cost !== undefined && cost > 0) right(dim(formatCost(cost)), FULL.cost);
+      else if (cost !== undefined && cost > 0) {
+        right(theme.fg("warning", formatCost(cost)), FULL.cost);
+      }
     }
     const started = this.source.sessionStartedAt?.() ?? stats.telemetry?.sessionStartedAt;
     if (started !== undefined) {
       const now = this.source.now?.() ?? Date.now();
-      right(dim(formatDuration(now - started)), p.duration, { reserve: 6 });
+      const text = formatDuration(now - started);
+      right(full ? theme.fg("tool", text) : dim(text), p.duration, { reserve: 6 });
     }
     if (usage.queue !== undefined) right(usage.queue, COMPACT.queue);
     if (usage.codemode !== undefined) right(usage.codemode, COMPACT.codemode);
     if (usage.sandbox !== undefined) right(usage.sandbox, COMPACT.codemode);
     if (usage.preset !== undefined) right(usage.preset, COMPACT.preset);
     if (usage.host !== undefined) right(usage.host, COMPACT.host);
+    const quota = full ? undefined : this.source.quota?.();
+    const quotaItem = typeof quota === "object" ? compactQuotaItem(quota.quota, theme) : undefined;
+    if (quotaItem !== undefined) right(quotaItem, COMPACT.quota);
     return parts;
   }
 
-  /** `目录 ⎇ 分支 短提交 +a −b`：三项同组、各自按优先级丢弃。 */
+  /** `目录 ⎇ 分支 短提交 +a −b`：三项同组、各自按优先级丢弃；full 另带 `↑N ↓N` 并按参考配色。 */
   private gitParts(p: { branch: number; dir: number; diff: number }, full: boolean): Part[] {
     const git = this.source.git?.();
     if (git === undefined) return [];
     const theme = this.theme;
     const g = theme.glyphs;
     const dim = (text: string): string => theme.fg("dim", text);
+    const ok = (text: string): string => (full ? theme.fg("success", text) : dim(text));
     const out: Part[] = [];
     const add = (text: string, priority: number): void =>
-      void out.push({ text: dim(text), priority, zone: "right", group: "git" });
-    if (git.dir !== "") add(git.dir, p.dir);
+      void out.push({ text, priority, zone: "right", group: "git" });
+    if (git.dir !== "") add(ok(git.dir), p.dir);
     const info = git.info;
     if (info === undefined) return out;
-    const head = [info.branch, info.shortHead].filter((s) => s !== undefined).join(" ");
-    if (head !== "") add(`${g.branch} ${head}`, p.branch);
+    const head: string[] = [];
+    if (info.branch !== undefined) head.push(ok(info.branch));
+    if (info.shortHead !== undefined) head.push(dim(info.shortHead));
+    if (full && info.ahead !== undefined && info.ahead > 0) {
+      head.push(theme.fg("code", `${g.arrowUp}${info.ahead}`));
+    }
+    if (full && info.behind !== undefined && info.behind > 0) {
+      head.push(theme.fg("error", `${g.arrowDown}${info.behind}`));
+    }
+    if (!full) {
+      const text = [info.branch, info.shortHead].filter((s) => s !== undefined).join(" ");
+      if (text !== "") add(dim(`${g.branch} ${text}`), p.branch);
+    } else if (head.length > 0) add(`${dim(g.branch)} ${head.join(" ")}`, p.branch);
     if (info.insertions !== undefined && info.deletions !== undefined) {
       const { insertions: a, deletions: d } = info;
-      add(full ? `(+${a},-${d})` : `+${a} ${g.ascii ? "-" : "−"}${d}`, p.diff);
+      add(
+        full
+          ? `${dim("(")}${theme.fg("success", `+${a}`)}${dim(",")}${theme.fg("error", `-${d}`)}${dim(")")}`
+          : dim(`+${a} ${g.ascii ? "-" : "−"}${d}`),
+        p.diff,
+      );
     }
     return out;
   }
