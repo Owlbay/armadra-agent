@@ -255,4 +255,94 @@ describe("get_agents 与宿主 runner", () => {
     expect(seen).toHaveLength(1);
     expect(seen[0]).toMatchObject({ prompt: "draw", taskId: "t1", mode: "full-auto" });
   });
+
+  it("宿主注入 id 为 ama 的 runner：task(agent=ama) 交给宿主，不起子会话", async () => {
+    h = composeHarness([
+      {
+        steps: [
+          {
+            toolCall: {
+              name: "task",
+              arguments: { prompt: "review", agent: "ama", background: false },
+            },
+          },
+        ],
+      },
+      { text: "done" },
+    ]);
+    const seen: SubagentRunRequest[] = [];
+    (globalThis as Record<string, unknown>)["__amaHostRunnerSeen"] = seen;
+    const host = h.home.write(
+      "work/host-ama.cjs",
+      `module.exports = { hostApi: 1, create(api) {
+  api.runners.provide({
+    id: "ama",
+    description: "Another ama node on the canvas",
+    async start(req) {
+      globalThis.__amaHostRunnerSeen.push(req);
+      return {
+        id: "node-ama-2",
+        async send() {},
+        async wait() {
+          return { text: "reviewed by the other ama", usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 }, stopReason: "stop", isError: false, status: "completed" };
+        },
+        async stop() {},
+      };
+    },
+  });
+  return { id: "canvas-host" };
+} };`,
+    );
+    runtime = await h.boot([
+      "--model",
+      "fake/echo",
+      "--tools",
+      "read,task",
+      "--permission-mode",
+      "full-auto",
+      "--trust",
+      "--host",
+      host,
+    ]);
+    await runtime.session.prompt("go");
+    const results = runtime.session.messages
+      .filter((m) => "role" in m && m.role === "toolResult")
+      .map((m) => JSON.stringify((m as { content: unknown }).content));
+    expect(results[0]).toContain("reviewed by the other ama");
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({ prompt: "review", taskId: "t1", mode: "full-auto" });
+    // 宿主跑的，不是子会话：只有主会话的两次模型调用
+    expect(h.fake.calls).toHaveLength(2);
+  });
+
+  it("宿主没注入 ama：task(agent=ama) 照旧是未知类型", async () => {
+    h = composeHarness([
+      {
+        steps: [
+          {
+            toolCall: {
+              name: "task",
+              arguments: { prompt: "review", agent: "ama", background: false },
+            },
+          },
+        ],
+      },
+      { text: "done" },
+    ]);
+    runtime = await h.boot([
+      "--model",
+      "fake/echo",
+      "--tools",
+      "read,task",
+      "--permission-mode",
+      "full-auto",
+      "--trust",
+    ]);
+    await runtime.session.prompt("go");
+    const results = runtime.session.messages
+      .filter((m) => "role" in m && m.role === "toolResult")
+      .map((m) => JSON.stringify((m as { content: unknown }).content));
+    expect(results[0]).toMatch(/Unknown agent \\"ama\\"/);
+    expect(h.fake.calls).toHaveLength(2);
+  });
 });
