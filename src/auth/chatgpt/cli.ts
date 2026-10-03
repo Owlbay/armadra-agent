@@ -4,7 +4,8 @@
  * - login：flavor 取 `--flavor` > 用户级 `auth.chatgpt.flavor` > siwc；`--paste` / `--device`（只 codex）/ 缺省
  *   浏览器；codex 首次在 TTY 下一次性确认「非官方、仅个人使用」（非 TTY 需 `--yes`），`acknowledgedAt` 入条目；
  *   成功后在刷新锁下写 auth.json（0600）。
- *   成功后查一次模型列表写发现缓存（`<dataDir>/models/discovered/chatgpt.json`，失败静默）。
+ *   成功后先删旧的发现缓存，再查一次模型列表写缓存（`<dataDir>/models/discovered/chatgpt.json`；0 个也写空表并带
+ *   flavor，免得残留另一种登录方式的缓存；查询失败静默）。codex 返回 0 个时提示 codexClientVersion 可能过旧。
  * - logout：SIWC 先撤销 refresh token（失败照样删本地，提示到 ChatGPT 设置里断开）；codex 只删本地；
  *   同时删发现缓存。
  * - status：flavor、计划、掩码邮箱、access token 剩余、needsLogin；codex 另查 `wham/usage` 显示配额。
@@ -35,7 +36,7 @@ import { clearDiscoveredCache, writeDiscoveredCache } from "../../ai/providers/d
 import { fetchCodexUsage, listChatGptModels } from "./backend-client.js";
 import { maskEmail } from "./claims.js";
 import { loginChatGpt, revokeChatGpt, type LoginMethod } from "./login.js";
-import { CHATGPT_PROVIDER_ID, chatgptBaseUrl } from "./presets.js";
+import { CHATGPT_PROVIDER_ID, chatgptBaseUrl, codexClientVersion } from "./presets.js";
 import { quotaParts } from "./quota-text.js";
 
 export interface AuthCliDeps {
@@ -218,9 +219,15 @@ export async function runLogin(
   }
   io.stdout(`${m.loggedIn(flavor, entry.planType, maskEmail(entry.email), args.path)}\n`);
   if (entry.planType === "free") io.stdout(`${m.freePlanHint(entry.planType)}\n`);
-  if (flavor === "siwc") io.stdout(`${m.siwcLimitHint}\n`);
+  if (flavor === "siwc") io.stdout(`${m.siwcLimitHint}\n${m.siwcEligibilityHint}\n`);
   const count = await cacheModels(io, entry, config, deps);
-  io.stdout(`${count === undefined ? m.modelHint : m.modelsCached(count)}\n`);
+  const done =
+    count === 0 && flavor === "codex"
+      ? m.codexNoModels(codexClientVersion(config, io.env))
+      : count === undefined || count === 0
+        ? m.modelHint
+        : m.modelsCached(count);
+  io.stdout(`${done}\n`);
   return ExitCode.Ok;
 }
 
@@ -234,7 +241,10 @@ async function cacheModels(
   config: ChatGptAuthConfig | undefined,
   deps: AuthCliDeps,
 ): Promise<number | undefined> {
+  const dataDir = resolveDataDir({ env: io.env });
   try {
+    // 先删旧缓存：换了登录方式时另一 flavor 的缓存不能留下
+    clearDiscoveredCache(dataDir, CHATGPT_PROVIDER_ID);
     const models = await listChatGptModels(
       deps.fetch ?? fetch,
       chatgptBaseUrl(entry.flavor, io.env),
@@ -243,10 +253,9 @@ async function cacheModels(
         accessToken: entry.accessToken,
         accountId: entry.accountId,
         originator: config?.originator,
+        clientVersion: codexClientVersion(config, io.env),
       },
     );
-    if (models.length === 0) return undefined;
-    const dataDir = resolveDataDir({ env: io.env });
     writeDiscoveredCache(dataDir, CHATGPT_PROVIDER_ID, { models, flavor: entry.flavor });
     return models.length;
   } catch {

@@ -18,16 +18,21 @@
  * 匹配结果；`--write` 跳过 models.dev 标明不支持工具调用的模型。元数据不写进配置——运行时从缓存补。
  *
  * [W6-O] `chatgpt`：按登录的 flavor 调对应后端的模型列表（SIWC `GET /v1/models` 筛 `visibility: list`；codex
- * `GET /models?client_version=…`），只取 slug 与显示名；`--probe` 不适用（订阅后端只有一种协议）。结果另写进
- * 发现缓存 `<dataDir>/models/discovered/chatgpt.json`（discovered-cache.ts），`/model` 选择器由此列出。
+ * `GET /models?client_version=<codexClientVersion>`，另带上下文窗口 / 输入模态 / 推理强度），取 slug 与显示名；
+ * `--probe` 不适用（订阅后端只有一种协议）。结果另写进发现缓存 `<dataDir>/models/discovered/chatgpt.json`
+ * （discovered-cache.ts，0 个也写），`/model` 选择器由此列出；codex 返回 0 个时提示 codexClientVersion 可能过旧。
  */
 
 import { authHeaders, mergeHeaders } from "../../ai/http.js";
 import { listChatGptModels } from "../../auth/chatgpt/backend-client.js";
-import { CHATGPT_PROVIDER_ID } from "../../auth/chatgpt/presets.js";
+import { CHATGPT_PROVIDER_ID, codexClientVersion } from "../../auth/chatgpt/presets.js";
 import { liveToken } from "../../auth/oauth/live.js";
 import { discoverLocalModels, materializeModel } from "../../ai/providers/registry.js";
-import { writeDiscoveredCache } from "../../ai/providers/discovered-cache.js";
+import {
+  thinkingMapOf,
+  writeDiscoveredCache,
+  type DiscoveredCacheModel,
+} from "../../ai/providers/discovered-cache.js";
 import { withCustomDefaults } from "../../ai/providers/catalog.js";
 import { describeModelsDev, loadModelsDevIndex } from "../../ai/providers/models-dev-cache.js";
 import { matchLabel, modelsDevFields } from "../../ai/providers/models-dev.js";
@@ -68,7 +73,7 @@ export function modelsUrl(provider: ProviderData): string {
 export async function discoverModels(
   provider: ProviderData,
   apiKey: string | undefined,
-  options: { timeoutMs?: number } = {},
+  options: { timeoutMs?: number; codexClientVersion?: string } = {},
 ): Promise<Model[]> {
   const timeoutMs = options.timeoutMs ?? DISCOVER_TIMEOUT_MS;
   if (provider.id === CHATGPT_PROVIDER_ID && apiKey !== undefined) {
@@ -80,10 +85,17 @@ export async function discoverModels(
       accessToken: apiKey,
       accountId: live?.accountId,
       originator: channel?.headers?.["originator"],
+      clientVersion: options.codexClientVersion,
     });
     return models.map((m) => {
       const model = withCustomDefaults({ id: m.id }, provider.id, provider.api);
       if (m.name !== undefined) model.name = m.name;
+      if (m.contextWindow !== undefined) model.contextWindow = m.contextWindow;
+      if (m.input !== undefined) model.input = m.input;
+      if (m.reasoningLevels?.some((x) => x !== "none") === true) {
+        model.reasoning = true;
+        model.thinkingLevelMap = thinkingMapOf(m.reasoningLevels);
+      }
       return model;
     });
   }
@@ -242,7 +254,9 @@ async function run(ctx: ModelsActionContext): Promise<number> {
   }
   let found: Model[];
   try {
-    found = await discoverModels(provider, key.apiKey);
+    found = await discoverModels(provider, key.apiKey, {
+      codexClientVersion: codexClientVersion(ctx.level.merged.config.auth?.chatgpt, io.env),
+    });
   } catch (error) {
     io.stderr(m.listFailed(provider.id, (error as Error).message));
     return ExitCode.RuntimeError;
@@ -312,15 +326,35 @@ async function run(ctx: ModelsActionContext): Promise<number> {
   return ExitCode.Ok;
 }
 
-/** chatgpt 的发现结果写进发现缓存（选择器与注册表读它）；写失败不影响列表输出。 */
+/** 发现得到的模型 → 缓存条目（后端给的元数据一并写入；推理强度由映射表还原）。 */
+function cacheEntry(m: Model): DiscoveredCacheModel {
+  const entry: DiscoveredCacheModel = { id: m.id };
+  if (m.name !== m.id) entry.name = m.name;
+  if (m.contextWindow !== undefined) entry.contextWindow = m.contextWindow;
+  if (m.input.length !== 1 || m.input[0] !== "text") entry.input = [...m.input];
+  if (m.reasoning && m.thinkingLevelMap !== undefined)
+    entry.reasoningLevels = Object.entries(m.thinkingLevelMap).flatMap(([level, value]) =>
+      typeof value !== "string" ? [] : level === "off" ? ["none"] : [level],
+    );
+  return entry;
+}
+
+/**
+ * chatgpt 的发现结果写进发现缓存（选择器与注册表读它；0 个也写，免得残留另一 flavor 的缓存）；写失败不影响
+ * 列表输出。codex 返回 0 个时提示 codexClientVersion 可能过旧。
+ */
 function cacheChatGpt(ctx: ModelsActionContext, found: Model[], apiKey: string | undefined): void {
+  const flavor = liveToken(apiKey)?.flavor;
   try {
-    const flavor = liveToken(apiKey)?.flavor;
-    const models = found.map((m) => ({ id: m.id, ...(m.name !== m.id ? { name: m.name } : {}) }));
+    const models = found.map(cacheEntry);
     const path = writeDiscoveredCache(ctx.level.dataDir, CHATGPT_PROVIDER_ID, { models, flavor });
     ctx.io.stdout(msg().subcommands.discover.cached(path));
   } catch (error) {
     ctx.io.stderr(`ama: ${(error as Error).message}\n`);
+  }
+  if (found.length === 0 && flavor === "codex") {
+    const version = codexClientVersion(ctx.level.merged.config.auth?.chatgpt, ctx.io.env);
+    ctx.io.stderr(`${msg().auth.login.codexNoModels(version)}\n`);
   }
 }
 
