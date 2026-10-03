@@ -139,6 +139,50 @@ describe("ama auth login / status / logout chatgpt", () => {
     expect(all(h)).not.toContain("SECRETMARK");
   });
 
+  it("授权被拒（access_denied）：列出可能原因与下一步；siwc 提示备用 --flavor codex，codex 不提示", async () => {
+    const h = await harness();
+    const deny = {
+      openBrowser: async (url: string) => {
+        const u = new URL(url);
+        const back = `${u.searchParams.get("redirect_uri")}?error=access_denied&state=${u.searchParams.get("state")}`;
+        void fetch(back).catch(() => undefined);
+        return true;
+      },
+    };
+    expect(await runAuth(["login", "chatgpt", "--port", "0"], h.io, deny)).toBe(1);
+    const text = h.err.join("");
+    expect(text).toContain("授权未通过（access_denied）。可能的原因：");
+    expect(text).toContain("重新运行 ama auth login chatgpt 并确认勾选");
+    expect(text).toContain("Team / Enterprise");
+    expect(text).toContain("所在地区受限");
+    expect(text).toContain("ama auth login chatgpt --flavor codex");
+    expect(readOAuthEntry(h.authFile, "chatgpt")).toBeUndefined();
+    h.err.length = 0;
+    expect(
+      await runAuth(["login", "chatgpt", "--flavor", "codex", "--yes", "--port", "0"], h.io, deny),
+    ).toBe(1);
+    expect(h.err.join("")).toContain("所在地区受限");
+    expect(h.err.join("")).not.toContain("改用备用方式");
+  });
+
+  it("授权被拒的提示（en）", async () => {
+    const { setLocale } = await import("../../i18n/index.js");
+    setLocale("en");
+    try {
+      const { loginErrorText } = await import("./cli.js");
+      const { AmaError } = await import("../../errors.js");
+      const text = loginErrorText(
+        new AmaError("oauth_denied", "x", { detail: { error: "access_denied" } }),
+        "siwc",
+      );
+      expect(text).toContain("sign-in was not authorized (access_denied). Possible causes:");
+      expect(text).toContain("Your region is not supported");
+      expect(text).toContain("ama auth login chatgpt --flavor codex");
+    } finally {
+      setLocale("zh");
+    }
+  });
+
   it("TTY 确认：回答 n 取消", async () => {
     const h = await harness(true);
     h.stdin.push("n");

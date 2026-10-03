@@ -19,6 +19,12 @@ English · [简体中文](CHANGELOG.zh-CN.md)
   `/model` and `ama models list`. Note: with only a ChatGPT sign-in and no `defaultModel`, the first cached ChatGPT model can
   now be chosen as the default model. Docs: docs/en/tui.md, docs/en/providers.md "ChatGPT login".
 
+- **`ama auth login chatgpt` explains a refused sign-in**: when the OAuth callback carries `error=access_denied` (or another
+  error) the message now lists the likely causes (the authorization page was cancelled or plan usage was not checked; the
+  account / plan is not eligible — sharing is Plus / Pro only, Team / Enterprise workspaces may not offer it, the browser may be
+  signed in to another account; the region is not supported) and, for siwc, suggests the fallback
+  `ama auth login chatgpt --flavor codex`. Nothing is retried or switched automatically.
+
 ## 0.6.0 (2026-10-03)
 
 Wave 6: the agent bar and sub-agent view, traces, memory, ChatGPT login, the `/config` settings panel, and a bilingual

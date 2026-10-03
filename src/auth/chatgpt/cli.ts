@@ -88,7 +88,7 @@ export function loginErrorText(error: unknown, flavor: ChatGptFlavor): string {
     case "oauth_timeout":
       return m.timeout;
     case "oauth_denied":
-      return m.denied(detail.error ?? "error");
+      return m.denied(detail.error ?? "error", flavor === "siwc");
     case "oauth_state_mismatch":
       return m.stateMismatch;
     case "oauth_no_code":

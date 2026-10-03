@@ -15,6 +15,11 @@ disable` 与 `ama models list --enabled` 在命令行编辑和查看。`ama auth
   表为空的供应商，ChatGPT 模型因此出现在 `/model` 与 `ama models list` 里。注意：只登录了 ChatGPT、没设 `defaultModel` 时，
   缺省模型现在可能选中缓存里的第一个 ChatGPT 模型。文档：docs/tui.md、docs/providers.md「ChatGPT 登录」。
 
+- **`ama auth login chatgpt` 授权被拒时说明原因**：OAuth 回调带 `error=access_denied`（或其它 error）时，提示改为列出可能原因
+  （在授权页取消或没勾选使用 ChatGPT 套餐额度；账户 / 套餐不符合——额度共享只对 Plus / Pro 开放，Team / Enterprise 工作空间可能
+  未开放，浏览器可能登录了别的账户；所在地区受限），siwc 下另提示可改用备用 `ama auth login chatgpt --flavor codex`。不自动重试、
+  不自动换 flavor。
+
 ## 0.6.0（2026-10-03）
 
 第六波：Agent 栏与子 Agent 视图、轨迹、记忆（Memory）、ChatGPT 登录、`/config` 设置面板、中英双语界面。设计依据与决定表见

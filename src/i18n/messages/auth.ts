@@ -68,7 +68,14 @@ export const en = {
     portsBusy: (ports: string, codex: boolean) =>
       `callback port ${ports} is in use: finish the other sign-in first, or use --paste${codex ? " / --device" : ""}`,
     timeout: "sign-in timed out; run the command again",
-    denied: (error: string) => `sign-in was not authorized (${error})`,
+    denied: (error: string, codexFallback: boolean) =>
+      `sign-in was not authorized (${error}). Possible causes:\n` +
+      "  1. The authorization page was cancelled, or using your ChatGPT plan was not checked: run ama auth login chatgpt again and keep that option checked\n" +
+      "  2. The account or plan is not eligible: plan usage is shared with Plus / Pro only; Team / Enterprise workspaces may not offer it; the browser may be signed in to another account\n" +
+      "  3. Your region is not supported" +
+      (codexFallback
+        ? "\nYou can also try the fallback: ama auth login chatgpt --flavor codex"
+        : ""),
     stateMismatch: "the pasted URL does not belong to this sign-in (state mismatch); start again",
     noCode: "the pasted URL has no code; copy the whole address after the browser redirects",
     invalidToken: (reason: string) => `id_token failed verification (${reason}); sign-in rejected`,
@@ -182,7 +189,12 @@ export const zh = {
     portsBusy: (ports, codex) =>
       `回调端口 ${ports} 被占用：请先结束其它登录，或用 --paste${codex ? " / --device" : ""}`,
     timeout: "登录超时，请重新运行命令",
-    denied: (error) => `授权未通过（${error}）`,
+    denied: (error, codexFallback) =>
+      `授权未通过（${error}）。可能的原因：\n` +
+      "  1. 在授权页取消了，或没有勾选使用 ChatGPT 套餐额度：重新运行 ama auth login chatgpt 并确认勾选\n" +
+      "  2. 账户或套餐不符合：额度共享只对 Plus / Pro 开放；Team / Enterprise 工作空间可能未开放；浏览器可能登录了别的账户\n" +
+      "  3. 所在地区受限" +
+      (codexFallback ? "\n也可以改用备用方式：ama auth login chatgpt --flavor codex" : ""),
     stateMismatch: "粘贴的 URL 不属于这次登录（state 不符），请重新开始",
     noCode: "粘贴的 URL 里没有 code；请在浏览器跳转后复制完整地址",
     invalidToken: (reason) => `id_token 校验失败（${reason}），已拒绝这次登录`,
