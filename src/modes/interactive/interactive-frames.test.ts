@@ -27,8 +27,8 @@ function harnessWithTildeCwd(script: FakeResponse[]): void {
 }
 
 describe("启动头", () => {
-  for (const columns of [80, 40]) {
-    it(`normal ${columns}x24：≥ 56 列画框，更窄去框去键列`, async () => {
+  for (const columns of [120, 80, 60, 40]) {
+    it(`normal ${columns}x24：≥ 72 列字符画并排，48–71 列上下叠放，更窄两行`, async () => {
       harnessWithTildeCwd([]);
       started.h!.home.write("work/AGENTS.md", "# rules\n");
       const s = await start([], {
@@ -57,7 +57,7 @@ describe("启动头（en）", () => {
   beforeEach(() => setLocale("en"));
   afterEach(() => setLocale("zh"));
 
-  for (const columns of [80, 40]) {
+  for (const columns of [120, 80, 60, 40]) {
     it(`normal ${columns}x24`, async () => {
       harnessWithTildeCwd([]);
       started.h!.home.write("work/AGENTS.md", "# rules\n");

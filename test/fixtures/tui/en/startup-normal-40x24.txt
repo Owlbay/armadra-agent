@@ -1,0 +1,25 @@
+# startup normal · viewport 40x24 cursor=4,2
+|✻ ama <version> · fake/echo · medium
+|Manual · ~/work · trusted
+|
+|────────────────────────────────────────
+|› Type a message, / for commands, @ for…
+|────────────────────────────────────────
+|Manual         echo · ctx 0% · work · 0s
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|

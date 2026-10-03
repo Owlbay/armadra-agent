@@ -1,0 +1,25 @@
+# startup normal · viewport 120x24 cursor=8,2
+| ▄███▄  ██▄   ▄██  ▄███▄    ama <version>
+|██▀ ▀██ ███▄ ▄███ ██▀ ▀██   fake/echo · thinking medium
+|███████ ██ ▀█▀ ██ ███████   ~/work · trusted (command line)
+|██   ██ ██     ██ ██   ██   Manual · preset default
+|▀▀   ▀▀ ▀▀     ▀▀ ▀▀   ▀▀   AGENTS.md
+|                            /help commands · Shift+Tab mode · Ctrl+O expand tool output
+|
+|────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+|› Type a message, / for commands, @ for files, Shift+Enter for newline
+|────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+|Manual · shift+tab to cycle                                           fake/echo · medium · ctx ▯▯▯▯▯▯▯▯▯▯ 0% · work · 0s
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
