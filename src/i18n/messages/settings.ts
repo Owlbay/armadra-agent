@@ -164,6 +164,7 @@ export const en = {
     agents: "agents.<id>: ama config edit",
     hooks: "hooks.json · /hooks",
     auth: "ama auth",
+    modelsEnabled: "/model (Space) · ama models enable / disable",
   },
   cli: {
     usage: `Usage: ama config get <key> [--json]
@@ -332,6 +333,7 @@ export const zh = {
     agents: "agents.<id>：ama config edit",
     hooks: "hooks.json · /hooks",
     auth: "ama auth",
+    modelsEnabled: "/model（Space）· ama models enable / disable",
   },
   cli: {
     usage: `用法：ama config get <key> [--json]

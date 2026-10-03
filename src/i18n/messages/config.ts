@@ -28,6 +28,7 @@ export const en = {
     stringArray: "should be an array of strings",
     array: "should be an array",
     modelsDev: `should be "provider/model" or false`,
+    modelsEnabled: `should be "provider/model[@channel]" or "provider/*"`,
     noChannels: "the provider has no channels",
     unknownChannelOf: (name: string, available: readonly string[]) =>
       `channel "${name}" does not exist (available: ${available.join(", ")})`,
@@ -169,6 +170,7 @@ export const zh = {
     stringArray: "应为字符串数组",
     array: "应为数组",
     modelsDev: `应为 "provider/model" 或 false`,
+    modelsEnabled: `应为 "provider/model[@channel]" 或 "provider/*"`,
     noChannels: "供应商没有 channels",
     unknownChannelOf: (name, available) => `渠道 "${name}" 不存在（可用：${available.join(", ")}）`,
     modelInput: `应为 ("text" | "image")[]`,

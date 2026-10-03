@@ -85,3 +85,24 @@ describe("第五波键的层级", () => {
     expect(agentEntry(undefined, "claude")).toBeUndefined();
   });
 });
+
+describe("models.enabled", () => {
+  it("provider/model[@channel] 与 provider/* 合法；其它报错到具体下标；项目级忽略", () => {
+    expect(
+      validateConfig({
+        version: 1,
+        models: { enabled: ["openai/gpt-5", "relay/kimi@messages", "packy/*", "or/a/b"] },
+      }).filter((d) => d.severity === "error"),
+    ).toEqual([]);
+    const bad = validateConfig({ version: 1, models: { enabled: ["gpt-5", 3] } } as never);
+    expect(bad.filter((d) => d.severity === "error").map((d) => d.path)).toEqual([
+      "models.enabled",
+      "models.enabled[0]",
+    ]);
+    const merged = mergeConfigLayers({
+      user: { version: 1, models: { enabled: ["openai/gpt-5"] } },
+      project: { version: 1, models: { enabled: ["x/y"] } } as AmaConfig,
+    });
+    expect(merged.config.models?.enabled).toEqual(["openai/gpt-5"]);
+  });
+});

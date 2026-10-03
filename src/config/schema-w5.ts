@@ -11,6 +11,7 @@ import { Checker, THINKING_LEVELS, checkSection, join, type Obj } from "./checke
 import {
   AGENTS_RESERVED_KEYS,
   IMAGE_RESIZE_MODES,
+  MODELS_ENABLED_REF,
   PLAN_BASH_MODES_STRICT_FIRST,
   PLAN_UNATTENDED_MODES,
   STATUS_LINE_MODES,
@@ -106,7 +107,14 @@ export function validateConfigW5(c: Checker, config: Obj): void {
     c.number(s, "maxPending", p, 0, 1024);
     c.string(s, "defaultModel", p);
   });
-  checkSection(c, config, "models", ["aliases"], (s, p) => {
+  checkSection(c, config, "models", ["aliases", "enabled"], (s, p) => {
+    c.stringArray(s, "enabled", p);
+    const enabled = s["enabled"];
+    if (Array.isArray(enabled))
+      enabled.forEach((ref, i) => {
+        if (typeof ref === "string" && !MODELS_ENABLED_REF.test(ref))
+          c.error(join(join(p, "enabled"), i), msg().config.schema.modelsEnabled);
+      });
     const aliases = s["aliases"];
     const ap = join(p, "aliases");
     if (aliases === undefined || !c.object(aliases, ap)) return;

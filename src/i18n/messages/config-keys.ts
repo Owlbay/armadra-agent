@@ -23,6 +23,7 @@ const dynamicDefaultsEn = {
   "subagents.defaultModel": "unset: inherit the parent session model",
   "models.aliases.fast": "unset: fast is treated as inherit",
   "models.aliases.strong": "unset: strong is treated as inherit",
+  "models.enabled": "unset: /model shows every model of configured providers",
   fallbackModel: "unset: no fallback",
   "limits.maxTurns": "unset: unlimited",
   "limits.maxCostUsd": "unset: unlimited",
@@ -47,6 +48,7 @@ const dynamicDefaultsZh = {
   "subagents.defaultModel": "不设：继承父会话模型",
   "models.aliases.fast": "不设：fast 按 inherit 处理",
   "models.aliases.strong": "不设：strong 按 inherit 处理",
+  "models.enabled": "不设：/model 显示已配置供应商的全部模型",
   fallbackModel: "不设：不回退",
   "limits.maxTurns": "不设：不限",
   "limits.maxCostUsd": "不设：不限",
@@ -204,10 +206,12 @@ const keysEn = {
   "subagents.maxConcurrent": "Sub-sessions running at the same time",
   "subagents.maxPending": "Queue limit; task fails beyond it",
   "subagents.defaultModel": "Default sub-session model provider/model[@channel]",
-  models: "Model aliases; user level only (effective from wave 5 W5-G)",
+  models: "Model aliases and the model picker list; user level only (effective from wave 5 W5-G)",
   "models.aliases": "Models that model: fast / strong in sub-agent definitions point to",
   "models.aliases.fast": "Model for the fast alias provider/model[@channel]",
   "models.aliases.strong": "Model for the strong alias provider/model[@channel]",
+  "models.enabled":
+    "Models shown by /model (provider/model[@channel], provider/* for a whole provider); unset: every model of providers with a key, a sign-in or a local server",
   fallbackModel:
     "Fallback model provider/model[@channel]: switch and retry once when retryable errors are exhausted or the model is overloaded; the next turn returns to the main model; user level only (effective from wave 5 W5-H2)",
   limits:
@@ -351,10 +355,12 @@ const keysZh = {
   "subagents.maxConcurrent": "同时运行的子会话数",
   "subagents.maxPending": "排队上限，超出时 task 报错",
   "subagents.defaultModel": "子会话缺省模型 provider/model[@channel]",
-  models: "模型别名；只认用户级（第五波 W5-G 起生效）",
+  models: "模型别名与模型选择器清单；只认用户级（第五波 W5-G 起生效）",
   "models.aliases": "子 Agent 定义里 model: fast / strong 指向的模型",
   "models.aliases.fast": "fast 别名的模型 provider/model[@channel]",
   "models.aliases.strong": "strong 别名的模型 provider/model[@channel]",
+  "models.enabled":
+    "/model 显示的模型（provider/model[@channel]，provider/* 表示整个供应商）；不设：已配置 key、已登录或本地可达的供应商的全部模型",
   fallbackModel:
     "回退模型 provider/model[@channel]：可重试错误用尽或过载时切换重试一次，下一回合回主模型；只认用户级（第五波 W5-H2 起生效）",
   limits:
