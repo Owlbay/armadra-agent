@@ -83,6 +83,7 @@ export const en = {
       `${extra > 0 ? `; ${extra} more over --limit ${limit} are not probed` : ""}\n`,
     unavailable: "unavailable (all three protocols failed)",
     probeStopped: (reason: string) => `ama: probing stopped early (${reason})\n`,
+    cached: (path: string) => `Model list cached at ${path}; /model shows these models\n`,
   },
 };
 
@@ -148,5 +149,6 @@ export const zh = {
       `${extra > 0 ? `；另有 ${extra} 个超出 --limit ${limit}，未探测` : ""}\n`,
     unavailable: "不可用（三种协议均失败）",
     probeStopped: (reason) => `ama: 探测提前停止（${reason}）\n`,
+    cached: (path) => `模型列表已缓存到 ${path}，/model 里会列出这些模型\n`,
   },
 } satisfies Messages<typeof en>;

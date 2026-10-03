@@ -61,6 +61,8 @@ export const en = {
       `Note: the "${plan}" plan may not include subscription usage for ama.`,
     modelHint:
       "Use it with --model chatgpt/<model>; list the models your account can use with ama models discover chatgpt.",
+    modelsCached: (count: number) =>
+      `Your account can use ${count} model(s); pick one with /model or --model chatgpt/<model>.`,
   },
   errors: {
     portsBusy: (ports: string, codex: boolean) =>
@@ -174,6 +176,7 @@ export const zh = {
     freePlanHint: (plan) => `注意：「${plan}」计划可能不含给 ama 用的订阅额度。`,
     modelHint:
       "用 --model chatgpt/<模型> 使用；账户可用的模型用 ama models discover chatgpt 查看。",
+    modelsCached: (count) => `账户可用 ${count} 个模型，用 /model 或 --model chatgpt/<模型> 选择。`,
   },
   errors: {
     portsBusy: (ports, codex) =>
