@@ -16,6 +16,7 @@ info:/help  List commands
 /tasks [id] | stop <id> | bg [id]  Sub-agent tasks: status, output, stop, background
 /agents  Sub-agent types and external agents (installed, version)
 /paste  Paste an image from the clipboard (Ctrl+V)
+/interrupt <text>  Interrupt the current turn and send this now, queued steers first (Ctrl+X)
 /exit  Exit
 /config [key=value]  Settings panel; key=value sets one item directly (user level)
 /trace [task id]  Trace: timing and usage of turns, requests and tools
