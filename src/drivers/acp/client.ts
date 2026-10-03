@@ -8,6 +8,8 @@
  *   没有处理器时按无人值守回首个 `reject_once`（没有则 cancelled）。
  * - `cancel(sessionId)` 发 `session/cancel` 通知，并让该会话所有挂起的权限请求回 `cancelled`
  *   （规范要求：客户端取消回合后必须以 cancelled 回答挂起的请求）。
+ * - 开会话（new / resume / load）的 `mcpServers` 缺省为空数组；宿主可经 {@link AcpSessionOptions}
+ *   传入，原样转发。
  */
 
 import { JsonRpcPeer, RpcError } from "../jsonrpc.js";
@@ -26,6 +28,7 @@ import {
   type AcpRequestPermissionParams,
   type AcpRequestPermissionResult,
   type AcpSessionNotification,
+  type AcpSessionOptions,
 } from "./types.js";
 
 export interface AcpClientHandlers {
@@ -45,6 +48,11 @@ export interface AcpClientOptions extends AcpClientHandlers {
   clientInfo?: AcpImplementationInfo;
 }
 
+/** 开会话参数里的 `mcpServers`：拷一份，缺省空数组。 */
+function mcpServersOf(options: AcpSessionOptions | undefined) {
+  return [...(options?.mcpServers ?? [])];
+}
+
 /** 无人值守的回答：首个 reject_once，没有就 cancelled。 */
 export function unattendedOutcome(params: AcpRequestPermissionParams): AcpRequestPermissionResult {
   const reject = params.options.find((o) => o.kind === "reject_once");
@@ -57,6 +65,12 @@ export function unattendedOutcome(params: AcpRequestPermissionParams): AcpReques
 }
 
 export class AcpClient {
+  /**
+   * 本版客户端支持的可选能力，供宿主做特性检测（旧版没有这个字段）：
+   * - `mcpServers`：开会话时可经 {@link AcpSessionOptions} 传 MCP 服务器。
+   */
+  static readonly features: { readonly mcpServers: true } = { mcpServers: true };
+
   private readonly peer: JsonRpcPeer;
   /** sessionId → 挂起权限请求的取消器。 */
   private readonly pendingPermissions = new Map<string, Set<AbortController>>();
@@ -132,8 +146,16 @@ export class AcpClient {
     return this.agentCapabilities.promptCapabilities?.image === true;
   }
 
-  newSession(cwd: string, signal?: AbortSignal): Promise<AcpNewSessionResult> {
-    return this.peer.request(ACP_METHODS.sessionNew, { cwd, mcpServers: [] }, signal);
+  newSession(
+    cwd: string,
+    signal?: AbortSignal,
+    options?: AcpSessionOptions,
+  ): Promise<AcpNewSessionResult> {
+    return this.peer.request(
+      ACP_METHODS.sessionNew,
+      { cwd, mcpServers: mcpServersOf(options) },
+      signal,
+    );
   }
 
   /** 不回放历史（优先，R13：v2 计划取消 load）。 */
@@ -141,13 +163,27 @@ export class AcpClient {
     sessionId: string,
     cwd: string,
     signal?: AbortSignal,
+    options?: AcpSessionOptions,
   ): Promise<AcpLoadSessionResult> {
-    return this.peer.request(ACP_METHODS.sessionResume, { sessionId, cwd, mcpServers: [] }, signal);
+    return this.peer.request(
+      ACP_METHODS.sessionResume,
+      { sessionId, cwd, mcpServers: mcpServersOf(options) },
+      signal,
+    );
   }
 
   /** 回放历史（以 session/update 通知）。 */
-  loadSession(sessionId: string, cwd: string, signal?: AbortSignal): Promise<AcpLoadSessionResult> {
-    return this.peer.request(ACP_METHODS.sessionLoad, { sessionId, cwd, mcpServers: [] }, signal);
+  loadSession(
+    sessionId: string,
+    cwd: string,
+    signal?: AbortSignal,
+    options?: AcpSessionOptions,
+  ): Promise<AcpLoadSessionResult> {
+    return this.peer.request(
+      ACP_METHODS.sessionLoad,
+      { sessionId, cwd, mcpServers: mcpServersOf(options) },
+      signal,
+    );
   }
 
   listSessions(cwd?: string, cursor?: string): Promise<AcpListSessionsResult> {

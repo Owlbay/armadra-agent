@@ -121,8 +121,28 @@ export interface AcpInitializeResult {
 // 会话
 // ---------------------------------------------------------------------------
 
-/** ama 不向外部 Agent 传 MCP 服务器（Skills 不做 MCP），总是空数组。 */
-export type AcpMcpServer = Record<string, unknown>;
+/** `session/new.mcpServers[].env` 的一项。 */
+export type AcpEnvVariable = { name: string; value: string };
+
+/** stdio 传输的 MCP 服务器：ACP v1 要求每个 Agent 都支持这一种。 */
+export type AcpStdioMcpServer = {
+  name: string;
+  command: string;
+  args: string[];
+  env: AcpEnvVariable[];
+};
+
+/**
+ * 交给外部 Agent 的 MCP 服务器。ama 自己不加（Skills 不做 MCP），缺省是空数组；宿主（如 Armadra）
+ * 经 {@link AcpSessionOptions} 传入的原样转发，http / sse 变体不在这里解释。
+ */
+export type AcpMcpServer = AcpStdioMcpServer | Record<string, unknown>;
+
+/** `AcpClient.newSession` / `resumeSession` / `loadSession` 的可选项。 */
+export interface AcpSessionOptions {
+  /** 随 `session/new|resume|load` 发给 Agent；缺省空数组。 */
+  mcpServers?: readonly AcpMcpServer[];
+}
 
 export interface AcpSessionMode {
   id: string;
