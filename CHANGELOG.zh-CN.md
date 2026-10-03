@@ -4,6 +4,12 @@
 
 > 从 0.6.0 起 [CHANGELOG.md](CHANGELOG.md) 为英文，本文件保留中文记录（0.1–0.5.1 的完整历史在此）。新条目两份都要加。
 
+## 未发布
+
+- **宿主注入的 `ama` runner 生效**：宿主经 `HostApi.runners.provide` 注入 id 为 `ama` 的 runner（如 Armadra 画布上另一个
+  ama 节点）时，`task(agent="ama")` 交给它；没注入时行为不变，内置类型（`general` / `explore` / `plan`）始终是 ama 子会话。
+  文档：docs/agents.md。
+
 ## 0.6.6（2026-10-03）
 
 - **本地检索提示**：`grep` 与 `glob` 都直接可用时，系统提示的规则节多一句「先 grep / glob 定位再 read，不要猜路径」；`grep` /

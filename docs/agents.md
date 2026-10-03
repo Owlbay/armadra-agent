@@ -259,7 +259,7 @@ ama 能以各 CLI 自己的账户、模型与权限策略驱动外部编码 Agen
 
 ### 嵌入宿主
 
-有宿主（`--host` 或 profile 的 `host`，如嵌入 Armadra）时 ama **不自己启动外部 CLI**：内置外部 Agent 一律不可用，不写进 task 描述，`task(agent="claude")` 以「由宿主提供」失败；只有宿主经 `HostApi.runners.provide(runner)` 注入的 runner 可用，它以同一个 `task(agent=<id>)` 入口出现，同名时替换内置的。`create()` 时已注入的 runner 写进 task 描述（`- <id>: <description>`），之后注入的也能用但不进描述。runner 的 `start` 收到 `prompt`、`cwd`、`mode`（父会话当前模式）、`taskId`、`signal`、`onEvent`；不经首次确认。
+有宿主（`--host` 或 profile 的 `host`，如嵌入 Armadra）时 ama **不自己启动外部 CLI**：内置外部 Agent 一律不可用，不写进 task 描述，`task(agent="claude")` 以「由宿主提供」失败；只有宿主经 `HostApi.runners.provide(runner)` 注入的 runner 可用，它以同一个 `task(agent=<id>)` 入口出现，同名时替换内置的。`create()` 时已注入的 runner 写进 task 描述（`- <id>: <description>`），之后注入的也能用但不进描述。runner 的 `start` 收到 `prompt`、`cwd`、`mode`（父会话当前模式）、`taskId`、`signal`、`onEvent`；不经首次确认。宿主注入的 runner id 也可以是 `ama`（例如画布上另一个 ama 节点）：`task(agent="ama")` 交给宿主，不起子会话；没注入时 `ama` 照旧不是可用类型，内置类型（`general` / `explore` / `plan`）始终是 ama 子会话。
 
 **在 Armadra 画布终端里直接运行 ama（没有 `--host`）**：此时 ama 按独立模式工作，自己启动的外部 Agent 是这个终端节点里的子进程，不会出现在画布上，也不经连线授权；需要让多个 Agent 在画布上协同，就在画布上连线 Agent 节点，或以宿主模式嵌入 ama。终端带着该节点的身份变量（`ARMADRA_NODE_ID`、`ARMADRA_SESSION_ID`、Hook 端点、`ARMADRA_CANVAS_CONTROL` 等），ama 起子进程时一律剥离（askpass 除外），否则 Armadra 装在 Claude / Codex 上的 Hook 会把子 Agent 的事件记到这个节点名下。
 
