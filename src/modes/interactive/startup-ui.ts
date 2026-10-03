@@ -5,13 +5,13 @@
  * 选择列表 / 输入框的 `TUI`；答完把问答收成一行再 `stop()`——不清屏，问答留在回滚里。
  * 取消（Esc / Ctrl+C）按各回调的约定返回 undefined（bootstrap 据此给退出码）。
  *
- * `modelItems` / `sessionItems` 同时供交互模式里的选择器（pickers.ts）使用。
+ * `modelItems`（model-items.ts）/ `sessionItems` 同时供交互模式里的选择器（pickers.ts）使用。启动选择器只列
+ * 已配置的模型，一个都没有时列全部。
  */
 
 import { msg } from "../../i18n/index.js";
 import { existsSync, statSync } from "node:fs";
 import { resolve } from "node:path";
-import type { Model, ProviderRegistryApi } from "../../ai/types.js";
 import type { InteractiveUi } from "../../cli/deps.js";
 import type { TrustPromptAnswer } from "../../config/trust.js";
 import type { SessionListItem } from "../../session/types.js";
@@ -30,6 +30,9 @@ import {
   type Terminal,
   type Theme,
 } from "../../tui.js";
+import { loadModelCatalog, catalogItems } from "./model-items.js";
+
+export { modelDescription, modelItems } from "./model-items.js";
 
 export interface StartupUiOptions {
   /** 每次问答新建的终端；缺省 `new ProcessTerminal()`。 */
@@ -173,65 +176,6 @@ function askText(
 // 列表项（选择器共用）
 // ---------------------------------------------------------------------------
 
-/** 选择器里模型的说明：名称（与 id 不同时）、上下文、`img`（收图片）。 */
-export function modelDescription(model: Model): string | undefined {
-  const ctx = model.contextWindow;
-  const parts = [
-    model.name !== "" && model.name !== model.id ? model.name : undefined,
-    ctx === undefined
-      ? undefined
-      : ctx >= 1_000_000
-        ? `${Math.round(ctx / 100_000) / 10}M`
-        : `${Math.round(ctx / 1000)}k`,
-    model.input.includes("image") ? "img" : undefined,
-  ].filter((x) => x !== undefined);
-  return parts.length > 0 ? parts.join(" · ") : undefined;
-}
-
-/**
- * 模型按「供应商 · 渠道」分组；有 key（或本地）的供应商排前，组标题标 key 状态。多渠道供应商的模型在
- * 每个挂载的渠道下各出现一次，非首选渠道的值带 `@渠道`。
- */
-export async function modelItems(providers: ProviderRegistryApi): Promise<SelectItem[]> {
-  const groups: { ready: boolean; items: SelectItem[] }[] = [];
-  for (const provider of providers.list()) {
-    if (provider.models.length === 0) continue;
-    let status: string;
-    let ready = true;
-    if (!provider.requiresApiKey) status = msg().interactive.startup.ui.local;
-    else {
-      const key = await providers.resolveApiKey(provider.id).catch(() => ({ apiKey: undefined }));
-      ready = key.apiKey !== undefined;
-      status = ready ? "key ✓" : msg().interactive.startup.ui.noKey;
-    }
-    const item = (model: Model, group: string, channel?: string): SelectItem => {
-      const suffix = channel !== undefined && channel !== model.channel ? `@${channel}` : "";
-      const out: SelectItem = {
-        value: `${provider.id}/${model.id}${suffix}`,
-        label: `${model.id}${suffix}`,
-        group,
-      };
-      const description = modelDescription(model);
-      if (description !== undefined) out.description = description;
-      return out;
-    };
-    if (provider.channels === undefined) {
-      const group = `${provider.id} · ${status}`;
-      groups.push({ ready, items: provider.models.map((model) => item(model, group)) });
-      continue;
-    }
-    for (const channel of provider.channels) {
-      const group = `${provider.id} · ${channel.name} · ${status}`;
-      const models = provider.models.filter((m) => m.channels?.includes(channel.name));
-      if (models.length > 0)
-        groups.push({ ready, items: models.map((model) => item(model, group, channel.name)) });
-    }
-  }
-  return [...groups.filter((g) => g.ready), ...groups.filter((g) => !g.ready)].flatMap(
-    (g) => g.items,
-  );
-}
-
 /** `刚刚 / 5 分钟前 / 3 小时前 / 2 天前 / 2026-09-01`。 */
 export function relativeTime(iso: string, now: number): string {
   const at = Date.parse(iso);
@@ -316,7 +260,9 @@ export function createStartupUi(options: StartupUiOptions = {}): Required<Intera
     },
 
     async pickModel(providers, reason) {
-      const items = await modelItems(providers);
+      const catalog = await loadModelCatalog(providers);
+      let items = catalogItems(catalog, { hints: false });
+      if (items.length === 0) items = catalogItems(catalog, { view: "all", hints: false });
       if (items.length === 0) return undefined;
       const picked = await askSelect(r, {
         title: msg().interactive.startup.ui.modelTitle,
