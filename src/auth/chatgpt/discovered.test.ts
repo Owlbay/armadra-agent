@@ -101,6 +101,11 @@ describe("ChatGPT 发现缓存", () => {
       "chatgpt · 已登录 ✓",
       "chatgpt · 已登录 ✓",
     ]);
+    // 只挂登录 flavor（siwc）的渠道：说明里没有「另有 @codex」，@ 筛选也不出 @codex 行
+    expect(registry.get("chatgpt")?.models[0]?.channels).toEqual(["siwc"]);
+    expect(items.some((i) => i.description?.includes("@codex") === true)).toBe(false);
+    const channelRows = await modelItems(registry, { channels: true });
+    expect(channelRows.some((i) => i.value.includes("@"))).toBe(false);
 
     expect(await runAuth(["logout", "chatgpt"], h.io, h.deps)).toBe(0);
     expect(existsSync(discoveredCachePath(h.dataDir, "chatgpt"))).toBe(false);
@@ -134,6 +139,18 @@ describe("ChatGPT 发现缓存", () => {
     ]);
     const registry = await h.registry();
     expect(registry.get("chatgpt")?.models.map((m) => m.id)).toEqual(["gpt-5.5", "gpt-5.4-mini"]);
+  });
+
+  it("codex 登录的缓存只挂 codex 渠道", async () => {
+    const h = await harness();
+    writeDiscoveredCache(h.dataDir, "chatgpt", { models: [{ id: "gpt-5.5" }], flavor: "codex" });
+    const registry = await h.registry();
+    expect(registry.get("chatgpt")?.models[0]?.channels).toEqual(["codex"]);
+    const items = await modelItems(registry, { view: "all", channels: true });
+    expect(items.filter((i) => i.value.startsWith("chatgpt/")).map((i) => i.value)).toEqual([
+      "chatgpt/gpt-5.5",
+    ]);
+    expect(items.find((i) => i.value === "chatgpt/gpt-5.5")?.description ?? "").not.toContain("@");
   });
 
   it("缓存只并入模型表为空的供应商；损坏的缓存忽略", async () => {

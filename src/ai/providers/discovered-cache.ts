@@ -104,11 +104,13 @@ export function discoveredModels(
   return file.models.map((m) => {
     const { entry } = enrichEntry(m.name ? { id: m.id, name: m.name } : { id: m.id }, modelsDev);
     const model = withCustomDefaults(entry, provider.id, provider.api);
-    // 与「表外 id 合成」一致：挂全部渠道（缺省在前），`@渠道` 照样能选
+    // 只挂发现时登录的 flavor 对应的渠道（订阅后端的另一条渠道用不了，不在说明与 `@` 行里出现）；
+    // 缓存没写 flavor 或渠道不存在时用供应商的缺省渠道
     const names = (provider.channels ?? []).map((c) => c.name);
     if (names.length > 0) {
-      const first = provider.defaultChannel ?? names[0]!;
-      model.channels = [first, ...names.filter((n) => n !== first)];
+      const own =
+        file.flavor !== undefined && names.includes(file.flavor) ? file.flavor : undefined;
+      model.channels = [own ?? provider.defaultChannel ?? names[0]!];
     }
     return model;
   });
