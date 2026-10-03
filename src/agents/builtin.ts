@@ -27,7 +27,6 @@ function builtin(
     model: "inherit",
     maxTurns: 30,
     isolation: "none",
-    background: false,
     runner: "ama",
     prompt,
     source: "builtin",
