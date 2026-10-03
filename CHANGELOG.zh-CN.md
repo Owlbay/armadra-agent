@@ -6,6 +6,12 @@
 
 ## 未发布
 
+- **`AcpClient` 开会话可传 MCP 服务器**：`newSession`、`resumeSession`、`loadSession` 新增可选的第三个参数
+  `{ mcpServers }`，原样随 `session/new|resume|load` 发出（缺省仍是 `[]`，不传时线路不变）；宿主用
+  `AcpClient.features.mcpServers` 检测是否支持。ama 自己仍不传。文档：docs/acp.md「作为客户端」。
+
+## 0.6.4（2026-10-03）
+
 - **打断并立即发送**：运行中按 Enter 仍是排队插话（等下一个投递点送达），新增 `Ctrl+X`（键位动作 `app.message.interrupt`）立即中止
   当前回合（模型流与正在跑的工具，每个工具调用仍恰有一个结果 `aborted by user`），并马上以输入框的文字开新回合，已排队的插话拼在
   前面（会话里 `origin: "interrupt"`，消息区标 `↳ 打断`）；输入为空时把排队的插话立即送出。Esc 语义不变。配置
@@ -18,9 +24,6 @@
   左区仍是权限模式与 `shift+tab` 提示；配额行右对齐。窄屏先丢右区度量、再丢左区开关，权限模式、`tps` 与 `[-]` 不丢；`compact`
   单行的记号顺序不变。配额标签按窗口时长认：周窗口放在 primary 时显示「本周 / Weekly」而不是 `7d:`，5 小时窗口排在前面；
   服务端用全 0 表示的空窗口不再渲染成 `0d: 0.0%`（解析与显示两层都过滤）。文档：docs/tui.md。
-- **`AcpClient` 开会话可传 MCP 服务器**：`newSession`、`resumeSession`、`loadSession` 新增可选的第三个参数
-  `{ mcpServers }`，原样随 `session/new|resume|load` 发出（缺省仍是 `[]`，不传时线路不变）；宿主用
-  `AcpClient.features.mcpServers` 检测是否支持。ama 自己仍不传。文档：docs/acp.md「作为客户端」。
 
 ## 0.6.3（2026-10-03）
 

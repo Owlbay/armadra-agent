@@ -7,6 +7,13 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 
 ## Unreleased
 
+- **`AcpClient` can pass MCP servers when opening a session**: `newSession`, `resumeSession` and `loadSession` take an
+  optional third argument `{ mcpServers }` that is forwarded as-is in `session/new|resume|load` (default still `[]`, the
+  wire is unchanged when it is omitted). `AcpClient.features.mcpServers` lets a host detect support. ama itself still
+  sends none. Docs: docs/acp.md "As a client".
+
+## 0.6.4 (2026-10-03)
+
 - **Interrupt and send now**: while a run is in progress, Enter still queues the message as a steer (delivered at the next
   delivery point), and the new `Ctrl+X` (key action `app.message.interrupt`) stops the current turn at once (model stream and
   running tools; every tool call keeps exactly one result, `aborted by user`) and immediately starts a new turn with the
@@ -26,10 +33,6 @@ English · [简体中文](CHANGELOG.zh-CN.md)
   single-line `compact` layout keeps its token order. Quota labels follow the window length: a weekly window sent as
   primary reads `Weekly` instead of `7d:`, and the 5-hour window comes first; the all-zero "no such window" the server
   sends is no longer rendered as `0d: 0.0%` (filtered both when parsing and when rendering). Docs: docs/tui.md.
-- **`AcpClient` can pass MCP servers when opening a session**: `newSession`, `resumeSession` and `loadSession` take an
-  optional third argument `{ mcpServers }` that is forwarded as-is in `session/new|resume|load` (default still `[]`, the
-  wire is unchanged when it is omitted). `AcpClient.features.mcpServers` lets a host detect support. ama itself still
-  sends none. Docs: docs/acp.md "As a client".
 
 ## 0.6.3 (2026-10-03)
 
