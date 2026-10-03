@@ -95,6 +95,12 @@ export class SelectList implements Component, Focusable {
     return this.filtered;
   }
 
+  /** 换列表下的按键提示（选择器切视图时）。 */
+  setFooter(footer: string | undefined): void {
+    if (footer === undefined) delete this.options.footer;
+    else this.options.footer = footer;
+  }
+
   getFilter(): string {
     return this.filter;
   }
