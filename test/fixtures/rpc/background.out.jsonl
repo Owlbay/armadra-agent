@@ -1,0 +1,12 @@
+{"id":"p","type":"response","command":"prompt","success":true,"data":{"disposition":"started"}}
+{"type":"tool_execution_start","toolCallId":"fake_call_0","toolName":"task","args":{"prompt":"scan the repo","agent":"explore","description":"scan","background":false}}
+{"type":"subagent_start","taskId":"t1","parentToolCallId":"fake_call_0","agent":"explore","runner":"ama","description":"scan","background":false,"cwd":"<root>/work","model":"fake/echo","sessionFile":"<root>/home/.local/share/ama/sessions/<cwd>/<time>_<uuid>.jsonl"}
+{"type":"subagent_background","taskId":"t1","parentToolCallId":"fake_call_0","reason":"host"}
+{"id":"b","type":"response","command":"background_task","success":true,"data":{"backgrounded":["t1"]}}
+{"type":"tool_execution_end","toolCallId":"fake_call_0","toolName":"task","result":{"content":"[task t1] Moved to the background by the user; it was not interrupted. A <task-notification> arrives when it finishes; use task_ctl to wait, stop or read output. Do not wait for it unless the user asks.","isError":false,"details":{"taskId":"t1","status":"running","outputFile":"<root>/home/.local/share/ama/sessions/<cwd>/outputs/<uuid>-t1.md","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0},"stopReason":"stop"}},"isError":false}
+{"type":"agent_settled"}
+{"type":"subagent_update","taskId":"t1","kind":"text","textDelta":"child report","turn":0}
+{"type":"subagent_update","taskId":"t1","kind":"turn","turn":1,"usage":{"input":50,"output":5,"cacheRead":0,"cacheWrite":0,"totalTokens":55}}
+{"type":"subagent_end","taskId":"t1","status":"completed","usage":{"input":50,"output":5,"cacheRead":0,"cacheWrite":0,"totalTokens":55},"cache":{"reBilledTokens":0},"outputFile":"<root>/home/.local/share/ama/sessions/<cwd>/outputs/<uuid>-t1.md"}
+{"type":"message_end","message":{"role":"user","content":"<task-notification taskId=\"t1\" agent=\"explore\" status=\"completed\" turns=\"1\" tokens=\"55\" outputFile=\"<root>/home/.local/share/ama/sessions/<cwd>/outputs/<uuid>-t1.md\">\nchild report\n</task-notification>","timestamp":0,"origin":"task"}}
+{"type":"agent_settled"}
