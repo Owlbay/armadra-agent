@@ -16,6 +16,8 @@
  *   切换（只影响本会话）。
  * - 第五波（W5-U，agent-ui.ts）：计划审批框、子 Agent 折叠视图、`/tasks` `/agents` `/paste` 与 Ctrl+V、审批来源
  *   标注与外部 Agent 首次运行的合并确认（approval-merge.ts）、harness 提示。
+ * - [W7-C] 审批接线拆到 approval-ui.ts（合并 → 后台任务停靠 → 对话框）；`Ctrl+B` 转后台与 Esc 提示的数据来自
+ *   task-background.ts。
  * - 启动头按 `ui.quietStartup`（startup-header.ts）：normal「AMA」字符画 + 信息列（启动时点亮扫描一次，
  *   startup-logo.ts；窄屏 / `ui.logo: off` / `ui.compact` 不画字符画），header 一行，silent 不输出。
  */
@@ -23,7 +25,6 @@
 import { promptImages, sessionModel } from "../image-input.js";
 import { join } from "node:path";
 import { AgentSessionImpl } from "../../agent/session.js";
-import { taskRegistryView } from "../../agent/subagent-registry.js";
 import type { AgentSession, RewindDraftText, SessionEvent } from "../../agent/types.js";
 import type { ImageBlock } from "../../ai/types.js";
 import { currentSession, switchSession, type SwitchRequest } from "../../cli/compose-session.js";
@@ -53,8 +54,7 @@ import {
 import { BYPASS_MODE, createBypassGate } from "../../permissions/bypass.js";
 import { onTerminationSignals } from "../shared.js";
 import { AgentUi, agentCommandHooks } from "./agent-ui.js";
-import { ApprovalDialogBroker, approvalOutcomeText } from "./approval-dialog.js";
-import { mergingBroker } from "./approval-merge.js";
+import { approvalOverlayHooks, createApprovalUi } from "./approval-ui.js";
 import { ALL_COMMANDS, runInteractiveCommand, type CommandUi } from "./commands.js";
 import { memoryPanelFor } from "./memory-panel.js";
 import { InteractiveCompletion } from "./completion.js";
@@ -75,6 +75,7 @@ import { createSessionEventHandler } from "./session-events.js";
 import { SubagentTracker } from "./subagent-view.js";
 import { loadKeys, processTerminal } from "./terminal-setup.js";
 import { ToolTracker } from "./tool-view.js";
+import { backgroundTasks, blockingTasks, keyLabel, runningBackground } from "./task-background.js";
 
 const HINT_MS = 2500;
 
@@ -221,7 +222,11 @@ export function runInteractiveMode(
     }
     render();
   };
-  const indicator = new RunIndicator({ theme, loader, slot: loaderSlot, tools, render });
+  const backgroundKey = keyLabel(keys, "app.tasks.background");
+  const indicator = new RunIndicator({
+    ...{ theme, loader, slot: loaderSlot, tools, render },
+    ...(backgroundKey !== undefined ? { backgroundKey } : {}),
+  });
   const setQueue = (steering: readonly string[], followUp: readonly string[]): void => {
     status.setQueue(steering.length, followUp.length);
     queueView.setQueue(steering, followUp);
@@ -453,24 +458,14 @@ export function runInteractiveMode(
       onInterrupted: (empty) => void rewind.afterInterrupt(empty),
       agents: () => agentUi.keys,
       downGlyph: theme.glyphs.arrowDown,
+      backgroundTasks: () => backgroundTasks(session),
+      runningBackground: () => runningBackground(session),
     }),
   );
 
   // ---- 晚绑定 ---------------------------------------------------------------
 
-  const overlayHooks = {
-    showOverlay: (component: Component) => tui.showOverlay(component, { anchor: "bottom" }),
-    onOpen: () => {
-      editor.disableSubmit = true;
-      tools.setAwaiting(true);
-      indicator.setApproval(true);
-    },
-    onClose: () => {
-      editor.disableSubmit = false;
-      tools.setAwaiting(false);
-      indicator.setApproval(false);
-    },
-  };
+  const overlayHooks = approvalOverlayHooks({ tui, editor, tools: () => tools, indicator });
   const agentUi = new AgentUi({
     theme,
     tui,
@@ -494,31 +489,12 @@ export function runInteractiveMode(
     area,
   });
   indicator.agents = () => agentUi.reachable;
-  const taskAgent = (taskId: string): string | undefined =>
-    taskRegistryView(session.state.sessionId)?.get(taskId)?.agent;
-  const broker = mergingBroker(
-    new ApprovalDialogBroker({
-      theme,
-      keybindings: keys,
-      cwd: session.state.cwd,
-      permissionMode: () => session.state.permissionMode,
-      taskAgent,
-      externalRunner: (agent) => agentUi.merge.externalRunner(agent),
-      ...overlayHooks,
-      report: (request, outcome) => {
-        if (outcome === "deny" || outcome === "cancelled") {
-          const text = approvalOutcomeText(request, outcome, taskAgent);
-          notice(outcome === "deny" ? "info" : "warn", text);
-        }
-      },
-    }),
-    agentUi.merge,
-    (request) =>
-      notice(
-        "info",
-        msg().interactive.app.followed(approvalOutcomeText(request, "allow", taskAgent)),
-      ),
-  );
+  const { broker, dock } = createApprovalUi({
+    ...{ theme, keys, tui, editor, indicator, agentUi, notice, render },
+    hooks: overlayHooks,
+    session: () => session,
+  });
+  indicator.background = () => blockingTasks(session).length > 0;
 
   // ---- 启动与退出 -----------------------------------------------------------
 
@@ -536,6 +512,7 @@ export function runInteractiveMode(
     tui.addChild(view);
     offSignals();
     agentUi.detach();
+    dock.dispose();
     runtime.approvals.setUiBroker(undefined);
     runtime.notifier.set(undefined);
     tui.stop();

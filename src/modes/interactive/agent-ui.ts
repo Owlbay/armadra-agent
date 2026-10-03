@@ -18,6 +18,9 @@
  *   栏内 ↑↓ 选、Enter 打开视图、Esc 返回，可打印字符回到输入框；
  * - `/tasks` 无参 = 聚焦栏（`ui.agentBar: "off"` 时仍是原来的选择器），`/tasks <id>` = 直接进视图；
  * - 等审批的任务按 `permission_request.context.taskId` 记下（栏与视图标题显示「等待审批」）。
+ * [W7-C] 栏内 `b` / `Ctrl+B` 转后台选中的任务、`x` 连按两次停止（task-background.ts）；`subagent_background`
+ * 刷新工具行（后台样式）并对超时 / 宿主转的给一行提示；后台任务的审批停靠（approval-dock.ts）：打开该任务
+ * 的视图即弹出，`permission_request` / `permission_resolved` 交给停靠判断。
  */
 
 import type { AgentSession, SessionEvent } from "../../agent/types.js";
@@ -44,13 +47,20 @@ import type { StatusArea } from "./status-area.js";
 import { agentsPanel, planPanel, taskOutputPanel } from "./agent-panels.js";
 import { FirstRunMerge } from "./approval-merge.js";
 import { pasteImage } from "./clipboard-paste.js";
-import { backgroundJobText, limitReachedText, modelFallbackText } from "./event-notices.js";
+import type { ApprovalDock } from "./approval-dock.js";
+import {
+  backgroundJobText,
+  limitReachedText,
+  modelFallbackText,
+  subagentBackgroundText,
+} from "./event-notices.js";
 import { editExternally } from "./external-editor.js";
 import type { NoticeLevel } from "./message-view.js";
 import type { PickerSpec } from "./pickers.js";
 import { PlanFlow } from "./plan-flow.js";
 import type { PlanDialogHost } from "./plan-dialog.js";
 import { backgroundEndText, SubagentTracker } from "./subagent-view.js";
+import { backgroundedText, StopArm } from "./task-background.js";
 import { listTasks, stopTask, taskLine, taskOutput } from "./tasks-report.js";
 import type { ToolTracker } from "./tool-view.js";
 
@@ -108,6 +118,10 @@ export class AgentUi {
   private restoreLog: (() => void) | undefined;
   /** 后台子 Agent 运行中：每秒重画跟随行的耗时（主会话空闲时 Loader 不转）。 */
   private ticker: ReturnType<typeof setInterval> | undefined;
+  /** [W7-C] 后台任务的审批停靠（approval-ui.ts 建好后接上）。 */
+  dock: ApprovalDock | undefined;
+  /** [W7-C] 栏内 `x` 的双击确认。 */
+  private readonly stopArm = new StopArm();
 
   constructor(private readonly deps: AgentUiDeps) {
     this.merge = new FirstRunMerge({ sessionId: () => deps.session().state.sessionId });
@@ -161,6 +175,7 @@ export class AgentUi {
     if (viewing !== undefined) this.deps.notice("info", msg().agents.view.removed(viewing));
     this.bar.reset();
     this.approvals.clear();
+    this.dock?.reset();
     this.deps.subagents.clear();
     this.stopTicker();
     this.plan.attach(session);
@@ -221,9 +236,13 @@ export class AgentUi {
     switch (event.type) {
       case "subagent_start":
       case "subagent_update":
+      case "subagent_background":
       case "subagent_end": {
         const state = this.deps.subagents.onEvent(event);
         if (state === undefined) return true;
+        // [W7-C] 人按的已有底部提示；超时 / 宿主转的留一行
+        if (event.type === "subagent_background" && event.reason !== "user")
+          this.deps.notice("info", subagentBackgroundText(event, state.agent));
         this.deps.tools().get(state.parentToolCallId)?.refresh();
         // 视图里看的任务又开跑（续聊、被释放后重开）：重新接上它的子会话
         if (event.type === "subagent_start" && this.view?.component.task === event.taskId)
@@ -246,11 +265,19 @@ export class AgentUi {
       case "permission_request": {
         const taskId = event.context?.taskId;
         if (taskId !== undefined) this.approvals.set(event.requestId, taskId);
+        this.dock?.observe(event);
         return false;
       }
       case "permission_resolved":
         this.approvals.delete(event.requestId);
+        this.dock?.observe(event);
         return false;
+      case "agent_settled": {
+        // 主会话空闲了：停靠的审批看能不能弹（运行指示要等这个事件分派完才变空闲）
+        const dock = this.dock;
+        if (dock !== undefined && dock.size > 0) setTimeout(() => dock.poke(), 0);
+        return false;
+      }
       default:
         return false;
     }
@@ -323,7 +350,10 @@ export class AgentUi {
   private barKey(data: string): boolean {
     if (!this.bar.focused) return false;
     const keys = this.keybindings();
-    if (keys.matches(data, "tui.select.up")) {
+    if (data !== "x") this.stopArm.reset();
+    if (data === "b" || keys.matches(data, "app.tasks.background")) this.backgroundSelected();
+    else if (data === "x") void this.stopSelected();
+    else if (keys.matches(data, "tui.select.up")) {
       if (!this.bar.move(-1)) this.bar.blur();
     } else if (keys.matches(data, "tui.select.down")) this.bar.move(1);
     else if (keys.matches(data, "tui.editor.submit")) {
@@ -339,6 +369,35 @@ export class AgentUi {
     }
     this.deps.render();
     return true;
+  }
+
+  /** [W7-C] 栏内 `b` / `Ctrl+B`：转后台选中的任务（只对前台运行中的有效）。 */
+  private backgroundSelected(): void {
+    const taskId = this.bar.selected();
+    if (taskId === undefined) return;
+    const moved = this.deps.session().backgroundTask(taskId, "user");
+    this.deps.hint(
+      moved.length > 0 ? backgroundedText(moved) : msg().agents.background.notForeground(taskId),
+    );
+  }
+
+  /** [W7-C] 栏内 `x`：第一次提示「再按 x 停止」，1.5 s 内再按停止。 */
+  private async stopSelected(): Promise<void> {
+    const taskId = this.bar.selected();
+    if (taskId === undefined) return;
+    const sessionId = this.deps.session().state.sessionId;
+    if (taskRegistryView(sessionId)?.get(taskId)?.status !== "running") {
+      this.stopArm.reset();
+      this.deps.hint(msg().agents.stop.ended(taskId));
+      return;
+    }
+    if (this.stopArm.press(taskId, this.deps.now()) === "arm") {
+      this.deps.hint(msg().agents.stop.confirm(taskId));
+      return;
+    }
+    this.deps.hint(msg().agents.view.stopped(taskId));
+    await stopTask(sessionId, taskId);
+    this.deps.render();
   }
 
   /** `/tasks <id>` 与栏里 Enter：打开子 Agent 视图。 */
@@ -362,6 +421,7 @@ export class AgentUi {
       siblings: () => this.bar.all().map((row) => row.taskId),
       close: () => this.closeView(),
       stop: (id) => stopTask(this.deps.session().state.sessionId, id),
+      background: (id) => this.deps.session().backgroundTask(id, "user"),
       messages: {
         ...(ui.showThinking !== undefined ? { showThinking: ui.showThinking } : {}),
         ...(ui.markdown !== undefined ? { markdown: ui.markdown } : {}),
@@ -372,6 +432,8 @@ export class AgentUi {
     this.bar.blur();
     const handle = this.deps.tui.showOverlay(component, { anchor: "bottom" });
     this.view = { component, handle };
+    // [W7-C] 正在看的任务有停靠的审批：立即弹出（盖在视图上）
+    this.dock?.poke();
     this.deps.render();
   }
 
