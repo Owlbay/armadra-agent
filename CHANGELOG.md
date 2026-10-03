@@ -5,6 +5,17 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 > This file is in English starting with 0.6.0. Release notes for 0.1 through 0.5.1 are in Chinese in
 > [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md). New entries go into both files.
 
+## Unreleased
+
+- **Status line: subscription quota line and reference colors**: with a ChatGPT subscription model the `full` layout gets a
+  third line below the status bar, `Session: 10.0% | Reset: 2h 18m | Weekly: 31.0% | Weekly Reset: 6d 5h` (from
+  `quota_update`; refreshed once a minute; `5h 10% ↻2h18m · wk 31% ↻6d5h` below 80 columns; the codex flavor shows a
+  placeholder until the first request, siwc without data and non-subscription models show nothing). `compact` only appends a
+  short `5h 10% wk 31%` item at the end, keeping the existing order. The `full` lines are recolored after the reference (dim
+  labels; purple rates, durations and reset times; blue model, thinking level and amounts; green directory and branch; yellow
+  cost; threshold-colored percentages), and the branch shows `↑N` / `↓N` ahead of / behind its upstream. Docs: docs/tui.md
+  "Layout".
+
 ## 0.6.2 (2026-10-03)
 
 - **ChatGPT codex sign-in lists models, and the channel follows the sign-in method**: the codex model list
