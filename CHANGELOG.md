@@ -5,7 +5,7 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 > This file is in English starting with 0.6.0. Release notes for 0.1 through 0.5.1 are in Chinese in
 > [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md). New entries go into both files.
 
-## Unreleased
+## 0.6.4 (2026-10-03)
 
 - **Interrupt and send now**: while a run is in progress, Enter still queues the message as a steer (delivered at the next
   delivery point), and the new `Ctrl+X` (key action `app.message.interrupt`) stops the current turn at once (model stream and
