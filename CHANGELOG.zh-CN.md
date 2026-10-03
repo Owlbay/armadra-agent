@@ -4,6 +4,16 @@
 
 > 从 0.6.0 起 [CHANGELOG.md](CHANGELOG.md) 为英文，本文件保留中文记录（0.1–0.5.1 的完整历史在此）。新条目两份都要加。
 
+## 未发布
+
+- **打断并立即发送**：运行中按 Enter 仍是排队插话（等下一个投递点送达），新增 `Ctrl+X`（键位动作 `app.message.interrupt`）立即中止
+  当前回合（模型流与正在跑的工具，每个工具调用仍恰有一个结果 `aborted by user`），并马上以输入框的文字开新回合，已排队的插话拼在
+  前面（会话里 `origin: "interrupt"`，消息区标 `↳ 打断`）；输入为空时把排队的插话立即送出。Esc 语义不变。配置
+  `ui.enterWhileRunning: "queue" | "interrupt"`（缺省 queue，`/config` 可改）互换 Enter 与 `Ctrl+X`。输入框有字时运行提示行显示
+  `Enter 排队 · Ctrl+X 打断并发送`。子 Agent 视图同样可用：ama 子 Agent 中止本轮后立即以这条消息开新一轮；外部 Agent 的驱动能中断
+  单个回合（ACP、Claude stream-json、Codex）时中断后发送，否则退回排队并提示。line 模式认 `/interrupt <文本>`；RPC `prompt` /
+  `steer` 与 SDK 增 `interrupt: true`。新请求以被打断的那次请求为前缀，缓存照常命中。文档：docs/tui.md、docs/rpc.md。
+
 ## 0.6.3（2026-10-03）
 
 - **TUI：`Ctrl+B` 前台任务转后台，后台任务审批停靠在 Agent 栏**：主回合在等前台子 Agent 任务（或 `task_ctl wait`）时按
