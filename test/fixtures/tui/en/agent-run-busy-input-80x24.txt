@@ -1,0 +1,25 @@
+# ↓ with text · viewport 80x24
+|✻ ama <version> · fake/echo · Bypass permissions · /help
+|
+|› scan it
+|
+|⏺ task scan
+|  ⎿ ⠋ explore · running <t>
+|
+|<spin> Running task · <t> · Esc to interrupt · ↓ Agent bar
+|────────────────────────────────────────────────────────────────────────────────
+|› ab
+|────────────────────────────────────────────────────────────────────────────────
+|Input is not empty; clear it and press ↓ for the Agent bar
+|⏺ t1 explore · running <t>  scan
+|<状态栏>
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|

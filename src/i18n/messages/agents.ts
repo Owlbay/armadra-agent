@@ -5,6 +5,7 @@
  * 整句一个键、禁止片段拼接；插值写成函数，条件分支写进函数体。
  *
  * W6-A：Agent 栏（状态、轮数、溢出行、按键提示）与子 Agent 视图（标题、占位、发送结果、外部 Agent 的说明）。
+ * W7-A：进栏键落空提示、运行提示行的进栏附加项。
  */
 
 import { plural } from "../format.js";
@@ -26,6 +27,13 @@ export const en = {
     more: (n: number) => `${n} more`,
     keys: (up: string, down: string) => `${up}${down} select · Enter open · Esc back`,
     empty: "No sub-agent tasks yet",
+    /** [W7-A] 运行提示行的附加项（有子 Agent 任务时）。 */
+    runHint: (down: string) => `${down} Agent bar`,
+  },
+  /** [W7-A] 进栏键落空时的一行提示。 */
+  focus: {
+    busyInput: (down: string) => `Input is not empty; clear it and press ${down} for the Agent bar`,
+    disabled: "Agent bar is off (ui.agentBar); use /tasks",
   },
   view: {
     back: "Esc back",
@@ -67,6 +75,11 @@ export const zh = {
     more: (n) => `另 ${n} 个`,
     keys: (up, down) => `${up}${down} 选择 · Enter 打开 · Esc 返回`,
     empty: "还没有子 Agent 任务",
+    runHint: (down) => `${down} Agent 栏`,
+  },
+  focus: {
+    busyInput: (down) => `输入框有字；清空后再按 ${down} 进 Agent 栏`,
+    disabled: "Agent 栏已关闭（ui.agentBar），用 /tasks",
   },
   view: {
     back: "Esc 返回",

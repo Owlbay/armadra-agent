@@ -452,6 +452,7 @@ export function runInteractiveMode(
       exit: (code) => exit(code),
       onInterrupted: (empty) => void rewind.afterInterrupt(empty),
       agents: () => agentUi.keys,
+      downGlyph: theme.glyphs.arrowDown,
     }),
   );
 
@@ -492,6 +493,7 @@ export function runInteractiveMode(
     ...(options.clipboard !== undefined ? { clipboard: options.clipboard } : {}),
     area,
   });
+  indicator.agents = () => agentUi.reachable;
   const taskAgent = (taskId: string): string | undefined =>
     taskRegistryView(session.state.sessionId)?.get(taskId)?.agent;
   const broker = mergingBroker(

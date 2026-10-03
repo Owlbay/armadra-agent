@@ -7,6 +7,14 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 
 ## Unreleased
 
+- **Agent bar is reachable again**: `↓` on an empty input is now the only default key into the agent bar and works whenever
+  the session has tasks, even after the bar collapsed (it used to require the bar to be visible). `Ctrl+B` no longer enters
+  the bar (tmux's default prefix swallowed it); it is reserved for moving foreground tasks to the background and still moves
+  the cursor left for now (`"app.agents.focus": ["down", "ctrl+b"]` restores the old key). Pressing `↓` with text in the input
+  box, with `ui.agentBar: "off"` or with no tasks now shows a one-line hint instead of doing nothing silently; `↓` while
+  browsing input history still steps through history. The running line ends with `↓ Agent bar` while the bar has tasks
+  (dropped on narrow terminals). Embedding hosts (with a profile) no longer default to `ui.agentBar: "off"`; a host that does
+  not want the bar sets it in its profile's config file.
 - **Sub-agents run in the background by default; foreground tasks can be moved to the background**: in the TUI, RPC and
   ACP a `task` without `background` now returns a taskId at once and the result arrives later as a `<task-notification>`;
   `-p` keeps waiting in the foreground (setting `subagents.background`: `auto` (default) / `always` / `never`; an agent

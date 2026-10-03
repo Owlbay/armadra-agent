@@ -13,8 +13,9 @@
  * 事件；这里在会话的 `options.log` 外面套一层，只把这类行转到消息区，其余照原样写日志。
  *
  * [W6-A] Agent 栏（agent-bar.ts，提示行之下、状态行之上）与子 Agent 视图（agent-view.ts，底部覆盖层）：
- * - 键位：空输入时 `Ctrl+B`（有任务即可）或 `↓`（栏可见时）进栏（`app.agents.focus`，key-dispatch.ts 先问这里）；
- *   栏内 ↑↓ 选、Enter 打开视图、Esc / Ctrl+B 返回，可打印字符回到输入框；
+ * - 键位：空输入时 `↓`（有任务即可，不要求栏可见；`app.agents.focus`，key-dispatch.ts 先问这里）进栏；
+ *   有字 / 栏关闭 / 没有任务时返回落空原因，由 key-dispatch 给提示 [W7-A]；
+ *   栏内 ↑↓ 选、Enter 打开视图、Esc 返回，可打印字符回到输入框；
  * - `/tasks` 无参 = 聚焦栏（`ui.agentBar: "off"` 时仍是原来的选择器），`/tasks <id>` = 直接进视图；
  * - 等审批的任务按 `permission_request.context.taskId` 记下（栏与视图标题显示「等待审批」）。
  */
@@ -28,7 +29,6 @@ import { msg } from "../../i18n/index.js";
 import {
   defaultKeybindings,
   isPrintableText,
-  parseKey,
   type Keybindings,
   type Component,
   type Editor,
@@ -39,7 +39,7 @@ import {
 import { AgentBar } from "./agent-bar.js";
 import { AgentView } from "./agent-view.js";
 import type { CommandUi } from "./commands.js";
-import type { AgentKeys } from "./key-dispatch.js";
+import type { AgentFocusResult, AgentKeys } from "./key-dispatch.js";
 import type { StatusArea } from "./status-area.js";
 import { agentsPanel, planPanel, taskOutputPanel } from "./agent-panels.js";
 import { FirstRunMerge } from "./approval-merge.js";
@@ -100,7 +100,7 @@ export class AgentUi {
   /** [W6-A] key-dispatch.ts 的 Agent 栏入口。 */
   readonly keys: AgentKeys = {
     handleKey: (data) => this.barKey(data),
-    focus: (data) => this.focusFromKey(data),
+    focus: () => this.focusFromKey(),
   };
   private view: { component: AgentView; handle: OverlayHandle } | undefined;
   /** 等审批的请求 → 任务。 */
@@ -300,13 +300,23 @@ export class AgentUi {
     this.deps.render();
   }
 
-  /** `app.agents.focus`（输入为空）：`↓` 只在栏可见时进入，其它键（`Ctrl+B`）有任务即可。 */
-  private focusFromKey(data: string): boolean {
-    if (this.view !== undefined || !this.barEnabled()) return false;
-    if (parseKey(data)?.id === "down" && !this.bar.visible) return false;
-    if (!this.bar.focus()) return false;
+  /**
+   * `app.agents.focus`：输入为空且有任务即进栏（与 `/tasks` 一致，不要求栏可见）[W7-A]；
+   * 否则返回落空原因——有字（有任务时）、栏关闭（有任务时）、没有任务（栏开着时）。
+   */
+  private focusFromKey(): AgentFocusResult {
+    if (this.view !== undefined) return false;
+    const hasTasks = this.bar.all().length > 0;
+    if (!this.barEnabled()) return hasTasks && this.deps.editor.isEmpty() ? "disabled" : false;
+    if (!this.deps.editor.isEmpty()) return hasTasks ? "busy-input" : false;
+    if (!this.bar.focus()) return "empty";
     this.deps.render();
     return true;
+  }
+
+  /** [W7-A] 运行提示行要不要带「↓ Agent 栏」：栏开着、有该显示的任务、没在栏里或视图里。 */
+  get reachable(): boolean {
+    return this.view === undefined && !this.bar.focused && this.bar.visible;
   }
 
   /** 栏聚焦时的按键；不在栏里返回 false。 */

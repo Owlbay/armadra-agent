@@ -1,9 +1,10 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AgentSession, SessionEvent } from "../../agent/types.js";
-import { Editor, MemoryTerminal, TUI, plainTheme } from "../../tui.js";
+import { Editor, MemoryTerminal, TUI, Text, plainTheme } from "../../tui.js";
+import type { BarRow } from "./agent-bar.js";
 import { AgentUi } from "./agent-ui.js";
 import { imageRef, noClipboardImage, noClipboardTool, pasteImage } from "./clipboard-paste.js";
 import { editExternally, editorCommand } from "./external-editor.js";
@@ -22,7 +23,7 @@ function tmp(): string {
   return dir;
 }
 
-function setup() {
+function setup(agentBar?: "auto" | "off") {
   const logged: string[] = [];
   const notices: string[] = [];
   const options: { log?: (level: string, message: string) => void } = {
@@ -58,6 +59,9 @@ function setup() {
     clipboard: {
       run: async () => ({ code: null, stdout: Buffer.alloc(0), stderr: "", missing: true }),
     },
+    ...(agentBar !== undefined
+      ? { area: { rate: new Text("") as never, ui: () => ({ agentBar }) } }
+      : {}),
   });
   return { ui, session, options, logged, notices, tools, editor };
 }
@@ -163,5 +167,58 @@ describe("外部编辑器", () => {
     expect(edited).toBe("改后");
     expect(steps).toEqual(["suspend", "fake-editor", "resume"]);
     expect(await editExternally("x", "f.md", { ...deps, run: () => 1 })).toBeUndefined();
+  });
+});
+
+describe("进栏键（W7-A）", () => {
+  const row = (taskId: string, status: BarRow["status"]): BarRow => ({
+    taskId,
+    agent: "explore",
+    runner: "ama",
+    description: "",
+    status,
+    turns: 1,
+  });
+
+  it("空输入有任务即进栏，不要求栏可见（任务已结束、栏收起）", () => {
+    const s = setup("auto");
+    vi.spyOn(s.ui.bar, "all").mockReturnValue([row("t1", "completed")]);
+    expect(s.ui.bar.visible).toBe(false);
+    expect(s.ui.keys.focus("\x1b[B")).toBe(true);
+    expect(s.ui.bar.focused).toBe(true);
+  });
+
+  it("落空原因：有字 busy-input、没有任务 empty；有字但没有任务不提示", () => {
+    const s = setup("auto");
+    const all = vi.spyOn(s.ui.bar, "all").mockReturnValue([]);
+    expect(s.ui.keys.focus("\x1b[B")).toBe("empty");
+    s.editor.setText("ab");
+    expect(s.ui.keys.focus("\x1b[B")).toBe(false);
+    all.mockReturnValue([row("t1", "running")]);
+    expect(s.ui.keys.focus("\x1b[B")).toBe("busy-input");
+    expect(s.ui.bar.focused).toBe(false);
+  });
+
+  it("ui.agentBar off：有任务时 disabled，没有任务或有字时不提示", () => {
+    const s = setup("off");
+    const all = vi.spyOn(s.ui.bar, "all").mockReturnValue([row("t1", "running")]);
+    expect(s.ui.keys.focus("\x1b[B")).toBe("disabled");
+    s.editor.setText("ab");
+    expect(s.ui.keys.focus("\x1b[B")).toBe(false);
+    s.editor.clear();
+    all.mockReturnValue([]);
+    expect(s.ui.keys.focus("\x1b[B")).toBe(false);
+  });
+
+  it("运行提示行的 reachable：栏可见且没在栏里", () => {
+    const s = setup("auto");
+    const all = vi.spyOn(s.ui.bar, "all").mockReturnValue([row("t1", "running")]);
+    expect(s.ui.reachable).toBe(true);
+    s.ui.keys.focus("\x1b[B");
+    expect(s.ui.reachable).toBe(false);
+    s.ui.bar.blur();
+    all.mockReturnValue([]);
+    expect(s.ui.reachable).toBe(false);
+    expect(setup("off").ui.reachable).toBe(false);
   });
 });

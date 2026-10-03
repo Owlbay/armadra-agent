@@ -9,6 +9,8 @@
  *   助手在流式输出 → 末块是思考 `思考中`，否则 `回复中 · ↓≈1.2k`（本条输出的估算 token，4 字符 ≈ 1）
  *   其余（等首个 token）→ `思考中`
  * 运行或压缩时 Loader 才挂进槽位；附加项 `Esc 中断`。
+ * [W7-A] 有该显示的子 Agent 任务时再带可丢弃的 `↓ Agent 栏`（窄屏先丢它）；任务随时出现 / 结束，
+ * 每帧对一次，变了才换动词。
  *
  * 排队消息：缩进 2 列（挂在当前回合下），`↳ 插话 / 之后  文本` 整体 muted、标签 dim；超过 3 条首行
  * `… 另 N 条`；末行 `Alt+↑ 取回 · Esc 回填并中断`。
@@ -59,8 +61,15 @@ export class RunIndicator {
   private approval = false;
   private retry: { attempt: number; max: number; delayMs: number } | undefined;
   private stream: { tokens: number; thinking: boolean } | undefined;
+  /** [W7-A] 有该显示的子 Agent 任务（interactive-mode 在 AgentUi 建好后接上）。 */
+  agents: () => boolean = () => false;
+  private agentHint = false;
 
-  constructor(private readonly deps: RunIndicatorDeps) {}
+  constructor(private readonly deps: RunIndicatorDeps) {
+    deps.loader.onFrame(() => {
+      if (this.busy && !this.approval && this.agents() !== this.agentHint) this.applyVerb();
+    });
+  }
 
   get busy(): boolean {
     return this.running || this.compacting;
@@ -145,17 +154,22 @@ export class RunIndicator {
     const m = msg().interactive.view.run;
     const esc = [m.esc];
     if (this.approval) {
+      this.agentHint = false;
       loader.setVerb(m.awaitingApproval);
       return;
     }
+    this.agentHint = this.agents();
+    const optional = this.agentHint
+      ? { optional: [msg().agents.bar.runHint(this.deps.theme.glyphs.arrowDown)] }
+      : {};
     const running = tools.running();
     const top = running.filter((view) => !running.some((p) => p.children.includes(view)));
     if (top.length === 1) {
-      loader.setVerb(m.runningTool(top[0]!.toolName), esc);
+      loader.setVerb(m.runningTool(top[0]!.toolName), esc, optional);
       return;
     }
     if (top.length > 1) {
-      loader.setVerb(m.runningTools(top.length), esc);
+      loader.setVerb(m.runningTools(top.length), esc, optional);
       return;
     }
     if (this.retry !== undefined) {
@@ -166,15 +180,15 @@ export class RunIndicator {
       return;
     }
     if (this.compacting) {
-      loader.setVerb(m.compacting, esc);
+      loader.setVerb(m.compacting, esc, optional);
       return;
     }
     const stream = this.stream;
     if (stream !== undefined && !stream.thinking && stream.tokens > 0) {
-      loader.setVerb(m.replying, [`↓≈${formatTokens(stream.tokens)}`, ...esc]);
+      loader.setVerb(m.replying, [`↓≈${formatTokens(stream.tokens)}`, ...esc], optional);
       return;
     }
-    loader.setVerb(m.thinking, esc);
+    loader.setVerb(m.thinking, esc, optional);
   }
 }
 
