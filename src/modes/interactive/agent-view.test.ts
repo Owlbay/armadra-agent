@@ -498,4 +498,43 @@ describe("ama 子会话视图（组件）", () => {
     v.handleInput("\x1b");
     expect(closed).toEqual(["x"]);
   });
+  it("[W7-C] Ctrl+B 转后台正在看的任务（不是前台时落回编辑器）；/tasks bg [id]", async () => {
+    const registry = fakeRegistry([info("t1")]);
+    const moved: string[] = [];
+    let foreground = true;
+    const v = new AgentView("t1", {
+      theme: plainTheme(),
+      keys: new Keybindings(),
+      registry: () => registry,
+      tracker: new SubagentTracker(() => 0),
+      approvals: () => new Set(),
+      now: () => 0,
+      rows: () => 10,
+      render: () => undefined,
+      siblings: () => ["t1"],
+      close: () => undefined,
+      stop: async () => undefined,
+      background: (id) => {
+        moved.push(id);
+        const out = foreground ? [id] : [];
+        foreground = false;
+        return out;
+      },
+    });
+    v.focused = true;
+    v.handleInput(CTRL_B);
+    expect(moved).toEqual(["t1"]);
+    expect(lines(v, 80).join("\n")).toContain("已转后台：t1，完成后会通知");
+    // 已在后台：Ctrl+B 交给编辑器（光标左移）
+    v.handleInput("a");
+    v.handleInput(CTRL_B);
+    v.handleInput("b");
+    expect(lines(v, 80).join("\n")).toContain("› ba");
+    v.handleInput("\x1b");
+    for (const ch of "/tasks bg t3") v.handleInput(ch);
+    v.handleInput("\r");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(moved).toEqual(["t1", "t1", "t3"]);
+    expect(lines(v, 80).join("\n")).toContain("没有可转后台的前台任务");
+  });
 });

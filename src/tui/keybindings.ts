@@ -54,8 +54,11 @@ export const DEFAULT_KEYBINDINGS = {
    * 下移 / 历史，并给一次提示。`Ctrl+B` 不再进栏（tmux 缺省前缀会吃掉它），留给 `app.tasks.background`。
    */
   "app.agents.focus": ["down"],
-  /** [W7-C 预留] 前台子 Agent 任务转后台；批次 C 接入后缺省 `ctrl+b`，现在不绑定。 */
-  "app.tasks.background": [],
+  /**
+   * [W7-C] 有阻塞中的前台子 Agent 任务（或 `task_ctl wait`）时全部转后台，不看输入框；没有时落回编辑器
+   * （`tui.editor.cursorLeft` 的 `ctrl+b`）。tmux 里按 `C-b C-b` 透传。
+   */
+  "app.tasks.background": ["ctrl+b"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type ActionId = keyof typeof DEFAULT_KEYBINDINGS;

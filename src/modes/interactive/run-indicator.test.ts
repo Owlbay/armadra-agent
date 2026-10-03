@@ -5,12 +5,15 @@ import { QueueView, RunIndicator } from "./run-indicator.js";
 import { assistant, lines } from "./test-support.js";
 import { ToolTracker } from "./tool-view.js";
 
-function setup() {
+function setup(backgroundKey?: string) {
   const theme = plainTheme();
   const loader = new Loader(() => undefined, { theme, now: () => 0, intervalMs: 1e9 });
   const slot = new Container();
   const tools = new ToolTracker({ theme, now: () => 0 });
-  const indicator = new RunIndicator({ theme, loader, slot, tools, render: () => undefined });
+  const indicator = new RunIndicator({
+    ...{ theme, loader, slot, tools, render: () => undefined },
+    ...(backgroundKey !== undefined ? { backgroundKey } : {}),
+  });
   const verb = (): string => (slot.children.length === 0 ? "" : lines(slot, 60)[0]!);
   const send = (event: unknown): void => indicator.onEvent(event as SessionEvent);
   return { indicator, tools, verb, send, loader, slot };
@@ -68,6 +71,36 @@ describe("运行指示", () => {
     agents = false;
     loader.tick();
     expect(verb()).toBe("⠹ 运行 task · 0s · Esc 中断");
+  });
+
+  it("[W7-C] 前台任务时带「Ctrl+B 转后台」、停靠审批时「↓ 处理审批」替换「↓ Agent 栏」；窄屏从后往前丢", () => {
+    const { indicator, tools, verb, send, loader, slot } = setup("Ctrl+B");
+    let blocking = true;
+    let docked = false;
+    indicator.agents = () => true;
+    indicator.background = () => blocking;
+    indicator.docked = () => docked;
+    send({ type: "agent_start" });
+    tools.start({ toolCallId: "a", toolName: "task", args: {} });
+    send({ type: "tool_execution_start" });
+    expect(verb()).toBe("⠋ 运行 task · 0s · Esc 中断 · Ctrl+B 转后台 · ↓ Agent 栏");
+    expect(lines(slot, 44)[0]).toBe("⠋ 运行 task · 0s · Esc 中断 · Ctrl+B 转后台");
+    expect(lines(slot, 30)[0]).toBe("⠋ 运行 task · 0s · Esc 中断");
+    // 转后台之后、子任务的审批停靠
+    blocking = false;
+    docked = true;
+    loader.tick();
+    expect(verb()).toBe("⠙ 运行 task · 0s · Esc 中断 · ↓ 处理审批");
+    docked = false;
+    loader.tick();
+    expect(verb()).toBe("⠹ 运行 task · 0s · Esc 中断 · ↓ Agent 栏");
+  });
+
+  it("[W7-C] 没有按键绑定时不带转后台提示", () => {
+    const { indicator, verb, send } = setup();
+    indicator.background = () => true;
+    send({ type: "agent_start" });
+    expect(verb()).toBe("⠋ 思考中 · 0s · Esc 中断");
   });
 
   it("排队消息：缩进 2 列、中文标签、超过 3 条折叠、末行按键提示", () => {

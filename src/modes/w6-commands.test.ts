@@ -96,8 +96,39 @@ describe("交互模式面板钩子", () => {
     expect(await PANEL_COMMANDS["tasks"]?.(u, "")).toBe(true);
     expect(await PANEL_COMMANDS["tasks"]?.(u, "t3")).toBe(true);
     expect(await PANEL_COMMANDS["tasks"]?.(u, "stop t3")).toBe(false);
+    // [W7-C] `/tasks bg` 不是任务 id：走 commands-core
+    expect(await PANEL_COMMANDS["tasks"]?.(u, "bg")).toBe(false);
     expect(calls).toEqual(["bar", "view:t3"]);
     const { ui: plain } = ui({});
     expect(await PANEL_COMMANDS["tasks"]?.(plain, "")).toBe(false);
+  });
+});
+
+describe("[W7-C] /tasks bg", () => {
+  it("无 id：没有阻塞中的任务时不调用、回「没有可转的」；指定 id 调 backgroundTask(id, user)", async () => {
+    const calls: unknown[][] = [];
+    const bg = {
+      state: { sessionId: "s-bg" },
+      backgroundTask: (...args: unknown[]) => {
+        calls.push(args);
+        return args[0] === "t2" ? ["t2"] : [];
+      },
+    } as unknown as AgentSession;
+    const c: CommandContext = {
+      runtime: {} as Runtime,
+      session: () => bg,
+      switchSession: async () => bg,
+    };
+    expect(await runSlashCommand("/tasks bg", c)).toEqual({
+      kind: "handled",
+      message: "没有可转后台的前台任务",
+    });
+    expect(calls).toEqual([]);
+    expect(await runSlashCommand("/tasks bg t2", c)).toEqual({
+      kind: "handled",
+      message: "已转后台：t2，完成后会通知",
+    });
+    expect(calls).toEqual([["t2", "user"]]);
+    await expect(runSlashCommand("/tasks bg t2 extra", c)).rejects.toThrow(/tasks bg/);
   });
 });

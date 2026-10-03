@@ -144,7 +144,12 @@ export const PANEL_COMMANDS: Readonly<
       await ui.agentBar();
       return true;
     }
-    if (parts.length === 1 && parts[0] !== "stop" && ui.agentView !== undefined) {
+    if (
+      parts.length === 1 &&
+      parts[0] !== "stop" &&
+      parts[0] !== "bg" &&
+      ui.agentView !== undefined
+    ) {
       await ui.agentView(parts[0] as string);
       return true;
     }

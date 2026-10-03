@@ -13,6 +13,9 @@
  * [W6-A] Agent 栏（agent-ui.ts）：栏聚焦时它先收键（Esc 是「返回」，不中断、不回滚）；补全没开、没在浏览
  * 历史时 `app.agents.focus`（缺省 `↓`）先问它要不要进栏，不要就照常交给编辑器（下移、历史下一条）。
  * [W7-A] 落空给一行提示：输入有字（每段草稿一次，光标在末行时）、栏关闭、没有任务。
+ * [W7-C] `app.tasks.background`（缺省 `Ctrl+B`）：有阻塞中的前台任务时全部转后台（不看输入框），底部提示
+ * 「已转后台：t2 …」；没有时落回编辑器（光标左移），不吞键。Esc 中断只连带前台任务，仍在运行的后台任务
+ * 写进中断提示。
  */
 
 import { msg } from "../../i18n/index.js";
@@ -22,6 +25,7 @@ import { nextCycleMode, permissionModeLabel } from "../../permissions/modes.js";
 import type { PermissionMode } from "../../permissions/types.js";
 import type { Editor, Keybindings } from "../../tui.js";
 import { DOUBLE_ESC_HINT_MS, DoubleEscape } from "./double-esc.js";
+import { backgroundedText } from "./task-background.js";
 import { statusLineText } from "./status-area.js";
 import type { StatusBar } from "./status-bar.js";
 import type { ToolTracker } from "./tool-view.js";
@@ -79,6 +83,10 @@ export interface KeyDispatchDeps {
   agents?(): AgentKeys | undefined;
   /** [W7-A] 提示里的 `↓` 字形（ASCII 主题 `v`；缺省 `↓`）。 */
   downGlyph?: string;
+  /** [W7-C] 有阻塞中的前台任务时全部转后台，返回转了的 taskId；没有返回空（按键交给编辑器）。 */
+  backgroundTasks?(): string[];
+  /** [W7-C] 仍在运行的后台任务（Esc 中断的提示里写明不受影响）。 */
+  runningBackground?(): string[];
 }
 
 /** 返回输入监听器：已处理返回 true，交给编辑器返回 false。 */
@@ -195,6 +203,14 @@ export function createKeyDispatch(deps: KeyDispatchDeps): (data: string) => bool
       return true;
     }
     if (agents !== undefined && is("app.agents.focus") && focusAgents(agents, data)) return true;
+    if (is("app.tasks.background") && deps.backgroundTasks !== undefined) {
+      const moved = deps.backgroundTasks();
+      if (moved.length > 0) {
+        esc.reset();
+        deps.showHint(backgroundedText(moved), FOCUS_HINT_MS);
+        return true;
+      }
+    }
     if (is("app.clear")) {
       if (!editor.isEmpty()) {
         editor.clear();
@@ -212,7 +228,12 @@ export function createKeyDispatch(deps: KeyDispatchDeps): (data: string) => bool
     if (is("app.interrupt") && !editor.isCompletionOpen && deps.busy()) {
       esc.reset();
       interrupt();
-      deps.showHint(msg().interactive.keys.interrupted);
+      const left = deps.runningBackground?.() ?? [];
+      deps.showHint(
+        left.length > 0
+          ? msg().agents.background.interrupted(left.join(", "))
+          : msg().interactive.keys.interrupted,
+      );
       deps.onInterrupted?.(editor.isEmpty());
       return true;
     }
