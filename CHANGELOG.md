@@ -18,6 +18,14 @@ English · [简体中文](CHANGELOG.zh-CN.md)
   message is queued with a hint. Line mode accepts `/interrupt <text>`; RPC `prompt` / `steer` and the SDK take
   `interrupt: true`. The new request keeps the interrupted request as its prefix, so the cache keeps hitting. Docs:
   docs/tui.md, docs/rpc.md.
+- **Status line split into sides; quota labels fixed**: the `full` layout now keeps state and switches on the left and
+  metrics and the model on the right. The rate line's left side holds `codemode on` (with `net!`) · sandbox · preset ·
+  `→ fallback model` · queue count · host status, and its right side `tps … (avg · ttft) · ↑ ↓ · cache · re-billing · [-]`;
+  the status bar keeps the permission mode and the `shift+tab` hint on the left; the quota line is right-aligned. When
+  narrow, right-side metrics drop before left-side switches; the permission mode, `tps` and `[-]` never drop; the
+  single-line `compact` layout keeps its token order. Quota labels follow the window length: a weekly window sent as
+  primary reads `Weekly` instead of `7d:`, and the 5-hour window comes first; the all-zero "no such window" the server
+  sends is no longer rendered as `0d: 0.0%` (filtered both when parsing and when rendering). Docs: docs/tui.md.
 
 ## 0.6.3 (2026-10-03)
 

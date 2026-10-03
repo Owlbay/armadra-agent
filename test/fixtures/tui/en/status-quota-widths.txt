@@ -1,30 +1,30 @@
 # 120 有配额
-|tps: 521 tok/s • 1.1k tok / 2.2s (avg 119 · ttft 11.6s)                                                 ↑12k ↓1.1k · [-]|
+|                                              tps: 521 tok/s • 1.1k tok / 2.2s (avg 119 · ttft 11.6s) · ↑12k ↓1.1k · [-]|
 |Manual        chatgpt/gpt-5.5 medium | Ctx 90.0% | cc-switch ⎇ feat/ui-redesign-v9 0dd0894 ↑5 (+0,-0) | $168.96 | 21h46m|
-|Session: 10.0% | Reset: 2h 18m | Weekly: 31.0% | Weekly Reset: 6d 5h|
+|                                                    Session: 10.0% | Reset: 2h 18m | Weekly: 31.0% | Weekly Reset: 6d 5h|
 # 80 有配额
-|tps: 521 tok/s • 1.1k tok / 2.2s (avg 119 · ttft 11.6s)         ↑12k ↓1.1k · [-]|
+|      tps: 521 tok/s • 1.1k tok / 2.2s (avg 119 · ttft 11.6s) · ↑12k ↓1.1k · [-]|
 |Manual                                    gpt-5.5 | Ctx 90.0% | $168.96 | 21h46m|
-|Session: 10.0% | Reset: 2h 18m | Weekly: 31.0% | Weekly Reset: 6d 5h|
+|            Session: 10.0% | Reset: 2h 18m | Weekly: 31.0% | Weekly Reset: 6d 5h|
 # 60 有配额
-|tps: 521 tok/s (avg 119 · ttft 11.6s)       ↑12k ↓1.1k · [-]|
+|    tps: 521 tok/s (avg 119 · ttft 11.6s) · ↑12k ↓1.1k · [-]|
 |Manual                gpt-5.5 | Ctx 90.0% | $168.96 | 21h46m|
-|5h 10% ↻2h18m · wk 31% ↻6d5h|
+|                                5h 10% ↻2h18m · wk 31% ↻6d5h|
 # 40 有配额
-|tps: 521 tok/s (ttft 11.6s)          [-]|
+|       tps: 521 tok/s (ttft 11.6s) · [-]|
 |Manual         gpt | Ctx 90.0% | $168.96|
-|5h 10% ↻2h18m · wk 31% ↻6d5h|
+|            5h 10% ↻2h18m · wk 31% ↻6d5h|
 # 80 首次请求前（codex）
-|tps: 521 tok/s • 1.1k tok / 2.2s (avg 119 · ttft 11.6s)         ↑12k ↓1.1k · [-]|
+|      tps: 521 tok/s • 1.1k tok / 2.2s (avg 119 · ttft 11.6s) · ↑12k ↓1.1k · [-]|
 |Manual                                    gpt-5.5 | Ctx 90.0% | $168.96 | 21h46m|
-|Quota: shown after the first request|
+|                                            Quota: shown after the first request|
 # 80 无数据（siwc）
-|tps: 521 tok/s • 1.1k tok / 2.2s (avg 119 · ttft 11.6s)         ↑12k ↓1.1k · [-]|
+|      tps: 521 tok/s • 1.1k tok / 2.2s (avg 119 · ttft 11.6s) · ↑12k ↓1.1k · [-]|
 |Manual                                    gpt-5.5 | Ctx 90.0% | $168.96 | 21h46m|
 # 60 ASCII
-|tps: 521 tok/s (avg 119 · ttft 11.6s)       ^12k v1.1k · [-]|
+|    tps: 521 tok/s (avg 119 · ttft 11.6s) · ^12k v1.1k · [-]|
 |Manual                gpt-5.5 | Ctx 90.0% | $168.96 | 21h46m|
-|5h 10% @2h18m · wk 31% @6d5h|
+|                                5h 10% @2h18m · wk 31% @6d5h|
 # 200 compact
 |Manual · shift+tab to cycle                                chatgpt/gpt-5.5 · medium · ↑12k ↓1.1k · $168.96 · ctx ▮▮▮▮▮▮▮▮▮▯ 90% · cc-switch ⎇ feat/ui-redesign-v9 0dd0894 +0 −0 · 21h46m · 5h 10% wk 31%|
 # 120 compact

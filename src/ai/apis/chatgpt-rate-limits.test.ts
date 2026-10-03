@@ -42,6 +42,68 @@ describe("配额解析", () => {
     expect(parseUsagePayload("nope")).toBeUndefined();
   });
 
+  it("[W7] 只有周窗口的套餐：primary 是 10080 分钟，secondary 全 0（没有这个窗口）→ 只解析出 primary", () => {
+    const week = { usedPercent: 0, windowMinutes: 10_080, resetsAt: 1_790_500_000_000 };
+    expect(
+      parseQuotaHeaders(
+        new Headers({
+          "x-codex-primary-used-percent": "0",
+          "x-codex-primary-window-minutes": "10080",
+          "x-codex-primary-reset-at": "1790500000",
+          "x-codex-secondary-used-percent": "0",
+          "x-codex-secondary-window-minutes": "0",
+        }),
+      ),
+    ).toEqual({ primary: week });
+    expect(
+      parseRateLimitEvent({
+        type: "codex.rate_limits",
+        plan_type: "free",
+        rate_limits: {
+          primary: { used_percent: 0, window_minutes: 10_080, reset_at: 1_790_500_000 },
+          secondary: { used_percent: 0, window_minutes: 0, reset_at: 0 },
+        },
+      }),
+    ).toEqual({ planType: "free", primary: week });
+    expect(
+      parseUsagePayload({
+        plan_type: "free",
+        rate_limit: {
+          primary_window: {
+            used_percent: 0,
+            limit_window_seconds: 604_800,
+            reset_at: 1_790_500_000,
+          },
+          secondary_window: { used_percent: 0, limit_window_seconds: 0, reset_at: 0 },
+        },
+      }),
+    ).toEqual({ planType: "free", primary: week });
+  });
+
+  it("[W7] 时长 ≤ 0 视同缺失；有用量或重置时间的窗口即使缺时长也保留", () => {
+    expect(
+      parseQuotaHeaders(
+        new Headers({
+          "x-codex-secondary-used-percent": "4",
+          "x-codex-secondary-window-minutes": "0",
+        }),
+      ),
+    ).toEqual({ secondary: { usedPercent: 4 } });
+    expect(
+      parseQuotaHeaders(
+        new Headers({ "x-codex-primary-used-percent": "0", "x-codex-primary-reset-at": "10" }),
+      ),
+    ).toEqual({ primary: { usedPercent: 0, resetsAt: 10_000 } });
+    expect(
+      parseQuotaHeaders(
+        new Headers({
+          "x-codex-primary-used-percent": "0",
+          "x-codex-primary-window-minutes": "0",
+        }),
+      ),
+    ).toBeUndefined();
+  });
+
   it("429 体", () => {
     expect(quotaFromLimitError({ resets_at: 10, limit_window_minutes: 300 })).toEqual({
       primary: { usedPercent: 100, resetsAt: 10_000, windowMinutes: 300 },
