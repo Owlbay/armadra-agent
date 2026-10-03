@@ -4,6 +4,12 @@
 
 > 从 0.6.0 起 [CHANGELOG.md](CHANGELOG.md) 为英文，本文件保留中文记录（0.1–0.5.1 的完整历史在此）。新条目两份都要加。
 
+## 未发布
+
+- **`AcpClient` 开会话可传 MCP 服务器**：`newSession`、`resumeSession`、`loadSession` 新增可选的第三个参数
+  `{ mcpServers }`，原样随 `session/new|resume|load` 发出（缺省仍是 `[]`，不传时线路不变）；宿主用
+  `AcpClient.features.mcpServers` 检测是否支持。ama 自己仍不传。文档：docs/acp.md「作为客户端」。
+
 ## 0.6.4（2026-10-03）
 
 - **打断并立即发送**：运行中按 Enter 仍是排队插话（等下一个投递点送达），新增 `Ctrl+X`（键位动作 `app.message.interrupt`）立即中止

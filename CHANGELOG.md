@@ -5,6 +5,13 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 > This file is in English starting with 0.6.0. Release notes for 0.1 through 0.5.1 are in Chinese in
 > [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md). New entries go into both files.
 
+## Unreleased
+
+- **`AcpClient` can pass MCP servers when opening a session**: `newSession`, `resumeSession` and `loadSession` take an
+  optional third argument `{ mcpServers }` that is forwarded as-is in `session/new|resume|load` (default still `[]`, the
+  wire is unchanged when it is omitted). `AcpClient.features.mcpServers` lets a host detect support. ama itself still
+  sends none. Docs: docs/acp.md "As a client".
+
 ## 0.6.4 (2026-10-03)
 
 - **Interrupt and send now**: while a run is in progress, Enter still queues the message as a steer (delivered at the next
