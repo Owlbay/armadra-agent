@@ -140,6 +140,9 @@ const ROWS: readonly Row[] = [
   row("agents.sessionBudgetUsd", "agents", "nextSession", "deny", { kind: "optionalNumber" }),
   row("subagents.maxConcurrent", "agents", "nextSession", "deny"),
   row("subagents.maxPending", "agents", "nextSession", "deny"),
+  // [W7-B2] 改 task 工具描述（缺省后台 / 前台两种文案），故 prefix
+  row("subagents.background", "agents", "restart", "any", { prefix: true }),
+  row("subagents.autoBackgroundAfterMs", "agents", "restart", "any"),
   // [W6-M]
   row("memory.enabled", "memory", "nextSession", "tighten", { envOverride: "AMA_MEMORY" }),
   row("memory.subagents", "memory", "nextSession", "deny"),

@@ -206,10 +206,15 @@ const keysEn = {
   "agents.maxConcurrent": "Total concurrency of external agents",
   "agents.sessionBudgetUsd": "USD budget for external agents in this session",
   "agents.dirs": "Extra sub-agent definition directories (*.md); accumulated across levels",
-  subagents: "ama's own task sub-sessions; user level only (effective from wave 5 W5-G)",
+  subagents:
+    "ama's own task sub-sessions; user level only except background / autoBackgroundAfterMs (effective from wave 5 W5-G)",
   "subagents.maxConcurrent": "Sub-sessions running at the same time",
   "subagents.maxPending": "Queue limit; task fails beyond it",
   "subagents.defaultModel": "Default sub-session model provider/model[@channel]",
+  "subagents.background":
+    "Whether task runs in the background by default: auto = background in the TUI / RPC / ACP and foreground with -p; always / never are fixed. The call argument and the agent type's background: override it; user, project and host level",
+  "subagents.autoBackgroundAfterMs":
+    "Move a foreground task to the background after it has run this many milliseconds; 0 disables; user and project level",
   models: "Model aliases and the model picker list; user level only (effective from wave 5 W5-G)",
   "models.aliases": "Models that model: fast / strong in sub-agent definitions point to",
   "models.aliases.fast": "Model for the fast alias provider/model[@channel]",
@@ -358,10 +363,14 @@ const keysZh = {
   "agents.maxConcurrent": "外部 Agent 的总并发",
   "agents.sessionBudgetUsd": "本会话外部 Agent 的美元预算",
   "agents.dirs": "追加的子 Agent 定义目录（*.md）；各层累加",
-  subagents: "ama 自己的 task 子会话；只认用户级（第五波 W5-G 起生效）",
+  subagents:
+    "ama 自己的 task 子会话；除 background / autoBackgroundAfterMs 外只认用户级（第五波 W5-G 起生效）",
   "subagents.maxConcurrent": "同时运行的子会话数",
   "subagents.maxPending": "排队上限，超出时 task 报错",
   "subagents.defaultModel": "子会话缺省模型 provider/model[@channel]",
+  "subagents.background":
+    "task 缺省是否后台：auto = TUI / RPC / ACP 下后台、-p 下前台；always / never 固定。调用参数与类型定义的 background: 优先；用户、项目、宿主级都认",
+  "subagents.autoBackgroundAfterMs": "前台任务运行超过该毫秒数自动转后台；0 关闭；用户、项目级都认",
   models: "模型别名与模型选择器清单；只认用户级（第五波 W5-G 起生效）",
   "models.aliases": "子 Agent 定义里 model: fast / strong 指向的模型",
   "models.aliases.fast": "fast 别名的模型 provider/model[@channel]",

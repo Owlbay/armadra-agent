@@ -19,6 +19,9 @@
  * - [W6-C0] 第六波（docs/wave6-plan.md §2.6、§4.4）：命令 `get_trace`（参数 `RpcGetTraceParams`、返回
  *   `RpcW6Results`，W6-T2 实现，之前回 `not_implemented`）；事件 `quota_update`；`permission_request.context`
  *   可带 `toolCallId`；`keySource` 可为 `oauth`。`RPC_PROTOCOL_VERSION` 不变。
+ * - [W7-B2] 后台子 Agent（docs/agents-concurrency-plan.md §2.5）：命令 `background_task { taskId? }` →
+ *   `RpcW7Results`（无 taskId = 全部前台运行中任务；对已结束 / 已在后台的任务回空表）；事件
+ *   `subagent_background` 由 `SessionEvent` 派生。`RPC_PROTOCOL_VERSION` 不变。
  */
 
 import type { AssistantEvent, ImageBlock, ModelThinkingLevel, Usage } from "./ai/types.js";
@@ -115,6 +118,14 @@ export interface RpcCommandMap {
   get_agents: NoParams;
   // [W6-C0] 轨迹（docs/wave6-plan.md §2.6；W6-T2 实现，之前回 not_implemented）
   get_trace: RpcGetTraceParams;
+  // [W7-B2] 前台任务转后台（docs/agents-concurrency-plan.md §2.5）
+  background_task: { taskId?: string };
+}
+
+/** [W7-B2] 第七波命令成功时的 `data` 形状。 */
+export interface RpcW7Results {
+  /** 实际转了后台的 taskId（含被打断的 `task_ctl wait`）；没有可转的为空表。 */
+  background_task: { backgrounded: string[] };
 }
 
 /** [W6-C0] `get_trace` 的参数。 */

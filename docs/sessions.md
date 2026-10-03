@@ -46,7 +46,8 @@ packy/deepseek-v4-flash         1     3     1  4.6k   980      2k       0   30.8
 | 错误 / 重试 | `stopReason: "error"` 的 assistant；`context_edit{reason:"retry"}`（自动重试剔除的失败尝试）                                                                                                                          |
 | 渠道        | 最近一条 `model_change` 与请求同 provider / model 时取它的 `channel`                                                                                                                                                  |
 
-`task` 子会话是独立文件，按它自己的 cwd 计入。
+`task` 子会话是独立文件，按它自己的 cwd 计入。后台任务完成后父会话里的通知消息（`origin: "task"`）同样开启一个回合，
+按父会话计入；`-p` 等后台任务时（见 [agents.md](agents.md)「前台与后台」）这些通知回合也写进同一个会话文件。
 
 ### 性能与索引
 

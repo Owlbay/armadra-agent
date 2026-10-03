@@ -38,7 +38,7 @@ model: fast # inherit（缺省）| fast | strong（models.aliases）| provider/m
 thinking: low
 max-turns: 20 # 缺省 30
 isolation: none # none（缺省）| worktree
-background: false
+background: false # 不写 = 按 config subagents.background
 runner: ama # ama（缺省）| claude | codex | acp:<程序>
 ---
 
@@ -60,16 +60,16 @@ runner: ama # ama（缺省）| claude | codex | acp:<程序>
 
 ### `task` 参数
 
-| 参数                                             | 说明                                                                       |
-| ------------------------------------------------ | -------------------------------------------------------------------------- |
-| `prompt`                                         | 必填，完整的任务说明                                                       |
-| `agent`                                          | 类型名，缺省 `general`；也可以是外部 Agent（见「外部 Agent」节）           |
-| `description`                                    | 显示用的短标签                                                             |
-| `background`                                     | `true`：立即返回 `taskId`，完成后父会话收到通知；缺省取类型的 `background` |
-| `taskId`                                         | 续聊：向已有任务的子会话追加一条消息（忽略 `agent` / `tools` / `model`）   |
-| `isolation`                                      | `worktree`：在独立 git worktree 里运行                                     |
-| `budgetUsd`                                      | 外部 Agent 的美元预算                                                      |
-| `tools` / `model` / `thinkingLevel` / `maxTurns` | 保留的高级参数（描述里不展开）                                             |
+| 参数                                             | 说明                                                                                                                                                     |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prompt`                                         | 必填，完整的任务说明                                                                                                                                     |
+| `agent`                                          | 类型名，缺省 `general`；也可以是外部 Agent（见「外部 Agent」节）                                                                                         |
+| `description`                                    | 显示用的短标签                                                                                                                                           |
+| `background`                                     | `true`：立即返回 `taskId`，完成后父会话收到通知；`false`：等结果。缺省取类型的 `background`，类型没写时按 `subagents.background`（见下文「前台与后台」） |
+| `taskId`                                         | 续聊：向已有任务的子会话追加一条消息（忽略 `agent` / `tools` / `model`）                                                                                 |
+| `isolation`                                      | `worktree`：在独立 git worktree 里运行                                                                                                                   |
+| `budgetUsd`                                      | 外部 Agent 的美元预算                                                                                                                                    |
+| `tools` / `model` / `thinkingLevel` / `maxTurns` | 保留的高级参数（描述里不展开）                                                                                                                           |
 
 同一条回复里的多个 `task` **并行**执行，由会话的任务池限流（`subagents.maxConcurrent`，缺省 4）；排队超过
 `subagents.maxPending`（缺省 16）直接报错，提示模型不要重试。并行且会写文件的任务请用 `isolation: "worktree"`。
@@ -79,9 +79,31 @@ runner: ama # ama（缺省）| claude | codex | acp:<程序>
 全文写到会话目录的 `outputs/<会话 id>-<taskId>.md`（内存会话写到系统临时目录）。轮数用尽且最后一步停在工具结果上时，
 ama 以「不允许调用工具」再跑一轮要最终报告，结果前加 `[Turn limit reached; …]`，状态 `max_turns`。
 
+### 前台与后台
+
+是否后台的优先级：调用参数 `background` > 类型定义的 `background:` > config `subagents.background`。
+`subagents.background` 缺省 `auto`：交互界面、RPC、ACP 下后台（模型需要结果才写 `background: false`），`-p` 下前台；
+`always` / `never` 固定。两种缺省对应两版 `task` 工具描述，会话内不变，不影响缓存前缀稳定。
+
+前台任务运行中可以转后台，任务不中断，`task` 工具调用立即返回一段固定英文结果（含 `taskId` 与输出文件），完成后照常发
+`<task-notification>`：
+
+- 交互界面：`Ctrl+B` / `/tasks bg [id]` / Agent 栏里按 `b`（见 [tui.md](tui.md)「子 Agent」）；
+- RPC：`background_task { taskId? }`（[rpc.md](rpc.md)），SDK：`session.backgroundTask(taskId?)`，返回实际转了的 `taskId`；
+  不给 `taskId` 时转全部前台运行中任务，正在 `task_ctl wait` 的等待也一并打断；
+- 自动：`subagents.autoBackgroundAfterMs` 大于 0 时，前台任务运行超过该毫秒数自动转后台（缺省 0 关闭）。
+
+转后台发 `subagent_background { taskId, parentToolCallId, reason }` 事件（`user` / `timeout` / `host`）。
+父会话 `Esc` 中断只连带中止仍在前台的任务，后台任务不受影响；停止后台任务用 `task_ctl stop` 或 `/tasks stop`。
+
+`-p` 下（缺省前台）显式 `background: true` 仍生效：主回合结束后若还有任务在跑或通知待投递，stderr 一行提示，等它们结束、
+跑完通知回合再输出，输出的文本是最后一条助手回复；等待受 `--max-turns` / `--max-cost` / `limits.*` 约束（到限停止等待、
+退出码 8），`Ctrl+C` / SIGTERM 照常中止（未结束的任务随会话关闭被停止，退出码 130 / 143）。`--output-format json` 的结果带
+`tasks`（同 `getStats().tasks`）。
+
 ### 后台任务与 `task_ctl`
 
-`background: true` 立即返回 `taskId` 与输出文件路径。任务完成后，ama 在父会话空闲时投递一条 user 消息（`origin: "task"`）
+后台任务立即返回 `taskId` 与输出文件路径。任务完成后，ama 在父会话空闲时投递一条 user 消息（`origin: "task"`）
 并开始新回合；父正忙则等这一轮结束再投递，不打断。多条通知按完成顺序到达：
 
 ```text
@@ -95,13 +117,13 @@ ama 以「不允许调用工具」再跑一轮要最终报告，结果前加 `[T
 
 `task_ctl` 的动作：
 
-| `action` | 说明                                                                               |
-| -------- | ---------------------------------------------------------------------------------- |
-| `list`   | 列出本会话的任务：编号、类型、状态、轮数、token、耗时、是否后台、描述              |
-| `wait`   | 等任务结束（`timeoutMs` 缺省 30 000，最多 600 000）；超时说明仍在运行              |
-| `stop`   | 停止任务，返回终态                                                                 |
-| `output` | 运行中返回已有输出，结束后返回最终文本（同样有 50 KB 上限）                        |
-| `send`   | 向任务追加一条消息并放到后台运行（等价于 `task{taskId, prompt, background:true}`） |
+| `action` | 说明                                                                                                    |
+| -------- | ------------------------------------------------------------------------------------------------------- |
+| `list`   | 列出本会话的任务：编号、类型、状态、轮数、token、耗时、是否后台、描述                                   |
+| `wait`   | 等任务结束（`timeoutMs` 缺省 30 000，最多 600 000）；超时说明仍在运行；被转后台时立即返回并说明不必再等 |
+| `stop`   | 停止任务，返回终态                                                                                      |
+| `output` | 运行中返回已有输出，结束后返回最终文本（同样有 50 KB 上限）                                             |
+| `send`   | 向任务追加一条消息并放到后台运行（等价于 `task{taskId, prompt, background:true}`）                      |
 
 ### 续聊、保留与 resume
 
@@ -122,20 +144,22 @@ worktree 里的编辑不记进父会话的检查点。注意：worktree 不共�
 
 ### 事件与统计
 
-RPC / SDK 事件 `subagent_start` / `subagent_update` / `subagent_end` 见 [rpc.md](rpc.md)「子 Agent 事件」。
+RPC / SDK 事件 `subagent_start` / `subagent_update` / `subagent_background` / `subagent_end` 见 [rpc.md](rpc.md)「子 Agent 事件」。
 `getStats().tasks` 给出任务总数、运行中数量与按状态的计数；子会话的缓存命中与重计费仍汇总在 `cache.subagents`。
 RPC `get_tasks` / `get_agents` 返回任务快照与可用类型（来源、定义文件路径）。交互界面的 `/tasks`、`/agents` 与 task 工具行的折叠显示见 [tui.md](tui.md)「子 Agent」。
 
 ### 配置
 
-| 键                                | 说明                                        |
-| --------------------------------- | ------------------------------------------- |
-| `subagents.maxConcurrent`         | 同时运行的子 Agent，缺省 4                  |
-| `subagents.maxPending`            | 排队上限，缺省 16                           |
-| `subagents.defaultModel`          | 子 Agent 缺省模型，不设继承父会话           |
-| `agents.dirs`                     | 追加的定义目录                              |
-| `agents.<类型>.model`             | 某个类型的模型（如让 `explore` 用便宜模型） |
-| `models.aliases.fast` / `.strong` | 定义文件里 `model: fast / strong` 的映射    |
+| 键                                | 说明                                                                             |
+| --------------------------------- | -------------------------------------------------------------------------------- |
+| `subagents.maxConcurrent`         | 同时运行的子 Agent，缺省 4                                                       |
+| `subagents.maxPending`            | 排队上限，缺省 16                                                                |
+| `subagents.defaultModel`          | 子 Agent 缺省模型，不设继承父会话                                                |
+| `subagents.background`            | `auto`（缺省）\| `always` \| `never`，见「前台与后台」；用户 / 项目 / 宿主级都认 |
+| `subagents.autoBackgroundAfterMs` | 前台任务运行超过该毫秒数自动转后台，缺省 0（关闭）；用户 / 项目级都认            |
+| `agents.dirs`                     | 追加的定义目录                                                                   |
+| `agents.<类型>.model`             | 某个类型的模型（如让 `explore` 用便宜模型）                                      |
+| `models.aliases.fast` / `.strong` | 定义文件里 `model: fast / strong` 的映射                                         |
 
 ### 限制
 

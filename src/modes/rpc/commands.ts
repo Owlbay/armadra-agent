@@ -1,5 +1,5 @@
 /**
- * RPC 命令分派表（设计 §13.2、src/rpc.ts 的 33 条命令）。[B6]
+ * RPC 命令分派表（设计 §13.2、src/rpc.ts 的命令表，现 44 条）。[B6]
  *
  * - 提示类（prompt / steer / follow_up）不等运行结束：会话开始运行（`before_agent_start` /
  *   `agent_start`）、入队或被处理后立刻应答 `{ disposition }`；运行中的进展走事件。
@@ -11,6 +11,7 @@
  * - [W5-F] 计划：声明 `plans` 能力后计划审批交客户端（`plan_proposed` → `plan_response`），未声明按
  *   `plan.unattended`；`approve_fresh` 在这里新建会话并以计划全文开新回合。`get_tasks / get_agents`
  *   读 `RpcContext.tasks / agents`（W5-G 的注册表与发现结果；未装配时回空表）。
+ * - [W7-B2] `background_task { taskId? }` → `{ backgrounded }`（`session.backgroundTask`，B1）。
  */
 
 import { formatModelRef } from "../../ai/providers/channels.js";
@@ -369,6 +370,13 @@ export const handlers: RpcHandlers = {
   get_agents: async (_p, ctx) => ({ agents: [...(ctx.agents?.() ?? [])] }),
   // [W6-T2] 轨迹（docs/wave6-plan.md §2.6；分页 / 增量 / 脱敏见 trace/query.ts）
   get_trace: async (p, ctx) => sessionTrace(ctx.session(), p ?? {}),
+  // [W7-B2] 前台任务转后台：工具调用立即返回、任务继续，完成后照常通知
+  background_task: async (p, ctx) => {
+    const taskId = p?.taskId;
+    if (taskId !== undefined && typeof taskId !== "string")
+      throw new AmaError("invalid_arguments", msg().print.rpc.badTaskId);
+    return { backgrounded: ctx.session().backgroundTask(taskId) };
+  },
 };
 
 export const RPC_COMMAND_TYPES = Object.keys(handlers) as RpcCommandType[];

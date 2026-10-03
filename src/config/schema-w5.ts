@@ -15,6 +15,7 @@ import {
   PLAN_BASH_MODES_STRICT_FIRST,
   PLAN_UNATTENDED_MODES,
   STATUS_LINE_MODES,
+  SUBAGENT_BACKGROUND_MODES,
 } from "./types-w5.js";
 
 /** 第五波新增的顶层键（schema.ts 的 CONFIG_KEYS 并入）。 */
@@ -102,11 +103,19 @@ export function validateConfigW5(c: Checker, config: Obj): void {
     },
   );
   checkAgents(c, config);
-  checkSection(c, config, "subagents", ["maxConcurrent", "maxPending", "defaultModel"], (s, p) => {
-    c.number(s, "maxConcurrent", p, 1, 64);
-    c.number(s, "maxPending", p, 0, 1024);
-    c.string(s, "defaultModel", p);
-  });
+  checkSection(
+    c,
+    config,
+    "subagents",
+    ["maxConcurrent", "maxPending", "defaultModel", "background", "autoBackgroundAfterMs"],
+    (s, p) => {
+      c.number(s, "maxConcurrent", p, 1, 64);
+      c.number(s, "maxPending", p, 0, 1024);
+      c.string(s, "defaultModel", p);
+      c.oneOf(s, "background", p, SUBAGENT_BACKGROUND_MODES);
+      c.number(s, "autoBackgroundAfterMs", p, 0);
+    },
+  );
   checkSection(c, config, "models", ["aliases", "enabled"], (s, p) => {
     c.stringArray(s, "enabled", p);
     const enabled = s["enabled"];

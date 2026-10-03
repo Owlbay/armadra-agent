@@ -27,7 +27,7 @@ import {
 } from "../agents/external.js";
 import { hostRunnersOf } from "../host/api-impl.js";
 import { bindTaskAgents, bindTaskBackground } from "../tools/task.js";
-import { resolveTaskBackground, type BackgroundSetting } from "../agent/subagent-background.js";
+import { resolveTaskBackground } from "../agent/subagent-background.js";
 import type { ComposeExtensionDeps } from "./compose-extensions.js";
 import { msg } from "../i18n/index.js";
 
@@ -71,9 +71,8 @@ export function subagentEnvironment(
   if (max !== undefined) env.maxConcurrent = max;
   const pending = config.subagents?.maxPending;
   if (pending !== undefined) env.maxPending = pending;
-  // [W7-B1] 缺省后台与自动转后台（配置键由 W7-B2 登记；这里按可选值读）
-  const sub = config.subagents as
-    { background?: BackgroundSetting; autoBackgroundAfterMs?: number } | undefined;
+  // [W7-B1] 缺省后台与自动转后台（配置键 W7-B2 登记于 config/types-w5.ts）
+  const sub = config.subagents;
   env.background = resolveTaskBackground(sub?.background, deps.assembly.unattended === true);
   const after = sub?.autoBackgroundAfterMs;
   if (typeof after === "number" && after > 0) env.autoBackgroundAfterMs = after;

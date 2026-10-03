@@ -22,6 +22,8 @@ export const en = {
     retry: (attempt: number, max: number, seconds: number, error: string) =>
       `ama: ↻ retry ${attempt}/${max} (in ${seconds}s): ${error}\n`,
     modelFailed: "model call failed",
+    waitingTasks: (n: number) =>
+      `ama: waiting for ${plural(n, "background task")} and their notification turns (Ctrl+C stops them)\n`,
     planPending: (version: number, where: string) =>
       `ama: plan v${version} saved, awaiting approval (not executed): ${where}; -p does not approve on anyone's behalf — ` +
       "approve it in the interactive UI or via RPC plan_response, or set plan.unattended: approve to let -p approve and continue",
@@ -37,6 +39,7 @@ export const en = {
   rpc: {
     unknownCommand: (type: string) => `unknown command: ${type}`,
     parseFailed: (error: string) => `JSON parse failed: ${error}`,
+    badTaskId: "taskId must be a string",
     missingType: "missing type",
     unsupported: "this session does not support this command",
     noPlan: "this session has no plan extension",
@@ -68,6 +71,7 @@ export const zh = {
     seconds: (n) => `${n} 秒`,
     millis: (n) => `${n} 毫秒`,
     needsPrompt: "ama: -p 需要提示（位置参数或 stdin 管道）\n",
+    waitingTasks: (n) => `ama: 等待 ${n} 个后台任务及其通知回合结束（Ctrl+C 中止）\n`,
     retry: (attempt, max, seconds, error) =>
       `ama: ↻ 重试 ${attempt}/${max}（${seconds}s 后）：${error}\n`,
     modelFailed: "模型调用失败",
@@ -83,6 +87,7 @@ export const zh = {
       "-p 没有人审批，需要放行时用 --permission-mode auto-edit|auto 或 --allow <规则>",
   },
   rpc: {
+    badTaskId: "taskId 应为字符串",
     unknownCommand: (type) => `未知命令：${type}`,
     parseFailed: (error) => `JSON 解析失败：${error}`,
     missingType: "缺少 type",

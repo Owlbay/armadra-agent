@@ -51,7 +51,9 @@ Top 5 tool calls
 | Errors / retries | Assistant messages with `stopReason: "error"`; `context_edit{reason:"retry"}` (failed attempts removed by automatic retry)                                                                                                                                                                                                                                                            |
 | Channel          | The `channel` of the latest `model_change` with the same provider / model as the request                                                                                                                                                                                                                                                                                              |
 
-`task` sub-sessions are separate files and count under their own cwd.
+`task` sub-sessions are separate files and count under their own cwd. The notification message a parent session receives when a
+background task finishes (`origin: "task"`) also starts a turn and counts under the parent; when `-p` waits for background tasks,
+those notification turns are written to the same session file.
 
 ### Performance and index
 

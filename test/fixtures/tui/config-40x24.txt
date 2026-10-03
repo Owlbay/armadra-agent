@@ -1,8 +1,8 @@
 # config · 40 columns, wrapped to last row · viewport 40x24 cursor=21,0
 |▎ 设置  写入：用户级 ~/.config/ama/conf…
 |▎ / 搜索
-|▎   子 Agent 并发      4
-|▎   子 Agent 排队上限  16
+|▎   子 Agent 缺省后台  auto
+|▎   自动转后台（毫秒…  0
 |▎ 记忆
 |▎   记忆               false
 |▎   子 Agent 的记忆    read

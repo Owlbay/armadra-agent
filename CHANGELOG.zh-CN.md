@@ -6,6 +6,12 @@
 
 ## 未发布
 
+- **后台子 Agent 的配置、`-p` 与 RPC**：新增 `subagents.background: "auto" | "always" | "never"`（缺省 auto：交互界面 / RPC / ACP
+  下 task 缺省后台，`-p` 下前台；调用参数与类型定义的 `background:` 优先）与 `subagents.autoBackgroundAfterMs`（前台任务运行超过
+  该毫秒数自动转后台，缺省 0 关闭），两键项目级也认、`/config` 面板可改。`-p` 主回合结束后若还有后台任务在跑，stderr 一行提示并
+  等它们结束、跑完通知回合再输出（受 `--max-turns` / `--max-cost` 约束，到限退出 8；Ctrl+C 照常中止），json 结果带 `tasks`。
+  RPC 新增 `background_task { taskId? }` → `{ backgrounded }` 与事件 `subagent_background`（共 44 条命令），SDK 为
+  `session.backgroundTask(taskId?)`。文档：docs/agents.md「前台与后台」、docs/rpc.md。
 - **Agent 栏重新可达**：空输入时的 `↓` 成为唯一缺省进栏键，本会话有任务即可进栏，栏收起后也行（以前要求栏可见）。`Ctrl+B`
   不再进栏（tmux 缺省前缀会吃掉它），留给「前台任务转后台」，目前仍是光标左移（想要原来的键位写
   `"app.agents.focus": ["down", "ctrl+b"]`）。输入框有字、`ui.agentBar: "off"` 或没有任务时按 `↓` 给一行提示，不再无声落空；
