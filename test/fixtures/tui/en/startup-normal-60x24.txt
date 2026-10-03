@@ -1,0 +1,25 @@
+# startup normal · viewport 60x24 cursor=14,2
+| ▄███▄  ██▄   ▄██  ▄███▄
+|██▀ ▀██ ███▄ ▄███ ██▀ ▀██
+|███████ ██ ▀█▀ ██ ███████
+|██   ██ ██     ██ ██   ██
+|▀▀   ▀▀ ▀▀     ▀▀ ▀▀   ▀▀
+|
+|ama <version>
+|fake/echo · thinking medium
+|~/work · trusted (command line)
+|Manual · preset default
+|AGENTS.md
+|/help commands · Shift+Tab mode · Ctrl+O expand tool output
+|
+|────────────────────────────────────────────────────────────
+|› Type a message, / for commands, @ for files, Shift+Enter …
+|────────────────────────────────────────────────────────────
+|Manual                    echo · medium · ctx 0% · work · 0s
+|
+|
+|
+|
+|
+|
+|

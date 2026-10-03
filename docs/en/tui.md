@@ -15,16 +15,12 @@ Running `ama` directly in a terminal (stdin / stdout both TTYs, `TERM` not `dumb
 The visual spec (colors, glyphs, screen-by-screen mockups) is in [tui-design.md](../tui-design.md) (Chinese). Hierarchy is expressed by indentation: column 0 holds the user `›`, the tool `⏺` and notice symbols, column 2 the result connector `⎿`, column 4 the tool output; the structure stays readable without colors (`NO_COLOR`, `capture-pane` without `-e`).
 
 ```
-╭──────────────────────────────────────────────────────────────╮
-│ ✻ ama 0.3.0                                                  │   ← startup header (normal)
-│                                                              │
-│ Model   anthropic/claude-sonnet-4-5 · thinking medium        │
-│ Dir     ~/Projects/demo · trusted (trust.json)               │
-│ Mode    Accept edits · preset default                        │
-│ Loaded  AGENTS.md · 2 Skills                                 │
-│                                                              │
-│ /help commands · Shift+Tab mode · Ctrl+O expand tool output  │
-╰──────────────────────────────────────────────────────────────╯
+ ▄███▄  ██▄   ▄██  ▄███▄    ama 0.6.2                     ← startup header (normal)
+██▀ ▀██ ███▄ ▄███ ██▀ ▀██   anthropic/claude-sonnet-4-5@messages · thinking medium
+███████ ██ ▀█▀ ██ ███████   ~/Projects/demo · trusted (trust.json)
+██   ██ ██     ██ ██   ██   Accept edits · preset default
+▀▀   ▀▀ ▀▀     ▀▀ ▀▀   ▀▀   AGENTS.md · 2 Skill
+                            /help commands · Shift+Tab mode · Ctrl+O expand tool output
 
 › read the README                                  ← user message (continuation lines indented 2)
 
@@ -416,7 +412,7 @@ Requires memory to be enabled (`ama memory enable` or `--memory`, see [memory.md
 
 ## Startup screen
 
-`ui.quietStartup` / `--quiet-startup`: `normal` shows a boxed startup header: title, model and thinking level, directory (`~` abbreviated) and trust state, permission mode / preset / codemode, loaded context files / Skills / prompt templates / hooks, warning count and common keys; below 56 columns or with `ui.compact` the box is dropped and each item takes one line. `header` is a single line `✻ ama version · model · mode · /help` (the profile default); `silent` shows nothing. When `--resume` has no id, the model has no key, the session directory does not exist or project resources need trust, a small selection / input prompt appears before the interface starts, collapsing into one line on screen once answered.
+`ui.quietStartup` / `--quiet-startup`: `normal` shows an "AMA" logo with an info column: version, model and thinking level, directory (`~` abbreviated) and trust state, permission mode / preset / codemode, loaded context files / Skills / prompt templates / hooks, warning count and common keys. At 72 columns or wider the logo sits on the left and the info on the right; at 48–71 columns the logo is on top; below 48 columns a two-line header is shown instead (version · model · thinking / mode · directory · trust). `ui.logo: "off"` or `ui.compact` shows only the info column. The logo takes the theme's accent → user → tool colors letter by letter; ASCII mode swaps in a glyph made of `_ / \ |`. On startup a one-off "light-up" sweep plays for about a second (the glyph starts dim, a highlight band sweeps left to right, then it settles); it redraws in place and leaves no frames in the scrollback, and any key settles it at once while the key still goes to the input box. The settled frame is shown directly with `ui.animation: false`, `NO_COLOR` / a colorless terminal, a non-TTY, an embedding host (profile.host), a `CI` environment, a prompt given on the command line (`ama "…"`), a terminal shorter than 16 rows or content taller than one screen; the line interface, `-p`, RPC and ACP draw no startup header. `header` is a single line `✻ ama version · model · mode · /help` (the profile default); `silent` shows nothing. When `--resume` has no id, the model has no key, the session directory does not exist or project resources need trust, a small selection / input prompt appears before the interface starts, collapsing into one line on screen once answered.
 
 ## In tmux / Armadra terminal nodes
 
@@ -433,8 +429,9 @@ The `ui` section of `config.json` (settable at project level too):
 | ----------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ui.theme`        | `dark`        | `dark` / `light` / `auto`; auto only looks at `COLORFGBG` (no terminal query) and uses dark when unsure; configuring it explicitly is recommended |
 | `ui.ascii`        | auto-detected | ASCII glyphs (`›` → `>`, `⏺` → `*`, `⎿` → `L`, box lines → `+ - \|`, a 4-frame spinner)                                                           |
-| `ui.compact`      | `false`       | No blank lines between message blocks, no box around the startup header                                                                           |
-| `ui.animation`    | `true`        | `false`: the spinner stays still as `·` while running and redraws only when seconds change                                                        |
+| `ui.compact`      | `false`       | No blank lines between message blocks, no logo in the startup header                                                                              |
+| `ui.logo`         | `auto`        | The "AMA" logo in the startup header; `off` shows only the info column                                                                            |
+| `ui.animation`    | `true`        | `false`: the spinner stays still as `·` while running and redraws only when seconds change; the startup logo does not animate                     |
 | `ui.markdown`     | `true`        | `false`: assistant text is not rendered as Markdown                                                                                               |
 | `ui.showThinking` | `collapsed`   | See "Layout"                                                                                                                                      |
 | `ui.quietStartup` | `normal`      | See "Startup screen"                                                                                                                              |
@@ -530,7 +527,7 @@ tui.start();
 Frame goldens all live in `test/fixtures/tui/`; `MemoryTerminal` reconstructs the screen (without color, verifying only layout and glyphs):
 
 - `src/modes/interactive/interactive-mode.test.ts`: a complete read-file run at 80x24 and 40x24 (startup, input, tool running, finish, `Ctrl+O` expand, exit summary) → `run-*.txt`; approvals, cache notices and more.
-- `src/modes/interactive/interactive-frames.test.ts`: startup headers (`startup-normal-*`, `header-quiet-*`), tool hierarchy (`tools-*`), notices (`notices-*`), running verbs (`loader-verbs-*`), the `/session` panel (`panel-session-*`), a whole run in ASCII mode (`ascii-run-*`).
+- `src/modes/interactive/interactive-frames.test.ts`: startup headers (`startup-normal-*`, `header-quiet-*`; logo variants and the animation in `startup-logo.test.ts` / `startup-logo-*`), tool hierarchy (`tools-*`), notices (`notices-*`), running verbs (`loader-verbs-*`), the `/session` panel (`panel-session-*`), a whole run in ASCII mode (`ascii-run-*`).
 - Wave 5 (W5-U): `plan-dialog.test.ts` (`plan-dialog-*`: four options, execution mode, feedback, external editor, ASCII, 40 columns), `approval-origin.test.ts` (`approval-origin-*`, `approval-task-agent-*`, `approval-first-run-*`, `approval-task-external-*` and the first-run merge), `subagent-view.test.ts` (`subagent-view-*`), `tasks-panel.test.ts` (`tasks-picker-*`, `tasks-output-*`, `agents-panel-*`), `harness-notices.test.ts` (`harness-notices-*`), `interactive-w5.test.ts` (plan → approval → execution, `/plan`, background tasks into `/tasks`, Ctrl+V; `interactive-plan-*`, `interactive-tasks-*`).
 - `src/tui/tui-frames.test.ts`: component level (conversation, Markdown, editor placeholder / multi-line / paste / completion); `status-widths.txt` of `status-bar.test.ts`; approvals and mode pickers in `approval-dialog.test.ts` and `pickers.test.ts`.
 

@@ -23,40 +23,43 @@ const INFO: StartupInfo = {
 };
 
 describe("启动头", () => {
-  it("normal 80 列：框宽 64，键值行与警告", () => {
+  it("normal 80 列：字符画在左、信息列在右（顶端对齐），警告与已加载照常列出", () => {
     const header = new StartupHeader(INFO, { theme: plainTheme(), level: "normal" });
-    const out = lines(header, 80).map((l) => l.replace(/\s+│$/, " │"));
-    expect(out[0]).toBe("╭" + "─".repeat(62) + "╮");
-    expect(out).toContain("│ 模型   anthropic/claude-sonnet-4-5@messages · 思考 medium │");
-    expect(out).toContain("│ 目录   ~/Projects/armadra-agent · 已信任（trust.json） │");
-    expect(out).toContain("│ 模式   Accept edits · 预设 default · codemode on │");
-    expect(out).toContain("│ 已加载 CLAUDE.md, AGENTS.md · 3 Skill · 2 模板 · 4 Hook │");
-    expect(out).toContain("│ 警告   2 条（ama doctor 查看） │");
-    for (const line of header.render(80)) expect(visibleWidth(line)).toBe(64);
+    const out = lines(header, 80);
+    expect(out).toEqual([
+      " ▄███▄  ██▄   ▄██  ▄███▄    ama 0.1.0",
+      "██▀ ▀██ ███▄ ▄███ ██▀ ▀██   anthropic/claude-sonnet-4-5@messages · 思考 medium",
+      "███████ ██ ▀█▀ ██ ███████   ~/Projects/armadra-agent · 已信任（trust.json）",
+      "██   ██ ██     ██ ██   ██   Accept edits · 预设 default · codemode on",
+      "▀▀   ▀▀ ▀▀     ▀▀ ▀▀   ▀▀   CLAUDE.md, AGENTS.md · 3 Skill · 2 模板 · 4 Hook",
+      "                            警告 2 条（ama doctor）",
+      "                            /help 命令 · Shift+Tab 切模式 · Ctrl+O 展开工具输出",
+    ]);
+    for (const line of header.render(80)) expect(visibleWidth(line)).toBeLessThanOrEqual(80);
   });
 
-  it("没有「已加载」行时键列仍按 6 列对齐", () => {
+  it("48–71 列：字符画在上，空一行后是信息列；ASCII 用 figlet 字形", () => {
     const bare = { ...INFO, contextFiles: [], skills: 0, prompts: 0, hooks: 0, warnings: 0 };
-    const out = lines(new StartupHeader(bare, { theme: plainTheme(), level: "normal" }), 80);
-    expect(out[3]).toMatch(/^│ 模型   anthropic/);
-    expect(out[5]).toMatch(/^│ 模式   Accept edits/);
+    const out = lines(new StartupHeader(bare, { theme: plainTheme(), level: "normal" }), 60);
+    expect(out.slice(4, 7)).toEqual(["▀▀   ▀▀ ▀▀     ▀▀ ▀▀   ▀▀", "", "ama 0.1.0"]);
+    const ascii = new StartupHeader(bare, { theme: plainTheme({ ascii: true }), level: "normal" });
+    expect(lines(ascii, 60)[4]).toBe("/_/   \\_\\_|  |_/_/   \\_\\");
   });
 
-  it("< 56 列或 compact：去框去键列；路径从左截断", () => {
+  it("< 48 列两行；ui.logo off 与 compact 不画字符画；路径从左截断", () => {
     const narrow = { ...INFO, cwd: "~/Projects/some/very/deep/path/armadra-agent" };
     const out = lines(new StartupHeader(narrow, { theme: plainTheme(), level: "normal" }), 40);
-    expect(out.slice(0, 4)).toEqual([
-      "✻ ama 0.1.0",
-      "anthropic/claude-sonnet-4-5 · medium",
-      "…e/very/deep/path/armadra-agent · 已信任",
-      "Accept edits · default · codemode on",
+    expect(out).toEqual([
+      "✻ ama 0.1.0 · anthropic/claude-sonnet-4…",
+      "Accept edits · …h/armadra-agent · 已信任",
+      "警告 2 条（ama doctor）",
     ]);
-    const compact = new StartupHeader(INFO, {
-      theme: plainTheme(),
-      level: "normal",
-      compact: true,
-    });
-    expect(lines(compact, 100)[0]).toBe("✻ ama 0.1.0");
+    for (const option of [{ logo: "off" as const }, { compact: true }]) {
+      const header = new StartupHeader(INFO, { theme: plainTheme(), level: "normal", ...option });
+      expect(header.hasLogo(100)).toBe(false);
+      expect(lines(header, 100)[0]).toBe("✻ ama 0.1.0");
+      expect(lines(header, 100)[1]).toBe("anthropic/claude-sonnet-4-5@messages · 思考 medium");
+    }
   });
 
   it("header：一行；Bypass 模式名照常显示", () => {

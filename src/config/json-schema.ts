@@ -309,6 +309,7 @@ function buildBaseSchema(): Schema {
         quietStartup: oneOf(["normal", "header", "silent"]),
         ascii: bool(),
         compact: bool(),
+        logo: oneOf(["auto", "off"]),
         animation: bool(),
         restoreOnCancel: bool(),
         statusLine: oneOf(STATUS_LINE_MODES),

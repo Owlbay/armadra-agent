@@ -204,8 +204,10 @@ export interface UiConfig extends UiConfigW6 {
   quietStartup?: "normal" | "header" | "silent";
   /** ASCII 字形（`AMA_ASCII=1` 等价）；缺省按区域设置 / TERM 自动检测。 */
   ascii?: boolean;
-  /** 消息区块间不空行、启动头无框，缺省 false。 */
+  /** 消息区块间不空行、启动头不画字符画，缺省 false。 */
   compact?: boolean;
+  /** 启动头的「AMA」字符画：auto（缺省，宽度够时画）/ off（只画信息列）。 */
+  logo?: "auto" | "off";
   /** false：运行中 spinner 固定为 `·`，缺省 true。 */
   animation?: boolean;
   /** 运行中 Esc 中断、本回合还没有任何输出时撤回该回合并回填原消息，缺省 true。 */

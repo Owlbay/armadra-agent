@@ -25,7 +25,7 @@ const IMPLICIT_DEFAULTS: Partial<AmaConfig> = {
   codemode: { inlineBudget: DEFAULT_INLINE_BUDGET, requireStrict: false },
   cache: { ...DEFAULT_CACHE_CONFIG },
   request: { idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS },
-  ui: { compact: false, animation: true, restoreOnCancel: true, language: "auto" },
+  ui: { compact: false, logo: "auto", animation: true, restoreOnCancel: true, language: "auto" },
   // [W6-C0] 第六波键的缺省（行为由各批次实现）
   memory: {
     enabled: false,

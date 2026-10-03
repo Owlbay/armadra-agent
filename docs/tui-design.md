@@ -89,37 +89,49 @@
 
 ### 3.1 启动头
 
-`ui.quietStartup: normal`（80 列）：
+`ui.quietStartup: normal`，宽 ≥ 72 列（字符画在左，信息列在右，顶端对齐，中间空 3 列；无框）：
 
 ```
-╭──────────────────────────────────────────────────────────╮
-│ ✻ ama 0.1.0                                               │
-│                                                           │
-│ 模型   anthropic/claude-sonnet-4-5@messages · 思考 medium  │
-│ 目录   ~/Projects/armadra-agent · 已信任（trust.json）     │
-│ 模式   Accept edits · 预设 default · codemode on           │
-│ 已加载 CLAUDE.md, AGENTS.md · 3 Skill · 2 模板 · 4 Hook    │
-│                                                           │
-│ /help 命令 · Shift+Tab 切模式 · Ctrl+O 展开工具输出        │
-╰──────────────────────────────────────────────────────────╯
+ ▄███▄  ██▄   ▄██  ▄███▄    ama 0.1.0
+██▀ ▀██ ███▄ ▄███ ██▀ ▀██   anthropic/claude-sonnet-4-5@messages · 思考 medium
+███████ ██ ▀█▀ ██ ███████   ~/Projects/armadra-agent · 已信任（trust.json）
+██   ██ ██     ██ ██   ██   Accept edits · 预设 default · codemode on
+▀▀   ▀▀ ▀▀     ▀▀ ▀▀   ▀▀   CLAUDE.md, AGENTS.md · 3 Skill · 2 模板 · 4 Hook
+                            警告 2 条（ama doctor）
+                            /help 命令 · Shift+Tab 切模式 · Ctrl+O 展开工具输出
 ```
 
-- 框宽 `min(width, 60)`，不居中（左对齐，便于回滚里对齐正文）；边框 `border`；`✻ ama 0.1.0` 粗体，`✻` `accent`；键名列 `dim`，值 `text`，模型 `accent`，`已信任` `success` / `未信任` `warning`，`Bypass permissions` 时模式值 `warning`；最后一行 `dim`。
-- 警告条数 `警告   2 条（ama doctor 查看）` 用 `warning`，放在「已加载」之后。
-- `header` 档（profile 缺省）：一行 `✻ ama 0.1.0 · anthropic/claude-sonnet-4-5 · Accept edits · /help`，无框。`silent` 不输出。
+- 字形 5 行、宽 25，只用 `█ ▀ ▄`（1 列宽，回滚与 `capture-pane` 里照样对齐）。按字母着色：A `accent`、M `user`、A `tool`，粗体；深色主题是蓝 → 浅蓝 → 紫，浅色主题是深蓝 → 蓝 → 紫，16 色退为亮蓝 / 亮蓝 / 品红（深）或蓝 / 蓝 / 品红（浅）。
+- 信息列：`ama` 粗体 + 版本 `dim`；模型 `accent`；`已信任` `success` / `未信任` `warning`；`Bypass permissions` 时模式 `warning`；警告行 `warning`；按键提示与分隔点 `dim`。已加载 / 宿主 / 警告有才画，多出字形高度的行左侧留空。
+- 48–71 列：字符画在上，空一行，信息列在下（同样的行）。
+- < 48 列：不画字符画，两行 `✻ ama 0.1.0 · anthropic/claude-sonnet-4-5 · medium` / `Accept edits · …/armadra-agent · 已信任`，有警告再加一行。
+- `ui.logo: "off"` 或 `ui.compact`：只画信息列，首行 `✻ ama 0.1.0`（`✻` `accent`）。
+- `header` 档（profile 缺省）：一行 `✻ ama 0.1.0 · anthropic/claude-sonnet-4-5 · Accept edits · /help`。`silent` 不输出。
+- 路径用 `~` 缩写，过长从左截断（`…/armadra-agent`）；每行截到可用宽度。
 
-40 列（normal 自动降为无框多行，键列省略）：
+ASCII（`ui.ascii` / `AMA_ASCII=1`）字形，同样着色：
 
 ```
-✻ ama 0.1.0
-anthropic/claude-sonnet-4-5 · medium
-~/Projects/armadra-agent · 已信任
-Accept edits · default · codemode on
-CLAUDE.md, AGENTS.md · 3 Skill · 4 Hook
-/help · Shift+Tab 切模式
+    _    __  __    _
+   / \  |  \/  |  / \
+  / _ \ | |\/| | / _ \
+ / ___ \| |  | |/ ___ \
+/_/   \_\_|  |_/_/   \_\
 ```
 
-规则：`width < 56` 时去框去键列；路径用 `~` 缩写并从左侧截断（`…/armadra-agent`）。
+#### 3.1.1 启动动画
+
+「点亮」扫描：字形先整体 `dim`，3 列宽的高亮带（`text` 粗体）从左扫到右，扫过的列定格为字母色；每帧前进 1 列、32 ms 一帧，共 28 帧（约 0.9 s，上限 1.2 s），之后停在定格帧。只有字符画变，信息列一开始就是定格内容。
+
+中间帧（第 12 帧，括号内为样式，实际不显示）：
+
+```
+ ▄███▄  ██▄   ▄██  ▄███▄        ← A 已定格（accent）、M 左半 user、第 10–12 列高亮（text）、其后 dim
+```
+
+- 动画帧通过差分渲染原地改写启动头所在行，只在整屏内容装得下视口时播放（每帧前再检查一次，内容超出或宽度变化立即定格），所以回滚区只留定格帧。
+- 按任意键立即定格；按键不被吞，照常交给输入框。退出时也先定格。
+- 不播放（直接画定格帧）：`ui.animation: false`、无色（`NO_COLOR` 等）、stdout 非 TTY、嵌入宿主（profile.host）、`CI` 环境、命令行带初始提示、终端矮于 16 行、没画字符画（`header` / `silent` 档、`ui.logo: off`、`ui.compact`、窄于 48 列）。行式界面、`-p`、RPC、ACP 不走交互模式。
 
 ### 3.2 用户消息
 
@@ -640,7 +652,7 @@ Manual 模式下 `task(agent="claude")` 的 task 调用审批正文多一行「�
 - **Ctrl+O**：全局切换（现有），范围扩大到思考块（§3.4）；提示行 `工具输出：展开`。
 - **流式防闪烁**：Markdown 按块缓存只重渲末块（现有）；代码块固定全宽；工具调用标题行在运行中不变（spinner 不放标题，放 `⎿` 摘要行）；状态栏只在事件时 `refresh()`；状态栏右区 token 数在流式期间不更新（`message_end` 才更新），避免每 chunk 改最后一行。
 - **行数只增不减**：运行中 → 完成的替换保持 ≥ 原行数（bash 尾部 8 行 → 完成后 3 行 + 折叠提示会变短；允许，但差分会清多出的行——这是现有 `diff()` 覆盖的路径）。
-- **宽度变化**：全量重画最后一屏（现有）；Markdown / ToolView / KeyValue 缓存都带 width 键；启动头 Box 按新宽重算是否去框。
+- **宽度变化**：全量重画最后一屏（现有）；Markdown / ToolView / KeyValue 缓存都带 width 键；启动头按新宽重算布局（并排 / 叠放 / 两行）。
 - **覆盖层**：审批 bottom 全宽；选择器 center 宽 `min(width - 2, 72)`；覆盖层打开时编辑器提示符变 dim、Loader 动词 `等待确认`。
 - **tmux**：所有新字形都是 1 列；`▎`（U+258E）、`⎿`、`⏺` 在 Windows Terminal + Cascadia / 等宽回退字体下测过宽度为 1；检测失败的用户用 `AMA_ASCII=1`。
 
@@ -648,12 +660,13 @@ Manual 模式下 `task(agent="claude")` 的 task 调用审批正文多一行「�
 
 ### 5.1 配置项（只加必要的）
 
-| 键             | 类型                          | 缺省     | 说明                   |
-| -------------- | ----------------------------- | -------- | ---------------------- |
-| `ui.theme`     | `"dark" \| "light" \| "auto"` | `dark`   | 新增 `auto`（§2.1）    |
-| `ui.ascii`     | boolean                       | 自动检测 | `AMA_ASCII=1` 等价     |
-| `ui.compact`   | boolean                       | `false`  | 块间不空行、启动头无框 |
-| `ui.animation` | boolean                       | `true`   | false → spinner 静态   |
+| 键             | 类型                          | 缺省     | 说明                             |
+| -------------- | ----------------------------- | -------- | -------------------------------- |
+| `ui.theme`     | `"dark" \| "light" \| "auto"` | `dark`   | 新增 `auto`（§2.1）              |
+| `ui.ascii`     | boolean                       | 自动检测 | `AMA_ASCII=1` 等价               |
+| `ui.compact`   | boolean                       | `false`  | 块间不空行、启动头不画字符画     |
+| `ui.logo`      | `"auto" \| "off"`             | `auto`   | off → 启动头不画字符画           |
+| `ui.animation` | boolean                       | `true`   | false → spinner 与启动字符画静态 |
 
 改 `src/config/types.ts`（`UiConfig`）、`src/config/schema.ts`（`checkSection("ui", …)` 加键）、`src/config/json-schema.ts`、`docs/design.md §10.2`。`AMA_ASCII` 加进 `src/config/paths.ts` 旁的环境变量表（有文档的话）。
 

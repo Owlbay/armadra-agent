@@ -1,19 +1,19 @@
-# startup normal · viewport 80x24 cursor=12,2
-|╭──────────────────────────────────────────────────────────────╮
-|│ ✻ ama <version>                                                  │
-|│                                                              │
-|│ Model    fake/echo · thinking medium                         │
-|│ Folder   ~/work · trusted (command line)                     │
-|│ Mode     Manual · preset default                             │
-|│ Loaded   AGENTS.md                                           │
-|│                                                              │
-|│ /help commands · Shift+Tab mode · Ctrl+O expand tool output  │
-|╰──────────────────────────────────────────────────────────────╯
+# startup normal · viewport 80x24 cursor=8,2
+| ▄███▄  ██▄   ▄██  ▄███▄    ama <version>
+|██▀ ▀██ ███▄ ▄███ ██▀ ▀██   fake/echo · thinking medium
+|███████ ██ ▀█▀ ██ ███████   ~/work · trusted (command line)
+|██   ██ ██     ██ ██   ██   Manual · preset default
+|▀▀   ▀▀ ▀▀     ▀▀ ▀▀   ▀▀   AGENTS.md
+|                            /help commands · Shift+Tab mode
 |
 |────────────────────────────────────────────────────────────────────────────────
 |› Type a message, / for commands, @ for files, Shift+Enter for newline
 |────────────────────────────────────────────────────────────────────────────────
 |Manual · shift+tab to cycle                   echo · medium · ctx 0% · work · 0s
+|
+|
+|
+|
 |
 |
 |

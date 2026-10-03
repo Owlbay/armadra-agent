@@ -78,6 +78,7 @@ const ROWS: readonly Row[] = [
   row("ui.showThinking", "ui", "now", "any"),
   row("ui.compact", "ui", "now", "any"),
   row("ui.animation", "ui", "now", "any"),
+  row("ui.logo", "ui", "restart", "any"),
   row("ui.statusLine", "ui", "now", "any"),
   row("ui.restoreOnCancel", "ui", "nextSession", "any"),
   row("ui.quietStartup", "ui", "restart", "any"),
