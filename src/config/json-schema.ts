@@ -217,6 +217,7 @@ function w6Sections(): Record<string, Schema> {
         clientId: str(),
         issuer: str(),
         originator: str(),
+        codexClientVersion: str(),
         redirectPorts: {
           type: "array",
           items: { type: "integer", minimum: 0, maximum: 65535 },

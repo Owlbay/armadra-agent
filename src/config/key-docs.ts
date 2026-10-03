@@ -11,6 +11,7 @@
  */
 
 import { DEFAULT_IDLE_TIMEOUT_MS } from "../ai/http.js";
+import { DEFAULT_CODEX_CLIENT_VERSION } from "../auth/chatgpt/presets.js";
 import { messagesFor, msg } from "../i18n/index.js";
 import { DEFAULT_INLINE_BUDGET } from "../codemode/declarations.js";
 import { DEFAULT_CONFIG, mergeConfig } from "./merge.js";
@@ -35,7 +36,12 @@ const IMPLICIT_DEFAULTS: Partial<AmaConfig> = {
     subagents: "read",
   },
   auth: {
-    chatgpt: { flavor: "siwc", issuer: "https://auth.openai.com", originator: "codex_cli_rs" },
+    chatgpt: {
+      flavor: "siwc",
+      issuer: "https://auth.openai.com",
+      originator: "codex_cli_rs",
+      codexClientVersion: DEFAULT_CODEX_CLIENT_VERSION,
+    },
   },
   checkpoints: { ...DEFAULT_CHECKPOINTS_CONFIG },
   sandbox: { enabled: "auto", bash: "off", network: "deny", writable: [] },

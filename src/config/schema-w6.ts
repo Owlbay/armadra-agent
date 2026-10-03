@@ -35,6 +35,7 @@ export const CHATGPT_AUTH_KEYS = [
   "clientId",
   "issuer",
   "originator",
+  "codexClientVersion",
   "redirectPorts",
 ] as const;
 
@@ -85,7 +86,8 @@ export function validateConfigW6(c: Checker, config: Obj): void {
     if (chatgpt === undefined || !c.object(chatgpt, cp)) return;
     c.keys(chatgpt, cp, CHATGPT_AUTH_KEYS);
     c.oneOf(chatgpt, "flavor", cp, CHATGPT_FLAVORS);
-    for (const key of ["clientId", "issuer", "originator"]) c.string(chatgpt, key, cp);
+    for (const key of ["clientId", "issuer", "originator", "codexClientVersion"])
+      c.string(chatgpt, key, cp);
     checkPorts(c, chatgpt, "redirectPorts", cp);
   });
 }

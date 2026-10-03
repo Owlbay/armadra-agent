@@ -9,6 +9,10 @@
  *
  * 覆盖：`AMA_CHATGPT_CLIENT_ID` / `AMA_CHATGPT_ISSUER`（测试用）/ `AMA_CHATGPT_BASE_URL` > 配置
  * `auth.chatgpt.*` > 条目里签发的 client id > 缺省。
+ *
+ * codex 后端的模型列表按 `client_version` 过滤（每个模型带 `minimal_client_version`，版本过低一个都不给）：
+ * 发的是 Codex CLI 的版本号而不是 ama 的，`AMA_CHATGPT_CODEX_CLIENT_VERSION` > `auth.chatgpt.codexClientVersion`
+ * > `DEFAULT_CODEX_CLIENT_VERSION`。推理请求不带版本（Codex 自己也只在 User-Agent 里带）。
  */
 
 import type { ChatGptAuthConfig, ChatGptFlavor, OAuthAuthEntry } from "../../config/types-w6.js";
@@ -21,6 +25,8 @@ export const SIWC_RESOURCE = "https://api.openai.com/v1";
 export const SIWC_REQUIRED_SCOPE = "chatgpt.tokens.use.direct";
 export const AGENT_NAME_HINT = "ama";
 export const DEFAULT_ORIGINATOR = "codex_cli_rs";
+/** codex 后端 `GET /models?client_version=` 用的 Codex CLI 版本号（模型列表按它过滤）。 */
+export const DEFAULT_CODEX_CLIENT_VERSION = "0.160.0";
 export const CHATGPT_BASE_URLS: Readonly<Record<ChatGptFlavor, string>> = {
   siwc: "https://api.openai.com/v1",
   codex: "https://chatgpt.com/backend-api/codex",
@@ -79,6 +85,18 @@ export function chatgptBaseUrl(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): string {
   return nonEmpty(env["AMA_CHATGPT_BASE_URL"]) ?? CHATGPT_BASE_URLS[flavor];
+}
+
+/** codex 模型列表的 `client_version`：环境变量 > 用户级配置 > 缺省。 */
+export function codexClientVersion(
+  config?: ChatGptAuthConfig,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): string {
+  return (
+    nonEmpty(env["AMA_CHATGPT_CODEX_CLIENT_VERSION"]) ??
+    nonEmpty(config?.codexClientVersion) ??
+    DEFAULT_CODEX_CLIENT_VERSION
+  );
 }
 
 export function resolveChatGptPreset(
