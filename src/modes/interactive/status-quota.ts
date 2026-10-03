@@ -7,7 +7,8 @@
  * ```
  *
  * - 数据：会话的 `quota_update`（codex flavor 的 `x-codex-primary/secondary-*` 头、`codex.rate_limits` 事件；
- *   SIWC 只有 429）。primary = 5 小时窗口、secondary = 周窗口；窗口长度不是 5 h / 7 d 时标签换成实际时长。
+ *   SIWC 只有 429）。[W7] 标签按窗口时长认（300 分钟 = 5 小时 / Session、10080 = 本周 / Weekly，其它用实际时长），
+ *   缺时长时按槽位推断（primary 5 小时、secondary 本周）；按时长从短到长排；全 0 的窗口不显示。
  * - 只在当前模型走 ChatGPT 订阅（compat `chatgptBackend`）时出现；codex flavor 还没有数据时显示
  *   「配额：首次请求后显示」（第一次请求就会带回配额，先占住行免得行数跳动），SIWC 没有数据时不占行
  *   （只有超限才有配额，占位会一直挂着误导）。
@@ -54,41 +55,72 @@ function windowSpan(minutes: number): string {
   return `${Math.round(minutes)}m`;
 }
 
-function labels(w: QuotaWindow, which: "primary" | "secondary"): { pct: string; reset: string } {
-  const m = msg().interactive.statusLine.quota;
-  const minutes = w.windowMinutes;
-  const standard = minutes === undefined || minutes === (which === "primary" ? FIVE_HOURS : WEEK);
-  if (!standard)
-    return { pct: m.window(windowSpan(minutes)), reset: m.windowReset(windowSpan(minutes)) };
-  return which === "primary"
-    ? { pct: m.session, reset: m.reset }
-    : { pct: m.weekly, reset: m.weeklyReset };
+/**
+ * [W7] 一个窗口显示成什么：按**窗口时长**认（300 = 5 小时、10080 = 本周），不按 primary / secondary 槽位——
+ * 有的套餐 codex 把周窗口放在 primary（0.6.3 因此显示成 `7d:`）。缺时长时按槽位推断（primary 5 小时、
+ * secondary 本周），与另一个窗口撞名时取另一种；时长 ≤ 0 视同缺失（0.6.3 把它渲染成 `0d`）。
+ */
+type WindowKind = "session" | "weekly" | number;
+
+interface Shown {
+  kind: WindowKind;
+  window: QuotaWindow;
 }
 
-function shortLabel(w: QuotaWindow, which: "primary" | "secondary"): string {
+function minutesOf(w: QuotaWindow): number | undefined {
+  const m = w.windowMinutes;
+  return m !== undefined && Number.isFinite(m) && m > 0 ? m : undefined;
+}
+
+function kindOf(minutes: number | undefined): WindowKind | undefined {
+  if (minutes === FIVE_HOURS) return "session";
+  if (minutes === WEEK) return "weekly";
+  return minutes;
+}
+
+const SPAN: Record<"session" | "weekly", number> = { session: FIVE_HOURS, weekly: WEEK };
+
+function labels(kind: WindowKind): { pct: string; reset: string; short: string } {
   const m = msg().interactive.statusLine.quota;
-  const minutes = w.windowMinutes;
-  if (minutes === FIVE_HOURS || (minutes === undefined && which === "primary")) return m.short5h;
-  if (minutes === WEEK || (minutes === undefined && which === "secondary")) return m.shortWeek;
-  return windowSpan(minutes!);
+  if (kind === "session") return { pct: m.session, reset: m.reset, short: m.short5h };
+  if (kind === "weekly") return { pct: m.weekly, reset: m.weeklyReset, short: m.shortWeek };
+  const span = windowSpan(kind);
+  return { pct: m.window(span), reset: m.windowReset(span), short: span };
 }
 
 function percent(theme: Theme, used: number, decimal: boolean): string {
   return theme.fg(levelColor(used / 100), decimal ? `${used.toFixed(1)}%` : `${Math.round(used)}%`);
 }
 
-function windows(quota: QuotaUpdateEvent): ["primary" | "secondary", QuotaWindow][] {
-  const out: ["primary" | "secondary", QuotaWindow][] = [];
-  if (quota.primary !== undefined) out.push(["primary", quota.primary]);
-  if (quota.secondary !== undefined) out.push(["secondary", quota.secondary]);
-  return out;
+/** 没有任何数据的窗口（0%、无时长、无重置时间）不占位——服务端用全 0 表示「没有这个窗口」。 */
+function hasData(w: QuotaWindow): boolean {
+  return w.usedPercent !== 0 || minutesOf(w) !== undefined || w.resetsAt !== undefined;
+}
+
+/** 要显示的窗口，按时长从短到长（5 小时在前、本周在后）。 */
+export function shownWindows(quota: QuotaUpdateEvent): Shown[] {
+  const slots = (["primary", "secondary"] as const)
+    .map((which) => ({ which, w: quota[which] }))
+    .filter((x): x is { which: "primary" | "secondary"; w: QuotaWindow } => x.w !== undefined)
+    .filter((x) => hasData(x.w));
+  const known = slots.map((x) => kindOf(minutesOf(x.w)));
+  const out = slots.map((x, i): Shown => {
+    const own = known[i];
+    if (own !== undefined) return { kind: own, window: x.w };
+    const guess = x.which === "primary" ? "session" : "weekly";
+    const taken = known.some((k, j) => j !== i && k === guess);
+    const kind = taken ? (guess === "session" ? "weekly" : "session") : guess;
+    return { kind, window: x.w };
+  });
+  const span = (k: WindowKind): number => (typeof k === "number" ? k : SPAN[k]);
+  return out.sort((a, b) => span(a.kind) - span(b.kind));
 }
 
 /** compact 行尾的短项 `5h 10% wk 31%`（项内只用空格，不含 ` · `，宿主解析不受影响）。 */
 export function compactQuotaItem(quota: QuotaUpdateEvent, theme: Theme): string | undefined {
   const dim = (text: string): string => theme.fg("dim", text);
-  const items = windows(quota).map(
-    ([which, w]) => `${dim(shortLabel(w, which))} ${percent(theme, w.usedPercent, false)}`,
+  const items = shownWindows(quota).map(
+    ({ kind, window: w }) => `${dim(labels(kind).short)} ${percent(theme, w.usedPercent, false)}`,
   );
   return items.length === 0 ? undefined : items.join(" ");
 }
@@ -103,10 +135,11 @@ export function quotaParts(
   const dim = (text: string): string => theme.fg("dim", text);
   const narrow = width < QUOTA_NARROW_WIDTH;
   const parts: Part[] = [];
-  windows(quota).forEach(([which, w], i) => {
+  shownWindows(quota).forEach(({ kind, window: w }, i) => {
     const first = i === 0;
-    const group = narrow ? which : undefined;
-    const name = narrow ? `${shortLabel(w, which)} ` : labels(w, which).pct;
+    const group = narrow ? `w${i}` : undefined;
+    const label = labels(kind);
+    const name = narrow ? `${label.short} ` : label.pct;
     parts.push({
       text: dim(name) + percent(theme, w.usedPercent, !narrow),
       priority: first ? undefined : 2,
@@ -118,11 +151,11 @@ export function quotaParts(
     parts.push({
       text: narrow
         ? theme.fg("tool", `${theme.glyphs.retry}${left}`)
-        : dim(labels(w, which).reset) + theme.fg("tool", left),
+        : dim(label.reset) + theme.fg("tool", left),
       priority: first ? 3 : 1,
       zone: "left",
       // 宽格式按最宽形状占位（`23h 59m`），数值变化不让某项时有时无
-      reserve: narrow ? 0 : visibleWidth(labels(w, which).reset) + 7,
+      reserve: narrow ? 0 : visibleWidth(label.reset) + 7,
       ...(group !== undefined ? { group } : {}),
     });
   });
