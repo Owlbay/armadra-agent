@@ -5,6 +5,17 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 > This file is in English starting with 0.6.0. Release notes for 0.1 through 0.5.1 are in Chinese in
 > [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md). New entries go into both files.
 
+## Unreleased
+
+- **Status line split into sides; quota labels fixed**: the `full` layout now keeps state and switches on the left and
+  metrics and the model on the right. The rate line's left side holds `codemode on` (with `net!`) · sandbox · preset ·
+  `→ fallback model` · queue count · host status, and its right side `tps … (avg · ttft) · ↑ ↓ · cache · re-billing · [-]`;
+  the status bar keeps the permission mode and the `shift+tab` hint on the left; the quota line is right-aligned. When
+  narrow, right-side metrics drop before left-side switches; the permission mode, `tps` and `[-]` never drop; the
+  single-line `compact` layout keeps its token order. Quota labels follow the window length: a weekly window sent as
+  primary reads `Weekly` instead of `7d:`, and the 5-hour window comes first; the all-zero "no such window" the server
+  sends is no longer rendered as `0d: 0.0%` (filtered both when parsing and when rendering). Docs: docs/tui.md.
+
 ## 0.6.3 (2026-10-03)
 
 - **TUI: `Ctrl+B` moves foreground tasks to the background; background approvals dock in the agent bar**: while the main
