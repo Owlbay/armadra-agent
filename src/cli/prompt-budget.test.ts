@@ -70,10 +70,12 @@ async function measurePreset(
   preset: keyof typeof PROMPT_BUDGETS,
   extra: ComposeOptions = {},
   argv: readonly string[] = [],
+  prepare?: (harness: ComposeHarness) => void,
 ): Promise<
   PromptBreakdown & { tools: readonly ToolDecl[]; body: Record<string, unknown>; prefix: string }
 > {
   h = composeHarness();
+  prepare?.(h);
   const runtime = await h.boot(["--model", "fake/echo", "--tools-preset", preset, ...argv], {
     sandboxCapability: STRICT,
     ...extra,
@@ -159,6 +161,43 @@ describe("提示长度预算（字符 / 4 估算）", () => {
     expect(noMemoryDir()).toBe(true);
     expect(off.prefix).toBe(base.prefix);
     expect(off.tokens).toBe(base.tokens);
+  });
+
+  it("[W7-B1] default + task：交互（line）用后台版描述、-p 用前台版，两者都在 default 预算内", async () => {
+    // task 不在 default 预设里：按用户配置加上（`tools.default: ["+task"]`）再量
+    const withTask = (harness: ComposeHarness) =>
+      harness.home.write("home/.config/ama/config.json", {
+        version: 1,
+        tools: { default: ["+task"] },
+      });
+    const line = await measurePreset("default", {}, [], withTask);
+    const taskOf = (tools: readonly ToolDecl[]) => tools.find((t) => t.name === "task");
+    expect(taskOf(line.tools)?.description).toContain("Runs in the background by default");
+    expect(JSON.stringify(line.body["system"])).toContain("never sleep or poll for it");
+    h?.cleanup();
+    const print = await measurePreset("default", {}, ["-p"], withTask);
+    expect(taskOf(print.tools)?.description).toContain("Returns its final report.");
+    expect(print.tokens).toBeLessThanOrEqual(PROMPT_BUDGETS.default);
+    expect(line.tokens).toBeLessThanOrEqual(PROMPT_BUDGETS.default);
+  });
+
+  it("[W7-B1] 缓存前缀：同一会话前后两次请求的 system + tools 逐字节相同", async () => {
+    h = composeHarness();
+    const runtime = await h.boot(["--model", "fake/echo", "--tools-preset", "default"], {
+      sandboxCapability: STRICT,
+    });
+    await runtime.session.prompt("hi");
+    await runtime.session.prompt("again");
+    const prefix = (i: number) => {
+      const body = buildAnthropicRequest(anthropic, h!.fake.calls[i]!.context, {
+        signal,
+        cacheRetention: "short",
+      }).body;
+      return JSON.stringify({ system: body["system"], tools: body["tools"] });
+    };
+    expect(h.fake.calls.length).toBeGreaterThanOrEqual(2);
+    expect(prefix(h.fake.calls.length - 1)).toBe(prefix(0));
+    await runtime.dispose();
   });
 
   it("超出预算会失败并给出逐项明细", () => {

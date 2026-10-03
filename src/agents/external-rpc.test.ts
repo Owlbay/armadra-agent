@@ -78,7 +78,12 @@ const parentScript: FakeResponse[] = [
       {
         toolCall: {
           name: "task",
-          arguments: { prompt: "run it", agent: "acp:ama", description: "child" },
+          arguments: {
+            prompt: "run it",
+            agent: "acp:ama",
+            description: "child",
+            background: false,
+          },
         },
       },
     ],
@@ -176,8 +181,26 @@ describe("get_agents 与宿主 runner", () => {
 
   it("宿主 runners.provide：注入的 runner 以 task(agent=<id>) 出现；内置外部 Agent 不可用", async () => {
     h = composeHarness([
-      { steps: [{ toolCall: { name: "task", arguments: { prompt: "draw", agent: "canvas" } } }] },
-      { steps: [{ toolCall: { name: "task", arguments: { prompt: "x", agent: "claude" } } }] },
+      {
+        steps: [
+          {
+            toolCall: {
+              name: "task",
+              arguments: { prompt: "draw", agent: "canvas", background: false },
+            },
+          },
+        ],
+      },
+      {
+        steps: [
+          {
+            toolCall: {
+              name: "task",
+              arguments: { prompt: "x", agent: "claude", background: false },
+            },
+          },
+        ],
+      },
       { text: "done" },
     ]);
     const seen: SubagentRunRequest[] = [];

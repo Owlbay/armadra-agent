@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ToolDefinition } from "./types.js";
 import { builtinTools } from "./registry.js";
-import { TASK_AGENTS_HEADING } from "./task.js";
+import { TASK_AGENTS_HEADING, bindTaskBackground, createTaskTool } from "./task.js";
 
 /** 设计 §5.6：每个内置工具「名称 + 描述 + 参数 JSON + promptSnippet + promptGuidelines」≤ 150 token。 */
 const BUDGET = 150;
@@ -10,6 +10,11 @@ const BUDGET = 150;
  * taskId / isolation / budgetUsd 五个参数，单独给 230。
  */
 const BUDGETS: Record<string, number> = { task: 230 };
+/**
+ * [W7-B1] 缺省后台（交互 / RPC / ACP）时 task 换成后台版描述（docs/agents-concurrency-plan.md §2.6：要说明
+ * 缺省后台、何时写 background:false、不要轮询），比前台版长约 20 token；规则句已精简到一句。
+ */
+const TASK_BACKGROUND_BUDGET = 250;
 
 /**
  * 按 字符数 / 4 估算 token。task 描述末尾的子 Agent 类型清单另有 400 token 预算
@@ -43,6 +48,13 @@ describe("内置工具描述预算", () => {
         "task",
       ]),
     );
+  });
+
+  it(`[W7-B1] task 后台版描述 ≤ ${TASK_BACKGROUND_BUDGET} token`, () => {
+    const task = createTaskTool();
+    bindTaskBackground(task, true);
+    expect(task.description).toContain("Runs in the background by default");
+    expect(toolTokenEstimate(task as ToolDefinition)).toBeLessThanOrEqual(TASK_BACKGROUND_BUDGET);
   });
 
   for (const tool of tools) {
