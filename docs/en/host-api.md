@@ -100,7 +100,7 @@ interface ToolResult {
 }
 ```
 
-`ToolContext` provides `toolCallId`, `cwd`, `sessionId`, `sessionFile?`, `signal`, `depth`, `model?`, `thinkingLevel?`, `outputDir?`, `onUpdate(partial)` (output while running), `readFiles` / `markRead`, `tools.executeTool(name, input)` (nested calls through the same pipeline), `session.appendCustom` / `lastCustom` (custom entries that never enter the context, see [session-format.md](../session-format.md), Chinese), `spawnSubagent?` and `log`.
+`ToolContext` provides `toolCallId`, `cwd`, `sessionId`, `sessionFile?`, `signal`, `depth`, `model?`, `thinkingLevel?`, `outputDir?`, `onUpdate(partial)` (output while running), `readFiles` / `markRead`, `activeTools?` (read-only snapshot of the session's active tool set, so tools can give actionable hints), `tools.executeTool(name, input)` (nested calls through the same pipeline), `session.appendCustom` / `lastCustom` (custom entries that never enter the context, see [session-format.md](../session-format.md), Chinese), `spawnSubagent?` and `log`.
 
 Host tools take the same path as built-in tools: schema validation → command hook PreToolUse → permission pipeline (classified by `permission`) → approval → execution → PostToolUse. They can also be called from codemode scripts as `tools.<name>()`.
 

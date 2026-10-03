@@ -95,7 +95,7 @@ interface ToolResult {
 }
 ```
 
-`ToolContext` 提供 `toolCallId`、`cwd`、`sessionId`、`sessionFile?`、`signal`、`depth`、`model?`、`thinkingLevel?`、`outputDir?`、`onUpdate(partial)`（运行中输出）、`readFiles` / `markRead`、`tools.executeTool(name, input)`（嵌套调用，受同一管线）、`session.appendCustom` / `lastCustom`（不进上下文的 custom 条目，见 [session-format.md](session-format.md)）、`spawnSubagent?`、`log`。
+`ToolContext` 提供 `toolCallId`、`cwd`、`sessionId`、`sessionFile?`、`signal`、`depth`、`model?`、`thinkingLevel?`、`outputDir?`、`onUpdate(partial)`（运行中输出）、`readFiles` / `markRead`、`activeTools?`（会话活动集的只读快照，工具据此给可执行的提示）、`tools.executeTool(name, input)`（嵌套调用，受同一管线）、`session.appendCustom` / `lastCustom`（不进上下文的 custom 条目，见 [session-format.md](session-format.md)）、`spawnSubagent?`、`log`。
 
 宿主工具与内置工具走同一条路径：schema 校验 → 命令式 Hook PreToolUse → 权限管线（按 `permission` 分类）→ 审批 → 执行 → PostToolUse。在 codemode 脚本里也能以 `tools.<name>()` 调用。
 

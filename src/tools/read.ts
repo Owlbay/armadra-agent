@@ -49,6 +49,24 @@ function error(message: string): ToolResult {
   return { content: message, isError: true };
 }
 
+/**
+ * [S-A] read 收到目录时的下一步提示：只指向模型当前真能调用的工具（docs/search-plan.md §4.2）。
+ * 活动集未知（宿主自建上下文）时沿用旧文案。
+ */
+export function directoryHint(shown: string, ctx: Pick<ToolContext, "activeTools">): string {
+  const active = ctx.activeTools;
+  if (active === undefined || active.has("ls")) return "use the ls tool instead";
+  if (active.has("glob")) {
+    if (shown === ".") return 'use glob (e.g. pattern "*")';
+    // cwd 外（绝对路径）或目录名含 glob 元字符时改用 path 参数，模式保持 `*`
+    if (shown.startsWith("/") || /^[A-Za-z]:/.test(shown) || /[*?[\]{}!\\]/.test(shown)) {
+      return `use glob (e.g. path ${JSON.stringify(shown)}, pattern "*")`;
+    }
+    return `use glob (e.g. pattern ${JSON.stringify(`${shown}/*`)})`;
+  }
+  return "read a file inside it";
+}
+
 /** `cat -n` 形状。 */
 export function numberLines(lines: readonly string[], firstLine: number): string {
   return lines.map((line, i) => `${String(firstLine + i).padStart(6)}\t${line}`).join("\n");
@@ -99,7 +117,7 @@ export async function executeRead(
   } catch {
     return error(`File not found: ${shown}`);
   }
-  if (info.isDirectory()) return error(`${shown} is a directory; use the ls tool instead`);
+  if (info.isDirectory()) return error(`${shown} is a directory; ${directoryHint(shown, ctx)}`);
 
   if (imageMimeFromPath(abs) !== undefined) return readImage(abs, shown, ctx, options);
 
