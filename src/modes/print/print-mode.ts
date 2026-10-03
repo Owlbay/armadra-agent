@@ -14,7 +14,8 @@
  *   `context_pressure`）。
  * - 重试：text / json 格式在 stderr 打一行 `↻ 重试 n/m`（stream-json 里本来就有事件），等待期间不再无声。
  * - 无人值守：ask → deny（bootstrap 已按 print 设 unattended）。被拒的调用（`tool_execution_end`
- *   带 `denied`）在 stderr 汇总一行（工具 ×次数、首个原因、放行办法），json 结果带 `deniedTools`。
+ *   带 `denied`）在 stderr 汇总一行（工具 ×次数、首个原因、放行办法），json 结果带 `deniedTools`；
+ *   [S-A] minimal / coordinator 下被拒的 bash 形如 grep / rg / find 时再补一行怎么加回 grep / glob。
  * - [W5-H2] 预算（`--max-turns N` / `--max-cost USD` / config `limits.*`，agent/limits.ts）：到限
  *   （会话发 `limit_reached`）→ stderr 一行、json 带 `limitReached{kind, value, limit}`（回合到限另带
  *   `maxTurnsReached: true`）、退出码 8。
@@ -42,6 +43,7 @@ import type { AgentSession } from "../../agent/types.js";
 import { registryOf } from "../../agent/subagent-registry.js";
 import { promptImages, sessionModel } from "../image-input.js";
 import { msg } from "../../i18n/index.js";
+import { searchToolsHint } from "./search-hint.js";
 
 export function joinPrompt(argument: string | undefined, piped: string): string {
   const parts = [argument ?? "", piped.replace(/\s+$/, "")].filter((p) => p.trim() !== "");
@@ -143,6 +145,8 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
     return ExitCode.Usage;
   }
   const denied: DeniedTool[] = [];
+  const bashCommands = new Map<string, string>();
+  const deniedBash: string[] = [];
   let limit: LimitReachedEvent | undefined;
   let plan: PlanProposedEvent | undefined;
   let stopWaiting: () => void = () => undefined;
@@ -155,12 +159,19 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
       stopWaiting();
     } else if (event.type === "plan_proposed") plan = event;
     else if (event.type === "plan_resolved" && event.planId === plan?.planId) plan = undefined;
-    if (event.type === "tool_execution_end" && event.denied === true)
+    if (event.type === "tool_execution_start" && event.toolName === "bash") {
+      const command = (event.args as { command?: unknown } | undefined)?.command;
+      if (typeof command === "string") bashCommands.set(event.toolCallId, command);
+    }
+    if (event.type === "tool_execution_end" && event.denied === true) {
       denied.push({
         toolCallId: event.toolCallId,
         toolName: event.toolName,
         reason: textOf(event),
       });
+      const command = bashCommands.get(event.toolCallId);
+      if (event.toolName === "bash" && command !== undefined) deniedBash.push(command);
+    }
     if (format === "stream-json") io.stdout(`${toJsonLine(toWireEvent(event))}\n`);
     else if (event.type === "auto_retry_start")
       io.stderr(
@@ -249,6 +260,14 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
       })}\n`,
     );
   }
+  const deniedText = (): string => {
+    const hint = searchToolsHint(
+      deniedBash,
+      runtime.config.tools?.preset ?? "default",
+      runtime.tools.active().map((tool) => tool.name),
+    );
+    return `${describeDenied(denied)}\n${hint === undefined ? "" : `${hint}\n`}`;
+  };
   if (signalled !== undefined) return signalled;
   if (stdoutClosed) return ExitCode.Ok; // 下游（如 `| head`）已拿够输出
   if (failure !== undefined) {
@@ -256,7 +275,7 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
     return ExitCode.RuntimeError;
   }
   if (limit !== undefined) {
-    if (denied.length > 0) io.stderr(`${describeDenied(denied)}\n`);
+    if (denied.length > 0) io.stderr(deniedText());
     io.stderr(`${describeLimit(limit)}\n`);
     return ExitCode.LimitReached;
   }
@@ -264,7 +283,7 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
     io.stderr(`ama: ${last.errorMessage ?? msg().print.print.modelFailed}\n`);
     return ExitCode.RuntimeError;
   }
-  if (denied.length > 0) io.stderr(`${describeDenied(denied)}\n`);
+  if (denied.length > 0) io.stderr(deniedText());
   if (plan !== undefined) {
     io.stderr(`${describePlanPending(plan)}\n`);
     return ExitCode.PlanPending;

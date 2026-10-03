@@ -232,6 +232,30 @@ describe("print 模式", () => {
     expect(h.stderr()).toContain("--permission-mode auto-edit|auto 或 --allow");
   });
 
+  it("[S-A] minimal 预设下 bash grep 被拒：被拒汇总后补一行怎么加回 grep / glob；default 预设不补", async () => {
+    const grepCall = {
+      steps: [{ toolCall: { name: "bash", arguments: { command: "grep -rn process.env ." } } }],
+    };
+    h = composeHarness([grepCall, { text: "after" }]);
+    expect(await h.run(["-p", "go", "--model", "fake/echo", "--tools-preset", "minimal"])).toBe(7);
+    const err = h.stderr().split("\n");
+    expect(err[0]).toMatch(/^ama: 1 次工具调用被拒：bash ×1/);
+    expect(err[1]).toBe(
+      'ama: minimal 预设没有 grep / glob，可用 tools.default: ["+grep","+glob"] 加上',
+    );
+    h.cleanup();
+    h = composeHarness([grepCall, { text: "after" }]);
+    expect(await h.run(["-p", "go", "--model", "fake/echo"])).toBe(7);
+    expect(h.stderr()).not.toContain("tools.default");
+    h.cleanup();
+    h = composeHarness([
+      { steps: [{ toolCall: { name: "bash", arguments: { command: "echo x" } } }] },
+      { text: "after" },
+    ]);
+    expect(await h.run(["-p", "go", "--model", "fake/echo", "--tools-preset", "minimal"])).toBe(7);
+    expect(h.stderr()).not.toContain("tools.default");
+  });
+
   it("被拒可见：json 带 deniedTools，stream-json 的 tool_execution_end 带 denied；放行后退出 0", async () => {
     const writeCall = {
       steps: [{ toolCall: { name: "write", arguments: { path: "out.txt", content: "x" } } }],

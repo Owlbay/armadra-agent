@@ -34,6 +34,9 @@ export const en = {
     denied: (count: number, tools: readonly string[], reason: string) =>
       `ama: ${plural(count, "tool call")} denied: ${tools.join(", ")}${reason !== "" ? ` (${reason})` : ""}; ` +
       "-p has no one to approve; to allow them use --permission-mode auto-edit|auto or --allow <rule>",
+    searchToolsMissing: (preset: string, missing: readonly string[]) =>
+      `ama: the ${preset} preset has no ${missing.join(" / ")}; add ${missing.length === 1 ? "it" : "them"} with ` +
+      `tools.default: [${missing.map((name) => `"+${name}"`).join(",")}]`,
   },
   /** RPC 响应的 `error`（人读）。 */
   rpc: {
@@ -85,6 +88,9 @@ export const zh = {
     denied: (count, tools, reason) =>
       `ama: ${count} 次工具调用被拒：${tools.join("、")}${reason !== "" ? `（${reason}）` : ""}；` +
       "-p 没有人审批，需要放行时用 --permission-mode auto-edit|auto 或 --allow <规则>",
+    searchToolsMissing: (preset, missing) =>
+      `ama: ${preset} 预设没有 ${missing.join(" / ")}，可用 ` +
+      `tools.default: [${missing.map((name) => `"+${name}"`).join(",")}] 加上`,
   },
   rpc: {
     badTaskId: "taskId 应为字符串",
