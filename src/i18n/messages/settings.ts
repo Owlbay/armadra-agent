@@ -130,6 +130,11 @@ export const en = {
   unsetDone: (key: string, value: string, scope: string) => `${key} reset (${scope}); now ${value}`,
   stillOverridden: (key: string, source: string) =>
     `${key} is still overridden by ${source}; the saved value applies once that is removed`,
+  /** `ama config set` when a higher layer hides the write: first line = what was written. */
+  writtenTo: (key: string, value: string, scope: string) =>
+    `${key} = ${value} (written to ${scope})`,
+  overriddenNow: (source: string, effective: string) =>
+    `Still overridden by ${source} (${effective}); the effective value is ${effective}`,
   slashUsage: "Usage: /config [key=value | key value]",
   errors: {
     unknownKey: (key: string) =>
@@ -305,6 +310,9 @@ export const zh = {
   setDone: (key, value, scope) => `${key} = ${value}（${scope}）`,
   unsetDone: (key, value, scope) => `已恢复 ${key}（${scope}），现为 ${value}`,
   stillOverridden: (key, source) => `${key} 仍被 ${source} 覆盖，撤掉后写入的值才生效`,
+  writtenTo: (key, value, scope) => `${key} = ${value}（已写入${scope}）`,
+  overriddenNow: (source, effective) =>
+    `当前仍被 ${source}（${effective}）覆盖，生效值为 ${effective}`,
   slashUsage: "用法：/config [key=value | key value]",
   errors: {
     unknownKey: (key) => `${key} 不是可设置项，用 /config 查看`,

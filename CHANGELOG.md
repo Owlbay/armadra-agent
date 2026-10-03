@@ -25,6 +25,12 @@ English · [简体中文](CHANGELOG.zh-CN.md)
   signed in to another account; the region is not supported) and, for siwc, suggests the fallback
   `ama auth login chatgpt --flavor codex`. Nothing is retried or switched automatically.
 
+- **`ama config set` reports the written value when a higher layer overrides it**: with e.g. `AMA_LANG=zh`,
+  `ama config set ui.language en` used to print the effective value `zh` labelled "(user)". The first line is now the value just
+  written and its layer (`ui.language = en (written to user)`), and the second line names the override and the effective value
+  (`Still overridden by AMA_LANG (zh); the effective value is zh`). `ama config get` still shows the effective value and its
+  real source.
+
 ## 0.6.0 (2026-10-03)
 
 Wave 6: the agent bar and sub-agent view, traces, memory, ChatGPT login, the `/config` settings panel, and a bilingual

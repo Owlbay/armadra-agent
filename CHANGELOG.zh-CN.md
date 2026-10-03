@@ -20,6 +20,10 @@ disable` 与 `ama models list --enabled` 在命令行编辑和查看。`ama auth
   未开放，浏览器可能登录了别的账户；所在地区受限），siwc 下另提示可改用备用 `ama auth login chatgpt --flavor codex`。不自动重试、
   不自动换 flavor。
 
+- **`ama config set` 被更高优先级来源覆盖时，回执显示刚写入的值**：如 `AMA_LANG=zh` 下 `ama config set ui.language en`，原来
+  第一行显示覆盖后的生效值 `zh` 却标「（用户级）」。现在第一行是刚写入的值与写入层（`ui.language = en（已写入用户级）`），第二行
+  提示覆盖来源与生效值（`当前仍被 AMA_LANG（zh）覆盖，生效值为 zh`）。`ama config get` 仍显示生效值与真实来源。
+
 ## 0.6.0（2026-10-03）
 
 第六波：Agent 栏与子 Agent 视图、轨迹、记忆（Memory）、ChatGPT 登录、`/config` 设置面板、中英双语界面。设计依据与决定表见
