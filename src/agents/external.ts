@@ -2,7 +2,8 @@
  * 外部 Agent 接入 `task(agent=…)`（docs/wave5-plan.md §5.3–§5.5、§7.3、§7.6，D13、D15、D17）。[W5-EG]
  *
  * - 名字：`claude` / `codex` / `acp:<program>` / 驱动表里的其它 id（`gemini` …，`ama` 除外——那是子会话
- *   类型的 runner 名；ama 自己经 ACP 用 `acp:ama`）/ 宿主注入的 runner id。启动时 PATH 上找得到的
+ *   类型的 runner 名；ama 自己经 ACP 用 `acp:ama`）/ 宿主注入的 runner id（宿主注入的 `ama` 在类型里的 runner
+ *   名是 `host:ama`，交给宿主；没注入时 `ama` 照旧不是外部 Agent）。启动时 PATH 上找得到的
  *   claude / codex 与已注入的宿主 runner 登记进类型目录（进 task 工具描述）；其余按需解析（不进描述，
  *   描述在会话内字节不变）。
  * - 每个主会话一个 {@link ExternalAgents}：审批接 `requestApproval`（只走 broker 链，不经 gateToolCall
@@ -90,8 +91,19 @@ export function externalDefinition(spec: string): AgentDefinition {
   );
 }
 
+/**
+ * 宿主注入的 id 恰为 `ama` 的 runner（画布上另一个 ama 节点）在类型里的 runner 名。裸 `ama` 是子会话
+ * 类型的 runner 名（注册表按它起子会话），不能共用；名字仍是 `ama`，`task(agent="ama")` 照常解析。
+ */
+export const HOST_AMA_RUNNER = "host:ama";
+
+/** 宿主 runner id → 类型里的 runner 名。 */
+function hostRunnerName(id: string): string {
+  return id === "ama" ? HOST_AMA_RUNNER : id;
+}
+
 export function hostDefinition(runner: HostRunner): AgentDefinition {
-  return definition(runner.id, runner.id, runner.description, "host");
+  return definition(runner.id, hostRunnerName(runner.id), runner.description, "host");
 }
 
 /** 只查 PATH（不起进程）：候选链里任一程序在 PATH 上。 */
@@ -265,8 +277,19 @@ export class SessionExternalAgents {
   /** 注册表的 `runners(agent)`：ama 子会话类型返回 undefined。 */
   runner(agent: AgentDefinition): SubagentRunner | undefined {
     if (agent.runner === "ama") return undefined;
-    const spec = agent.runner;
+    // 宿主注入的 `ama` 走宿主；宿主已注销时报不可用，不退回自起（驱动表里也有一个 ama）。
+    // 宿主 id 不在 AgentRunnerSpec 的字面量里（见 definition），按字符串比
+    const runnerName: string = agent.runner;
+    const hostAma = runnerName === HOST_AMA_RUNNER;
+    const spec = hostAma ? "ama" : agent.runner;
     const host = this.wiring.hostRunners?.get(spec);
+    if (hostAma && host === undefined) {
+      const error = new AmaError(
+        "agent_host_only",
+        `"ama" was provided by the host and is no longer available`,
+      );
+      return { id: spec, start: () => Promise.reject(error) };
+    }
     let inner: SubagentRunner;
     try {
       inner = this.agents.resolve(spec);

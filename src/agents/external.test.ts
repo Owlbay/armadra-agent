@@ -26,6 +26,7 @@ import type { ApprovalRequest, PermissionMode } from "../permissions/types.js";
 import type { SubagentRunRequest } from "../tools/types.js";
 import { AgentCatalog } from "./catalog.js";
 import {
+  HOST_AMA_RUNNER,
   SessionExternalAgents,
   externalDefinition,
   externalTesting,
@@ -408,6 +409,61 @@ describe("父会话模式 → 外部 Agent 的权限（联调层真值表）", (
     const handle = await runner.start(request("default", { model: "anthropic/claude-x" }));
     expect(rec.specs[0]!.args).not.toContain("--model");
     await handle.stop();
+  });
+});
+
+describe("宿主注入的 ama runner", () => {
+  const handle = {
+    id: "node-ama-2",
+    send: async () => undefined,
+    wait: async () => ({ text: "ok" }),
+    stop: async () => undefined,
+  };
+
+  it("类型 runner 名是 host:ama，task 交给宿主；ama 子会话类型照旧返回 undefined", async () => {
+    const hostRunners = new HostRunnerRegistry();
+    const starts: SubagentRunRequest[] = [];
+    hostRunners.provide({
+      id: "ama",
+      description: "Another ama node",
+      start: async (req) => {
+        starts.push(req);
+        return handle as never;
+      },
+    });
+    const catalog = new AgentCatalog();
+    registerExternalAgents(catalog, wiring({ hosted: true, hostRunners }));
+    const def = catalog.get("ama")!;
+    expect(def).toMatchObject({ name: "ama", runner: HOST_AMA_RUNNER, source: "host" });
+    const { core } = fakeCore({ mode: "full-auto" });
+    const ext = new SessionExternalAgents(core, wiring({ hosted: true, hostRunners }), catalog);
+    const runner = ext.runner(def)!;
+    expect(runner.id).toBe("ama");
+    await runner.start(request("default"));
+    expect(starts).toHaveLength(1);
+    // 内置类型（general / explore / plan）的 runner 仍是 ama：子会话，不经宿主
+    expect(ext.runner(catalog.get("general")!)).toBeUndefined();
+  });
+
+  it("宿主注销后报不可用，不退回自起；没注入时 ama 不是外部 Agent", async () => {
+    const hostRunners = new HostRunnerRegistry();
+    const off = hostRunners.provide({
+      id: "ama",
+      description: "Another ama node",
+      start: async () => handle as never,
+    });
+    const catalog = new AgentCatalog();
+    registerExternalAgents(catalog, wiring({ hosted: true, hostRunners }));
+    const def = catalog.get("ama")!;
+    off();
+    const { core } = fakeCore({ mode: "full-auto" });
+    const ext = new SessionExternalAgents(core, wiring({ hosted: true, hostRunners }), catalog);
+    await expect(ext.runner(def)!.start(request("default"))).rejects.toMatchObject({
+      code: "agent_host_only",
+    });
+    const plain = new AgentCatalog();
+    registerExternalAgents(plain, wiring({ hosted: true, hostRunners: new HostRunnerRegistry() }));
+    expect(plain.get("ama")).toBeUndefined();
   });
 });
 
