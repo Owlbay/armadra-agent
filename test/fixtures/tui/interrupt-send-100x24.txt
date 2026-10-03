@@ -43,7 +43,7 @@
 |› 输入消息，/ 命令，@ 文件，Shift+Enter 换行
 |────────────────────────────────────────────────────────────────────────────────────────────────────
 |已打断，立即发送
-|Manual · shift+tab 切换        fake/echo · medium · ↑1.2k ↓4 · cache — · $0.001 · ctx 1% · work · 0s
+|Manual · shift+tab 切换        fake/echo · medium · ↑<n> ↓4 · cache — · $0.001 · ctx 1% · work · 0s
 |
 |
 |

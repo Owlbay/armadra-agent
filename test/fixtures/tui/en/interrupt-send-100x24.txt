@@ -43,7 +43,7 @@
 |› Type a message, / for commands, @ for files, Shift+Enter for newline
 |────────────────────────────────────────────────────────────────────────────────────────────────────
 |Interrupted · sending now
-|Manual                         fake/echo · medium · ↑1.2k ↓4 · cache — · $0.001 · ctx 1% · work · 0s
+|Manual                         fake/echo · medium · ↑<n> ↓4 · cache — · $0.001 · ctx 1% · work · 0s
 |
 |
 |

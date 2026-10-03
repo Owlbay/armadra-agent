@@ -56,7 +56,9 @@ for (const locale of ["zh", "en"] as const) {
         { text: "also this\n\ndo Y instead", origin: "interrupt" },
       ]);
       expect(s.handle.editor.isEmpty()).toBe(true);
-      golden(`${locale === "en" ? "en/" : ""}interrupt-send-100x24`, frames.join("\n"));
+      // 输入 token 随系统提示里的环境（平台、路径）变：只比结构
+      const shot = frames.join("\n").replace(/↑[\d.]+k?/g, "↑<n>");
+      golden(`${locale === "en" ? "en/" : ""}interrupt-send-100x24`, shot);
       s.handle.exit(0);
       await s.done;
     });
