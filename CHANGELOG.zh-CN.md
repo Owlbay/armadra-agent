@@ -4,8 +4,21 @@
 
 > 从 0.6.0 起 [CHANGELOG.md](CHANGELOG.md) 为英文，本文件保留中文记录（0.1–0.5.1 的完整历史在此）。新条目两份都要加。
 
-## 未发布
+## 0.6.5（2026-10-03）
 
+- **`AcpClient` 开会话可传 MCP 服务器**：`newSession`、`resumeSession`、`loadSession` 新增可选的第三个参数
+  `{ mcpServers }`，原样随 `session/new|resume|load` 发出（缺省仍是 `[]`，不传时线路不变）；宿主用
+  `AcpClient.features.mcpServers` 检测是否支持。ama 自己仍不传。文档：docs/acp.md「作为客户端」。
+
+## 0.6.4（2026-10-03）
+
+- **打断并立即发送**：运行中按 Enter 仍是排队插话（等下一个投递点送达），新增 `Ctrl+X`（键位动作 `app.message.interrupt`）立即中止
+  当前回合（模型流与正在跑的工具，每个工具调用仍恰有一个结果 `aborted by user`），并马上以输入框的文字开新回合，已排队的插话拼在
+  前面（会话里 `origin: "interrupt"`，消息区标 `↳ 打断`）；输入为空时把排队的插话立即送出。Esc 语义不变。配置
+  `ui.enterWhileRunning: "queue" | "interrupt"`（缺省 queue，`/config` 可改）互换 Enter 与 `Ctrl+X`。输入框有字时运行提示行显示
+  `Enter 排队 · Ctrl+X 打断并发送`。子 Agent 视图同样可用：ama 子 Agent 中止本轮后立即以这条消息开新一轮；外部 Agent 的驱动能中断
+  单个回合（ACP、Claude stream-json、Codex）时中断后发送，否则退回排队并提示。line 模式认 `/interrupt <文本>`；RPC `prompt` /
+  `steer` 与 SDK 增 `interrupt: true`。新请求以被打断的那次请求为前缀，缓存照常命中。文档：docs/tui.md、docs/rpc.md。
 - **状态栏左右分区与配额标签修正**：`full` 布局改为左列「状态 / 开关」、右列「度量与模型」——速率行左区是 `codemode on`（含
   `net!`）· 沙箱 · 预设 · `→ 回退模型` · 排队数 · 宿主状态，右区是 `tps … (avg · ttft) · ↑ ↓ · cache · 重计费 · [-]`；状态栏
   左区仍是权限模式与 `shift+tab` 提示；配额行右对齐。窄屏先丢右区度量、再丢左区开关，权限模式、`tps` 与 `[-]` 不丢；`compact`

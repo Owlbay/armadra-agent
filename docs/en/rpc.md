@@ -41,15 +41,17 @@ A command has the shape `{ "id"?: string, "type": <command name>, ...parameters 
 
 ### Prompts
 
-| Command       | Parameters                                                                              | `data`                                                          |
-| ------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `prompt`      | `message: string`, `images?: ImageBlock[]`, `streamingBehavior?: "steer" \| "followUp"` | `{ disposition: "started" \| "queued" \| "handled" }`           |
-| `steer`       | `message`, `images?`                                                                    | Same as above                                                   |
-| `follow_up`   | `message`, `images?`                                                                    | Same as above                                                   |
-| `abort`       | —                                                                                       | `{}` (answered once idle again; the queue is not cleared)       |
-| `clear_queue` | —                                                                                       | `{ steering: string[], followUp: string[] }` (the cleared text) |
+| Command       | Parameters                                                                                                     | `data`                                                          |
+| ------------- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `prompt`      | `message: string`, `images?: ImageBlock[]`, `streamingBehavior?: "steer" \| "followUp"`, `interrupt?: boolean` | `{ disposition: "started" \| "queued" \| "handled" }`           |
+| `steer`       | `message`, `images?`, `interrupt?: boolean`                                                                    | Same as above                                                   |
+| `follow_up`   | `message`, `images?`                                                                                           | Same as above                                                   |
+| `abort`       | —                                                                                                              | `{}` (answered once idle again; the queue is not cleared)       |
+| `clear_queue` | —                                                                                                              | `{ steering: string[], followUp: string[] }` (the cleared text) |
 
 Prompt commands **do not wait for the run to finish**: they are answered as soon as the session starts running (`before_agent_start` / `agent_start`), or the message is queued or handled (for example a slash command, or a hook block); progress arrives as events. Sending `prompt` while running without `streamingBehavior` fails with `code: "busy"`; with `steer` / `followUp` it is queued. Run failures after the response are reported as `{"type":"notification","level":"error","message":…}`.
+
+**Interrupt and send now**: with `interrupt: true` on `prompt` / `steer` (it takes precedence over `streamingBehavior`), a running session first takes the queued steers, stops the current turn (the model stream is cut, running tools finish as interrupted so every tool call has exactly one `aborted by user` result, and the interrupted assistant message is persisted with `stopReason: "aborted"`), then immediately starts a new turn with "queued steers… + this message" (joined by blank lines) and answers `{ disposition: "started" }`; the new user message has `origin: "interrupt"`. followUp messages stay queued and are delivered after the new turn; background sub-agents are not affected. When idle it is the same as leaving it out. A non-boolean `interrupt` → `invalid_arguments`; running with both the message and the queued steers empty → `invalid_arguments` (nothing is interrupted). Event order: `queue_update` (steers taken) → the old turn's `message_end` (aborted) → `agent_settled` → `agent_start` → the response → the new user `message_end` … (golden record `test/fixtures/rpc/interrupt.out.jsonl`). The new request starts with every message of the interrupted request, so the cache keeps hitting. In the SDK: `session.prompt(text, { interrupt: true })` / `session.steer(text, { interrupt: true })`.
 
 ### State
 

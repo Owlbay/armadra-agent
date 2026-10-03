@@ -38,11 +38,11 @@ Accept edits | shift+tab 切换    claude-opus-5-5 medium | Ctx 3.0% | proj ⎇ 
                                     5 小时：10.0% | 重置：2h 18m | 本周：31.0% | 本周重置：6d 5h   ← 订阅配额行（full，ChatGPT 订阅模型）
 ```
 
-- **用户消息**：`›` 开头，续行缩进 2 列；运行中插话标 `↳ 插话`，排到本轮之后的标 `↳ 之后`，宿主（Armadra 画布）注入的标 `↳ 宿主`（会话文件里的 `origin` 不变：steer / followUp / host）。
+- **用户消息**：`›` 开头，续行缩进 2 列；运行中插话标 `↳ 插话`，排到本轮之后的标 `↳ 之后`，宿主（Armadra 画布）注入的标 `↳ 宿主`，打断并发送开的新回合标 `↳ 打断`（会话文件里的 `origin` 不变：steer / followUp / host / interrupt）。
 - **思考块**：`ui.showThinking` = `collapsed`（缺省，`✻ 思考中…` → `✻ 思考 · 1.2k token`，`Ctrl+O` 展开为缩进的正文，最多 60 行）/ `full`（总是展开）/ `hidden`。
 - **工具调用**：标题 `⏺ 工具名 摘要`，`⏺` 运行中为强调色、成功绿、失败红；第二行 `⎿` 后是结果摘要——`读取 N 行`、`N 处修改 · +a −b`、`退出 0 · 2.1s · 48 行`、`14 处匹配 · 6 个文件`、`N 个内层调用 · 脚本输出 M 行`、`子 Agent · 运行中 1m05s` / `完成 · 1m42s · ↑28k ↓4.1k`；运行中摘要行带与底部同帧的 spinner 与秒数。正文折叠显示前 3 行，`edit` 显示 diff（前 12 行，≥ 60 列带行号），`bash` 运行中滚动显示最后 8 行。`Ctrl+O` 展开 / 折叠全部（含思考块）。codemode 脚本里的内层调用挂在外层调用下面（折叠时只列最近 5 个的标题与摘要）。
 - **提示**：`✗` 错误、`↻ 重试 n/m`、`!` 警告（缓存未命中、上下文余量）、`⛔ Hook 阻止`、宿主通知、审批被拒或超时的说明；压缩 / 分支摘要是左竖条卡片（`▎ 上下文已压缩  128k → 24k token`）。
-- **运行中**：`⠋ 动词 · 已用时 · …`，动词按当前最深状态取：`等待确认`（审批打开）、`运行 bash` / `运行 3 个工具`、`重试 2/3 · 2s 后`、`压缩上下文`、`回复中 · ↓≈1.2k`（本条输出的估算 token）、`思考中`。有阻塞中的前台子 Agent 任务时加 `Ctrl+B 转后台`，Agent 栏里有任务时加 `↓ Agent 栏`（有停靠的审批时换成 `↓ 处理审批`）：`⠏ 运行 task · 4s · Esc 中断 · Ctrl+B 转后台 · ↓ Agent 栏`，一行放不下时从后往前整项丢掉。
+- **运行中**：`⠋ 动词 · 已用时 · …`，动词按当前最深状态取：`等待确认`（审批打开）、`运行 bash` / `运行 3 个工具`、`重试 2/3 · 2s 后`、`压缩上下文`、`回复中 · ↓≈1.2k`（本条输出的估算 token）、`思考中`。有阻塞中的前台子 Agent 任务时加 `Ctrl+B 转后台`，Agent 栏里有任务时加 `↓ Agent 栏`（有停靠的审批时换成 `↓ 处理审批`）：`⠏ 运行 task · 4s · Esc 中断 · Ctrl+B 转后台 · ↓ Agent 栏`，一行放不下时从后往前整项丢掉。输入框有字时最前面加 `Enter 排队 · Ctrl+X 打断并发送`（`ui.enterWhileRunning: "interrupt"` 时是 `Enter 打断并发送 · Ctrl+X 排队`）；有排队的插话时队列末行是 `Alt+↑ 取回 · Ctrl+X 立即发送 · Esc 回填并中断`。
 - **状态栏**：模式永远在最左；`full` 左右分区——左列是状态与开关（权限模式、`shift+tab` 提示、codemode、沙箱、预设、回退），右列是度量与模型（tps、用量、模型、Ctx、git、费用、时长、配额），右列右对齐、左列为空时整行靠右；除 full 布局下的订阅配额行外，状态栏是最后一行（`compact` 永远是最后一行）。`compact` 的分隔符固定为 `·`（嵌入宿主按此解析），`full` 用 `|`。布局由 `ui.statusLine` 决定：独立终端缺省 `full`（两行），有 profile 的嵌入宿主缺省 `compact`（一行，布局与以前相同）；运行时 `Ctrl+G` 或 `/statusline [full|compact]` 切换，只影响本会话。`full` 时输入框在倒数第 4 行（`compact` 仍是倒数第 3 行）。
   - **`full` 上行（速率行）**：左区是开关类项 `codemode on|only`（网络未隔离时追加 `net!`）· `沙箱` · `preset <名>`（非 default 时）· `→ <回退模型>`（回退中，黄色）· 排队数 · 宿主状态，没有时左区为空。右区 `tps: <速率> tok/s • <输出 token> tok / <耗时> (avg <会话均速> · ttft <首 token 延迟>) · ↑<输入> ↓<输出> · 缓存 · 重计费 · [-]`——速率在流式中是最近 2 s 的瞬时值（`tps:` 强调色），结束后是该请求的平均值，生成不足 0.25 s 的整块回复不算速率、显示 `—`；耗时从首 token 起；`↑` 输入含缓存读写；ASCII 下 `•` 为 `*`、`→` 为 `->`；行尾 `[-]` 提示可折叠。只统计对话请求（压缩摘要、保温、分类器不计）。窄时先丢右区度量（输出量 / 耗时、token、缓存、重计费、avg、ttft），再丢左区开关（宿主状态、排队数、预设、回退、沙箱、codemode）；`tps` 与 `[-]` 不丢。
   - **`full` 下行**：左区 `权限模式 | shift+tab 切换`，右区 `模型 思考级别 | Ctx 3.0% | <目录名> ⎇ <分支> <短提交> ↑N ↓N (+a,-d) | $费用 | 会话时长`（Ctx 一位小数，宽屏也不换余量表）；窄时依次丢弃切换提示、思考级别、增删行、目录名、分支与提交、时长、费用、上下文、模型。
@@ -110,27 +110,44 @@ Accept edits | shift+tab 切换    claude-opus-5-5 medium | Ctx 3.0% | proj ⎇ 
 
 ## 按键
 
-| 按键                 | 作用                                                                                                                                                             |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Enter                | 发送；运行中 = steer（插到当前轮）                                                                                                                               |
-| Alt+Enter            | 运行中排到本轮之后（followUp）；空闲时等同 Enter                                                                                                                 |
-| Shift+Enter / Ctrl+J | 换行                                                                                                                                                             |
-| Esc                  | 中断：排队的消息回填到输入框，然后停止当前运行（连带前台子 Agent 任务；后台任务不受影响，提示里写明）；补全打开时先关补全                                        |
-| Esc Esc（空闲）      | 输入框为空：打开回滚列表（同 `/rewind`）；有字：清空并存进输入历史                                                                                               |
-| Alt+↑                | 取回最后一条排队消息                                                                                                                                             |
-| Shift+Tab / Tab      | 循环权限模式 Manual → Accept edits → Plan → Auto → Bypass permissions（Tab 只在输入为空、补全未打开时，否则仍是补全；进入 Bypass 前确认，见下文「进入 Bypass」） |
-| Ctrl+O               | 展开 / 折叠工具输出与思考块                                                                                                                                      |
-| Ctrl+L / Ctrl+T      | 选择模型 / 思考级别                                                                                                                                              |
-| Ctrl+G               | 底部信息行 两行（full）↔ 一行（compact），只影响本会话                                                                                                           |
-| Ctrl+V               | 粘贴剪贴板里的图片：存进数据目录，光标处插入 `@<路径>`（同 `/paste`）                                                                                            |
-| Ctrl+C               | 清空输入；输入为空时 1.5 秒内再按一次退出（退出码 130）                                                                                                          |
-| Ctrl+D               | 输入为空时退出                                                                                                                                                   |
-| Tab                  | 补全                                                                                                                                                             |
-| ↑ / ↓                | 单行时浏览历史（`<数据目录>/history`，500 条）                                                                                                                   |
-| ↓（空输入）          | 进入 Agent 栏（有子 Agent 任务即可）；有字时仍是下移 / 历史并提示一次，见「子 Agent」                                                                            |
-| Ctrl+B               | 有阻塞中的前台子 Agent 任务（或 `task_ctl wait`）时全部转后台，不看输入框有没有字；没有时是光标左移。tmux 里按 `C-b C-b`，见「子 Agent」                         |
+| 按键                 | 作用                                                                                                                                                                                                                                           |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Enter                | 发送；运行中 = steer（排队，等下一个投递点：本次模型回复结束或本批工具结束）                                                                                                                                                                   |
+| Ctrl+X               | 运行中打断并立即发送：中止当前回合（模型流与正在跑的工具，工具记「aborted by user」），立刻以输入框的文字开新回合，排队的插话拼在前面；输入为空时只把排队的插话立即送出。空闲时等同 Enter。`ui.enterWhileRunning: "interrupt"` 时与 Enter 互换 |
+| Alt+Enter            | 运行中排到本轮之后（followUp）；空闲时等同 Enter                                                                                                                                                                                               |
+| Shift+Enter / Ctrl+J | 换行                                                                                                                                                                                                                                           |
+| Esc                  | 中断：排队的消息回填到输入框，然后停止当前运行（连带前台子 Agent 任务；后台任务不受影响，提示里写明）；补全打开时先关补全                                                                                                                      |
+| Esc Esc（空闲）      | 输入框为空：打开回滚列表（同 `/rewind`）；有字：清空并存进输入历史                                                                                                                                                                             |
+| Alt+↑                | 取回最后一条排队消息                                                                                                                                                                                                                           |
+| Shift+Tab / Tab      | 循环权限模式 Manual → Accept edits → Plan → Auto → Bypass permissions（Tab 只在输入为空、补全未打开时，否则仍是补全；进入 Bypass 前确认，见下文「进入 Bypass」）                                                                               |
+| Ctrl+O               | 展开 / 折叠工具输出与思考块                                                                                                                                                                                                                    |
+| Ctrl+L / Ctrl+T      | 选择模型 / 思考级别                                                                                                                                                                                                                            |
+| Ctrl+G               | 底部信息行 两行（full）↔ 一行（compact），只影响本会话                                                                                                                                                                                         |
+| Ctrl+V               | 粘贴剪贴板里的图片：存进数据目录，光标处插入 `@<路径>`（同 `/paste`）                                                                                                                                                                          |
+| Ctrl+C               | 清空输入；输入为空时 1.5 秒内再按一次退出（退出码 130）                                                                                                                                                                                        |
+| Ctrl+D               | 输入为空时退出                                                                                                                                                                                                                                 |
+| Tab                  | 补全                                                                                                                                                                                                                                           |
+| ↑ / ↓                | 单行时浏览历史（`<数据目录>/history`，500 条）                                                                                                                                                                                                 |
+| ↓（空输入）          | 进入 Agent 栏（有子 Agent 任务即可）；有字时仍是下移 / 历史并提示一次，见「子 Agent」                                                                                                                                                          |
+| Ctrl+B               | 有阻塞中的前台子 Agent 任务（或 `task_ctl wait`）时全部转后台，不看输入框有没有字；没有时是光标左移。tmux 里按 `C-b C-b`，见「子 Agent」                                                                                                       |
 
-按键可在 `~/.config/ama/keybindings.json` 覆盖，键是动作 id（`app.interrupt`、`app.rewind`、`app.message.followUp`、`app.statusLine.toggle`、`app.paste.image`、`app.agents.focus`、`app.tasks.background`、`tui.editor.newLine` ……），值是按键或按键数组，空数组表示禁用。`app.rewind` 是空闲时双击的那个键（缺省 Esc，两次间隔 ≤ 800 ms）。
+按键可在 `~/.config/ama/keybindings.json` 覆盖，键是动作 id（`app.interrupt`、`app.rewind`、`app.message.followUp`、`app.message.interrupt`、`app.statusLine.toggle`、`app.paste.image`、`app.agents.focus`、`app.tasks.background`、`tui.editor.newLine` ……），值是按键或按键数组，空数组表示禁用。`app.rewind` 是空闲时双击的那个键（缺省 Esc，两次间隔 ≤ 800 ms）。
+
+### 打断并立即发送
+
+运行中按 Enter 缺省是**排队**（steer）：消息等下一个投递点才送达——模型在长篇输出、或工具在跑一个 5 分钟的命令时要等很久。要立刻改方向，在输入框写好后按 **`Ctrl+X`**（动作 `app.message.interrupt`）：
+
+- 当前回合立即中止：模型流断开，正在执行的工具按中断收尾（每个工具调用恰有一个结果，记「aborted by user」），被打断的回复按中断规则留在会话里；随后**不用再按 Enter**，这段文字直接作为新回合的用户消息发出（会话里 `origin: "interrupt"`，消息区标 `↳ 打断`）。
+- 已排队的插话一起带上：按入队顺序拼在这段文字前面（空行分隔）；排到本轮之后的（Alt+Enter）留在队列，新回合结束后照常送达。
+- 只连带前台：前台子 Agent 任务随主回合中止，后台任务不受影响。
+- 补全打开、审批框或选择器打开时不触发；斜杠命令照常当命令执行；输入为空时只把排队的插话立即送出（没有可发的内容时提示一行）。
+- 中断的请求前缀不变：新回合的请求以被打断那次请求的全部消息为前缀，缓存照常命中。
+- Esc 不变：仍是中断并把排队消息回填输入框（中断即撤回见下文），不会自动发送。
+- 想让 Enter 直接打断：`/config` 里把 `ui.enterWhileRunning` 设为 `interrupt`（立即生效），这时 Enter 打断并发送、`Ctrl+X` 排队。
+
+缺省键选 `Ctrl+X` 的原因：macOS Terminal、iTerm2、tmux、Windows Terminal 都原样送达，且没有别的绑定；`Ctrl+Enter` 不开 kitty 键盘协议时与 Enter 无法区分，`Ctrl+S` 可能被 XOFF 流控吃掉，`Alt+Enter` 已是 followUp，`Alt+字母` 在 macOS 缺省不送 Meta，`Ctrl+]` 在非美式键盘上难按。可在 `keybindings.json` 改。
+
+line 模式（`--no-tui`）运行中输入 `/interrupt <文本>` 效果相同（空闲时就是普通提示）；交互界面里也认这条命令。RPC 是 `prompt` / `steer` 的 `interrupt: true`，见 [rpc.md](rpc.md)。
 
 ## 回滚
 
@@ -360,7 +377,8 @@ t2 explore · 运行中 1m05s · 3 轮 · ↑12k ↓3.4k · Esc 返回 · /tasks
 - 正文实时跟随：ama 子 Agent 显示子会话的全部消息与工具调用（与消息区同样的渲染）；子会话句柄已被释放（保留上限 16 个）或会话是 resume 进来的，就只读加载子会话文件，任务再次运行时接上实时事件。外部 Agent（claude / codex / ACP）显示本进程内存里的实时输出（文本、思考、工具起止、回合、提示；最多 2000 条 / 1 MB，不落盘）；ama 重启后只剩一行说明「用原 CLI resume <会话 id> 查看全文」。
 - 输入框为空时：`↑` / PgUp 上翻（暂停跟随，底部提示「已暂停跟随 · End 继续」），`↓` / PgDn 下翻，End（暂停时也可按 `f`）回到跟随；`←` `→` 切到上一个 / 下一个任务；Esc 返回主界面。输入框有字时 Esc 先清空。
 - Enter 把输入发给这个子 Agent（会话里记为 `origin: "direct"` 的 user 消息，见 [session-format.md](session-format.md)）：ama 子 Agent 运行中 → 排到它本轮结束时送达；外部 Agent 运行中或任务还在排队 → 等本次运行结束后续聊；已结束 → 后台续聊（同 `task_ctl send`，完成后主会话照常收到 `<task-notification>`）。底部一行提示发送结果。父会话的模型不知道你直接和子 Agent 说过话，结果经结束通知自然带回。
-- 视图里不中断任何东西：Esc 只是返回。停止子任务用 `/tasks stop <id>`，转后台用 `Ctrl+B` 或 `/tasks bg [id]`——在视图输入框里也能用（视图里只认这两条命令）。
+- `Ctrl+X` 打断并发送给这个子 Agent：ama 子 Agent 运行中 → 中止它当前这一轮（工具按中断收尾）并立即以这条消息开新一轮，任务照常完成、照常通知主会话；外部 Agent 的驱动能中断单个回合（ACP `session/cancel`、Claude stream-json interrupt、Codex `turn/interrupt`）→ 中断后立即以它（连同之前排着的消息）开下一回合；不能（oneshot、宿主驱动）或任务还在并发池排队 → 退回排队并提示「不支持打断，已排队」；已结束 → 同 Enter 的后台续聊。`ui.enterWhileRunning: "interrupt"` 时与 Enter 互换。主会话不受影响。
+- 视图里 Esc 不中断任何东西：Esc 只是返回。停止子任务用 `/tasks stop <id>`，转后台用 `Ctrl+B` 或 `/tasks bg [id]`——在视图输入框里也能用（视图里只认这两条命令）。
 - 正在看的任务等审批时标题显示「等待审批」，审批框照常弹在视图上面（带 `[task:<类型>]` 来源）；它的审批停靠在栏里时，打开视图即弹出。
 
 ### 后台任务的审批停靠

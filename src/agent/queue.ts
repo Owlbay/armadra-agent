@@ -5,6 +5,7 @@
  */
 
 import type { QueueMode } from "./types.js";
+import type { ImageBlock } from "../ai/types.js";
 import type { AgentMessage } from "../session/types.js";
 
 export class PendingMessageQueue {
@@ -63,4 +64,31 @@ export function queuedText(message: AgentMessage): string {
   const { content } = message;
   if (typeof content === "string") return content;
   return content.map((block) => (block.type === "text" ? block.text : "[image]")).join("");
+}
+
+/**
+ * 打断并立即发送的新回合输入：排队的 steer（按入队顺序）在前、本条在后，文字以空行拼接，图片依次保留。
+ * 全部为空时 undefined（不打断）。
+ */
+export function mergeForInterrupt(
+  queued: readonly AgentMessage[],
+  text: string,
+  images: readonly ImageBlock[] = [],
+): { text: string; images: ImageBlock[] } | undefined {
+  const texts: string[] = [];
+  const merged: ImageBlock[] = [];
+  for (const message of queued) {
+    if (message.role !== "user") continue;
+    const { content } = message;
+    if (typeof content === "string") texts.push(content);
+    else {
+      texts.push(content.map((block) => (block.type === "text" ? block.text : "")).join(""));
+      for (const block of content) if (block.type === "image") merged.push(block);
+    }
+  }
+  texts.push(text);
+  merged.push(...images);
+  const parts = texts.filter((part) => part.trim() !== "");
+  if (parts.length === 0 && merged.length === 0) return undefined;
+  return { text: parts.join("\n\n"), images: merged };
 }

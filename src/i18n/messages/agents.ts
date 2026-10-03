@@ -71,6 +71,9 @@ export const en = {
     steered: (taskId: string) => `Sent to ${taskId}; delivered when its current turn ends`,
     queued: (taskId: string) => `Queued for ${taskId}; sent when its current run ends`,
     resumed: (taskId: string) => `Sent to ${taskId}; it continues in the background`,
+    interrupted: (taskId: string) => `Interrupted ${taskId}; your message starts its next turn now`,
+    queuedNoInterrupt: (taskId: string) =>
+      `${taskId} cannot be interrupted here; queued, sent when its current run ends`,
     sendFailed: (message: string) => `Could not send: ${message}`,
     stopped: (taskId: string) => `Stopped ${taskId}`,
     commandsHere:
@@ -138,6 +141,8 @@ export const zh = {
     steered: (taskId) => `已发给 ${taskId}，本轮结束后送达`,
     queued: (taskId) => `已排队，${taskId} 本次运行结束后发送`,
     resumed: (taskId) => `已发给 ${taskId}，在后台继续`,
+    interrupted: (taskId) => `已打断 ${taskId}，这条消息立即开始新一轮`,
+    queuedNoInterrupt: (taskId) => `${taskId} 不支持打断，已排队，本次运行结束后发送`,
     sendFailed: (message) => `发送失败：${message}`,
     stopped: (taskId) => `已停止 ${taskId}`,
     commandsHere: "这里只能用 /tasks stop 与 /tasks bg；其它命令按 Esc 返回后输入",

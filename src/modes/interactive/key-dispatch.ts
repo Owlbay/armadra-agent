@@ -16,6 +16,9 @@
  * [W7-C] `app.tasks.background`（缺省 `Ctrl+B`）：有阻塞中的前台任务时全部转后台（不看输入框），底部提示
  * 「已转后台：t2 …」；没有时落回编辑器（光标左移），不吞键。Esc 中断只连带前台任务，仍在运行的后台任务
  * 写进中断提示。
+ * [打断并发送] 运行中 Enter 缺省排队（steer）；`app.message.interrupt`（缺省 `Ctrl+X`）= 打断当前回合并立即
+ * 以输入框的文字（连同排队的插话）开新回合（`prompt{interrupt:true}`）。`ui.enterWhileRunning: "interrupt"`
+ * 时两者互换。补全打开、有覆盖层（审批 / 选择器）时不触发；斜杠命令照常当命令；空闲时专用键等同 Enter。
  */
 
 import { msg } from "../../i18n/index.js";
@@ -72,7 +75,11 @@ export interface KeyDispatchDeps {
   confirmMode?(mode: PermissionMode): boolean | Promise<boolean>;
   /** Ctrl+V：粘贴剪贴板图片（W5-U）。 */
   onPasteImage?(): void;
-  submit(text: string, via: "followUp"): void;
+  submit(text: string, via: "enter" | "followUp"): void;
+  /** 运行中 Enter 的语义（`ui.enterWhileRunning`，缺省 `queue`）。 */
+  enterWhileRunning?(): "queue" | "interrupt";
+  /** 打断并立即发送（文字可为空：只把排队的插话立即送出）。没有时专用键不处理。 */
+  interruptSend?(text: string): void;
   runCommand(line: string): void;
   exit(code: number): void;
   /** Esc 中断之后（参数：中断后输入框是否为空）。 */
@@ -163,6 +170,33 @@ export function createKeyDispatch(deps: KeyDispatchDeps): (data: string) => bool
     else void answer.then(settle);
   };
 
+  /**
+   * 运行中的「排队 / 打断并发送」：专用键与（`interrupt` 模式下的）Enter。返回 false 交给编辑器
+   * （Enter 照常提交 = 排队；斜杠命令照常执行）。
+   */
+  const sendKeys = (is: (action: Parameters<Keybindings["matches"]>[1]) => boolean): boolean => {
+    if (deps.interruptSend === undefined || editor.isCompletionOpen) return false;
+    const viaKey = is("app.message.interrupt");
+    if (!deps.busy()) {
+      if (!viaKey || editor.isEmpty()) return false;
+      const text = editor.takeSubmission();
+      if (text !== null) deps.submit(text, "enter");
+      return true;
+    }
+    const interruptMode = deps.enterWhileRunning?.() === "interrupt";
+    if (!viaKey && !(interruptMode && is("tui.editor.submit"))) return false;
+    const command = editor.getExpandedText().trimStart().startsWith("/");
+    if (command || viaKey === interruptMode) {
+      // 排队（interrupt 模式下的专用键）或斜杠命令：同 Enter 提交
+      if (!viaKey) return false;
+      const text = editor.takeSubmission();
+      if (text !== null) deps.submit(text, "enter");
+      return true;
+    }
+    deps.interruptSend(editor.takeSubmission() ?? "");
+    return true;
+  };
+
   /** 光标在最后一行（`↓` 不再下移，只会到行尾）。 */
   const atLastLine = (): boolean => editor.cursor.line >= editor.getText().split("\n").length - 1;
 
@@ -225,6 +259,7 @@ export function createKeyDispatch(deps: KeyDispatchDeps): (data: string) => bool
       return true;
     }
     ctrlCArmedAt = Number.NEGATIVE_INFINITY;
+    if (sendKeys(is)) return true;
     if (is("app.interrupt") && !editor.isCompletionOpen && deps.busy()) {
       esc.reset();
       interrupt();
