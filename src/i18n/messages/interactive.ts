@@ -116,6 +116,18 @@ export const en = {
     cacheSilent: "n/a",
     sandbox: "sandbox",
     cycleHint: "shift+tab to cycle",
+    /** [W6] 订阅配额行（full 第三行）与窄屏 / compact 短格式；标签自带分隔（英文冒号后空格）。 */
+    quota: {
+      session: "Session: ",
+      reset: "Reset: ",
+      weekly: "Weekly: ",
+      weeklyReset: "Weekly Reset: ",
+      window: (duration: string) => `${duration}: `,
+      windowReset: (duration: string) => `${duration} Reset: `,
+      short5h: "5h",
+      shortWeek: "wk",
+      pending: "Quota: shown after the first request",
+    },
   },
   subagent: {
     running: (elapsed: string) => `running ${elapsed}`,
@@ -238,6 +250,17 @@ export const zh = {
     cacheSilent: "未报告",
     sandbox: "沙箱",
     cycleHint: "shift+tab 切换",
+    quota: {
+      session: "5 小时：",
+      reset: "重置：",
+      weekly: "本周：",
+      weeklyReset: "本周重置：",
+      window: (duration) => `${duration}：`,
+      windowReset: (duration) => `${duration}重置：`,
+      short5h: "5h",
+      shortWeek: "周",
+      pending: "配额：首次请求后显示",
+    },
   },
   subagent: {
     running: (elapsed) => `运行中 ${elapsed}`,
