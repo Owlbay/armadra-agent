@@ -1,20 +1,20 @@
-# ↓ with text · viewport 80x24
+# after Ctrl+B · viewport 80x24
 |✻ ama <version> · fake/echo · Bypass permissions · /help
 |
 |› scan it
 |
 |⏺ task scan
-|  ⎿ ⠋ explore · running <t>
+|  ⎿ moved to the background · <t>
+|    ↳ t1 explore · running <t>
 |
-|<spin> Running task · <t> · Esc to interrupt · Ctrl+B to background · ↓ Agent bar
+|ok, moving on
+|
 |────────────────────────────────────────────────────────────────────────────────
-|› ab
+|› Type a message, / for commands, @ for files, Shift+Enter for newline
 |────────────────────────────────────────────────────────────────────────────────
-|Input is not empty; clear it and press ↓ for the Agent bar
+|Moved to the background: t1; you'll be notified when it finishes
 |⏺ t1 explore · running <t>  scan
 |<状态栏>
-|
-|
 |
 |
 |

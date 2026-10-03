@@ -6,6 +6,12 @@
 
 ## 未发布
 
+- **TUI：`Ctrl+B` 前台任务转后台，后台任务审批停靠在 Agent 栏**：主回合在等前台子 Agent 任务（或 `task_ctl wait`）时按
+  `Ctrl+B` 把它转后台，不看输入框有没有字：工具行变成 `⎿ 已转后台 · 12s` 加跟随行，主回合接着走、可以继续对话，任务结束后以
+  `<task-notification>` 回合报告。没有可转的任务时 `Ctrl+B` 仍是光标左移。运行提示行带 `Ctrl+B 转后台`；tmux 里按 `C-b C-b`。
+  Agent 栏内 `b` 转后台选中的任务、`x` 连按两次停止；命令 `/tasks bg [id]` 同样可用（line 模式也认）。Esc 只中断前台，提示
+  里写明哪些后台任务仍在运行。后台任务的审批在主会话忙或输入框有草稿时不再弹框，停靠在 Agent 栏（「等待审批」，运行提示行
+  `↓ 处理审批`），主会话空闲且输入为空时自动弹出，打开该任务的视图时立即弹出；主会话与前台任务的审批不变。文档：docs/tui.md。
 - **后台子 Agent 的配置、`-p` 与 RPC**：新增 `subagents.background: "auto" | "always" | "never"`（缺省 auto：交互界面 / RPC / ACP
   下 task 缺省后台，`-p` 下前台；调用参数与类型定义的 `background:` 优先）与 `subagents.autoBackgroundAfterMs`（前台任务运行超过
   该毫秒数自动转后台，缺省 0 关闭），两键项目级也认、`/config` 面板可改。`-p` 主回合结束后若还有后台任务在跑，stderr 一行提示并

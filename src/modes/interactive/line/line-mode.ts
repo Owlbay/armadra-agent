@@ -222,6 +222,11 @@ export async function runLineMode(
           continue;
         }
         if (busy) {
+          // [W7-C] 运行中 `/tasks bg [id]` 照样是命令（转后台阻塞中的前台任务），不当插话
+          if (/^\/tasks\s+bg(\s+\S+)?\s*$/.test(action.text.trim())) {
+            void handle(action.text.trim());
+            continue;
+          }
           if (action.text.trim() !== "") {
             void session.steer(action.text).catch(() => undefined);
             out(`${msg().interactive.line.steer(action.text)}\n`);

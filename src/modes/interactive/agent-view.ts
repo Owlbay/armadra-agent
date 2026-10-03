@@ -16,6 +16,8 @@
  * `↑` / PgUp 上翻（暂停跟随）、`↓` / PgDn 下翻、End（暂停时也可 `f`）回到跟随；输入非空时 Esc 清空。
  * Esc 不中断父会话，停止子任务用 `/tasks stop <id>`（视图里只认这一条命令）。
  * 所查看的任务在等审批时标题显示「等待审批」，审批框照常以覆盖层弹在视图上面。
+ * [W7-C] `Ctrl+B`（`app.tasks.background`）转后台正在看的任务（只对前台任务有效，否则落回编辑器）；
+ * 视图里另认 `/tasks bg [id]`。
  */
 
 import type { SessionEvent } from "../../agent/types.js";
@@ -41,6 +43,7 @@ import {
 } from "./agent-transcript.js";
 import type { MessageViewOptions } from "./message-view.js";
 import type { SubagentTracker } from "./subagent-view.js";
+import { backgroundedText } from "./task-background.js";
 
 export interface AgentViewDeps {
   theme: Theme;
@@ -58,6 +61,8 @@ export interface AgentViewDeps {
   onSwitch?(taskId: string): void;
   close(): void;
   stop(taskId: string): Promise<void>;
+  /** [W7-C] 人工转后台；返回转了的 taskId。 */
+  background?(taskId: string): string[];
   /** 消息区的显示选项（思考块、Markdown、紧凑）。 */
   messages?: Omit<MessageViewOptions, "theme">;
 }
@@ -189,7 +194,10 @@ export class AgentView implements Component, Focusable {
     const taskId = this.taskId;
     if (trimmed.startsWith("/")) {
       const stop = /^\/tasks\s+stop(?:\s+(\S+))?\s*$/.exec(trimmed);
-      if (stop === null) this.flash = m.commandsHere;
+      const bg = /^\/tasks\s+bg(?:\s+(\S+))?\s*$/.exec(trimmed);
+      if (bg !== null && this.deps.background !== undefined)
+        this.flash = backgroundedText(this.deps.background(bg[1] ?? taskId));
+      else if (stop === null) this.flash = m.commandsHere;
       else {
         const target = stop[1] ?? taskId;
         try {
@@ -219,6 +227,13 @@ export class AgentView implements Component, Focusable {
     const empty = this.editor.isEmpty();
     const id = parseKey(data)?.id;
     this.flash = undefined;
+    if (keys.matches(data, "app.tasks.background") && this.deps.background !== undefined) {
+      const moved = this.deps.background(this.taskId);
+      if (moved.length > 0) {
+        this.flash = backgroundedText(moved);
+        return;
+      }
+    }
     if (keys.matches(data, "tui.select.cancel") && !this.editor.isCompletionOpen) {
       if (!empty) this.editor.clear();
       else this.deps.close();

@@ -437,7 +437,7 @@ line 模式用 `/plan approve [模式|fresh]` / `/plan reject`；RPC 声明 `pla
 - 内置类型 `general`（缺省）、`explore`、`plan`（后两者强制只读、不弹审批）；`~/.config/ama/agents/*.md`、`.ama/agents/*.md`（需信任）或 `--agent-dir` 定义自己的类型（工具白名单、模型、权限、轮数、worktree 隔离）。
 - 同一回复里的多个 task 并行（`subagents.maxConcurrent`，缺省 4）；`background: true` 立即返回 `taskId`，完成后父会话收到 `<task-notification>`；`task{taskId}` 续聊；`task_ctl` 列出 / 等待 / 停止 / 读输出；`isolation: "worktree"` 在独立 git worktree 里跑。
 - 子会话工具表与父逐字节相同，首个请求复用父的缓存前缀。界面里 task 工具行折叠显示进度，`/agents` 列出可用类型。
-- **Agent 栏与子 Agent 视图**：运行中的任务列在状态行上方；输入为空时按 `↓` 聚焦 Agent 栏，↑↓ 选、Enter 打开该子 Agent 的全屏实时视图，在视图里输入直接发给它（Esc 返回，不中断）。`/tasks` 聚焦 Agent 栏，`/tasks <id>` 打开视图，`/tasks stop <id>` 停止。见 [docs/tui.md](docs/tui.md)「Agent 栏」。
+- **Agent 栏与子 Agent 视图**：运行中的任务列在状态行上方；输入为空时按 `↓` 聚焦 Agent 栏，↑↓ 选、Enter 打开该子 Agent 的全屏实时视图，在视图里输入直接发给它（Esc 返回，不中断）。`/tasks` 聚焦 Agent 栏，`/tasks <id>` 打开视图，`/tasks stop <id>` 停止。前台任务阻塞主回合时按 `Ctrl+B`（或栏内 `b`、`/tasks bg`）转后台，继续对话；后台任务的审批停靠在栏里，主会话空闲时再弹出。见 [docs/tui.md](docs/tui.md)「Agent 栏」。
 
 见 [docs/agents.md](docs/agents.md)「子 Agent」。
 
@@ -496,6 +496,7 @@ RPC 客户端用 `get_trace`（尾部分页、收到 `entry_appended` 后增量�
 | Ctrl+G               | 底部信息行 两行 ↔ 一行（同 `/statusline`）                     |
 | Ctrl+V               | 粘贴剪贴板里的图片，插入 `@<路径>`（同 `/paste`）              |
 | ↓（空输入）          | 有子 Agent 任务时聚焦 Agent 栏                                 |
+| Ctrl+B               | 阻塞中的前台子 Agent 任务转后台（tmux 里 `C-b C-b`）           |
 | Ctrl+C               | 清空输入；输入为空时 1.5 秒内再按一次退出                      |
 | Tab                  | 补全：`/` 命令、模板与 Skill，`@` 文件路径                     |
 

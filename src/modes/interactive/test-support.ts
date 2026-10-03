@@ -182,3 +182,33 @@ export async function start(
       }),
   };
 }
+
+/** [W7-C] 逐帧等到视口满足条件（超时抛错并带上屏幕）。 */
+export async function waitScreen(
+  s: Started,
+  check: (screen: string) => boolean,
+  label: string,
+  ms = 8000,
+): Promise<void> {
+  const began = Date.now();
+  for (;;) {
+    s.frame();
+    const screen = s.terminal.viewport().join("\n");
+    if (check(screen)) return;
+    if (Date.now() - began > ms) throw new Error(`timeout: ${label}\n${screen}`);
+    await new Promise((r) => setTimeout(r, 5));
+  }
+}
+
+/** [W7-C] 帧快照，去掉随时序变的部分（耗时、用量、光标、spinner、状态栏）。 */
+export function timedShot(s: Started, label: string): string {
+  s.handle.tui.forceFullRedraw();
+  s.frame();
+  return snapshot(s.terminal, label)
+    .replace(/ cursor=\d+,\d+/, "")
+    .replace(/↑[\d.]+k? ↓[\d.]+k?/g, "↑<n> ↓<n>")
+    .replace(/^\|(Manual|Plan|Bypass permissions|Full auto|Full-auto) .*$/m, "|<状态栏>")
+    .replace(/^\|[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/m, "|<spin>")
+    .replace(/(task|运行中|running|完成|done) \d+s/g, "$1 <t>")
+    .replace(/ · \d+(\.\d)?s/g, " · <t>");
+}

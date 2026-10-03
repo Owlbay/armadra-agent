@@ -139,10 +139,10 @@ describe("Ctrl+B 不再进栏", () => {
     expect(f.focusCalls).toEqual([]);
   });
 
-  it("缺省键位：app.agents.focus 只有 down，app.tasks.background 预留不绑定", () => {
+  it("缺省键位：app.agents.focus 只有 down，app.tasks.background 为 ctrl+b（与光标左移共用）", () => {
     const keys = new Keybindings();
     expect(keys.keys("app.agents.focus")).toEqual(["down"]);
-    expect(keys.keys("app.tasks.background")).toEqual([]);
-    expect(keys.actionsFor(CTRL_B)).toEqual(["tui.editor.cursorLeft"]);
+    expect(keys.keys("app.tasks.background")).toEqual(["ctrl+b"]);
+    expect(keys.actionsFor(CTRL_B)).toEqual(["tui.editor.cursorLeft", "app.tasks.background"]);
   });
 });

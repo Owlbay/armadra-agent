@@ -11,7 +11,8 @@
  * - 运行中摘要行 `⎿ ⠋ 运行中 · 4s`：spinner 与底部 Loader 同帧（ToolTracker.tick 由 Loader.onFrame 驱动），
  *   标题行不变；bash 流式显示尾部 8 行（muted）。task 显示 `子 Agent · 运行中 1m05s`；有 `subagent_*`
  *   事件时（W5-U，subagent-view.ts）改为 `explore · 运行中 1m05s · 3 轮 · 最近 3 个工具 · ↑↓`，后台任务
- *   在结果摘要下多一行跟随状态。
+ *   在结果摘要下多一行跟随状态。[W7-C] 工具已返回而任务仍在后台跑（`details.status: "running"`）：摘要行
+ *   `⎿ 已转后台 · 12s`（前台转后台）/ `⎿ 后台运行`（直接后台），给模型的说明文字折叠时不显示。
  * - 折叠（缺省）：结果前 3 行；edit 显示 `details.diff`（`@@` dim、`+` success、`-` error、上下文 muted，
  *   宽 ≥ 60 时带行号列），前 12 行；`Ctrl+O` 展开全部（上限 400 行，长行折行）。
  * - 嵌套：带 `parentToolCallId` 的调用（codemode 脚本里的 `tools.*`）挂在外层调用下、右移 4 列；折叠时只列
@@ -228,6 +229,12 @@ export class ToolView implements Component {
       );
     }
     const result = this.result!;
+    const moved = this.backgrounded();
+    if (moved !== undefined) {
+      const m = msg().agents.background;
+      const text = moved ? m.moved(formatElapsed(this.elapsedMs)) : m.started;
+      return truncateToWidth(lead + theme.fg("muted", text), width);
+    }
     const text = resultSummary(
       {
         name: this.toolName,
@@ -241,6 +248,18 @@ export class ToolView implements Component {
       theme,
     );
     return truncateToWidth(lead + text, width);
+  }
+
+  /**
+   * [W7-C] task 已返回、任务仍在后台跑：true = 前台转后台（固定英文结果文本），false = 直接后台；
+   * 其它情况 undefined。
+   */
+  private backgrounded(): boolean | undefined {
+    const result = this.result;
+    if (this.toolName !== "task" || this.state !== "done" || result === undefined) return undefined;
+    const details = result.details as { status?: unknown } | undefined;
+    if (details?.status !== "running") return undefined;
+    return /moved to the background/i.test(contentText(result.content));
   }
 
   /** 后台子 Agent：结果摘要下一行跟随状态 `    ↳ t2 explore · 完成 2m · 7 轮 …`。 */
@@ -348,6 +367,8 @@ export class ToolView implements Component {
       }
       return out;
     }
+    // [W7-C] 后台运行中的 task：结果是给模型的说明，折叠时不显示（跟随行已有状态）
+    if (!this.expanded && this.backgrounded() !== undefined) return out;
     const custom = this.customResult(width);
     if (custom !== undefined) return [...out, ...custom];
     const diff = this.state === "done" ? diffOf(this.result) : undefined;

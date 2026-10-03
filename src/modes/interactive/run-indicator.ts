@@ -11,6 +11,8 @@
  * 运行或压缩时 Loader 才挂进槽位；附加项 `Esc 中断`。
  * [W7-A] 有该显示的子 Agent 任务时再带可丢弃的 `↓ Agent 栏`（窄屏先丢它）；任务随时出现 / 结束，
  * 每帧对一次，变了才换动词。
+ * [W7-C] 有阻塞中的前台任务时可丢弃项前面加 `Ctrl+B 转后台`；有停靠的审批时 `↓ Agent 栏` 换成
+ * `↓ 处理审批`。顺序 `Esc 中断 · Ctrl+B 转后台 · ↓ Agent 栏`，窄屏从后往前丢。
  *
  * 排队消息：缩进 2 列（挂在当前回合下），`↳ 插话 / 之后  文本` 整体 muted、标签 dim；超过 3 条首行
  * `… 另 N 条`；末行 `Alt+↑ 取回 · Esc 回填并中断`。
@@ -33,6 +35,8 @@ export interface RunIndicatorDeps {
   slot: Container;
   tools: ToolTracker;
   render(): void;
+  /** [W7-C] `app.tasks.background` 的按键标签（`Ctrl+B`）；没有绑定时不提示。 */
+  backgroundKey?: string;
 }
 
 function oneLine(text: string): string {
@@ -63,12 +67,28 @@ export class RunIndicator {
   private stream: { tokens: number; thinking: boolean } | undefined;
   /** [W7-A] 有该显示的子 Agent 任务（interactive-mode 在 AgentUi 建好后接上）。 */
   agents: () => boolean = () => false;
-  private agentHint = false;
+  /** [W7-C] 有阻塞中的前台任务（Ctrl+B 可转后台）。 */
+  background: () => boolean = () => false;
+  /** [W7-C] 有停靠在 Agent 栏的审批。 */
+  docked: () => boolean = () => false;
+  private hintKey = "";
 
   constructor(private readonly deps: RunIndicatorDeps) {
     deps.loader.onFrame(() => {
-      if (this.busy && !this.approval && this.agents() !== this.agentHint) this.applyVerb();
+      if (this.busy && !this.approval && this.optionalHints().join("\n") !== this.hintKey)
+        this.applyVerb();
     });
+  }
+
+  /** 可丢弃的按键提示（按丢弃的逆序排列）。 */
+  private optionalHints(): string[] {
+    const down = this.deps.theme.glyphs.arrowDown;
+    const key = this.deps.backgroundKey;
+    const out: string[] = [];
+    if (key !== undefined && this.background()) out.push(msg().agents.background.runHint(key));
+    if (this.docked()) out.push(msg().agents.approval.runHint(down));
+    else if (this.agents()) out.push(msg().agents.bar.runHint(down));
+    return out;
   }
 
   get busy(): boolean {
@@ -154,14 +174,13 @@ export class RunIndicator {
     const m = msg().interactive.view.run;
     const esc = [m.esc];
     if (this.approval) {
-      this.agentHint = false;
+      this.hintKey = "";
       loader.setVerb(m.awaitingApproval);
       return;
     }
-    this.agentHint = this.agents();
-    const optional = this.agentHint
-      ? { optional: [msg().agents.bar.runHint(this.deps.theme.glyphs.arrowDown)] }
-      : {};
+    const hints = this.optionalHints();
+    this.hintKey = hints.join("\n");
+    const optional = hints.length > 0 ? { optional: hints } : {};
     const running = tools.running();
     const top = running.filter((view) => !running.some((p) => p.children.includes(view)));
     if (top.length === 1) {

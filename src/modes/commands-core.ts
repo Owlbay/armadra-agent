@@ -37,6 +37,7 @@ import {
   describeTasks,
   stopTask,
 } from "./interactive/tasks-report.js";
+import { backgroundTasks, backgroundedText } from "./interactive/task-background.js";
 import { describeCache, describeFingerprint, describeSession } from "./session-report.js";
 import { msg, type Catalog } from "../i18n/index.js";
 
@@ -122,7 +123,7 @@ export const BUILTIN_COMMANDS: readonly CommandInfo[] = [
   command("cache", "cache", "[warm off|streaming|idle | fingerprint]"),
   command("statusline", "statusline", "[full|compact]"),
   command("plan", "plan", { key: "planArgs" }),
-  command("tasks", "tasks", "[id] | stop <id>"),
+  command("tasks", "tasks", "[id] | stop <id> | bg [id]"),
   command("agents", "agents"),
   command("paste", "paste"),
   command("exit", "exit"),
@@ -173,11 +174,14 @@ function cacheCommand(session: AgentSession, args: string): string {
   throw new AmaError("invalid_arguments", msg().report.command.cacheUsage);
 }
 
-/** `/tasks`、`/tasks <id>`、`/tasks stop <id>`。 */
-async function tasksCommand(sessionId: string, args: string): Promise<string> {
+/** `/tasks`、`/tasks <id>`、`/tasks stop <id>`、`/tasks bg [id]`（[W7-C] 无 id = 全部前台任务）。 */
+async function tasksCommand(session: AgentSession, args: string): Promise<string> {
+  const sessionId = session.state.sessionId;
   const [first, second, extra] = args.split(/\s+/).filter((s) => s !== "");
   const now = Date.now();
   if (first === undefined) return describeTasks(sessionId, now);
+  if (first === "bg" && extra === undefined)
+    return backgroundedText(backgroundTasks(session, second));
   if (first === "stop" && second !== undefined && extra === undefined) {
     await stopTask(sessionId, second);
     return msg().report.command.taskStopped(second);
@@ -309,7 +313,7 @@ export async function runSlashCommand(
     case "plan":
       return planCommand(session, args, ctx);
     case "tasks":
-      return { kind: "handled", message: await tasksCommand(session.state.sessionId, args) };
+      return { kind: "handled", message: await tasksCommand(session, args) };
     case "agents":
       return { kind: "handled", message: describeAgents(session.state.sessionId) };
     case "paste": {

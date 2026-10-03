@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { SessionEvent } from "../../agent/types.js";
 import { Container, MemoryTerminal, TUI, plainTheme } from "../../tui.js";
 import { RECENT_TOOLS, SubagentTracker, backgroundEndText } from "./subagent-view.js";
+import { subagentBackgroundText } from "./event-notices.js";
 import { golden, usage } from "./test-support.js";
 import { ToolTracker } from "./tool-view.js";
 
@@ -126,4 +127,67 @@ describe("子 Agent 折叠视图", () => {
       }
     });
   }
+});
+
+describe("[W7-C] 转后台的呈现", () => {
+  it("subagent_background：tracker 置后台；工具行 `已转后台 · 耗时` + 跟随行，说明文字折叠时不显示", () => {
+    now = 0;
+    const tracker = new SubagentTracker(() => now);
+    const tools = new ToolTracker({
+      theme,
+      cwd: "/w",
+      now: () => now,
+      subagent: (id) => tracker.forToolCall(id),
+    });
+    const view = tools.start({
+      toolCallId: "c1",
+      toolName: "task",
+      args: { prompt: "x", description: "扫描", agent: "explore" },
+    }).view;
+    tracker.onEvent(start("t1", "c1"));
+    expect(
+      tracker.onEvent({
+        type: "subagent_background",
+        taskId: "t9",
+        parentToolCallId: "c9",
+        reason: "user",
+      }),
+    ).toBeUndefined();
+    now = 12_000;
+    tracker.onEvent({
+      type: "subagent_background",
+      taskId: "t1",
+      parentToolCallId: "c1",
+      reason: "user",
+    });
+    expect(tracker.get("t1")?.background).toBe(true);
+    const text =
+      "[task t1] Moved to the background by the user; it was not interrupted. A <task-notification> arrives when it finishes.";
+    tools.end("c1", { content: [{ type: "text", text }], details: { status: "running" } }, false);
+    const lines = view.render(80).map((l) => l.trimEnd());
+    expect(lines[1]).toBe("  ⎿ 已转后台 · 12s");
+    expect(lines[2]).toMatch(/^ {4}↳ t1 explore · 运行中 12s$/);
+    expect(lines).toHaveLength(3);
+    // 直接后台启动
+    const direct = tools.start({ toolCallId: "c2", toolName: "task", args: { prompt: "y" } }).view;
+    tracker.onEvent(start("t2", "c2", { background: true }));
+    tools.end(
+      "c2",
+      {
+        content: [{ type: "text", text: "Started background task t2 (agent explore)." }],
+        details: { status: "running" },
+      },
+      false,
+    );
+    expect(direct.render(80)[1]?.trimEnd()).toBe("  ⎿ 已在后台启动");
+  });
+
+  it("event-notices：超时 / 宿主转后台的一行提示（人按的不在这里）", () => {
+    const event = (reason: "timeout" | "host") =>
+      ({ type: "subagent_background", taskId: "t2", parentToolCallId: "c", reason }) as const;
+    expect(subagentBackgroundText(event("timeout"), "explore")).toBe(
+      "t2 explore 运行较久，已自动转后台（subagents.autoBackgroundAfterMs）",
+    );
+    expect(subagentBackgroundText(event("host"), "explore")).toBe("t2 explore 已由宿主转后台");
+  });
 });

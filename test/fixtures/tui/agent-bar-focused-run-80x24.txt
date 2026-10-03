@@ -1,17 +1,17 @@
-# ↓ with text · viewport 80x24
+# 前台任务运行中进栏 · viewport 80x24
 |✻ ama <version> · fake/echo · Bypass permissions · /help
 |
 |› scan it
 |
 |⏺ task scan
-|  ⎿ ⠋ explore · running <t>
+|  ⎿ ⠋ explore · 运行中 <t>
 |
-|<spin> Running task · <t> · Esc to interrupt · Ctrl+B to background · ↓ Agent bar
+|<spin> 运行 task · <t> · Esc 中断 · Ctrl+B 转后台 · ↓ Agent 栏
 |────────────────────────────────────────────────────────────────────────────────
-|› ab
+|› 输入消息，/ 命令，@ 文件，Shift+Enter 换行
 |────────────────────────────────────────────────────────────────────────────────
-|Input is not empty; clear it and press ↓ for the Agent bar
-|⏺ t1 explore · running <t>  scan
+|› ⏺ t1 explore · 运行中 <t>  scan
+|↑↓ 选择 · Enter 打开 · b 转后台 · x 停止 · Esc 返回
 |<状态栏>
 |
 |
