@@ -424,7 +424,7 @@ The `task` tool hands a sub-task to a sub-agent with a fresh context (same proce
 - Built-in types `general` (default), `explore` and `plan` (the last two are forced read-only and never prompt for approval); define your own types (tool allowlist, model, permissions, turns, worktree isolation) in `~/.config/ama/agents/*.md`, `.ama/agents/*.md` (requires trust) or `--agent-dir`.
 - Several tasks in one reply run in parallel (`subagents.maxConcurrent`, default 4); `background: true` returns a `taskId` immediately and the parent session receives a `<task-notification>` when done; `task{taskId}` continues the conversation; `task_ctl` lists / waits / stops / reads output; `isolation: "worktree"` runs in a separate git worktree.
 - The sub-session's tool table is byte-identical to the parent's, so its first request reuses the parent's cache prefix. In the interface the task tool line folds and shows progress; `/agents` lists the available types.
-- **Agent bar and sub-agent view**: running tasks are listed above the status line; with an empty input press `Ctrl+B` (or `↓`, e.g. in tmux) to focus the bar, ↑↓ to pick and Enter to open a full-screen live view of that sub-agent, where your input goes straight to it (Esc goes back without interrupting). `/tasks` focuses the bar, `/tasks <id>` opens a view, `/tasks stop <id>` stops a task. See [docs/en/tui.md](docs/en/tui.md) "Agent bar".
+- **Agent bar and sub-agent view**: running tasks are listed above the status line; with an empty input press `↓` to focus the bar, ↑↓ to pick and Enter to open a full-screen live view of that sub-agent, where your input goes straight to it (Esc goes back without interrupting). `/tasks` focuses the bar, `/tasks <id>` opens a view, `/tasks stop <id>` stops a task. See [docs/en/tui.md](docs/en/tui.md) "Agent bar".
 
 See [docs/agents.md](docs/agents.md) (Chinese) "Sub-agents".
 
@@ -470,21 +470,21 @@ RPC clients use `get_trace` (tail-first paging, increments after `entry_appended
 
 Running `ama` (with stdin / stdout both TTYs) enters interactive mode. The interface uses the main screen only; the conversation history stays in the terminal scrollback, so tmux `capture-pane` can read the whole conversation.
 
-| Key                      | Effect                                                                                  |
-| ------------------------ | --------------------------------------------------------------------------------------- |
-| Enter                    | Send; while running, steer                                                              |
-| Alt+Enter                | While running, queue after this turn (followUp)                                         |
-| Shift+Enter / Ctrl+J     | New line                                                                                |
-| Esc                      | Interrupt the current run                                                               |
-| Esc Esc (idle)           | Empty input: open the rewind list (same as `/rewind`); with text: clear it into history |
-| Shift+Tab / Tab          | Cycle permission modes (Tab only on an empty input; entering Bypass asks to confirm)    |
-| Ctrl+O                   | Expand / collapse tool output                                                           |
-| Ctrl+L / Ctrl+T          | Pick model / thinking level                                                             |
-| Ctrl+G                   | Bottom info line, two lines ↔ one (same as `/statusline`)                               |
-| Ctrl+V                   | Paste an image from the clipboard and insert `@<path>` (same as `/paste`)               |
-| Ctrl+B / ↓ (empty input) | Focus the agent bar when there are sub-agent tasks (↓ in tmux)                          |
-| Ctrl+C                   | Clear the input; on an empty input, press again within 1.5 s to quit                    |
-| Tab                      | Complete: `/` commands, templates and Skills, `@` file paths                            |
+| Key                  | Effect                                                                                  |
+| -------------------- | --------------------------------------------------------------------------------------- |
+| Enter                | Send; while running, steer                                                              |
+| Alt+Enter            | While running, queue after this turn (followUp)                                         |
+| Shift+Enter / Ctrl+J | New line                                                                                |
+| Esc                  | Interrupt the current run                                                               |
+| Esc Esc (idle)       | Empty input: open the rewind list (same as `/rewind`); with text: clear it into history |
+| Shift+Tab / Tab      | Cycle permission modes (Tab only on an empty input; entering Bypass asks to confirm)    |
+| Ctrl+O               | Expand / collapse tool output                                                           |
+| Ctrl+L / Ctrl+T      | Pick model / thinking level                                                             |
+| Ctrl+G               | Bottom info line, two lines ↔ one (same as `/statusline`)                               |
+| Ctrl+V               | Paste an image from the clipboard and insert `@<path>` (same as `/paste`)               |
+| ↓ (empty input)      | Focus the agent bar when there are sub-agent tasks                                      |
+| Ctrl+C               | Clear the input; on an empty input, press again within 1.5 s to quit                    |
+| Tab                  | Complete: `/` commands, templates and Skills, `@` file paths                            |
 
 Common commands: `/model`, `/thinking`, `/permission`, `/tools`, `/compact`, `/tree` (branch again from before a message), `/fork`, `/resume`, `/new`, `/session`, `/cache`, `/hooks`, `/skill:<name>`, `/help`; wave 5 added `/plan` (plan panel and approval; `/plan <goal>` enters Plan), `/tasks` (sub-agent tasks), `/agents` (available types and external agents), `/paste` (clipboard image), `/rewind` and `/statusline [full|compact]`; wave 6 added `/config` (settings panel), `/trace` (trace), `/memory` (memories), and `/tasks` now focuses the agent bar (`/tasks <id>` opens the sub-agent view). An `@image-path` in the input (or a pasted / dropped image path) is sent to the model as an image attachment; `/model` groups models by "provider · channel" and marks context size and `img`. Key bindings can be overridden in `~/.config/ama/keybindings.json`. See [docs/en/tui.md](docs/en/tui.md).
 

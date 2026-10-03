@@ -42,7 +42,7 @@ Accept edits     claude-opus-5-5 medium | Ctx 3.0% | proj ⎇ main 5ae9e54 ↑2 
 - **思考块**：`ui.showThinking` = `collapsed`（缺省，`✻ 思考中…` → `✻ 思考 · 1.2k token`，`Ctrl+O` 展开为缩进的正文，最多 60 行）/ `full`（总是展开）/ `hidden`。
 - **工具调用**：标题 `⏺ 工具名 摘要`，`⏺` 运行中为强调色、成功绿、失败红；第二行 `⎿` 后是结果摘要——`读取 N 行`、`N 处修改 · +a −b`、`退出 0 · 2.1s · 48 行`、`14 处匹配 · 6 个文件`、`N 个内层调用 · 脚本输出 M 行`、`子 Agent · 运行中 1m05s` / `完成 · 1m42s · ↑28k ↓4.1k`；运行中摘要行带与底部同帧的 spinner 与秒数。正文折叠显示前 3 行，`edit` 显示 diff（前 12 行，≥ 60 列带行号），`bash` 运行中滚动显示最后 8 行。`Ctrl+O` 展开 / 折叠全部（含思考块）。codemode 脚本里的内层调用挂在外层调用下面（折叠时只列最近 5 个的标题与摘要）。
 - **提示**：`✗` 错误、`↻ 重试 n/m`、`!` 警告（缓存未命中、上下文余量）、`⛔ Hook 阻止`、宿主通知、审批被拒或超时的说明；压缩 / 分支摘要是左竖条卡片（`▎ 上下文已压缩  128k → 24k token`）。
-- **运行中**：`⠋ 动词 · 已用时 · …`，动词按当前最深状态取：`等待确认`（审批打开）、`运行 bash` / `运行 3 个工具`、`重试 2/3 · 2s 后`、`压缩上下文`、`回复中 · ↓≈1.2k`（本条输出的估算 token）、`思考中`。
+- **运行中**：`⠋ 动词 · 已用时 · …`，动词按当前最深状态取：`等待确认`（审批打开）、`运行 bash` / `运行 3 个工具`、`重试 2/3 · 2s 后`、`压缩上下文`、`回复中 · ↓≈1.2k`（本条输出的估算 token）、`思考中`。Agent 栏里有任务时末尾加 `↓ Agent 栏`（`⠏ 运行 task · 4s · Esc 中断 · ↓ Agent 栏`），一行放不下时整项丢掉。
 - **状态栏**：模式永远在最左；除 full 布局下的订阅配额行外，状态栏是最后一行（`compact` 永远是最后一行）。`compact` 的分隔符固定为 `·`（嵌入宿主按此解析），`full` 用 `|`。布局由 `ui.statusLine` 决定：独立终端缺省 `full`（两行），有 profile 的嵌入宿主缺省 `compact`（一行，布局与以前相同）；运行时 `Ctrl+G` 或 `/statusline [full|compact]` 切换，只影响本会话。`full` 时输入框在倒数第 4 行（`compact` 仍是倒数第 3 行）。
   - **`full` 上行（速率行）**：`tps: <速率> tok/s • <输出 token> tok / <耗时> (avg <会话均速> · ttft <首 token 延迟>)`——速率在流式中是最近 2 s 的瞬时值（`tps:` 强调色），结束后是该请求的平均值，生成不足 0.25 s 的整块回复不算速率、显示 `—`；耗时从首 token 起；ASCII 下 `•` 为 `*`。右区是用量类项 `↑` 输入（含缓存读写）`↓` 输出 · 缓存 · 重计费 · 排队数 · codemode · 工具预设（非 default 时）· 宿主状态，行尾 `[-]` 提示可折叠。只统计对话请求（压缩摘要、保温、分类器不计）。窄时依次丢弃 输出量 / 耗时、codemode、排队数、token、缓存、重计费、预设、宿主状态、avg、ttft；`tps` 与 `[-]` 不丢。
   - **`full` 下行**：左区 `权限模式 | shift+tab 切换`，右区 `模型 思考级别 | Ctx 3.0% | <目录名> ⎇ <分支> <短提交> ↑N ↓N (+a,-d) | $费用 | 会话时长`（Ctx 一位小数，宽屏也不换余量表）；窄时依次丢弃切换提示、思考级别、增删行、目录名、分支与提交、时长、费用、上下文、模型。
@@ -127,7 +127,7 @@ Accept edits     claude-opus-5-5 medium | Ctx 3.0% | proj ⎇ main 5ae9e54 ↑2 
 | Ctrl+D               | 输入为空时退出                                                                                                                                                   |
 | Tab                  | 补全                                                                                                                                                             |
 | ↑ / ↓                | 单行时浏览历史（`<数据目录>/history`，500 条）                                                                                                                   |
-| Ctrl+B / ↓（空输入） | 进入 Agent 栏（有子 Agent 任务时；有字时 Ctrl+B 仍是光标左移，tmux 里用 ↓），见「子 Agent」（第六波 W6-A 起）                                                    |
+| ↓（空输入）          | 进入 Agent 栏（有子 Agent 任务即可）；有字时仍是下移 / 历史并提示一次，见「子 Agent」                                                                            |
 
 按键可在 `~/.config/ama/keybindings.json` 覆盖，键是动作 id（`app.interrupt`、`app.rewind`、`app.message.followUp`、`app.statusLine.toggle`、`app.paste.image`、`app.agents.focus`、`tui.editor.newLine` ……），值是按键或按键数组，空数组表示禁用。`app.rewind` 是空闲时双击的那个键（缺省 Esc，两次间隔 ≤ 800 ms）。
 
@@ -312,7 +312,7 @@ Plan 模式（Shift+Tab、`/permission plan`、`/plan <目标>`、`--permission-
 ```
 
 - 状态行是类型（外部 Agent 写 `claude（claude）` 这类 runner）、状态与耗时、轮数、最近 3 个工具、用量；前台任务结束后换成结果摘要。后台任务（`background: true`）的工具调用立即返回，下面多一行跟随状态（运行中每秒刷新）；完成后模型收到的 `<task-notification>` 在消息区只显示一行「↳ 子 Agent 通知 t2 explore 完成 · 7 轮 · /tasks 查看输出」，失败或被停止时另有一行黄色提示。
-- `/tasks`：聚焦 Agent 栏（见下）；`/tasks <id>` 直接打开该任务的子 Agent 视图；`/tasks stop <id>` 停止。`ui.agentBar: "off"`（嵌入宿主缺省）时 `/tasks` 仍是任务选择器（新的在上，Enter 查看输出、运行中可停止）。line 模式 `/tasks` 列表、`/tasks <id>` 输出、`/tasks stop <id>` 停止。
+- `/tasks`：聚焦 Agent 栏（见下）；`/tasks <id>` 直接打开该任务的子 Agent 视图；`/tasks stop <id>` 停止。`ui.agentBar: "off"` 时 `/tasks` 仍是任务选择器（新的在上，Enter 查看输出、运行中可停止）。line 模式 `/tasks` 列表、`/tasks <id>` 输出、`/tasks stop <id>` 停止。
 - `/agents`：可用类型——名字、runner、来源（内置 / 用户 / 项目 / profile / 宿主），外部 Agent 带「已安装 版本」或「未安装」，再加一行说明。
 - 外部 Agent 自己报告的提示（预算用尽、超时、模式降级等）在消息区显示为一行 `[claude · t3] …`。
 
@@ -329,9 +329,11 @@ Plan 模式（Shift+Tab、`/permission plan`、`/plan <目标>`、`--permission-
 
 - 状态：排队（并发池满）/ 运行中（用时、轮数、最近一个工具）/ 等待审批（审批框里正有它的请求）/ 完成 / 失败 / 已停止（以及轮数耗尽、已中断）；`⏺` 运行中强调色、完成绿、失败红、其余黄 / 暗；ASCII 下是 `*`。
 - 什么时候显示：有排队、运行中或等审批的任务；本会话里结束、还没在视图里看过的任务保留到看过为止，最多 10 分钟。resume 进来时已经结束的任务不显示（`/tasks` 里能看到）。
-- 进入：输入框为空时 `Ctrl+B`（有任务即可），或 `↓`（栏可见时）——tmux 的缺省前缀会吃掉 `Ctrl+B`，这时用 `↓`；输入框有字时 `Ctrl+B` 仍是光标左移、`↓` 仍是下移 / 历史。键位动作 `app.agents.focus`，可在 `keybindings.json` 改。
-- 栏里：`↑` `↓` 选（列出本会话全部任务，窗口跟着滚；在第一项再按 `↑` 回到输入框），Enter 打开子 Agent 视图，Esc / `Ctrl+B` 回到输入框；直接打字则回到输入框并把字填进去。末行是按键提示。
-- 嵌入宿主（有 profile）缺省 `ui.agentBar: "off"`：不显示栏，`Ctrl+B` / `↓` 照常交给编辑器。
+- 进入：输入框为空、补全没开时按 `↓`，本会话有任务即可（栏收起了也行，与 `/tasks` 一致）；tmux 内外一样。运行中也能进，运行提示行末尾的 `↓ Agent 栏` 就是提醒。键位动作 `app.agents.focus`（缺省只有 `down`），可在 `keybindings.json` 改。
+- 按了没进去时底部提示一行（3 秒）：输入框有字——「输入框有字；清空后再按 ↓ 进 Agent 栏」（每段草稿一次，光标在末行时；`↓` 照常下移）；栏关闭——「Agent 栏已关闭（ui.agentBar），用 /tasks」；没有任务——「还没有子 Agent 任务」。在用 `↑` `↓` 浏览输入历史时 `↓` 只翻历史。
+- `Ctrl+B` 不再进栏：tmux 的缺省前缀就是 `C-b`，在 tmux 客户端里按不到 ama。它留给后续的「前台任务转后台」；在那之前仍是光标左移。想要原来的行为可在 `keybindings.json` 写 `"app.agents.focus": ["down", "ctrl+b"]`。
+- 栏里：`↑` `↓` 选（列出本会话全部任务，窗口跟着滚；在第一项再按 `↑` 回到输入框），Enter 打开子 Agent 视图，Esc 回到输入框；直接打字则回到输入框并把字填进去。末行是按键提示。
+- 嵌入宿主（有 profile）不再缺省关闭栏；宿主自己展示子任务、不要栏时在 profile 里写 `ui.agentBar: "off"`（见 [host-api.md](host-api.md)「嵌入 Armadra」）。关闭后栏不显示，`↓` 在有任务时提示改用 `/tasks`。
 
 ### 子 Agent 视图
 
@@ -512,22 +514,22 @@ tui.setFocus(editor);
 tui.start();
 ```
 
-| 导出                                                                      | 作用                                                                                                                                 |
-| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `Component`、`Focusable`、`CURSOR_MARKER`                                 | 组件契约：`render(width)` 返回各行（每行可见宽 ≤ width）、`handleInput?(data)`、`invalidate()`；获焦组件在光标处输出 `CURSOR_MARKER` |
-| `TUI`                                                                     | 根容器与差分渲染（主屏、同步输出）：`addChild`、`start` / `stop`、`requestRender`、`setFocus`、`addInputListener`、`showOverlay`     |
-| `ProcessTerminal`、`MemoryTerminal`、`VirtualScreen`                      | 真实终端（raw 模式、括号粘贴）；内存终端与 VT 屏幕（测试、帧黄金）                                                                   |
-| `Container`、`Text`、`TruncatedText`、`Markdown`、`Box`、`Card`、`Spacer` | 基础组件；`Card` 是左竖条卡片，`Box` 可设 `borderColor`                                                                              |
-| `Loader`                                                                  | 运行指示：`setVerb(动词, 附加项, { elapsed })`、`frame` / `onFrame`（与别的组件同帧换字）、`animation: false`                        |
-| `Editor`、`EditorBuffer`、`PasteStore`                                    | 多行编辑器（历史、补全接口 `AutocompleteProvider`、粘贴折叠）                                                                        |
-| `SelectList`                                                              | 可过滤的选择列表：分组、徽标、数字键、`stacked`、`currentValue`（✓）、`footer` 按键提示                                              |
-| `KeyValue`、`Meter`                                                       | 两列对齐的键值表（`wrap` 折行对齐值列）；余量表（`levelColor` 阈值着色）                                                             |
-| `compositeOverlays`、`OverlayOptions`                                     | 覆盖层合成（居中 / 底部锚定）                                                                                                        |
-| `createTheme`、`plainTheme`、`detectCapabilities`、`Theme`                | 主题与颜色能力探测（`NO_COLOR`、16 / 256 / truecolor）；14 个语义色，`resolveThemeName("auto")`                                      |
-| `Theme.glyphs`、`UNICODE_GLYPHS`、`ASCII_GLYPHS`、`detectAscii`           | 字形表（`›` `⏺` `⎿` `✻` `▎`、框线、spinner 帧……）与 ASCII 回退；`createTheme(name, { ascii })`                                       |
-| `Keybindings`、`DEFAULT_KEYBINDINGS`、`loadKeybindingsFile`               | 动作 id → 按键，`keybindings.json` 覆盖                                                                                              |
-| `parseKey`、`matchesKey`、`StdinBuffer`                                   | 键序列解析与 Esc 超时切分（`AMA_TUI_ESC_TIMEOUT`）                                                                                   |
-| `visibleWidth`、`truncateToWidth`、`wrapTextWithAnsi`、`sliceByColumn` 等 | 带 ANSI 与宽字符的宽度计算与截断                                                                                                     |
+| 导出                                                                      | 作用                                                                                                                                                       |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Component`、`Focusable`、`CURSOR_MARKER`                                 | 组件契约：`render(width)` 返回各行（每行可见宽 ≤ width）、`handleInput?(data)`、`invalidate()`；获焦组件在光标处输出 `CURSOR_MARKER`                       |
+| `TUI`                                                                     | 根容器与差分渲染（主屏、同步输出）：`addChild`、`start` / `stop`、`requestRender`、`setFocus`、`addInputListener`、`showOverlay`                           |
+| `ProcessTerminal`、`MemoryTerminal`、`VirtualScreen`                      | 真实终端（raw 模式、括号粘贴）；内存终端与 VT 屏幕（测试、帧黄金）                                                                                         |
+| `Container`、`Text`、`TruncatedText`、`Markdown`、`Box`、`Card`、`Spacer` | 基础组件；`Card` 是左竖条卡片，`Box` 可设 `borderColor`                                                                                                    |
+| `Loader`                                                                  | 运行指示：`setVerb(动词, 附加项, { elapsed, optional })`（`optional` 一行放不下时整项丢掉）、`frame` / `onFrame`（与别的组件同帧换字）、`animation: false` |
+| `Editor`、`EditorBuffer`、`PasteStore`                                    | 多行编辑器（历史、补全接口 `AutocompleteProvider`、粘贴折叠）                                                                                              |
+| `SelectList`                                                              | 可过滤的选择列表：分组、徽标、数字键、`stacked`、`currentValue`（✓）、`footer` 按键提示                                                                    |
+| `KeyValue`、`Meter`                                                       | 两列对齐的键值表（`wrap` 折行对齐值列）；余量表（`levelColor` 阈值着色）                                                                                   |
+| `compositeOverlays`、`OverlayOptions`                                     | 覆盖层合成（居中 / 底部锚定）                                                                                                                              |
+| `createTheme`、`plainTheme`、`detectCapabilities`、`Theme`                | 主题与颜色能力探测（`NO_COLOR`、16 / 256 / truecolor）；14 个语义色，`resolveThemeName("auto")`                                                            |
+| `Theme.glyphs`、`UNICODE_GLYPHS`、`ASCII_GLYPHS`、`detectAscii`           | 字形表（`›` `⏺` `⎿` `✻` `▎`、框线、spinner 帧……）与 ASCII 回退；`createTheme(name, { ascii })`                                                             |
+| `Keybindings`、`DEFAULT_KEYBINDINGS`、`loadKeybindingsFile`               | 动作 id → 按键，`keybindings.json` 覆盖                                                                                                                    |
+| `parseKey`、`matchesKey`、`StdinBuffer`                                   | 键序列解析与 Esc 超时切分（`AMA_TUI_ESC_TIMEOUT`）                                                                                                         |
+| `visibleWidth`、`truncateToWidth`、`wrapTextWithAnsi`、`sliceByColumn` 等 | 带 ANSI 与宽字符的宽度计算与截断                                                                                                                           |
 
 ## 测试
 
