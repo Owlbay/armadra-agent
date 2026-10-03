@@ -226,7 +226,8 @@ export function createGlobTool(): ToolDefinition<GlobInput> {
     label: "Glob",
     description:
       "Find files by glob (`**`, `*`, `?`, `[...]`, `{a,b}`, leading `!` excludes). " +
-      "Patterns without `/` match names at any depth. Respects .gitignore/.ignore; newest first.",
+      "Patterns without `/` match names at any depth. Respects .gitignore/.ignore; newest first. " +
+      "Use to discover files before read.",
     parameters: {
       type: "object",
       properties: {

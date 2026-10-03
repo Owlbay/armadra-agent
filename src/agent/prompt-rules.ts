@@ -5,6 +5,7 @@
  * 保持一句、英文、只写模型确实会做错的事；预算见 `src/cli/prompt-budget.test.ts`。
  * 「edit 的多处修改」写在 edit 工具描述里（只在 edit 可用时出现）；并行批量在 codemode 独占时
  * 由它自己的说明负责，所以只在 read 直接可用时给。
+ * 「先定位再读」只在 grep 与 glob 都直接可用时给（docs/search-plan.md §4.2：`minimal` 下模型会连猜文件名）。
  */
 
 import type { ToolDefinition } from "../tools/types.js";
@@ -14,9 +15,13 @@ export const DESTRUCTIVE_RULE =
 
 export const PARALLEL_READS_RULE = "Batch independent read-only tool calls into one turn.";
 
+export const LOCATE_RULE = "Locate code with grep/glob before reading; do not guess file paths.";
+
 export function baseRules(tools: readonly Pick<ToolDefinition, "name">[]): string[] {
   if (tools.length === 0) return [];
   const rules = [DESTRUCTIVE_RULE];
-  if (tools.some((tool) => tool.name === "read")) rules.push(PARALLEL_READS_RULE);
+  const has = (name: string): boolean => tools.some((tool) => tool.name === name);
+  if (has("read")) rules.push(PARALLEL_READS_RULE);
+  if (has("grep") && has("glob")) rules.push(LOCATE_RULE);
   return rules;
 }

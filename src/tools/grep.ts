@@ -226,18 +226,19 @@ export function createGrepTool(): ToolDefinition<GrepInput> {
     name: "grep",
     label: "Grep",
     description:
-      "Search file contents by JS regex. Respects .gitignore/.ignore; skips binary and >2 MB " +
-      "files. Output: `path:line: text`.",
+      "Use to find where a symbol or text appears (JS regex). Skips ignored, binary, >2 MB " +
+      "files. Output `path:line: text`; filesOnly lists matching files.",
     parameters: {
       type: "object",
       properties: {
         pattern: { type: "string" },
-        path: { type: "string", description: "File or dir (default: cwd)" },
-        glob: { type: "string", description: "File filter, e.g. *.ts" },
+        path: { type: "string", description: "File or dir" },
+        glob: { type: "string", description: "e.g. *.ts" },
         ignoreCase: { type: "boolean" },
         literal: { type: "boolean" },
         context: { type: "integer", description: "0-5 lines" },
         limit: { type: "integer", description: `Default ${DEFAULT_GREP_LIMIT}` },
+        filesOnly: { type: "boolean" },
       },
       required: ["pattern"],
       additionalProperties: false,

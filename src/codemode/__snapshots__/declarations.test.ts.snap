@@ -24,7 +24,7 @@ declare const tools: {
     }[];
     replaceAll?: boolean;
   }): Promise<string>;
-  /** Find files by glob (\`**\`, \`*\`, \`?\`, \`[...]\`, \`{a,b}\`, leading \`!\` excludes). Patterns without \`/\` match names at any depth. Respects .gitignore/.ignore; newest first. */
+  /** Find files by glob (\`**\`, \`*\`, \`?\`, \`[...]\`, \`{a,b}\`, leading \`!\` excludes). Patterns without \`/\` match names at any depth. Respects .gitignore/.ignore; newest first. Use to discover files before read. */
   glob(args: {
     /** e.g. **\\/*.ts */
     pattern: string;
@@ -33,12 +33,12 @@ declare const tools: {
     /** Default 1000 */
     limit?: number;
   }): Promise<string>;
-  /** Search file contents by JS regex. Respects .gitignore/.ignore; skips binary and >2 MB files. Output: \`path:line: text\`. */
+  /** Use to find where a symbol or text appears (JS regex). Skips ignored, binary, >2 MB files. Output \`path:line: text\`; filesOnly lists matching files. */
   grep(args: {
     pattern: string;
-    /** File or dir (default: cwd) */
+    /** File or dir */
     path?: string;
-    /** File filter, e.g. *.ts */
+    /** e.g. *.ts */
     glob?: string;
     ignoreCase?: boolean;
     literal?: boolean;
@@ -46,6 +46,7 @@ declare const tools: {
     context?: number;
     /** Default 100 */
     limit?: number;
+    filesOnly?: boolean;
   }): Promise<string>;
   /** List a directory: subdirectories end with \`/\`, files show their size, symlinks show their target. Includes dotfiles. Default limit 500. */
   ls(args: {
