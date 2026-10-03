@@ -33,15 +33,21 @@ function obj(value: unknown): Json | undefined {
     : undefined;
 }
 
+/**
+ * 一个窗口；时长 ≤ 0 视同缺失。[W7] 用量 0、无时长、无重置时间的窗口是服务端的「没有这个窗口」（套餐只有一个
+ * 窗口时另一个槽位送全 0），返回 undefined——0.6.3 把它当成窗口渲染出 `0d: 0.0%`。
+ */
 function window(used: unknown, minutes: unknown, resetSeconds: unknown): QuotaWindow | undefined {
   const usedPercent = num(used);
   if (usedPercent === undefined) return undefined;
   const out: QuotaWindow = { usedPercent: Math.max(0, Math.min(100, usedPercent)) };
   const m = num(minutes);
-  if (m !== undefined) out.windowMinutes = m;
+  if (m !== undefined && m > 0) out.windowMinutes = m;
   const reset = num(resetSeconds);
   if (reset !== undefined && reset > 0) out.resetsAt = reset * 1000;
-  return out;
+  const empty =
+    out.usedPercent === 0 && out.windowMinutes === undefined && out.resetsAt === undefined;
+  return empty ? undefined : out;
 }
 
 function snapshot(
