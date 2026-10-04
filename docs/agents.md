@@ -230,6 +230,8 @@ ama 能以各 CLI 自己的账户、模型与权限策略驱动外部编码 Agen
 | `auto`      | `auto`                               | `on-request` / `workspace-write`                           | 同上                                                     |
 | `full-auto` | `auto`（从不给 `bypassPermissions`） | `never` / `workspace-write`（从不给 `danger-full-access`） | 同上                                                     |
 
+ACP Agent 不给 `modes`、改用 category `mode` 的配置项表达模式时，按上表同一映射在配置项的可选值里找，经 `session/set_config_option` 设置（见 [acp.md](acp.md)「作为客户端」）。
+
 一次性打印模式不能审批，只在只读任务下用。
 
 ### 环境与账户

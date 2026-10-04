@@ -34,6 +34,18 @@ English · [简体中文](CHANGELOG.zh-CN.md)
   is marked UNSTABLE; select config options are either all flat or all grouped (the fake agent's `model` option is now
   grouped). The fake ACP agent adds `--config-only`, `--auth-required` and `[cancel-request]`. ACP wire shapes are
   checked in-repo against the official v1 schema 1.24.1. Docs: docs/acp.md.
+- **ACP config options, command list and client side**: `ama --mode acp` gains the building blocks for session config
+  options — `model` (grouped by provider, values `provider/model-id`, the same "configured" view as the TUI `/model`
+  picker: only providers with a key, an OAuth login or local, `models.enabled` respected, `fake` hidden by the usual rule)
+  and `thinking` (category `thought_level`, only the levels the current model supports); no `mode` category, no boolean
+  options; unknown ids / values answer -32602 — and the `available_commands_update` list (skills as `skill:<name>`,
+  prompt templates as `<name>` with `argument-hint` as `input.hint`; built-in slash commands are not listed). Prompt
+  templates in `LoadedResources.prompts` now carry `description` / `argumentHint`. As a client, `AcpClient` declares
+  `clientCapabilities.session.configOptions: {}` and turns on `$/cancel_request` (an agent withdrawing a pending permission
+  request closes the approval and answers `cancelled`); `AcpDriver` falls back to a `mode`-category config option when an
+  agent has no `modes`, reports -32000 as `agent_auth_required` listing the agent's auth methods (terminal ones with the
+  command to run), treats -32800 after a cancel as `cancelled`, and counts `diff` paths in `filesTouched`. The driver and
+  `--mode acp` golden recordings change only in the `initialize` line. Docs: docs/acp.md, docs/agents.md.
 
 ## 0.6.7 (2026-10-03)
 

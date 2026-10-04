@@ -27,6 +27,15 @@
   `auth` 能力、tool call 的 `name` / `_meta`、`config_option_update` 与 `ACP_META_KEY`（`@armadra/agent/acp` 导出）；回合
   `usage` 注明 UNSTABLE；select 配置项的选项须全部平铺或全部分组（假 Agent 的 `model` 项改为分组）。假 ACP Agent 加
   `--config-only`、`--auth-required` 与 `[cancel-request]`。仓库内以官方 v1 schema 1.24.1 逐条校验 ACP 线路。文档：docs/acp.md。
+- **ACP 配置项、命令表与客户端侧**：`ama --mode acp` 的会话配置项与命令表就位——`model`（按供应商分组，值 `provider/model-id`，与
+  TUI `/model` 的「已配置」视图同一口径：只列有 key、OAuth 已登录或本地的供应商，遵守 `models.enabled`，`fake` 按既有规则藏起）与
+  `thinking`（category `thought_level`，只列当前模型支持的级别）；不给 `mode` 类别、没有 boolean 项；未知 id / 值回 -32602。命令表：
+  Skill 列为 `skill:<名字>`，提示模板列为 `<名字>`（`argument-hint` 作 `input.hint`），不列内置斜杠命令。`LoadedResources.prompts`
+  的提示模板多带 `description` / `argumentHint`。作客户端时 `AcpClient` 声明 `clientCapabilities.session.configOptions: {}` 并开
+  `$/cancel_request`（Agent 撤回挂起的权限请求时审批关掉、答 `cancelled`）；`AcpDriver` 在 Agent 没有 `modes` 时退到 category
+  `mode` 的配置项，-32000 报 `agent_auth_required` 并列出 Agent 的认证方法（terminal 型附命令），取消后的 -32800 视为
+  `cancelled`，`diff` 的路径计入 `filesTouched`。驱动与 `--mode acp` 的黄金记录只有 `initialize` 一行变化。文档：docs/acp.md、
+  docs/agents.md。
 
 ## 0.6.7（2026-10-03）
 
