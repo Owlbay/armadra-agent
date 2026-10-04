@@ -36,6 +36,13 @@
   `mode` 的配置项，-32000 报 `agent_auth_required` 并列出 Agent 的认证方法（terminal 型附命令），取消后的 -32800 视为
   `cancelled`，`diff` 的路径计入 `filesTouched`。驱动与 `--mode acp` 的黄金记录只有 `initialize` 一行变化。文档：docs/acp.md、
   docs/agents.md。
+- **ACP 工具调用可视化（`ama --mode acp`）**：`tool_call` 带 `name`；codemode 脚本里的每次内层调用单列为一条 `tool_call`（标题前缀
+  `codemode › `，`_meta.ama.parentToolCallId` 指向外层调用）并各自收口，权限请求不再指向未公布的 id。权限询问期间调用回到
+  `pending`，允许后再 `in_progress`。`edit` / `write` 填 `ToolResult.fileChange`（改前 / 改后的磁盘原文，BOM 与 CRLF 原样，新文件
+  `oldText: null`，单侧超过 256 KiB 不填；仍不落盘），完成更新带 `diff` 与前 4 KB 文本，`locations[].line` 为首个改动行。模型 /
+  思考级别变化发 `config_option_update`；事件映射器可发 `available_commands_update` / `config_option_update` 与
+  `session_info_update`。`session/load` 回放的工具结果带前 4 KB 文本。权限模式带显示名与随界面语言的说明。文档：docs/acp.md、
+  docs/codemode.md。
 
 ## 0.6.7（2026-10-03）
 
