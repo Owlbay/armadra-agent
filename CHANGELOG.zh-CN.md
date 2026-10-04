@@ -43,6 +43,14 @@
   思考级别变化发 `config_option_update`；事件映射器可发 `available_commands_update` / `config_option_update` 与
   `session_info_update`。`session/load` 回放的工具结果带前 4 KB 文本。权限模式带显示名与随界面语言的说明。文档：docs/acp.md、
   docs/codemode.md。
+- **`ama --mode acp` 多会话**：每个 ACP 会话常驻内存（空会话切走再切回也在）；同一时刻只跑一个回合，对别的会话的
+  `session/prompt` 进先进先出队列，不再报 busy；`session/new` / `load` / `resume` / `list` / `set_mode` / `close` 在运行中也可调。
+  权限模式按会话记，轮到它跑时再应用。排队中的提示收到 `session/cancel` 回 `cancelled`；`$/cancel_request` 撤回 prompt 答 -32800。
+  `session/list` 按 `cwd` 过滤、每页 50 条带 `nextCursor`（非法 cursor 为 invalid params），标题去掉嵌入资源块；每回合结束发
+  `session_info_update`。拒答（Anthropic `stop_reason: "refusal"`）回 `refusal`，其它地方消息仍按出错收尾（以 `stopReasonOf()`
+  区分；假供应商脚本支持 `stopReason: "refusal"`）。`mcpServers` / `additionalDirectories` 忽略并在 stderr 记一行。接上
+  `session/set_config_option`，有配置项时开会话答复带 `configOptions`。**行为变化**：`session/close` 之后对该 id 的请求回
+  -32002（以前会重新打开），要再用先 `session/load` / `session/resume`。文档：docs/acp.md「多会话」。
 
 ## 0.6.7（2026-10-03）
 

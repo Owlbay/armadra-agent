@@ -41,7 +41,15 @@ export const en = {
     ready: (model: string) => `model available (${model}); ACP sessions are served from now on`,
   },
   /** [ACP-B] 多会话与会话元数据。 */
-  session: {},
+  session: {
+    notOpen: (id: string) =>
+      `session ${id} is not open in this connection; send session/load or session/resume first`,
+    invalidCursor: "invalid cursor (pass back the nextCursor of a previous session/list)",
+    ignoredMcp: (count: number) =>
+      `ACP: ignoring ${plural(count, "MCP server")} from the client (ama does not connect MCP servers)`,
+    ignoredDirs: (count: number) =>
+      `ACP: ignoring ${plural(count, "additional directory", "additional directories")} from the client (the workspace is fixed to the start directory)`,
+  },
   /** [ACP-C] 工具调用映射。 */
   tools: {
     /** codemode 脚本里的内层调用的标题。 */
@@ -99,7 +107,12 @@ export const zh = {
       `暂无可用模型（${reason}）；ACP 连接保持——在客户端的终端登录或运行 ama auth set 后再开会话`,
     ready: (model) => `模型已可用（${model}），开始处理 ACP 会话`,
   },
-  session: {},
+  session: {
+    notOpen: (id) => `会话 ${id} 没有在本连接中打开；先发 session/load 或 session/resume`,
+    invalidCursor: "无效的 cursor（应原样传回上一次 session/list 的 nextCursor）",
+    ignoredMcp: (count) => `ACP：忽略客户端给的 ${count} 个 MCP 服务器（ama 不连接 MCP）`,
+    ignoredDirs: (count) => `ACP：忽略客户端给的 ${count} 个附加目录（工作目录固定为启动目录）`,
+  },
   tools: {
     codemodePrefix: (title) => `codemode › ${title}`,
     truncated: (length) => `…（已截断，共 ${length} 字符）`,

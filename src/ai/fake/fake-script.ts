@@ -52,8 +52,11 @@ export interface FakeResponse {
   /** 依次产出的块；与 `text` 简写二选一（都给时 text 在后）。 */
   steps?: FakeStep[];
   text?: string;
-  /** 缺省：有工具调用 → toolUse，否则 stop。 */
-  stopReason?: "stop" | "length" | "toolUse";
+  /**
+   * 缺省：有工具调用 → toolUse，否则 stop。`refusal` 模拟 Anthropic 的拒答：产出完 steps 后以
+   * error 收尾、`rawStopReason: "refusal"`（与真实协议同形）。
+   */
+  stopReason?: "stop" | "length" | "toolUse" | "refusal";
   usage?: Partial<Pick<Usage, "input" | "output" | "cacheRead" | "cacheWrite">>;
   error?: FakeError;
   /** start 之前的延迟（毫秒，可被 abort 打断）。 */
@@ -112,8 +115,14 @@ function checkResponse(value: unknown, path: string): FakeResponse {
     fail(`${path}.text`, "must be a string");
   }
   const stop = value["stopReason"];
-  if (stop !== undefined && stop !== "stop" && stop !== "length" && stop !== "toolUse") {
-    fail(`${path}.stopReason`, "must be stop / length / toolUse");
+  if (
+    stop !== undefined &&
+    stop !== "stop" &&
+    stop !== "length" &&
+    stop !== "toolUse" &&
+    stop !== "refusal"
+  ) {
+    fail(`${path}.stopReason`, "must be stop / length / toolUse / refusal");
   }
   const error = value["error"];
   if (error !== undefined) {

@@ -17,7 +17,13 @@
 import { appendFileSync } from "node:fs";
 
 import { AssistantEventStreamImpl } from "../event-stream.js";
-import { BlockTracker, createOutput, finishDone, finishError } from "../apis/shared.js";
+import {
+  BlockTracker,
+  ProviderStopError,
+  createOutput,
+  finishDone,
+  finishError,
+} from "../apis/shared.js";
 import { contentText, normalizeContext } from "../context.js";
 import type {
   ApiImplementation,
@@ -281,6 +287,10 @@ export class FakeProvider {
       usage.cacheRead = response.usage?.cacheRead ?? 0;
       usage.cacheWrite = response.usage?.cacheWrite ?? 0;
       if (error) throw new Error(error.message);
+      if (response.stopReason === "refusal") {
+        tracker.output.rawStopReason = "refusal";
+        throw new ProviderStopError("The model refused to respond (refusal)");
+      }
       const reason = response.stopReason ?? (tracker.hasToolCalls ? "toolUse" : "stop");
       finishDone(stream, tracker, model, reason);
     } catch (error) {

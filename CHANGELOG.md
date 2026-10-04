@@ -56,6 +56,18 @@ English · [简体中文](CHANGELOG.zh-CN.md)
   `available_commands_update` / `config_option_update` and send `session_info_update`. Replayed tool results
   (`session/load`) carry their first 4 KB of text. Permission modes get display names and localized descriptions.
   Docs: docs/acp.md, docs/codemode.md.
+- **`ama --mode acp` runs several sessions**: every ACP session stays open in memory (an empty one can be switched back
+  to); one turn runs at a time and `session/prompt` for another session is queued (FIFO) instead of failing busy.
+  `session/new` / `load` / `resume` / `list` / `set_mode` / `close` work while a turn runs. Permission modes are kept
+  per session and applied when its turn starts. `session/cancel` on a queued prompt answers `cancelled`;
+  `$/cancel_request` on a prompt answers -32800. `session/list` filters by `cwd`, pages 50 at a time with `nextCursor`
+  (an invalid cursor is invalid params) and strips embedded resources from titles; `session_info_update` follows each
+  turn. A refusal (Anthropic `stop_reason: "refusal"`) answers `refusal`; the message still ends as an error elsewhere
+  (`stopReasonOf()` tells them apart; the fake provider script accepts `stopReason: "refusal"`). `mcpServers` /
+  `additionalDirectories` are ignored with one stderr line. `session/set_config_option` is routed and session-open results
+  carry `configOptions` when there are any. **Behavior change**: after `session/close`, requests for that id answer
+  -32002 (it used to reopen); open it again with `session/load` / `session/resume`. Docs: docs/acp.md ("Multiple
+  sessions").
 
 ## 0.6.7 (2026-10-03)
 

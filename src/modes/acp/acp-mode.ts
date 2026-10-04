@@ -6,8 +6,8 @@
  * - 连接（JSON-RPC 对等端 + 协商结果）由 `createAcpConnection` 建，服务端只处理消息。
  * - 审批：挂 {@link AcpServer.broker} 为 UI broker，ama 的审批请求以 `session/request_permission`
  *   交给客户端。
- * - 退出语义同 rpc：stdin 关闭 → 撤下审批、等在途请求与已开始的运行结束 → 退出 0；
- *   SIGINT / SIGTERM → abort 后退出 130 / 143。
+ * - 退出语义同 rpc：stdin 关闭 → 撤下审批、排队的提示回 cancelled、等已开始的运行结束、释放全部
+ *   会话（前台会话由 Runtime.dispose 收尾）→ 退出 0；SIGINT / SIGTERM → abort 后退出 130 / 143。
  */
 
 import type { ModeContext } from "../../cli/deps.js";
@@ -42,9 +42,9 @@ export async function runAcpMode(
   const connection =
     options.handover?.connection ??
     createAcpConnection({ input: stdin, output: stdout }, log, {
-      onRequest: async (method, params) => {
+      onRequest: async (method, params, ctx) => {
         if (target.server === undefined) throw new RpcError(RPC_ERRORS.internalError, method);
-        return target.server.handle(method, (params ?? {}) as Params);
+        return target.server.handle(method, (params ?? {}) as Params, ctx);
       },
       onNotification: (method, params) => target.server?.handleNotification(method, params),
     });
@@ -61,12 +61,10 @@ export async function runAcpMode(
       offSignals();
       (stdin as { pause?: () => void }).pause?.();
       runtime.approvals.setUiBroker(undefined);
-      const session = server.session();
-      if (abort) await session.abort().catch(() => undefined);
-      await session.waitForIdle().catch(() => undefined);
+      // 全部会话：排队的回 cancelled，等在跑的结束（信号时先 abort），兄弟会话依次 dispose
+      await server.dispose(abort);
       await server.peer.flush();
       server.peer.close();
-      server.dispose();
       runtime.notifier.set(undefined);
       resolve(code);
     };

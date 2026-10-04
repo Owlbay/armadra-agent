@@ -17,19 +17,37 @@ JSON-RPC 2.0 over NDJSON（stdio）：只按 `\n` 切行，64 KiB 分片写并�
 ama --mode acp                      # 与 -p 互斥；其余参数（--model、--profile、--trust 等）照常
 ```
 
-| 方法                     | ama 的行为                                                                                                                                                                  |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `initialize`             | `protocolVersion: 1`；`loadSession: true`，`sessionCapabilities: { list, resume, close }`，`promptCapabilities: { image: true, embeddedContext: true }`；认证见「无模型时」 |
-| `session/new`            | 新开会话（启动时那个空会话第一次直接认领）；`cwd` 必须是 ama 的启动目录（按 realpath 比较），否则 invalid params                                                            |
-| `session/load`           | 切到该会话并以 `session/update` 回放历史（用户消息、回复、思考、工具调用）                                                                                                  |
-| `session/resume`         | 切到该会话，不回放                                                                                                                                                          |
-| `session/list`           | 启动目录下的会话（标题取会话名或首条提示）                                                                                                                                  |
-| `session/close`          | 中断运行并释放活动会话                                                                                                                                                      |
-| `session/prompt`         | 文本与图片照收；`resource_link` 以 `@uri` 文本给出，嵌入资源取文本。回合结束：中断 → `cancelled`，输出截断 → `max_tokens`，出错 → JSON-RPC 错误                             |
-| `session/cancel`（通知） | 中断当前回合                                                                                                                                                                |
-| `session/set_mode`       | 模式 id 就是 ama 的权限模式（`plan`、`allowlist`、`default`、`auto-edit`、`auto`、`full-auto`）                                                                             |
+| 方法                        | ama 的行为                                                                                                                                                                                 |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `initialize`                | `protocolVersion: 1`；`loadSession: true`，`sessionCapabilities: { list, resume, close }`，`promptCapabilities: { image: true, embeddedContext: true }`；不要认证                          |
+| `session/new`               | 新开会话（启动时那个空会话第一次直接认领），运行中也可调；`cwd` 必须是 ama 的启动目录（按 realpath 比较），否则 invalid params                                                             |
+| `session/load`              | 打开该会话并以 `session/update` 回放历史（用户消息、回复、思考、工具调用）；已打开的直接从内存回放                                                                                         |
+| `session/resume`            | 打开该会话，不回放                                                                                                                                                                         |
+| `session/list`              | 启动目录下的会话：`cwd` 给了别的目录回空列表；每页 50 条（`updatedAt` 降序），`nextCursor` 翻页，非法 `cursor` → invalid params；标题取会话名或首条提示（去掉嵌入资源块后的首行，≤ 80 字） |
+| `session/close`             | 中断该会话的运行（排队的提示回 `cancelled`），释放并移出本连接；之后对这个 id 发请求回 -32002，要再用先 `session/load` / `session/resume`                                                  |
+| `session/prompt`            | 文本与图片照收；`resource_link` 以 `@uri` 文本给出，嵌入资源取文本。别的会话在跑时排队。回合结束：中断 → `cancelled`，输出截断 → `max_tokens`，拒答 → `refusal`，出错 → JSON-RPC 错误      |
+| `session/cancel`（通知）    | 在跑 → 中断；排队中 → 直接回 `cancelled`                                                                                                                                                   |
+| `$/cancel_request`（通知）  | 撤回一个挂起的 `session/prompt`：等同 `session/cancel`，该请求答 -32800                                                                                                                    |
+| `session/set_mode`          | 模式 id 就是 ama 的权限模式（`plan`、`allowlist`、`default`、`auto-edit`、`auto`、`full-auto`）；按会话记，见下文「多会话」                                                                |
+| `session/set_config_option` | 改会话配置项，答复是全部配置项的新状态                                                                                                                                                     |
 
-一次只有一个活动会话；对非活动会话发 `session/prompt` 时（空闲）先切过去，运行中切换报 invalid request。
+`session/new` / `load` / `resume` 的 `mcpServers`、`additionalDirectories` 不生效：非空时 stderr 记一行后照常打开会话。
+ama 不连接 MCP 服务器（工具由 ama 自己与宿主提供），工作目录固定为启动目录（信任与项目配置按它判定）——这偏离了规范
+「Agent 必须支持 stdio MCP」的要求，是有意为之。
+
+### 多会话
+
+一个 `ama --mode acp` 进程可以同时打开多个会话（Zed 的多个线程共用一个连接）：
+
+- 每个打开的会话常驻内存，没发过消息的空会话切走再切回也找得到（空会话不落盘）。
+- **同一时刻只跑一个回合**：别的会话在跑时，`session/prompt` 进先进先出队列，前一个结束后再开始，不再报 busy。
+  `session/new`、`load`、`resume`、`list`、`set_mode`、`set_config_option`、`close` 随时可调。
+- 回合开始时该会话切为「前台」：宿主（`HostApi.session.*`）、Hook 的公共字段、工具看到的会话都换成它，并清掉
+  「本会话允许」的记忆（切回来要重新允许，与 TUI `/resume` 一致）。
+- 权限模式按会话记：对前台会话 `set_mode` 立即生效；对其它会话只记下（照样发 `current_mode_update`），轮到它跑时
+  再应用到权限管线，并再发一条 `current_mode_update`。所以对排队中的会话改模式不会影响正在跑的那个。
+- 每个回合结束后发 `session_info_update`（`updatedAt`，标题变了才带 `title`）。
+- 关掉一个会话只释放它（跑 SessionEnd Hook）；stdin 关闭时排队的提示回 `cancelled`，等在跑的结束，再依次释放全部会话。
 
 ### 事件映射
 

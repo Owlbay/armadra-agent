@@ -14,6 +14,7 @@ import {
   defaultFakeProvider,
 } from "./fake-provider.js";
 import { describeFakeError, loadFakeScript, parseFakeScript } from "./fake-script.js";
+import { stopReasonOf } from "../apis/shared.js";
 
 const echo = FAKE_MODELS[0] as Model;
 const context: TranscriptContext = {
@@ -35,6 +36,20 @@ async function run(fake: FakeProvider, extra: Partial<StreamOptions> = {}) {
 }
 
 describe("FakeProvider", () => {
+  it("stopReason refusal：与 Anthropic 拒答同形——error 收尾、rawStopReason refusal，stopReasonOf → refusal", async () => {
+    const fake = new FakeProvider({
+      version: 1,
+      responses: [{ text: "partial", stopReason: "refusal" }, { text: "ok" }],
+    });
+    const refused = await run(fake);
+    expect(refused.final).toMatchObject({ stopReason: "error", rawStopReason: "refusal" });
+    expect(refused.final.errorMessage).toContain("refus");
+    expect(stopReasonOf(refused.final)).toBe("refusal");
+    const ok = await run(fake);
+    expect(stopReasonOf(ok.final)).toBe("stop");
+    expect(stopReasonOf({ stopReason: "error", rawStopReason: "content_filter" })).toBe("error");
+  });
+
   it("无脚本：回显最后一条用户消息；记录调用", async () => {
     const fake = new FakeProvider();
     const { final } = await run(fake, { thinkingLevel: "low" });
