@@ -4,7 +4,7 @@
 
 > 从 0.6.0 起 [CHANGELOG.md](CHANGELOG.md) 为英文，本文件保留中文记录（0.1–0.5.1 的完整历史在此）。新条目两份都要加。
 
-## 未发布
+## 0.6.8（2026-10-04）
 
 - **ACP 客户端：elicitation 与会话配置项**：`AcpClient` 可选构造参数 `onElicitation(params, signal)`，给了才在 `initialize`
   声明 `clientCapabilities.elicitation` 并把 `elicitation/create` 交给它（答复收成 `accept` / `decline` / `cancel`；
