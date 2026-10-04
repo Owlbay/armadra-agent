@@ -7,7 +7,8 @@
  *   也不把 key 写进任何日志或返回给展示层（`describeAuthFile` 只给来源与形态）。
  */
 
-import { chmodSync, mkdirSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { retryTransientFs } from "./fs-retry.js";
 import { dirname, join } from "node:path";
 import { loadConfigFile } from "./load.js";
 import { AUTH_FILE } from "./paths.js";
@@ -71,7 +72,13 @@ export function writeAuthFile(path: string, file: AuthFile): void {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   const tmp = `${path}.${process.pid}.${Date.now()}.tmp`;
   writeFileSync(tmp, `${JSON.stringify(file, null, 2)}\n`, { mode: 0o600 });
-  renameSync(tmp, path);
+  try {
+    // Windows：别的 ama 进程正读着 auth.json 时覆盖它会暂时失败
+    retryTransientFs(() => renameSync(tmp, path));
+  } catch (error) {
+    rmSync(tmp, { force: true });
+    throw error;
+  }
   if (process.platform !== "win32") chmodSync(path, 0o600);
 }
 
