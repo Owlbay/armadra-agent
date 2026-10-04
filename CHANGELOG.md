@@ -63,7 +63,8 @@ client, checked in-repo against the official ACP v1 schema 1.24.1. Docs: docs/ac
 - **Zed run-through fixes**: terminal auth `args` are now `--acp-terminal-auth chatgpt|api-key` because clients append them
   to the configured command; config options gain `mode` (Zed ignores `modes` once `configOptions` exist); a session's own
   mode changes are remembered for the queue; `session/load` / `resume` of an unknown UUID (an empty session that was never
-  written before ama restarted) opens a new empty session with that id instead of -32002.
+  written before ama restarted) opens a new empty session with that id instead of -32002; tool call ids that the upstream reuses in a later turn get a `#n`
+  suffix on the wire so they stay unique within the session (Zed merged them into one entry).
 
 ## 0.6.8 (2026-10-04)
 

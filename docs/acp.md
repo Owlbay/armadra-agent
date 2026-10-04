@@ -68,6 +68,8 @@ ama --mode acp                      # 与 -p 互斥；其余参数（--model、-
 
 diff 的改前 / 改后全文只随实时事件走，不写进会话文件：任一侧超过 256 KiB 不带 diff，`session/load` 回放的工具结果只有前 4 KB 文本。模式列表的 `name` 是显示名（如 `Manual`、`Accept edits`），`description` 随界面语言。`session/prompt` 的结果带本回合 token 用量 `usage`（`inputTokens`、`outputTokens`、`cachedReadTokens`、`cachedWriteTokens`、`totalTokens`）；该字段在 schema 1.24.1 里仍是 UNSTABLE（只在不稳定 schema 中），客户端可以忽略，以 `usage_update` 为准。
 
+`toolCallId` 在会话内唯一：上游供应商给的 id 若在后续回合重复（个别兼容接口的兜底 id、测试用假模型），线上 id 加 `#2`、`#3`… 区分，之后的状态更新、审批与回放都按这个映射（客户端按 id 合并条目，不区分会把不同调用合成一条）。
+
 ### 审批
 
 ama 需要询问的调用经 `session/request_permission` 交给客户端，三个选项：`allow_once`（允许）、`allow_always`（本会话允许）、`reject_once`（拒绝）。`toolCall.toolCallId` 关联到先前 `tool_call` 的 id——codemode 内层调用也是，指向那条内层 `tool_call`，不是外层 `codemode`。询问期间该调用的状态回到 `pending`，允许后再 `in_progress`（所以有审批的调用依次是 `pending → in_progress → pending → in_progress → completed`）；拒绝时直接 `failed`。客户端回 `cancelled`、连接断开或回合被中断时，按无人作答处理（拒绝）。ama 这边不再需要答复时（回合被 `session/cancel` / `$/cancel_request` 中断、审批 10 分钟超时），以 `$/cancel_request { requestId }` 撤回挂起的 `session/request_permission`，客户端可以关掉对话框。auto 模式下 ama 自己的分类器照常工作——这只影响 ama 自己的工具；ama 驱动的外部 Agent 发来的请求只交给人（见 [agents.md](agents.md)）。

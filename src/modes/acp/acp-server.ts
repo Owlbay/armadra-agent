@@ -544,7 +544,9 @@ export class AcpServer {
     const context = request.context;
     const own = (context?.depth ?? 0) === 0 && context?.taskId === undefined;
     const toolCallId =
-      (own ? context?.toolCallId : undefined) ??
+      (own && context?.toolCallId !== undefined
+        ? entry.mapper.wireId(context.toolCallId)
+        : undefined) ??
       entry.mapper.toolCallIdFor(request.toolName, request.input) ??
       request.requestId;
     // 映射器记得的标题优先（codemode 内层带前缀，客户端不会被改成无前缀的标题）
