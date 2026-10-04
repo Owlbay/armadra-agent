@@ -60,7 +60,7 @@ import {
   toolTitle,
 } from "./acp-events.js";
 import { msg } from "../../i18n/index.js";
-import { applyConfigOption, availableCommands, buildConfigOptions } from "./acp-config.js";
+import * as acpConfig from "./acp-config.js";
 import { clientCapabilitiesOf, type AcpConnection } from "./acp-connection.js";
 import {
   PromptQueue,
@@ -79,6 +79,21 @@ export const ACP_AGENT_CAPABILITIES = {
 };
 
 export type Params = Record<string, unknown>;
+
+/**
+ * 配置项实现（acp-config.ts，[ACP-D]）：供应商可用状态异步预解析（`prepareConfigOptions`，开会话前调），
+ * `buildConfigOptions` 第 4 个参数是 `models.enabled`。C0 的空实现还没有这两处，按 D 的签名可选调用；
+ * D 合入后 rebase 改为直接 import。
+ */
+const config = acpConfig as typeof acpConfig & {
+  prepareConfigOptions?: (providers: Runtime["providers"]) => Promise<void>;
+  buildConfigOptions: (
+    session: AgentSession,
+    providers: Runtime["providers"],
+    env: NodeJS.ProcessEnv,
+    extras?: { enabled?: readonly string[] | undefined },
+  ) => AcpSessionConfigOption[];
+};
 
 /** 解析符号链接后的绝对路径（macOS 的 /var → /private/var 等）；不存在时退回 resolve。 */
 function canonical(path: string): string {
@@ -164,12 +179,14 @@ export class AcpServer {
   private extras(session: AgentSession) {
     return {
       configOptions: this.configOptions(session),
-      commands: availableCommands(this.runtime.resources),
+      commands: config.availableCommands(this.runtime.resources),
     };
   }
 
   private configOptions(session: AgentSession): AcpSessionConfigOption[] {
-    return buildConfigOptions(session, this.runtime.providers, process.env);
+    return config.buildConfigOptions(session, this.runtime.providers, process.env, {
+      enabled: this.runtime.config.models?.enabled,
+    });
   }
 
   /** 把会话放进池：自己的映射器（`session/update` 带它自己的 id）与订阅。 */
@@ -278,6 +295,7 @@ export class AcpServer {
 
   private async newSession(params: Params): Promise<unknown> {
     this.checkOpen(params);
+    await config.prepareConfigOptions?.(this.runtime.providers);
     let session: AgentSessionImpl;
     if (this.standby !== undefined && this.standby.messages.length === 0) {
       session = this.standby;
@@ -294,6 +312,7 @@ export class AcpServer {
   private async openSession(params: Params, replay: boolean): Promise<unknown> {
     const id = str(params, "sessionId");
     this.checkOpen(params);
+    await config.prepareConfigOptions?.(this.runtime.providers);
     let entry = this.pool.get(id);
     if (entry === undefined) {
       if (this.standby !== undefined && this.standby.state.sessionId === id) {
@@ -476,7 +495,7 @@ export class AcpServer {
   private async setConfigOption(params: Params): Promise<unknown> {
     const entry = this.entryOf(params);
     str(params, "configId");
-    await applyConfigOption(entry.session, params as unknown as AcpSetConfigOptionParams);
+    await config.applyConfigOption(entry.session, params as unknown as AcpSetConfigOptionParams);
     return { configOptions: this.configOptions(entry.session) };
   }
 
@@ -492,10 +511,18 @@ export class AcpServer {
         ? this.pool.get(running.sessionId)
         : [...this.pool.values()].find((e) => e.session === foreground);
     if (entry === undefined || !this.peer.isOpen) return undefined;
+    // 本会话（含 codemode 内层）的调用 id 就是已发 tool_call 的 id；子 Agent（depth > 0）的 id 属于
+    // 子会话、客户端没见过，退回按工具名 + 参数匹配
+    const context = request.context;
+    const own = (context?.depth ?? 0) === 0 && context?.taskId === undefined;
     const toolCallId =
-      request.context?.toolCallId ??
+      (own ? context?.toolCallId : undefined) ??
       entry.mapper.toolCallIdFor(request.toolName, request.input) ??
       request.requestId;
+    // 映射器记得的标题优先（codemode 内层带前缀，客户端不会被改成无前缀的标题）
+    const titleFor = (entry.mapper as { titleFor?: (id: string) => string | undefined }).titleFor;
+    const title =
+      titleFor?.call(entry.mapper, toolCallId) ?? toolTitle(request.toolName, request.input);
     const locations = toolLocations(request.input, this.cwd);
     let answer: AcpRequestPermissionResult;
     try {
@@ -505,7 +532,7 @@ export class AcpServer {
           sessionId: entry.id,
           toolCall: {
             toolCallId,
-            title: toolTitle(request.toolName, request.input),
+            title,
             kind: toolKind(request.toolName),
             status: "pending",
             rawInput: request.input,

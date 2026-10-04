@@ -13,6 +13,7 @@ import { golden, memoryTransport, type WireLine } from "../../drivers/test-suppo
 import { assertAcpWire } from "../../../test/helpers/acp-schema.js";
 import { AgentSessionImpl } from "../../agent/session.js";
 import { msg } from "../../i18n/index.js";
+import type { ApprovalBroker } from "../../permissions/types.js";
 import { AcpEventMapper } from "./acp-events.js";
 import { runAcpMode } from "./acp-mode.js";
 
@@ -47,6 +48,8 @@ interface Harness {
   wire: WireLine[];
   /** 绕过客户端直接写一行（id 用字符串，不与客户端的数字 id 冲突）。 */
   raw(message: Record<string, unknown>): void;
+  /** ACP 模式挂上的 UI broker（直接喂审批请求用）。 */
+  broker(): ApprovalBroker;
   /** 等 ama 对某个 id 的答复。 */
   answer(id: string): Promise<Record<string, unknown>>;
   /** 关闭客户端写端，等 ACP 模式退出；全部线上行过 schema 校验。 */
@@ -63,6 +66,12 @@ async function start(
   h = composeHarness(script);
   const runtime = await h.boot(["--mode", "rpc", "--model", "fake/echo"]);
   let exit!: Promise<number>;
+  let broker: ApprovalBroker | undefined;
+  const setUiBroker = runtime.approvals.setUiBroker.bind(runtime.approvals);
+  runtime.approvals.setUiBroker = (b) => {
+    broker ??= b;
+    setUiBroker(b);
+  };
   const mem = memoryTransport((input, output) => {
     exit = runAcpMode(
       runtime,
@@ -84,6 +93,7 @@ async function start(
     runtime,
     updates,
     wire: mem.wire,
+    broker: () => broker!,
     raw(message) {
       mem.transport.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", ...message })}\n`);
     },
@@ -529,5 +539,33 @@ describe("ama --mode acp 多会话 [ACP-B]", () => {
     } finally {
       dispose.mockRestore();
     }
+  });
+
+  it("审批的 toolCallId：本会话用 context.toolCallId；子 Agent（depth > 0）的退回 requestId", async () => {
+    const seen: string[] = [];
+    const t = await start([{ delayMs: 300, text: "busy" }], async (p) => {
+      seen.push(p.toolCall.toolCallId);
+      return { outcome: { outcome: "selected", optionId: "reject_once" } };
+    });
+    await t.client.initialize();
+    const s1 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
+    const running = t.client.prompt(s1, [{ type: "text", text: "1" }]);
+    await new Promise((r) => setTimeout(r, 30));
+    const signal = new AbortController().signal;
+    const base = { toolName: "bash", input: { command: "ls" }, reason: "mode" as const };
+    await expect(
+      t
+        .broker()
+        .ask({ ...base, requestId: "r1", context: { depth: 0, toolCallId: "c1_n1" } }, signal),
+    ).resolves.toBe("deny");
+    await t
+      .broker()
+      .ask(
+        { ...base, requestId: "r2", context: { depth: 1, taskId: "t1", toolCallId: "sub" } },
+        signal,
+      );
+    expect(seen).toEqual(["c1_n1", "r2"]);
+    await running;
+    await t.finish();
   });
 });
