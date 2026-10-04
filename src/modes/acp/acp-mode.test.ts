@@ -254,6 +254,15 @@ describe("ama --mode acp", () => {
     await expect(t.client.resumeSession("nope", t.runtime.paths.cwd)).rejects.toMatchObject({
       code: -32002,
     });
+    // 空会话不落盘：进程重启后客户端带着它的 UUID 回来（Zed 的 Reload Agent）→ 按原 id 新建空会话
+    const gone = "0b6f2a4c-1d3e-4f5a-8b7c-9d0e1f2a3b4c";
+    t.updates.length = 0;
+    await t.client.loadSession(gone, t.runtime.paths.cwd);
+    expect(t.updates.filter((u) => u.update.sessionUpdate === "user_message_chunk")).toEqual([]);
+    await expect(t.client.prompt(gone, [{ type: "text", text: "again" }])).resolves.toMatchObject({
+      stopReason: "end_turn",
+    });
+    expect(t.updates.some((u) => u.sessionId === gone)).toBe(true);
     await t.finish();
   });
 });

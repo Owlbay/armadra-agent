@@ -25,7 +25,7 @@ ama --mode acp                      # 与 -p 互斥；其余参数（--model、-
 | `authenticate`              | -32602：ama 只给 terminal 型认证方法，按规范不经 `authenticate`（有无模型都一样）                                                                                                                                |
 | `session/new`               | 新开会话（启动时那个空会话第一次直接认领），运行中也可调；`cwd` 必须是 ama 的启动目录（按 realpath 比较），否则 invalid params                                                                                   |
 | `session/load`              | 打开该会话并以 `session/update` 回放历史（用户消息、回复、思考、工具调用）；已打开的直接从内存回放                                                                                                               |
-| `session/resume`            | 打开该会话，不回放                                                                                                                                                                                               |
+| `session/resume`            | 打开该会话，不回放。load / resume 的 id 找不到会话文件时：是 UUID 就按原 id 新建一个空会话（空会话不落盘，ama 重启后 Zed 的 Reload Agent 等会带着它回来），否则 -32002                                           |
 | `session/list`              | 启动目录下的会话：`cwd` 给了别的目录回空列表；每页 50 条（`updatedAt` 降序），`nextCursor` 翻页，非法 `cursor` → invalid params；标题取会话名或首条提示（去掉嵌入资源块后的首行，≤ 80 字）                       |
 | `session/close`             | 中断该会话的运行（排队的提示回 `cancelled`），释放并移出本连接；之后对这个 id 发请求回 -32002，要再用先 `session/load` / `session/resume`                                                                        |
 | `session/prompt`            | 文本与图片照收；`resource_link` 以 `@uri` 文本给出，嵌入资源取文本。别的会话在跑时排队；未打开的 id 回 -32002。回合结束：中断 → `cancelled`，输出截断 → `max_tokens`，拒答 → `refusal`，出错 → JSON-RPC 错误     |

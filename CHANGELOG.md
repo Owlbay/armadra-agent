@@ -60,6 +60,10 @@ client, checked in-repo against the official ACP v1 schema 1.24.1. Docs: docs/ac
   `@armadra/agent/acp`); the prompt `usage` is marked UNSTABLE; select config options are either all flat or all grouped
   (the fake agent's `model` option is now grouped). The fake ACP agent adds `--config-only`, `--auth-required` and
   `[cancel-request]`. Every ACP line in the tests and golden recordings is validated against the bundled schema.
+- **Zed run-through fixes**: terminal auth `args` are now `--acp-terminal-auth chatgpt|api-key` because clients append them
+  to the configured command; config options gain `mode` (Zed ignores `modes` once `configOptions` exist); a session's own
+  mode changes are remembered for the queue; `session/load` / `resume` of an unknown UUID (an empty session that was never
+  written before ama restarted) opens a new empty session with that id instead of -32002.
 
 ## 0.6.8 (2026-10-04)
 

@@ -43,6 +43,9 @@ schema 1.24.1 逐条校验。文档：docs/acp.md（英文：docs/en/acp.md）�
   tool call 的 `name` / `_meta`、`config_option_update` 与 `ACP_META_KEY`（`@armadra/agent/acp` 导出）；回合 `usage` 注明 UNSTABLE；
   select 配置项的选项须全部平铺或全部分组（假 Agent 的 `model` 项改为分组）。假 ACP Agent 加 `--config-only`、`--auth-required` 与
   `[cancel-request]`。测试与黄金记录里的每条 ACP 线路都按随仓库的 schema 校验。
+- **Zed 实测修正**：terminal 认证的 `args` 改为 `--acp-terminal-auth chatgpt|api-key`（客户端是追加到启动命令后面）；配置项补 `mode`（有
+  `configOptions` 时 Zed 不看 `modes`）；会话自己换的模式记进排队重放；`session/load` / `resume` 找不到的 UUID（重启前从未落盘的空会话）按原 id
+  新建空会话，不再 -32002。
 
 ## 0.6.8（2026-10-04）
 

@@ -87,6 +87,9 @@ export const ACP_AGENT_CAPABILITIES = {
 
 export type Params = Record<string, unknown>;
 
+/** ama 生成的会话 id（`randomUUID()`）。 */
+const SESSION_ID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** 解析符号链接后的绝对路径（macOS 的 /var → /private/var 等）；不存在时退回 resolve。 */
 function canonical(path: string): string {
   try {
@@ -322,7 +325,13 @@ export class AcpServer {
       } else {
         let session: AgentSessionImpl;
         try {
-          session = await createSessionAlongside(this.runtime, { kind: "resume", id });
+          // 本服务端发出的 id 都是 UUID；只有这种形状才在文件不存在时按原 id 新建（空会话不落盘，
+          // 进程重启后客户端——如 Zed 的 Reload Agent——会带着它回来），其它一律 -32002
+          session = await createSessionAlongside(
+            this.runtime,
+            { kind: "resume", id },
+            { createIfMissing: SESSION_ID_SHAPE.test(id) },
+          );
         } catch (error) {
           throw new RpcError(
             RPC_ERRORS.resourceNotFound,
