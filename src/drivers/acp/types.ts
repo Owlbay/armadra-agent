@@ -234,7 +234,8 @@ export interface AcpSessionConfigOption {
   category?: AcpConfigCategory | null;
   type: "select" | (string & {});
   currentValue: string;
-  options: (AcpConfigSelectOption | AcpConfigSelectGroup)[];
+  /** 全部平铺或全部分组，规范不允许混排。 */
+  options: AcpConfigSelectOption[] | AcpConfigSelectGroup[];
 }
 
 export interface AcpSetConfigOptionParams {

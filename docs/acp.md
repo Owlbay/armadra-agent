@@ -79,7 +79,15 @@ stdin 关闭后等已开始的运行结束再退出（0）；SIGINT / SIGTERM �
 
 ## 测试替身
 
-`runFakeAcpAgent(input, output)` 是进程内的假 ACP Agent，`fakeAcpAgentPath()` 是它的可执行入口（`node <path> [--minimal]`）。行为由提示里的标记决定：`[permission]`（请求权限，四个选项）、`[slow]`（等到 cancel）、`[plan]`、`[think]`、`[refuse]`，其余回 `echo: <文本>`。`--minimal` 不声明 resume / load / list / close，也不给模式，用来测降级路径。另有 `[elicit]`（发 `elicitation/create`，客户端没声明能力时回 `elicit: unsupported`）、`[model]`、`[env NAME]`（只回值的 sha256）三个标记；`--config-options`（进程内 `{ configOptions: true }`）让开会话答一个 `model` 配置项并接 `session/set_config_option`。
+`runFakeAcpAgent(input, output)` 是进程内的假 ACP Agent，`fakeAcpAgentPath()` 是它的可执行入口（`node <path> [--minimal]`）。行为由提示里的标记决定：`[permission]`（请求权限，四个选项）、`[slow]`（等到 cancel）、`[plan]`、`[think]`、`[refuse]`，其余回 `echo: <文本>`。`--minimal` 不声明 resume / load / list / close，也不给模式，用来测降级路径。另有 `[elicit]`（发 `elicitation/create`，客户端没声明能力时回 `elicit: unsupported`）、`[model]`、`[env NAME]`（只回值的 sha256）三个标记；`--config-options`（进程内 `{ configOptions: true }`）让开会话答一个 `model` 配置项（选项按组给出）并接 `session/set_config_option`。
+
+| 标记 / 参数                                          | 行为                                                                                                                                                   |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--config-only`（`{ configOnly: true }`）            | 开会话不给 `modes`，改在 `configOptions` 里给 category `mode` 的选择项（id `mode`），经 `session/set_config_option` 切换；可与 `--config-options` 同开 |
+| `--auth-required`（`{ authRequired: true }`）        | `initialize` 给一条 terminal 型认证方法（id `login`），`session/new` / `load` / `resume` 一律回 -32000                                                 |
+| `[cancel-request]`（`{ cancelRequestMs }` 缺省 2 s） | 发权限请求，挂起到期后 Agent 自己发 `$/cancel_request` 撤回，工具调用 failed，回 `permission withdrawn` 与 `end_turn`                                  |
+
+假 Agent 的线路两侧都开着 `$/cancel_request`。仓库内的 `test/helpers/acp-schema.ts` 用官方 v1 schema（1.24.1，`test/fixtures/acp/schema-v1.24.1.json`）逐条校验线路：`assertAcpWire(wire)`。
 
 黄金记录在 `test/fixtures/acp/`：`driver-{allow,reject,cancel}.jsonl`（ama 驱动假 Agent 的三条路径）与 `mode-prompt.jsonl`（`ama --mode acp` 一轮往返）。`UPDATE_GOLDEN=1` 重写。
 

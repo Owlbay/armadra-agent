@@ -1,7 +1,8 @@
 import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
 import { ACP_METHODS } from "./acp/types.js";
-import { runFakeAcpAgent } from "./acp/testing/fake-agent.js";
+import { runFakeAcpAgent, type FakeAcpAgentOptions } from "./acp/testing/fake-agent.js";
+import { assertAcpWire, type AcpWireLine } from "../../test/helpers/acp-schema.js";
 import { JsonRpcPeer, RpcError } from "./jsonrpc.js";
 
 function pair(options: { aField?: boolean } = {}) {
@@ -221,5 +222,141 @@ describe("假 ACP Agent", () => {
     });
     toAgent.end();
     await done;
+  });
+});
+
+describe("[ACP-C0] 假 ACP Agent 的新标记", () => {
+  /** 起一个假 Agent，记录双向线路（in = 客户端写给 Agent）。 */
+  function fake(options: FakeAcpAgentOptions, onPermission?: (signal: AbortSignal) => unknown) {
+    const toAgent = new PassThrough();
+    const fromAgent = new PassThrough();
+    const wire: AcpWireLine[] = [];
+    const tap = (stream: PassThrough, dir: "in" | "out") =>
+      stream.on("data", (c: Buffer) => {
+        for (const line of c.toString("utf8").split("\n").filter(Boolean))
+          wire.push({ dir, msg: JSON.parse(line) as Record<string, unknown> });
+      });
+    tap(toAgent, "in");
+    tap(fromAgent, "out");
+    const done = runFakeAcpAgent(toAgent, fromAgent, options);
+    const updates: Record<string, unknown>[] = [];
+    const client = new JsonRpcPeer({
+      input: fromAgent,
+      output: toAgent,
+      cancelRequests: true,
+      onNotification: (_m, p) => updates.push((p as { update: Record<string, unknown> }).update),
+      onRequest: async (_method, _params, ctx) => onPermission?.(ctx.signal),
+    });
+    const close = async () => {
+      toAgent.end();
+      await done;
+      assertAcpWire(wire);
+    };
+    return { client, wire, updates, close };
+  }
+
+  it("--config-only：不给 modes，模式在 configOptions（category mode）里、经 set_config_option 切换；可与 --config-options 同开", async () => {
+    const t = fake({ configOnly: true });
+    await t.client.request(ACP_METHODS.initialize, { protocolVersion: 1, clientCapabilities: {} });
+    const created = await t.client.request<Record<string, unknown>>(ACP_METHODS.sessionNew, {
+      cwd: "/w",
+      mcpServers: [],
+    });
+    expect(created["modes"]).toBeUndefined();
+    expect(created["configOptions"]).toEqual([
+      {
+        id: "mode",
+        name: "Mode",
+        category: "mode",
+        type: "select",
+        currentValue: "default",
+        options: [
+          { value: "default", name: "Default" },
+          { value: "plan", name: "Plan" },
+        ],
+      },
+    ]);
+    const set = await t.client.request<{ configOptions: { currentValue: string }[] }>(
+      ACP_METHODS.sessionSetConfigOption,
+      { sessionId: "fake-1", configId: "mode", value: "plan" },
+    );
+    expect(set.configOptions[0]?.currentValue).toBe("plan");
+    for (const [configId, value] of [
+      ["mode", "yolo"],
+      ["model", "small"],
+    ])
+      await expect(
+        t.client.request(ACP_METHODS.sessionSetConfigOption, {
+          sessionId: "fake-1",
+          configId,
+          value,
+        }),
+      ).rejects.toMatchObject({ code: -32602 });
+    await t.close();
+
+    const both = fake({ configOnly: true, configOptions: true });
+    await both.client.request(ACP_METHODS.initialize, {
+      protocolVersion: 1,
+      clientCapabilities: {},
+    });
+    const opened = await both.client.request<{ configOptions: { id: string }[] }>(
+      ACP_METHODS.sessionNew,
+      { cwd: "/w", mcpServers: [] },
+    );
+    expect(opened.configOptions.map((o) => o.id)).toEqual(["mode", "model"]);
+    await both.close();
+  });
+
+  it("--auth-required：initialize 给 terminal 型认证方法，开会话回 -32000", async () => {
+    const t = fake({ authRequired: true });
+    const init = await t.client.request<{ authMethods: unknown[] }>(ACP_METHODS.initialize, {
+      protocolVersion: 1,
+      clientCapabilities: { auth: { terminal: true } },
+    });
+    expect(init.authMethods).toEqual([
+      expect.objectContaining({ type: "terminal", id: "login", args: ["--login"] }),
+    ]);
+    await expect(
+      t.client.request(ACP_METHODS.sessionNew, { cwd: "/w", mcpServers: [] }),
+    ).rejects.toMatchObject({ code: -32000 });
+    await expect(
+      t.client.request(ACP_METHODS.sessionResume, {
+        sessionId: "fake-1",
+        cwd: "/w",
+        mcpServers: [],
+      }),
+    ).rejects.toMatchObject({ code: -32000 });
+    await t.close();
+  });
+
+  it("[cancel-request]：权限请求挂起后 Agent 发 $/cancel_request 撤回，客户端的 signal abort；回合 end_turn", async () => {
+    let aborted = false;
+    const t = fake({ cancelRequestMs: 50 }, async (signal) => {
+      await new Promise((resolve) => signal.addEventListener("abort", resolve, { once: true }));
+      aborted = true;
+      return { outcome: { outcome: "cancelled" } };
+    });
+    await t.client.request(ACP_METHODS.initialize, { protocolVersion: 1, clientCapabilities: {} });
+    await t.client.request(ACP_METHODS.sessionNew, { cwd: "/w", mcpServers: [] });
+    const result = await t.client.request(ACP_METHODS.sessionPrompt, {
+      sessionId: "fake-1",
+      prompt: [{ type: "text", text: "[cancel-request]" }],
+    });
+    expect(result).toMatchObject({ stopReason: "end_turn" });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(aborted).toBe(true);
+    const permission = t.wire.find((w) => w.msg["method"] === ACP_METHODS.requestPermission);
+    expect(t.wire.map((w) => w.msg)).toContainEqual({
+      jsonrpc: "2.0",
+      method: "$/cancel_request",
+      params: { requestId: permission?.msg["id"] },
+    });
+    expect(t.updates.map((u) => u["sessionUpdate"])).toEqual([
+      "tool_call",
+      "tool_call_update",
+      "agent_message_chunk",
+    ]);
+    expect(t.updates[2]).toMatchObject({ content: { text: "permission withdrawn" } });
+    await t.close();
   });
 });
