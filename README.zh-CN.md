@@ -229,7 +229,7 @@ Armadra 用 `ama --profile <路径>` 加 `coordinator` 预设启动 ama：协调
 **集成文档**
 
 - [RPC 协议](docs/rpc.md)（[English](docs/en/rpc.md)）、[宿主适配器 API](docs/host-api.md)（[English](docs/en/host-api.md)）
-- [ACP](docs/acp.md)、[会话文件格式](docs/session-format.md)
+- [ACP](docs/acp.md)（[English](docs/en/acp.md)）、[会话文件格式](docs/session-format.md)
 
 **设计与研究**
 
