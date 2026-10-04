@@ -1,127 +1,91 @@
 /**
- * `ama --mode acp`：ama 的会话事件 → ACP `session/update`（docs/wave5-plan.md §5.6）。[W5-E]
+ * `ama --mode acp`：ama 的会话事件 → ACP `session/update`（docs/wave5-plan.md §5.6、docs/acp-plan.md §2.3）。
  *
- * | ama                                  | ACP                                                        |
- * | ------------------------------------ | ---------------------------------------------------------- |
- * | message_update text_delta            | agent_message_chunk                                        |
- * | message_update thinking_delta        | agent_thought_chunk                                        |
- * | message_update toolcall_end          | tool_call（pending，带 rawInput 与 locations）             |
- * | tool_execution_start / end           | tool_call_update（in_progress → completed / failed）       |
- * | todo_updated                         | plan                                                       |
- * | turn_end                             | usage_update（上下文用量、窗口、会话累计美元）             |
- * | permission_mode_changed              | current_mode_update                                        |
+ * | ama                                       | ACP                                                              |
+ * | ----------------------------------------- | ---------------------------------------------------------------- |
+ * | message_update text_delta                 | agent_message_chunk                                              |
+ * | message_update thinking_delta             | agent_thought_chunk                                              |
+ * | message_update toolcall_end               | tool_call（pending，带 name、rawInput 与 locations）             |
+ * | tool_execution_start（带 parent）         | tool_call（pending，title 带 codemode 前缀，`_meta.ama.parentToolCallId`） |
+ * | tool_execution_start                      | tool_call_update（in_progress）                                  |
+ * | permission_request（toolCallId 已公布）   | tool_call_update（pending）                                      |
+ * | permission_resolved（allow / allow_session）| tool_call_update（in_progress）                                |
+ * | tool_execution_end                        | tool_call_update（completed / failed，`[diff?, text]`，locations[].line） |
+ * | todo_updated                              | plan                                                             |
+ * | turn_end                                  | usage_update（上下文用量、窗口、会话累计美元）                   |
+ * | permission_mode_changed                   | current_mode_update                                              |
+ * | model_changed / thinking_level_changed    | config_option_update                                             |
  *
- * 工具结果只回前 4 KB 文本（完整结果在 ama 会话里），codemode 内层调用（带 parentToolCallId）
- * 不单列。`session/load` 回放同一套映射（用户消息 → user_message_chunk）。
+ * 工具结果只回前 4 KB 文本（完整结果在 ama 会话里）；diff 只在实时事件里有（`fileChange` 不落盘）。
+ * `session/load` 回放同一套映射（用户消息 → user_message_chunk，工具结果带文本、无 diff）。
  */
 
-import { isAbsolute, resolve } from "node:path";
 import type { ContentBlock } from "../../ai/types.js";
 import type { AgentMessage } from "../../session/types.js";
 import type { AgentSession, SessionEvent } from "../../agent/types.js";
-import type {
-  AcpAvailableCommand,
-  AcpContentBlock,
-  AcpPlanEntry,
-  AcpSessionConfigOption,
-  AcpSessionUpdate,
-  AcpToolCallLocation,
-  AcpToolKind,
+import {
+  ACP_META_KEY,
+  type AcpAmaMeta,
+  type AcpAvailableCommand,
+  type AcpContentBlock,
+  type AcpPlanEntry,
+  type AcpSessionConfigOption,
+  type AcpSessionUpdate,
 } from "../../drivers/acp/types.js";
 import { PERMISSION_MODES_STRICT_FIRST } from "../../permissions/types.js";
-import { oneLine } from "../../drivers/turn.js";
-import type { ToolResult } from "../../tools/types.js";
-import { msg } from "../../i18n/index.js";
+import { PERMISSION_MODE_INFO, permissionModeLabel } from "../../permissions/modes.js";
+import { resultContent, resultText, toolKind, toolLocations, toolTitle } from "./acp-tool-text.js";
 
-export const TOOL_OUTPUT_LIMIT = 4 * 1024;
-
-const KINDS: Record<string, AcpToolKind> = {
-  read: "read",
-  write: "edit",
-  edit: "edit",
-  bash: "execute",
-  grep: "search",
-  glob: "search",
-  ls: "search",
-  find: "search",
-  web_fetch: "fetch",
-  web_search: "fetch",
-  todo: "think",
-};
-
-export function toolKind(name: string): AcpToolKind {
-  return KINDS[name] ?? "other";
-}
-
-function argOf(args: unknown, ...keys: string[]): string | undefined {
-  if (args === null || typeof args !== "object") return undefined;
-  for (const key of keys) {
-    const value = (args as Record<string, unknown>)[key];
-    if (typeof value === "string" && value !== "") return value;
-  }
-  return undefined;
-}
-
-export function toolTitle(name: string, args: unknown): string {
-  const detail =
-    argOf(args, "command") ??
-    argOf(args, "path", "file_path", "filePath") ??
-    argOf(args, "pattern", "query", "url", "prompt");
-  return detail === undefined ? name : `${name}: ${oneLine(detail, 100)}`;
-}
-
-export function toolLocations(args: unknown, cwd: string): AcpToolCallLocation[] | undefined {
-  const path = argOf(args, "path", "file_path", "filePath");
-  if (path === undefined) return undefined;
-  return [{ path: isAbsolute(path) ? path : resolve(cwd, path) }];
-}
-
-function resultText(result: ToolResult): string {
-  const text =
-    typeof result.content === "string"
-      ? result.content
-      : result.content.map((b) => (b.type === "text" ? b.text : `[${b.type}]`)).join("");
-  return text.length > TOOL_OUTPUT_LIMIT
-    ? `${text.slice(0, TOOL_OUTPUT_LIMIT)}\n${msg().acp.core.truncated(text.length)}`
-    : text;
-}
+export { TOOL_OUTPUT_LIMIT, toolKind, toolLocations, toolTitle } from "./acp-tool-text.js";
 
 export function permissionModes(currentModeId: string) {
   return {
     currentModeId,
-    availableModes: PERMISSION_MODES_STRICT_FIRST.map((id) => ({ id, name: id })),
+    availableModes: PERMISSION_MODES_STRICT_FIRST.map((id) => ({
+      id,
+      name: permissionModeLabel(id),
+      description: PERMISSION_MODE_INFO[id].description,
+    })),
   };
 }
 
-/** 一个会话的事件映射器（记住模型发出的工具调用，供权限请求关联 toolCallId）。 */
+/** 一个会话的事件映射器（记住已公布的工具调用，供权限请求关联 toolCallId 与状态）。 */
 export class AcpEventMapper {
-  /** 模型已发出、尚未执行完的工具调用。 */
+  /** 模型已发出、尚未执行完的工具调用（按工具名 + 参数匹配的后备）。 */
   private readonly pendingCalls: { id: string; name: string; args: string }[] = [];
+  /** 已经以 `tool_call` 公布、尚未结束的调用：id → title（含 codemode 内层）。 */
+  private readonly published = new Map<string, string>();
+  /** 挂起的权限请求：requestId → 已公布的 toolCallId。 */
+  private readonly permissionCalls = new Map<string, string>();
+  /** 上次 `session_info_update` 带出的标题。 */
+  private lastTitle: string | null = null;
 
   constructor(
     private readonly cwd: string,
     private readonly emit: (update: AcpSessionUpdate) => void,
     private readonly session: () => AgentSession,
-    /** 会话的配置项与命令表（{@link announce} 用；[ACP-D] 填实际内容）。 */
+    /** 会话的配置项与命令表（{@link announce} 与配置变化时取；[ACP-D] 填实际内容）。 */
     protected readonly extras: () => {
       configOptions: AcpSessionConfigOption[];
       commands: AcpAvailableCommand[];
     } = () => ({ configOptions: [], commands: [] }),
   ) {}
 
-  /**
-   * 会话 new / load / resume 的响应发出后由服务端调：`available_commands_update` 与
-   * `config_option_update`。[ACP-C0 空实现，ACP-C / D 填]
-   */
-  announce(): void {}
+  /** 会话 new / load / resume 的响应发出后由服务端调：`available_commands_update` 与 `config_option_update`。 */
+  announce(): void {
+    const { configOptions, commands } = this.extras();
+    this.emit({ sessionUpdate: "available_commands_update", availableCommands: commands });
+    this.emit({ sessionUpdate: "config_option_update", configOptions });
+  }
 
-  /**
-   * 回合结束后由服务端调：`session_info_update`（标题变化时带 title）。
-   * [ACP-C0 空实现，ACP-C 填]
-   */
-  emitSessionInfo(_title: string | null, _updatedAt: string): void {}
+  /** 回合结束后由服务端调：`session_info_update`（标题与上次不同才带 title）。 */
+  emitSessionInfo(title: string | null, updatedAt: string): void {
+    const changed = title !== this.lastTitle;
+    this.lastTitle = title;
+    this.emit({ sessionUpdate: "session_info_update", ...(changed ? { title } : {}), updatedAt });
+  }
 
-  /** 权限请求对应的工具调用 id（按工具名与参数匹配最近一个）。 */
+  /** 权限请求对应的工具调用 id（按工具名与参数匹配最近一个；有 `context.toolCallId` 时不需要）。 */
   toolCallIdFor(toolName: string, input: unknown): string | undefined {
     const args = JSON.stringify(input ?? null);
     for (let i = this.pendingCalls.length - 1; i >= 0; i--) {
@@ -129,6 +93,11 @@ export class AcpEventMapper {
       if (call.name === toolName && call.args === args) return call.id;
     }
     return undefined;
+  }
+
+  /** 已公布且未结束的工具调用的标题（codemode 内层带前缀）；未公布返回 undefined。 */
+  titleFor(toolCallId: string): string | undefined {
+    return this.published.get(toolCallId);
   }
 
   onEvent(event: SessionEvent): void {
@@ -152,28 +121,52 @@ export class AcpEventMapper {
             name: call.name,
             args: JSON.stringify(call.arguments),
           });
-          this.emitToolCall(call.id, call.name, call.arguments, "pending");
+          this.published.set(call.id, this.emitToolCall(call.id, call.name, call.arguments));
         }
         return;
       }
       case "tool_execution_start":
-        if (event.parentToolCallId !== undefined) return;
-        this.emit({
-          sessionUpdate: "tool_call_update",
-          toolCallId: event.toolCallId,
-          status: "in_progress",
-        });
+        if (event.parentToolCallId !== undefined) {
+          const title = this.emitToolCall(
+            event.toolCallId,
+            event.toolName,
+            event.args,
+            event.parentToolCallId,
+          );
+          this.published.set(event.toolCallId, title);
+        }
+        this.status(event.toolCallId, "in_progress");
         return;
       case "tool_execution_end": {
-        if (event.parentToolCallId !== undefined) return;
         const at = this.pendingCalls.findIndex((c) => c.id === event.toolCallId);
         if (at >= 0) this.pendingCalls.splice(at, 1);
+        this.published.delete(event.toolCallId);
+        const { content, locations } = resultContent(event.result);
         this.emit({
           sessionUpdate: "tool_call_update",
           toolCallId: event.toolCallId,
           status: event.isError ? "failed" : "completed",
-          content: [{ type: "content", content: { type: "text", text: resultText(event.result) } }],
+          content,
+          ...(locations !== undefined ? { locations } : {}),
         });
+        return;
+      }
+      case "permission_request": {
+        // 只认本会话已公布的调用：子 Agent / 外部 Agent 的请求（depth、origin）的 id 不在本会话的列表里
+        const context = event.context;
+        const id = context?.toolCallId;
+        if (id === undefined || (context?.depth ?? 0) > 0 || context?.origin !== undefined) return;
+        if (!this.published.has(id)) return;
+        this.permissionCalls.set(event.requestId, id);
+        this.status(id, "pending");
+        return;
+      }
+      case "permission_resolved": {
+        const id = this.permissionCalls.get(event.requestId);
+        if (id === undefined) return;
+        this.permissionCalls.delete(event.requestId);
+        // 拒绝时由随后的 tool_execution_end（failed）收口
+        if (event.decision !== "deny" && this.published.has(id)) this.status(id, "in_progress");
         return;
       }
       case "todo_updated":
@@ -192,6 +185,13 @@ export class AcpEventMapper {
       case "permission_mode_changed":
         this.emit({ sessionUpdate: "current_mode_update", currentModeId: event.mode });
         return;
+      case "model_changed":
+      case "thinking_level_changed":
+        this.emit({
+          sessionUpdate: "config_option_update",
+          configOptions: this.extras().configOptions,
+        });
+        return;
       default:
         return;
     }
@@ -208,7 +208,7 @@ export class AcpEventMapper {
     });
   }
 
-  /** `session/load`：按消息回放历史。 */
+  /** `session/load`：按消息回放历史（工具结果带前 4 KB 文本；diff 不落盘，回放没有）。 */
   replay(messages: readonly AgentMessage[]): void {
     for (const message of messages) {
       if (!("role" in message)) continue;
@@ -228,29 +228,43 @@ export class AcpEventMapper {
               content: { type: "text", text: block.thinking },
             });
           else if (block.type === "toolCall")
-            this.emitToolCall(block.id, block.name, block.arguments, "pending");
+            this.emitToolCall(block.id, block.name, block.arguments);
         }
       } else if (message.role === "toolResult") {
         this.emit({
           sessionUpdate: "tool_call_update",
           toolCallId: message.toolCallId,
           status: message.isError ? "failed" : "completed",
+          content: [
+            { type: "content", content: { type: "text", text: resultText(message.content) } },
+          ],
         });
       }
     }
   }
 
-  private emitToolCall(id: string, name: string, args: unknown, status: "pending"): void {
+  private status(toolCallId: string, status: "pending" | "in_progress"): void {
+    this.emit({ sessionUpdate: "tool_call_update", toolCallId, status });
+  }
+
+  /** 公布一次工具调用（pending）；`parentToolCallId` 给了即 codemode 内层调用。返回 title。 */
+  private emitToolCall(id: string, name: string, args: unknown, parentToolCallId?: string): string {
     const locations = toolLocations(args, this.cwd);
+    const title = toolTitle(name, args, parentToolCallId !== undefined);
+    const meta: AcpAmaMeta | undefined =
+      parentToolCallId !== undefined ? { parentToolCallId } : undefined;
     this.emit({
       sessionUpdate: "tool_call",
       toolCallId: id,
-      title: toolTitle(name, args),
+      name,
+      title,
       kind: toolKind(name),
-      status,
+      status: "pending",
       rawInput: args,
       ...(locations !== undefined ? { locations } : {}),
+      ...(meta !== undefined ? { _meta: { [ACP_META_KEY]: meta } } : {}),
     });
+    return title;
   }
 }
 

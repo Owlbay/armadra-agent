@@ -26,7 +26,6 @@ export const en = {
     allowOnce: "Allow",
     allowAlways: "Allow for this session",
     rejectOnce: "Deny",
-    truncated: (length: number) => `…(truncated, ${plural(length, "character")} in total)`,
     unknownConfigOption: (id: string) => `unknown config option: ${id}`,
   },
   /** [ACP-A] 认证门与终端认证方法。 */
@@ -44,7 +43,11 @@ export const en = {
   /** [ACP-B] 多会话与会话元数据。 */
   session: {},
   /** [ACP-C] 工具调用映射。 */
-  tools: {},
+  tools: {
+    /** codemode 脚本里的内层调用的标题。 */
+    codemodePrefix: (title: string) => `codemode › ${title}`,
+    truncated: (length: number) => `…(truncated, ${plural(length, "character")} in total)`,
+  },
   /** [ACP-D] 配置项与命令表。 */
   config: {
     model: "Model",
@@ -84,7 +87,6 @@ export const zh = {
     allowOnce: "允许",
     allowAlways: "本会话允许",
     rejectOnce: "拒绝",
-    truncated: (length) => `…（已截断，共 ${length} 字符）`,
     unknownConfigOption: (id) => `未知配置项：${id}`,
   },
   auth: {
@@ -98,7 +100,10 @@ export const zh = {
     ready: (model) => `模型已可用（${model}），开始处理 ACP 会话`,
   },
   session: {},
-  tools: {},
+  tools: {
+    codemodePrefix: (title) => `codemode › ${title}`,
+    truncated: (length) => `…（已截断，共 ${length} 字符）`,
+  },
   config: {
     model: "模型",
     thinking: "思考级别",
