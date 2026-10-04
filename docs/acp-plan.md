@@ -2,6 +2,7 @@
 
 > 状态：**已实施**（#110–#114、[ACP-Z] 收尾 PR，2026-10-04）。原为实施设计，基线 `main` = `e4a9fa8`（0.6.6）；现状以 [acp.md](acp.md) 为准。
 > 与设计的主要偏差：① 拒答不改消息的 `stopReason`（仍以 error 收尾，TUI / print / 重试口径不变），以 `rawStopReason: "refusal"` 经 `stopReasonOf()` 判定（D12）；② `session_info_update` 在 `session/prompt` 答复**之前**发（§2.1 写的是之后）；③ 配置项的供应商可用状态由异步的 `prepareConfigOptions()` 在开会话前预解析，`buildConfigOptions()` 保持同步；④ 新会话的权限模式取进程启动时的模式，不继承当前前台会话的；⑤ 从未打开（或已 close）的 id 直接 `session/prompt` 回 -32002，不隐式打开；⑥ 客户端侧的 `$/cancel_request` 由 [ACP-D] 打开（`AcpClient` 与假 Agent），不在 C0；⑦ 有模型时 `authenticate` 也回 -32602（与认证门一致，[ACP-Z] 修正）。R8（本机 Zed 真跑）未做，见收尾 PR 描述。
+> Zed 1.21 实测（2026-10-04）后的两处修正：⑧ D4 的 terminal 认证 `args` 按规范是**追加**到启动命令后面，改为 `--acp-terminal-auth <id>`（原写法在 Zed 里又进了 ACP 模式）；⑨ D8 否决的 `mode` 配置项补上——Zed 有 `configOptions` 就不再看 `modes`，不给就无法切权限模式。
 > 依据：[research/acp-gap-2026-10.md](research/acp-gap-2026-10.md)（差距审计）、`/tmp/acp-v1-schema.json` / `acp-v1-meta.json`（1.24.1 稳定）、`/tmp/acp-validate/probe*.mjs`（实测脚本）、`docs/acp.md`、`docs/wave5-plan.md` §5、`docs/wave6-plan.md`（批次写法）。
 > 硬约束不变：TypeScript、Node ≥ 22、**零运行时依赖**（devDependencies 不新增）、单文件 ≤ 600 行、单 bundle、i18n 严格模式（en 为形状源、zh `satisfies`、给模型的文本固定英文）、缓存前缀逐字节稳定、`src/cli/prompt-budget.test.ts` 三档不突破、**权限请求不代答**。`--mode rpc`、TUI、print、宿主（HostApi）行为不变；ACP 线上形状继续通过 schema 校验。
 > 路径相对仓库根；`[ACP-x]` 为本计划批次编号（§3）。

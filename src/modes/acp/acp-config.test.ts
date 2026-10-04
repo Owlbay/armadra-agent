@@ -40,15 +40,24 @@ function groups(option: AcpSessionConfigOption | undefined): string[] {
 const byId = (options: AcpSessionConfigOption[], id: string) => options.find((o) => o.id === id);
 
 describe("buildConfigOptions", () => {
-  it("model 按供应商分组、值 provider/model-id；thinking 只列当前模型支持的级别；没有 mode 类别", async () => {
+  it("mode 在前（权限模式，按会话给的 mode）；model 按供应商分组、值 provider/model-id；thinking 只列当前模型支持的级别", async () => {
     const runtime = await boot();
     await prepareConfigOptions(runtime.providers);
     const options = buildConfigOptions(runtime.session, runtime.providers, SHOW_FAKE);
     expect(options.map((o) => [o.id, o.category, o.type])).toEqual([
+      ["mode", "mode", "select"],
       ["model", "model", "select"],
       ["thinking", "thought_level", "select"],
     ]);
-    expect(options.some((o) => o.category === "mode")).toBe(false);
+    const mode = byId(options, "mode")!;
+    expect(mode.currentValue).toBe(runtime.session.state.permissionMode);
+    expect(values(mode)).toEqual(
+      expect.arrayContaining(["plan", "default", "auto-edit", "full-auto"]),
+    );
+    const planned = buildConfigOptions(runtime.session, runtime.providers, SHOW_FAKE, {
+      mode: "plan",
+    });
+    expect(byId(planned, "mode")!.currentValue).toBe("plan");
     const model = byId(options, "model")!;
     expect(model.currentValue).toBe("fake/echo");
     expect(values(model)).toEqual(expect.arrayContaining(["fake/echo", "fake/reasoning"]));

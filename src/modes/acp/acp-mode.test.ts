@@ -604,7 +604,7 @@ describe("ama --mode acp 多会话 [ACP-B]", () => {
     await t.client.initialize();
     const created = await t.client.newSession(t.runtime.paths.cwd);
     const sessionId = created.sessionId;
-    expect(created.configOptions?.map((o) => o.id)).toEqual(["model", "thinking"]);
+    expect(created.configOptions?.map((o) => o.id)).toEqual(["mode", "model", "thinking"]);
     await new Promise((r) => setTimeout(r, 10));
     t.updates.length = 0;
     const model = await t.client.setConfigOption(sessionId, "model", "fake/reasoning");
@@ -645,6 +645,47 @@ describe("ama --mode acp 多会话 [ACP-B]", () => {
       expect(request.toolCall.title).toBe(title);
       expect(title).toMatch(/^codemode › /);
     }
+    await t.finish();
+  });
+  it("mode 配置项（Zed 有 configOptions 就不看 modes）：设置走按会话的权限模式，前台立即生效，非前台只记下", async () => {
+    const t = await start([{ text: "ok" }]);
+    await t.client.initialize();
+    const s1 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
+    const s2 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
+    await new Promise((r) => setTimeout(r, 10));
+    t.updates.length = 0;
+    const modeOf = (options: { id: string; currentValue: unknown }[] | null | undefined) =>
+      options?.find((o) => o.id === "mode")?.currentValue;
+    // s2 是刚建的、还不在前台：只记下并通知，不动共享管线
+    const before = t.runtime.permission.mode;
+    const r2 = await t.client.setConfigOption(s2, "mode", "plan");
+    expect(modeOf(r2.configOptions)).toBe("plan");
+    expect(t.runtime.permission.mode).toBe(before);
+    // s1 发一轮 prompt 后成为前台，再设 → 立即生效
+    await t.client.prompt(s1, [{ type: "text", text: "hi" }]);
+    const r1 = await t.client.setConfigOption(s1, "mode", "auto-edit");
+    expect(modeOf(r1.configOptions)).toBe("auto-edit");
+    expect(t.runtime.permission.mode).toBe("auto-edit");
+    await new Promise((r) => setTimeout(r, 10));
+    const of = (id: string, kind: string) =>
+      t.updates.filter((u) => u.sessionId === id && u.update.sessionUpdate === kind);
+    expect(
+      of(s2, "current_mode_update").map(
+        (u) => (u.update as { currentModeId: string }).currentModeId,
+      ),
+    ).toContain("plan");
+    expect(of(s2, "config_option_update").length).toBeGreaterThan(0);
+    expect(
+      of(s1, "config_option_update").some(
+        (u) =>
+          modeOf(
+            (u.update as { configOptions: { id: string; currentValue: unknown }[] }).configOptions,
+          ) === "auto-edit",
+      ),
+    ).toBe(true);
+    await expect(t.client.setConfigOption(s1, "mode", "nope")).rejects.toMatchObject({
+      code: -32602,
+    });
     await t.finish();
   });
 });

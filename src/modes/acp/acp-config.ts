@@ -1,9 +1,11 @@
 /**
  * `ama --mode acp` 的会话配置项与命令表（docs/acp-plan.md §1.6、D8、D9）。[ACP-C0 建壳，ACP-D 实现]
  *
- * - `buildConfigOptions`：`model`（select，category `model`，按供应商分组，值 `provider/model-id`）与
- *   `thinking`（select，category `thought_level`，只列当前模型支持的级别）。不给 `mode` 类别——模式只走
- *   `modes`（两处同一状态会在客户端出现两个模式切换）；没有 boolean 项。
+ * - `buildConfigOptions`：`mode`（select，category `mode`，值是 ama 的权限模式，与 `modes` 同一状态）、
+ *   `model`（select，category `model`，按供应商分组，值 `provider/model-id`）与 `thinking`（select，
+ *   category `thought_level`，只列当前模型支持的级别）；没有 boolean 项。规范：Agent 给了 `configOptions`，
+ *   客户端 SHOULD 用它代替 `modes`（Zed 给了就不再看 `modes`），所以模式也必须在这里；`modes` 照给，留给
+ *   只认 `modes` 的客户端。`mode` 的设置由服务端处理（按会话记、只对前台会话生效），不经 `applyConfigOption`。
  *   模型清单与 TUI `/model` 的「已配置」视图同一口径（`catalogItems`）：只列有 key、OAuth 已登录或本地的
  *   供应商，`models.enabled` 设置时只列清单内的；`fake` 按 `hideFakeProvider` 规则藏起；当前模型总在列。
  *   判断有没有 key 要异步解析，所以先 `await prepareConfigOptions(providers)` 缓存各供应商的可用状态，
@@ -37,9 +39,11 @@ import { RpcError } from "../../drivers/jsonrpc.js";
 import { AmaError } from "../../errors.js";
 import { msg } from "../../i18n/index.js";
 import { catalogItems, type CatalogProvider } from "../interactive/model-items.js";
+import type { PermissionMode } from "../../permissions/types.js";
+import { permissionModes } from "./acp-events.js";
 
 /** 配置项 id（机器字段，不翻译）。 */
-export const CONFIG_IDS = { model: "model", thinking: "thinking" } as const;
+export const CONFIG_IDS = { mode: "mode", model: "model", thinking: "thinking" } as const;
 
 /** 各注册表上次解析出的供应商可用状态（providerId → access）。 */
 const accessCache = new WeakMap<ProviderRegistryApi, Map<string, ProviderAccess>>();
@@ -58,6 +62,8 @@ export async function prepareConfigOptions(providers: ProviderRegistryApi): Prom
 export interface ConfigOptionsExtras {
   /** `models.enabled`（用户级清单）；不给或空表示不限。 */
   enabled?: readonly string[] | undefined;
+  /** 这个会话的权限模式（服务端按会话记）；不给时取 `session.state.permissionMode`。 */
+  mode?: PermissionMode | undefined;
 }
 
 export function buildConfigOptions(
@@ -100,7 +106,21 @@ export function buildConfigOptions(
       ...(item.description !== undefined ? { description: item.description } : {}),
     });
   }
-  const options: AcpSessionConfigOption[] = [];
+  const modes = permissionModes(extras.mode ?? session.state.permissionMode);
+  const options: AcpSessionConfigOption[] = [
+    {
+      id: CONFIG_IDS.mode,
+      name: m.mode,
+      category: "mode",
+      type: "select",
+      currentValue: modes.currentModeId,
+      options: modes.availableModes.map(({ id, name, description }) => ({
+        value: id,
+        name,
+        description,
+      })),
+    },
+  ];
   if (current !== undefined)
     options.push({
       id: CONFIG_IDS.model,

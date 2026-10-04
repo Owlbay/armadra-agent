@@ -37,10 +37,11 @@ client, checked in-repo against the official ACP v1 schema 1.24.1. Docs: docs/ac
   `diff` plus the first 4 KB of text, with `locations[].line` at the first changed line. Replayed tool results
   (`session/load`) carry their first 4 KB of text (no diff). Permission modes get display names and localized
   descriptions.
-- **Config options and command list**: session-open results carry `configOptions` — `model` (grouped by provider,
+- **Config options and command list**: session-open results carry `configOptions` — `mode` (the permission mode, the same state as `modes`; clients with config options such
+  as Zed ignore `modes`), `model` (grouped by provider,
   values `provider/model-id`, the same "configured" view as the TUI `/model` picker: only providers with a key, an OAuth
   login or local, `models.enabled` respected, `fake` hidden by the usual rule) and `thinking` (category `thought_level`,
-  only the levels the current model supports); no `mode` category, no boolean options. `session/set_config_option`
+  only the levels the current model supports); no boolean options. `session/set_config_option`
   switches them (unknown ids / values answer -32602) and model / thinking level changes send `config_option_update`.
   After a session opens, `available_commands_update` lists skills as `skill:<name>` and prompt templates as `<name>`
   (`argument-hint` as `input.hint`); built-in slash commands are not listed. Prompt templates in

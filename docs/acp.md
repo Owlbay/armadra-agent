@@ -115,11 +115,12 @@ Zed 的配置（`settings.json`）：
 
 | 配置项 id  | category        | 可选值                                                                                                                                                                                                                                                                       |
 | ---------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mode`     | `mode`          | ama 的权限模式（`plan`、`allowlist`、`default`、`auto-edit`、`auto`、`full-auto`），与 `modes` 同一状态                                                                                                                                                                      |
 | `model`    | `model`         | 按供应商分组，值 `provider/model-id`（多渠道的渠道行带 `@渠道`）；口径与 TUI `/model` 的「已配置」视图相同：只列有 key、OAuth 已登录或本地的供应商，设了 `models.enabled` 只列清单内的，测试供应商 `fake` 缺省藏起；当前模型总在列。没配 key 的供应商不列，先 `ama auth set` |
 | `thinking` | `thought_level` | 当前模型支持的思考级别（`off`…`xhigh`，非推理模型只有 `off`）                                                                                                                                                                                                                |
 
-- 不给 `mode` 类别的配置项：模式只走 `modes` / `session/set_mode`，免得客户端出现两个模式切换。没有 boolean 型配置项。
-- `session/set_config_option`：`model` → 切模型，`thinking` → 改思考级别，答复是全部配置项的新状态；未知 id、找不到的模型、不认识的级别回 invalid params（-32602）。模型或级别在会话里变了（含 plan 流程自动切换）时发 `config_option_update`。
+- `mode` 与 `modes` / `session/set_mode` 是同一状态：规范要求客户端有 `configOptions` 时用它代替 `modes`（Zed 给了就不再看 `modes`），所以模式也放进配置项；`modes` 照给，留给只认 `modes` 的客户端。设 `mode` 与 `session/set_mode` 一样按会话记，变化时 `current_mode_update` 与 `config_option_update` 都发。没有 boolean 型配置项。
+- `session/set_config_option`：`mode` → 改权限模式，`model` → 切模型，`thinking` → 改思考级别，答复是全部配置项的新状态；未知 id、找不到的模型、不认识的级别回 invalid params（-32602）。模型或级别在会话里变了（含 plan 流程自动切换）时发 `config_option_update`。
 - 命令表：Skill 列为 `skill:<名字>`，提示模板列为 `<名字>`（frontmatter 的 `argument-hint` 作 `input.hint`）。这两类在 prompt 文本里本来就会展开（`/skill:<名字> …`、`/<名字> …`）。`/new`、`/compact` 等内置斜杠命令在 ACP 下不执行，不列。
 
 ### 退出

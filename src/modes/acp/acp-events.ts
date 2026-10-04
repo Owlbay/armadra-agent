@@ -13,7 +13,7 @@
  * | tool_execution_end                        | tool_call_update（completed / failed，`[diff?, text]`，locations[].line） |
  * | todo_updated                              | plan                                                             |
  * | turn_end                                  | usage_update（上下文用量、窗口、会话累计美元）                   |
- * | permission_mode_changed                   | current_mode_update                                              |
+ * | permission_mode_changed                   | current_mode_update + config_option_update                       |
  * | model_changed / thinking_level_changed    | config_option_update                                             |
  *
  * 工具结果只回前 4 KB 文本（完整结果在 ama 会话里）；diff 只在实时事件里有（`fileChange` 不落盘）。
@@ -183,7 +183,12 @@ export class AcpEventMapper {
         this.emitUsage();
         return;
       case "permission_mode_changed":
+        // 只认 configOptions 的客户端（Zed）看 mode 配置项，只认 modes 的看 current_mode_update
         this.emit({ sessionUpdate: "current_mode_update", currentModeId: event.mode });
+        this.emit({
+          sessionUpdate: "config_option_update",
+          configOptions: this.extras().configOptions,
+        });
         return;
       case "model_changed":
       case "thinking_level_changed":

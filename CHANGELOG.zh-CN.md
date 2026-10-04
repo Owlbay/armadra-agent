@@ -27,9 +27,9 @@ schema 1.24.1 逐条校验。文档：docs/acp.md（英文：docs/en/acp.md）�
   `pending`，允许后再 `in_progress`。`edit` / `write` 填新的 `ToolResult.fileChange`（改前 / 改后的磁盘原文，BOM 与 CRLF 原样，
   新文件 `oldText: null`，单侧超过 256 KiB 不填；不落盘，RPC / stream-json 事件里去掉），完成更新带 `diff` 与前 4 KB 文本，
   `locations[].line` 为首个改动行。`session/load` 回放的工具结果带前 4 KB 文本（无 diff）。权限模式带显示名与随界面语言的说明。
-- **配置项与命令表**：开会话答复带 `configOptions`——`model`（按供应商分组，值 `provider/model-id`，与 TUI `/model` 的「已配置」
+- **配置项与命令表**：开会话答复带 `configOptions`——`mode`（权限模式，与 `modes` 同一状态；有配置项的客户端如 Zed 不再看 `modes`）、`model`（按供应商分组，值 `provider/model-id`，与 TUI `/model` 的「已配置」
   视图同一口径：只列有 key、OAuth 已登录或本地的供应商，遵守 `models.enabled`，`fake` 按既有规则藏起）与 `thinking`（category
-  `thought_level`，只列当前模型支持的级别）；不给 `mode` 类别、没有 boolean 项。`session/set_config_option` 切换（未知 id / 值回
+  `thought_level`，只列当前模型支持的级别）；没有 boolean 项。`session/set_config_option` 切换（未知 id / 值回
   -32602），模型 / 思考级别变化发 `config_option_update`。会话打开后发 `available_commands_update`：Skill 列为 `skill:<名字>`，提示模板
   列为 `<名字>`（`argument-hint` 作 `input.hint`），不列内置斜杠命令。`LoadedResources.prompts` 的提示模板多带 `description` /
   `argumentHint`。

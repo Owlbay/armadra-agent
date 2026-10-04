@@ -58,6 +58,7 @@ export const en = {
   /** [ACP-D] 配置项与命令表。 */
   config: {
     model: "Model",
+    mode: "Permission mode",
     thinking: "Thinking level",
     levels: {
       off: "Off",
@@ -117,6 +118,7 @@ export const zh = {
   },
   config: {
     model: "模型",
+    mode: "权限模式",
     thinking: "思考级别",
     levels: {
       off: "关",
