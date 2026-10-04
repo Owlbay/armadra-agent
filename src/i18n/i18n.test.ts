@@ -68,9 +68,10 @@ describe("Messages<T>：tsc 期覆盖率检查", () => {
 });
 
 describe("全部领域", () => {
-  it("catalog 登记了第六波全部 19 个领域（含功能批次的 agents / trace / memory / auth / settings）", () => {
+  it("catalog 登记了全部 20 个领域（第六波 19 个 + ACP-C0 的 acp）", () => {
     expect([...MESSAGE_DOMAINS].sort()).toEqual(
       [
+        "acp",
         "agents",
         "approval",
         "auth",

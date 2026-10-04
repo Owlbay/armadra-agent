@@ -1,9 +1,10 @@
 /**
- * 消息目录：print（键名规范见 docs/i18n.md）。[W6-C0 建空壳，W6-I3 迁入 `src/modes/{print,rpc,acp}/**`]
+ * 消息目录：print（键名规范见 docs/i18n.md）。[W6-C0 建空壳，W6-I3 迁入 `src/modes/{print,rpc}/**`；
+ * ACP 的文案在 [ACP-C0] 迁到 acp.ts]
  *
  * en 是形状源；zh 用 `satisfies Messages<typeof en>`，缺键 / 多键 / 参数不符在 tsc 期报错。
  * 整句一个键、禁止片段拼接；插值写成函数，条件分支写进函数体。
- * RPC / ACP 的 `error` / `message` 是人读文本，宿主按 `code` 判断（docs/rpc.md）；JSON 字段名不在这里。
+ * RPC 的 `error` / `message` 是人读文本，宿主按 `code` 判断（docs/rpc.md）；JSON 字段名不在这里。
  */
 
 import { plural } from "../format.js";
@@ -48,23 +49,6 @@ export const en = {
     noPlan: "this session has no plan extension",
     badMode: (modes: readonly string[]) => `mode must be ${modes.join(" | ")}`,
   },
-  /** ACP 服务端（`ama --mode acp`）。 */
-  acp: {
-    missingParam: (key: string) => `missing ${key}`,
-    promptNotArray: "prompt must be an array of content blocks",
-    unparsable: (reason: string) => `ACP: unparsable input (${reason})`,
-    missingProtocolVersion: "missing protocolVersion",
-    fixedCwd: (cwd: string, got: string) =>
-      `the session directory of ama --mode acp is fixed to the start directory ${cwd} (got ${got})`,
-    sessionNotFound: (id: string, error: string) => `session ${id} not found: ${error}`,
-    busy: "the current session is running; send session/cancel first",
-    modelFailed: "model request failed",
-    unknownMode: (mode: string) => `unknown mode: ${mode}`,
-    allowOnce: "Allow",
-    allowAlways: "Allow for this session",
-    rejectOnce: "Deny",
-    truncated: (length: number) => `…(truncated, ${plural(length, "character")} in total)`,
-  },
 };
 
 export const zh = {
@@ -100,20 +84,5 @@ export const zh = {
     unsupported: "该会话不支持此命令",
     noPlan: "该会话没有装配 plan 扩展",
     badMode: (modes) => `mode 应为 ${modes.join(" | ")}`,
-  },
-  acp: {
-    missingParam: (key) => `缺少 ${key}`,
-    promptNotArray: "prompt 应为内容块数组",
-    unparsable: (reason) => `ACP：无法解析的输入（${reason}）`,
-    missingProtocolVersion: "缺少 protocolVersion",
-    fixedCwd: (cwd, got) => `ama --mode acp 的会话目录固定为启动目录 ${cwd}（收到 ${got}）`,
-    sessionNotFound: (id, error) => `找不到会话 ${id}：${error}`,
-    busy: "当前会话正在运行，先 session/cancel",
-    modelFailed: "模型请求失败",
-    unknownMode: (mode) => `未知模式：${mode}`,
-    allowOnce: "允许",
-    allowAlways: "本会话允许",
-    rejectOnce: "拒绝",
-    truncated: (length) => `…（已截断，共 ${length} 字符）`,
   },
 } satisfies Messages<typeof en>;

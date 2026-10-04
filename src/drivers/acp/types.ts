@@ -2,9 +2,9 @@
  * ACP（Agent Client Protocol）v1 的子集类型（docs/wave5-plan.md §5.1，D14）。[W5-E]
  *
  * 手写、零依赖；只收 ama 作为客户端（驱动外部 Agent）与服务端（`ama --mode acp`）两侧用到的部分：
- * `initialize`、`session/new|load|resume|list|close`、`session/prompt|cancel|set_mode|set_config_option`、
- * `session/update`（含 `usage_update`）、`session/request_permission`、`elicitation/create`。字段名与规范一致（camelCase），
- * 未知字段一律保留不报错；`_meta` 不解释。
+ * `initialize`、`authenticate`、`session/new|load|resume|list|close`、`session/prompt|cancel|set_mode|set_config_option`、
+ * `session/update`（含 `usage_update`）、`session/request_permission`、`elicitation/create`、`$/cancel_request`。
+ * 字段名与规范一致（camelCase），未知字段一律保留不报错；`_meta` 不解释（ama 自己发的只用 {@link ACP_META_KEY}）。
  *
  * 不声明 `fs` / `terminal` 客户端能力（与 Armadra Q5 一致）：外部 Agent 自己读写、自己跑命令，
  * 用它自己的权限策略；它要问人的才经 `session/request_permission` 回到 ama。
@@ -17,6 +17,8 @@ export const ACP_PROTOCOL_VERSION = 1 as const;
 /** 方法名（客户端 → Agent 的请求 / 通知，Agent → 客户端的请求 / 通知）。 */
 export const ACP_METHODS = {
   initialize: "initialize",
+  /** ama 不实现（只给 terminal 型认证方法，规范要求这类方法不经 authenticate）。 */
+  authenticate: "authenticate",
   sessionNew: "session/new",
   sessionLoad: "session/load",
   sessionResume: "session/resume",
@@ -29,6 +31,8 @@ export const ACP_METHODS = {
   sessionUpdate: "session/update",
   requestPermission: "session/request_permission",
   elicitationCreate: "elicitation/create",
+  /** 协议级取消（双向通知，`requestId` 指对端发来的、尚未答复的请求）。 */
+  cancelRequest: "$/cancel_request",
 } as const;
 
 /** JSON-RPC 错误码（规范沿用 JSON-RPC 2.0；`-32000` 为 ACP 的 auth_required）。 */
@@ -40,6 +44,8 @@ export const RPC_ERRORS = {
   internalError: -32603,
   authRequired: -32000,
   resourceNotFound: -32002,
+  /** 请求被 `$/cancel_request` 撤回。 */
+  requestCancelled: -32800,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -88,6 +94,10 @@ export interface AcpClientCapabilities {
   terminal?: boolean;
   /** 能接 `elicitation/create`（存在即支持）。 */
   elicitation?: Record<string, unknown>;
+  /** 会话相关的客户端能力；`configOptions.boolean` 存在即能显示 boolean 型配置项。 */
+  session?: { configOptions?: { boolean?: Record<string, unknown> | null } | null } | null;
+  /** `terminal: true`：客户端能替 Agent 起终端跑 terminal 型认证方法。 */
+  auth?: { terminal?: boolean };
 }
 
 export interface AcpInitializeParams {
@@ -106,12 +116,27 @@ export interface AcpAgentCapabilities {
     resume?: Record<string, unknown> | null;
     close?: Record<string, unknown> | null;
   };
+  /** Agent 侧认证能力（`logout` 存在即支持 `logout`）。 */
+  auth?: { logout?: Record<string, unknown> | null };
 }
 
-export interface AcpAuthMethod {
-  id: string;
-  name: string;
-  description?: string | null;
+/**
+ * 认证方法：缺省 / `agent` 型经 `authenticate` 完成；`terminal` 型由客户端起终端跑
+ * `<agent 命令> <args…>`（带 `env`），规范要求这类方法不经 `authenticate`。
+ */
+export type AcpAuthMethod =
+  | { type?: "agent"; id: string; name: string; description?: string | null }
+  | {
+      type: "terminal";
+      id: string;
+      name: string;
+      description?: string | null;
+      args?: string[];
+      env?: Record<string, string>;
+    };
+
+export interface AcpAuthenticateParams {
+  methodId: string;
 }
 
 export interface AcpInitializeResult {
@@ -197,16 +222,20 @@ export interface AcpConfigSelectGroup {
   options: AcpConfigSelectOption[];
 }
 
-/** `session/new|load|resume` 答的 `configOptions[]` 的一项（目前规范只有 `select`）。 */
+/** 配置项的语义分类：只是给客户端排版的提示，不参与正确性。 */
+export type AcpConfigCategory = "mode" | "model" | "model_config" | "thought_level" | (string & {});
+
+/** `session/new|load|resume` 答的 `configOptions[]` 的一项（ama 只发 `select`）。 */
 export interface AcpSessionConfigOption {
   id: string;
   name: string;
   description?: string | null;
   /** `mode` / `model` / `thought_level`，或 Agent 自己的。 */
-  category?: string | null;
+  category?: AcpConfigCategory | null;
   type: "select" | (string & {});
   currentValue: string;
-  options: (AcpConfigSelectOption | AcpConfigSelectGroup)[];
+  /** 全部平铺或全部分组，规范不允许混排。 */
+  options: AcpConfigSelectOption[] | AcpConfigSelectGroup[];
 }
 
 export interface AcpSetConfigOptionParams {
@@ -311,7 +340,10 @@ export interface AcpPromptParams {
   prompt: AcpContentBlock[];
 }
 
-/** 本回合用量（可选字段，按 2026-06 稳定的 usage 提案）。 */
+/**
+ * 本回合用量。UNSTABLE：1.24.1 仍只在 schema.unstable.json 里（稳定 schema 的 PromptResponse
+ * 不列它，但允许附加字段，故照发）；客户端不应依赖。
+ */
 export interface AcpPromptUsage {
   totalTokens?: number;
   inputTokens?: number;
@@ -328,6 +360,20 @@ export interface AcpPromptResult {
 
 export interface AcpCancelParams {
   sessionId: string;
+}
+
+/** `$/cancel_request` 的参数：被撤回的请求 id。 */
+export interface AcpCancelRequestParams {
+  requestId: string | number | null;
+}
+
+/** ama 自己的 `_meta` 命名空间（客户端不得假设其含义）。 */
+export const ACP_META_KEY = "ama" as const;
+
+/** `_meta.ama` 的内容。 */
+export interface AcpAmaMeta {
+  /** codemode 内层调用所属的外层工具调用。 */
+  parentToolCallId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -357,6 +403,10 @@ export interface AcpToolCall {
   locations?: AcpToolCallLocation[];
   rawInput?: unknown;
   rawOutput?: unknown;
+  /** 工具名（规范新增，供客户端按工具分组 / 记忆授权）。 */
+  name?: string | null;
+  /** 扩展位；ama 只用 `{ [ACP_META_KEY]: AcpAmaMeta }`。 */
+  _meta?: Record<string, unknown> | null;
 }
 
 /** `tool_call_update` 与权限请求里的 toolCall：除 id 外都可缺。 */
@@ -384,11 +434,16 @@ export type AcpSessionUpdate =
       size: number;
       cost?: { amount: number; currency: string } | null;
     }
-  | {
-      sessionUpdate: "available_commands_update";
-      availableCommands: { name: string; description: string }[];
-    }
+  | { sessionUpdate: "available_commands_update"; availableCommands: AcpAvailableCommand[] }
+  | { sessionUpdate: "config_option_update"; configOptions: AcpSessionConfigOption[] }
   | { sessionUpdate: "session_info_update"; title?: string | null; updatedAt?: string | null };
+
+/** 客户端可列给人选的斜杠命令（`/<name>`）；`input.hint` 是参数提示。 */
+export interface AcpAvailableCommand {
+  name: string;
+  description: string;
+  input?: { hint: string } | null;
+}
 
 export interface AcpSessionNotification {
   sessionId: string;

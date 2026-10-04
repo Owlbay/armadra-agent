@@ -14,6 +14,9 @@
  *   `AMA_CACHE_RETENTION` 覆盖 → 会话的 `cache` 设置；宿主 `cache.onWarmingDecision` 每次现取。
  * - 会话切换：`switchSession()` 复用同一份装配材料建新会话，`assembly.onSessionReplaced(next)`
  *   让宿主访问、Hook 公共字段与退出 dispose 跟随新会话。
+ * - [ACP-C0] 多会话：`createSessionAlongside()` 建兄弟会话（不替换前台、不 dispose 旧会话），
+ *   `setForegroundSession()` 把宿主 / Hook / 工具工厂的「当前会话」切过去，`disposeSessionAlongside()`
+ *   释放一个兄弟会话。事件桥接在 compose-events.ts。
  */
 
 import type { ProviderRegistryApi } from "../ai/types.js";
@@ -22,13 +25,12 @@ import { readFileSync } from "node:fs";
 import { resolveLimits } from "../agent/limits.js";
 import { AgentSessionImpl, type AgentSessionOptions } from "../agent/session.js";
 import { DEFAULT_SUBAGENT_CONCURRENCY } from "../agent/session-subagent.js";
-import type { AgentSession, CacheSettings, SessionEvent } from "../agent/types.js";
+import type { AgentSession, CacheSettings } from "../agent/types.js";
 import { WARMING_MODES, type WarmingMode } from "../ai/cache/types.js";
 import { isOverflowErrorText } from "../ai/overflow.js";
 import type { Model, ModelThinkingLevel } from "../ai/types.js";
 import { CACHE_RETENTIONS, type AmaConfig } from "../config/types.js";
 import { AmaError, StartupError } from "../errors.js";
-import type { AgentEventBus } from "../host/api-impl.js";
 import type { InstructionSource } from "../host/types.js";
 import { ApprovalBrokerChain, DEFAULT_APPROVAL_TIMEOUT_MS } from "../permissions/broker.js";
 import { PermissionPipeline } from "../permissions/pipeline.js";
@@ -42,6 +44,7 @@ import { expandPromptCommand, type PromptTemplate } from "../skills/templates.js
 import { PresetToolRegistry } from "../tools/presets.js";
 import type { ToolDefinition } from "../tools/types.js";
 import { openSession } from "./compose-store.js";
+import { bridgeEvent } from "./compose-events.js";
 import { composeExtensions } from "./compose-extensions.js";
 import { attachMemory, withMemorySection } from "./compose-memory.js";
 import type { MemoryRuntime } from "../memory/runtime.js";
@@ -49,6 +52,9 @@ import type { SessionAssembly } from "./deps.js";
 import { ExitCode } from "./exit-codes.js";
 import type { Runtime } from "./runtime.js";
 import { msg } from "../i18n/index.js";
+import type { HookContextOverrides } from "../hooks/types.js";
+
+export { bridgeEvent } from "./compose-events.js";
 
 /** createRuntimeDeps 闭包里跨步骤共享的状态。 */
 export interface ComposeState {
@@ -85,8 +91,12 @@ interface SessionRecord {
   options: SessionComposeOptions;
   chain: ApprovalBrokerChain;
   current: AgentSessionImpl;
-  /** SessionStart Hook 的 additionalContext（初始会话现取 assembly 的）。 */
+  /** 前台会话的 SessionStart Hook additionalContext（初始会话现取 assembly 的）。 */
   hookContext: () => string | undefined;
+  /** [ACP-C0] 每个会话自己的 additionalContext（兄弟会话各有各的）。 */
+  hookContexts: WeakMap<AgentSession, () => string | undefined>;
+  /** [ACP-C0] 未 dispose 的会话（宿主后注册的工具追加给它们全部）。 */
+  live: Set<AgentSessionImpl>;
   hostTexts: Map<string, string>;
   log: LogFn;
 }
@@ -151,6 +161,7 @@ export function replyLanguageRule(language: string): string {
 function systemInput(
   record: SessionRecord,
   active: readonly string[],
+  hookContextOf: () => string | undefined,
 ): NonNullable<AgentSessionOptions["system"]> {
   const system: NonNullable<AgentSessionOptions["system"]> = { contextFiles: contextFiles(record) };
   const override = record.assembly.overrides?.systemPrompt;
@@ -166,7 +177,7 @@ function systemInput(
   if (index !== "") system.skillsIndex = index;
   const host = hostInstructions(record);
   if (host.length > 0) system.hostInstructions = host;
-  const hookContext = record.hookContext();
+  const hookContext = hookContextOf();
   if (hookContext !== undefined && hookContext !== "") system.hookContext = hookContext;
   return system;
 }
@@ -174,7 +185,7 @@ function systemInput(
 /** 提示展开前刷新会晚到的系统提示材料（值不变则不产生补丁）。 */
 function refreshSystem(record: SessionRecord, session: AgentSessionImpl): void {
   const patch: Parameters<AgentSessionImpl["updateSystem"]>[0] = {};
-  const hookContext = record.hookContext();
+  const hookContext = (record.hookContexts.get(session) ?? record.hookContext)();
   if (hookContext !== undefined && hookContext !== "") patch.hookContext = hookContext;
   const host = hostInstructions(record);
   if (host.length > 0) patch.hostInstructions = host;
@@ -241,103 +252,15 @@ export function idleTimeoutFrom(
   return config.request?.idleTimeoutMs;
 }
 
-/** §1.4：SessionEvent → AgentEvents。 */
-export function bridgeEvent(event: SessionEvent, bus: AgentEventBus): void {
-  switch (event.type) {
-    case "before_agent_start":
-      void bus.emit("before_agent_start", { prompt: event.prompt });
-      return;
-    case "agent_start":
-    case "turn_start":
-    case "turn_end":
-    case "agent_before_settle":
-      void bus.emit(event.type, {});
-      return;
-    case "agent_end":
-      void bus.emit("agent_end", { stopReason: event.stopReason, willRetry: event.willRetry });
-      return;
-    case "agent_settled":
-      void bus.emit("agent_settled", event.warning === undefined ? {} : { warning: event.warning });
-      return;
-    case "tool_execution_start":
-      void bus.emit("tool_call", {
-        toolCallId: event.toolCallId,
-        toolName: event.toolName,
-        input: event.args,
-      });
-      return;
-    case "tool_execution_end":
-      void bus.emit("tool_result", {
-        toolCallId: event.toolCallId,
-        toolName: event.toolName,
-        isError: event.isError,
-      });
-      return;
-    case "permission_request":
-      void bus.emit("tool_approval_requested", {
-        requestId: event.requestId,
-        toolName: event.toolName,
-      });
-      return;
-    case "permission_resolved":
-      void bus.emit("tool_approval_resolved", {
-        requestId: event.requestId,
-        decision: event.decision,
-      });
-      return;
-    case "compaction_end":
-      if (event.result !== undefined)
-        void bus.emit("session_compact", { tokensBefore: event.result.tokensBefore });
-      return;
-    case "model_changed":
-      void bus.emit("model_select", { model: event.model });
-      return;
-    case "cache_miss": {
-      const { type: _type, ...miss } = event;
-      void bus.emit("cache_miss", miss);
-      return;
-    }
-    case "context_pressure": {
-      const { type: _type, ...pressure } = event;
-      void bus.emit("context_pressure", pressure);
-      return;
-    }
-    case "quota_update": {
-      const { type: _type, ...quota } = event;
-      void bus.emit("quota_update", quota);
-      return;
-    }
-    // [W5-C0] 子 Agent 与计划事件
-    case "subagent_start": {
-      const { type: _type, ...payload } = event;
-      void bus.emit("subagent_start", payload);
-      return;
-    }
-    case "subagent_end": {
-      const { type: _type, ...payload } = event;
-      void bus.emit("subagent_end", payload);
-      return;
-    }
-    case "plan_proposed": {
-      const { type: _type, ...payload } = event;
-      void bus.emit("plan_proposed", payload);
-      return;
-    }
-    case "plan_resolved": {
-      const { type: _type, ...payload } = event;
-      void bus.emit("plan_resolved", payload);
-      return;
-    }
-    default:
-      return;
-  }
-}
-
 function buildSession(
   record: SessionRecord,
   manager: SessionManager,
   model: Model,
   thinkingLevel: ModelThinkingLevel,
+  /** 这个会话的 SessionStart additionalContext；缺省沿用前台的。 */
+  hookContext: () => string | undefined = record.hookContext,
+  /** false：兄弟会话，不改工具工厂的当前会话。 */
+  foreground = true,
 ): AgentSessionImpl {
   const { assembly } = record;
   const registry = assembly.tools;
@@ -360,7 +283,11 @@ function buildSession(
     unattended: assembly.unattended,
     approvalTimeoutMs: approvalTimeout(record.options),
     hooks: assembly.hooks,
-    system: withMemorySection(systemInput(record, active), record.state.memory, manager),
+    system: withMemorySection(
+      systemInput(record, active, hookContext),
+      record.state.memory,
+      manager,
+    ),
     compaction: { ...config.compaction },
     retry: { ...config.retry },
     expandPrompt: (text) => expandPrompt(record, session as AgentSessionImpl, text),
@@ -401,7 +328,9 @@ function buildSession(
   attachMemory(session, record.state.memory);
   session.subscribe((event) => bridgeEvent(event, assembly.events));
   records.set(session, record);
-  record.state.session = session;
+  record.hookContexts.set(session, hookContext);
+  record.live.add(session);
+  if (foreground) record.state.session = session;
   return session;
 }
 
@@ -444,6 +373,8 @@ export function composeSession(
     options,
     chain,
     hookContext: () => assembly.sessionStartContext(),
+    hookContexts: new WeakMap(),
+    live: new Set(),
     hostTexts: new Map<string, string>(),
     log: options.log ?? stderrLog(),
   } as SessionRecord;
@@ -454,13 +385,15 @@ export function composeSession(
     // 宿主在会话创建之后注册的工具：追加进当前会话，下次请求以 system 补丁声明（只在末尾追加）。
     registry.onRegister((tool) => {
       const active = registry.active().some((t) => t.name === tool.name);
-      try {
-        record.current.addTool(tool, active);
-      } catch (error) {
-        record.log(
-          "warn",
-          msg().cli.composeSession.appendToolFailed(tool.name, (error as Error).message),
-        );
+      for (const live of record.live) {
+        try {
+          live.addTool(tool, active);
+        } catch (error) {
+          record.log(
+            "warn",
+            msg().cli.composeSession.appendToolFailed(tool.name, (error as Error).message),
+          );
+        }
       }
     });
   }
@@ -528,10 +461,11 @@ export async function switchSession(
     .run("SessionEnd", { reason: request.kind === "new" ? "new" : "switch" })
     .catch(() => undefined);
   await old.dispose();
+  record.live.delete(old);
   if (assembly.permission instanceof PermissionPipeline) assembly.permission.clearSessionGrants();
   let hookContext: string | undefined;
   record.hookContext = () => hookContext;
-  const next = buildSession(record, manager, old.model(), old.thinkingLevel());
+  const next = buildSession(record, manager, old.model(), old.thinkingLevel(), record.hookContext);
   record.current = next;
   assembly.onSessionReplaced(next);
   const file = next.state.sessionFile;
@@ -545,4 +479,112 @@ export async function switchSession(
   hookContext = outcome?.additionalContext;
   // 会话自身的 session_start 由模式在重新订阅之后调 `announceStart` 发（否则订阅者收不到）。
   return next;
+}
+
+function requireRecord(target: Runtime | AgentSession): SessionRecord {
+  const record = recordOf(target);
+  if (record === undefined)
+    throw new AmaError("not_implemented", msg().cli.composeSession.notComposed);
+  return record;
+}
+
+/** 按某个会话覆盖 Hook 公共字段（兄弟会话的 SessionStart / SessionEnd 不该带前台会话的 id）。 */
+function hookFieldsOf(session: AgentSession): HookContextOverrides {
+  const file = session.state.sessionFile;
+  return {
+    sessionId: session.state.sessionId,
+    sessionFile: file,
+    transcriptPath: file,
+    cwd: session.state.cwd,
+    model: session.state.model,
+    permissionMode: session.state.permissionMode,
+  };
+}
+
+/**
+ * [ACP-C0] 不替换当前会话、不 dispose、不跑 SessionEnd Hook 地再建一个会话（ACP 多会话）。
+ * 宿主总线发 `session_start`，再以新会话的公共字段跑 SessionStart Hook（additionalContext 只给它）。
+ * 会话自身的 `session_start` 事件由模式在订阅之后调 `announceStart` 发。
+ */
+export async function createSessionAlongside(
+  target: Runtime | AgentSession,
+  request: Extract<SwitchRequest, { kind: "new" | "resume" }>,
+): Promise<AgentSessionImpl> {
+  const record = requireRecord(target);
+  const current = record.current;
+  const { assembly } = record;
+  const sessionDir = assembly.paths.sessionDir;
+  const manager =
+    request.kind === "resume"
+      ? openSession({ kind: "resume", id: request.id }, { sessionDir, cwd: current.cwd })
+      : assembly.overrides?.noSession === true
+        ? SessionManager.inMemory(current.cwd)
+        : SessionManager.create(sessionDirForCwd(sessionDir, current.cwd), current.cwd);
+  let hookContext: string | undefined;
+  const next = buildSession(
+    record,
+    manager,
+    current.model(),
+    current.thinkingLevel(),
+    () => hookContext,
+    false,
+  );
+  const file = next.state.sessionFile;
+  await assembly.events.emit("session_start", {
+    sessionId: next.state.sessionId,
+    ...(file !== undefined ? { sessionFile: file } : {}),
+    cwd: next.cwd,
+    reason: request.kind,
+  });
+  const outcome = await assembly.hooks
+    .run("SessionStart", { source: request.kind }, undefined, hookFieldsOf(next))
+    .catch(() => undefined);
+  hookContext = outcome?.additionalContext;
+  return next;
+}
+
+/**
+ * [ACP-C0] 把宿主（HostApi `session.*`）、Hook 公共字段与工具工厂的「当前会话」切到 `session`，
+ * 清掉「本会话允许」的记忆。返回是否真的切换了（已是前台时什么都不做）。
+ */
+export function setForegroundSession(
+  target: Runtime | AgentSession,
+  session: AgentSessionImpl,
+): boolean {
+  const record = requireRecord(target);
+  if (records.get(session) !== record || !record.live.has(session))
+    throw new AmaError("invalid_arguments", msg().cli.composeSession.notLiveSession);
+  if (record.current === session) return false;
+  record.current = session;
+  record.state.session = session;
+  record.hookContext = record.hookContexts.get(session) ?? (() => undefined);
+  record.assembly.onSessionReplaced(session);
+  const permission = record.assembly.permission;
+  if (permission instanceof PermissionPipeline) permission.clearSessionGrants();
+  return true;
+}
+
+/**
+ * [ACP-C0] 释放一个兄弟会话：以它的公共字段跑 SessionEnd Hook（reason `switch`）后 dispose。
+ * 它是前台时先把前台切到 `fallback`。运行中的会话要先 abort 并等空闲。
+ */
+export async function disposeSessionAlongside(
+  target: Runtime | AgentSession,
+  session: AgentSessionImpl,
+  fallback: AgentSessionImpl,
+): Promise<void> {
+  const record = requireRecord(target);
+  if (!record.live.has(session)) return;
+  if (session.state.isStreaming)
+    throw new AmaError("busy", msg().cli.composeSession.switchWhileStreaming);
+  if (record.current === session) {
+    if (fallback === session)
+      throw new AmaError("invalid_arguments", msg().cli.composeSession.notLiveSession);
+    setForegroundSession(target, fallback);
+  }
+  await record.assembly.hooks
+    .run("SessionEnd", { reason: "switch" }, undefined, hookFieldsOf(session))
+    .catch(() => undefined);
+  await session.dispose();
+  record.live.delete(session);
 }

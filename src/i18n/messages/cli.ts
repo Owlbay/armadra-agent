@@ -180,6 +180,7 @@ export const en = {
       `Failed to append tool ${name}: ${message}`,
     notComposed: "This session was not created by the composition root and cannot be switched",
     switchWhileStreaming: "Cannot switch sessions while a run is in progress",
+    notLiveSession: "This session is not an open session of this runtime",
   },
   composeStore: {
     ambiguousId: (id: string, candidates: readonly string[]) =>
@@ -344,6 +345,7 @@ export const zh = {
     appendToolFailed: (name, message) => `追加工具 ${name} 失败：${message}`,
     notComposed: "该会话不是由组装根创建的，不能切换",
     switchWhileStreaming: "运行中不能切换会话",
+    notLiveSession: "该会话不是本运行期里打开着的会话",
   },
   composeStore: {
     ambiguousId: (id, candidates) => `会话 id 前缀 ${id} 不唯一，候选：${candidates.join(", ")}`,

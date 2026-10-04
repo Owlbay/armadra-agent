@@ -7,10 +7,15 @@ import {
 import type { HostApi } from "../host/types.js";
 import type { ApprovalRequest } from "../permissions/types.js";
 import type { AgentSessionImpl } from "../agent/session.js";
+import { PermissionPipeline } from "../permissions/pipeline.js";
+import type { ToolFactoryContext } from "./compose.js";
 import {
   cacheSettingsFrom,
+  createSessionAlongside,
   currentSession,
+  disposeSessionAlongside,
   idleTimeoutFrom,
+  setForegroundSession,
   switchSession,
 } from "./compose-session.js";
 
@@ -97,6 +102,107 @@ describe("switchSession", () => {
     const forked = await switchSession(runtime, { kind: "fork", entryId: leaf });
     expect(forked.state.sessionFile).not.toBe(file);
     expect(forked.getLastAssistantText()).toBe("keep me");
+    await runtime.dispose();
+  });
+});
+
+describe("[ACP-C0] 兄弟会话", () => {
+  /** SessionStart Hook：把收到的 sessionId 写进 additionalContext。 */
+  function sessionStartHook(): void {
+    const script = h.home.write(
+      "scripts/start.cjs",
+      `let s = ""; process.stdin.on("data", (c) => (s += c)); process.stdin.on("end", () => {
+  const input = JSON.parse(s);
+  console.log(JSON.stringify({ additionalContext: "ctx:" + input.sessionId }));
+});`,
+    );
+    const command = `"${process.execPath.replace(/\\/g, "/")}" "${script.replace(/\\/g, "/")}"`;
+    h.home.write("home/.config/ama/hooks.json", {
+      version: 1,
+      hooks: { SessionStart: [{ hooks: [{ type: "command", command }] }] },
+    });
+  }
+
+  it("createSessionAlongside 不替换前台、不 dispose 旧会话；setForegroundSession 后 HostApi / Hook / 工具工厂跟随", async () => {
+    h = composeHarness();
+    sessionStartHook();
+    const host = recordingHost(h.home);
+    let factory: ToolFactoryContext | undefined;
+    const runtime = await h.boot(["--model", "fake/echo", "--host", host.path], {
+      toolFactories: [(ctx) => void (factory = ctx)],
+    });
+    const first = runtime.session as AgentSessionImpl;
+    const firstId = first.state.sessionId;
+    const sibling = await createSessionAlongside(runtime, { kind: "new" });
+    expect(sibling.state.sessionId).not.toBe(firstId);
+    expect(currentSession(runtime)).toBe(first);
+    expect(hostApi().session.id()).toBe(firstId);
+    expect(factory?.session()).toBe(first);
+    const starts = host.events().filter((e) => e.name === "session_start");
+    expect(starts.map((e) => (e.event as { reason: string }).reason)).toEqual(["startup", "new"]);
+    // 旧会话照常可用；Hook 上下文各归其会话
+    await first.prompt("one");
+    expect(JSON.stringify(h.fake.calls.at(-1)?.context)).toContain(`ctx:${firstId}`);
+
+    const grants = vi.spyOn(runtime.permission as PermissionPipeline, "clearSessionGrants");
+    expect(setForegroundSession(runtime, sibling)).toBe(true);
+    expect(setForegroundSession(runtime, sibling)).toBe(false);
+    expect(grants).toHaveBeenCalledTimes(1);
+    expect(currentSession(runtime)).toBe(sibling);
+    expect(hostApi().session.id()).toBe(sibling.state.sessionId);
+    expect(factory?.session()).toBe(sibling);
+    await sibling.prompt("two");
+    const context = JSON.stringify(h.fake.calls.at(-1)?.context);
+    expect(context).toContain(`ctx:${sibling.state.sessionId}`);
+    expect(context).not.toContain(`ctx:${firstId}`);
+
+    // 切回旧会话：它还活着，Hook 上下文仍是自己的
+    expect(setForegroundSession(runtime, first)).toBe(true);
+    await first.prompt("three");
+    expect(JSON.stringify(h.fake.calls.at(-1)?.context)).toContain(`ctx:${firstId}`);
+    await runtime.dispose();
+    await sibling.dispose();
+  });
+
+  it("disposeSessionAlongside 释放前台时切到 fallback；resume 打开已释放的会话；已打开的会话不能再 resume", async () => {
+    h = composeHarness();
+    const runtime = await h.boot(["--model", "fake/echo"]);
+    const first = runtime.session as AgentSessionImpl;
+    await first.prompt("first");
+    const fresh = await createSessionAlongside(runtime, { kind: "new" });
+    setForegroundSession(runtime, fresh);
+    await fresh.prompt("keep me");
+    const freshId = fresh.state.sessionId;
+    // 已打开（持有会话锁）的会话不能再建一份
+    await expect(
+      createSessionAlongside(runtime, { kind: "resume", id: first.state.sessionId }),
+    ).rejects.toMatchObject({ code: "session_locked" });
+    await disposeSessionAlongside(runtime, fresh, first);
+    expect(currentSession(runtime)).toBe(first);
+    await expect(fresh.prompt("x")).rejects.toMatchObject({ code: "session_closed" });
+    expect(() => setForegroundSession(runtime, fresh)).toThrow();
+    const resumed = await createSessionAlongside(runtime, { kind: "resume", id: freshId });
+    expect(resumed.getLastAssistantText()).toBe("keep me");
+    expect(currentSession(runtime)).toBe(first);
+    // 非前台的兄弟会话直接释放，前台不动；重复释放无副作用
+    await disposeSessionAlongside(runtime, resumed, first);
+    await disposeSessionAlongside(runtime, resumed, first);
+    expect(currentSession(runtime)).toBe(first);
+    await first.prompt("still here");
+    expect(first.getLastAssistantText()).toBe("still here");
+    await runtime.dispose();
+  });
+
+  it("switchSession 行为不变：兄弟会话之后仍 dispose 前台并换新", async () => {
+    h = composeHarness();
+    const runtime = await h.boot(["--model", "fake/echo"]);
+    const sibling = await createSessionAlongside(runtime, { kind: "new" });
+    const next = await switchSession(runtime, { kind: "new" });
+    expect(currentSession(runtime)).toBe(next);
+    await expect(runtime.session.prompt("x")).rejects.toMatchObject({ code: "session_closed" });
+    await sibling.prompt("alive");
+    expect(sibling.getLastAssistantText()).toBe("alive");
+    await sibling.dispose();
     await runtime.dispose();
   });
 });

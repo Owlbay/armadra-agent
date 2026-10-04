@@ -39,6 +39,32 @@ describe("线上事件形状", () => {
     expect(toWireEvent(start)).toBe(start);
   });
 
+  it("[ACP-C0] tool_execution_end 不把 result.fileChange 带上线；没有时原样", () => {
+    const end = {
+      type: "tool_execution_end",
+      toolCallId: "c1",
+      toolName: "edit",
+      isError: false,
+      result: {
+        content: "edited",
+        details: { diff: "-a\n+b" },
+        fileChange: { path: "/w/a.txt", oldText: "a\n", newText: "b\n", firstChangedLine: 1 },
+      },
+    } as const;
+    const wire = toWireEvent(end);
+    expect(wire).toEqual({
+      type: "tool_execution_end",
+      toolCallId: "c1",
+      toolName: "edit",
+      isError: false,
+      result: { content: "edited", details: { diff: "-a\n+b" } },
+    });
+    expect(toJsonLine(wire)).not.toContain("fileChange");
+    expect(end.result.fileChange).toBeDefined();
+    const plain = { ...end, result: { content: "ok" } };
+    expect(toWireEvent(plain)).toBe(plain);
+  });
+
   it("toJsonLine：单行、转义 U+2028 / U+2029、Error 与 bigint 可序列化、图片不截断", () => {
     const data = "A".repeat(100_000);
     const line = toJsonLine({

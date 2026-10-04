@@ -4,7 +4,7 @@
  *
  * 领域 → 所有者：cli / subcommands（I1）；interactive / approval / plan / rewind / panels / permissions（I2）；
  * report / print / drivers / session / errors（I3）；config（I4）；agents（A）；trace（T1 / T2）；
- * memory（M）；auth（O）；settings（S）。
+ * memory（M）；auth（O）；settings（S）；acp（ACP-C0 新增，docs/acp-plan.md D15）。
  */
 
 import type { Messages } from "./types.js";
@@ -27,6 +27,7 @@ import * as trace from "./messages/trace.js";
 import * as memory from "./messages/memory.js";
 import * as auth from "./messages/auth.js";
 import * as settings from "./messages/settings.js";
+import * as acp from "./messages/acp.js";
 
 const en = {
   cli: cli.en,
@@ -48,6 +49,7 @@ const en = {
   memory: memory.en,
   auth: auth.en,
   settings: settings.en,
+  acp: acp.en,
 };
 
 /** 运行期取用的目录形状：en 的形状、叶子放宽为 string / 同签名函数。 */
@@ -73,6 +75,7 @@ const zh = {
   memory: memory.zh,
   auth: auth.zh,
   settings: settings.zh,
+  acp: acp.zh,
 } satisfies Catalog;
 
 export const CATALOGS: { readonly en: Catalog; readonly zh: Catalog } = { en, zh };

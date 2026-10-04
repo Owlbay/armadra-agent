@@ -145,7 +145,8 @@ export interface Usage {
   billing?: "subscription";
 }
 
-export type StopReason = "stop" | "length" | "toolUse" | "aborted" | "error";
+/** `refusal`：供应商以安全理由拒答（目前只有 Anthropic 的 `stop_reason: "refusal"` 会映射到它）。 */
+export type StopReason = "stop" | "length" | "toolUse" | "aborted" | "error" | "refusal";
 
 /** 工具声明（发给供应商的形状）。 */
 export interface ToolDecl {

@@ -11,6 +11,13 @@
   `cancel(sessionId)` 或连接关闭时挂起的回 `cancel`）。新增 `setConfigOption(sessionId, configId, value)`，开会话答复带
   `configOptions`。`AcpClient.features` 多 `elicitation` 与 `configOptions`。不给处理器时线路不变。假 ACP Agent 加
   `[elicit]`、`[model]`、`[env NAME]` 标记与 `--config-options`。文档：docs/acp.md。
+- **ACP 补全的契约（线上形状不变）**：`JsonRpcPeer` 新选项 `cancelRequests`（ACP 的 `$/cancel_request`：本端 abort 的出站请求
+  会通知对端，对端撤回的入站请求 abort 其 `ctx.signal` 并回 -32800；缺省关闭，Codex app-server 线路逐字节不变）。
+  `ToolResult.fileChange`（文件改动的改前 / 改后全文，不落盘，RPC / stream-json 事件里去掉；暂不填）与 `FILE_CHANGE_TEXT_LIMIT`；
+  `StopReason` 加 `"refusal"`。ACP 类型补 `authenticate`、`$/cancel_request`、-32800、terminal 型认证方法、客户端 `session` /
+  `auth` 能力、tool call 的 `name` / `_meta`、`config_option_update` 与 `ACP_META_KEY`（`@armadra/agent/acp` 导出）；回合
+  `usage` 注明 UNSTABLE；select 配置项的选项须全部平铺或全部分组（假 Agent 的 `model` 项改为分组）。假 ACP Agent 加
+  `--config-only`、`--auth-required` 与 `[cancel-request]`。仓库内以官方 v1 schema 1.24.1 逐条校验 ACP 线路。文档：docs/acp.md。
 
 ## 0.6.7（2026-10-03）
 
