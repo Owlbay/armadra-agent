@@ -33,20 +33,25 @@ ama --mode acp                      # 与 -p 互斥；其余参数（--model、-
 
 ### 事件映射
 
-| ama                 | `session/update`                                                                   |
-| ------------------- | ---------------------------------------------------------------------------------- |
-| 文本增量 / 思考增量 | `agent_message_chunk` / `agent_thought_chunk`                                      |
-| 模型发出工具调用    | `tool_call`（`pending`，带 `rawInput`、`kind`、`locations`）                       |
-| 工具开始 / 结束     | `tool_call_update`（`in_progress` → `completed` / `failed`，结果只带前 4 KB 文本） |
-| `todo` 更新         | `plan`                                                                             |
-| 每轮结束            | `usage_update`（上下文已用、窗口、会话累计美元）                                   |
-| 权限模式变化        | `current_mode_update`                                                              |
+| ama                                 | `session/update`                                                                                                                                                                                                               |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 文本增量 / 思考增量                 | `agent_message_chunk` / `agent_thought_chunk`                                                                                                                                                                                  |
+| 模型发出工具调用                    | `tool_call`（`pending`，带 `name`、`rawInput`、`kind`、`locations`）                                                                                                                                                           |
+| codemode 脚本里的内层调用开始       | `tool_call`（`pending`，`title` 前缀 `codemode › `，`_meta.ama.parentToolCallId` 指向外层 `codemode` 调用），随后 `in_progress`                                                                                                |
+| 工具开始                            | `tool_call_update`（`in_progress`）                                                                                                                                                                                            |
+| 工具结束（含内层）                  | `tool_call_update`（`completed` / `failed`）；`content` 为 `[diff?, 文本]`：edit / write 带 `diff`（`path`、`oldText`、`newText`，新文件 `oldText: null`），文本只带前 4 KB；`locations[].line` 是首个改动行；不发 `rawOutput` |
+| `todo` 更新                         | `plan`                                                                                                                                                                                                                         |
+| 每轮结束                            | `usage_update`（上下文已用、窗口、会话累计美元）                                                                                                                                                                               |
+| 权限模式变化                        | `current_mode_update`                                                                                                                                                                                                          |
+| 模型 / 思考级别变化                 | `config_option_update`（全部配置项）                                                                                                                                                                                           |
+| 会话开出（new / load / resume）之后 | `available_commands_update` 与 `config_option_update`                                                                                                                                                                          |
+| 回合结束之后                        | `session_info_update`（`updatedAt`；标题与上次不同才带 `title`）                                                                                                                                                               |
 
-codemode 内层调用不单列。`session/prompt` 的结果带本回合 token 用量（`inputTokens`、`outputTokens`、`cachedReadTokens`、`cachedWriteTokens`、`totalTokens`）。
+diff 的改前 / 改后全文只随实时事件走，不写进会话文件：任一侧超过 256 KiB 不带 diff，`session/load` 回放的工具结果只有前 4 KB 文本。模式列表的 `name` 是显示名（如 `Manual`、`Accept edits`），`description` 随界面语言。`session/prompt` 的结果带本回合 token 用量（`inputTokens`、`outputTokens`、`cachedReadTokens`、`cachedWriteTokens`、`totalTokens`）。
 
 ### 审批
 
-ama 需要询问的调用经 `session/request_permission` 交给客户端，三个选项：`allow_once`（允许）、`allow_always`（本会话允许）、`reject_once`（拒绝）。`toolCall.toolCallId` 关联到先前 `tool_call` 的 id。客户端回 `cancelled`、连接断开或回合被中断时，按无人作答处理（拒绝）。auto 模式下 ama 自己的分类器照常工作——这只影响 ama 自己的工具；ama 驱动的外部 Agent 发来的请求只交给人（见 [agents.md](agents.md)）。
+ama 需要询问的调用经 `session/request_permission` 交给客户端，三个选项：`allow_once`（允许）、`allow_always`（本会话允许）、`reject_once`（拒绝）。`toolCall.toolCallId` 关联到先前 `tool_call` 的 id——codemode 内层调用也是，指向那条内层 `tool_call`，不是外层 `codemode`。询问期间该调用的状态回到 `pending`，允许后再 `in_progress`（所以有审批的调用依次是 `pending → in_progress → pending → in_progress → completed`）；拒绝时直接 `failed`。客户端回 `cancelled`、连接断开或回合被中断时，按无人作答处理（拒绝）。auto 模式下 ama 自己的分类器照常工作——这只影响 ama 自己的工具；ama 驱动的外部 Agent 发来的请求只交给人（见 [agents.md](agents.md)）。
 
 不声明、也不使用客户端的 `fs` / `terminal` 能力：ama 自己读写、自己跑命令，按自己的权限管线。
 
