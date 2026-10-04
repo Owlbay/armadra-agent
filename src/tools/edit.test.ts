@@ -2,7 +2,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeTmpDir, makeToolContext } from "../../test/helpers/tool-context.js";
-import { EditError, createEditTool, planEdits, unifiedDiff } from "./edit.js";
+import { EditError, createEditTool, fileChangeOf, planEdits, unifiedDiff } from "./edit.js";
+import { FILE_CHANGE_TEXT_LIMIT } from "./types.js";
 import {
   applyPreservingLines,
   detectLineEnding,
@@ -134,6 +135,46 @@ describe("edit 工具", () => {
     expect(details.diff).toContain("+2");
     expect(details.firstChangedLine).toBe(2);
     expect(details.replacements).toBe(1);
+    // fileChange 是磁盘原文（BOM / CRLF 原样），首个改动行同 details
+    expect(r.fileChange).toEqual({
+      path: file,
+      oldText: "\uFEFFone\r\ntwo\r\nthree\r\n",
+      newText: "\uFEFFone\r\n2\r\n3\r\n",
+      firstChangedLine: 2,
+    });
+  });
+
+  it("fileChange：任一侧超过上限不填，编辑照常成功；失败不填", async () => {
+    const file = join(tmp.dir, "big.txt");
+    writeFileSync(file, `head\n${"x".repeat(FILE_CHANGE_TEXT_LIMIT)}\n`);
+    const ctx = makeToolContext(tmp.dir);
+    ctx.markRead(file);
+    const r = await tool.execute(
+      { path: "big.txt", edits: [{ oldText: "head", newText: "top" }] },
+      ctx,
+    );
+    expect(r.isError).toBeUndefined();
+    expect(r.fileChange).toBeUndefined();
+    expect(readFileSync(file, "utf8").startsWith("top\n")).toBe(true);
+    const failed = await tool.execute(
+      { path: "big.txt", edits: [{ oldText: "absent", newText: "y" }] },
+      ctx,
+    );
+    expect(failed.isError).toBe(true);
+    expect(failed.fileChange).toBeUndefined();
+  });
+
+  it("fileChangeOf：单侧上限、新文件 oldText null", () => {
+    const max = "a".repeat(FILE_CHANGE_TEXT_LIMIT);
+    expect(fileChangeOf("/p", max, max, 1)).toEqual({
+      path: "/p",
+      oldText: max,
+      newText: max,
+      firstChangedLine: 1,
+    });
+    expect(fileChangeOf("/p", `${max}b`, "x")).toBeUndefined();
+    expect(fileChangeOf("/p", "x", `${max}b`)).toBeUndefined();
+    expect(fileChangeOf("/p", null, "new")).toEqual({ path: "/p", oldText: null, newText: "new" });
   });
 
   it("错误不改文件", async () => {
