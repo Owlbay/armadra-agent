@@ -67,14 +67,14 @@ function canonical(path: string): string {
 function str(params: Params, key: string): string {
   const value = params[key];
   if (typeof value !== "string" || value === "")
-    throw new RpcError(RPC_ERRORS.invalidParams, msg().print.acp.missingParam(key));
+    throw new RpcError(RPC_ERRORS.invalidParams, msg().acp.core.missingParam(key));
   return value;
 }
 
 /** ACP 提示 → ama 的文本与图片。 */
 export function promptOf(blocks: unknown): { text: string; images: ImageBlock[] } {
   if (!Array.isArray(blocks))
-    throw new RpcError(RPC_ERRORS.invalidParams, msg().print.acp.promptNotArray);
+    throw new RpcError(RPC_ERRORS.invalidParams, msg().acp.core.promptNotArray);
   const parts: string[] = [];
   const images: ImageBlock[] = [];
   for (const block of blocks as AcpContentBlock[]) {
@@ -112,7 +112,7 @@ export class AcpServer {
       onNotification: (method, params) => {
         if (method === ACP_METHODS.sessionCancel) void this.cancel((params ?? {}) as Params);
       },
-      onProtocolError: (_line, reason) => this.log(msg().print.acp.unparsable(reason)),
+      onProtocolError: (_line, reason) => this.log(msg().acp.core.unparsable(reason)),
     });
     this.subscribe();
   }
@@ -174,7 +174,7 @@ export class AcpServer {
 
   private initialize(params: Params): AcpInitializeResult {
     if (typeof params["protocolVersion"] !== "number")
-      throw new RpcError(RPC_ERRORS.invalidParams, msg().print.acp.missingProtocolVersion);
+      throw new RpcError(RPC_ERRORS.invalidParams, msg().acp.core.missingProtocolVersion);
     return {
       protocolVersion: ACP_PROTOCOL_VERSION,
       agentCapabilities: ACP_AGENT_CAPABILITIES,
@@ -187,7 +187,7 @@ export class AcpServer {
     const cwd = params["cwd"];
     if (cwd === undefined) return;
     if (typeof cwd !== "string" || canonical(cwd) !== this.cwd)
-      throw new RpcError(RPC_ERRORS.invalidParams, msg().print.acp.fixedCwd(this.cwd, String(cwd)));
+      throw new RpcError(RPC_ERRORS.invalidParams, msg().acp.core.fixedCwd(this.cwd, String(cwd)));
   }
 
   private modes() {
@@ -224,7 +224,7 @@ export class AcpServer {
       } catch (error) {
         throw new RpcError(
           RPC_ERRORS.resourceNotFound,
-          msg().print.acp.sessionNotFound(id, errorText(error)),
+          msg().acp.core.sessionNotFound(id, errorText(error)),
         );
       }
     }
@@ -264,7 +264,7 @@ export class AcpServer {
 
   private ensureIdle(): void {
     if (this.session().state.isStreaming)
-      throw new RpcError(RPC_ERRORS.invalidRequest, msg().print.acp.busy);
+      throw new RpcError(RPC_ERRORS.invalidRequest, msg().acp.core.busy);
   }
 
   private async prompt(params: Params): Promise<AcpPromptResult> {
@@ -293,7 +293,7 @@ export class AcpServer {
     if (this.cancelRequested || reason === "aborted") return { stopReason: "cancelled", usage };
     if (reason === "error") {
       const message = last !== undefined && "errorMessage" in last ? last.errorMessage : undefined;
-      throw new RpcError(RPC_ERRORS.internalError, message ?? msg().print.acp.modelFailed);
+      throw new RpcError(RPC_ERRORS.internalError, message ?? msg().acp.core.modelFailed);
     }
     return { stopReason: reason === "length" ? "max_tokens" : "end_turn", usage };
   }
@@ -310,7 +310,7 @@ export class AcpServer {
     str(params, "sessionId");
     const mode = params["modeId"];
     if (!isPermissionMode(mode))
-      throw new RpcError(RPC_ERRORS.invalidParams, msg().print.acp.unknownMode(String(mode)));
+      throw new RpcError(RPC_ERRORS.invalidParams, msg().acp.core.unknownMode(String(mode)));
     this.session().setPermissionMode(mode);
     return {};
   }
@@ -339,9 +339,9 @@ export class AcpServer {
             ...(locations !== undefined ? { locations } : {}),
           },
           options: [
-            { optionId: "allow_once", name: msg().print.acp.allowOnce, kind: "allow_once" },
-            { optionId: "allow_always", name: msg().print.acp.allowAlways, kind: "allow_always" },
-            { optionId: "reject_once", name: msg().print.acp.rejectOnce, kind: "reject_once" },
+            { optionId: "allow_once", name: msg().acp.core.allowOnce, kind: "allow_once" },
+            { optionId: "allow_always", name: msg().acp.core.allowAlways, kind: "allow_always" },
+            { optionId: "reject_once", name: msg().acp.core.rejectOnce, kind: "reject_once" },
           ],
         },
         signal,

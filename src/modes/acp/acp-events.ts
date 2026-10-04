@@ -80,7 +80,7 @@ function resultText(result: ToolResult): string {
       ? result.content
       : result.content.map((b) => (b.type === "text" ? b.text : `[${b.type}]`)).join("");
   return text.length > TOOL_OUTPUT_LIMIT
-    ? `${text.slice(0, TOOL_OUTPUT_LIMIT)}\n${msg().print.acp.truncated(text.length)}`
+    ? `${text.slice(0, TOOL_OUTPUT_LIMIT)}\n${msg().acp.core.truncated(text.length)}`
     : text;
 }
 
