@@ -10,6 +10,10 @@ import type {
   AcpSessionNotification,
 } from "../../drivers/acp/types.js";
 import { golden, memoryTransport, type WireLine } from "../../drivers/test-support.js";
+import { assertAcpWire } from "../../../test/helpers/acp-schema.js";
+import { AgentSessionImpl } from "../../agent/session.js";
+import { msg } from "../../i18n/index.js";
+import { AcpEventMapper } from "./acp-events.js";
 import { runAcpMode } from "./acp-mode.js";
 
 let h: ComposeHarness;
@@ -41,7 +45,11 @@ interface Harness {
   runtime: Runtime;
   updates: AcpSessionNotification[];
   wire: WireLine[];
-  /** 关闭客户端写端，等 ACP 模式退出。 */
+  /** 绕过客户端直接写一行（id 用字符串，不与客户端的数字 id 冲突）。 */
+  raw(message: Record<string, unknown>): void;
+  /** 等 ama 对某个 id 的答复。 */
+  answer(id: string): Promise<Record<string, unknown>>;
+  /** 关闭客户端写端，等 ACP 模式退出；全部线上行过 schema 校验。 */
   finish(): Promise<number>;
 }
 
@@ -76,10 +84,23 @@ async function start(
     runtime,
     updates,
     wire: mem.wire,
+    raw(message) {
+      mem.transport.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", ...message })}\n`);
+    },
+    async answer(id) {
+      for (;;) {
+        const hit = mem.wire.find(
+          (w) => w.dir === "out" && w.msg["id"] === id && !("method" in w.msg),
+        );
+        if (hit !== undefined) return hit.msg;
+        await new Promise((r) => setTimeout(r, 5));
+      }
+    },
     async finish() {
       mem.transport.stdin.end();
       const code = await exit;
       await runtime.dispose();
+      assertAcpWire(mem.wire);
       return code;
     },
   };
@@ -237,5 +258,276 @@ describe("runCli 分派 --mode acp", () => {
     vi.doUnmock("./acp-mode.js");
     expect(code).toBe(0);
     expect(seen).toEqual(["rpc"]);
+  });
+});
+
+describe("ama --mode acp 多会话 [ACP-B]", () => {
+  const text = (t: Harness, sessionId: string) =>
+    t.updates
+      .filter((u) => u.sessionId === sessionId)
+      .map((u) => u.update)
+      .filter((u) => u.sessionUpdate === "agent_message_chunk")
+      .map((u) => (u.content.type === "text" ? u.content.text : ""))
+      .join("");
+
+  it("复现：新建 s3（空）→ 回旧会话 prompt → 再对 s3 prompt，都成功（不再 -32002）", async () => {
+    const t = await start([{ text: "one" }, { text: "back" }, { text: "three" }]);
+    await t.client.initialize();
+    const s1 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
+    await t.client.prompt(s1, [{ type: "text", text: "first" }]);
+    const s3 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
+    expect(s3).not.toBe(s1);
+    await expect(t.client.prompt(s1, [{ type: "text", text: "b" }])).resolves.toMatchObject({
+      stopReason: "end_turn",
+    });
+    await expect(t.client.prompt(s3, [{ type: "text", text: "c" }])).resolves.toMatchObject({
+      stopReason: "end_turn",
+    });
+    expect(text(t, s1)).toBe("oneback");
+    expect(text(t, s3)).toBe("three");
+    expect(await t.finish()).toBe(0);
+  });
+
+  it("运行中 session/new + 对新会话 prompt → 排队；第一个结束后第二个开始，更新各归其位", async () => {
+    const t = await start([{ delayMs: 300, text: "slow one" }, { text: "queued two" }]);
+    await t.client.initialize();
+    const s1 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
+    const order: string[] = [];
+    const p1 = t.client.prompt(s1, [{ type: "text", text: "1" }]).then((r) => {
+      order.push("s1");
+      return r;
+    });
+    await new Promise((r) => setTimeout(r, 30));
+    const s2 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
+    const p2 = t.client.prompt(s2, [{ type: "text", text: "2" }]).then((r) => {
+      order.push("s2");
+      return r;
+    });
+    await expect(t.client.listSessions(t.runtime.paths.cwd)).resolves.toBeDefined();
+    const [r1, r2] = await Promise.all([p1, p2]);
+    expect(r1.stopReason).toBe("end_turn");
+    expect(r2.stopReason).toBe("end_turn");
+    expect(order).toEqual(["s1", "s2"]);
+    expect(text(t, s1)).toBe("slow one");
+    expect(text(t, s2)).toBe("queued two");
+    // s2 的第一条更新在 s1 的最后一条之后
+    const lastS1 = t.updates.findLastIndex((u) => u.sessionId === s1);
+    const firstS2 = t.updates.findIndex((u) => u.sessionId === s2);
+    expect(firstS2).toBeGreaterThan(lastS1);
+    expect(t.wire.some((w) => (w.msg["error"] as { code?: number })?.code === -32600)).toBe(false);
+    await t.finish();
+  });
+
+  it("排队中的 prompt 收到 session/cancel → 立即 cancelled，不调模型；在跑的照常结束", async () => {
+    const t = await start([{ delayMs: 300, text: "running" }, { text: "after" }]);
+    await t.client.initialize();
+    const s1 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
+    const s2 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
+    const p1 = t.client.prompt(s1, [{ type: "text", text: "1" }]);
+    await new Promise((r) => setTimeout(r, 30));
+    const p2 = t.client.prompt(s2, [{ type: "text", text: "2" }]);
+    await new Promise((r) => setTimeout(r, 10));
+    await t.client.cancel(s2);
+    await expect(p2).resolves.toMatchObject({ stopReason: "cancelled", usage: { totalTokens: 0 } });
+    await expect(p1).resolves.toMatchObject({ stopReason: "end_turn" });
+    // 被取消的那条没有消耗脚本：s2 下一次拿到 "after"
+    await t.client.prompt(s2, [{ type: "text", text: "3" }]);
+    expect(text(t, s2)).toBe("after");
+    await t.finish();
+  });
+
+  it("两会话不同 set_mode：非前台只记并通知，出队时重放到共享管线", async () => {
+    const t = await start([{ text: "a" }, { text: "b" }]);
+    await t.client.initialize();
+    const s1 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
+    const s2 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
+    expect((await t.client.resumeSession(s2, t.runtime.paths.cwd)).modes?.currentModeId).toBe(
+      "default",
+    );
+    await t.client.setMode(s1, "plan");
+    expect(t.runtime.permission.mode).toBe("plan");
+    await t.client.setMode(s2, "auto-edit");
+    // s2 不是前台：共享管线不动，但 s2 收到 current_mode_update
+    expect(t.runtime.permission.mode).toBe("plan");
+    await new Promise((r) => setTimeout(r, 10));
+    const modeUpdates = () =>
+      t.updates
+        .filter((u) => u.update.sessionUpdate === "current_mode_update")
+        .map((u) => [u.sessionId, (u.update as { currentModeId: string }).currentModeId]);
+    expect(modeUpdates()).toEqual([
+      [s1, "plan"],
+      [s2, "auto-edit"],
+    ]);
+    await t.client.prompt(s2, [{ type: "text", text: "x" }]);
+    expect(t.runtime.permission.mode).toBe("auto-edit");
+    await t.client.prompt(s1, [{ type: "text", text: "y" }]);
+    expect(t.runtime.permission.mode).toBe("plan");
+    expect(modeUpdates()).toEqual([
+      [s1, "plan"],
+      [s2, "auto-edit"],
+      [s2, "auto-edit"],
+      [s1, "plan"],
+    ]);
+    expect((await t.client.resumeSession(s2, t.runtime.paths.cwd)).modes?.currentModeId).toBe(
+      "auto-edit",
+    );
+    await t.finish();
+  });
+
+  it("close：运行中的回 cancelled；之后对该 id prompt / set_mode → -32002；关掉唯一会话后还能 new", async () => {
+    const t = await start([{ delayMs: 2_000, text: "never" }, { text: "fresh" }]);
+    await t.client.initialize();
+    const s1 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
+    const running = t.client.prompt(s1, [{ type: "text", text: "1" }]);
+    await new Promise((r) => setTimeout(r, 30));
+    await t.client.closeSession(s1);
+    await expect(running).resolves.toMatchObject({ stopReason: "cancelled" });
+    await expect(t.client.prompt(s1, [{ type: "text", text: "again" }])).rejects.toMatchObject({
+      code: -32002,
+    });
+    await expect(t.client.setMode(s1, "plan")).rejects.toMatchObject({ code: -32002 });
+    await expect(t.client.closeSession(s1)).resolves.toBeDefined();
+    const s2 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
+    await expect(t.client.prompt(s2, [{ type: "text", text: "2" }])).resolves.toMatchObject({
+      stopReason: "end_turn",
+    });
+    expect(text(t, s2)).toBe("fresh");
+    expect(await t.finish()).toBe(0);
+  });
+
+  it("session/list：别的 cwd → 空；非法 cursor → -32602；标题去掉嵌入资源块", async () => {
+    const t = await start([{ text: "ok" }]);
+    await t.client.initialize();
+    const s1 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
+    await t.client.prompt(s1, [
+      {
+        type: "resource",
+        resource: { uri: "file:///a.ts", text: "const a = 1;\nconst b = 2;" },
+      },
+      { type: "text", text: "  explain   this file\nplease" },
+    ]);
+    const listed = await t.client.listSessions(t.runtime.paths.cwd);
+    expect(listed.sessions).toEqual([
+      expect.objectContaining({ sessionId: s1, title: "explain this file" }),
+    ]);
+    expect(listed.nextCursor).toBeUndefined();
+    await expect(t.client.listSessions("/elsewhere")).resolves.toEqual({ sessions: [] });
+    await expect(t.client.listSessions(undefined, "bogus")).rejects.toMatchObject({
+      code: -32602,
+    });
+    await t.finish();
+  });
+
+  it("回合结束发 session_info_update（标题 + 时间）；配置项公布在开会话答复之后", async () => {
+    const info = vi.spyOn(AcpEventMapper.prototype, "emitSessionInfo");
+    const announce = vi.spyOn(AcpEventMapper.prototype, "announce");
+    try {
+      const t = await start([{ text: "ok" }]);
+      await t.client.initialize();
+      const s1 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
+      await new Promise((r) => setTimeout(r, 10));
+      expect(announce).toHaveBeenCalledTimes(1);
+      await t.client.prompt(s1, [{ type: "text", text: "name me" }]);
+      expect(info).toHaveBeenCalledTimes(1);
+      expect(info.mock.calls[0]![0]).toBe("name me");
+      expect(Number.isNaN(Date.parse(info.mock.calls[0]![1]))).toBe(false);
+      await t.client.loadSession(s1, t.runtime.paths.cwd);
+      await new Promise((r) => setTimeout(r, 10));
+      expect(announce).toHaveBeenCalledTimes(2);
+      // set_config_option 接到配置项实现（C0 空实现：任何 id 都是 invalid params）；未知会话 -32002
+      await expect(t.client.setConfigOption(s1, "nope", "x")).rejects.toMatchObject({
+        code: -32602,
+      });
+      await expect(t.client.setConfigOption("missing", "model", "x")).rejects.toMatchObject({
+        code: -32002,
+      });
+      await t.finish();
+    } finally {
+      info.mockRestore();
+      announce.mockRestore();
+    }
+  });
+
+  it("停止原因：拒答 → refusal；回合抛错时已请求取消 → cancelled，否则 -32603", async () => {
+    const t = await start([{ text: "no", stopReason: "refusal" }]);
+    await t.client.initialize();
+    const s1 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
+    await expect(t.client.prompt(s1, [{ type: "text", text: "x" }])).resolves.toMatchObject({
+      stopReason: "refusal",
+    });
+    const session = t.runtime.session as AgentSessionImpl;
+    const original = session.prompt.bind(session);
+    session.prompt = async () => {
+      await new Promise((r) => setTimeout(r, 50));
+      throw new Error("boom");
+    };
+    const cancelled = t.client.prompt(s1, [{ type: "text", text: "y" }]);
+    await new Promise((r) => setTimeout(r, 10));
+    await t.client.cancel(s1);
+    await expect(cancelled).resolves.toMatchObject({ stopReason: "cancelled" });
+    await expect(t.client.prompt(s1, [{ type: "text", text: "z" }])).rejects.toMatchObject({
+      code: -32603,
+      message: "boom",
+    });
+    session.prompt = original;
+    await t.finish();
+  });
+
+  it("$/cancel_request 撤回 prompt → -32800；mcpServers / additionalDirectories 忽略并在 stderr 说一行", async () => {
+    const t = await start([{ delayMs: 2_000, text: "slow" }]);
+    await t.client.initialize();
+    t.raw({
+      id: "new-1",
+      method: "session/new",
+      params: {
+        cwd: t.runtime.paths.cwd,
+        mcpServers: [{ name: "x", command: "/bin/true", args: [], env: [] }],
+        additionalDirectories: ["/tmp"],
+      },
+    });
+    const created = await t.answer("new-1");
+    const sessionId = (created["result"] as { sessionId: string }).sessionId;
+    const notes = h
+      .stderr()
+      .split("\n")
+      .filter((l) => l.startsWith("ama: ACP"));
+    // 各一行：MCP 服务器、附加目录（文案随界面语言）
+    expect(notes).toEqual(
+      [msg().acp.session.ignoredMcp(1), msg().acp.session.ignoredDirs(1)].map((m) => `ama: ${m}`),
+    );
+    t.raw({
+      id: "prompt-1",
+      method: "session/prompt",
+      params: { sessionId, prompt: [{ type: "text", text: "go" }] },
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    t.raw({ method: "$/cancel_request", params: { requestId: "prompt-1" } });
+    const answer = await t.answer("prompt-1");
+    expect(answer["error"]).toMatchObject({ code: -32800 });
+    await t.finish();
+  });
+
+  it("stdin 关闭：排队的回 cancelled，在跑的跑完，兄弟会话全部释放", async () => {
+    const dispose = vi.spyOn(AgentSessionImpl.prototype, "dispose");
+    try {
+      const t = await start([{ delayMs: 200, text: "one" }, { text: "two" }]);
+      await t.client.initialize();
+      const s1 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
+      const s2 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
+      const s3 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
+      const p1 = t.client.prompt(s1, [{ type: "text", text: "1" }]);
+      await new Promise((r) => setTimeout(r, 20));
+      const p2 = t.client.prompt(s2, [{ type: "text", text: "2" }]);
+      await new Promise((r) => setTimeout(r, 10));
+      const code = t.finish();
+      await expect(p1).resolves.toMatchObject({ stopReason: "end_turn" });
+      await expect(p2).resolves.toMatchObject({ stopReason: "cancelled" });
+      expect(await code).toBe(0);
+      expect(s3).toBeDefined();
+      // s2、s3 由服务端释放，前台 s1 由 Runtime.dispose 释放
+      expect(dispose.mock.calls.length).toBeGreaterThanOrEqual(3);
+    } finally {
+      dispose.mockRestore();
+    }
   });
 });
