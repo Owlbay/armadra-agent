@@ -4,6 +4,15 @@
 
 > 从 0.6.0 起 [CHANGELOG.md](CHANGELOG.md) 为英文，本文件保留中文记录（0.1–0.5.1 的完整历史在此）。新条目两份都要加。
 
+## 未发布
+
+- **`ama --mode acp` 没有模型时保持连接**：不再以退出码 4 结束，照常回 `initialize`（客户端声明
+  `clientCapabilities.auth.terminal` 时给两条 terminal 型认证方法 `ama auth login chatgpt` 与 `ama auth set`，启动时的
+  `--auth-file` / profile 的 `authFile` 一并带上），会话方法回 -32000（无模型引导，`data.authMethods`）并以至多每秒一次重试启动；
+  有了模型就把同一条连接交给正常的 ACP 服务端（不必重新 `initialize`）。`authenticate` 回 -32602；stdin 关闭退出 0。
+  ACP 模式在启动前就接管 stdout。`ama auth set` 不给供应商且在 TTY 下时可用方向键选择（非 TTY 仍是用法错误）。
+  文档：docs/acp.md「无模型时」节（含 Zed `agent_servers` 配置示例）。
+
 ## 0.6.8（2026-10-04）
 
 - **ACP 客户端：elicitation 与会话配置项**：`AcpClient` 可选构造参数 `onElicitation(params, signal)`，给了才在 `initialize`
