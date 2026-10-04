@@ -1,4 +1,4 @@
-{"dir":"in","msg":{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false},"clientInfo":{"name":"ama","version":"<version>"}}}}
+{"dir":"in","msg":{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false,"session":{"configOptions":{}}},"clientInfo":{"name":"ama","version":"<version>"}}}}
 {"dir":"out","msg":{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1,"agentCapabilities":{"loadSession":true,"promptCapabilities":{"image":false,"embeddedContext":false},"sessionCapabilities":{"list":{},"resume":{},"close":{}}},"authMethods":[],"agentInfo":{"name":"fake-acp-agent","version":"<version>"}}}}
 {"dir":"in","msg":{"jsonrpc":"2.0","id":2,"method":"session/new","params":{"cwd":"/work","mcpServers":[]}}}
 {"dir":"out","msg":{"jsonrpc":"2.0","id":2,"result":{"sessionId":"fake-1","modes":{"currentModeId":"default","availableModes":[{"id":"default","name":"Default"},{"id":"plan","name":"Plan"}]}}}}

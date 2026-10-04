@@ -14,7 +14,10 @@
  *   没给时线路与旧版相同（不声明，Agent 发来的请求回 method not found）。`cancel(sessionId)`、连接关闭时
  *   挂起的 elicitation 一律回 `{ action: "cancel" }`；ama 从不替人填表。
  * - `setConfigOption(sessionId, configId, value)` 发 `session/set_config_option`；开会话答的 `configOptions`
- *   原样交回。
+ *   原样交回。`initialize` 声明 `clientCapabilities.session.configOptions: {}`（只认 select，不声明 boolean）；
+ *   不声明 `auth.terminal`（ama 作客户端没有可借给 Agent 的交互终端）。[ACP-D]
+ * - 线路两侧开 `$/cancel_request`：本端请求的 `signal` abort 时通知 Agent；Agent 撤回挂起的
+ *   `session/request_permission` / `elicitation/create` 时处理器的 `signal` abort，回 cancelled / cancel。[ACP-D]
  */
 
 import { JsonRpcPeer, RpcError } from "../jsonrpc.js";
@@ -23,6 +26,7 @@ import {
   ACP_PROTOCOL_VERSION,
   RPC_ERRORS,
   type AcpAgentCapabilities,
+  type AcpAuthMethod,
   type AcpContentBlock,
   type AcpElicitationParams,
   type AcpElicitationResult,
@@ -111,6 +115,7 @@ export class AcpClient {
     this.peer = new JsonRpcPeer({
       input: options.input,
       output: options.output,
+      cancelRequests: true,
       onRequest: (method, params, ctx) => this.onRequest(method, params, ctx.signal),
       onNotification: (method, params) => {
         if (method === ACP_METHODS.sessionUpdate)
@@ -143,6 +148,11 @@ export class AcpClient {
     return this.initResult?.agentInfo;
   }
 
+  /** `initialize` 答的认证方法（开会话回 -32000 时给人看）。 */
+  get authMethods(): readonly AcpAuthMethod[] {
+    return this.initResult?.authMethods ?? [];
+  }
+
   async initialize(signal?: AbortSignal): Promise<AcpInitializeResult> {
     const result = await this.peer.request<AcpInitializeResult>(
       ACP_METHODS.initialize,
@@ -151,6 +161,7 @@ export class AcpClient {
         clientCapabilities: {
           fs: { readTextFile: false, writeTextFile: false },
           terminal: false,
+          session: { configOptions: {} },
           ...(this.options.onElicitation !== undefined ? { elicitation: {} } : {}),
         },
         ...(this.options.clientInfo !== undefined ? { clientInfo: this.options.clientInfo } : {}),

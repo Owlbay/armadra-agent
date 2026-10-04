@@ -4,9 +4,13 @@
  * open：起进程 → `initialize` → 续聊优先 `session/resume`（不回放），其次 `session/load`
  * （回放的历史通知在 open 期间丢弃），都不支持则新开并发 notice「已新开」→ 按 ama 模式
  * `session/set_mode`（只读模式没有映射时拒绝启动，避免以 Agent 缺省模式跑写操作）。
- * prompt：`session/update` → DriverEvent；`session/request_permission` → hooks.onPermission
- * （只交给人）；回合以 `session/prompt` 的 stopReason 结束。
- * cancel：`session/cancel`，挂起的权限请求回 cancelled，15 s 内无回合结束 → 关 stdin → 杀进程树。
+ * Agent 不给 `modes` 时退到 `configOptions` 里 category `mode` 的选择项，经 `session/set_config_option` 设置；
+ * 开会话回 -32000（需要登录）时报 `agent_auth_required`，文案列出 Agent 的认证方法（terminal 型附命令）。
+ * prompt：`session/update` → DriverEvent（diff 内容的路径计入 filesTouched）；`session/request_permission`
+ * → hooks.onPermission（只交给人；Agent 以 `$/cancel_request` 撤回时 signal abort）；回合以
+ * `session/prompt` 的 stopReason 结束。
+ * cancel：`session/cancel`，挂起的权限请求回 cancelled，15 s 内无回合结束 → 关 stdin → 杀进程树；
+ * 取消后 `session/prompt` 回 -32800（请求被撤回）也当作 cancelled。
  */
 
 import { AmaError } from "../../errors.js";
@@ -31,15 +35,21 @@ import type {
   DriverSession,
   DriverTurnResult,
 } from "../types.js";
+import { RpcError } from "../jsonrpc.js";
 import { AcpClient } from "./client.js";
-import type {
-  AcpContentBlock,
-  AcpRequestPermissionParams,
-  AcpRequestPermissionResult,
-  AcpSessionModeState,
-  AcpSessionNotification,
-  AcpSessionUpdate,
-  AcpToolCallLocation,
+import {
+  RPC_ERRORS,
+  type AcpAuthMethod,
+  type AcpContentBlock,
+  type AcpPromptResult,
+  type AcpRequestPermissionParams,
+  type AcpRequestPermissionResult,
+  type AcpSessionConfigOption,
+  type AcpSessionModeState,
+  type AcpSessionNotification,
+  type AcpSessionUpdate,
+  type AcpToolCallContent,
+  type AcpToolCallLocation,
 } from "./types.js";
 import { AMA_VERSION } from "../../version.js";
 import { msg } from "../../i18n/index.js";
@@ -57,6 +67,15 @@ function locationsOf(locations: readonly AcpToolCallLocation[] | undefined): str
   return locations === undefined ? undefined : locations.map((l) => l.path);
 }
 
+/** 工具内容里 diff 的路径。 */
+function diffPathsOf(content: readonly AcpToolCallContent[] | null | undefined): string[] {
+  const paths: string[] = [];
+  for (const item of content ?? [])
+    if (item.type === "diff" && typeof item.path === "string" && !paths.includes(item.path))
+      paths.push(item.path);
+  return paths;
+}
+
 /** session/update → DriverEvent（用户消息回放、命令表等忽略）。 */
 export function pushAcpUpdate(update: AcpSessionUpdate, turn: TurnCollector): void {
   switch (update.sessionUpdate) {
@@ -71,7 +90,11 @@ export function pushAcpUpdate(update: AcpSessionUpdate, turn: TurnCollector): vo
     case "tool_call":
     case "tool_call_update": {
       const known = turn.tool(update.toolCallId);
-      const locations = locationsOf(update.locations);
+      const diffs = diffPathsOf(update.content);
+      let locations = locationsOf(update.locations);
+      // diff 的路径并入 locations（没给 locations 时并入已知的）
+      if (diffs.length > 0)
+        locations = [...new Set([...(locations ?? known?.locations ?? []), ...diffs])];
       turn.push({
         type: "tool_call",
         id: update.toolCallId,
@@ -80,6 +103,7 @@ export function pushAcpUpdate(update: AcpSessionUpdate, turn: TurnCollector): vo
         status: update.status ?? known?.status ?? "pending",
         ...(locations !== undefined ? { locations } : {}),
       });
+      turn.noteDiff(update.toolCallId, diffs);
       return;
     }
     case "plan":
@@ -101,16 +125,70 @@ export function pushAcpUpdate(update: AcpSessionUpdate, turn: TurnCollector): vo
   }
 }
 
+/** ama 模式在 Agent 那边想要的模式 id，按优先级（显式映射 > 同名）。 */
+function wantedModeIds(mode: PermissionMode, candidate: CatalogCandidate): string[] {
+  const wanted = [candidate.modes?.[mode] ?? mode];
+  // allowlist 在外部 Agent 那边没有等价物：退到只读的 plan
+  if (mode === "allowlist") wanted.push(candidate.modes?.plan ?? "plan");
+  return wanted;
+}
+
 /** ama 模式 → 该 Agent 的模式 id（显式映射 > 同名）。 */
 export function pickModeId(
   mode: PermissionMode,
   candidate: CatalogCandidate,
   state: AcpSessionModeState | null | undefined,
 ): string | undefined {
-  const wanted = [candidate.modes?.[mode] ?? mode];
-  // allowlist 在外部 Agent 那边没有等价物：退到只读的 plan
-  if (mode === "allowlist") wanted.push(candidate.modes?.plan ?? "plan");
-  return wanted.find((id) => state?.availableModes.some((m) => m.id === id) === true);
+  return wantedModeIds(mode, candidate).find(
+    (id) => state?.availableModes.some((m) => m.id === id) === true,
+  );
+}
+
+/** `configOptions` 里 category `mode` 的选择项（没有 `modes` 的 Agent 用它表达模式）。 */
+export function modeConfigOption(
+  options: readonly AcpSessionConfigOption[] | null | undefined,
+): AcpSessionConfigOption | undefined {
+  return options?.find((o) => o.category === "mode" && o.type === "select");
+}
+
+/** 与 {@link pickModeId} 同一映射，在 mode 类配置项的可选值里找（分组的展开）。 */
+export function pickConfigModeValue(
+  mode: PermissionMode,
+  candidate: CatalogCandidate,
+  option: AcpSessionConfigOption | undefined,
+): string | undefined {
+  if (option === undefined) return undefined;
+  const values = option.options.flatMap((o) =>
+    "options" in o ? o.options.map((x) => x.value) : [o.value],
+  );
+  return wantedModeIds(mode, candidate).find((id) => values.includes(id));
+}
+
+/** 一条认证方法给人看的样子：terminal 型附上要在终端里跑的命令。 */
+function authMethodText(method: AcpAuthMethod, command: readonly string[]): string {
+  if (method.type !== "terminal") return method.name;
+  const words = [...command, ...(method.args ?? [])].map((w) =>
+    /[\s"']/.test(w) ? JSON.stringify(w) : w,
+  );
+  return msg().acp.client.authTerminal(method.name, words.join(" "));
+}
+
+/** 开会话回 -32000 → `agent_auth_required`，列出 `initialize` 给的认证方法。 */
+export function authRequiredError(
+  agentId: string,
+  methods: readonly AcpAuthMethod[],
+  command: readonly string[],
+  cause: unknown,
+): AmaError {
+  const m = msg().acp.client;
+  const text =
+    methods.length === 0
+      ? m.authNoMethods(agentId)
+      : m.authRequired(
+          agentId,
+          methods.map((method) => authMethodText(method, command)),
+        );
+  return new AmaError("agent_auth_required", text, { cause });
 }
 
 export class AcpDriver implements AgentDriver {
@@ -139,8 +217,9 @@ export class AcpDriver implements AgentDriver {
       env: options.env,
     });
     const session = new AcpDriverSession(this.agentId, transport, this.deps);
+    const command = [probed.path ?? this.candidate.program, ...this.candidate.args];
     try {
-      await session.start(options, this.candidate);
+      await session.start(options, this.candidate, command);
     } catch (error) {
       await session.close();
       if (error instanceof AmaError) throw error;
@@ -164,6 +243,8 @@ class AcpDriverSession implements DriverSession {
   private running: Promise<unknown> | undefined;
   private closed = false;
   private notices: string[] = [];
+  /** 本回合已发过 cancel。 */
+  private cancelling = false;
 
   constructor(
     private readonly agentId: string,
@@ -175,7 +256,12 @@ class AcpDriverSession implements DriverSession {
     return this.id;
   }
 
-  async start(options: DriverOpenOptions, candidate: CatalogCandidate): Promise<void> {
+  /** `command`：启动 Agent 的程序与参数（terminal 型认证方法的提示用）。 */
+  async start(
+    options: DriverOpenOptions,
+    candidate: CatalogCandidate,
+    command: readonly string[],
+  ): Promise<void> {
     this.client = new AcpClient({
       input: this.transport.stdout,
       output: this.transport.stdin,
@@ -186,39 +272,60 @@ class AcpDriverSession implements DriverSession {
     });
     const signal = options.signal;
     await this.client.initialize(signal);
-    let modes: AcpSessionModeState | null | undefined;
-    if (options.resume !== undefined) {
-      if (this.client.supportsResume()) {
-        modes = (await this.client.resumeSession(options.resume, options.cwd, signal)).modes;
-        this.id = options.resume;
-      } else if (this.client.supportsLoad()) {
-        this.replaying = true;
-        try {
-          modes = (await this.client.loadSession(options.resume, options.cwd, signal)).modes;
-        } finally {
-          this.replaying = false;
-        }
-        this.id = options.resume;
-      } else {
-        this.notices.push(msg().drivers.agent.resumeUnsupported(this.agentId));
-      }
+    let opened: Awaited<ReturnType<AcpDriverSession["openSession"]>>;
+    try {
+      opened = await this.openSession(options);
+    } catch (error) {
+      if (error instanceof RpcError && error.code === RPC_ERRORS.authRequired)
+        throw authRequiredError(this.agentId, this.client.authMethods, command, error);
+      throw error;
     }
-    if (this.id === "") {
-      const created = await this.client.newSession(options.cwd, signal);
-      this.id = created.sessionId;
-      modes = created.modes;
-    }
+    const modes = opened.modes;
     const modeId = pickModeId(options.mode, candidate, modes);
+    const modeOption = modeId === undefined ? modeConfigOption(opened.configOptions) : undefined;
+    const configMode = pickConfigModeValue(options.mode, candidate, modeOption);
     if (modeId !== undefined) {
       if (modes?.currentModeId !== modeId) await this.client.setMode(this.id, modeId);
+    } else if (modeOption !== undefined && configMode !== undefined) {
+      if (modeOption.currentValue !== configMode)
+        await this.client.setConfigOption(this.id, modeOption.id, configMode);
     } else if (isReadOnlyMode(options.mode)) {
       throw new AmaError(
         "agent_mode_unsupported",
         `${this.agentId} has no read-only mode matching ama's "${options.mode}"; its default mode cannot stand in for it`,
       );
-    } else if (modes != null) {
+    } else if (modes != null || modeOption !== undefined) {
       this.notices.push(msg().drivers.agent.noMatchingMode(this.agentId, options.mode));
     }
+  }
+
+  /** 续聊优先 resume（不回放），其次 load（回放丢弃），都不行就新开；设好 `this.id`。 */
+  private async openSession(options: DriverOpenOptions): Promise<{
+    modes?: AcpSessionModeState | null;
+    configOptions?: AcpSessionConfigOption[] | null;
+  }> {
+    const signal = options.signal;
+    if (options.resume !== undefined) {
+      if (this.client.supportsResume()) {
+        const resumed = await this.client.resumeSession(options.resume, options.cwd, signal);
+        this.id = options.resume;
+        return resumed;
+      }
+      if (this.client.supportsLoad()) {
+        this.replaying = true;
+        try {
+          const loaded = await this.client.loadSession(options.resume, options.cwd, signal);
+          this.id = options.resume;
+          return loaded;
+        } finally {
+          this.replaying = false;
+        }
+      }
+      this.notices.push(msg().drivers.agent.resumeUnsupported(this.agentId));
+    }
+    const created = await this.client.newSession(options.cwd, signal);
+    this.id = created.sessionId;
+    return created;
   }
 
   async prompt(content: ContentBlock[], hooks: DriverPromptHooks): Promise<DriverTurnResult> {
@@ -229,6 +336,7 @@ class AcpDriverSession implements DriverSession {
     for (const text of this.notices.splice(0)) turn.push({ type: "notice", level: "info", text });
     this.hooks = hooks;
     this.turn = turn;
+    this.cancelling = false;
     const images = this.client.supportsImages();
     if (!images && content.some((b) => b.type === "image"))
       turn.push({
@@ -239,7 +347,14 @@ class AcpDriverSession implements DriverSession {
     const request = this.client.prompt(this.id, toAcpContent(content, images));
     this.running = request;
     try {
-      const result = await request.catch((error: unknown) => {
+      const result: AcpPromptResult = await request.catch((error: unknown) => {
+        // 取消后 Agent 以 -32800（请求被撤回）答 session/prompt：与 stopReason cancelled 同义
+        if (
+          this.cancelling &&
+          error instanceof RpcError &&
+          error.code === RPC_ERRORS.requestCancelled
+        )
+          return { stopReason: "cancelled" as const };
         if (this.client.isOpen) throw error;
         const hint = stderrHint(this.transport);
         throw new AmaError(
@@ -269,6 +384,7 @@ class AcpDriverSession implements DriverSession {
   async cancel(): Promise<void> {
     const running = this.running;
     if (running === undefined || this.closed) return;
+    this.cancelling = true;
     await this.client.cancel(this.id).catch(() => undefined);
     armCancelWatchdog(
       this.transport,
