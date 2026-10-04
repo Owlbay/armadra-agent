@@ -4,6 +4,11 @@
 
 > 从 0.6.0 起 [CHANGELOG.md](CHANGELOG.md) 为英文，本文件保留中文记录（0.1–0.5.1 的完整历史在此）。新条目两份都要加。
 
+## 未发布
+
+- **Windows：并发刷新 OAuth**：一个 ama 进程刚释放 `auth.json.lock` 时，另一个进程打开它会报 EPERM（NTFS 上文件处于删除挂起），刷新
+  直接失败；现在当作锁被占用继续等。别的进程正打开 `auth.json` 时的覆盖 / 读取遇到 EPERM / EACCES / EBUSY 短暂重试（只在 Windows）。
+
 ## 0.7.0（2026-10-04）
 
 ACP 补全：`ama --mode acp` 作为编辑器（Zed 等 ACP 客户端）的 Agent，`AcpClient` / `AcpDriver` 作为客户端，仓库内对照官方 ACP v1

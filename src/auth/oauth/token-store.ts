@@ -6,6 +6,8 @@
  * - 写：读-改-写 `auth.json` 整个文件，经 `writeAuthFile`（同目录临时文件 0600 → rename → chmod），其它条目原样保留；
  * - 锁：`<auth.json>.lock`，`open(O_CREAT|O_EXCL)`（flag `wx`）写 `{ pid, at }`；等待 ≤ 15 s；锁文件超过 60 s 且
  *   pid 已死视为陈旧，删除后重试。取锁后由调用方**重读文件**再决定要不要刷新。
+ * - Windows：锁文件删除挂起时 `open(wx)` 报 EPERM / EACCES，按「被占用」继续等；读 / rename 的同类瞬时错误
+ *   短暂重试（`config/fs-retry.ts`）。
  */
 
 import {
@@ -19,6 +21,7 @@ import {
 } from "node:fs";
 import { dirname } from "node:path";
 import { writeAuthFile } from "../../config/auth-file.js";
+import { isTransientFsError, retryTransientFs } from "../../config/fs-retry.js";
 import { CONFIG_FILE_VERSION, type AuthFile } from "../../config/types.js";
 import { isOAuthEntry, type AuthFileEntry, type OAuthAuthEntry } from "../../config/types-w6.js";
 import { AmaError } from "../../errors.js";
@@ -29,7 +32,7 @@ const LOCK_POLL_MS = 50;
 
 function readRaw(path: string): AuthFile | undefined {
   try {
-    const value = JSON.parse(readFileSync(path, "utf8")) as AuthFile;
+    const value = JSON.parse(retryTransientFs(() => readFileSync(path, "utf8"))) as AuthFile;
     return typeof value === "object" && value !== null && typeof value.providers === "object"
       ? value
       : undefined;
@@ -98,7 +101,9 @@ function tryAcquire(path: string): boolean {
     }
     return true;
   } catch (error) {
-    if ((error as { code?: unknown }).code === "EEXIST") return false;
+    const code = (error as { code?: unknown }).code;
+    // Windows：上一个持锁进程刚删掉锁文件（删除挂起）时 open(wx) 报 EPERM / EACCES——同样是「被占用」
+    if (code === "EEXIST" || isTransientFsError(code)) return false;
     throw error;
   }
 }
