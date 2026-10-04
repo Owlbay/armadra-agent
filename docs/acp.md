@@ -83,12 +83,12 @@ ama 需要询问的调用经 `session/request_permission` 交给客户端，三�
 | `authenticate`          | `-32602`：terminal 方法按规范不经 `authenticate`                                                                                                                                                                                                             |
 | 其它                    | `-32601`；交接前的通知忽略                                                                                                                                                                                                                                   |
 
-两条 terminal 方法（客户端用启动 Agent 的同一条命令、换成这些参数在终端里起子进程）：
+两条 terminal 方法。按规范，客户端把 `args` **追加**到配置好的启动命令后面、在终端里起子进程（例如 `ama --mode acp --acp-terminal-auth api-key`）；ama 见到 `--acp-terminal-auth` 就忽略其余启动参数（`--mode acp`、`--model` 等），改跑对应的 `auth` 子命令，同一条命令里的 `--auth-file`、`--lang` 照用：
 
-| id        | 参数                 | 作用                                                                 |
-| --------- | -------------------- | -------------------------------------------------------------------- |
-| `chatgpt` | `auth login chatgpt` | ChatGPT 订阅登录（浏览器 OAuth）                                     |
-| `api-key` | `auth set`           | 方向键选内置的需 key 供应商，再粘贴 key（不回显，写 auth.json 0600） |
+| id        | `args`                        | 等同于                   | 作用                                                                 |
+| --------- | ----------------------------- | ------------------------ | -------------------------------------------------------------------- |
+| `chatgpt` | `--acp-terminal-auth chatgpt` | `ama auth login chatgpt` | ChatGPT 订阅登录（浏览器 OAuth）                                     |
+| `api-key` | `--acp-terminal-auth api-key` | `ama auth set`           | 方向键选内置的需 key 供应商，再粘贴 key（不回显，写 auth.json 0600） |
 
 启动时给了 `--auth-file`（或 profile 的 `authFile`）时两条方法都追加 `--auth-file <绝对路径>`，登录写到 ama 读的同一个文件。登录完成后客户端再开会话即可，不用重启 ama。stdin 关闭时退出 0（已交接则同下节）。失败的重试停在模型解析这一步，不加载宿主、不跑 SessionStart Hook。
 
@@ -107,7 +107,7 @@ Zed 的配置（`settings.json`）：
 }
 ```
 
-没配模型时 Zed 打开 ama 的线程会提示登录，点登录方式后在 Zed 的终端里跑上表的命令；也可以先在任意终端 `ama auth set` / `ama auth login chatgpt`，或在 `env` 里给 key 环境变量。
+没配模型时 Zed 打开 ama 的线程会提示登录，点登录方式后 Zed 在它的终端里跑上表的登录流程，成功退出后自动重试开会话；也可以先在任意终端 `ama auth set` / `ama auth login chatgpt`，或在 `env` 里给 key 环境变量。
 
 ### 配置项与命令
 

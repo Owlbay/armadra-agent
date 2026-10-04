@@ -11,8 +11,9 @@ ACP completion: `ama --mode acp` as an agent for editors (Zed and other ACP clie
 client, checked in-repo against the official ACP v1 schema 1.24.1. Docs: docs/acp.md (English: docs/en/acp.md).
 
 - **No model, no exit**: without a model `ama --mode acp` no longer exits with code 4. It answers `initialize` (two
-  terminal auth methods, `ama auth login chatgpt` and `ama auth set`, when the client declares
-  `clientCapabilities.auth.terminal`; the start-up `--auth-file` / profile `authFile` is appended), answers session
+  terminal auth methods when the client declares `clientCapabilities.auth.terminal`: their `args`,
+  `--acp-terminal-auth chatgpt` / `api-key`, are appended to the configured command as the spec says, and ama then runs
+  `ama auth login chatgpt` / `ama auth set` instead of ACP mode; the start-up `--auth-file` / profile `authFile` is passed on), answers session
   methods with -32000 (the no-model guidance, `data.authMethods`) and retries start-up on them at most once per second;
   once a model is available the same connection is handed to the normal ACP server (no new `initialize`). `authenticate`
   answers -32602; closing stdin exits 0. stdout is taken over before start-up in ACP mode. `ama auth set` without a

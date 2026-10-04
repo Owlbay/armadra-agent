@@ -14,6 +14,8 @@ export const en = {
   invalidChoice: (option: string, choices: readonly string[], got: string) =>
     `--${option} must be one of ${choices.join(" | ")} (got ${got})`,
   emptyValue: (option: string) => `--${option} cannot be empty`,
+  unknownTerminalAuth: (id: string) =>
+    `--acp-terminal-auth: unknown method ${id} (expected chatgpt or api-key)`,
   fullscreenUnsupported: "--tui-mode fullscreen is not supported yet (only regular for now)",
   maxTurnsPositive: (got: string) => `--max-turns must be a positive integer (got ${got})`,
   maxCostPositive: (got: string) => `--max-cost must be a positive number (USD, got ${got})`,
@@ -36,6 +38,8 @@ export const zh = {
   invalidChoice: (option, choices, got) =>
     `--${option} 的取值应为 ${choices.join(" | ")}（收到 ${got}）`,
   emptyValue: (option) => `--${option} 的值不能为空`,
+  unknownTerminalAuth: (id) =>
+    `--acp-terminal-auth：未知的认证方法 ${id}（应为 chatgpt 或 api-key）`,
   fullscreenUnsupported: "--tui-mode fullscreen 尚未支持（第一期只有 regular）",
   maxTurnsPositive: (got) => `--max-turns 应为正整数（收到 ${got}）`,
   maxCostPositive: (got) => `--max-cost 应为正数（美元，收到 ${got}）`,

@@ -16,7 +16,7 @@
  */
 
 import { resolve } from "node:path";
-import type { ParsedArgs } from "../../cli/args.js";
+import { ACP_TERMINAL_AUTH_FLAG, type ParsedArgs } from "../../cli/args.js";
 import { bootstrap } from "../../cli/bootstrap.js";
 import type { CliIo, RuntimeDeps } from "../../cli/deps.js";
 import { ExitCode } from "../../cli/exit-codes.js";
@@ -56,7 +56,9 @@ const SESSION_METHODS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * terminal 型认证方法（D4）：客户端以启动 Agent 的同一条命令加这些 `args` 在终端里起子进程。
+ * terminal 型认证方法（D4）：客户端把 `args` **追加**到启动 Agent 的那条命令后面、在终端里起子进程
+ * （规范：append to the configured agent invocation），所以 args 是 `--acp-terminal-auth <id>`，
+ * 由 `parseArgs` 认出后转成 `auth login chatgpt` / `auth set`，原有的 `--mode acp` 等参数不再生效。
  * `authFile`：启动时的 `--auth-file` 或 profile 的 `authFile`（绝对路径），让登录写到同一个文件。
  */
 export function terminalAuthMethods(authFile?: string): AcpAuthMethod[] {
@@ -68,14 +70,14 @@ export function terminalAuthMethods(authFile?: string): AcpAuthMethod[] {
       id: "chatgpt",
       name: m.chatgptName,
       description: m.chatgptDescription,
-      args: ["auth", "login", "chatgpt", ...extra],
+      args: [ACP_TERMINAL_AUTH_FLAG, "chatgpt", ...extra],
     },
     {
       type: "terminal",
       id: "api-key",
       name: m.apiKeyName,
       description: m.apiKeyDescription,
-      args: ["auth", "set", ...extra],
+      args: [ACP_TERMINAL_AUTH_FLAG, "api-key", ...extra],
     },
   ];
 }

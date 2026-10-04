@@ -427,9 +427,50 @@ function validate(args: ParsedArgs): void {
   }
 }
 
+/**
+ * ACP terminal 型认证方法的入口（docs/acp.md「无模型时」）：客户端把方法的 `args` **追加**到配置好的
+ * Agent 启动命令后面（规范原文 append），实际得到 `ama --mode acp … --acp-terminal-auth <id>`。
+ * 见到这个标志就不再按启动参数解析，转成对应的 `auth` 子命令；同一条命令里的 `--auth-file`、`--lang` 一并带上。
+ */
+export const ACP_TERMINAL_AUTH_FLAG = "--acp-terminal-auth";
+
+const ACP_TERMINAL_AUTH_ARGV: Record<string, readonly string[]> = {
+  chatgpt: ["login", "chatgpt"],
+  "api-key": ["set"],
+};
+
+function acpTerminalAuth(argv: readonly string[]): ParseResult | undefined {
+  let id: string | undefined;
+  let lang: Locale | undefined;
+  let authFile: string | undefined;
+  for (let i = 0; i < argv.length; i++) {
+    const token = argv[i] ?? "";
+    if (token === "--") break;
+    if (token === ACP_TERMINAL_AUTH_FLAG) id = argv[++i] ?? "";
+    else if (token.startsWith(`${ACP_TERMINAL_AUTH_FLAG}=`))
+      id = token.slice(ACP_TERMINAL_AUTH_FLAG.length + 1);
+    else if (token === "--auth-file") authFile = argv[++i];
+    else if (token.startsWith("--auth-file=")) authFile = token.slice("--auth-file=".length);
+    else if (token === "--lang" && argv[i + 1] !== undefined)
+      lang = choice("lang", argv[++i] as string, LOCALES);
+    else if (token.startsWith("--lang=")) lang = choice("lang", token.slice(7), LOCALES);
+  }
+  if (id === undefined) return undefined;
+  const sub = ACP_TERMINAL_AUTH_ARGV[id];
+  if (sub === undefined) throw new UsageError(msg().cli.args.unknownTerminalAuth(id));
+  return {
+    kind: "subcommand",
+    name: "auth",
+    argv: [...sub, ...(authFile !== undefined ? ["--auth-file", authFile] : [])],
+    ...(lang !== undefined ? { lang } : {}),
+  };
+}
+
 /** 解析 argv（不含 node 与脚本路径）；用法错误抛 UsageError（退出码 2）。 */
 export function parseArgs(argv: readonly string[]): ParseResult {
   const lead = leadingLang(argv);
+  const terminalAuth = acpTerminalAuth(argv);
+  if (terminalAuth !== undefined) return terminalAuth;
   const first = argv[lead.next];
   if (first !== undefined && (SUBCOMMANDS as readonly string[]).includes(first)) {
     return {

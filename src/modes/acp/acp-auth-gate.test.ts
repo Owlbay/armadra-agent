@@ -95,9 +95,13 @@ describe("ama --mode acp 认证门（无模型）", () => {
       expect.objectContaining({
         type: "terminal",
         id: "chatgpt",
-        args: ["auth", "login", "chatgpt"],
+        args: ["--acp-terminal-auth", "chatgpt"],
       }),
-      expect.objectContaining({ type: "terminal", id: "api-key", args: ["auth", "set"] }),
+      expect.objectContaining({
+        type: "terminal",
+        id: "api-key",
+        args: ["--acp-terminal-auth", "api-key"],
+      }),
     ]);
     const error = await rpcError(
       t.client.request(ACP_METHODS.sessionNew, { cwd: h.home.cwd, mcpServers: [] }),
@@ -212,8 +216,8 @@ describe("ama --mode acp 认证门（无模型）", () => {
     const result = await init(t.client, true);
     const file = h.home.path("work", "keys.json");
     expect(result.authMethods?.map((m) => ("args" in m ? m.args : undefined))).toEqual([
-      ["auth", "login", "chatgpt", "--auth-file", file],
-      ["auth", "set", "--auth-file", file],
+      ["--acp-terminal-auth", "chatgpt", "--auth-file", file],
+      ["--acp-terminal-auth", "api-key", "--auth-file", file],
     ]);
     expect(await t.finish()).toBe(0);
   });
@@ -225,7 +229,7 @@ describe("ama --mode acp 认证门（无模型）", () => {
     const t = await gate(["--profile", profile]);
     const result = await init(t.client, true);
     expect(result.authMethods?.[1]).toMatchObject({
-      args: ["auth", "set", "--auth-file", authFile],
+      args: ["--acp-terminal-auth", "api-key", "--auth-file", authFile],
     });
     expect(await t.finish()).toBe(0);
   });

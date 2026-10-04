@@ -83,12 +83,12 @@ When no model is available (no key, no `--model`, `config.defaultModel` unusable
 | `authenticate`                | `-32602`: per the spec, terminal methods are not passed to `authenticate`                                                                                                                                                                                                                                                                                                                                |
 | Anything else                 | `-32601`; notifications before the handover are ignored                                                                                                                                                                                                                                                                                                                                                  |
 
-The two terminal methods (the client runs the same command it uses to start the agent, with these arguments, in a terminal):
+The two terminal methods. Per the spec, the client **appends** `args` to the configured agent command and runs it in a terminal (for example `ama --mode acp --acp-terminal-auth api-key`); when ama sees `--acp-terminal-auth` it ignores the other start-up arguments (`--mode acp`, `--model`, …) and runs the matching `auth` subcommand, still honouring `--auth-file` and `--lang` from the same command:
 
-| id        | Arguments            | What it does                                                                                                                        |
-| --------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `chatgpt` | `auth login chatgpt` | ChatGPT subscription login (browser OAuth)                                                                                          |
-| `api-key` | `auth set`           | Pick a built-in provider that needs a key with the arrow keys, then paste the key (not echoed; written to auth.json with mode 0600) |
+| id        | `args`                        | Same as                  | What it does                                                                                                                        |
+| --------- | ----------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `chatgpt` | `--acp-terminal-auth chatgpt` | `ama auth login chatgpt` | ChatGPT subscription login (browser OAuth)                                                                                          |
+| `api-key` | `--acp-terminal-auth api-key` | `ama auth set`           | Pick a built-in provider that needs a key with the arrow keys, then paste the key (not echoed; written to auth.json with mode 0600) |
 
 When `--auth-file` (or a profile's `authFile`) was given at start-up, both methods append `--auth-file <absolute path>`, so the login writes the file ama reads. After signing in, the client just opens a session again; ama does not need a restart. Closing stdin exits 0 (after a handover, as in "Exit" below). A failed retry stops at model resolution: no host is loaded and no SessionStart hook runs.
 
@@ -107,7 +107,7 @@ Zed configuration (`settings.json`):
 }
 ```
 
-Without a model, opening an ama thread in Zed asks you to sign in; pick a method and Zed runs the command above in its terminal. You can also run `ama auth set` / `ama auth login chatgpt` in any terminal beforehand, or put a key environment variable in `env`.
+Without a model, opening an ama thread in Zed asks you to sign in; pick a method and Zed runs the login flow above in its terminal, then retries opening the session once it exits successfully. You can also run `ama auth set` / `ama auth login chatgpt` in any terminal beforehand, or put a key environment variable in `env`.
 
 ### Config options and commands
 

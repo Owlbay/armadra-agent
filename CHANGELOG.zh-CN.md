@@ -10,7 +10,8 @@ ACP 补全：`ama --mode acp` 作为编辑器（Zed 等 ACP 客户端）的 Agen
 schema 1.24.1 逐条校验。文档：docs/acp.md（英文：docs/en/acp.md）。
 
 - **没有模型不退出**：`ama --mode acp` 没有模型时不再以退出码 4 结束，照常回 `initialize`（客户端声明
-  `clientCapabilities.auth.terminal` 时给两条 terminal 型认证方法 `ama auth login chatgpt` 与 `ama auth set`，启动时的
+  `clientCapabilities.auth.terminal` 时给两条 terminal 型认证方法：按规范其 `args`（`--acp-terminal-auth chatgpt` / `api-key`）
+  追加在配置好的启动命令后面，ama 见到后不进 ACP 模式、改跑 `ama auth login chatgpt` / `ama auth set`；启动时的
   `--auth-file` / profile 的 `authFile` 一并带上），会话方法回 -32000（无模型引导，`data.authMethods`）并以至多每秒一次重试启动；
   有了模型就把同一条连接交给正常的 ACP 服务端（不必重新 `initialize`）。`authenticate` 回 -32602；stdin 关闭退出 0。
   ACP 模式在启动前就接管 stdout。`ama auth set` 不给供应商且在 TTY 下时可用方向键选择（非 TTY 仍是用法错误）。

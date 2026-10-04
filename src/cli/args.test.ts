@@ -174,6 +174,34 @@ describe("parseArgs", () => {
     expect(sub.flags.has("all")).toBe(true);
   });
 
+  it("ACP terminal 认证：--acp-terminal-auth 追加在启动命令后也转成 auth 子命令", () => {
+    expect(
+      parseArgs(["--mode", "acp", "--model", "fake/echo", "--acp-terminal-auth", "api-key"]),
+    ).toEqual({ kind: "subcommand", name: "auth", argv: ["set"] });
+    expect(
+      parseArgs([
+        "--lang",
+        "zh",
+        "--mode",
+        "acp",
+        "--auth-file",
+        "/a.json",
+        "--acp-terminal-auth=chatgpt",
+        "--auth-file",
+        "/b.json",
+      ]),
+    ).toEqual({
+      kind: "subcommand",
+      name: "auth",
+      argv: ["login", "chatgpt", "--auth-file", "/b.json"],
+      lang: "zh",
+    });
+    expect(() => parseArgs(["--mode", "acp", "--acp-terminal-auth", "nope"])).toThrow(UsageError);
+    expect(run(["--", "--acp-terminal-auth", "api-key"]).prompt).toBe(
+      "--acp-terminal-auth api-key",
+    );
+  });
+
   it("--help 文本覆盖全部参数与子命令", () => {
     for (const flag of [
       "--profile",
