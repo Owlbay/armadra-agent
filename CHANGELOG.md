@@ -13,6 +13,16 @@ English · [简体中文](CHANGELOG.zh-CN.md)
   `setConfigOption(sessionId, configId, value)` and `configOptions` on session-open results. `AcpClient.features` gains
   `elicitation` and `configOptions`. Without a handler the wire is unchanged. The fake ACP agent adds `[elicit]`, `[model]`
   and `[env NAME]` markers and `--config-options`. Docs: docs/acp.md.
+- **ACP contracts for the completion work (no wire change)**: `JsonRpcPeer` takes `cancelRequests` (ACP's
+  `$/cancel_request`: an aborted outgoing request notifies the peer, a peer-cancelled incoming request aborts its
+  `ctx.signal` and answers -32800; off by default, so the Codex app-server wire is byte-for-byte unchanged).
+  `ToolResult.fileChange` (before / after text of a file edit, never persisted and stripped from RPC / stream-json
+  events; not filled yet) and `FILE_CHANGE_TEXT_LIMIT`; `StopReason` gains `"refusal"`. The ACP types gain
+  `authenticate`, `$/cancel_request`, -32800, terminal auth methods, client `session` / `auth` capabilities, tool call
+  `name` / `_meta`, `config_option_update` and `ACP_META_KEY` (exported from `@armadra/agent/acp`); the prompt `usage`
+  is marked UNSTABLE; select config options are either all flat or all grouped (the fake agent's `model` option is now
+  grouped). The fake ACP agent adds `--config-only`, `--auth-required` and `[cancel-request]`. ACP wire shapes are
+  checked in-repo against the official v1 schema 1.24.1. Docs: docs/acp.md.
 
 ## 0.6.7 (2026-10-03)
 
