@@ -163,8 +163,13 @@ describe("ama --mode acp 认证门（无模型）", () => {
       .map((u) => u.content?.text ?? "")
       .join("");
     expect(text).toBe("hello after login");
-    // 交接后的 initialize 由服务端答
+    // 交接后的 initialize 由服务端答；authenticate 仍是 -32602（与交接前一致）
     expect((await init(t.client, true)).protocolVersion).toBe(1);
+    const auth = await rpcError(
+      t.client.request(ACP_METHODS.authenticate, { methodId: "chatgpt" }),
+    );
+    expect(auth.code).toBe(RPC_ERRORS.invalidParams);
+    expect(auth.message).toBe(msg().acp.auth.notAgentMethod);
     expect(await t.finish()).toBe(0);
   });
 

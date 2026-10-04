@@ -227,6 +227,9 @@ export class AcpServer {
     switch (method) {
       case ACP_METHODS.initialize:
         return this.initialize(params);
+      case ACP_METHODS.authenticate:
+        // 与认证门同一答复：ama 只有 terminal 型方法，按规范不经 authenticate（交接前后一致）
+        throw new RpcError(RPC_ERRORS.invalidParams, msg().acp.auth.notAgentMethod);
       case ACP_METHODS.sessionNew:
         return this.newSession(params);
       case ACP_METHODS.sessionLoad:
