@@ -5,7 +5,10 @@
  * - 分帧复用 `modes/rpc/jsonl.ts`（只按 `\n` 切行、64 KiB 分片写、背压等 drain），写入串行；
  * - 双向：本端可发请求 / 通知，也处理对端的请求（`onRequest` 抛 {@link RpcError} 即回错误）与通知；
  * - `jsonrpcField: false` 时不写 `"jsonrpc":"2.0"`（Codex app-server 的线上形状），读取两种都认；
- * - 连接关闭（输入流结束）时所有挂起的请求以 `connection_closed` 失败。
+ * - 连接关闭（输入流结束）时所有挂起的请求以 `connection_closed` 失败；
+ * - `cancelRequests: true`（ACP 两侧）时支持协议级取消 `$/cancel_request`：本端请求的 `signal` abort
+ *   会通知对端；对端撤回本端正在处理的请求时 abort 该请求的 `ctx.signal`，处理器此后抛错一律回 -32800。
+ *   缺省关闭（Codex app-server 不认），线上形状与之前逐字节相同。
  */
 
 import { createLineReader, writeChunked, type LineReader } from "../modes/rpc/jsonl.js";
@@ -26,7 +29,7 @@ export class RpcError extends Error {
 
 export interface IncomingRequestContext {
   readonly id: RpcId;
-  /** 连接关闭时 abort。 */
+  /** 连接关闭时 abort；`cancelRequests` 开着时对端发 `$/cancel_request` 撤回本请求也 abort。 */
   readonly signal: AbortSignal;
 }
 
@@ -41,7 +44,12 @@ export interface JsonRpcPeerOptions {
   onClose?(): void;
   /** 无法解析的行（不影响连接）。 */
   onProtocolError?(line: string, reason: string): void;
+  /** 协议级取消（ACP `$/cancel_request`）：缺省 false（Codex app-server 不认）。 */
+  cancelRequests?: boolean;
 }
+
+/** `$/cancel_request` 的方法名（与 ACP_METHODS.cancelRequest 相同；这里不依赖 ACP 词汇表）。 */
+const CANCEL_REQUEST = "$/cancel_request";
 
 interface Pending {
   resolve(value: unknown): void;
@@ -60,6 +68,8 @@ type Message = {
 
 export class JsonRpcPeer {
   private readonly pending = new Map<RpcId, Pending>();
+  /** 正在处理的对端请求（只在 `cancelRequests` 时记录），供 `$/cancel_request` 撤回。 */
+  private readonly inflight = new Map<RpcId, AbortController>();
   private readonly reader: LineReader;
   private readonly lifetime = new AbortController();
   private nextId = 1;
@@ -83,13 +93,18 @@ export class JsonRpcPeer {
     return !this.isClosed;
   }
 
-  /** 发请求；`signal` abort 时本端不再等（不通知对端，协议级取消由调用方另发）。 */
+  /**
+   * 发请求；`signal` abort 时本端不再等。`cancelRequests` 开着时同时给对端发
+   * `$/cancel_request { requestId }`（已发出的请求才发），否则不通知对端。
+   */
   request<T = unknown>(method: string, params?: unknown, signal?: AbortSignal): Promise<T> {
     if (this.isClosed) return Promise.reject(closedError(method));
     const id = this.nextId++;
     return new Promise<T>((resolve, reject) => {
       const onAbort = (): void => {
-        this.pending.delete(id);
+        const sent = this.pending.delete(id);
+        if (sent && this.options.cancelRequests === true && !this.isClosed)
+          void this.notify(CANCEL_REQUEST, { requestId: id });
         reject(new RpcError(RPC_ERRORS.internalError, `${method}: aborted`));
       };
       if (signal?.aborted === true) return onAbort();
@@ -167,6 +182,16 @@ export class JsonRpcPeer {
       return;
     }
     if (typeof message.method === "string") {
+      if (
+        message.method === CANCEL_REQUEST &&
+        this.options.cancelRequests === true &&
+        (message.id === undefined || message.id === null)
+      ) {
+        const requestId = (message.params as { requestId?: unknown } | undefined)?.requestId;
+        if (typeof requestId === "string" || typeof requestId === "number")
+          this.inflight.get(requestId)?.abort();
+        return;
+      }
       if (message.id !== undefined && message.id !== null) {
         void this.handleRequest(message.id, message.method, message.params);
       } else {
@@ -208,17 +233,26 @@ export class JsonRpcPeer {
       });
       return;
     }
+    let cancel: AbortController | undefined;
+    let signal = this.lifetime.signal;
+    if (this.options.cancelRequests === true) {
+      cancel = new AbortController();
+      this.inflight.set(id, cancel);
+      signal = AbortSignal.any([this.lifetime.signal, cancel.signal]);
+    }
     try {
-      const result = await handler(method, params, { id, signal: this.lifetime.signal });
+      const result = await handler(method, params, { id, signal });
       await this.send({ id, result: result ?? null });
     } catch (error) {
       const rpc =
-        error instanceof RpcError
-          ? error
-          : new RpcError(
-              RPC_ERRORS.internalError,
-              error instanceof Error ? error.message : String(error),
-            );
+        cancel?.signal.aborted === true
+          ? new RpcError(RPC_ERRORS.requestCancelled, `${method}: request cancelled`)
+          : error instanceof RpcError
+            ? error
+            : new RpcError(
+                RPC_ERRORS.internalError,
+                error instanceof Error ? error.message : String(error),
+              );
       await this.send({
         id,
         error: {
@@ -227,6 +261,8 @@ export class JsonRpcPeer {
           ...(rpc.data !== undefined ? { data: rpc.data } : {}),
         },
       });
+    } finally {
+      if (cancel !== undefined && this.inflight.get(id) === cancel) this.inflight.delete(id);
     }
   }
 }

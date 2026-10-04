@@ -76,6 +76,119 @@ describe("JsonRpcPeer", () => {
   });
 });
 
+describe("$/cancel_request（cancelRequests）", () => {
+  /** a ↔ b 两端；返回双方写出的行。 */
+  function peers(cancelRequests: boolean | undefined, jsonrpcField = true) {
+    const ab = new PassThrough();
+    const ba = new PassThrough();
+    const wireA: Record<string, unknown>[] = [];
+    const wireB: Record<string, unknown>[] = [];
+    const tap = (stream: PassThrough, into: Record<string, unknown>[]) =>
+      stream.on("data", (c: Buffer) =>
+        into.push(
+          ...c
+            .toString("utf8")
+            .split("\n")
+            .filter(Boolean)
+            .map((l) => JSON.parse(l) as Record<string, unknown>),
+        ),
+      );
+    tap(ab, wireA);
+    tap(ba, wireB);
+    const seen: { signal?: AbortSignal; notes: unknown[] } = { notes: [] };
+    const options = cancelRequests === undefined ? {} : { cancelRequests };
+    const a = new JsonRpcPeer({ input: ba, output: ab, jsonrpcField, ...options });
+    const b = new JsonRpcPeer({
+      input: ab,
+      output: ba,
+      jsonrpcField,
+      ...options,
+      onNotification: (method, params) => seen.notes.push([method, params]),
+      async onRequest(method, _params, ctx) {
+        seen.signal = ctx.signal;
+        if (method === "quick") return { ok: true };
+        await new Promise<void>((resolve) => {
+          if (ctx.signal.aborted) return resolve();
+          ctx.signal.addEventListener("abort", () => resolve(), { once: true });
+          setTimeout(resolve, 300);
+        });
+        throw new Error("handler gave up");
+      },
+    });
+    const settle = () => new Promise((r) => setTimeout(r, 20));
+    return { a, b, ab, ba, wireA, wireB, seen, settle };
+  }
+
+  it("出站：signal abort 时给对端发 $/cancel_request，本端仍以 aborted 拒绝", async () => {
+    const { a, wireA, settle } = peers(true);
+    const controller = new AbortController();
+    const pending = a.request("slow", { n: 1 }, controller.signal);
+    await settle();
+    controller.abort();
+    await expect(pending).rejects.toThrow(/slow: aborted/);
+    await a.flush();
+    expect(wireA).toEqual([
+      { jsonrpc: "2.0", id: 1, method: "slow", params: { n: 1 } },
+      { jsonrpc: "2.0", method: "$/cancel_request", params: { requestId: 1 } },
+    ]);
+  });
+
+  it("出站：发出前就 abort 的请求不发任何行", async () => {
+    const { a, wireA } = peers(true);
+    const controller = new AbortController();
+    controller.abort();
+    await expect(a.request("never", undefined, controller.signal)).rejects.toThrow(/aborted/);
+    await a.flush();
+    expect(wireA).toEqual([]);
+  });
+
+  it("入站：对端撤回 → ctx.signal abort，处理器抛错回 -32800；不转给 onNotification", async () => {
+    const { a, wireB, seen, settle } = peers(true);
+    const controller = new AbortController();
+    const pending = a.request("slow", undefined, controller.signal).catch(() => undefined);
+    await settle();
+    controller.abort();
+    await pending;
+    await settle();
+    expect(seen.signal?.aborted).toBe(true);
+    expect(seen.notes).toEqual([]);
+    expect(wireB).toEqual([
+      { jsonrpc: "2.0", id: 1, error: { code: -32800, message: "slow: request cancelled" } },
+    ]);
+  });
+
+  it("入站：未知 requestId 忽略；处理完的请求不再可撤回", async () => {
+    const { a, ab, wireB, seen, settle } = peers(true);
+    await expect(a.request("quick")).resolves.toEqual({ ok: true });
+    ab.write('{"jsonrpc":"2.0","method":"$/cancel_request","params":{"requestId":1}}\n');
+    ab.write('{"jsonrpc":"2.0","method":"$/cancel_request","params":{"requestId":"x"}}\n');
+    await settle();
+    expect(seen.signal?.aborted).toBe(false);
+    expect(wireB).toEqual([{ jsonrpc: "2.0", id: 1, result: { ok: true } }]);
+  });
+
+  it("缺省（Codex app-server 形状）：abort 不发线、入站 $/cancel_request 当普通通知、错误码不变", async () => {
+    const { a, ab, wireA, wireB, seen, settle } = peers(undefined, false);
+    const controller = new AbortController();
+    const pending = a.request("slow", undefined, controller.signal);
+    await settle();
+    controller.abort();
+    await expect(pending).rejects.toThrow(/aborted/);
+    ab.write('{"method":"$/cancel_request","params":{"requestId":1}}\n');
+    await new Promise((r) => setTimeout(r, 350));
+    expect(seen.notes).toEqual([["$/cancel_request", { requestId: 1 }]]);
+    expect(seen.signal?.aborted).toBe(false);
+    // a 只写了请求本身（第二行是测试手写进同一管道的入站通知）
+    expect(wireA.map((l) => JSON.stringify(l))).toEqual([
+      '{"id":1,"method":"slow"}',
+      '{"method":"$/cancel_request","params":{"requestId":1}}',
+    ]);
+    expect(wireB.map((l) => JSON.stringify(l))).toEqual([
+      '{"id":1,"error":{"code":-32603,"message":"handler gave up"}}',
+    ]);
+  });
+});
+
 describe("假 ACP Agent", () => {
   it("initialize → session/new → prompt 回 echo 与 usage", async () => {
     const toAgent = new PassThrough();
