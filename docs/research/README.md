@@ -2,6 +2,7 @@
 
 - 第五波（2026-10-02）：本目录下 R1–R5，设计见 `docs/wave5-plan.md`。
 - 第六波（2026-10-03）：[wave6/](wave6/README.md) 下 R6–R10，设计见 `docs/wave6-plan.md`。
+- ACP 补全（2026-10-04）：[acp-gap-2026-10.md](acp-gap-2026-10.md)，对照 ACP v1 schema 1.24.1 的差距审计与实测；设计见 `docs/acp-plan.md`。
 
 ## 第五波
 
