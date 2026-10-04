@@ -11,8 +11,9 @@ ACP completion: `ama --mode acp` as an agent for editors (Zed and other ACP clie
 client, checked in-repo against the official ACP v1 schema 1.24.1. Docs: docs/acp.md (English: docs/en/acp.md).
 
 - **No model, no exit**: without a model `ama --mode acp` no longer exits with code 4. It answers `initialize` (two
-  terminal auth methods, `ama auth login chatgpt` and `ama auth set`, when the client declares
-  `clientCapabilities.auth.terminal`; the start-up `--auth-file` / profile `authFile` is appended), answers session
+  terminal auth methods when the client declares `clientCapabilities.auth.terminal`: their `args`,
+  `--acp-terminal-auth chatgpt` / `api-key`, are appended to the configured command as the spec says, and ama then runs
+  `ama auth login chatgpt` / `ama auth set` instead of ACP mode; the start-up `--auth-file` / profile `authFile` is passed on), answers session
   methods with -32000 (the no-model guidance, `data.authMethods`) and retries start-up on them at most once per second;
   once a model is available the same connection is handed to the normal ACP server (no new `initialize`). `authenticate`
   answers -32602; closing stdin exits 0. stdout is taken over before start-up in ACP mode. `ama auth set` without a
@@ -36,10 +37,11 @@ client, checked in-repo against the official ACP v1 schema 1.24.1. Docs: docs/ac
   `diff` plus the first 4 KB of text, with `locations[].line` at the first changed line. Replayed tool results
   (`session/load`) carry their first 4 KB of text (no diff). Permission modes get display names and localized
   descriptions.
-- **Config options and command list**: session-open results carry `configOptions` — `model` (grouped by provider,
+- **Config options and command list**: session-open results carry `configOptions` — `mode` (the permission mode, the same state as `modes`; clients with config options such
+  as Zed ignore `modes`), `model` (grouped by provider,
   values `provider/model-id`, the same "configured" view as the TUI `/model` picker: only providers with a key, an OAuth
   login or local, `models.enabled` respected, `fake` hidden by the usual rule) and `thinking` (category `thought_level`,
-  only the levels the current model supports); no `mode` category, no boolean options. `session/set_config_option`
+  only the levels the current model supports); no boolean options. `session/set_config_option`
   switches them (unknown ids / values answer -32602) and model / thinking level changes send `config_option_update`.
   After a session opens, `available_commands_update` lists skills as `skill:<name>` and prompt templates as `<name>`
   (`argument-hint` as `input.hint`); built-in slash commands are not listed. Prompt templates in
@@ -58,6 +60,11 @@ client, checked in-repo against the official ACP v1 schema 1.24.1. Docs: docs/ac
   `@armadra/agent/acp`); the prompt `usage` is marked UNSTABLE; select config options are either all flat or all grouped
   (the fake agent's `model` option is now grouped). The fake ACP agent adds `--config-only`, `--auth-required` and
   `[cancel-request]`. Every ACP line in the tests and golden recordings is validated against the bundled schema.
+- **Zed run-through fixes**: terminal auth `args` are now `--acp-terminal-auth chatgpt|api-key` because clients append them
+  to the configured command; config options gain `mode` (Zed ignores `modes` once `configOptions` exist); a session's own
+  mode changes are remembered for the queue; `session/load` / `resume` of an unknown UUID (an empty session that was never
+  written before ama restarted) opens a new empty session with that id instead of -32002; tool call ids that the upstream reuses in a later turn get a `#n`
+  suffix on the wire so they stay unique within the session (Zed merged them into one entry).
 
 ## 0.6.8 (2026-10-04)
 

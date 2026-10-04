@@ -25,7 +25,7 @@ ama --mode acp                      # 与 -p 互斥；其余参数（--model、-
 | `authenticate`              | -32602：ama 只给 terminal 型认证方法，按规范不经 `authenticate`（有无模型都一样）                                                                                                                                |
 | `session/new`               | 新开会话（启动时那个空会话第一次直接认领），运行中也可调；`cwd` 必须是 ama 的启动目录（按 realpath 比较），否则 invalid params                                                                                   |
 | `session/load`              | 打开该会话并以 `session/update` 回放历史（用户消息、回复、思考、工具调用）；已打开的直接从内存回放                                                                                                               |
-| `session/resume`            | 打开该会话，不回放                                                                                                                                                                                               |
+| `session/resume`            | 打开该会话，不回放。load / resume 的 id 找不到会话文件时：是 UUID 就按原 id 新建一个空会话（空会话不落盘，ama 重启后 Zed 的 Reload Agent 等会带着它回来），否则 -32002                                           |
 | `session/list`              | 启动目录下的会话：`cwd` 给了别的目录回空列表；每页 50 条（`updatedAt` 降序），`nextCursor` 翻页，非法 `cursor` → invalid params；标题取会话名或首条提示（去掉嵌入资源块后的首行，≤ 80 字）                       |
 | `session/close`             | 中断该会话的运行（排队的提示回 `cancelled`），释放并移出本连接；之后对这个 id 发请求回 -32002，要再用先 `session/load` / `session/resume`                                                                        |
 | `session/prompt`            | 文本与图片照收；`resource_link` 以 `@uri` 文本给出，嵌入资源取文本。别的会话在跑时排队；未打开的 id 回 -32002。回合结束：中断 → `cancelled`，输出截断 → `max_tokens`，拒答 → `refusal`，出错 → JSON-RPC 错误     |
@@ -68,6 +68,8 @@ ama --mode acp                      # 与 -p 互斥；其余参数（--model、-
 
 diff 的改前 / 改后全文只随实时事件走，不写进会话文件：任一侧超过 256 KiB 不带 diff，`session/load` 回放的工具结果只有前 4 KB 文本。模式列表的 `name` 是显示名（如 `Manual`、`Accept edits`），`description` 随界面语言。`session/prompt` 的结果带本回合 token 用量 `usage`（`inputTokens`、`outputTokens`、`cachedReadTokens`、`cachedWriteTokens`、`totalTokens`）；该字段在 schema 1.24.1 里仍是 UNSTABLE（只在不稳定 schema 中），客户端可以忽略，以 `usage_update` 为准。
 
+`toolCallId` 在会话内唯一：上游供应商给的 id 若在后续回合重复（个别兼容接口的兜底 id、测试用假模型），线上 id 加 `#2`、`#3`… 区分，之后的状态更新、审批与回放都按这个映射（客户端按 id 合并条目，不区分会把不同调用合成一条）。
+
 ### 审批
 
 ama 需要询问的调用经 `session/request_permission` 交给客户端，三个选项：`allow_once`（允许）、`allow_always`（本会话允许）、`reject_once`（拒绝）。`toolCall.toolCallId` 关联到先前 `tool_call` 的 id——codemode 内层调用也是，指向那条内层 `tool_call`，不是外层 `codemode`。询问期间该调用的状态回到 `pending`，允许后再 `in_progress`（所以有审批的调用依次是 `pending → in_progress → pending → in_progress → completed`）；拒绝时直接 `failed`。客户端回 `cancelled`、连接断开或回合被中断时，按无人作答处理（拒绝）。ama 这边不再需要答复时（回合被 `session/cancel` / `$/cancel_request` 中断、审批 10 分钟超时），以 `$/cancel_request { requestId }` 撤回挂起的 `session/request_permission`，客户端可以关掉对话框。auto 模式下 ama 自己的分类器照常工作——这只影响 ama 自己的工具；ama 驱动的外部 Agent 发来的请求只交给人（见 [agents.md](agents.md)）。
@@ -83,12 +85,12 @@ ama 需要询问的调用经 `session/request_permission` 交给客户端，三�
 | `authenticate`          | `-32602`：terminal 方法按规范不经 `authenticate`                                                                                                                                                                                                             |
 | 其它                    | `-32601`；交接前的通知忽略                                                                                                                                                                                                                                   |
 
-两条 terminal 方法（客户端用启动 Agent 的同一条命令、换成这些参数在终端里起子进程）：
+两条 terminal 方法。按规范，客户端把 `args` **追加**到配置好的启动命令后面、在终端里起子进程（例如 `ama --mode acp --acp-terminal-auth api-key`）；ama 见到 `--acp-terminal-auth` 就忽略其余启动参数（`--mode acp`、`--model` 等），改跑对应的 `auth` 子命令，同一条命令里的 `--auth-file`、`--lang` 照用：
 
-| id        | 参数                 | 作用                                                                 |
-| --------- | -------------------- | -------------------------------------------------------------------- |
-| `chatgpt` | `auth login chatgpt` | ChatGPT 订阅登录（浏览器 OAuth）                                     |
-| `api-key` | `auth set`           | 方向键选内置的需 key 供应商，再粘贴 key（不回显，写 auth.json 0600） |
+| id        | `args`                        | 等同于                   | 作用                                                                 |
+| --------- | ----------------------------- | ------------------------ | -------------------------------------------------------------------- |
+| `chatgpt` | `--acp-terminal-auth chatgpt` | `ama auth login chatgpt` | ChatGPT 订阅登录（浏览器 OAuth）                                     |
+| `api-key` | `--acp-terminal-auth api-key` | `ama auth set`           | 方向键选内置的需 key 供应商，再粘贴 key（不回显，写 auth.json 0600） |
 
 启动时给了 `--auth-file`（或 profile 的 `authFile`）时两条方法都追加 `--auth-file <绝对路径>`，登录写到 ama 读的同一个文件。登录完成后客户端再开会话即可，不用重启 ama。stdin 关闭时退出 0（已交接则同下节）。失败的重试停在模型解析这一步，不加载宿主、不跑 SessionStart Hook。
 
@@ -107,7 +109,7 @@ Zed 的配置（`settings.json`）：
 }
 ```
 
-没配模型时 Zed 打开 ama 的线程会提示登录，点登录方式后在 Zed 的终端里跑上表的命令；也可以先在任意终端 `ama auth set` / `ama auth login chatgpt`，或在 `env` 里给 key 环境变量。
+没配模型时 Zed 打开 ama 的线程会提示登录，点登录方式后 Zed 在它的终端里跑上表的登录流程，成功退出后自动重试开会话；也可以先在任意终端 `ama auth set` / `ama auth login chatgpt`，或在 `env` 里给 key 环境变量。
 
 ### 配置项与命令
 
@@ -115,11 +117,12 @@ Zed 的配置（`settings.json`）：
 
 | 配置项 id  | category        | 可选值                                                                                                                                                                                                                                                                       |
 | ---------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mode`     | `mode`          | ama 的权限模式（`plan`、`allowlist`、`default`、`auto-edit`、`auto`、`full-auto`），与 `modes` 同一状态                                                                                                                                                                      |
 | `model`    | `model`         | 按供应商分组，值 `provider/model-id`（多渠道的渠道行带 `@渠道`）；口径与 TUI `/model` 的「已配置」视图相同：只列有 key、OAuth 已登录或本地的供应商，设了 `models.enabled` 只列清单内的，测试供应商 `fake` 缺省藏起；当前模型总在列。没配 key 的供应商不列，先 `ama auth set` |
 | `thinking` | `thought_level` | 当前模型支持的思考级别（`off`…`xhigh`，非推理模型只有 `off`）                                                                                                                                                                                                                |
 
-- 不给 `mode` 类别的配置项：模式只走 `modes` / `session/set_mode`，免得客户端出现两个模式切换。没有 boolean 型配置项。
-- `session/set_config_option`：`model` → 切模型，`thinking` → 改思考级别，答复是全部配置项的新状态；未知 id、找不到的模型、不认识的级别回 invalid params（-32602）。模型或级别在会话里变了（含 plan 流程自动切换）时发 `config_option_update`。
+- `mode` 与 `modes` / `session/set_mode` 是同一状态：规范要求客户端有 `configOptions` 时用它代替 `modes`（Zed 给了就不再看 `modes`），所以模式也放进配置项；`modes` 照给，留给只认 `modes` 的客户端。设 `mode` 与 `session/set_mode` 一样按会话记，变化时 `current_mode_update` 与 `config_option_update` 都发。没有 boolean 型配置项。
+- `session/set_config_option`：`mode` → 改权限模式，`model` → 切模型，`thinking` → 改思考级别，答复是全部配置项的新状态；未知 id、找不到的模型、不认识的级别回 invalid params（-32602）。模型或级别在会话里变了（含 plan 流程自动切换）时发 `config_option_update`。
 - 命令表：Skill 列为 `skill:<名字>`，提示模板列为 `<名字>`（frontmatter 的 `argument-hint` 作 `input.hint`）。这两类在 prompt 文本里本来就会展开（`/skill:<名字> …`、`/<名字> …`）。`/new`、`/compact` 等内置斜杠命令在 ACP 下不执行，不列。
 
 ### 退出

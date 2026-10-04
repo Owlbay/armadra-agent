@@ -13,7 +13,7 @@
  * | tool_execution_end                        | tool_call_update（completed / failed，`[diff?, text]`，locations[].line） |
  * | todo_updated                              | plan                                                             |
  * | turn_end                                  | usage_update（上下文用量、窗口、会话累计美元）                   |
- * | permission_mode_changed                   | current_mode_update                                              |
+ * | permission_mode_changed                   | current_mode_update + config_option_update                       |
  * | model_changed / thinking_level_changed    | config_option_update                                             |
  *
  * 工具结果只回前 4 KB 文本（完整结果在 ama 会话里）；diff 只在实时事件里有（`fileChange` 不落盘）。
@@ -57,6 +57,12 @@ export class AcpEventMapper {
   private readonly published = new Map<string, string>();
   /** 挂起的权限请求：requestId → 已公布的 toolCallId。 */
   private readonly permissionCalls = new Map<string, string>();
+  /**
+   * ama 的工具调用 id → 线上 toolCallId。ACP 要求 id 在会话内唯一，上游给的 id 却可能在后续回合重复
+   * （假模型、个别兼容接口的兜底 id）；重复时加 `#n` 后缀，之后的开始 / 结束 / 审批都按最近一次映射。
+   */
+  private readonly wireIds = new Map<string, string>();
+  private readonly usedWireIds = new Set<string>();
   /** 上次 `session_info_update` 带出的标题。 */
   private lastTitle: string | null = null;
 
@@ -97,7 +103,20 @@ export class AcpEventMapper {
 
   /** 已公布且未结束的工具调用的标题（codemode 内层带前缀）；未公布返回 undefined。 */
   titleFor(toolCallId: string): string | undefined {
-    return this.published.get(toolCallId);
+    return this.published.get(this.wireId(toolCallId));
+  }
+
+  /** ama 的工具调用 id 在线上用的 toolCallId（没公布过的原样返回）。 */
+  wireId(toolCallId: string): string {
+    return this.wireIds.get(toolCallId) ?? toolCallId;
+  }
+
+  private claimWireId(toolCallId: string): string {
+    let wire = toolCallId;
+    for (let n = 2; this.usedWireIds.has(wire); n++) wire = `${toolCallId}#${n}`;
+    this.usedWireIds.add(wire);
+    this.wireIds.set(toolCallId, wire);
+    return wire;
   }
 
   onEvent(event: SessionEvent): void {
@@ -116,35 +135,40 @@ export class AcpEventMapper {
           });
         else if (e.type === "toolcall_end") {
           const call = e.toolCall;
+          const wire = this.claimWireId(call.id);
           this.pendingCalls.push({
-            id: call.id,
+            id: wire,
             name: call.name,
             args: JSON.stringify(call.arguments),
           });
-          this.published.set(call.id, this.emitToolCall(call.id, call.name, call.arguments));
+          this.published.set(wire, this.emitToolCall(wire, call.name, call.arguments));
         }
         return;
       }
-      case "tool_execution_start":
+      case "tool_execution_start": {
+        let wire: string;
         if (event.parentToolCallId !== undefined) {
+          wire = this.claimWireId(event.toolCallId);
           const title = this.emitToolCall(
-            event.toolCallId,
+            wire,
             event.toolName,
             event.args,
-            event.parentToolCallId,
+            this.wireId(event.parentToolCallId),
           );
-          this.published.set(event.toolCallId, title);
-        }
-        this.status(event.toolCallId, "in_progress");
+          this.published.set(wire, title);
+        } else wire = this.wireId(event.toolCallId);
+        this.status(wire, "in_progress");
         return;
+      }
       case "tool_execution_end": {
-        const at = this.pendingCalls.findIndex((c) => c.id === event.toolCallId);
+        const wire = this.wireId(event.toolCallId);
+        const at = this.pendingCalls.findIndex((c) => c.id === wire);
         if (at >= 0) this.pendingCalls.splice(at, 1);
-        this.published.delete(event.toolCallId);
+        this.published.delete(wire);
         const { content, locations } = resultContent(event.result);
         this.emit({
           sessionUpdate: "tool_call_update",
-          toolCallId: event.toolCallId,
+          toolCallId: wire,
           status: event.isError ? "failed" : "completed",
           content,
           ...(locations !== undefined ? { locations } : {}),
@@ -154,8 +178,9 @@ export class AcpEventMapper {
       case "permission_request": {
         // 只认本会话已公布的调用：子 Agent / 外部 Agent 的请求（depth、origin）的 id 不在本会话的列表里
         const context = event.context;
-        const id = context?.toolCallId;
-        if (id === undefined || (context?.depth ?? 0) > 0 || context?.origin !== undefined) return;
+        if (context?.toolCallId === undefined) return;
+        if ((context.depth ?? 0) > 0 || context.origin !== undefined) return;
+        const id = this.wireId(context.toolCallId);
         if (!this.published.has(id)) return;
         this.permissionCalls.set(event.requestId, id);
         this.status(id, "pending");
@@ -183,7 +208,12 @@ export class AcpEventMapper {
         this.emitUsage();
         return;
       case "permission_mode_changed":
+        // 只认 configOptions 的客户端（Zed）看 mode 配置项，只认 modes 的看 current_mode_update
         this.emit({ sessionUpdate: "current_mode_update", currentModeId: event.mode });
+        this.emit({
+          sessionUpdate: "config_option_update",
+          configOptions: this.extras().configOptions,
+        });
         return;
       case "model_changed":
       case "thinking_level_changed":
@@ -210,6 +240,11 @@ export class AcpEventMapper {
 
   /** `session/load`：按消息回放历史（工具结果带前 4 KB 文本；diff 不落盘，回放没有）。 */
   replay(messages: readonly AgentMessage[]): void {
+    // 回放从头编号（客户端会重建整条线程）；有调用在跑时沿用现有映射，免得和实时更新对不上
+    if (this.published.size === 0) {
+      this.wireIds.clear();
+      this.usedWireIds.clear();
+    }
     for (const message of messages) {
       if (!("role" in message)) continue;
       if (message.role === "user") {
@@ -228,12 +263,12 @@ export class AcpEventMapper {
               content: { type: "text", text: block.thinking },
             });
           else if (block.type === "toolCall")
-            this.emitToolCall(block.id, block.name, block.arguments);
+            this.emitToolCall(this.claimWireId(block.id), block.name, block.arguments);
         }
       } else if (message.role === "toolResult") {
         this.emit({
           sessionUpdate: "tool_call_update",
-          toolCallId: message.toolCallId,
+          toolCallId: this.wireId(message.toolCallId),
           status: message.isError ? "failed" : "completed",
           content: [
             { type: "content", content: { type: "text", text: resultText(message.content) } },

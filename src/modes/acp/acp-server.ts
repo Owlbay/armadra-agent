@@ -41,6 +41,7 @@ import {
   type AcpPromptResult,
   type AcpRequestPermissionResult,
   type AcpSessionConfigOption,
+  type AcpSessionUpdate,
   type AcpSetConfigOptionParams,
 } from "../../drivers/acp/types.js";
 import { isPermissionMode } from "../../permissions/modes.js";
@@ -61,6 +62,7 @@ import {
 } from "./acp-events.js";
 import { msg } from "../../i18n/index.js";
 import {
+  CONFIG_IDS,
   applyConfigOption,
   availableCommands,
   buildConfigOptions,
@@ -84,6 +86,9 @@ export const ACP_AGENT_CAPABILITIES = {
 };
 
 export type Params = Record<string, unknown>;
+
+/** ama 生成的会话 id（`randomUUID()`）。 */
+const SESSION_ID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** 解析符号链接后的绝对路径（macOS 的 /var → /private/var 等）；不存在时退回 resolve。 */
 function canonical(path: string): string {
@@ -174,8 +179,10 @@ export class AcpServer {
   }
 
   private configOptions(session: AgentSession): AcpSessionConfigOption[] {
+    const entry = [...this.pool.values()].find((e) => e.session === session);
     return buildConfigOptions(session, this.runtime.providers, process.env, {
       enabled: this.runtime.config.models?.enabled,
+      mode: entry?.mode,
     });
   }
 
@@ -188,7 +195,11 @@ export class AcpServer {
       () => session,
       () => this.extras(session),
     );
-    const unsubscribe = session.subscribe((event: SessionEvent) => mapper.onEvent(event));
+    const unsubscribe = session.subscribe((event: SessionEvent) => {
+      // 会话自己换了模式（plan 流程等）也记下，出队重放时不退回旧模式
+      if (event.type === "permission_mode_changed") entry.mode = event.mode;
+      mapper.onEvent(event);
+    });
     const entry: PooledSession = { id, session, mapper, unsubscribe, mode };
     this.pool.set(id, entry);
     return entry;
@@ -314,7 +325,13 @@ export class AcpServer {
       } else {
         let session: AgentSessionImpl;
         try {
-          session = await createSessionAlongside(this.runtime, { kind: "resume", id });
+          // 本服务端发出的 id 都是 UUID；只有这种形状才在文件不存在时按原 id 新建（空会话不落盘，
+          // 进程重启后客户端——如 Zed 的 Reload Agent——会带着它回来），其它一律 -32002
+          session = await createSessionAlongside(
+            this.runtime,
+            { kind: "resume", id },
+            { createIfMissing: SESSION_ID_SHAPE.test(id) },
+          );
         } catch (error) {
           throw new RpcError(
             RPC_ERRORS.resourceNotFound,
@@ -475,20 +492,38 @@ export class AcpServer {
     const mode = params["modeId"];
     if (!isPermissionMode(mode))
       throw new RpcError(RPC_ERRORS.invalidParams, msg().acp.core.unknownMode(String(mode)));
-    entry.mode = mode;
-    if (entry.session === this.session()) entry.session.setPermissionMode(mode);
-    else
-      void this.peer.notify(ACP_METHODS.sessionUpdate, {
-        sessionId: entry.id,
-        update: { sessionUpdate: "current_mode_update", currentModeId: mode },
-      });
+    this.applyMode(entry, mode);
     return {};
+  }
+
+  /** `session/set_mode` 与 `mode` 配置项共用：按会话记，前台立即生效，否则出队时生效。 */
+  private applyMode(entry: PooledSession, mode: PermissionMode): void {
+    entry.mode = mode;
+    if (entry.session === this.session() && this.runtime.permission.mode !== mode) {
+      entry.session.setPermissionMode(mode); // 映射器发 current_mode_update + config_option_update
+      return;
+    }
+    const notify = (update: AcpSessionUpdate): void =>
+      void this.peer.notify(ACP_METHODS.sessionUpdate, { sessionId: entry.id, update });
+    notify({ sessionUpdate: "current_mode_update", currentModeId: mode });
+    notify({
+      sessionUpdate: "config_option_update",
+      configOptions: this.configOptions(entry.session),
+    });
   }
 
   private async setConfigOption(params: Params): Promise<unknown> {
     const entry = this.entryOf(params);
-    str(params, "configId");
-    await applyConfigOption(entry.session, params as unknown as AcpSetConfigOptionParams);
+    const configId = str(params, "configId");
+    if (configId === CONFIG_IDS.mode) {
+      const mode = params["value"];
+      if (!isPermissionMode(mode))
+        throw new RpcError(
+          RPC_ERRORS.invalidParams,
+          msg().acp.config.invalidValue(configId, String(mode)),
+        );
+      this.applyMode(entry, mode);
+    } else await applyConfigOption(entry.session, params as unknown as AcpSetConfigOptionParams);
     return { configOptions: this.configOptions(entry.session) };
   }
 
@@ -509,7 +544,9 @@ export class AcpServer {
     const context = request.context;
     const own = (context?.depth ?? 0) === 0 && context?.taskId === undefined;
     const toolCallId =
-      (own ? context?.toolCallId : undefined) ??
+      (own && context?.toolCallId !== undefined
+        ? entry.mapper.wireId(context.toolCallId)
+        : undefined) ??
       entry.mapper.toolCallIdFor(request.toolName, request.input) ??
       request.requestId;
     // 映射器记得的标题优先（codemode 内层带前缀，客户端不会被改成无前缀的标题）

@@ -116,6 +116,49 @@ function statuses(out: readonly AcpSessionUpdate[], id: string): string[] {
 }
 
 describe("AcpEventMapper", () => {
+  it("上游在后续回合复用工具调用 id：线上 id 加 #n 保持会话内唯一，开始 / 结束 / 审批 / 标题都跟着映射", () => {
+    const { m, out } = mapper();
+    const ok: ToolResult = { content: "ok" };
+    m.onEvent(toolcallEnd("call_0", "read", { path: "a.ts" }));
+    m.onEvent(start("call_0", "read", { path: "a.ts" }));
+    m.onEvent(end("call_0", "read", ok));
+    m.onEvent(toolcallEnd("call_0", "bash", { command: "ls" }));
+    expect(m.wireId("call_0")).toBe("call_0#2");
+    expect(m.titleFor("call_0")).toMatch(/^bash/);
+    m.onEvent(start("call_0", "bash", { command: "ls" }));
+    m.onEvent(ask("r1", "bash", { toolCallId: "call_0" }));
+    m.onEvent(end("call_0", "bash", ok));
+    expect(statuses(out, "call_0")).toEqual(["pending", "in_progress", "completed"]);
+    expect(statuses(out, "call_0#2")).toEqual(["pending", "in_progress", "pending", "completed"]);
+    expectValid(out);
+  });
+
+  it("回放：重复的工具调用 id 同样分开（客户端按 id 合并条目）", () => {
+    const { m, out } = mapper();
+    const call = (id: string, name: string) =>
+      ({
+        role: "assistant",
+        content: [{ type: "toolCall", id, name, arguments: {} }],
+      }) as unknown as AgentMessage;
+    const result = (id: string) =>
+      ({
+        role: "toolResult",
+        toolCallId: id,
+        content: "done",
+        isError: false,
+      }) as unknown as AgentMessage;
+    m.replay([
+      call("fake_call_1", "read"),
+      result("fake_call_1"),
+      call("fake_call_1", "edit"),
+      result("fake_call_1"),
+    ]);
+    const ids = out.flatMap((u) => (u.sessionUpdate === "tool_call" ? [u.toolCallId] : []));
+    expect(ids).toEqual(["fake_call_1", "fake_call_1#2"]);
+    expect(statuses(out, "fake_call_1#2")).toEqual(["pending", "completed"]);
+    expectValid(out);
+  });
+
   it("tool_call 带 name；审批路径 pending → in_progress → pending → in_progress → completed", () => {
     const { m, out } = mapper();
     m.onEvent(toolcallEnd("c1", "bash", { command: "ls" }));

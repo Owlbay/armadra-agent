@@ -509,17 +509,35 @@ function hookFieldsOf(session: AgentSession): HookContextOverrides {
 export async function createSessionAlongside(
   target: Runtime | AgentSession,
   request: Extract<SwitchRequest, { kind: "new" | "resume" }>,
+  options: { createIfMissing?: boolean } = {},
 ): Promise<AgentSessionImpl> {
   const record = requireRecord(target);
   const current = record.current;
   const { assembly } = record;
   const sessionDir = assembly.paths.sessionDir;
-  const manager =
-    request.kind === "resume"
-      ? openSession({ kind: "resume", id: request.id }, { sessionDir, cwd: current.cwd })
-      : assembly.overrides?.noSession === true
-        ? SessionManager.inMemory(current.cwd)
-        : SessionManager.create(sessionDirForCwd(sessionDir, current.cwd), current.cwd);
+  const fresh = (id?: string): SessionManager =>
+    assembly.overrides?.noSession === true
+      ? SessionManager.inMemory(current.cwd)
+      : SessionManager.create(
+          sessionDirForCwd(sessionDir, current.cwd),
+          current.cwd,
+          id !== undefined ? { id } : {},
+        );
+  let manager: SessionManager;
+  if (request.kind === "new") manager = fresh();
+  else {
+    try {
+      manager = openSession({ kind: "resume", id: request.id }, { sessionDir, cwd: current.cwd });
+    } catch (error) {
+      // [ACP] 空会话不落盘：进程重启后客户端再打开它时按原 id 新建一个空会话（调用方负责校验 id）
+      if (
+        options.createIfMissing !== true ||
+        !(error instanceof AmaError && error.code === "session_not_found")
+      )
+        throw error;
+      manager = fresh(request.id);
+    }
+  }
   let hookContext: string | undefined;
   const next = buildSession(
     record,

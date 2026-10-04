@@ -10,7 +10,8 @@ ACP 补全：`ama --mode acp` 作为编辑器（Zed 等 ACP 客户端）的 Agen
 schema 1.24.1 逐条校验。文档：docs/acp.md（英文：docs/en/acp.md）。
 
 - **没有模型不退出**：`ama --mode acp` 没有模型时不再以退出码 4 结束，照常回 `initialize`（客户端声明
-  `clientCapabilities.auth.terminal` 时给两条 terminal 型认证方法 `ama auth login chatgpt` 与 `ama auth set`，启动时的
+  `clientCapabilities.auth.terminal` 时给两条 terminal 型认证方法：按规范其 `args`（`--acp-terminal-auth chatgpt` / `api-key`）
+  追加在配置好的启动命令后面，ama 见到后不进 ACP 模式、改跑 `ama auth login chatgpt` / `ama auth set`；启动时的
   `--auth-file` / profile 的 `authFile` 一并带上），会话方法回 -32000（无模型引导，`data.authMethods`）并以至多每秒一次重试启动；
   有了模型就把同一条连接交给正常的 ACP 服务端（不必重新 `initialize`）。`authenticate` 回 -32602；stdin 关闭退出 0。
   ACP 模式在启动前就接管 stdout。`ama auth set` 不给供应商且在 TTY 下时可用方向键选择（非 TTY 仍是用法错误）。
@@ -26,9 +27,9 @@ schema 1.24.1 逐条校验。文档：docs/acp.md（英文：docs/en/acp.md）�
   `pending`，允许后再 `in_progress`。`edit` / `write` 填新的 `ToolResult.fileChange`（改前 / 改后的磁盘原文，BOM 与 CRLF 原样，
   新文件 `oldText: null`，单侧超过 256 KiB 不填；不落盘，RPC / stream-json 事件里去掉），完成更新带 `diff` 与前 4 KB 文本，
   `locations[].line` 为首个改动行。`session/load` 回放的工具结果带前 4 KB 文本（无 diff）。权限模式带显示名与随界面语言的说明。
-- **配置项与命令表**：开会话答复带 `configOptions`——`model`（按供应商分组，值 `provider/model-id`，与 TUI `/model` 的「已配置」
+- **配置项与命令表**：开会话答复带 `configOptions`——`mode`（权限模式，与 `modes` 同一状态；有配置项的客户端如 Zed 不再看 `modes`）、`model`（按供应商分组，值 `provider/model-id`，与 TUI `/model` 的「已配置」
   视图同一口径：只列有 key、OAuth 已登录或本地的供应商，遵守 `models.enabled`，`fake` 按既有规则藏起）与 `thinking`（category
-  `thought_level`，只列当前模型支持的级别）；不给 `mode` 类别、没有 boolean 项。`session/set_config_option` 切换（未知 id / 值回
+  `thought_level`，只列当前模型支持的级别）；没有 boolean 项。`session/set_config_option` 切换（未知 id / 值回
   -32602），模型 / 思考级别变化发 `config_option_update`。会话打开后发 `available_commands_update`：Skill 列为 `skill:<名字>`，提示模板
   列为 `<名字>`（`argument-hint` 作 `input.hint`），不列内置斜杠命令。`LoadedResources.prompts` 的提示模板多带 `description` /
   `argumentHint`。
@@ -42,6 +43,9 @@ schema 1.24.1 逐条校验。文档：docs/acp.md（英文：docs/en/acp.md）�
   tool call 的 `name` / `_meta`、`config_option_update` 与 `ACP_META_KEY`（`@armadra/agent/acp` 导出）；回合 `usage` 注明 UNSTABLE；
   select 配置项的选项须全部平铺或全部分组（假 Agent 的 `model` 项改为分组）。假 ACP Agent 加 `--config-only`、`--auth-required` 与
   `[cancel-request]`。测试与黄金记录里的每条 ACP 线路都按随仓库的 schema 校验。
+- **Zed 实测修正**：terminal 认证的 `args` 改为 `--acp-terminal-auth chatgpt|api-key`（客户端是追加到启动命令后面）；配置项补 `mode`（有
+  `configOptions` 时 Zed 不看 `modes`）；会话自己换的模式记进排队重放；`session/load` / `resume` 找不到的 UUID（重启前从未落盘的空会话）按原 id
+  新建空会话，不再 -32002；上游在后续回合复用的工具调用 id 在线上加 `#n` 后缀，保持会话内唯一（Zed 曾把它们合成一条）。
 
 ## 0.6.8（2026-10-04）
 
