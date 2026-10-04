@@ -5,7 +5,7 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 > This file is in English starting with 0.6.0. Release notes for 0.1 through 0.5.1 are in Chinese in
 > [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md). New entries go into both files.
 
-## Unreleased
+## 0.6.8 (2026-10-04)
 
 - **ACP client: elicitation and session config options**: `AcpClient` takes an optional `onElicitation(params, signal)`;
   when given, `initialize` declares `clientCapabilities.elicitation` and `elicitation/create` goes to it (answers normalized
