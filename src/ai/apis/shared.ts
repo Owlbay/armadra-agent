@@ -16,6 +16,7 @@ import { parseToolArguments } from "../json-partial.js";
 import type {
   AssistantMessage,
   Model,
+  StopReason,
   StreamOptions,
   TextBlock,
   ThinkingBlock,
@@ -198,6 +199,19 @@ export function finishError(
   output.errorMessage = aborted ? ABORTED_MESSAGE : errorText(error);
   finalizeUsage(model, output.usage);
   stream.push({ type: "error", reason: aborted ? "aborted" : "error", message: output });
+}
+
+/**
+ * 供应商以安全理由拒答（Anthropic `stop_reason: "refusal"`，docs/acp-plan.md D12）：消息照旧以
+ * `error` 收尾（TUI / print / 重试的口径不变），`rawStopReason` 记原值；需要区分的消费者（ACP 的
+ * `refusal` 停止原因）用 {@link stopReasonOf}。这是 `refusal` 的唯一映射处。[ACP-B]
+ */
+export function stopReasonOf(
+  message: Pick<AssistantMessage, "stopReason" | "rawStopReason">,
+): StopReason {
+  return message.stopReason === "error" && message.rawStopReason === "refusal"
+    ? "refusal"
+    : message.stopReason;
 }
 
 /** 内部用：可携带供应商原始 stop reason 的错误（content_filter、refusal 等）。 */

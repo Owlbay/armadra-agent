@@ -11,6 +11,7 @@ import {
 } from "../../../test/ai/fixture-fetch.js";
 import { assertStreamContract } from "../../../test/ai/contract.js";
 import { anthropicMessagesApi } from "./anthropic-messages.js";
+import { stopReasonOf } from "./shared.js";
 import { buildAnthropicRequest, INTERLEAVED_THINKING_BETA } from "./anthropic-request.js";
 
 const API = "anthropic-messages";
@@ -440,6 +441,32 @@ describe("anthropic-messages：请求", () => {
     const events = await collectEvents(stream);
     expect(events.map((e) => e.type)).toEqual(["error"]);
     expect((await stream.result()).stopReason).toBe("aborted");
+  });
+
+  it("stop_reason refusal：error 收尾（口径不变）、rawStopReason 记原值，stopReasonOf → refusal", async () => {
+    const event = (type: string, data: object) =>
+      `event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`;
+    stubFetchWithFixture({
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+      errorAfterBody: false,
+      body:
+        event("message_start", {
+          message: { id: "m1", usage: { input_tokens: 5, output_tokens: 0 } },
+        }) +
+        event("message_delta", {
+          delta: { stop_reason: "refusal", stop_details: { explanation: "nope" } },
+          usage: { output_tokens: 0 },
+        }) +
+        event("message_stop", {}),
+    });
+    const final = await anthropicMessagesApi.stream(model, BASIC_CONTEXT, opts()).result();
+    expect(final).toMatchObject({
+      stopReason: "error",
+      rawStopReason: "refusal",
+      errorMessage: "nope",
+    });
+    expect(stopReasonOf(final)).toBe("refusal");
   });
 
   it("timeoutMs：拿到响应头之前超时 → error", async () => {
