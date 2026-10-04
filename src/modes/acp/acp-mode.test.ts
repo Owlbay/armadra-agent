@@ -28,6 +28,7 @@ function normalize(wire: readonly WireLine[], root: string): string {
       .map((w) =>
         JSON.stringify(w, (key, value: unknown) => {
           if (key === "timestamp" || key === "durationMs") return 0;
+          if (key === "updatedAt" && typeof value === "string") return "<time>";
           if (key === "version" && typeof value === "string") return "<version>";
           if (typeof value !== "string") return value;
           return value
@@ -62,9 +63,12 @@ async function start(
     p: AcpRequestPermissionParams,
     signal: AbortSignal,
   ) => Promise<AcpRequestPermissionResult>,
+  boot: { argv?: string[]; config?: Record<string, unknown> } = {},
 ): Promise<Harness> {
   h = composeHarness(script);
-  const runtime = await h.boot(["--mode", "rpc", "--model", "fake/echo"]);
+  if (boot.config !== undefined)
+    h.home.write("home/.config/ama/config.json", { version: 1, ...boot.config });
+  const runtime = await h.boot(["--mode", "rpc", "--model", "fake/echo", ...(boot.argv ?? [])]);
   let exit!: Promise<number>;
   let broker: ApprovalBroker | undefined;
   const setUiBroker = runtime.approvals.setUiBroker.bind(runtime.approvals);
@@ -128,6 +132,8 @@ describe("ama --mode acp", () => {
     const created = await t.client.newSession(t.runtime.paths.cwd);
     expect(created.sessionId).toBe(t.runtime.session.state.sessionId);
     expect(created.modes?.currentModeId).toBe("default");
+    // 命令表与配置项在答复之后公布；等它们落地再发 prompt，录制的行序才确定
+    await new Promise((r) => setTimeout(r, 10));
     const result = await t.client.prompt(created.sessionId, [{ type: "text", text: "hi" }]);
     expect(result).toMatchObject({
       stopReason: "end_turn",
@@ -216,10 +222,10 @@ describe("ama --mode acp", () => {
     const { sessionId } = await t.client.newSession(t.runtime.paths.cwd);
     await t.client.setMode(sessionId, "plan");
     await new Promise((r) => setTimeout(r, 10));
-    expect(t.updates.at(-1)?.update).toEqual({
-      sessionUpdate: "current_mode_update",
-      currentModeId: "plan",
-    });
+    // 开会话后的 available_commands_update / config_option_update 与它异步交错，只看模式更新
+    expect(
+      t.updates.map((u) => u.update).filter((u) => u.sessionUpdate === "current_mode_update"),
+    ).toEqual([{ sessionUpdate: "current_mode_update", currentModeId: "plan" }]);
     await expect(t.client.setMode(sessionId, "yolo")).rejects.toMatchObject({ code: -32602 });
     await t.finish();
   });
@@ -320,9 +326,10 @@ describe("ama --mode acp 多会话 [ACP-B]", () => {
     expect(order).toEqual(["s1", "s2"]);
     expect(text(t, s1)).toBe("slow one");
     expect(text(t, s2)).toBe("queued two");
-    // s2 的第一条更新在 s1 的最后一条之后
-    const lastS1 = t.updates.findLastIndex((u) => u.sessionId === s1);
-    const firstS2 = t.updates.findIndex((u) => u.sessionId === s2);
+    // s2 的第一条回复在 s1 的最后一条回复之后（s2 开会话时公布的命令表 / 配置项不算回合）
+    const chunk = (u: AcpSessionNotification) => u.update.sessionUpdate === "agent_message_chunk";
+    const lastS1 = t.updates.findLastIndex((u) => u.sessionId === s1 && chunk(u));
+    const firstS2 = t.updates.findIndex((u) => u.sessionId === s2 && chunk(u));
     expect(firstS2).toBeGreaterThan(lastS1);
     expect(t.wire.some((w) => (w.msg["error"] as { code?: number })?.code === -32600)).toBe(false);
     await t.finish();
@@ -566,6 +573,78 @@ describe("ama --mode acp 多会话 [ACP-B]", () => {
       );
     expect(seen).toEqual(["c1_n1", "r2"]);
     await running;
+    await t.finish();
+  });
+
+  it("联调：set_config_option（model / thinking）→ config_option_update；codemode 内层审批的 toolCallId / title 与已发 tool_call 一致", async () => {
+    const asked: AcpRequestPermissionParams[] = [];
+    const t = await start(
+      [
+        {
+          steps: [
+            {
+              toolCall: {
+                name: "codemode",
+                arguments: {
+                  script:
+                    "await tools.write({path:'b.txt',content:'x'}); return await tools.bash({command:'echo cm'});",
+                },
+              },
+            },
+          ],
+        },
+        { text: "ok" },
+      ],
+      async (p) => {
+        asked.push(p);
+        return { outcome: { outcome: "selected", optionId: "allow_once" } };
+      },
+      { argv: ["--tools-preset", "codemode"], config: { permission: { allow: ["codemode"] } } },
+    );
+    await t.client.initialize();
+    const created = await t.client.newSession(t.runtime.paths.cwd);
+    const sessionId = created.sessionId;
+    expect(created.configOptions?.map((o) => o.id)).toEqual(["model", "thinking"]);
+    await new Promise((r) => setTimeout(r, 10));
+    t.updates.length = 0;
+    const model = await t.client.setConfigOption(sessionId, "model", "fake/reasoning");
+    expect(model.configOptions?.find((o) => o.id === "model")?.currentValue).toBe("fake/reasoning");
+    const thinking = await t.client.setConfigOption(sessionId, "thinking", "high");
+    expect(thinking.configOptions?.find((o) => o.id === "thinking")?.currentValue).toBe("high");
+    await new Promise((r) => setTimeout(r, 10));
+    const optionUpdates = t.updates
+      .filter((u) => u.sessionId === sessionId && u.update.sessionUpdate === "config_option_update")
+      .map(
+        (u) =>
+          (u.update as { configOptions: { id: string; currentValue: unknown }[] }).configOptions,
+      );
+    expect(optionUpdates).toHaveLength(2);
+    expect(optionUpdates[0]!.find((o) => o.id === "model")?.currentValue).toBe("fake/reasoning");
+    expect(optionUpdates[1]!.find((o) => o.id === "thinking")?.currentValue).toBe("high");
+    await expect(t.client.setConfigOption(sessionId, "thinking", "nope")).rejects.toMatchObject({
+      code: -32602,
+    });
+
+    await expect(t.client.prompt(sessionId, [{ type: "text", text: "go" }])).resolves.toMatchObject(
+      {
+        stopReason: "end_turn",
+      },
+    );
+    const published = new Map(
+      t.updates.flatMap((u) =>
+        u.update.sessionUpdate === "tool_call"
+          ? [[u.update.toolCallId, u.update.title] as const]
+          : [],
+      ),
+    );
+    expect(asked).toHaveLength(2);
+    for (const request of asked) {
+      expect(request.sessionId).toBe(sessionId);
+      const title = published.get(request.toolCall.toolCallId);
+      expect(title).toBeDefined();
+      expect(request.toolCall.title).toBe(title);
+      expect(title).toMatch(/^codemode › /);
+    }
     await t.finish();
   });
 });
