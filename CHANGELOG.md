@@ -7,14 +7,57 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 
 ## Unreleased
 
-- **`ama --mode acp` without a model keeps the connection up**: instead of exiting with code 4 it answers `initialize`
-  (two terminal auth methods, `ama auth login chatgpt` and `ama auth set`, when the client declares
+ACP completion: `ama --mode acp` as an agent for editors (Zed and other ACP clients) and `AcpClient` / `AcpDriver` as a
+client, checked in-repo against the official ACP v1 schema 1.24.1. Docs: docs/acp.md (English: docs/en/acp.md).
+
+- **No model, no exit**: without a model `ama --mode acp` no longer exits with code 4. It answers `initialize` (two
+  terminal auth methods, `ama auth login chatgpt` and `ama auth set`, when the client declares
   `clientCapabilities.auth.terminal`; the start-up `--auth-file` / profile `authFile` is appended), answers session
   methods with -32000 (the no-model guidance, `data.authMethods`) and retries start-up on them at most once per second;
   once a model is available the same connection is handed to the normal ACP server (no new `initialize`). `authenticate`
   answers -32602; closing stdin exits 0. stdout is taken over before start-up in ACP mode. `ama auth set` without a
-  provider on a TTY now lets you pick one with the arrow keys (non-TTY is still a usage error). Docs: docs/acp.md
-  ("Without a model", Zed `agent_servers` example).
+  provider on a TTY now lets you pick one with the arrow keys (non-TTY is still a usage error).
+- **Several sessions**: every ACP session stays open in memory (an empty one can be switched back to); one turn runs at
+  a time and `session/prompt` for another session is queued (FIFO) instead of failing busy. `session/new` / `load` /
+  `resume` / `list` / `set_mode` / `set_config_option` / `close` work while a turn runs. Permission modes are kept per
+  session and applied when its turn starts. `session/cancel` on a queued prompt answers `cancelled`. `session/list`
+  filters by `cwd`, pages 50 at a time with `nextCursor` (an invalid cursor is invalid params) and strips embedded
+  resources from titles; `session_info_update` (title, `updatedAt`) is sent at the end of each turn. A refusal (Anthropic
+  `stop_reason: "refusal"`, new `StopReason` value) answers `refusal`; elsewhere the message still ends as an error
+  (`stopReasonOf()` tells them apart; the fake provider script accepts `stopReason: "refusal"`). `mcpServers` /
+  `additionalDirectories` are ignored with one stderr line. **Behavior change**: after `session/close`, requests for
+  that id answer -32002 (it used to reopen); open it again with `session/load` / `session/resume`.
+- **Tool calls in detail**: `tool_call` carries `name`; each tool call inside a codemode script is listed as its own
+  `tool_call` (title prefixed `codemode › `, `_meta.ama.parentToolCallId` points at the outer call) and closes on its
+  own, and permission requests use the requesting call's id, so they no longer point at unknown ids. While a permission
+  request is open the call goes back to `pending`, then `in_progress` once allowed. `edit` / `write` fill the new
+  `ToolResult.fileChange` (raw before / after text with BOM and CRLF, `oldText: null` for a new file, omitted above
+  256 KiB per side; never persisted and stripped from RPC / stream-json events), and the completed update carries a
+  `diff` plus the first 4 KB of text, with `locations[].line` at the first changed line. Replayed tool results
+  (`session/load`) carry their first 4 KB of text (no diff). Permission modes get display names and localized
+  descriptions.
+- **Config options and command list**: session-open results carry `configOptions` — `model` (grouped by provider,
+  values `provider/model-id`, the same "configured" view as the TUI `/model` picker: only providers with a key, an OAuth
+  login or local, `models.enabled` respected, `fake` hidden by the usual rule) and `thinking` (category `thought_level`,
+  only the levels the current model supports); no `mode` category, no boolean options. `session/set_config_option`
+  switches them (unknown ids / values answer -32602) and model / thinking level changes send `config_option_update`.
+  After a session opens, `available_commands_update` lists skills as `skill:<name>` and prompt templates as `<name>`
+  (`argument-hint` as `input.hint`); built-in slash commands are not listed. Prompt templates in
+  `LoadedResources.prompts` now carry `description` / `argumentHint`.
+- **`$/cancel_request` both ways**: `JsonRpcPeer` takes `cancelRequests` (on for both ACP sides, off by default so the
+  Codex app-server wire is byte-for-byte unchanged): an aborted outgoing request notifies the peer, a peer-cancelled
+  incoming request aborts its `ctx.signal` and answers -32800. A prompt withdrawn with `$/cancel_request` stops the turn
+  and answers -32800; a permission request the agent no longer needs is withdrawn so the client can close its dialog.
+- **Client side (`task(agent="acp:…")`)**: `AcpClient` declares `clientCapabilities.session.configOptions: {}`; an agent
+  withdrawing a pending permission request closes the approval and answers `cancelled`. `AcpDriver` falls back to a
+  `mode`-category config option when an agent has no `modes`, reports -32000 as `agent_auth_required` listing the
+  agent's auth methods (terminal ones with the command to run), treats -32800 after a cancel as `cancelled`, and counts
+  `diff` paths in `filesTouched`. Docs: docs/agents.md.
+- **Types and tests**: the ACP types gain `authenticate`, `$/cancel_request`, -32800, terminal auth methods, client
+  `session` / `auth` capabilities, tool call `name` / `_meta`, `config_option_update` and `ACP_META_KEY` (exported from
+  `@armadra/agent/acp`); the prompt `usage` is marked UNSTABLE; select config options are either all flat or all grouped
+  (the fake agent's `model` option is now grouped). The fake ACP agent adds `--config-only`, `--auth-required` and
+  `[cancel-request]`. Every ACP line in the tests and golden recordings is validated against the bundled schema.
 
 ## 0.6.8 (2026-10-04)
 
@@ -24,50 +67,6 @@ English · [简体中文](CHANGELOG.zh-CN.md)
   `setConfigOption(sessionId, configId, value)` and `configOptions` on session-open results. `AcpClient.features` gains
   `elicitation` and `configOptions`. Without a handler the wire is unchanged. The fake ACP agent adds `[elicit]`, `[model]`
   and `[env NAME]` markers and `--config-options`. Docs: docs/acp.md.
-- **ACP contracts for the completion work (no wire change)**: `JsonRpcPeer` takes `cancelRequests` (ACP's
-  `$/cancel_request`: an aborted outgoing request notifies the peer, a peer-cancelled incoming request aborts its
-  `ctx.signal` and answers -32800; off by default, so the Codex app-server wire is byte-for-byte unchanged).
-  `ToolResult.fileChange` (before / after text of a file edit, never persisted and stripped from RPC / stream-json
-  events; not filled yet) and `FILE_CHANGE_TEXT_LIMIT`; `StopReason` gains `"refusal"`. The ACP types gain
-  `authenticate`, `$/cancel_request`, -32800, terminal auth methods, client `session` / `auth` capabilities, tool call
-  `name` / `_meta`, `config_option_update` and `ACP_META_KEY` (exported from `@armadra/agent/acp`); the prompt `usage`
-  is marked UNSTABLE; select config options are either all flat or all grouped (the fake agent's `model` option is now
-  grouped). The fake ACP agent adds `--config-only`, `--auth-required` and `[cancel-request]`. ACP wire shapes are
-  checked in-repo against the official v1 schema 1.24.1. Docs: docs/acp.md.
-- **ACP config options, command list and client side**: `ama --mode acp` gains the building blocks for session config
-  options — `model` (grouped by provider, values `provider/model-id`, the same "configured" view as the TUI `/model`
-  picker: only providers with a key, an OAuth login or local, `models.enabled` respected, `fake` hidden by the usual rule)
-  and `thinking` (category `thought_level`, only the levels the current model supports); no `mode` category, no boolean
-  options; unknown ids / values answer -32602 — and the `available_commands_update` list (skills as `skill:<name>`,
-  prompt templates as `<name>` with `argument-hint` as `input.hint`; built-in slash commands are not listed). Prompt
-  templates in `LoadedResources.prompts` now carry `description` / `argumentHint`. As a client, `AcpClient` declares
-  `clientCapabilities.session.configOptions: {}` and turns on `$/cancel_request` (an agent withdrawing a pending permission
-  request closes the approval and answers `cancelled`); `AcpDriver` falls back to a `mode`-category config option when an
-  agent has no `modes`, reports -32000 as `agent_auth_required` listing the agent's auth methods (terminal ones with the
-  command to run), treats -32800 after a cancel as `cancelled`, and counts `diff` paths in `filesTouched`. The driver and
-  `--mode acp` golden recordings change only in the `initialize` line. Docs: docs/acp.md, docs/agents.md.
-- **ACP tool calls are visible in detail (`ama --mode acp`)**: `tool_call` carries `name`; each tool call inside a codemode
-  script is listed as its own `tool_call` (title prefixed `codemode › `, `_meta.ama.parentToolCallId` points at the outer
-  call) and closes on its own, so permission requests no longer point at unknown ids. While a permission request is open
-  the call goes back to `pending`, then `in_progress` once allowed. `edit` / `write` fill `ToolResult.fileChange` (raw
-  before / after text with BOM and CRLF, `oldText: null` for a new file, omitted above 256 KiB per side; still never
-  persisted), and the completed update carries a `diff` plus the first 4 KB of text, with `locations[].line` at the
-  first changed line. Model / thinking level changes send `config_option_update`; the event mapper can announce
-  `available_commands_update` / `config_option_update` and send `session_info_update`. Replayed tool results
-  (`session/load`) carry their first 4 KB of text. Permission modes get display names and localized descriptions.
-  Docs: docs/acp.md, docs/codemode.md.
-- **`ama --mode acp` runs several sessions**: every ACP session stays open in memory (an empty one can be switched back
-  to); one turn runs at a time and `session/prompt` for another session is queued (FIFO) instead of failing busy.
-  `session/new` / `load` / `resume` / `list` / `set_mode` / `close` work while a turn runs. Permission modes are kept
-  per session and applied when its turn starts. `session/cancel` on a queued prompt answers `cancelled`;
-  `$/cancel_request` on a prompt answers -32800. `session/list` filters by `cwd`, pages 50 at a time with `nextCursor`
-  (an invalid cursor is invalid params) and strips embedded resources from titles; `session_info_update` follows each
-  turn. A refusal (Anthropic `stop_reason: "refusal"`) answers `refusal`; the message still ends as an error elsewhere
-  (`stopReasonOf()` tells them apart; the fake provider script accepts `stopReason: "refusal"`). `mcpServers` /
-  `additionalDirectories` are ignored with one stderr line. `session/set_config_option` is routed and session-open results
-  carry `configOptions` when there are any. **Behavior change**: after `session/close`, requests for that id answer
-  -32002 (it used to reopen); open it again with `session/load` / `session/resume`. Docs: docs/acp.md ("Multiple
-  sessions").
 
 ## 0.6.7 (2026-10-03)
 
