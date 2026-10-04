@@ -20,7 +20,6 @@ export const en = {
     fixedCwd: (cwd: string, got: string) =>
       `the session directory of ama --mode acp is fixed to the start directory ${cwd} (got ${got})`,
     sessionNotFound: (id: string, error: string) => `session ${id} not found: ${error}`,
-    busy: "the current session is running; send session/cancel first",
     modelFailed: "model request failed",
     unknownMode: (mode: string) => `unknown mode: ${mode}`,
     allowOnce: "Allow",
@@ -89,7 +88,6 @@ export const zh = {
     missingProtocolVersion: "缺少 protocolVersion",
     fixedCwd: (cwd, got) => `ama --mode acp 的会话目录固定为启动目录 ${cwd}（收到 ${got}）`,
     sessionNotFound: (id, error) => `找不到会话 ${id}：${error}`,
-    busy: "当前会话正在运行，先 session/cancel",
     modelFailed: "模型请求失败",
     unknownMode: (mode) => `未知模式：${mode}`,
     allowOnce: "允许",

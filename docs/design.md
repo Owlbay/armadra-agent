@@ -56,7 +56,7 @@
 | 轨迹（`ama.trace`、`/trace`、HTML、`get_trace`） | [tui.md](tui.md)「轨迹」、[sessions.md](sessions.md)「轨迹」、[rpc.md](rpc.md)「轨迹」、[session-format.md](session-format.md) | §8（`custom` 条目不进上下文、不改请求）、§13.2（RPC 43 条命令）                          |
 | Memory（缺省关闭）                               | [memory.md](memory.md)                                                                                                   | §9.1（节顺序加 `memory`，位于 `skills` 之后；关闭时字节不变）、§7（权限类 `memory`）、§10.2 |
 | ChatGPT 登录（SIWC 缺省、codex 备用）            | [providers.md](providers.md)「ChatGPT 登录」                                                                             | §3.3（内置供应商 18 家）、§3.5（`KeySource` 加 `oauth`）、§10.1（`auth.json` 的 oauth 条目与 `auth.json.lock`） |
-| 中英双语                                         | [i18n.md](i18n.md)、[en/](en/tui.md) 六篇英文版                                                                          | §2（零依赖消息目录；发给模型的文本固定英文，两种语言下请求逐字节相同）                   |
+| 中英双语                                         | [i18n.md](i18n.md)、[en/](en/tui.md) 七篇英文版                                                                          | §2（零依赖消息目录；发给模型的文本固定英文，两种语言下请求逐字节相同）                   |
 | `/config` 面板与 `ama config get \| set`          | [tui.md](tui.md)「`/config` 设置面板与 `ama config`」                                                                    | §10.2（项目级只能收紧由同一函数判定）、§11.3（拒绝时退出码 3，无新退出码）               |
 | `ui.replyLanguage`                               | [tui.md](tui.md)「配置与排错」                                                                                           | §9.1（`rules` 节末尾追加一句英文规则；不设时零字节变化）                                 |
 

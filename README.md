@@ -172,7 +172,7 @@ await session.dispose();
 | Entry point          | Use                                                               | Docs                                       |
 | -------------------- | ----------------------------------------------------------------- | ------------------------------------------ |
 | `ama --mode rpc`     | JSONL over stdio for hosts; types in `@armadra/agent/rpc`         | [docs/en/rpc.md](docs/en/rpc.md)           |
-| `ama --mode acp`     | ACP agent for editors and Armadra; client in `@armadra/agent/acp` | [docs/acp.md](docs/acp.md) (Chinese)       |
+| `ama --mode acp`     | ACP agent for editors and Armadra; client in `@armadra/agent/acp` | [docs/en/acp.md](docs/en/acp.md)           |
 | `--profile <file>`   | Host adapter: canvas tools, approvals, injected messages, status  | [docs/en/host-api.md](docs/en/host-api.md) |
 | `@armadra/agent/tui` | The terminal component library                                    | [docs/en/tui.md](docs/en/tui.md)           |
 
@@ -218,7 +218,7 @@ Common flags: `--model`, `--thinking`, `--permission-mode`, `--allow` / `--deny`
 
 ## Documentation
 
-Six user docs have English versions; the rest are in Chinese.
+Seven docs have English versions; the rest are in Chinese.
 
 **User docs**
 
@@ -231,7 +231,8 @@ Six user docs have English versions; the rest are in Chinese.
 **Integration docs**
 
 - [RPC protocol](docs/en/rpc.md) ([中文](docs/rpc.md)), [Host adapter API](docs/en/host-api.md) ([中文](docs/host-api.md))
-- [ACP](docs/acp.md), [Session file format](docs/session-format.md) (Chinese)
+- [ACP](docs/en/acp.md) ([中文](docs/acp.md)): `ama --mode acp`, sessions, tool calls, sign-in, deviations, the ACP client
+- [Session file format](docs/session-format.md) (Chinese)
 
 **Design and research** (Chinese)
 

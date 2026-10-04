@@ -6,12 +6,42 @@
 
 ## 未发布
 
-- **`ama --mode acp` 没有模型时保持连接**：不再以退出码 4 结束，照常回 `initialize`（客户端声明
+ACP 补全：`ama --mode acp` 作为编辑器（Zed 等 ACP 客户端）的 Agent，`AcpClient` / `AcpDriver` 作为客户端，仓库内对照官方 ACP v1
+schema 1.24.1 逐条校验。文档：docs/acp.md（英文：docs/en/acp.md）。
+
+- **没有模型不退出**：`ama --mode acp` 没有模型时不再以退出码 4 结束，照常回 `initialize`（客户端声明
   `clientCapabilities.auth.terminal` 时给两条 terminal 型认证方法 `ama auth login chatgpt` 与 `ama auth set`，启动时的
   `--auth-file` / profile 的 `authFile` 一并带上），会话方法回 -32000（无模型引导，`data.authMethods`）并以至多每秒一次重试启动；
   有了模型就把同一条连接交给正常的 ACP 服务端（不必重新 `initialize`）。`authenticate` 回 -32602；stdin 关闭退出 0。
   ACP 模式在启动前就接管 stdout。`ama auth set` 不给供应商且在 TTY 下时可用方向键选择（非 TTY 仍是用法错误）。
-  文档：docs/acp.md「无模型时」节（含 Zed `agent_servers` 配置示例）。
+- **多会话**：每个 ACP 会话常驻内存（空会话切走再切回也在）；同一时刻只跑一个回合，对别的会话的 `session/prompt` 进先进先出队列，
+  不再报 busy；`session/new` / `load` / `resume` / `list` / `set_mode` / `set_config_option` / `close` 在运行中也可调。权限模式按会话记，
+  轮到它跑时再应用。排队中的提示收到 `session/cancel` 回 `cancelled`。`session/list` 按 `cwd` 过滤、每页 50 条带 `nextCursor`
+  （非法 cursor 为 invalid params），标题去掉嵌入资源块；每回合结束发 `session_info_update`（标题、`updatedAt`）。拒答（Anthropic
+  `stop_reason: "refusal"`，`StopReason` 新值）回 `refusal`，其它地方消息仍按出错收尾（以 `stopReasonOf()` 区分；假供应商脚本支持
+  `stopReason: "refusal"`）。`mcpServers` / `additionalDirectories` 忽略并在 stderr 记一行。**行为变化**：`session/close` 之后对该 id
+  的请求回 -32002（以前会重新打开），要再用先 `session/load` / `session/resume`。
+- **工具调用可视化**：`tool_call` 带 `name`；codemode 脚本里的每次内层调用单列为一条 `tool_call`（标题前缀 `codemode › `，
+  `_meta.ama.parentToolCallId` 指向外层调用）并各自收口，权限请求用发起调用的 id，不再指向未公布的 id。权限询问期间调用回到
+  `pending`，允许后再 `in_progress`。`edit` / `write` 填新的 `ToolResult.fileChange`（改前 / 改后的磁盘原文，BOM 与 CRLF 原样，
+  新文件 `oldText: null`，单侧超过 256 KiB 不填；不落盘，RPC / stream-json 事件里去掉），完成更新带 `diff` 与前 4 KB 文本，
+  `locations[].line` 为首个改动行。`session/load` 回放的工具结果带前 4 KB 文本（无 diff）。权限模式带显示名与随界面语言的说明。
+- **配置项与命令表**：开会话答复带 `configOptions`——`model`（按供应商分组，值 `provider/model-id`，与 TUI `/model` 的「已配置」
+  视图同一口径：只列有 key、OAuth 已登录或本地的供应商，遵守 `models.enabled`，`fake` 按既有规则藏起）与 `thinking`（category
+  `thought_level`，只列当前模型支持的级别）；不给 `mode` 类别、没有 boolean 项。`session/set_config_option` 切换（未知 id / 值回
+  -32602），模型 / 思考级别变化发 `config_option_update`。会话打开后发 `available_commands_update`：Skill 列为 `skill:<名字>`，提示模板
+  列为 `<名字>`（`argument-hint` 作 `input.hint`），不列内置斜杠命令。`LoadedResources.prompts` 的提示模板多带 `description` /
+  `argumentHint`。
+- **双向 `$/cancel_request`**：`JsonRpcPeer` 新选项 `cancelRequests`（ACP 两侧开，缺省关闭，Codex app-server 线路逐字节不变）：本端
+  abort 的出站请求会通知对端，对端撤回的入站请求 abort 其 `ctx.signal` 并回 -32800。以 `$/cancel_request` 撤回的 prompt 停止回合并答
+  -32800；不再需要的权限请求由 Agent 撤回，客户端可以关掉对话框。
+- **客户端侧（`task(agent="acp:…")`）**：`AcpClient` 声明 `clientCapabilities.session.configOptions: {}`；Agent 撤回挂起的权限请求时
+  审批关掉、答 `cancelled`。`AcpDriver` 在 Agent 没有 `modes` 时退到 category `mode` 的配置项，-32000 报 `agent_auth_required` 并列出
+  Agent 的认证方法（terminal 型附命令），取消后的 -32800 视为 `cancelled`，`diff` 的路径计入 `filesTouched`。文档：docs/agents.md。
+- **类型与测试**：ACP 类型补 `authenticate`、`$/cancel_request`、-32800、terminal 型认证方法、客户端 `session` / `auth` 能力、
+  tool call 的 `name` / `_meta`、`config_option_update` 与 `ACP_META_KEY`（`@armadra/agent/acp` 导出）；回合 `usage` 注明 UNSTABLE；
+  select 配置项的选项须全部平铺或全部分组（假 Agent 的 `model` 项改为分组）。假 ACP Agent 加 `--config-only`、`--auth-required` 与
+  `[cancel-request]`。测试与黄金记录里的每条 ACP 线路都按随仓库的 schema 校验。
 
 ## 0.6.8（2026-10-04）
 
@@ -20,37 +50,6 @@
   `cancel(sessionId)` 或连接关闭时挂起的回 `cancel`）。新增 `setConfigOption(sessionId, configId, value)`，开会话答复带
   `configOptions`。`AcpClient.features` 多 `elicitation` 与 `configOptions`。不给处理器时线路不变。假 ACP Agent 加
   `[elicit]`、`[model]`、`[env NAME]` 标记与 `--config-options`。文档：docs/acp.md。
-- **ACP 补全的契约（线上形状不变）**：`JsonRpcPeer` 新选项 `cancelRequests`（ACP 的 `$/cancel_request`：本端 abort 的出站请求
-  会通知对端，对端撤回的入站请求 abort 其 `ctx.signal` 并回 -32800；缺省关闭，Codex app-server 线路逐字节不变）。
-  `ToolResult.fileChange`（文件改动的改前 / 改后全文，不落盘，RPC / stream-json 事件里去掉；暂不填）与 `FILE_CHANGE_TEXT_LIMIT`；
-  `StopReason` 加 `"refusal"`。ACP 类型补 `authenticate`、`$/cancel_request`、-32800、terminal 型认证方法、客户端 `session` /
-  `auth` 能力、tool call 的 `name` / `_meta`、`config_option_update` 与 `ACP_META_KEY`（`@armadra/agent/acp` 导出）；回合
-  `usage` 注明 UNSTABLE；select 配置项的选项须全部平铺或全部分组（假 Agent 的 `model` 项改为分组）。假 ACP Agent 加
-  `--config-only`、`--auth-required` 与 `[cancel-request]`。仓库内以官方 v1 schema 1.24.1 逐条校验 ACP 线路。文档：docs/acp.md。
-- **ACP 配置项、命令表与客户端侧**：`ama --mode acp` 的会话配置项与命令表就位——`model`（按供应商分组，值 `provider/model-id`，与
-  TUI `/model` 的「已配置」视图同一口径：只列有 key、OAuth 已登录或本地的供应商，遵守 `models.enabled`，`fake` 按既有规则藏起）与
-  `thinking`（category `thought_level`，只列当前模型支持的级别）；不给 `mode` 类别、没有 boolean 项；未知 id / 值回 -32602。命令表：
-  Skill 列为 `skill:<名字>`，提示模板列为 `<名字>`（`argument-hint` 作 `input.hint`），不列内置斜杠命令。`LoadedResources.prompts`
-  的提示模板多带 `description` / `argumentHint`。作客户端时 `AcpClient` 声明 `clientCapabilities.session.configOptions: {}` 并开
-  `$/cancel_request`（Agent 撤回挂起的权限请求时审批关掉、答 `cancelled`）；`AcpDriver` 在 Agent 没有 `modes` 时退到 category
-  `mode` 的配置项，-32000 报 `agent_auth_required` 并列出 Agent 的认证方法（terminal 型附命令），取消后的 -32800 视为
-  `cancelled`，`diff` 的路径计入 `filesTouched`。驱动与 `--mode acp` 的黄金记录只有 `initialize` 一行变化。文档：docs/acp.md、
-  docs/agents.md。
-- **ACP 工具调用可视化（`ama --mode acp`）**：`tool_call` 带 `name`；codemode 脚本里的每次内层调用单列为一条 `tool_call`（标题前缀
-  `codemode › `，`_meta.ama.parentToolCallId` 指向外层调用）并各自收口，权限请求不再指向未公布的 id。权限询问期间调用回到
-  `pending`，允许后再 `in_progress`。`edit` / `write` 填 `ToolResult.fileChange`（改前 / 改后的磁盘原文，BOM 与 CRLF 原样，新文件
-  `oldText: null`，单侧超过 256 KiB 不填；仍不落盘），完成更新带 `diff` 与前 4 KB 文本，`locations[].line` 为首个改动行。模型 /
-  思考级别变化发 `config_option_update`；事件映射器可发 `available_commands_update` / `config_option_update` 与
-  `session_info_update`。`session/load` 回放的工具结果带前 4 KB 文本。权限模式带显示名与随界面语言的说明。文档：docs/acp.md、
-  docs/codemode.md。
-- **`ama --mode acp` 多会话**：每个 ACP 会话常驻内存（空会话切走再切回也在）；同一时刻只跑一个回合，对别的会话的
-  `session/prompt` 进先进先出队列，不再报 busy；`session/new` / `load` / `resume` / `list` / `set_mode` / `close` 在运行中也可调。
-  权限模式按会话记，轮到它跑时再应用。排队中的提示收到 `session/cancel` 回 `cancelled`；`$/cancel_request` 撤回 prompt 答 -32800。
-  `session/list` 按 `cwd` 过滤、每页 50 条带 `nextCursor`（非法 cursor 为 invalid params），标题去掉嵌入资源块；每回合结束发
-  `session_info_update`。拒答（Anthropic `stop_reason: "refusal"`）回 `refusal`，其它地方消息仍按出错收尾（以 `stopReasonOf()`
-  区分；假供应商脚本支持 `stopReason: "refusal"`）。`mcpServers` / `additionalDirectories` 忽略并在 stderr 记一行。接上
-  `session/set_config_option`，有配置项时开会话答复带 `configOptions`。**行为变化**：`session/close` 之后对该 id 的请求回
-  -32002（以前会重新打开），要再用先 `session/load` / `session/resume`。文档：docs/acp.md「多会话」。
 
 ## 0.6.7（2026-10-03）
 

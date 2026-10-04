@@ -1,5 +1,7 @@
 # ACP（Agent Client Protocol）
 
+[English](en/acp.md) · 简体中文
+
 ama 在 ACP 两侧都能用：
 
 - **服务端**：`ama --mode acp` 把 ama 暴露为 ACP Agent，供 Zed、JetBrains、Armadra 的 ACP 节点驱动；
@@ -17,23 +19,22 @@ JSON-RPC 2.0 over NDJSON（stdio）：只按 `\n` 切行，64 KiB 分片写并�
 ama --mode acp                      # 与 -p 互斥；其余参数（--model、--profile、--trust 等）照常
 ```
 
-| 方法                        | ama 的行为                                                                                                                                                                                 |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `initialize`                | `protocolVersion: 1`；`loadSession: true`，`sessionCapabilities: { list, resume, close }`，`promptCapabilities: { image: true, embeddedContext: true }`；不要认证                          |
-| `session/new`               | 新开会话（启动时那个空会话第一次直接认领），运行中也可调；`cwd` 必须是 ama 的启动目录（按 realpath 比较），否则 invalid params                                                             |
-| `session/load`              | 打开该会话并以 `session/update` 回放历史（用户消息、回复、思考、工具调用）；已打开的直接从内存回放                                                                                         |
-| `session/resume`            | 打开该会话，不回放                                                                                                                                                                         |
-| `session/list`              | 启动目录下的会话：`cwd` 给了别的目录回空列表；每页 50 条（`updatedAt` 降序），`nextCursor` 翻页，非法 `cursor` → invalid params；标题取会话名或首条提示（去掉嵌入资源块后的首行，≤ 80 字） |
-| `session/close`             | 中断该会话的运行（排队的提示回 `cancelled`），释放并移出本连接；之后对这个 id 发请求回 -32002，要再用先 `session/load` / `session/resume`                                                  |
-| `session/prompt`            | 文本与图片照收；`resource_link` 以 `@uri` 文本给出，嵌入资源取文本。别的会话在跑时排队。回合结束：中断 → `cancelled`，输出截断 → `max_tokens`，拒答 → `refusal`，出错 → JSON-RPC 错误      |
-| `session/cancel`（通知）    | 在跑 → 中断；排队中 → 直接回 `cancelled`                                                                                                                                                   |
-| `$/cancel_request`（通知）  | 撤回一个挂起的 `session/prompt`：等同 `session/cancel`，该请求答 -32800                                                                                                                    |
-| `session/set_mode`          | 模式 id 就是 ama 的权限模式（`plan`、`allowlist`、`default`、`auto-edit`、`auto`、`full-auto`）；按会话记，见下文「多会话」                                                                |
-| `session/set_config_option` | 改会话配置项，答复是全部配置项的新状态                                                                                                                                                     |
+| 方法                        | ama 的行为                                                                                                                                                                                                       |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `initialize`                | `protocolVersion: 1`；`loadSession: true`，`sessionCapabilities: { list, resume, close }`，`promptCapabilities: { image: true, embeddedContext: true }`；有模型时 `authMethods` 为空（无模型见下文「无模型时」） |
+| `authenticate`              | -32602：ama 只给 terminal 型认证方法，按规范不经 `authenticate`（有无模型都一样）                                                                                                                                |
+| `session/new`               | 新开会话（启动时那个空会话第一次直接认领），运行中也可调；`cwd` 必须是 ama 的启动目录（按 realpath 比较），否则 invalid params                                                                                   |
+| `session/load`              | 打开该会话并以 `session/update` 回放历史（用户消息、回复、思考、工具调用）；已打开的直接从内存回放                                                                                                               |
+| `session/resume`            | 打开该会话，不回放                                                                                                                                                                                               |
+| `session/list`              | 启动目录下的会话：`cwd` 给了别的目录回空列表；每页 50 条（`updatedAt` 降序），`nextCursor` 翻页，非法 `cursor` → invalid params；标题取会话名或首条提示（去掉嵌入资源块后的首行，≤ 80 字）                       |
+| `session/close`             | 中断该会话的运行（排队的提示回 `cancelled`），释放并移出本连接；之后对这个 id 发请求回 -32002，要再用先 `session/load` / `session/resume`                                                                        |
+| `session/prompt`            | 文本与图片照收；`resource_link` 以 `@uri` 文本给出，嵌入资源取文本。别的会话在跑时排队；未打开的 id 回 -32002。回合结束：中断 → `cancelled`，输出截断 → `max_tokens`，拒答 → `refusal`，出错 → JSON-RPC 错误     |
+| `session/cancel`（通知）    | 在跑 → 中断；排队中 → 直接回 `cancelled`                                                                                                                                                                         |
+| `$/cancel_request`（通知）  | 撤回一个挂起的 `session/prompt`：等同 `session/cancel`，该请求答 -32800。反方向见「审批」                                                                                                                        |
+| `session/set_mode`          | 模式 id 就是 ama 的权限模式（`plan`、`allowlist`、`default`、`auto-edit`、`auto`、`full-auto`）；按会话记，见下文「多会话」                                                                                      |
+| `session/set_config_option` | 改会话配置项，答复是全部配置项的新状态；见下文「配置项与命令」                                                                                                                                                   |
 
-`session/new` / `load` / `resume` 的 `mcpServers`、`additionalDirectories` 不生效：非空时 stderr 记一行后照常打开会话。
-ama 不连接 MCP 服务器（工具由 ama 自己与宿主提供），工作目录固定为启动目录（信任与项目配置按它判定）——这偏离了规范
-「Agent 必须支持 stdio MCP」的要求，是有意为之。
+`session/new` / `load` / `resume` 的 `mcpServers`、`additionalDirectories` 不生效：非空时 stderr 记一行后照常打开会话（理由见「偏离与不做」）。未实现的方法（`session/delete`、`logout` 等）回 -32601。
 
 ### 多会话
 
@@ -65,13 +66,11 @@ ama 不连接 MCP 服务器（工具由 ama 自己与宿主提供），工作目
 | 会话开出（new / load / resume）之后 | `available_commands_update` 与 `config_option_update`                                                                                                                                                                          |
 | 回合结束之后                        | `session_info_update`（`updatedAt`；标题与上次不同才带 `title`）                                                                                                                                                               |
 
-diff 的改前 / 改后全文只随实时事件走，不写进会话文件：任一侧超过 256 KiB 不带 diff，`session/load` 回放的工具结果只有前 4 KB 文本。模式列表的 `name` 是显示名（如 `Manual`、`Accept edits`），`description` 随界面语言。`session/prompt` 的结果带本回合 token 用量（`inputTokens`、`outputTokens`、`cachedReadTokens`、`cachedWriteTokens`、`totalTokens`）。
+diff 的改前 / 改后全文只随实时事件走，不写进会话文件：任一侧超过 256 KiB 不带 diff，`session/load` 回放的工具结果只有前 4 KB 文本。模式列表的 `name` 是显示名（如 `Manual`、`Accept edits`），`description` 随界面语言。`session/prompt` 的结果带本回合 token 用量 `usage`（`inputTokens`、`outputTokens`、`cachedReadTokens`、`cachedWriteTokens`、`totalTokens`）；该字段在 schema 1.24.1 里仍是 UNSTABLE（只在不稳定 schema 中），客户端可以忽略，以 `usage_update` 为准。
 
 ### 审批
 
-ama 需要询问的调用经 `session/request_permission` 交给客户端，三个选项：`allow_once`（允许）、`allow_always`（本会话允许）、`reject_once`（拒绝）。`toolCall.toolCallId` 关联到先前 `tool_call` 的 id——codemode 内层调用也是，指向那条内层 `tool_call`，不是外层 `codemode`。询问期间该调用的状态回到 `pending`，允许后再 `in_progress`（所以有审批的调用依次是 `pending → in_progress → pending → in_progress → completed`）；拒绝时直接 `failed`。客户端回 `cancelled`、连接断开或回合被中断时，按无人作答处理（拒绝）。auto 模式下 ama 自己的分类器照常工作——这只影响 ama 自己的工具；ama 驱动的外部 Agent 发来的请求只交给人（见 [agents.md](agents.md)）。
-
-不声明、也不使用客户端的 `fs` / `terminal` 能力：ama 自己读写、自己跑命令，按自己的权限管线。
+ama 需要询问的调用经 `session/request_permission` 交给客户端，三个选项：`allow_once`（允许）、`allow_always`（本会话允许）、`reject_once`（拒绝）。`toolCall.toolCallId` 关联到先前 `tool_call` 的 id——codemode 内层调用也是，指向那条内层 `tool_call`，不是外层 `codemode`。询问期间该调用的状态回到 `pending`，允许后再 `in_progress`（所以有审批的调用依次是 `pending → in_progress → pending → in_progress → completed`）；拒绝时直接 `failed`。客户端回 `cancelled`、连接断开或回合被中断时，按无人作答处理（拒绝）。ama 这边不再需要答复时（回合被 `session/cancel` / `$/cancel_request` 中断、审批 10 分钟超时），以 `$/cancel_request { requestId }` 撤回挂起的 `session/request_permission`，客户端可以关掉对话框。auto 模式下 ama 自己的分类器照常工作——这只影响 ama 自己的工具；ama 驱动的外部 Agent 发来的请求只交给人（见 [agents.md](agents.md)）。
 
 ### 无模型时
 
@@ -127,6 +126,19 @@ Zed 的配置（`settings.json`）：
 
 stdin 关闭后等已开始的运行结束再退出（0）；`ama` 进程的 stdout 从启动第一步起只给协议（宿主 / Hook 加载期的 `console.log` 改写到 stderr）；SIGINT / SIGTERM 中断后退出 130 / 143。宿主看到的模式是 `rpc`（`HostApi.mode`）。SDK 直接 `bootstrap(--mode acp)` 时得到 `mode: "rpc"` 的 Runtime，再交给 `runAcpMode`。
 
+## 偏离与不做
+
+以下是有意的取舍，不是遗漏：
+
+| 项目                                            | ama 的做法与理由                                                                                                                                                                                                                                                                                                  |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 客户端的 `fs/*`、`terminal/*`                   | 不使用（客户端声明了也不用）。ama 自己读写文件、自己跑命令，全部经自己的权限管线、沙箱与检查点；借客户端的文件系统或终端会绕开这些，也会让 TUI / RPC / ACP 三处行为不一致。                                                                                                                                       |
+| MCP（`mcpServers`，含规范要求必须支持的 stdio） | 不连接，`mcpCapabilities` 的 `http` / `sse` 为 false；收到非空 `mcpServers` 时 stderr 记一行后照常开会话。**这偏离了规范「Agent 必须支持 stdio MCP」的 MUST**：ama 的工具只来自自身与宿主（profile），扩展走 Skill；接 MCP 会把外部工具描述放进请求前缀，破坏逐字节稳定的提示词缓存，也绕开权限管线对工具的分类。 |
+| elicitation（Agent 向人要结构化输入）           | 作服务端时不发 `elicitation/create`：ama 需要人决定的只有审批，走 `session/request_permission`。作客户端时支持（见下文）。                                                                                                                                                                                        |
+| `session/delete`                                | 不实现（-32601）。会话文件的清理走 `ama sessions prune`。                                                                                                                                                                                                                                                         |
+| `logout`                                        | 不实现、不声明 `agentCapabilities.auth.logout`（-32601）。退出登录用 `ama auth logout chatgpt` / `ama auth remove <供应商>`。                                                                                                                                                                                     |
+| 会话 `cwd`                                      | 固定为 ama 的启动目录，`session/new` 给了别的目录回 -32602，`additionalDirectories` 忽略：信任、项目配置、会话目录与沙箱都按启动目录判定，同一进程里换目录会让它们失效。要换目录就在那个目录另起一个 `ama --mode acp`。                                                                                           |
+
 ## 作为客户端
 
 模型经 `task(agent="acp:<程序>")` 使用 ACP Agent（ama 自己是 `task(agent="acp:ama")`，见 [agents.md](agents.md)「在 task 里使用」）。
@@ -163,10 +175,17 @@ stdin 关闭后等已开始的运行结束再退出（0）；`ama` 进程的 std
 
 ## 测试替身
 
-`runFakeAcpAgent(input, output)` 是进程内的假 ACP Agent，`fakeAcpAgentPath()` 是它的可执行入口（`node <path> [--minimal]`）。行为由提示里的标记决定：`[permission]`（请求权限，四个选项）、`[slow]`（等到 cancel）、`[plan]`、`[think]`、`[refuse]`，其余回 `echo: <文本>`。`--minimal` 不声明 resume / load / list / close，也不给模式，用来测降级路径。另有 `[elicit]`（发 `elicitation/create`，客户端没声明能力时回 `elicit: unsupported`）、`[model]`、`[env NAME]`（只回值的 sha256）三个标记；`--config-options`（进程内 `{ configOptions: true }`）让开会话答一个 `model` 配置项（选项按组给出）并接 `session/set_config_option`。
+`runFakeAcpAgent(input, output, options?)` 是进程内的假 ACP Agent，`fakeAcpAgentPath()` 是它的可执行入口（`node <path> [参数]`）。行为由提示里的标记与启动参数决定，其余提示回 `echo: <文本>`：
 
 | 标记 / 参数                                          | 行为                                                                                                                                                   |
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `[permission]`                                       | 请求权限（四个选项）                                                                                                                                   |
+| `[slow]`                                             | 等到 `session/cancel`                                                                                                                                  |
+| `[plan]` / `[think]` / `[refuse]`                    | 先发 `plan`（两条）/ 先发 `agent_thought_chunk` / 以 `refusal` 结束                                                                                    |
+| `[elicit]`                                           | 发 `elicitation/create`；客户端没声明能力时回 `elicit: unsupported`                                                                                    |
+| `[model]` / `[env NAME]`                             | 回 `model <当前模型>` / `env NAME <值的 sha256 或 absent>`（不回显值）                                                                                 |
+| `--minimal`（`{ minimal: true }`）                   | 不声明 resume / load / list / close，也不给模式，用来测降级路径                                                                                        |
+| `--config-options`（`{ configOptions: true }`）      | 开会话答一个 `model` 配置项（选项按组给出），接 `session/set_config_option`                                                                            |
 | `--config-only`（`{ configOnly: true }`）            | 开会话不给 `modes`，改在 `configOptions` 里给 category `mode` 的选择项（id `mode`），经 `session/set_config_option` 切换；可与 `--config-options` 同开 |
 | `--auth-required`（`{ authRequired: true }`）        | `initialize` 给一条 terminal 型认证方法（id `login`），`session/new` / `load` / `resume` 一律回 -32000                                                 |
 | `[cancel-request]`（`{ cancelRequestMs }` 缺省 2 s） | 发权限请求，挂起到期后 Agent 自己发 `$/cancel_request` 撤回，工具调用 failed，回 `permission withdrawn` 与 `end_turn`                                  |
@@ -177,4 +196,4 @@ stdin 关闭后等已开始的运行结束再退出（0）；`ama` 进程的 std
 
 ## 兼容性
 
-按 ACP v1（含 2026 年稳定的 `session/list`、`session/resume`、`session/close`、`usage_update`）。v2 计划取消 `session/load`，ama 作客户端时已优先 `resume`。
+对照官方 ACP v1 schema **1.24.1**（稳定部分，含 `session/list`、`session/resume`、`session/close`、`$/cancel_request`、`usage_update`、`session_info_update`、`config_option_update` 与 terminal 型认证方法）实现；schema 原文随仓库在 `test/fixtures/acp/schema-v1.24.1.json`，测试与黄金记录的每条线路都按它校验。唯一用到的不稳定字段是 `session/prompt` 结果的 `usage`（见「事件映射」）。v2 计划取消 `session/load`，ama 作客户端时已优先 `resume`。

@@ -105,9 +105,9 @@ describe("双语文档的链接", () => {
     }
   });
 
-  it("docs/en 含首批六篇", () => {
+  it("docs/en 含首批六篇与 acp", () => {
     const names = readdirSync(join(ROOT, "docs", "en"));
-    for (const name of ["host-api", "permissions", "providers", "rpc", "sessions", "tui"])
+    for (const name of ["acp", "host-api", "permissions", "providers", "rpc", "sessions", "tui"])
       expect(names, name).toContain(`${name}.md`);
   });
 });
