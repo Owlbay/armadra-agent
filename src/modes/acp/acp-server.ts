@@ -22,7 +22,7 @@ import { currentSession, switchSession } from "../../cli/compose-session.js";
 import { listSessions } from "../../cli/compose-store.js";
 import type { Runtime } from "../../cli/runtime.js";
 import { AgentSessionImpl } from "../../agent/session.js";
-import { JsonRpcPeer, RpcError } from "../../drivers/jsonrpc.js";
+import { RpcError, type JsonRpcPeer } from "../../drivers/jsonrpc.js";
 import {
   ACP_METHODS,
   ACP_PROTOCOL_VERSION,
@@ -45,6 +45,8 @@ import {
   toolTitle,
 } from "./acp-events.js";
 import { msg } from "../../i18n/index.js";
+import { availableCommands, buildConfigOptions } from "./acp-config.js";
+import { clientCapabilitiesOf, type AcpConnection } from "./acp-connection.js";
 
 export const ACP_AGENT_CAPABILITIES = {
   loadSession: true,
@@ -53,7 +55,7 @@ export const ACP_AGENT_CAPABILITIES = {
   sessionCapabilities: { list: {}, resume: {}, close: {} },
 };
 
-type Params = Record<string, unknown>;
+export type Params = Record<string, unknown>;
 
 /** 解析符号链接后的绝对路径（macOS 的 /var → /private/var 等）；不存在时退回 resolve。 */
 function canonical(path: string): string {
@@ -98,22 +100,18 @@ export class AcpServer {
   private cancelRequested = false;
   private readonly cwd: string;
 
+  /**
+   * 连接由调用方建（`createAcpConnection`），其 handlers 转到 {@link handle} 与
+   * {@link handleNotification}；认证门在 bootstrap 成功后以同一条连接构造服务端。
+   */
   constructor(
     private readonly runtime: Runtime,
-    streams: { input: NodeJS.ReadableStream; output: NodeJS.WritableStream },
+    readonly connection: AcpConnection,
     private readonly log: (message: string) => void = () => undefined,
   ) {
     this.cwd = canonical(runtime.paths.cwd);
+    this.peer = connection.peer;
     this.mapper = this.makeMapper();
-    this.peer = new JsonRpcPeer({
-      input: streams.input,
-      output: streams.output,
-      onRequest: (method, params) => this.handle(method, (params ?? {}) as Params),
-      onNotification: (method, params) => {
-        if (method === ACP_METHODS.sessionCancel) void this.cancel((params ?? {}) as Params);
-      },
-      onProtocolError: (_line, reason) => this.log(msg().acp.core.unparsable(reason)),
-    });
     this.subscribe();
   }
 
@@ -131,6 +129,10 @@ export class AcpServer {
       this.cwd,
       (update) => this.emit(update),
       () => this.session(),
+      () => ({
+        configOptions: buildConfigOptions(this.session(), this.runtime.providers, process.env),
+        commands: availableCommands(this.runtime.resources),
+      }),
     );
   }
 
@@ -149,7 +151,13 @@ export class AcpServer {
     this.unsubscribe();
   }
 
-  private async handle(method: string, params: Params): Promise<unknown> {
+  /** 客户端通知（`session/cancel`）。 */
+  handleNotification(method: string, params: unknown): void {
+    if (method === ACP_METHODS.sessionCancel) void this.cancel((params ?? {}) as Params);
+  }
+
+  /** 客户端请求；认证门交接时也由它处理当次请求。 */
+  async handle(method: string, params: Params): Promise<unknown> {
     switch (method) {
       case ACP_METHODS.initialize:
         return this.initialize(params);
@@ -175,6 +183,7 @@ export class AcpServer {
   private initialize(params: Params): AcpInitializeResult {
     if (typeof params["protocolVersion"] !== "number")
       throw new RpcError(RPC_ERRORS.invalidParams, msg().acp.core.missingProtocolVersion);
+    this.connection.markInitialized(clientCapabilitiesOf(params));
     return {
       protocolVersion: ACP_PROTOCOL_VERSION,
       agentCapabilities: ACP_AGENT_CAPABILITIES,

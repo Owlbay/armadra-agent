@@ -20,8 +20,10 @@ import type { ContentBlock } from "../../ai/types.js";
 import type { AgentMessage } from "../../session/types.js";
 import type { AgentSession, SessionEvent } from "../../agent/types.js";
 import type {
+  AcpAvailableCommand,
   AcpContentBlock,
   AcpPlanEntry,
+  AcpSessionConfigOption,
   AcpSessionUpdate,
   AcpToolCallLocation,
   AcpToolKind,
@@ -100,7 +102,24 @@ export class AcpEventMapper {
     private readonly cwd: string,
     private readonly emit: (update: AcpSessionUpdate) => void,
     private readonly session: () => AgentSession,
+    /** 会话的配置项与命令表（{@link announce} 用；[ACP-D] 填实际内容）。 */
+    protected readonly extras: () => {
+      configOptions: AcpSessionConfigOption[];
+      commands: AcpAvailableCommand[];
+    } = () => ({ configOptions: [], commands: [] }),
   ) {}
+
+  /**
+   * 会话 new / load / resume 的响应发出后由服务端调：`available_commands_update` 与
+   * `config_option_update`。[ACP-C0 空实现，ACP-C / D 填]
+   */
+  announce(): void {}
+
+  /**
+   * 回合结束后由服务端调：`session_info_update`（标题变化时带 title）。
+   * [ACP-C0 空实现，ACP-C 填]
+   */
+  emitSessionInfo(_title: string | null, _updatedAt: string): void {}
 
   /** 权限请求对应的工具调用 id（按工具名与参数匹配最近一个）。 */
   toolCallIdFor(toolName: string, input: unknown): string | undefined {

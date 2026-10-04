@@ -11,7 +11,12 @@ import { fileURLToPath } from "node:url";
 
 export type * from "./drivers/types.js";
 export type * from "./drivers/acp/types.js"; // AcpToolKind 与驱动契约同一类型
-export { ACP_METHODS, ACP_PROTOCOL_VERSION, RPC_ERRORS } from "./drivers/acp/types.js";
+export {
+  ACP_META_KEY,
+  ACP_METHODS,
+  ACP_PROTOCOL_VERSION,
+  RPC_ERRORS,
+} from "./drivers/acp/types.js";
 export {
   WRITE_CHUNK_BYTES,
   createLineReader,
@@ -34,7 +39,7 @@ export {
 export { AcpDriver } from "./drivers/acp/driver.js";
 export { runFakeAcpAgent, type FakeAcpAgentOptions } from "./drivers/acp/testing/fake-agent.js";
 
-/** 假 ACP Agent 的可执行入口（`node <path> [--minimal]`）；只在已编译的包里存在。 */
+/** 假 ACP Agent 的可执行入口（`node <path> [--minimal] [--config-options] [--config-only] [--auth-required]`）；只在已编译的包里存在。 */
 export function fakeAcpAgentPath(): string {
   return fileURLToPath(new URL("./drivers/acp/testing/fake-agent-main.js", import.meta.url));
 }

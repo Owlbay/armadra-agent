@@ -27,6 +27,7 @@ export const en = {
     allowAlways: "Allow for this session",
     rejectOnce: "Deny",
     truncated: (length: number) => `…(truncated, ${plural(length, "character")} in total)`,
+    unknownConfigOption: (id: string) => `unknown config option: ${id}`,
   },
   /** [ACP-A] 认证门与终端认证方法。 */
   auth: {},
@@ -55,6 +56,7 @@ export const zh = {
     allowAlways: "本会话允许",
     rejectOnce: "拒绝",
     truncated: (length) => `…（已截断，共 ${length} 字符）`,
+    unknownConfigOption: (id) => `未知配置项：${id}`,
   },
   auth: {},
   session: {},

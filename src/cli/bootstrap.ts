@@ -456,6 +456,9 @@ export async function runCli(
   try {
     runtime = await bootstrap(args, deps, io);
   } catch (error) {
+    // [ACP-C0] --mode acp 没有可用模型：交给认证门（ACP-A 实现握手与重试；现为 stub，行为同下）
+    if (acp && error instanceof StartupError && error.exitCode === ExitCode.NoModel)
+      return (await import("../modes/acp/acp-auth-gate.js")).runAcpAuthGate(args, deps, io, error);
     return reportError(error, io);
   }
   const restore =
