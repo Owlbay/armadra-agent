@@ -111,7 +111,7 @@ describe("release-check 规则", () => {
   });
 });
 
-const EN_DOCS = ["tui", "permissions", "providers", "rpc", "host-api", "sessions"];
+const EN_DOCS = ["tui", "permissions", "providers", "rpc", "host-api", "sessions", "acp"];
 const PACKAGE_FILES = ["docs/en/*.md", "README.zh-CN.md", "CHANGELOG.md", "CHANGELOG.zh-CN.md"];
 
 /** 合格的双语文档（CHANGELOG 两份都有该版本段）。 */

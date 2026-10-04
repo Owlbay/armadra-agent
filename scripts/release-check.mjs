@@ -9,7 +9,7 @@
  *    主版本号变化；主版本为 0 时按 semver 0.x 惯例，次版本号变化即可；
  * 3. 在 tag 构建里（`GITHUB_REF_TYPE=tag`）tag 名必须等于 `v<version>`，比较对象是它之前的 tag。
  * 4. 双语文档（第六波 §5.5、D21，`checkDocs()`）：`README.md`（英文）/ `README.zh-CN.md`、`CHANGELOG.md`（英文，
- *    从 0.6.0 起）/ `CHANGELOG.zh-CN.md`（中文，含 0.1–0.5.1 全部历史）、`docs/en/` 六篇都在，且列进
+ *    从 0.6.0 起）/ `CHANGELOG.zh-CN.md`（中文，含 0.1–0.5.1 全部历史）、`docs/en/` 七篇都在，且列进
  *    `package.json files`；README 与 CHANGELOG 两份顶部互链；`CHANGELOG.zh-CN.md` 有当前版本段，版本 ≥ 0.6.0
  *    时 `CHANGELOG.md` 也要有（段标题 `## 0.6.0（…）` / `## 0.6.0 (…)`，「未发布 / Unreleased」不算）。
  * 5. 英文文档滞后提示（§5.5，只提示不失败，`staleTranslations()`）：`docs/en/<篇>.md` 头部记着翻译时的中文版
@@ -109,7 +109,7 @@ export function checkRelease(input) {
 }
 
 /** `docs/en/` 首批英文文档（D21）。 */
-export const EN_DOCS = ["tui", "permissions", "providers", "rpc", "host-api", "sessions"];
+export const EN_DOCS = ["tui", "permissions", "providers", "rpc", "host-api", "sessions", "acp"];
 
 /** 发布必须带的双语文档。 */
 export const DOC_FILES = [
