@@ -5,7 +5,7 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 > This file is in English starting with 0.6.0. Release notes for 0.1 through 0.5.1 are in Chinese in
 > [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md). New entries go into both files.
 
-## Unreleased
+## 0.7.0 (2026-10-04)
 
 ACP completion: `ama --mode acp` as an agent for editors (Zed and other ACP clients) and `AcpClient` / `AcpDriver` as a
 client, checked in-repo against the official ACP v1 schema 1.24.1. Docs: docs/acp.md (English: docs/en/acp.md).

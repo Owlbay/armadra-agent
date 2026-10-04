@@ -4,7 +4,7 @@
 
 > 从 0.6.0 起 [CHANGELOG.md](CHANGELOG.md) 为英文，本文件保留中文记录（0.1–0.5.1 的完整历史在此）。新条目两份都要加。
 
-## 未发布
+## 0.7.0（2026-10-04）
 
 ACP 补全：`ama --mode acp` 作为编辑器（Zed 等 ACP 客户端）的 Agent，`AcpClient` / `AcpDriver` 作为客户端，仓库内对照官方 ACP v1
 schema 1.24.1 逐条校验。文档：docs/acp.md（英文：docs/en/acp.md）。
