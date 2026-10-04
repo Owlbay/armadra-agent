@@ -58,29 +58,26 @@ describe("[ACP-C0] createAcpConnection", () => {
   });
 });
 
-describe("[ACP-C0] runCli：--mode acp 没有可用模型交给认证门", () => {
-  it("stub 保持现状：报错、退出码 4；认证门收到原错误", async () => {
+describe("[ACP-A] runCli：--mode acp 没有可用模型交给认证门", () => {
+  it("认证门收到原错误（NoModel），退出码取认证门的；其它模式不经认证门", async () => {
     vi.resetModules();
     const seen: unknown[] = [];
-    vi.doMock("./acp-auth-gate.js", async (importOriginal) => {
-      const real = await importOriginal<typeof import("./acp-auth-gate.js")>();
-      return {
-        runAcpAuthGate: (...args: Parameters<typeof real.runAcpAuthGate>) => {
-          seen.push(args[3]);
-          return real.runAcpAuthGate(...args);
-        },
-      };
-    });
+    vi.doMock("./acp-auth-gate.js", () => ({
+      runAcpAuthGate: (...args: unknown[]) => {
+        seen.push(args[3]);
+        return Promise.resolve(0);
+      },
+    }));
     const { runCli } = await import("../../cli/bootstrap.js");
     const h = composeHarness([]);
     try {
-      expect(await runCli(["--mode", "acp"], h.deps(), h.io)).toBe(4);
+      expect(await runCli(["--mode", "acp"], h.deps(), h.io)).toBe(0);
       expect(seen).toHaveLength(1);
       expect(seen[0]).toMatchObject({ exitCode: 4 });
-      expect(h.stderr()).not.toBe("");
-      // 其它模式不经认证门
+      // 其它模式不经认证门，照旧退出码 4
       expect(await runCli(["--mode", "rpc"], h.deps(), h.io)).toBe(4);
       expect(seen).toHaveLength(1);
+      expect(h.stderr()).not.toBe("");
     } finally {
       vi.doUnmock("./acp-auth-gate.js");
       h.cleanup();

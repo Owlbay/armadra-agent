@@ -30,7 +30,17 @@ export const en = {
     unknownConfigOption: (id: string) => `unknown config option: ${id}`,
   },
   /** [ACP-A] 认证门与终端认证方法。 */
-  auth: {},
+  auth: {
+    chatgptName: "Sign in with ChatGPT",
+    chatgptDescription: "Runs ama auth login chatgpt in a terminal (ChatGPT subscription)",
+    apiKeyName: "Enter an API key",
+    apiKeyDescription: "Runs ama auth set in a terminal: pick a provider, then paste its API key",
+    notAgentMethod:
+      "ama only offers terminal auth methods, which are not passed to authenticate; run the method in a terminal",
+    waiting: (reason: string) =>
+      `no model available yet (${reason}); ACP stays up — sign in from the client's terminal login or run ama auth set, then open a session again`,
+    ready: (model: string) => `model available (${model}); ACP sessions are served from now on`,
+  },
   /** [ACP-B] 多会话与会话元数据。 */
   session: {},
   /** [ACP-C] 工具调用映射。 */
@@ -58,7 +68,16 @@ export const zh = {
     truncated: (length) => `…（已截断，共 ${length} 字符）`,
     unknownConfigOption: (id) => `未知配置项：${id}`,
   },
-  auth: {},
+  auth: {
+    chatgptName: "使用 ChatGPT 登录",
+    chatgptDescription: "在终端运行 ama auth login chatgpt（ChatGPT 订阅）",
+    apiKeyName: "填写 API key",
+    apiKeyDescription: "在终端运行 ama auth set：选供应商后粘贴它的 API key",
+    notAgentMethod: "ama 只提供终端型认证方法，这类方法不经 authenticate；请在终端里运行该方法",
+    waiting: (reason) =>
+      `暂无可用模型（${reason}）；ACP 连接保持——在客户端的终端登录或运行 ama auth set 后再开会话`,
+    ready: (model) => `模型已可用（${model}），开始处理 ACP 会话`,
+  },
   session: {},
   tools: {},
   config: {},

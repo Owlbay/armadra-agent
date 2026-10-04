@@ -17,17 +17,17 @@ JSON-RPC 2.0 over NDJSON（stdio）：只按 `\n` 切行，64 KiB 分片写并�
 ama --mode acp                      # 与 -p 互斥；其余参数（--model、--profile、--trust 等）照常
 ```
 
-| 方法                     | ama 的行为                                                                                                                                                        |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `initialize`             | `protocolVersion: 1`；`loadSession: true`，`sessionCapabilities: { list, resume, close }`，`promptCapabilities: { image: true, embeddedContext: true }`；不要认证 |
-| `session/new`            | 新开会话（启动时那个空会话第一次直接认领）；`cwd` 必须是 ama 的启动目录（按 realpath 比较），否则 invalid params                                                  |
-| `session/load`           | 切到该会话并以 `session/update` 回放历史（用户消息、回复、思考、工具调用）                                                                                        |
-| `session/resume`         | 切到该会话，不回放                                                                                                                                                |
-| `session/list`           | 启动目录下的会话（标题取会话名或首条提示）                                                                                                                        |
-| `session/close`          | 中断运行并释放活动会话                                                                                                                                            |
-| `session/prompt`         | 文本与图片照收；`resource_link` 以 `@uri` 文本给出，嵌入资源取文本。回合结束：中断 → `cancelled`，输出截断 → `max_tokens`，出错 → JSON-RPC 错误                   |
-| `session/cancel`（通知） | 中断当前回合                                                                                                                                                      |
-| `session/set_mode`       | 模式 id 就是 ama 的权限模式（`plan`、`allowlist`、`default`、`auto-edit`、`auto`、`full-auto`）                                                                   |
+| 方法                     | ama 的行为                                                                                                                                                                  |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `initialize`             | `protocolVersion: 1`；`loadSession: true`，`sessionCapabilities: { list, resume, close }`，`promptCapabilities: { image: true, embeddedContext: true }`；认证见「无模型时」 |
+| `session/new`            | 新开会话（启动时那个空会话第一次直接认领）；`cwd` 必须是 ama 的启动目录（按 realpath 比较），否则 invalid params                                                            |
+| `session/load`           | 切到该会话并以 `session/update` 回放历史（用户消息、回复、思考、工具调用）                                                                                                  |
+| `session/resume`         | 切到该会话，不回放                                                                                                                                                          |
+| `session/list`           | 启动目录下的会话（标题取会话名或首条提示）                                                                                                                                  |
+| `session/close`          | 中断运行并释放活动会话                                                                                                                                                      |
+| `session/prompt`         | 文本与图片照收；`resource_link` 以 `@uri` 文本给出，嵌入资源取文本。回合结束：中断 → `cancelled`，输出截断 → `max_tokens`，出错 → JSON-RPC 错误                             |
+| `session/cancel`（通知） | 中断当前回合                                                                                                                                                                |
+| `session/set_mode`       | 模式 id 就是 ama 的权限模式（`plan`、`allowlist`、`default`、`auto-edit`、`auto`、`full-auto`）                                                                             |
 
 一次只有一个活动会话；对非活动会话发 `session/prompt` 时（空闲）先切过去，运行中切换报 invalid request。
 
@@ -50,9 +50,46 @@ ama 需要询问的调用经 `session/request_permission` 交给客户端，三�
 
 不声明、也不使用客户端的 `fs` / `terminal` 能力：ama 自己读写、自己跑命令，按自己的权限管线。
 
+### 无模型时
+
+没有可用模型（没配 key、没 `--model`、`config.defaultModel` 不可用）时 `ama --mode acp` 不再以退出码 4 结束，而是照常握手，等用户登录：
+
+| 请求                    | 无模型时的行为                                                                                                                                                                                                                                               |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `initialize`            | 照常回答；客户端声明 `clientCapabilities.auth.terminal` 时 `authMethods` 给两条 terminal 方法，否则为空                                                                                                                                                      |
+| 会话方法（`session/*`） | 先重试整段启动（距上次失败至少 1 s，并发请求共用一次）：成功则同一条连接交给正常的服务端处理本次与之后的请求（不必重新 `initialize`）；仍无模型 → `-32000`，`message` 是无模型引导（列出 key 环境变量与 `ama auth set`），`data.authMethods` 是已给方法的 id |
+| `authenticate`          | `-32602`：terminal 方法按规范不经 `authenticate`                                                                                                                                                                                                             |
+| 其它                    | `-32601`；交接前的通知忽略                                                                                                                                                                                                                                   |
+
+两条 terminal 方法（客户端用启动 Agent 的同一条命令、换成这些参数在终端里起子进程）：
+
+| id        | 参数                 | 作用                                                                 |
+| --------- | -------------------- | -------------------------------------------------------------------- |
+| `chatgpt` | `auth login chatgpt` | ChatGPT 订阅登录（浏览器 OAuth）                                     |
+| `api-key` | `auth set`           | 方向键选内置的需 key 供应商，再粘贴 key（不回显，写 auth.json 0600） |
+
+启动时给了 `--auth-file`（或 profile 的 `authFile`）时两条方法都追加 `--auth-file <绝对路径>`，登录写到 ama 读的同一个文件。登录完成后客户端再开会话即可，不用重启 ama。stdin 关闭时退出 0（已交接则同下节）。失败的重试停在模型解析这一步，不加载宿主、不跑 SessionStart Hook。
+
+Zed 的配置（`settings.json`）：
+
+```json
+{
+  "agent_servers": {
+    "ama": {
+      "type": "custom",
+      "command": "ama",
+      "args": ["--mode", "acp"],
+      "env": {}
+    }
+  }
+}
+```
+
+没配模型时 Zed 打开 ama 的线程会提示登录，点登录方式后在 Zed 的终端里跑上表的命令；也可以先在任意终端 `ama auth set` / `ama auth login chatgpt`，或在 `env` 里给 key 环境变量。
+
 ### 退出
 
-stdin 关闭后等已开始的运行结束再退出（0）；SIGINT / SIGTERM 中断后退出 130 / 143。宿主看到的模式是 `rpc`（`HostApi.mode`）。SDK 直接 `bootstrap(--mode acp)` 时得到 `mode: "rpc"` 的 Runtime，再交给 `runAcpMode`。
+stdin 关闭后等已开始的运行结束再退出（0）；`ama` 进程的 stdout 从启动第一步起只给协议（宿主 / Hook 加载期的 `console.log` 改写到 stderr）；SIGINT / SIGTERM 中断后退出 130 / 143。宿主看到的模式是 `rpc`（`HostApi.mode`）。SDK 直接 `bootstrap(--mode acp)` 时得到 `mode: "rpc"` 的 Runtime，再交给 `runAcpMode`。
 
 ## 作为客户端
 

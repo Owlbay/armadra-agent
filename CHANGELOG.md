@@ -5,6 +5,17 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 > This file is in English starting with 0.6.0. Release notes for 0.1 through 0.5.1 are in Chinese in
 > [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md). New entries go into both files.
 
+## Unreleased
+
+- **`ama --mode acp` without a model keeps the connection up**: instead of exiting with code 4 it answers `initialize`
+  (two terminal auth methods, `ama auth login chatgpt` and `ama auth set`, when the client declares
+  `clientCapabilities.auth.terminal`; the start-up `--auth-file` / profile `authFile` is appended), answers session
+  methods with -32000 (the no-model guidance, `data.authMethods`) and retries start-up on them at most once per second;
+  once a model is available the same connection is handed to the normal ACP server (no new `initialize`). `authenticate`
+  answers -32602; closing stdin exits 0. stdout is taken over before start-up in ACP mode. `ama auth set` without a
+  provider on a TTY now lets you pick one with the arrow keys (non-TTY is still a usage error). Docs: docs/acp.md
+  ("Without a model", Zed `agent_servers` example).
+
 ## 0.6.8 (2026-10-04)
 
 - **ACP client: elicitation and session config options**: `AcpClient` takes an optional `onElicitation(params, signal)`;

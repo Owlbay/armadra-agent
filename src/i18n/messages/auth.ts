@@ -9,7 +9,7 @@
 import type { Messages } from "../types.js";
 
 export const en = {
-  usage: `Usage: ama auth set <provider> [--auth-file <file>]   read the key from stdin
+  usage: `Usage: ama auth set [<provider>] [--auth-file <file>]   read the key from stdin (no provider on a TTY: pick one)
        ama auth list [--auth-file <file>]
        ama auth remove <provider> [--auth-file <file>]
        ama auth login chatgpt [--flavor siwc|codex] [--paste | --device] [--port <n>] [--no-browser] [--yes] [--auth-file <file>]
@@ -23,6 +23,7 @@ export const en = {
   unknownAction: (action: string) => `unknown auth subcommand: ${action}`,
   setPrompt: (provider: string) => `Enter the API key for ${provider} (hidden), then press Enter: `,
   noKeyFromStdin: "no key read from stdin",
+  pickProvider: "Which provider is the API key for?",
   saved: (provider: string, path: string) => `Saved the key for ${provider} → ${path} (0600)`,
   warning: (text: string) => `ama: warning: ${text}`,
   listEmpty: (path: string) => `${path}: no saved keys`,
@@ -146,7 +147,7 @@ export const en = {
 };
 
 export const zh = {
-  usage: `用法：ama auth set <provider> [--auth-file <文件>]   从 stdin 读取 key
+  usage: `用法：ama auth set [<provider>] [--auth-file <文件>]   从 stdin 读取 key（TTY 下不给供应商则先选）
       ama auth list [--auth-file <文件>]
       ama auth remove <provider> [--auth-file <文件>]
       ama auth login chatgpt [--flavor siwc|codex] [--paste | --device] [--port <n>] [--no-browser] [--yes] [--auth-file <文件>]
@@ -160,6 +161,7 @@ export const zh = {
   unknownAction: (action) => `未知的 auth 子命令：${action}`,
   setPrompt: (provider) => `输入 ${provider} 的 API key（不回显），回车结束：`,
   noKeyFromStdin: "没有从 stdin 读到 key",
+  pickProvider: "这个 API key 属于哪个供应商？",
   saved: (provider, path) => `已保存 ${provider} 的 key → ${path}（0600）`,
   warning: (text) => `ama: 警告：${text}`,
   listEmpty: (path) => `${path}：没有保存的 key`,

@@ -452,17 +452,26 @@ export async function runCli(
     io.stderr(msg().cli.bootstrap.runtimeNotAssembled);
     return ExitCode.RuntimeError;
   }
+  // [ACP-A] ACP 的 stdout 只给协议：bootstrap 之前就接管（宿主 / Hook 加载期的 console.log 也改写到 stderr）
+  const early = acp ? takeOverStdout() : undefined;
   let runtime: Runtime;
   try {
     runtime = await bootstrap(args, deps, io);
   } catch (error) {
-    // [ACP-C0] --mode acp 没有可用模型：交给认证门（ACP-A 实现握手与重试；现为 stub，行为同下）
-    if (acp && error instanceof StartupError && error.exitCode === ExitCode.NoModel)
-      return (await import("../modes/acp/acp-auth-gate.js")).runAcpAuthGate(args, deps, io, error);
-    return reportError(error, io);
+    try {
+      // [ACP-A] --mode acp 没有可用模型：认证门照常握手，会话方法重试 bootstrap（docs/acp-plan.md §2.2）
+      if (acp && error instanceof StartupError && error.exitCode === ExitCode.NoModel)
+        return await (
+          await import("../modes/acp/acp-auth-gate.js")
+        ).runAcpAuthGate(args, deps, io, error);
+      return reportError(error, io);
+    } finally {
+      early?.();
+    }
   }
   const restore =
-    runtime.mode === "print" || runtime.mode === "rpc" ? takeOverStdout() : () => undefined;
+    early ??
+    (runtime.mode === "print" || runtime.mode === "rpc" ? takeOverStdout() : () => undefined);
   let cleanupFrom = (): void => undefined;
   try {
     if (runtime.mode !== "interactive")

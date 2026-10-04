@@ -14,7 +14,7 @@ import type { ModeContext } from "../../cli/deps.js";
 import { ExitCode } from "../../cli/exit-codes.js";
 import type { Runtime } from "../../cli/runtime.js";
 import { onTerminationSignals } from "../shared.js";
-import { createAcpConnection } from "./acp-connection.js";
+import { createAcpConnection, type AcpConnection } from "./acp-connection.js";
 import { AcpServer, type Params } from "./acp-server.js";
 import { RpcError } from "../../drivers/jsonrpc.js";
 import { RPC_ERRORS } from "../../drivers/acp/types.js";
@@ -22,6 +22,11 @@ import { RPC_ERRORS } from "../../drivers/acp/types.js";
 export interface AcpModeOptions {
   stdin?: NodeJS.ReadableStream;
   stdout?: NodeJS.WritableStream;
+  /**
+   * [ACP-A] 认证门交接：沿用门控建好的连接（可能已 `initialize`），不再新建；服务端建好后同步交给
+   * `attach`，门控此后把请求与通知都转给它。
+   */
+  handover?: { connection: AcpConnection; attach(server: AcpServer): void };
 }
 
 export async function runAcpMode(
@@ -34,15 +39,18 @@ export async function runAcpMode(
   const log = (message: string): void => context.io.stderr(`ama: ${message}\n`);
   // 连接先建（handlers 转给服务端）；JsonRpcPeer 的读取是异步的，构造完服务端之前不会有消息到达。
   const target: { server?: AcpServer } = {};
-  const connection = createAcpConnection({ input: stdin, output: stdout }, log, {
-    onRequest: async (method, params) => {
-      if (target.server === undefined) throw new RpcError(RPC_ERRORS.internalError, method);
-      return target.server.handle(method, (params ?? {}) as Params);
-    },
-    onNotification: (method, params) => target.server?.handleNotification(method, params),
-  });
+  const connection =
+    options.handover?.connection ??
+    createAcpConnection({ input: stdin, output: stdout }, log, {
+      onRequest: async (method, params) => {
+        if (target.server === undefined) throw new RpcError(RPC_ERRORS.internalError, method);
+        return target.server.handle(method, (params ?? {}) as Params);
+      },
+      onNotification: (method, params) => target.server?.handleNotification(method, params),
+    });
   const server = new AcpServer(runtime, connection, log);
   target.server = server;
+  options.handover?.attach(server);
   runtime.approvals.setUiBroker(server.broker);
   runtime.notifier.set((message, level) => context.io.stderr(`ama: [${level}] ${message}\n`));
   return new Promise<number>((resolve) => {
