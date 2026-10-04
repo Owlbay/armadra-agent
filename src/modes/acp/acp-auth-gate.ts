@@ -156,16 +156,16 @@ export async function runAcpAuthGate(
   };
 
   const connection = createAcpConnection({ input: stdin, output: stdout }, log, {
-    onRequest: async (method, raw) => {
+    onRequest: async (method, raw, ctx) => {
       const params = (raw ?? {}) as Params;
-      if (target.server !== undefined) return target.server.handle(method, params);
+      if (target.server !== undefined) return target.server.handle(method, params, ctx);
       if (method === ACP_METHODS.initialize) return initialize(params);
       if (method === ACP_METHODS.authenticate)
         throw new RpcError(RPC_ERRORS.invalidParams, msg().acp.auth.notAgentMethod);
       if (!SESSION_METHODS.has(method))
         throw new RpcError(RPC_ERRORS.methodNotFound, `method not found: ${method}`);
       const handed = (await retry()) !== undefined ? serverOf() : undefined;
-      if (handed !== undefined) return handed.handle(method, params);
+      if (handed !== undefined) return handed.handle(method, params, ctx);
       if (!isNoModel(lastError)) throw new RpcError(RPC_ERRORS.internalError, messageOf(lastError));
       throw new RpcError(RPC_ERRORS.authRequired, messageOf(lastError), {
         authMethods: offeredMethods(connection.clientCapabilities).map((m) => m.id),

@@ -1,28 +1,37 @@
 /**
- * `ama --mode acp`：把 ama 的会话暴露为 ACP Agent（docs/wave5-plan.md §5.6，D14）。[W5-E]
+ * `ama --mode acp`：把 ama 的会话暴露为 ACP Agent（docs/wave5-plan.md §5.6，D14；多会话见
+ * docs/acp-plan.md D1、D2、D11、D12、§2.1）。[W5-E，ACP-B]
  *
- * 与 `--mode rpc` 同一引擎（Runtime + 组装根的会话切换），一次只有一个活动会话：
- * - `session/new` 新开（启动时那个空会话第一次直接认领）；`session/load` 切到该会话并回放历史；
- *   `session/resume` 切换不回放；`session/list` 列本 cwd 的会话；`session/close` 中断并释放；
- *   对非活动会话发 `session/prompt` 时（空闲）先切过去。
- * - `session/prompt` → `prompt`（文本 + 图片；资源链接以 `@uri` 文本给出，嵌入资源取文本）；
- *   回合结束按会话状态给 stopReason：中断 → cancelled，输出截断 → max_tokens，出错 → JSON-RPC 错误。
- * - `session/cancel` → `abort`；`session/set_mode` → `setPermissionMode`（模式 id = ama 权限模式）。
- * - 审批：ama 的审批请求经 `session/request_permission` 交给客户端（允许 / 本会话允许 / 拒绝）；
- *   客户端回 cancelled、连接断开或回合被中断 → 交给链上下一个回答者（无人 → 拒绝）。
- * - 不声明 / 不使用客户端的 `fs`、`terminal` 能力（Armadra Q5）；ama 自己读写、自己跑命令。
- * - cwd 固定为启动目录（信任与项目配置都按它判定）；客户端给别的 cwd → invalid params。
+ * 与 `--mode rpc` 同一引擎（Runtime + 组装根）。多会话：
+ * - 每个 ACP sessionId 一个常驻会话（会话池，acp-sessions.ts），各有自己的事件映射器与权限模式；
+ *   启动时那个空会话由第一个 `session/new` 认领，之后的 new / load / resume 建兄弟会话（不 dispose 旧的）。
+ * - 同一时刻只跑一个回合：其它会话的 `session/prompt` 进 FIFO 队列；出队时把该会话切为前台
+ *   （宿主 / Hook / 工具工厂跟随，清「本会话允许」记忆），并把它自己的权限模式重放到共享管线。
+ * - `session/cancel`：在跑 → abort；排队中 → 直接回 cancelled。`session/close`：中断、释放并出池，
+ *   之后对该 id 发 prompt 回 -32002。`$/cancel_request` 撤回 prompt 等价 cancel，答复 -32800。
+ * - `session/set_mode`：记在会话上；是前台就立即生效，否则出队时生效（仍发 `current_mode_update`）。
+ * - `session/list`：按 cwd 过滤（别的目录 → 空列表），每页 50 条，cursor 翻页；标题去掉嵌入资源块。
+ * - 回合结束：stopReason（中断 → cancelled、截断 → max_tokens、拒答 → refusal、出错 → JSON-RPC 错误），
+ *   并发 `session_info_update`。
+ * - 审批经 `session/request_permission` 交给客户端；不声明 / 不使用客户端的 `fs`、`terminal` 能力。
+ * - cwd 固定为启动目录；客户端给的 `mcpServers` / `additionalDirectories` 忽略（stderr 一行）。
  */
 
 import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import type { ImageBlock } from "../../ai/types.js";
+import { stopReasonOf } from "../../ai/apis/shared.js";
 import type { AgentSession, SessionEvent } from "../../agent/types.js";
-import { currentSession, switchSession } from "../../cli/compose-session.js";
+import {
+  createSessionAlongside,
+  currentSession,
+  disposeSessionAlongside,
+  setForegroundSession,
+} from "../../cli/compose-session.js";
 import { listSessions } from "../../cli/compose-store.js";
 import type { Runtime } from "../../cli/runtime.js";
 import { AgentSessionImpl } from "../../agent/session.js";
-import { RpcError, type JsonRpcPeer } from "../../drivers/jsonrpc.js";
+import { RpcError, type IncomingRequestContext, type JsonRpcPeer } from "../../drivers/jsonrpc.js";
 import {
   ACP_METHODS,
   ACP_PROTOCOL_VERSION,
@@ -31,10 +40,16 @@ import {
   type AcpInitializeResult,
   type AcpPromptResult,
   type AcpRequestPermissionResult,
-  type AcpSessionUpdate,
+  type AcpSessionConfigOption,
+  type AcpSetConfigOptionParams,
 } from "../../drivers/acp/types.js";
 import { isPermissionMode } from "../../permissions/modes.js";
-import type { ApprovalBroker, ApprovalDecision, ApprovalRequest } from "../../permissions/types.js";
+import type {
+  ApprovalBroker,
+  ApprovalDecision,
+  ApprovalRequest,
+  PermissionMode,
+} from "../../permissions/types.js";
 import { AMA_VERSION } from "../../version.js";
 import { errorText } from "../shared.js";
 import {
@@ -45,8 +60,16 @@ import {
   toolTitle,
 } from "./acp-events.js";
 import { msg } from "../../i18n/index.js";
-import { availableCommands, buildConfigOptions } from "./acp-config.js";
+import { applyConfigOption, availableCommands, buildConfigOptions } from "./acp-config.js";
 import { clientCapabilitiesOf, type AcpConnection } from "./acp-connection.js";
+import {
+  PromptQueue,
+  cancelledResult,
+  pageSessions,
+  sessionTitle,
+  type PooledSession,
+  type PromptJob,
+} from "./acp-sessions.js";
 
 export const ACP_AGENT_CAPABILITIES = {
   loadSession: true,
@@ -90,15 +113,20 @@ export function promptOf(blocks: unknown): { text: string; images: ImageBlock[] 
   return { text: parts.join("\n"), images };
 }
 
+function countOf(value: unknown): number {
+  return Array.isArray(value) ? value.length : 0;
+}
+
 export class AcpServer {
   readonly peer: JsonRpcPeer;
-  private activeId: string | undefined;
-  /** 启动时的空会话还没被 session/new 认领。 */
-  private freshUnclaimed = true;
-  private mapper: AcpEventMapper;
-  private unsubscribe: () => void = () => undefined;
-  private cancelRequested = false;
   private readonly cwd: string;
+  /** ACP sessionId → 常驻会话。 */
+  private readonly pool = new Map<string, PooledSession>();
+  /** 还没交给客户端的会话（启动时那个；关掉最后一个前台会话后补的）：`session/new` 认领。 */
+  private standby: AgentSessionImpl | undefined;
+  /** 新会话的初始权限模式（启动参数 / 配置给的）。 */
+  private readonly initialMode: PermissionMode;
+  private readonly queue = new PromptQueue((job) => this.runPrompt(job));
 
   /**
    * 连接由调用方建（`createAcpConnection`），其 handlers 转到 {@link handle} 与
@@ -111,12 +139,21 @@ export class AcpServer {
   ) {
     this.cwd = canonical(runtime.paths.cwd);
     this.peer = connection.peer;
-    this.mapper = this.makeMapper();
-    this.subscribe();
+    const startup = currentSession(runtime);
+    if (startup instanceof AgentSessionImpl) this.standby = startup;
+    this.initialMode = startup.state.permissionMode;
   }
 
+  /** 前台会话（宿主 / Hook / 工具工厂当前操作的那个）。 */
   session(): AgentSession {
     return currentSession(this.runtime);
+  }
+
+  /** 会话池里的全部会话（含未认领的待命会话）；stdin 关闭时逐个收尾。 */
+  sessions(): AgentSession[] {
+    const all: AgentSession[] = [...this.pool.values()].map((entry) => entry.session);
+    if (this.standby !== undefined) all.push(this.standby);
+    return all;
   }
 
   /** 审批交给客户端：ama 的 UI broker。 */
@@ -124,31 +161,53 @@ export class AcpServer {
     ask: (request, signal) => this.askClient(request, signal),
   };
 
-  private makeMapper(): AcpEventMapper {
-    return new AcpEventMapper(
+  private extras(session: AgentSession) {
+    return {
+      configOptions: this.configOptions(session),
+      commands: availableCommands(this.runtime.resources),
+    };
+  }
+
+  private configOptions(session: AgentSession): AcpSessionConfigOption[] {
+    return buildConfigOptions(session, this.runtime.providers, process.env);
+  }
+
+  /** 把会话放进池：自己的映射器（`session/update` 带它自己的 id）与订阅。 */
+  private adopt(session: AgentSessionImpl, mode: PermissionMode): PooledSession {
+    const id = session.state.sessionId;
+    const mapper = new AcpEventMapper(
       this.cwd,
-      (update) => this.emit(update),
-      () => this.session(),
-      () => ({
-        configOptions: buildConfigOptions(this.session(), this.runtime.providers, process.env),
-        commands: availableCommands(this.runtime.resources),
-      }),
+      (update) => void this.peer.notify(ACP_METHODS.sessionUpdate, { sessionId: id, update }),
+      () => session,
+      () => this.extras(session),
     );
+    const unsubscribe = session.subscribe((event: SessionEvent) => mapper.onEvent(event));
+    const entry: PooledSession = { id, session, mapper, unsubscribe, mode };
+    this.pool.set(id, entry);
+    return entry;
   }
 
-  private emit(update: AcpSessionUpdate): void {
-    if (this.activeId === undefined) return;
-    void this.peer.notify(ACP_METHODS.sessionUpdate, { sessionId: this.activeId, update });
-  }
-
-  private subscribe(): void {
-    this.unsubscribe();
-    const mapper = this.mapper;
-    this.unsubscribe = this.session().subscribe((event: SessionEvent) => mapper.onEvent(event));
-  }
-
-  dispose(): void {
-    this.unsubscribe();
+  /**
+   * 释放全部会话（stdin 关闭后由模式调用）：排队的回 cancelled，等在跑的结束，兄弟会话依次
+   * dispose（跑 SessionEnd Hook）；前台会话留给 `Runtime.dispose`。
+   */
+  async dispose(abort = false): Promise<void> {
+    this.queue.cancelQueued();
+    if (abort)
+      await this.session()
+        .abort()
+        .catch(() => undefined);
+    await this.queue.settled();
+    for (const session of this.sessions()) await session.waitForIdle().catch(() => undefined);
+    const foreground = this.session();
+    for (const entry of this.pool.values()) entry.unsubscribe();
+    for (const session of this.sessions()) {
+      if (session === foreground || !(session instanceof AgentSessionImpl)) continue;
+      if (!(foreground instanceof AgentSessionImpl)) continue;
+      await disposeSessionAlongside(this.runtime, session, foreground).catch(() => undefined);
+    }
+    this.pool.clear();
+    this.standby = undefined;
   }
 
   /** 客户端通知（`session/cancel`）。 */
@@ -157,7 +216,7 @@ export class AcpServer {
   }
 
   /** 客户端请求；认证门交接时也由它处理当次请求。 */
-  async handle(method: string, params: Params): Promise<unknown> {
+  async handle(method: string, params: Params, ctx?: IncomingRequestContext): Promise<unknown> {
     switch (method) {
       case ACP_METHODS.initialize:
         return this.initialize(params);
@@ -168,13 +227,15 @@ export class AcpServer {
       case ACP_METHODS.sessionResume:
         return this.openSession(params, false);
       case ACP_METHODS.sessionList:
-        return this.list();
+        return this.list(params);
       case ACP_METHODS.sessionClose:
         return this.close(params);
       case ACP_METHODS.sessionPrompt:
-        return this.prompt(params);
+        return this.prompt(params, ctx?.signal);
       case ACP_METHODS.sessionSetMode:
         return this.setMode(params);
+      case ACP_METHODS.sessionSetConfigOption:
+        return this.setConfigOption(params);
       default:
         throw new RpcError(RPC_ERRORS.methodNotFound, `method not found: ${method}`);
     }
@@ -192,101 +253,167 @@ export class AcpServer {
     };
   }
 
-  private checkCwd(params: Params): void {
+  /** 开会话请求的公共检查：cwd 固定；`mcpServers` / `additionalDirectories` 忽略并在 stderr 说一行。 */
+  private checkOpen(params: Params): void {
     const cwd = params["cwd"];
-    if (cwd === undefined) return;
-    if (typeof cwd !== "string" || canonical(cwd) !== this.cwd)
+    if (cwd !== undefined && (typeof cwd !== "string" || canonical(cwd) !== this.cwd))
       throw new RpcError(RPC_ERRORS.invalidParams, msg().acp.core.fixedCwd(this.cwd, String(cwd)));
+    const mcp = countOf(params["mcpServers"]);
+    if (mcp > 0) this.log(msg().acp.session.ignoredMcp(mcp));
+    const dirs = countOf(params["additionalDirectories"]);
+    if (dirs > 0) this.log(msg().acp.session.ignoredDirs(dirs));
   }
 
-  private modes() {
-    return permissionModes(this.session().state.permissionMode);
-  }
-
-  private async switchTo(next: Promise<AgentSession>, reason: "new" | "resume"): Promise<void> {
-    const session = await next;
-    this.mapper = this.makeMapper();
-    this.subscribe();
-    if (session instanceof AgentSessionImpl) session.announceStart(reason);
+  /** new / load / resume 的答复：模式与配置项；答复发出后再公布命令表与配置项。 */
+  private opened(entry: PooledSession): { modes: ReturnType<typeof permissionModes> } & {
+    configOptions?: AcpSessionConfigOption[];
+  } {
+    const configOptions = this.configOptions(entry.session);
+    setImmediate(() => entry.mapper.announce());
+    return {
+      modes: permissionModes(entry.mode),
+      ...(configOptions.length > 0 ? { configOptions } : {}),
+    };
   }
 
   private async newSession(params: Params): Promise<unknown> {
-    this.checkCwd(params);
-    const current = this.session();
-    if (this.freshUnclaimed && current.messages.length === 0) {
-      this.freshUnclaimed = false;
+    this.checkOpen(params);
+    let session: AgentSessionImpl;
+    if (this.standby !== undefined && this.standby.messages.length === 0) {
+      session = this.standby;
+      this.standby = undefined;
     } else {
-      this.ensureIdle();
-      await this.switchTo(switchSession(this.runtime, { kind: "new" }), "new");
+      session = await createSessionAlongside(this.runtime, { kind: "new" });
     }
-    this.activeId = this.session().state.sessionId;
-    return { sessionId: this.activeId, modes: this.modes() };
+    const entry = this.adopt(session, this.initialMode);
+    // 兄弟会话自己的 session_start 在订阅之后发（认领的启动会话早已发过）
+    if (session !== currentSession(this.runtime)) session.announceStart("new");
+    return { sessionId: entry.id, ...this.opened(entry) };
   }
 
   private async openSession(params: Params, replay: boolean): Promise<unknown> {
     const id = str(params, "sessionId");
-    this.checkCwd(params);
-    if (this.session().state.sessionId !== id) {
-      this.ensureIdle();
-      try {
-        await this.switchTo(switchSession(this.runtime, { kind: "resume", id }), "resume");
-      } catch (error) {
-        throw new RpcError(
-          RPC_ERRORS.resourceNotFound,
-          msg().acp.core.sessionNotFound(id, errorText(error)),
-        );
+    this.checkOpen(params);
+    let entry = this.pool.get(id);
+    if (entry === undefined) {
+      if (this.standby !== undefined && this.standby.state.sessionId === id) {
+        entry = this.adopt(this.standby, this.initialMode);
+        this.standby = undefined;
+      } else {
+        let session: AgentSessionImpl;
+        try {
+          session = await createSessionAlongside(this.runtime, { kind: "resume", id });
+        } catch (error) {
+          throw new RpcError(
+            RPC_ERRORS.resourceNotFound,
+            msg().acp.core.sessionNotFound(id, errorText(error)),
+          );
+        }
+        entry = this.pool.get(id) ?? this.adopt(session, this.initialMode);
+        session.announceStart("resume");
       }
     }
-    this.freshUnclaimed = false;
-    this.activeId = id;
     if (replay) {
-      this.mapper.replay(this.session().messages);
+      entry.mapper.replay(entry.session.messages);
       await this.peer.flush();
     }
-    return { modes: this.modes() };
+    return this.opened(entry);
   }
 
-  private list(): unknown {
+  private list(params: Params): unknown {
+    const cwd = params["cwd"];
+    if (
+      cwd !== undefined &&
+      cwd !== null &&
+      (typeof cwd !== "string" || canonical(cwd) !== this.cwd)
+    )
+      return { sessions: [] };
     // 会话目录按 ama 启动时的 cwd 字串分组（不是 realpath）
     const items = listSessions({
       sessionDir: this.runtime.paths.sessionDir,
       cwd: this.runtime.paths.cwd,
     });
-    return {
-      sessions: items.map((item) => ({
-        sessionId: item.id,
-        cwd: item.cwd,
-        title: item.name ?? item.firstPrompt ?? null,
-        updatedAt: item.modifiedAt,
-      })),
-    };
+    return pageSessions(items, params["cursor"]);
+  }
+
+  private entryOf(params: Params): PooledSession {
+    const id = str(params, "sessionId");
+    const entry = this.pool.get(id);
+    if (entry === undefined)
+      throw new RpcError(RPC_ERRORS.resourceNotFound, msg().acp.session.notOpen(id));
+    return entry;
   }
 
   private async close(params: Params): Promise<unknown> {
     const id = str(params, "sessionId");
-    if (id === this.activeId) {
-      if (this.session().state.isStreaming) await this.session().abort();
-      this.activeId = undefined;
+    const entry = this.pool.get(id);
+    if (entry === undefined) return {};
+    this.pool.delete(id);
+    this.queue.cancelQueued(id);
+    const running = this.queue.running;
+    if (running?.sessionId === id) {
+      running.cancelRequested = true;
+      await entry.session.abort().catch(() => undefined);
+      await this.queue.settled(id);
     }
+    entry.unsubscribe();
+    let fallback = this.session();
+    if (fallback === entry.session) {
+      const next = [...this.pool.values()][0]?.session ?? this.standby;
+      if (next !== undefined) fallback = next;
+      else {
+        // 关掉的是唯一的会话：补一个待命会话当前台，下一个 session/new 认领它
+        this.standby = await createSessionAlongside(this.runtime, { kind: "new" });
+        fallback = this.standby;
+      }
+    }
+    if (fallback instanceof AgentSessionImpl)
+      await disposeSessionAlongside(this.runtime, entry.session, fallback);
     return {};
   }
 
-  private ensureIdle(): void {
-    if (this.session().state.isStreaming)
-      throw new RpcError(RPC_ERRORS.invalidRequest, msg().acp.core.busy);
+  private async prompt(params: Params, signal?: AbortSignal): Promise<AcpPromptResult> {
+    const entry = this.entryOf(params);
+    const { text, images } = promptOf(params["prompt"]);
+    const result = new Promise<AcpPromptResult>((resolve, reject) => {
+      const job: PromptJob = {
+        sessionId: entry.id,
+        text,
+        images,
+        cancelRequested: false,
+        resolve,
+        reject,
+      };
+      // 客户端以 $/cancel_request 撤回：等价 session/cancel，答复由对等端改成 -32800。
+      // 连接关闭（stdin 结束）也会 abort 这个 signal——那时不算撤回，已开始的运行照常跑完。
+      signal?.addEventListener(
+        "abort",
+        () => {
+          if (this.peer.isOpen) this.cancelJob(job);
+        },
+        { once: true },
+      );
+      this.queue.push(job);
+    });
+    const answer = await result;
+    if (signal?.aborted === true && this.peer.isOpen)
+      throw new RpcError(RPC_ERRORS.requestCancelled, "session/prompt: request cancelled");
+    return answer;
   }
 
-  private async prompt(params: Params): Promise<AcpPromptResult> {
-    const id = str(params, "sessionId");
-    if (id !== this.activeId) await this.openSession({ sessionId: id }, false);
-    const { text, images } = promptOf(params["prompt"]);
-    const session = this.session();
+  /** 出队：切前台、重放权限模式、跑回合、算 stopReason，再发 `session_info_update`。 */
+  private async runPrompt(job: PromptJob): Promise<AcpPromptResult> {
+    const entry = this.pool.get(job.sessionId);
+    if (entry === undefined || job.cancelRequested) return cancelledResult();
+    const { session } = entry;
+    setForegroundSession(this.runtime, session);
+    if (this.runtime.permission.mode !== entry.mode) session.setPermissionMode(entry.mode);
     const before = session.getStats().tokens;
-    this.cancelRequested = false;
+    let failure: unknown;
     try {
-      await session.prompt(text, images.length > 0 ? { images } : {});
+      await session.prompt(job.text, job.images.length > 0 ? { images: job.images } : {});
     } catch (error) {
-      throw new RpcError(RPC_ERRORS.internalError, errorText(error));
+      failure = error;
     }
     await this.peer.flush();
     const after = session.getStats().tokens;
@@ -297,9 +424,16 @@ export class AcpServer {
       cachedWriteTokens: after.cacheWrite - before.cacheWrite,
       totalTokens: after.total - before.total,
     };
+    entry.mapper.emitSessionInfo(
+      sessionTitle(session.state.sessionName, session.messages),
+      new Date().toISOString(),
+    );
+    if (job.cancelRequested) return { stopReason: "cancelled", usage };
+    if (failure !== undefined) throw new RpcError(RPC_ERRORS.internalError, errorText(failure));
     const last = [...session.messages].reverse().find((m) => "role" in m && m.role === "assistant");
-    const reason = last !== undefined && "stopReason" in last ? last.stopReason : "stop";
-    if (this.cancelRequested || reason === "aborted") return { stopReason: "cancelled", usage };
+    const reason = last !== undefined && "stopReason" in last ? stopReasonOf(last) : "stop";
+    if (reason === "aborted") return { stopReason: "cancelled", usage };
+    if (reason === "refusal") return { stopReason: "refusal", usage };
     if (reason === "error") {
       const message = last !== undefined && "errorMessage" in last ? last.errorMessage : undefined;
       throw new RpcError(RPC_ERRORS.internalError, message ?? msg().acp.core.modelFailed);
@@ -307,38 +441,68 @@ export class AcpServer {
     return { stopReason: reason === "length" ? "max_tokens" : "end_turn", usage };
   }
 
+  /** 中断一个提示：在跑 → abort；排队中 → 出队后立即回 cancelled（`runPrompt` 见标记直接返回）。 */
+  private cancelJob(job: PromptJob): void {
+    job.cancelRequested = true;
+    if (this.queue.running === job) {
+      const entry = this.pool.get(job.sessionId);
+      void entry?.session.abort().catch(() => undefined);
+    }
+  }
+
   private async cancel(params: Params): Promise<void> {
-    if (params["sessionId"] !== this.activeId) return;
-    this.cancelRequested = true;
-    await this.session()
-      .abort()
-      .catch(() => undefined);
+    const id = params["sessionId"];
+    if (typeof id !== "string") return;
+    this.queue.cancelQueued(id);
+    const running = this.queue.running;
+    if (running?.sessionId === id) this.cancelJob(running);
   }
 
   private setMode(params: Params): unknown {
-    str(params, "sessionId");
+    const entry = this.entryOf(params);
     const mode = params["modeId"];
     if (!isPermissionMode(mode))
       throw new RpcError(RPC_ERRORS.invalidParams, msg().acp.core.unknownMode(String(mode)));
-    this.session().setPermissionMode(mode);
+    entry.mode = mode;
+    if (entry.session === this.session()) entry.session.setPermissionMode(mode);
+    else
+      void this.peer.notify(ACP_METHODS.sessionUpdate, {
+        sessionId: entry.id,
+        update: { sessionUpdate: "current_mode_update", currentModeId: mode },
+      });
     return {};
+  }
+
+  private async setConfigOption(params: Params): Promise<unknown> {
+    const entry = this.entryOf(params);
+    str(params, "configId");
+    await applyConfigOption(entry.session, params as unknown as AcpSetConfigOptionParams);
+    return { configOptions: this.configOptions(entry.session) };
   }
 
   private async askClient(
     request: ApprovalRequest,
     signal: AbortSignal,
   ): Promise<ApprovalDecision | undefined> {
-    const sessionId = this.activeId;
-    if (sessionId === undefined || !this.peer.isOpen) return undefined;
+    // 审批来自在跑的那个回合（它就是前台）；不在回合里时按前台会话
+    const running = this.queue.running;
+    const foreground = this.session();
+    const entry =
+      running !== undefined
+        ? this.pool.get(running.sessionId)
+        : [...this.pool.values()].find((e) => e.session === foreground);
+    if (entry === undefined || !this.peer.isOpen) return undefined;
     const toolCallId =
-      this.mapper.toolCallIdFor(request.toolName, request.input) ?? request.requestId;
+      request.context?.toolCallId ??
+      entry.mapper.toolCallIdFor(request.toolName, request.input) ??
+      request.requestId;
     const locations = toolLocations(request.input, this.cwd);
     let answer: AcpRequestPermissionResult;
     try {
       answer = await this.peer.request<AcpRequestPermissionResult>(
         ACP_METHODS.requestPermission,
         {
-          sessionId,
+          sessionId: entry.id,
           toolCall: {
             toolCallId,
             title: toolTitle(request.toolName, request.input),
