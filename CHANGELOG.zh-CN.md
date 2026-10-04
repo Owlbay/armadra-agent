@@ -4,6 +4,14 @@
 
 > 从 0.6.0 起 [CHANGELOG.md](CHANGELOG.md) 为英文，本文件保留中文记录（0.1–0.5.1 的完整历史在此）。新条目两份都要加。
 
+## 未发布
+
+- **ACP 客户端：elicitation 与会话配置项**：`AcpClient` 可选构造参数 `onElicitation(params, signal)`，给了才在 `initialize`
+  声明 `clientCapabilities.elicitation` 并把 `elicitation/create` 交给它（答复收成 `accept` / `decline` / `cancel`；
+  `cancel(sessionId)` 或连接关闭时挂起的回 `cancel`）。新增 `setConfigOption(sessionId, configId, value)`，开会话答复带
+  `configOptions`。`AcpClient.features` 多 `elicitation` 与 `configOptions`。不给处理器时线路不变。假 ACP Agent 加
+  `[elicit]`、`[model]`、`[env NAME]` 标记与 `--config-options`。文档：docs/acp.md。
+
 ## 0.6.7（2026-10-03）
 
 - **宿主注入的 `ama` runner 生效**：宿主经 `HostApi.runners.provide` 注入 id 为 `ama` 的 runner（如 Armadra 画布上另一个

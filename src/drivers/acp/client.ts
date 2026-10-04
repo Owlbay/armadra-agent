@@ -10,6 +10,11 @@
  *   （规范要求：客户端取消回合后必须以 cancelled 回答挂起的请求）。
  * - 开会话（new / resume / load）的 `mcpServers` 缺省为空数组；宿主可经 {@link AcpSessionOptions}
  *   传入，原样转发。
+ * - `elicitation/create` 交给 `onElicitation`；给了它 `initialize` 才声明 `clientCapabilities.elicitation`，
+ *   没给时线路与旧版相同（不声明，Agent 发来的请求回 method not found）。`cancel(sessionId)`、连接关闭时
+ *   挂起的 elicitation 一律回 `{ action: "cancel" }`；ama 从不替人填表。
+ * - `setConfigOption(sessionId, configId, value)` 发 `session/set_config_option`；开会话答的 `configOptions`
+ *   原样交回。
  */
 
 import { JsonRpcPeer, RpcError } from "../jsonrpc.js";
@@ -19,6 +24,8 @@ import {
   RPC_ERRORS,
   type AcpAgentCapabilities,
   type AcpContentBlock,
+  type AcpElicitationParams,
+  type AcpElicitationResult,
   type AcpImplementationInfo,
   type AcpInitializeResult,
   type AcpListSessionsResult,
@@ -29,6 +36,7 @@ import {
   type AcpRequestPermissionResult,
   type AcpSessionNotification,
   type AcpSessionOptions,
+  type AcpSetConfigOptionResult,
 } from "./types.js";
 
 export interface AcpClientHandlers {
@@ -38,6 +46,11 @@ export interface AcpClientHandlers {
     params: AcpRequestPermissionParams,
     signal: AbortSignal,
   ): Promise<AcpRequestPermissionResult>;
+  /**
+   * `elicitation/create`：Agent 向人要结构化输入。给了它才声明 `clientCapabilities.elicitation`。
+   * `signal`：该会话被 cancel、连接关闭时 abort（此时回 `{ action: "cancel" }`，不必再答）。
+   */
+  onElicitation?(params: AcpElicitationParams, signal: AbortSignal): Promise<AcpElicitationResult>;
   onProtocolError?(line: string, reason: string): void;
   onClose?(): void;
 }
@@ -53,6 +66,16 @@ function mcpServersOf(options: AcpSessionOptions | undefined) {
   return [...(options?.mcpServers ?? [])];
 }
 
+const ELICITATION_ACTIONS = new Set(["accept", "decline", "cancel"]);
+
+/** 处理器的答复收成规范形状：动作不认识当 cancel，`content` 只随 accept。 */
+function elicitationAnswer(answer: AcpElicitationResult | undefined): AcpElicitationResult {
+  const action = answer?.action;
+  if (action === undefined || !ELICITATION_ACTIONS.has(action)) return { action: "cancel" };
+  if (action !== "accept" || answer?.content === undefined) return { action };
+  return { action, content: answer.content };
+}
+
 /** 无人值守的回答：首个 reject_once，没有就 cancelled。 */
 export function unattendedOutcome(params: AcpRequestPermissionParams): AcpRequestPermissionResult {
   const reject = params.options.find((o) => o.kind === "reject_once");
@@ -66,14 +89,22 @@ export function unattendedOutcome(params: AcpRequestPermissionParams): AcpReques
 
 export class AcpClient {
   /**
-   * 本版客户端支持的可选能力，供宿主做特性检测（旧版没有这个字段）：
-   * - `mcpServers`：开会话时可经 {@link AcpSessionOptions} 传 MCP 服务器。
+   * 本版客户端支持的可选能力，供宿主做特性检测（旧版没有这个字段，旧一点的只有 `mcpServers`）：
+   * - `mcpServers`：开会话时可经 {@link AcpSessionOptions} 传 MCP 服务器；
+   * - `elicitation`：构造参数 `onElicitation` 接 `elicitation/create`；
+   * - `configOptions`：`setConfigOption` 与开会话答的 `configOptions`。
    */
-  static readonly features: { readonly mcpServers: true } = { mcpServers: true };
+  static readonly features: {
+    readonly mcpServers: true;
+    readonly elicitation: true;
+    readonly configOptions: true;
+  } = { mcpServers: true, elicitation: true, configOptions: true };
 
   private readonly peer: JsonRpcPeer;
   /** sessionId → 挂起权限请求的取消器。 */
   private readonly pendingPermissions = new Map<string, Set<AbortController>>();
+  /** sessionId（没给就是空串）→ 挂起 elicitation 的取消器。 */
+  private readonly pendingElicitations = new Map<string, Set<AbortController>>();
   private initResult: AcpInitializeResult | undefined;
 
   constructor(private readonly options: AcpClientOptions) {
@@ -87,6 +118,7 @@ export class AcpClient {
       },
       onClose: () => {
         for (const set of this.pendingPermissions.values()) for (const c of set) c.abort();
+        for (const set of this.pendingElicitations.values()) for (const c of set) c.abort();
         options.onClose?.();
       },
       ...(options.onProtocolError !== undefined
@@ -116,7 +148,11 @@ export class AcpClient {
       ACP_METHODS.initialize,
       {
         protocolVersion: ACP_PROTOCOL_VERSION,
-        clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
+        clientCapabilities: {
+          fs: { readTextFile: false, writeTextFile: false },
+          terminal: false,
+          ...(this.options.onElicitation !== undefined ? { elicitation: {} } : {}),
+        },
         ...(this.options.clientInfo !== undefined ? { clientInfo: this.options.clientInfo } : {}),
       },
       signal,
@@ -209,9 +245,19 @@ export class AcpClient {
     return this.peer.request(ACP_METHODS.sessionSetMode, { sessionId, modeId });
   }
 
-  /** 协议级取消：发通知，并让挂起的权限请求回 cancelled。 */
+  /** 改一个会话配置项（如模型）；答复是全部配置项的新状态。 */
+  setConfigOption(
+    sessionId: string,
+    configId: string,
+    value: string,
+  ): Promise<AcpSetConfigOptionResult> {
+    return this.peer.request(ACP_METHODS.sessionSetConfigOption, { sessionId, configId, value });
+  }
+
+  /** 协议级取消：发通知，并让挂起的权限请求回 cancelled、挂起的 elicitation 回 cancel。 */
   async cancel(sessionId: string): Promise<void> {
     for (const controller of this.pendingPermissions.get(sessionId) ?? []) controller.abort();
+    for (const controller of this.pendingElicitations.get(sessionId) ?? []) controller.abort();
     await this.peer.notify(ACP_METHODS.sessionCancel, { sessionId });
   }
 
@@ -224,6 +270,8 @@ export class AcpClient {
     params: unknown,
     connection: AbortSignal,
   ): Promise<unknown> {
+    if (method === ACP_METHODS.elicitationCreate && this.options.onElicitation !== undefined)
+      return this.onElicitation(params, connection);
     if (method !== ACP_METHODS.requestPermission)
       throw new RpcError(RPC_ERRORS.methodNotFound, `client does not support ${method}`);
     const request = params as AcpRequestPermissionParams;
@@ -255,6 +303,33 @@ export class AcpClient {
       )
         return { outcome: { outcome: "cancelled" } };
       return answer;
+    } finally {
+      set.delete(controller);
+    }
+  }
+
+  private async onElicitation(params: unknown, connection: AbortSignal): Promise<unknown> {
+    const request = params as AcpElicitationParams;
+    if (request === null || typeof request !== "object" || typeof request.message !== "string")
+      throw new RpcError(RPC_ERRORS.invalidParams, "invalid elicitation/create params");
+    const handler = this.options.onElicitation!;
+    const key = typeof request.sessionId === "string" ? request.sessionId : "";
+    const controller = new AbortController();
+    const set = this.pendingElicitations.get(key) ?? new Set();
+    set.add(controller);
+    this.pendingElicitations.set(key, set);
+    const signal = AbortSignal.any([controller.signal, connection]);
+    try {
+      const answer = await Promise.race([
+        handler(request, signal),
+        new Promise<AcpElicitationResult>((resolve) => {
+          const cancelled = (): void => resolve({ action: "cancel" });
+          if (signal.aborted) cancelled();
+          else signal.addEventListener("abort", cancelled, { once: true });
+        }),
+      ]);
+      if (signal.aborted) return { action: "cancel" };
+      return elicitationAnswer(answer);
     } finally {
       set.delete(controller);
     }

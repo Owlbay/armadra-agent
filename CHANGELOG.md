@@ -5,6 +5,15 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 > This file is in English starting with 0.6.0. Release notes for 0.1 through 0.5.1 are in Chinese in
 > [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md). New entries go into both files.
 
+## Unreleased
+
+- **ACP client: elicitation and session config options**: `AcpClient` takes an optional `onElicitation(params, signal)`;
+  when given, `initialize` declares `clientCapabilities.elicitation` and `elicitation/create` goes to it (answers normalized
+  to `accept` / `decline` / `cancel`; pending ones resolve `cancel` on `cancel(sessionId)` or connection close). New
+  `setConfigOption(sessionId, configId, value)` and `configOptions` on session-open results. `AcpClient.features` gains
+  `elicitation` and `configOptions`. Without a handler the wire is unchanged. The fake ACP agent adds `[elicit]`, `[model]`
+  and `[env NAME]` markers and `--config-options`. Docs: docs/acp.md.
+
 ## 0.6.7 (2026-10-03)
 
 - **A host runner with id `ama` is used**: when the host registers a runner for `ama` via `HostApi.runners.provide`
