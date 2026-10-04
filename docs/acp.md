@@ -67,12 +67,19 @@ stdin 关闭后等已开始的运行结束再退出（0）；SIGINT / SIGTERM �
 - 开会话（`newSession` / `resumeSession` / `loadSession`）的 `mcpServers` 缺省为空数组；宿主可传第三个参数
   `{ mcpServers }`（如 stdio 的 `{ name, command, args, env: [{ name, value }] }`），原样转发给 Agent。
   `AcpClient.features.mcpServers === true` 表示支持（旧版没有 `features`）。ama 自己作客户端时仍不传。
+- `elicitation/create`（Agent 向人要结构化输入）：构造参数给了 `onElicitation(params, signal)` 才在 `initialize` 声明
+  `clientCapabilities.elicitation` 并接这个请求；没给时不声明、请求回 method not found（与旧版相同）。答复收成
+  `{ action: "accept" | "decline" | "cancel", content? }`（`content` 只随 accept，不认识的动作当 cancel）；`cancel(sessionId)`
+  与连接关闭时挂起的一律回 `{ action: "cancel" }`。ama 自己作客户端时不给处理器，从不替人填表。
+- 会话配置项：开会话（new / load / resume）答的 `configOptions` 原样交回；`setConfigOption(sessionId, configId, value)` 发
+  `session/set_config_option`，答复是全部配置项的新状态。
+- `AcpClient.features`：`{ mcpServers, elicitation, configOptions }`，宿主据此做特性检测。
 
 `AcpDriver` 在客户端之上实现驱动契约（`AgentDriver`）：续接优先 `session/resume`，其次 `session/load`（回放的历史丢弃），都不支持就新开并提示；按 ama 模式 `session/set_mode`，只读模式找不到对应模式 id 时拒绝启动。
 
 ## 测试替身
 
-`runFakeAcpAgent(input, output)` 是进程内的假 ACP Agent，`fakeAcpAgentPath()` 是它的可执行入口（`node <path> [--minimal]`）。行为由提示里的标记决定：`[permission]`（请求权限，四个选项）、`[slow]`（等到 cancel）、`[plan]`、`[think]`、`[refuse]`，其余回 `echo: <文本>`。`--minimal` 不声明 resume / load / list / close，也不给模式，用来测降级路径。
+`runFakeAcpAgent(input, output)` 是进程内的假 ACP Agent，`fakeAcpAgentPath()` 是它的可执行入口（`node <path> [--minimal]`）。行为由提示里的标记决定：`[permission]`（请求权限，四个选项）、`[slow]`（等到 cancel）、`[plan]`、`[think]`、`[refuse]`，其余回 `echo: <文本>`。`--minimal` 不声明 resume / load / list / close，也不给模式，用来测降级路径。另有 `[elicit]`（发 `elicitation/create`，客户端没声明能力时回 `elicit: unsupported`）、`[model]`、`[env NAME]`（只回值的 sha256）三个标记；`--config-options`（进程内 `{ configOptions: true }`）让开会话答一个 `model` 配置项并接 `session/set_config_option`。
 
 黄金记录在 `test/fixtures/acp/`：`driver-{allow,reject,cancel}.jsonl`（ama 驱动假 Agent 的三条路径）与 `mode-prompt.jsonl`（`ama --mode acp` 一轮往返）。`UPDATE_GOLDEN=1` 重写。
 
