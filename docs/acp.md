@@ -87,6 +87,19 @@ Zed 的配置（`settings.json`）：
 
 没配模型时 Zed 打开 ama 的线程会提示登录，点登录方式后在 Zed 的终端里跑上表的命令；也可以先在任意终端 `ama auth set` / `ama auth login chatgpt`，或在 `env` 里给 key 环境变量。
 
+### 配置项与命令
+
+开会话（new / load / resume）的答复带 `configOptions`，之后发一条 `available_commands_update`：
+
+| 配置项 id  | category        | 可选值                                                                                                                                                                                                                                                                       |
+| ---------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `model`    | `model`         | 按供应商分组，值 `provider/model-id`（多渠道的渠道行带 `@渠道`）；口径与 TUI `/model` 的「已配置」视图相同：只列有 key、OAuth 已登录或本地的供应商，设了 `models.enabled` 只列清单内的，测试供应商 `fake` 缺省藏起；当前模型总在列。没配 key 的供应商不列，先 `ama auth set` |
+| `thinking` | `thought_level` | 当前模型支持的思考级别（`off`…`xhigh`，非推理模型只有 `off`）                                                                                                                                                                                                                |
+
+- 不给 `mode` 类别的配置项：模式只走 `modes` / `session/set_mode`，免得客户端出现两个模式切换。没有 boolean 型配置项。
+- `session/set_config_option`：`model` → 切模型，`thinking` → 改思考级别，答复是全部配置项的新状态；未知 id、找不到的模型、不认识的级别回 invalid params（-32602）。模型或级别在会话里变了（含 plan 流程自动切换）时发 `config_option_update`。
+- 命令表：Skill 列为 `skill:<名字>`，提示模板列为 `<名字>`（frontmatter 的 `argument-hint` 作 `input.hint`）。这两类在 prompt 文本里本来就会展开（`/skill:<名字> …`、`/<名字> …`）。`/new`、`/compact` 等内置斜杠命令在 ACP 下不执行，不列。
+
 ### 退出
 
 stdin 关闭后等已开始的运行结束再退出（0）；`ama` 进程的 stdout 从启动第一步起只给协议（宿主 / Hook 加载期的 `console.log` 改写到 stderr）；SIGINT / SIGTERM 中断后退出 130 / 143。宿主看到的模式是 `rpc`（`HostApi.mode`）。SDK 直接 `bootstrap(--mode acp)` 时得到 `mode: "rpc"` 的 Runtime，再交给 `runAcpMode`。
@@ -97,7 +110,10 @@ stdin 关闭后等已开始的运行结束再退出（0）；`ama` 进程的 std
 
 `AcpClient`（`@armadra/agent/acp`）：`initialize`、`newSession`、`resumeSession`（优先，不回放）、`loadSession`、`listSessions`、`closeSession`、`prompt`、`setMode`、`cancel`。
 
-- 声明的客户端能力为空：Agent 发来的 `fs/*`、`terminal/*` 请求回 method not found。
+- 声明的客户端能力：`session.configOptions: {}`（接 select 型配置项，不声明 boolean）；不声明 `fs` / `terminal`（Agent 发来的
+  `fs/*`、`terminal/*` 请求回 method not found），也不声明 `auth.terminal`（ama 没有可借给 Agent 的交互终端）。
+- 线路两侧开 `$/cancel_request`：本端请求的 `signal` 在发出后 abort 会通知 Agent 撤回；Agent 撤回挂起的
+  `session/request_permission` / `elicitation/create` 时处理器的 `signal` abort，答 `cancelled` / `cancel`（处理器之后给的选择不作数）。
 - `session/request_permission` 交给 `onPermission`；没有处理器时回首个 `reject_once`（无人值守）。
 - `cancel(sessionId)` 发 `session/cancel`，并让该会话挂起的权限请求回 `cancelled`（规范要求）。
 - 只接受 Agent 自己给出的 `optionId`。
@@ -112,7 +128,15 @@ stdin 关闭后等已开始的运行结束再退出（0）；`ama` 进程的 std
   `session/set_config_option`，答复是全部配置项的新状态。
 - `AcpClient.features`：`{ mcpServers, elicitation, configOptions }`，宿主据此做特性检测。
 
-`AcpDriver` 在客户端之上实现驱动契约（`AgentDriver`）：续接优先 `session/resume`，其次 `session/load`（回放的历史丢弃），都不支持就新开并提示；按 ama 模式 `session/set_mode`，只读模式找不到对应模式 id 时拒绝启动。
+`AcpDriver` 在客户端之上实现驱动契约（`AgentDriver`）：
+
+- 续接优先 `session/resume`，其次 `session/load`（回放的历史丢弃），都不支持就新开并提示。
+- 按 ama 模式 `session/set_mode`；Agent 不给 `modes` 时退到 `configOptions` 里 category `mode` 的选择项，同一映射找值后经
+  `session/set_config_option` 设置。两处都找不到对应模式时：只读模式拒绝启动，其它模式用 Agent 的缺省模式并提示。
+- 开会话回 -32000（需要登录）时报 `agent_auth_required`，文案列出 `initialize` 给的认证方法；terminal 型附上要在终端里跑的
+  命令（Agent 程序 + 它的参数 + 方法的 `args`）。ama 不替人登录。
+- 取消回合后 Agent 以 -32800（请求被撤回）答 `session/prompt` 时视为 `cancelled`；没取消时照常报错。
+- 工具内容里 `diff` 的 `path` 并入该调用的 `locations`，调用完成后计入 `filesTouched`（不论 Agent 报的工具种类）。
 
 ## 测试替身
 

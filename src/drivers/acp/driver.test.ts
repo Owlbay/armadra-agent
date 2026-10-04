@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildSync } from "esbuild";
 import { afterEach, describe, expect, it } from "vitest";
+import { assertAcpWire } from "../../../test/helpers/acp-schema.js";
+import { JsonRpcPeer, RpcError } from "../jsonrpc.js";
 import type { ProgramProbe } from "../probe.js";
 import { spawnTransport } from "../process.js";
 import { golden, memoryTransport, spawnRecorder, wireText } from "../test-support.js";
@@ -13,13 +15,14 @@ import type {
   DriverPermissionRequest,
   DriverSession,
 } from "../types.js";
-import { runFakeAcpAgent } from "./testing/fake-agent.js";
-import { AcpDriver } from "./driver.js";
+import { runFakeAcpAgent, type FakeAcpAgentOptions } from "./testing/fake-agent.js";
+import { AcpDriver, pickConfigModeValue } from "./driver.js";
+import { ACP_METHODS, RPC_ERRORS, type AcpSessionUpdate } from "./types.js";
 
 const CWD = "/work";
 const candidate = { kind: "acp" as const, program: "fake-acp", args: [] };
 
-function fakeDriver(options: { minimal?: boolean } = {}) {
+function fakeDriver(options: FakeAcpAgentOptions = {}) {
   const rec = spawnRecorder(() =>
     memoryTransport((input, output) => runFakeAcpAgent(input, output, options)),
   );
@@ -89,6 +92,7 @@ describe("AcpDriver × 假 ACP Agent（黄金记录）", () => {
     {
       const text = wireText(wire);
       expect(text).toBe(golden("acp/driver-allow.jsonl", text));
+      assertAcpWire(wire);
     }
   });
 
@@ -106,6 +110,7 @@ describe("AcpDriver × 假 ACP Agent（黄金记录）", () => {
     {
       const text = wireText(wire);
       expect(text).toBe(golden("acp/driver-reject.jsonl", text));
+      assertAcpWire(wire);
     }
   });
 
@@ -123,6 +128,7 @@ describe("AcpDriver × 假 ACP Agent（黄金记录）", () => {
     {
       const text = wireText(wire);
       expect(text).toBe(golden("acp/driver-cancel.jsonl", text));
+      assertAcpWire(wire);
     }
   });
 
@@ -266,5 +272,204 @@ describe("[W5-Z] 启动路径", () => {
     const { driver, rec } = fakeDriver();
     sessions.push(await open(driver));
     expect(rec.specs[0]?.program).toBe("fake-acp");
+  });
+});
+
+/**
+ * 只为本文件写的迷你 Agent：`session/prompt` 按脚本发 `session/update`，然后要么回 stopReason，
+ * 要么等 `session/cancel` 后回 -32800（有的 Agent 这样答被取消的回合）。
+ */
+function scriptedAgent(script: {
+  updates?: AcpSessionUpdate[];
+  /** 等 session/cancel，然后回 -32800。 */
+  cancelWith32800?: boolean;
+  /** 不等取消，直接回 -32800。 */
+  error32800?: boolean;
+}) {
+  return (input: NodeJS.ReadableStream, output: NodeJS.WritableStream): Promise<void> => {
+    let cancelled: (() => void) | undefined;
+    const peer: JsonRpcPeer = new JsonRpcPeer({
+      input,
+      output,
+      cancelRequests: true,
+      onNotification(method) {
+        if (method === ACP_METHODS.sessionCancel) cancelled?.();
+      },
+      async onRequest(method, raw) {
+        const params = (raw ?? {}) as Record<string, unknown>;
+        switch (method) {
+          case ACP_METHODS.initialize:
+            return { protocolVersion: 1, agentCapabilities: {}, authMethods: [] };
+          case ACP_METHODS.sessionNew:
+            return { sessionId: "m-1" };
+          case ACP_METHODS.sessionPrompt: {
+            for (const update of script.updates ?? [])
+              await peer.notify(ACP_METHODS.sessionUpdate, {
+                sessionId: params["sessionId"],
+                update,
+              });
+            if (script.error32800)
+              throw new RpcError(RPC_ERRORS.requestCancelled, "request cancelled");
+            if (script.cancelWith32800) {
+              await new Promise<void>((resolve) => (cancelled = resolve));
+              throw new RpcError(RPC_ERRORS.requestCancelled, "request cancelled");
+            }
+            return { stopReason: "end_turn" };
+          }
+          default:
+            throw new RpcError(RPC_ERRORS.methodNotFound, method);
+        }
+      },
+    });
+    return peer.closed;
+  };
+}
+
+function scriptedDriver(script: Parameters<typeof scriptedAgent>[0]) {
+  const rec = spawnRecorder(() => memoryTransport(scriptedAgent(script)));
+  return {
+    driver: new AcpDriver("acp:mini", candidate, { spawn: rec.spawn, cancelGraceMs: 50 }),
+    rec,
+  };
+}
+
+const noPermission = async (): Promise<DriverPermissionOutcome> => ({ outcome: "cancelled" });
+
+describe("[ACP-D] 客户端侧", () => {
+  it("--config-only：没有 modes 时 plan 经 session/set_config_option 设置", async () => {
+    const { driver, rec } = fakeDriver({ configOnly: true });
+    sessions.push(await open(driver, { mode: "plan" }));
+    const wire = rec.last()!.wire;
+    expect(wire.some((w) => w.msg["method"] === "session/set_mode")).toBe(false);
+    expect(
+      wire.find((w) => w.msg["method"] === "session/set_config_option")?.msg["params"],
+    ).toMatchObject({ configId: "mode", value: "plan" });
+    assertAcpWire(wire);
+  });
+
+  it("--config-only：当前值已是要的模式时不发 set_config_option", async () => {
+    const { driver, rec } = fakeDriver({ configOnly: true });
+    sessions.push(await open(driver, { mode: "default" }));
+    expect(rec.last()!.wire.some((w) => w.msg["method"] === "session/set_config_option")).toBe(
+      false,
+    );
+  });
+
+  it("mode 类配置项的分组值也能匹配；没有匹配返回 undefined", () => {
+    const option = {
+      id: "m",
+      name: "M",
+      category: "mode",
+      type: "select",
+      currentValue: "ask",
+      options: [{ group: "g", name: "G", options: [{ value: "plan", name: "Plan" }] }],
+    };
+    expect(pickConfigModeValue("plan", candidate, option)).toBe("plan");
+    expect(pickConfigModeValue("allowlist", candidate, option)).toBe("plan");
+    expect(pickConfigModeValue("auto", candidate, option)).toBeUndefined();
+  });
+
+  it("--auth-required：开会话 -32000 → agent_auth_required，文案列出方法与终端命令", async () => {
+    const { driver } = fakeDriver({ authRequired: true });
+    const error = await open(driver).catch((e: unknown) => e);
+    expect(error).toMatchObject({ code: "agent_auth_required" });
+    const message = (error as Error).message;
+    expect(message).toContain("acp:fake-acp");
+    expect(message).toContain("Log in");
+    expect(message).toContain("fake-acp --login");
+  });
+
+  it("[cancel-request]：Agent 撤回权限请求 → 审批的 signal abort、回 cancelled，回合正常结束", async () => {
+    const { driver, rec } = fakeDriver({ cancelRequestMs: 30 });
+    const session = await open(driver);
+    sessions.push(session);
+    let seen: AbortSignal | undefined;
+    const result = await session.prompt([{ type: "text", text: "[cancel-request]" }], {
+      onEvent: () => undefined,
+      onPermission: (_req, signal) =>
+        new Promise((resolve) => {
+          seen = signal;
+          signal.addEventListener("abort", () => resolve({ outcome: "cancelled" }));
+        }),
+    });
+    expect(seen?.aborted).toBe(true);
+    expect(result).toMatchObject({
+      stopReason: "end_turn",
+      finalText: "permission withdrawn",
+      toolSummary: ["✗ edit Write note.txt"],
+      filesTouched: [],
+    });
+    const wire = rec.last()!.wire;
+    const ask = wire.find((w) => w.msg["method"] === "session/request_permission")!;
+    expect(wire.find((w) => w.msg["method"] === "$/cancel_request")?.msg["params"]).toEqual({
+      requestId: ask.msg["id"],
+    });
+    // 撤回后客户端仍答 cancelled（规范允许答结果或 -32800）
+    expect(
+      wire.find((w) => w.dir === "in" && w.msg["id"] === ask.msg["id"] && "result" in w.msg)?.msg[
+        "result"
+      ],
+    ).toEqual({ outcome: { outcome: "cancelled" } });
+    assertAcpWire(wire);
+  });
+
+  it("取消回合后 session/prompt 回 -32800 → cancelled", async () => {
+    const { driver } = scriptedDriver({ cancelWith32800: true });
+    const session = await open(driver);
+    sessions.push(session);
+    const pending = session.prompt([{ type: "text", text: "go" }], {
+      onEvent: () => undefined,
+      onPermission: noPermission,
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    await session.cancel();
+    await expect(pending).resolves.toMatchObject({ stopReason: "cancelled" });
+  });
+
+  it("没取消时的 -32800 照常报错", async () => {
+    const { driver } = scriptedDriver({ error32800: true });
+    const session = await open(driver);
+    sessions.push(session);
+    await expect(
+      session.prompt([{ type: "text", text: "go" }], {
+        onEvent: () => undefined,
+        onPermission: noPermission,
+      }),
+    ).rejects.toMatchObject({ code: RPC_ERRORS.requestCancelled });
+  });
+
+  it("diff 内容的 path 并入 locations 与 filesTouched（不论工具种类）", async () => {
+    const { driver } = scriptedDriver({
+      updates: [
+        { sessionUpdate: "tool_call", toolCallId: "t1", title: "Patch", kind: "other" },
+        {
+          sessionUpdate: "tool_call_update",
+          toolCallId: "t1",
+          status: "completed",
+          content: [
+            { type: "diff", path: "/work/a.ts", oldText: "a", newText: "b" },
+            { type: "content", content: { type: "text", text: "ok" } },
+          ],
+        },
+        { sessionUpdate: "tool_call", toolCallId: "t2", title: "Failed", kind: "other" },
+        {
+          sessionUpdate: "tool_call_update",
+          toolCallId: "t2",
+          status: "failed",
+          content: [{ type: "diff", path: "/work/b.ts", oldText: null, newText: "x" }],
+        },
+      ],
+    });
+    const session = await open(driver);
+    sessions.push(session);
+    const events: DriverEvent[] = [];
+    const result = await session.prompt([{ type: "text", text: "go" }], {
+      onEvent: (e) => events.push(e),
+      onPermission: noPermission,
+    });
+    expect(result.filesTouched).toEqual(["/work/a.ts"]);
+    expect(events.find((e) => e.type === "tool_call" && e.status === "completed")).toMatchObject({
+      locations: ["/work/a.ts"],
+    });
   });
 });

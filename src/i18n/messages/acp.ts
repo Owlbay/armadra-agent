@@ -46,9 +46,28 @@ export const en = {
   /** [ACP-C] 工具调用映射。 */
   tools: {},
   /** [ACP-D] 配置项与命令表。 */
-  config: {},
+  config: {
+    model: "Model",
+    thinking: "Thinking level",
+    levels: {
+      off: "Off",
+      minimal: "Minimal",
+      low: "Low",
+      medium: "Medium",
+      high: "High",
+      xhigh: "Extra high",
+    },
+    invalidValue: (id: string, value: string) => `invalid value for config option ${id}: ${value}`,
+    unknownModel: (ref: string) => `unknown model: ${ref}`,
+  },
   /** [ACP-D] ama 作 ACP 客户端时的文案。 */
-  client: {},
+  client: {
+    authRequired: (agent: string, methods: readonly string[]) =>
+      `${agent} requires sign-in. Sign in with one of: ${methods.join("; ")}; then try again`,
+    authNoMethods: (agent: string) =>
+      `${agent} requires sign-in and offers no sign-in method; sign in with the agent's own CLI, then try again`,
+    authTerminal: (name: string, command: string) => `${name} (run in a terminal: ${command})`,
+  },
 };
 
 export const zh = {
@@ -80,6 +99,25 @@ export const zh = {
   },
   session: {},
   tools: {},
-  config: {},
-  client: {},
+  config: {
+    model: "模型",
+    thinking: "思考级别",
+    levels: {
+      off: "关",
+      minimal: "最低",
+      low: "低",
+      medium: "中",
+      high: "高",
+      xhigh: "超高",
+    },
+    invalidValue: (id, value) => `配置项 ${id} 的值无效：${value}`,
+    unknownModel: (ref) => `未知模型：${ref}`,
+  },
+  client: {
+    authRequired: (agent, methods) =>
+      `${agent} 需要先登录。可用的登录方式：${methods.join("；")}；登录后再试`,
+    authNoMethods: (agent) =>
+      `${agent} 需要先登录，但没有提供登录方式；请用它自己的命令行登录后再试`,
+    authTerminal: (name, command) => `${name}（在终端里运行：${command}）`,
+  },
 } satisfies Messages<typeof en>;

@@ -46,8 +46,8 @@ export interface LoadedResources {
   contextFiles: readonly { path: string; content: string }[];
   /** 发现的 Skill（name → SKILL.md 绝对路径）。 */
   skills: readonly { name: string; description: string; location: string }[];
-  /** 提示模板（命令名 → 文件）。 */
-  prompts: readonly { name: string; path: string }[];
+  /** 提示模板（命令名 → 文件；`description` / `argumentHint` 取自 frontmatter，ACP 命令表用）。 */
+  prompts: readonly { name: string; path: string; description?: string; argumentHint?: string }[];
   instructions: readonly InstructionSource[];
 }
 

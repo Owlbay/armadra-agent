@@ -349,7 +349,12 @@ export function createRuntimeDeps(
             description: s.description,
             location: s.location,
           })),
-          prompts: prompts.templates.map((t) => ({ name: t.name, path: t.path })),
+          prompts: prompts.templates.map((t) => ({
+            name: t.name,
+            path: t.path,
+            description: t.description,
+            ...(t.argumentHint !== undefined ? { argumentHint: t.argumentHint } : {}),
+          })),
           warnings,
         };
       },

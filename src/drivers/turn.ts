@@ -2,7 +2,8 @@
  * 一个回合的结果汇总（各驱动共用）。[W5-E]
  *
  * 驱动把归一化后的 {@link DriverEvent} 交给收集器：它转发给 `onEvent`，同时累计最终文本、
- * 工具摘要（≤ 20 行，§5.2）、触及的文件（edit / delete / move 类工具的 locations）与用量。
+ * 工具摘要（≤ 20 行，§5.2）、触及的文件（edit / delete / move 类工具的 locations，以及带 diff 内容的
+ * 工具改动的路径——不论种类，见 {@link TurnCollector.noteDiff}）与用量。
  * 原始事件只在内存里流过，不落盘（§5.4 敏感数据）。
  */
 
@@ -17,6 +18,10 @@ interface ToolState {
   kind: AcpToolKind;
   status: "pending" | "in_progress" | "completed" | "failed";
   locations: string[];
+  /** 工具内容里 diff 的路径（ACP `content[].type === "diff"`）。 */
+  diffPaths?: string[];
+  /** 已转发过的状态（去重用）。 */
+  reported: Set<ToolState["status"]>;
 }
 
 export class TurnCollector {
@@ -27,7 +32,10 @@ export class TurnCollector {
 
   constructor(private readonly onEvent: (event: DriverEvent) => void) {}
 
-  /** 归一化事件：累计后转发给 onEvent。 */
+  /**
+   * 归一化事件：累计后转发给 onEvent。同一工具调用回到已报过的状态（如审批前后
+   * `in_progress → pending → in_progress`）且标题、种类、位置都没变时不再转发，免得下游重复报进度。
+   */
   push(event: DriverEvent): void {
     switch (event.type) {
       case "message_delta":
@@ -40,9 +48,19 @@ export class TurnCollector {
           kind: event.kind,
           status: event.status,
           locations: event.locations ?? known?.locations ?? [],
+          ...(known?.diffPaths !== undefined ? { diffPaths: known.diffPaths } : {}),
+          reported: known?.reported ?? new Set(),
         };
         if (known === undefined) this.order.push(event.id);
         this.tools.set(event.id, next);
+        const repeat =
+          known !== undefined &&
+          next.reported.has(event.status) &&
+          next.title === known.title &&
+          next.kind === known.kind &&
+          next.locations.join("\n") === known.locations.join("\n");
+        if (repeat) return;
+        next.reported.add(event.status);
         break;
       }
       case "usage":
@@ -52,6 +70,16 @@ export class TurnCollector {
         break;
     }
     this.onEvent(event);
+  }
+
+  /**
+   * 记下工具改动的文件（diff 内容的路径）：工具完成后计入 filesTouched，不论它报的种类。
+   * 在 `push` 该工具的 `tool_call` 之后调（未知的 id 忽略）。[ACP-D]
+   */
+  noteDiff(id: string, paths: readonly string[]): void {
+    const known = this.tools.get(id);
+    if (known === undefined || paths.length === 0) return;
+    known.diffPaths = [...new Set([...(known.diffPaths ?? []), ...paths])];
   }
 
   /** 工具调用的最近状态（驱动做 tool_call_update 时补全标题与种类）。 */
@@ -83,9 +111,11 @@ export class TurnCollector {
 
   result(stopReason: DriverTurnResult["stopReason"]): DriverTurnResult {
     const files = new Set<string>();
-    for (const tool of this.tools.values())
-      if (WRITE_KINDS.has(tool.kind) && tool.status === "completed")
-        for (const path of tool.locations) files.add(path);
+    for (const tool of this.tools.values()) {
+      if (tool.status !== "completed") continue;
+      if (WRITE_KINDS.has(tool.kind)) for (const path of tool.locations) files.add(path);
+      for (const path of tool.diffPaths ?? []) files.add(path);
+    }
     const lines = this.order.map((id) => {
       const tool = this.tools.get(id) as ToolState;
       return `${tool.status === "failed" ? "✗" : tool.status === "completed" ? "✓" : "…"} ${tool.kind} ${tool.title}`;

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { assertAcpWire } from "../../../test/helpers/acp-schema.js";
 import { memoryTransport } from "../test-support.js";
 import { runFakeAcpAgent } from "./testing/fake-agent.js";
 import { AcpClient } from "./client.js";
@@ -97,12 +98,14 @@ async function connectWith(
 }
 
 describe("AcpClient 的 elicitation", () => {
-  it("没给处理器：不声明能力，假 Agent 不发，线路与旧版相同", async () => {
+  it("没给处理器：不声明 elicitation，假 Agent 不发", async () => {
     const { client, peer, replies, sessionId } = await connectWith();
     const init = sent(peer, "initialize")[0] as { clientCapabilities: Record<string, unknown> };
+    // [ACP-D] 多了 session.configOptions（只认 select）；elicitation 仍不声明
     expect(init.clientCapabilities).toEqual({
       fs: { readTextFile: false, writeTextFile: false },
       terminal: false,
+      session: { configOptions: {} },
     });
     await client.prompt(sessionId, [{ type: "text", text: "[elicit]" }]);
     expect(replies).toEqual(["elicit: unsupported"]);
@@ -227,6 +230,54 @@ describe("AcpClient 的会话配置项", () => {
     expect(replies[0]).toMatch(/^env AMA_FAKE_ENV_PROBE [0-9a-f]{64}$/);
     expect(replies[0]).not.toContain("secret");
     expect(replies[1]).toBe("env AMA_FAKE_ENV_MISSING absent");
+    await peer.transport.terminate();
+  });
+});
+
+describe("[ACP-D] AcpClient 的 $/cancel_request", () => {
+  it("本端请求的 signal 在发出后 abort → 通知 Agent 撤回；线路过 schema", async () => {
+    const { client, peer, sessionId } = await connectWith();
+    const controller = new AbortController();
+    const pending = client.prompt(sessionId, [{ type: "text", text: "[slow]" }], controller.signal);
+    await new Promise((r) => setTimeout(r, 10));
+    controller.abort();
+    await expect(pending).rejects.toThrow(/aborted/);
+    await client.cancel(sessionId);
+    await new Promise((r) => setTimeout(r, 10));
+    const prompt = peer.wire.find((w) => w.msg["method"] === "session/prompt")!;
+    expect(sent(peer, "$/cancel_request")).toEqual([{ requestId: prompt.msg["id"] }]);
+    assertAcpWire(peer.wire);
+    await peer.transport.terminate();
+  });
+
+  it("Agent 撤回挂起的权限请求 → 处理器的 signal abort，回 cancelled", async () => {
+    const peer = memoryTransport((input, output) =>
+      runFakeAcpAgent(input, output, { cancelRequestMs: 20 }),
+    );
+    let seen: AbortSignal | undefined;
+    const client = new AcpClient({
+      input: peer.transport.stdout,
+      output: peer.transport.stdin,
+      onPermission: (_params, signal) =>
+        new Promise((resolve) => {
+          seen = signal;
+          signal.addEventListener("abort", () =>
+            resolve({ outcome: { outcome: "selected", optionId: "allow" } }),
+          );
+        }),
+    });
+    await client.initialize();
+    const { sessionId } = await client.newSession("/w");
+    const result = await client.prompt(sessionId, [{ type: "text", text: "[cancel-request]" }]);
+    expect(result.stopReason).toBe("end_turn");
+    expect(seen?.aborted).toBe(true);
+    const ask = peer.wire.find((w) => w.msg["method"] === "session/request_permission")!;
+    const answer = peer.wire.find(
+      (w) => w.dir === "in" && w.msg["id"] === ask.msg["id"] && "result" in w.msg,
+    );
+    // 撤回后处理器给的选择不作数
+    expect(answer?.msg["result"]).toEqual({ outcome: { outcome: "cancelled" } });
+    assertAcpWire(peer.wire);
     await peer.transport.terminate();
   });
 });
