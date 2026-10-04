@@ -3,6 +3,7 @@
  *
  * 整文件覆盖、自动建父目录；文件已存在且不在 `ctx.readFiles` → 错误「先 read」；若原文件有 BOM
  * 或 CRLF，写回时保留（新内容自带 BOM / CRLF 时不重复加）。`details: { bytes, created }`。
+ * `fileChange`（[ACP-C] D6）：改前 / 改后的磁盘原文，新文件 `oldText: null`；任一侧超过上限不填。
  */
 
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
@@ -10,7 +11,7 @@ import { dirname } from "node:path";
 import type { ToolContext, ToolDefinition, ToolResult } from "./types.js";
 import { displayPath, resolvePath } from "./paths.js";
 import { withFileMutex } from "./file-mutex.js";
-import { beforeWrite } from "./edit.js";
+import { beforeWrite, fileChangeOf } from "./edit.js";
 import {
   BOM,
   detectLineEnding,
@@ -50,6 +51,16 @@ export function conformToOriginal(original: string, content: string): string {
   return (bom !== "" || incoming.bom !== "" ? BOM : "") + body;
 }
 
+/** 首个不同的行（从 1 起，按 LF 归一后比较；内容不变时为末行）；新文件为 1。 */
+function firstLineChanged(original: string | null, output: string): number {
+  if (original === null) return 1;
+  const a = normalizeToLF(splitBom(original).text).split("\n");
+  const b = normalizeToLF(splitBom(output).text).split("\n");
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  return Math.min(i + 1, b.length);
+}
+
 export async function executeWrite(input: WriteInput, ctx: ToolContext): Promise<ToolResult> {
   const abs = resolvePath(input.path, ctx.cwd);
   const shown = displayPath(abs, ctx.cwd);
@@ -60,6 +71,7 @@ export async function executeWrite(input: WriteInput, ctx: ToolContext): Promise
     const state = await exists(abs);
     if (state === "dir") return { content: `${shown} is a directory`, isError: true };
     let output = input.content;
+    let original: string | null = null;
     if (state === "file") {
       if (!ctx.readFiles.has(abs)) {
         return {
@@ -67,7 +79,8 @@ export async function executeWrite(input: WriteInput, ctx: ToolContext): Promise
           isError: true,
         };
       }
-      output = conformToOriginal(await readFile(abs, "utf8"), input.content);
+      original = await readFile(abs, "utf8");
+      output = conformToOriginal(original, input.content);
     }
     await beforeWrite(ctx, abs);
     await mkdir(dirname(abs), { recursive: true });
@@ -80,7 +93,10 @@ export async function executeWrite(input: WriteInput, ctx: ToolContext): Promise
       created: state === false,
     };
     const verb = details.created ? "Created" : "Overwrote";
-    return { content: `${verb} ${shown} (${details.bytes} bytes)`, details };
+    const result: ToolResult = { content: `${verb} ${shown} (${details.bytes} bytes)`, details };
+    const fileChange = fileChangeOf(abs, original, output, firstLineChanged(original, output));
+    if (fileChange !== undefined) result.fileChange = fileChange;
+    return result;
   });
 }
 

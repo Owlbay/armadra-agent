@@ -4,11 +4,19 @@
  * - 每处 `oldText` 都在**原文**上匹配，必须唯一（`replaceAll` 例外）且互不重叠；
  * - 先精确匹配；任一处精确匹配失败则整批转入模糊空间（edit-fuzzy.ts），只改写被触及的行；
  * - 不唯一 → 错误里给出现次数与首两处行号；
- * - 保留 BOM 与 CRLF；要求先 read；`details.diff` 是统一 diff（给 TUI）。
+ * - 保留 BOM 与 CRLF；要求先 read；`details.diff` 是统一 diff（给 TUI）；
+ * - `fileChange` 是改前 / 改后的磁盘原文（含 BOM / CRLF，给 ACP 的 diff 内容），任一侧超过
+ *   `FILE_CHANGE_TEXT_LIMIT` 不填；它不进转录（tool-runner 只拷 details）。
  */
 
 import { readFile, stat, writeFile } from "node:fs/promises";
-import type { ToolContext, ToolDefinition, ToolResult } from "./types.js";
+import {
+  FILE_CHANGE_TEXT_LIMIT,
+  type FileChange,
+  type ToolContext,
+  type ToolDefinition,
+  type ToolResult,
+} from "./types.js";
 import { displayPath, resolvePath } from "./paths.js";
 import { withFileMutex } from "./file-mutex.js";
 import {
@@ -209,6 +217,20 @@ function firstChangedLine(oldText: string, newText: string): number {
   return i + 1;
 }
 
+/** 改前 / 改后全文（[ACP-C] D6）：任一侧超过 {@link FILE_CHANGE_TEXT_LIMIT} 返回 undefined。 */
+export function fileChangeOf(
+  path: string,
+  oldText: string | null,
+  newText: string,
+  firstChangedLine?: number,
+): FileChange | undefined {
+  if (newText.length > FILE_CHANGE_TEXT_LIMIT) return undefined;
+  if (oldText !== null && oldText.length > FILE_CHANGE_TEXT_LIMIT) return undefined;
+  return firstChangedLine === undefined
+    ? { path, oldText, newText }
+    : { path, oldText, newText, firstChangedLine };
+}
+
 // ---------------------------------------------------------------------------
 // 工具
 // ---------------------------------------------------------------------------
@@ -260,7 +282,10 @@ export async function executeEdit(input: EditInput, ctx: ToolContext): Promise<T
     };
     const note = plan.fuzzy ? " (matched after whitespace/quote normalization)" : "";
     const count = `${plan.replacements} replacement${plan.replacements === 1 ? "" : "s"}`;
-    return { content: `Edited ${shown}: ${count}${note}`, details };
+    const result: ToolResult = { content: `Edited ${shown}: ${count}${note}`, details };
+    const fileChange = fileChangeOf(abs, raw, output, details.firstChangedLine);
+    if (fileChange !== undefined) result.fileChange = fileChange;
+    return result;
   });
 }
 

@@ -87,7 +87,7 @@
 
 - `codemode` 本身作为一次工具调用经过 PreToolUse、权限与 PostToolUse。
 - 脚本里的每次 `tools.*` 再各自经过完整流程，Hook 按**真实工具名**匹配（`bash`，不是 `codemode`）；Hook 输入多两个字段：`viaCodemode: true` 与 `parentToolCallId`（外层 `codemode` 调用的 id）。
-- 事件：`tool_execution_update` 透传脚本输出（最近 4000 字符）；内层调用发 `tool_execution_start / end`，带 `parentToolCallId`，不进转录、不进模型上下文。
+- 事件：`tool_execution_update` 透传脚本输出（最近 4000 字符）；内层调用发 `tool_execution_start / end`，带 `parentToolCallId`，不进转录、不进模型上下文。`ama --mode acp` 把每次内层调用单列为一条 `tool_call`（标题前缀 `codemode › `，`_meta.ama.parentToolCallId` 指向外层），其权限请求关联到这条内层调用（见 [acp.md](acp.md)）。
 
 ## 沙箱
 

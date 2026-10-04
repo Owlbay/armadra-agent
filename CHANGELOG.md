@@ -46,6 +46,16 @@ English · [简体中文](CHANGELOG.zh-CN.md)
   agent has no `modes`, reports -32000 as `agent_auth_required` listing the agent's auth methods (terminal ones with the
   command to run), treats -32800 after a cancel as `cancelled`, and counts `diff` paths in `filesTouched`. The driver and
   `--mode acp` golden recordings change only in the `initialize` line. Docs: docs/acp.md, docs/agents.md.
+- **ACP tool calls are visible in detail (`ama --mode acp`)**: `tool_call` carries `name`; each tool call inside a codemode
+  script is listed as its own `tool_call` (title prefixed `codemode › `, `_meta.ama.parentToolCallId` points at the outer
+  call) and closes on its own, so permission requests no longer point at unknown ids. While a permission request is open
+  the call goes back to `pending`, then `in_progress` once allowed. `edit` / `write` fill `ToolResult.fileChange` (raw
+  before / after text with BOM and CRLF, `oldText: null` for a new file, omitted above 256 KiB per side; still never
+  persisted), and the completed update carries a `diff` plus the first 4 KB of text, with `locations[].line` at the
+  first changed line. Model / thinking level changes send `config_option_update`; the event mapper can announce
+  `available_commands_update` / `config_option_update` and send `session_info_update`. Replayed tool results
+  (`session/load`) carry their first 4 KB of text. Permission modes get display names and localized descriptions.
+  Docs: docs/acp.md, docs/codemode.md.
 
 ## 0.6.7 (2026-10-03)
 
