@@ -13,14 +13,24 @@
  * | `[plan]`         | 先发 `plan`（两条）再回文本                                                      |
  * | `[think]`        | 先发 `agent_thought_chunk`                                                        |
  * | `[refuse]`       | `refusal`                                                                         |
+ * | `[elicit]`       | `elicitation/create`（选颜色的表单）→ 回 `elicit: <action> <content JSON>`；客户端    |
+ * |                  | 没声明 `elicitation` 能力时回 `elicit: unsupported`；`cancel` 时本回合 `cancelled` |
+ * | `[model]`        | 回 `model <当前模型>`（`configOptions` 关着时是 `model none`）                     |
+ * | `[env NAME]`     | 回 `env NAME <值的 sha256 | absent>`（测环境变量到没到，不回显值）                  |
+ *
+ * `configOptions: true`（可执行入口 `--config-options`）：开会话答一个 `model` 配置项（`small`，分组
+ * `big` 里有 `large`），`session/set_config_option` 可改；缺省不答，线路与之前相同。
  *
  * 会话：`session/new` 发 `fake-<n>`；`session/resume` / `session/load` 接受任何 `fake-` 开头的 id
  * （load 先回放一条用户消息与一条回复）；`session/list` 列本进程建过的会话。
  */
 
+import { createHash } from "node:crypto";
 import { ACP_METHODS, ACP_PROTOCOL_VERSION, RPC_ERRORS } from "../types.js";
 import type {
   AcpContentBlock,
+  AcpElicitationResult,
+  AcpSessionConfigOption,
   AcpPromptParams,
   AcpRequestPermissionResult,
   AcpSessionUpdate,
@@ -32,12 +42,15 @@ export interface FakeAcpAgentOptions {
   name?: string;
   /** 不声明 resume / list / close / loadSession（测降级路径）。 */
   minimal?: boolean;
+  /** 开会话答 `configOptions`（一个 `model` 选择项）并接 `session/set_config_option`。 */
+  configOptions?: boolean;
 }
 
 interface FakeSession {
   id: string;
   cwd: string;
   mode: string;
+  model: string;
   /** 当前回合的取消器。 */
   turn?: AbortController | undefined;
   turns: number;
@@ -47,6 +60,22 @@ const MODES = [
   { id: "default", name: "Default" },
   { id: "plan", name: "Plan" },
 ];
+
+const MODELS: AcpSessionConfigOption["options"] = [
+  { value: "small", name: "Small" },
+  { group: "big", name: "Big", options: [{ value: "large", name: "Large", description: "slow" }] },
+];
+const MODEL_VALUES = ["small", "large"];
+
+/** 一个表单：必填的颜色（枚举）与可选的数量。 */
+const ELICIT_SCHEMA = {
+  type: "object",
+  properties: {
+    color: { type: "string", enum: ["red", "blue"] },
+    count: { type: "integer", minimum: 1 },
+  },
+  required: ["color"],
+} as const;
 
 function textOf(blocks: readonly AcpContentBlock[]): string {
   return blocks.map((b) => (b.type === "text" ? b.text : `[${b.type}]`)).join("");
@@ -67,6 +96,21 @@ export function runFakeAcpAgent(
 ): Promise<void> {
   const sessions = new Map<string, FakeSession>();
   let counter = 0;
+  /** 客户端在 initialize 里声明了 elicitation。 */
+  let canElicit = false;
+  const configOf = (s: FakeSession): AcpSessionConfigOption[] => [
+    {
+      id: "model",
+      name: "Model",
+      category: "model",
+      type: "select",
+      currentValue: s.model,
+      options: MODELS,
+    },
+  ];
+  /** 开会话答复里的 `configOptions`（关着时不加这个键）。 */
+  const config = (s: FakeSession): { configOptions?: AcpSessionConfigOption[] } =>
+    options.configOptions === true ? { configOptions: configOf(s) } : {};
   const update = (sessionId: string, value: AcpSessionUpdate): Promise<void> =>
     peer.notify(ACP_METHODS.sessionUpdate, { sessionId, update: value });
   const session = (id: unknown): FakeSession => {
@@ -76,7 +120,7 @@ export function runFakeAcpAgent(
     return found;
   };
   const open = (id: string, cwd: string): FakeSession => {
-    const created: FakeSession = { id, cwd, mode: "default", turns: 0 };
+    const created: FakeSession = { id, cwd, mode: "default", model: "small", turns: 0 };
     sessions.set(id, created);
     return created;
   };
@@ -106,6 +150,38 @@ export function runFakeAcpAgent(
         ],
       });
     if (text.includes("[refuse]")) return done("refusal");
+    const say = (line: string): Promise<void> =>
+      update(s.id, { sessionUpdate: "agent_message_chunk", content: { type: "text", text: line } });
+    if (text.includes("[elicit]")) {
+      if (!canElicit) {
+        await say("elicit: unsupported");
+        return done("end_turn");
+      }
+      let answer: AcpElicitationResult;
+      try {
+        answer = await peer.request<AcpElicitationResult>(ACP_METHODS.elicitationCreate, {
+          sessionId: s.id,
+          message: "Pick a color",
+          requestedSchema: ELICIT_SCHEMA,
+        });
+      } catch {
+        return done("cancelled");
+      }
+      await say(`elicit: ${answer.action} ${JSON.stringify(answer.content ?? null)}`);
+      return done(answer.action === "cancel" ? "cancelled" : "end_turn");
+    }
+    if (text.includes("[model]")) {
+      await say(`model ${options.configOptions === true ? s.model : "none"}`);
+      return done("end_turn");
+    }
+    const env = /\[env ([A-Z0-9_]+)\]/.exec(text);
+    if (env !== null) {
+      const value = process.env[env[1]!];
+      const digest =
+        value === undefined ? "absent" : createHash("sha256").update(value).digest("hex");
+      await say(`env ${env[1]} ${digest}`);
+      return done("end_turn");
+    }
     if (text.includes("[slow]")) {
       await waitAbort(turn.signal);
       return done("cancelled");
@@ -172,7 +248,9 @@ export function runFakeAcpAgent(
     async onRequest(method, raw) {
       const params = (raw ?? {}) as Record<string, unknown>;
       switch (method) {
-        case ACP_METHODS.initialize:
+        case ACP_METHODS.initialize: {
+          const capabilities = params["clientCapabilities"] as Record<string, unknown> | undefined;
+          canElicit = capabilities?.["elicitation"] != null;
           return {
             protocolVersion: ACP_PROTOCOL_VERSION,
             agentCapabilities: options.minimal
@@ -185,11 +263,16 @@ export function runFakeAcpAgent(
             authMethods: [],
             agentInfo: { name: options.name ?? "fake-acp-agent", version: "1.0.0" },
           };
+        }
         case ACP_METHODS.sessionNew: {
           counter += 1;
           const s = open(`fake-${counter}`, String(params["cwd"] ?? ""));
-          if (options.minimal) return { sessionId: s.id };
-          return { sessionId: s.id, modes: { currentModeId: s.mode, availableModes: MODES } };
+          if (options.minimal) return { sessionId: s.id, ...config(s) };
+          return {
+            sessionId: s.id,
+            modes: { currentModeId: s.mode, availableModes: MODES },
+            ...config(s),
+          };
         }
         case ACP_METHODS.sessionResume:
         case ACP_METHODS.sessionLoad: {
@@ -207,7 +290,7 @@ export function runFakeAcpAgent(
               content: { type: "text", text: "echo: earlier" },
             });
           }
-          return { modes: { currentModeId: s.mode, availableModes: MODES } };
+          return { modes: { currentModeId: s.mode, availableModes: MODES }, ...config(s) };
         }
         case ACP_METHODS.sessionList:
           return {
@@ -222,6 +305,21 @@ export function runFakeAcpAgent(
           s.mode = String(params["modeId"]);
           await update(s.id, { sessionUpdate: "current_mode_update", currentModeId: s.mode });
           return {};
+        }
+        case ACP_METHODS.sessionSetConfigOption: {
+          if (options.configOptions !== true)
+            throw new RpcError(RPC_ERRORS.methodNotFound, `method not found: ${method}`);
+          const s = session(params["sessionId"]);
+          if (params["configId"] !== "model")
+            throw new RpcError(
+              RPC_ERRORS.invalidParams,
+              `unknown config: ${String(params["configId"])}`,
+            );
+          const value = String(params["value"]);
+          if (!MODEL_VALUES.includes(value))
+            throw new RpcError(RPC_ERRORS.invalidParams, `unknown model: ${value}`);
+          s.model = value;
+          return { configOptions: configOf(s) };
         }
         case ACP_METHODS.sessionPrompt:
           return prompt(raw as AcpPromptParams);

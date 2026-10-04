@@ -2,8 +2,8 @@
  * ACP（Agent Client Protocol）v1 的子集类型（docs/wave5-plan.md §5.1，D14）。[W5-E]
  *
  * 手写、零依赖；只收 ama 作为客户端（驱动外部 Agent）与服务端（`ama --mode acp`）两侧用到的部分：
- * `initialize`、`session/new|load|resume|list|close`、`session/prompt|cancel|set_mode`、
- * `session/update`（含 `usage_update`）、`session/request_permission`。字段名与规范一致（camelCase），
+ * `initialize`、`session/new|load|resume|list|close`、`session/prompt|cancel|set_mode|set_config_option`、
+ * `session/update`（含 `usage_update`）、`session/request_permission`、`elicitation/create`。字段名与规范一致（camelCase），
  * 未知字段一律保留不报错；`_meta` 不解释。
  *
  * 不声明 `fs` / `terminal` 客户端能力（与 Armadra Q5 一致）：外部 Agent 自己读写、自己跑命令，
@@ -25,8 +25,10 @@ export const ACP_METHODS = {
   sessionPrompt: "session/prompt",
   sessionCancel: "session/cancel",
   sessionSetMode: "session/set_mode",
+  sessionSetConfigOption: "session/set_config_option",
   sessionUpdate: "session/update",
   requestPermission: "session/request_permission",
+  elicitationCreate: "elicitation/create",
 } as const;
 
 /** JSON-RPC 错误码（规范沿用 JSON-RPC 2.0；`-32000` 为 ACP 的 auth_required）。 */
@@ -84,6 +86,8 @@ export interface AcpImplementationInfo {
 export interface AcpClientCapabilities {
   fs?: { readTextFile?: boolean; writeTextFile?: boolean };
   terminal?: boolean;
+  /** 能接 `elicitation/create`（存在即支持）。 */
+  elicitation?: Record<string, unknown>;
 }
 
 export interface AcpInitializeParams {
@@ -162,6 +166,7 @@ export interface AcpNewSessionParams {
 export interface AcpNewSessionResult {
   sessionId: string;
   modes?: AcpSessionModeState | null;
+  configOptions?: AcpSessionConfigOption[] | null;
 }
 
 export interface AcpLoadSessionParams {
@@ -171,6 +176,100 @@ export interface AcpLoadSessionParams {
 }
 export interface AcpLoadSessionResult {
   modes?: AcpSessionModeState | null;
+  configOptions?: AcpSessionConfigOption[] | null;
+}
+
+// ---------------------------------------------------------------------------
+// 会话配置项（`configOptions`、`session/set_config_option`）
+// ---------------------------------------------------------------------------
+
+/** 配置项里一个可选值。 */
+export interface AcpConfigSelectOption {
+  value: string;
+  name: string;
+  description?: string | null;
+}
+
+/** 规范允许把可选值分组。 */
+export interface AcpConfigSelectGroup {
+  group: string;
+  name: string;
+  options: AcpConfigSelectOption[];
+}
+
+/** `session/new|load|resume` 答的 `configOptions[]` 的一项（目前规范只有 `select`）。 */
+export interface AcpSessionConfigOption {
+  id: string;
+  name: string;
+  description?: string | null;
+  /** `mode` / `model` / `thought_level`，或 Agent 自己的。 */
+  category?: string | null;
+  type: "select" | (string & {});
+  currentValue: string;
+  options: (AcpConfigSelectOption | AcpConfigSelectGroup)[];
+}
+
+export interface AcpSetConfigOptionParams {
+  sessionId: string;
+  configId: string;
+  value: string;
+}
+
+/** 答复带全部配置项的新状态（改一项可能连带别的）。 */
+export interface AcpSetConfigOptionResult {
+  configOptions?: AcpSessionConfigOption[] | null;
+}
+
+// ---------------------------------------------------------------------------
+// elicitation（Agent 向人要结构化输入）
+// ---------------------------------------------------------------------------
+
+/** 表单里的一个字段：扁平的原始类型，规范只允许这几种。 */
+export type AcpElicitationField =
+  | {
+      type: "string";
+      title?: string;
+      description?: string;
+      enum?: string[];
+      enumNames?: string[];
+      format?: string;
+      minLength?: number;
+      maxLength?: number;
+      default?: string;
+    }
+  | {
+      type: "number" | "integer";
+      title?: string;
+      description?: string;
+      minimum?: number;
+      maximum?: number;
+      default?: number;
+    }
+  | { type: "boolean"; title?: string; description?: string; default?: boolean };
+
+export interface AcpElicitationSchema {
+  type: "object";
+  properties: Record<string, AcpElicitationField>;
+  required?: string[];
+}
+
+/** Agent 发来的 `elicitation/create` 参数；未知字段保留。 */
+export interface AcpElicitationParams {
+  sessionId?: string;
+  message: string;
+  /** `form`（缺省）或 `url`。 */
+  mode?: "form" | "url" | (string & {});
+  requestedSchema?: AcpElicitationSchema;
+  url?: string;
+  [key: string]: unknown;
+}
+
+export type AcpElicitationAction = "accept" | "decline" | "cancel";
+
+export interface AcpElicitationResult {
+  action: AcpElicitationAction;
+  /** 只随 `accept`。 */
+  content?: Record<string, string | number | boolean>;
 }
 
 export type AcpResumeSessionParams = AcpLoadSessionParams;
