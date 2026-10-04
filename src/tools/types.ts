@@ -72,7 +72,20 @@ export interface ToolResult {
   structured?: unknown;
   /** 整批工具结果都为 true 才提前结束 run。 */
   terminate?: boolean;
+  /** [ACP-C0] 文件改动的改前 / 改后全文（edit / write 填）；只随事件走，不落盘（tool-runner 只拷 details）。 */
+  fileChange?: FileChange;
 }
+
+/** [ACP-C0] 文件改动：`oldText` 为 null 表示新建；`firstChangedLine` 从 1 起。 */
+export interface FileChange {
+  path: string;
+  oldText: string | null;
+  newText: string;
+  firstChangedLine?: number;
+}
+
+/** [ACP-C0] `fileChange` 单侧文本上限（字符数），超过就不填。 */
+export const FILE_CHANGE_TEXT_LIMIT = 256 * 1024;
 
 export interface SubagentRequest {
   prompt: string;

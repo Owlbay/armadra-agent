@@ -2,7 +2,8 @@
  * 线上事件形状（设计 §13.2、src/rpc.ts）：RPC 与 `--output-format stream-json` 共用。[B6]
  *
  * - `message_update` 变成纯增量：去掉累计消息与 `partial`，附最新 `usage`；`done / error`
- *   保留最终 `message`。其余 `SessionEvent` 原样。
+ *   保留最终 `message`。`tool_execution_end` 去掉 `result.fileChange`（[ACP-C0] 改前 / 改后全文只给
+ *   ACP 映射用，不上 RPC / stream-json 线）。其余 `SessionEvent` 原样。
  * - `toJsonLine()`：一行 JSON；Error 序列化为 `{ name, message }`，bigint 转字符串，
  *   U+2028 / U+2029 转义（部分 JSONL 客户端会把它们当换行）；图片 base64 不截断。
  */
@@ -18,6 +19,10 @@ export function toWireAssistantEvent(event: AssistantEvent): WireAssistantEvent 
 }
 
 export function toWireEvent(event: SessionEvent): RpcEvent {
+  if (event.type === "tool_execution_end" && event.result.fileChange !== undefined) {
+    const { fileChange: _fileChange, ...result } = event.result;
+    return { ...event, result };
+  }
   if (event.type !== "message_update") return event;
   const wire: RpcEvent = {
     type: "message_update",
