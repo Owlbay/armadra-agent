@@ -20,6 +20,8 @@ interface ToolState {
   locations: string[];
   /** 工具内容里 diff 的路径（ACP `content[].type === "diff"`）。 */
   diffPaths?: string[];
+  /** 已转发过的状态（去重用）。 */
+  reported: Set<ToolState["status"]>;
 }
 
 export class TurnCollector {
@@ -30,7 +32,10 @@ export class TurnCollector {
 
   constructor(private readonly onEvent: (event: DriverEvent) => void) {}
 
-  /** 归一化事件：累计后转发给 onEvent。 */
+  /**
+   * 归一化事件：累计后转发给 onEvent。同一工具调用回到已报过的状态（如审批前后
+   * `in_progress → pending → in_progress`）且标题、种类、位置都没变时不再转发，免得下游重复报进度。
+   */
   push(event: DriverEvent): void {
     switch (event.type) {
       case "message_delta":
@@ -44,9 +49,18 @@ export class TurnCollector {
           status: event.status,
           locations: event.locations ?? known?.locations ?? [],
           ...(known?.diffPaths !== undefined ? { diffPaths: known.diffPaths } : {}),
+          reported: known?.reported ?? new Set(),
         };
         if (known === undefined) this.order.push(event.id);
         this.tools.set(event.id, next);
+        const repeat =
+          known !== undefined &&
+          next.reported.has(event.status) &&
+          next.title === known.title &&
+          next.kind === known.kind &&
+          next.locations.join("\n") === known.locations.join("\n");
+        if (repeat) return;
+        next.reported.add(event.status);
         break;
       }
       case "usage":
