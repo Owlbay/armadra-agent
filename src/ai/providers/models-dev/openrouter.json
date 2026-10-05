@@ -573,15 +573,14 @@
     },
     "deepseek/deepseek-v3.1-terminus": {
       "cost": {
-        "cache_read": 0.135,
-        "input": 0.3,
+        "input": 0.27,
         "output": 1
       },
       "family": "deepseek",
       "knowledge": "2025-03-31",
       "limit": {
         "context": 163840,
-        "output": 65536
+        "output": 147456
       },
       "modalities": {
         "input": [
@@ -637,9 +636,9 @@
     "deepseek/deepseek-v4-flash": {
       "canonical_model_id": "deepseek/deepseek-v4-flash",
       "cost": {
-        "cache_read": 0.0084,
-        "input": 0.042,
-        "output": 0.084
+        "cache_read": 0.03,
+        "input": 0.03,
+        "output": 1.28
       },
       "family": "deepseek-flash",
       "interleaved": {
@@ -648,7 +647,7 @@
       "knowledge": "2025-05",
       "limit": {
         "context": 1048576,
-        "output": 384000
+        "output": 943718
       },
       "modalities": {
         "input": [
@@ -662,8 +661,8 @@
     "deepseek/deepseek-v4-flash-0731": {
       "canonical_model_id": "deepseek/deepseek-v4-flash-0731",
       "cost": {
-        "cache_read": 0.0171,
-        "input": 0.0171,
+        "cache_read": 0.0152,
+        "input": 0.0152,
         "output": 1.28
       },
       "family": "deepseek-flash",
@@ -731,14 +730,14 @@
     "deepseek/deepseek-v4-pro-0813": {
       "canonical_model_id": "deepseek/deepseek-v4-pro-0813",
       "cost": {
-        "cache_read": 0.022,
-        "input": 0.66,
-        "output": 1.98
+        "cache_read": 0.4,
+        "input": 0.45,
+        "output": 5
       },
       "family": "deepseek-thinking",
       "limit": {
         "context": 1048576,
-        "output": 393216
+        "output": 943718
       },
       "modalities": {
         "input": [
@@ -1557,7 +1556,6 @@
     "moonshotai/kimi-k2-thinking": {
       "canonical_model_id": "moonshotai/kimi-k2-thinking",
       "cost": {
-        "cache_read": 0.15,
         "input": 0.6,
         "output": 2.5
       },
@@ -1568,7 +1566,7 @@
       "knowledge": "2024-08",
       "limit": {
         "context": 262144,
-        "output": 98304
+        "output": 235929
       },
       "modalities": {
         "input": [
@@ -1608,9 +1606,9 @@
     "moonshotai/kimi-k2.6": {
       "canonical_model_id": "moonshotai/kimi-k2.6",
       "cost": {
-        "cache_read": 0.07312,
-        "input": 0.43415,
-        "output": 1.828
+        "cache_read": 0.16,
+        "input": 0.95,
+        "output": 4
       },
       "family": "kimi-k2",
       "interleaved": {
@@ -1657,9 +1655,9 @@
     "moonshotai/kimi-k3": {
       "canonical_model_id": "moonshotai/kimi-k3",
       "cost": {
-        "cache_read": 0.27,
-        "input": 2.7,
-        "output": 13.5
+        "cache_read": 0.22,
+        "input": 0.67,
+        "output": 14
       },
       "family": "kimi-k3",
       "limit": {
@@ -2655,22 +2653,22 @@
     "openai/gpt-5.6-sol-pro": {
       "canonical_model_id": "openai/gpt-5.6-sol",
       "cost": {
-        "cache_read": 0.4,
-        "cache_write": 5,
+        "cache_read": 0.2,
+        "cache_write": 2.5,
         "context_over_200k": {
-          "cache_read": 0.8,
-          "cache_write": 10,
-          "input": 8,
-          "output": 30
+          "cache_read": 0.4,
+          "cache_write": 5,
+          "input": 4,
+          "output": 15
         },
-        "input": 4,
-        "output": 20,
+        "input": 2,
+        "output": 10,
         "tiers": [
           {
-            "cache_read": 0.8,
-            "cache_write": 10,
-            "input": 8,
-            "output": 30,
+            "cache_read": 0.4,
+            "cache_write": 5,
+            "input": 4,
+            "output": 15,
             "tier": {
               "size": 272000,
               "type": "context"
@@ -3977,7 +3975,7 @@
       "knowledge": "2025-04",
       "limit": {
         "context": 262144,
-        "output": 235929
+        "output": 32768
       },
       "modalities": {
         "input": [
@@ -4345,13 +4343,14 @@
     "qwen/qwen3.6-27b": {
       "canonical_model_id": "alibaba/qwen3.6-27b",
       "cost": {
+        "cache_read": 0.03,
         "input": 0.32,
-        "output": 3.2
+        "output": 2.7
       },
       "family": "qwen",
       "limit": {
         "context": 262144,
-        "output": 81920
+        "output": 262140
       },
       "modalities": {
         "input": [
@@ -4635,8 +4634,9 @@
       "canonical_model_id": "alibaba/qwen3.8-27b",
       "cost": {
         "cache_read": 0.085,
-        "input": 0.42,
-        "output": 3
+        "cache_write": 0.53125,
+        "input": 0.425,
+        "output": 2.55
       },
       "family": "qwen",
       "limit": {
@@ -5220,9 +5220,9 @@
     "z-ai/glm-5.1": {
       "canonical_model_id": "zhipuai/glm-5.1",
       "cost": {
-        "cache_read": 0.17914,
-        "input": 0.9646,
-        "output": 3.0316
+        "cache_read": 0.26,
+        "input": 1.4,
+        "output": 4.4
       },
       "family": "glm",
       "interleaved": {
@@ -5244,9 +5244,9 @@
     "z-ai/glm-5.2": {
       "canonical_model_id": "zhipuai/glm-5.2",
       "cost": {
-        "cache_read": 0.26,
-        "input": 0.41,
-        "output": 3.99
+        "cache_read": 0.0224,
+        "input": 0.0224,
+        "output": 16
       },
       "family": "glm",
       "interleaved": {
@@ -5254,7 +5254,7 @@
       },
       "limit": {
         "context": 1048576,
-        "output": 943718
+        "output": 131072
       },
       "modalities": {
         "input": [
@@ -5268,14 +5268,14 @@
     "z-ai/glm-5.3": {
       "canonical_model_id": "zhipuai/glm-5.3",
       "cost": {
-        "cache_read": 0.14,
-        "input": 1.4,
-        "output": 4.4
+        "cache_read": 0.045,
+        "input": 0.05,
+        "output": 7
       },
       "family": "glm",
       "limit": {
         "context": 1048576,
-        "output": 131072
+        "output": 943718
       },
       "modalities": {
         "input": [

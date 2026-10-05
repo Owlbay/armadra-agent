@@ -1,7 +1,7 @@
 {
-  "fetchedAt": "2026-10-02T13:54:24.955Z",
+  "fetchedAt": "2026-10-05T10:24:46.565Z",
   "license": "MIT",
-  "sha256": "231c471ccb3ec0ed99b932846a0668bac71b5b1b0443ba011fcdcd8b3e869e30",
+  "sha256": "b753ea6b377b65b97b15e8dff2c989a0439a985495ac6d4dc9178a1e98a712e1",
   "source": "https://models.dev/api.json",
   "upstream": "anomalyco/models.dev"
 }
