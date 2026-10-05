@@ -310,6 +310,25 @@ describe("护栏与降级", () => {
     expect(read("a.txt")).toBe("1");
   });
 
+  it("快照计时不含一次性的建仓（Windows 起 git 子进程慢，曾让第一回合就判超时降级）", async () => {
+    const initializedAtClock: boolean[] = [];
+    const b = backend({
+      shadow: {
+        now: () => {
+          initializedAtClock.push(
+            existsSync(join(shadowRepoDir(dataDir, cwd), "ama-config-version")),
+          );
+          return 0;
+        },
+      },
+    });
+    write("a.txt", "1");
+    await snap(b, "u1");
+    expect(shadowCommitOf("u1")).toBeDefined();
+    expect(initializedAtClock.length).toBeGreaterThan(0);
+    expect(initializedAtClock.every(Boolean)).toBe(true);
+  });
+
   it("PATH 里没有 git：降级并提示", async () => {
     const b = backend({ shadow: { env: { PATH: "" } } });
     write("a.txt", "1");

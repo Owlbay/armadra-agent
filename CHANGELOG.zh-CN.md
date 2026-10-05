@@ -8,6 +8,8 @@
 
 - **Windows：并发刷新 OAuth**：一个 ama 进程刚释放 `auth.json.lock` 时，另一个进程打开它会报 EPERM（NTFS 上文件处于删除挂起），刷新
   直接失败；现在当作锁被占用继续等。别的进程正打开 `auth.json` 时的覆盖 / 读取遇到 EPERM / EACCES / EBUSY 短暂重试（只在 Windows）。
+- **检查点（影子 git）**：3 秒的快照耗时上限不再算上第一次建影子仓库（十来个 `git` 子进程，Windows 上要好几秒），以前可能第一回合就把
+  会话降级为 `tools`。
 
 ## 0.7.0（2026-10-04）
 
