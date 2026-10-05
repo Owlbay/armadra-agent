@@ -5,7 +5,7 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 > This file is in English starting with 0.6.0. Release notes for 0.1 through 0.5.1 are in Chinese in
 > [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md). New entries go into both files.
 
-## Unreleased
+## 0.7.1 (2026-10-05)
 
 - **Windows: concurrent OAuth refresh**: while one ama process releases the `auth.json.lock`, another one opening it
   got EPERM (the file is "delete pending" on NTFS) and failed the refresh; it now keeps waiting for the lock. Replacing
