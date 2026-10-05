@@ -1,6 +1,6 @@
 {
   "name": "@armadra/agent",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "A coding and coordination agent that runs standalone or embedded in Armadra",
   "type": "module",
   "keywords": [
