@@ -10,6 +10,8 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 - **Windows: concurrent OAuth refresh**: while one ama process releases the `auth.json.lock`, another one opening it
   got EPERM (the file is "delete pending" on NTFS) and failed the refresh; it now keeps waiting for the lock. Replacing
   or reading `auth.json` while another process has it open retries briefly on EPERM / EACCES / EBUSY (Windows only).
+- **Checkpoints (shadow-git)**: the 3-second snapshot budget no longer includes creating the shadow repository the first
+  time (a dozen `git` processes, several seconds on Windows), which could downgrade a session to `tools` on its first turn.
 
 ## 0.7.0 (2026-10-04)
 

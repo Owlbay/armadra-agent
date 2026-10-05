@@ -262,8 +262,9 @@ export class ShadowRepo {
   /** 新回合快照：返回提交 id 与是否该降级。 */
   snapshot(parent: string | undefined, message: string): Promise<ShadowSnapshot> {
     return exclusive(this.dir, async () => {
-      const started = this.now();
       await this.init();
+      // 计时不含一次性的建仓与本地配置（十来个 git 子进程，Windows 上可达数秒），只量快照本身
+      const started = this.now();
       await this.writeExcludes();
       if (!this.counted) {
         const out = await this.run([
