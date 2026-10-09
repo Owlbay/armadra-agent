@@ -72,6 +72,26 @@ describe("task", () => {
     );
   });
 
+  it("[ME-A] context：枚举校验、透传；details.context 回填实际模式", async () => {
+    const requests: SubagentRequest[] = [];
+    const tool = createTaskTool();
+    const ctx = makeToolContext("/w", {
+      spawnSubagent: async (req) => {
+        requests.push(req);
+        return result("r", { context: "fresh" });
+      },
+    });
+    const bad = await tool.execute({ prompt: "a", context: "inherit" as never }, ctx);
+    expect(bad).toMatchObject({ isError: true, content: 'context must be "fork" or "fresh"' });
+    const out = await tool.execute({ prompt: "a", context: "fork" }, ctx);
+    expect(requests[0]?.context).toBe("fork");
+    expect(out.details).toMatchObject({ context: "fresh" });
+    expect(tool.parameters.properties?.["context"]).toEqual({
+      type: "string",
+      enum: ["fork", "fresh"],
+    });
+  });
+
   it("并发 ≤ 4 由会话的 SubagentPool 排队（task 不再自带信号量）", async () => {
     const pool = new SubagentPool(DEFAULT_SUBAGENT_CONCURRENCY);
     let running = 0;

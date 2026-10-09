@@ -144,6 +144,8 @@ export interface SubagentResult {
   /** [W5-C0] 结果全文（> 50 KB 截断时、后台任务的输出文件）。 */
   outputFile?: string;
   sessionRef?: SubagentSessionRef;
+  /** [ME-A] 请求了 `context: "fork"` 时的实际模式（回落为 `fresh`）；未请求 fork 时缺省。 */
+  context?: "fork" | "fresh";
 }
 
 // ---------------------------------------------------------------------------
@@ -179,7 +181,9 @@ export type SubagentEvent =
       contextTokens?: number;
       contextWindow?: number;
     }
-  | { type: "notice"; level: "info" | "warn"; text: string };
+  | { type: "notice"; level: "info" | "warn"; text: string }
+  /** [ME-A] ama 子会话请求了 `context: "fork"` 时的实际模式（注册表写进 `TaskInfo.context`）。 */
+  | { type: "context"; mode: "fork" | "fresh" };
 
 export interface SubagentRunRequest {
   prompt: string;
