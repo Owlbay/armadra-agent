@@ -1,0 +1,62 @@
+name: 功能建议 / Feature request
+description: 提出新能力或对现有行为的改进。 / Suggest a new capability or an improvement to existing behavior.
+title: "[Feature] "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请先查看 README、已知限制与已有 issue。描述要解决的问题，比直接给出方案更有帮助。
+        ama 零运行时依赖、不做 MCP（用 Skill），新能力需要在这些约束内实现。
+
+        Please check the README, the known limitations and existing issues first. Describing the problem helps more than prescribing a solution.
+        ama has zero runtime dependencies and uses Skills instead of MCP; new capabilities have to fit within these constraints.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 要解决的问题 / Problem
+      description: 你在做什么、卡在哪里、现在怎么绕过。 / What you are doing, where you get stuck, and how you work around it today.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议的方案 / Proposed solution
+      description: 期望的命令、配置键、按键或界面行为。 / The command, config key, key binding or interface behavior you expect.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 考虑过的替代方案 / Alternatives considered
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 涉及范围 / Area
+      multiple: true
+      options:
+        - 供应商与模型 / Providers and models
+        - 终端界面 / Terminal UI
+        - print 模式 / Print mode (-p)
+        - 工具、预设与 codemode / Tools, presets and codemode
+        - 权限与沙箱 / Permissions and sandbox
+        - 子 Agent 与外部 Agent / Sub-agents and external agents
+        - 会话、回滚与压缩 / Sessions, rewind and compaction
+        - Hook、Skill 与 Memory / Hooks, skills and memory
+        - RPC / ACP
+        - SDK 与宿主适配器 / SDK and host adapter
+        - 配置 / Configuration
+        - 其他 / Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: 参与 / Contribution
+      options:
+        - label: 我愿意提交实现这个功能的 PR。 / I am willing to open a PR for this.

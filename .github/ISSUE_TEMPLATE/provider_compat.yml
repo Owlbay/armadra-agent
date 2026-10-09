@@ -1,0 +1,133 @@
+name: 供应商 / 模型兼容问题 / Provider / model compatibility
+description: 某个供应商、模型、渠道或中转站在 ama 里调用不正常。 / A provider, model, channel or relay does not work correctly in ama.
+title: "[Provider] "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请说明同一个 key 与模型用 curl 或供应商自己的客户端直接调用是否正常。`ama models check <provider/id>` 与 `ama models cache-probe <provider/id>` 的输出很有帮助。
+        **不要贴 API key、token、`auth.json` 内容与中转站的私有地址**；请求体与响应只摘相关字段并打码。
+
+        Please tell us whether the same key and model work when called directly with curl or the provider's own client. The output of `ama models check <provider/id>` and `ama models cache-probe <provider/id>` helps a lot.
+        **Do not paste API keys, tokens, `auth.json` contents or private relay addresses**; quote only the relevant fields of requests and responses, redacted.
+
+  - type: input
+    id: provider
+    attributes:
+      label: 供应商 id / Provider id
+      description: 内置 id 或你在 `config.json` 里定义的 id。 / A built-in id or the id you defined in `config.json`.
+      placeholder: openai / anthropic / deepseek / moonshot / zhipu / dashscope / openrouter / ollama / my-relay
+    validations:
+      required: true
+
+  - type: input
+    id: model
+    attributes:
+      label: 模型 / Model
+      description: "`provider/model-id`。 / `provider/model-id`."
+      placeholder: deepseek/deepseek-chat
+    validations:
+      required: true
+
+  - type: dropdown
+    id: channel
+    attributes:
+      label: 协议渠道 / Channel
+      options:
+        - chat（Chat Completions）
+        - messages（Anthropic Messages）
+        - responses（OpenAI Responses）
+        - gemini（Google Generative AI）
+        - ChatGPT 订阅登录 / ChatGPT subscription login
+        - 不确定 / Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: endpoint
+    attributes:
+      label: 端点类型 / Endpoint
+      options:
+        - 官方直连 / Official endpoint
+        - 经中转站 / Through a relay
+        - Coding Plan 类订阅端点 / Coding Plan subscription endpoint
+        - 本地模型（Ollama / LM Studio） / Local model (Ollama / LM Studio)
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: ama 版本 / ama version
+      description: "`ama --version` 的输出。 / Output of `ama --version`."
+      placeholder: 0.7.1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 平台 / Platform
+      multiple: true
+      options:
+        - macOS
+        - Linux
+        - Windows
+    validations:
+      required: true
+
+  - type: dropdown
+    id: symptom
+    attributes:
+      label: 现象 / Symptom
+      multiple: true
+      options:
+        - 连接或认证失败 / Connection or authentication fails
+        - 流式输出中断或乱序 / Streaming stops or arrives out of order
+        - 工具调用参数解析错误 / Tool call arguments are parsed wrongly
+        - 思考 / 推理内容异常 / Thinking / reasoning content is wrong
+        - 缓存不命中或用量统计不对 / Cache misses or wrong usage numbers
+        - 上下文窗口或输出上限不对 / Wrong context window or output limit
+        - 图像输入 / Image input
+        - 模型发现或刷新（ama providers / models） / Model discovery or refresh
+        - 其他 / Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: standalone
+    attributes:
+      label: 直接调用是否正常 / Does a direct call work
+      options:
+        - 正常 / Yes
+        - 同样有问题 / No, same problem
+        - 没试过 / Not tried
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤 / Steps to reproduce
+      placeholder: |
+        1. ama -p "hi" --model deepseek/deepseek-chat
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-actual
+    attributes:
+      label: 期望与实际 / Expected and actual
+      description: 包括错误提示、HTTP 状态码与退出码。 / Include the error message, HTTP status and exit code.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志 / Logs
+      description: "`AMA_LOG=debug` 下 stderr 里相关的几行，先删去凭据、token 与私有地址。 / Relevant stderr lines with `AMA_LOG=debug`, with credentials, tokens and private addresses removed."
+      render: text

@@ -1,0 +1,127 @@
+name: 缺陷报告 / Bug report
+description: 报告与预期不符的行为。 / Report behavior that does not match what you expected.
+title: "[Bug] "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢报告。请先搜索已有 issue，一个 issue 只写一个问题。某个供应商或模型调用失败请改用「供应商 / 模型兼容问题」表单。
+        **不要贴凭据**（API key、`auth.json` 内容、登录 token、cookie）与**会话文件全文**；日志里出现路径、用户名或主机名请先打码。
+
+        Thanks for the report. Please search existing issues first and keep one problem per issue. If a provider or model call fails, use the "Provider / model compatibility" form instead.
+        **Do not paste credentials** (API keys, `auth.json` contents, login tokens, cookies) or **whole session files**; redact paths, user names and host names in logs.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: 提交前确认 / Before submitting
+      options:
+        - label: 我已搜索过已有 issue，没有重复。 / I searched existing issues and this is not a duplicate.
+          required: true
+        - label: 我在最新发布版或 main 上复现过。 / I reproduced this on the latest release or on main.
+          required: true
+        - label: 下面的内容不含凭据与会话文件全文。 / The content below contains no credentials or whole session files.
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: ama 版本 / ama version
+      description: "`ama --version` 的输出；从源码运行请写提交号。 / Output of `ama --version`; commit hash if running from source."
+      placeholder: 0.7.1 / f1f7dca
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 平台 / Platform
+      multiple: true
+      options:
+        - macOS
+        - Linux
+        - Windows
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: 系统、架构、Node 与终端 / OS, architecture, Node and terminal
+      description: "`node --version` 与终端程序（是否在 tmux 里）。 / `node --version` and the terminal program (inside tmux or not)."
+      placeholder: macOS 15.5 arm64 · Node 24.4 · Ghostty / Ubuntu 24.04 x64 · Node 22.17 · tmux
+    validations:
+      required: true
+
+  - type: dropdown
+    id: run-mode
+    attributes:
+      label: 运行方式 / How you run it
+      multiple: true
+      options:
+        - 交互界面 / Interactive TUI
+        - 行模式 / Line mode (--no-tui)
+        - "print 模式 / Print mode (-p)"
+        - RPC（--mode rpc）
+        - ACP（--mode acp，Zed / Armadra 等 ACP 客户端 / ACP clients such as Zed or Armadra）
+        - SDK 嵌入 / Embedded via the SDK
+        - 宿主注入（Armadra，--profile） / Injected by a host (Armadra, --profile)
+        - 从源码运行 / From source
+    validations:
+      required: true
+
+  - type: input
+    id: model
+    attributes:
+      label: 模型 / Model
+      description: "`provider/model-id`，带渠道写 `@chat` / `@messages` / `@responses`；与模型无关可留空。 / `provider/model-id`, with the channel if any; leave empty if not related."
+      placeholder: deepseek/deepseek-chat@chat
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤 / Steps to reproduce
+      description: 从启动命令开始，尽量给出最少步骤；能用 `--model fake/echo` 复现更好。 / Start from the launch command and keep the steps minimal; even better if it reproduces with `--model fake/echo`.
+      placeholder: |
+        1. ama --permission-mode default
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为 / Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为 / Actual behavior
+      description: 包括错误提示与退出码（`echo $?`）。 / Include any error message and the exit code (`echo $?`).
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志 / Logs
+      description: |
+        `AMA_LOG=debug` 下 stderr 里相关的几行，或 `ama doctor` 的输出；先删去凭据与 token。
+        Relevant stderr lines with `AMA_LOG=debug`, or the output of `ama doctor`, with credentials and tokens removed.
+      render: text
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 截图或录屏 / Screenshots or recordings
+      description: 界面问题请附终端截图；请遮住凭据与私人内容。 / Attach terminal screenshots for UI problems; cover credentials and private content.
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 其他信息 / Additional context
+      description: 权限模式、工具预设、界面语言、是否可稳定复现、最近一次正常的版本等。 / Permission mode, tool preset, interface language, reproducibility, last known good version, etc.

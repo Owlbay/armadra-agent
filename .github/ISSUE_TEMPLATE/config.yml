@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全问题 / Security vulnerability
+    url: https://github.com/Owlbay/armadra-agent/security/advisories/new
+    about: 请私下报告，不要开公开 issue。见 SECURITY.md。 / Please report privately, not in a public issue. See SECURITY.md.
+  - name: 文档索引 / Documentation index
+    url: https://github.com/Owlbay/armadra-agent#documentation
+    about: 开 issue 前可以先查供应商、终端界面、权限与集成文档。 / Check the provider, TUI, permission and integration docs before opening an issue.
