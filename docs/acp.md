@@ -47,8 +47,12 @@ ama --mode acp                      # 与 -p 互斥；其余参数（--model、-
   「本会话允许」的记忆（切回来要重新允许，与 TUI `/resume` 一致）。
 - 权限模式按会话记：对前台会话 `set_mode` 立即生效；对其它会话只记下（照样发 `current_mode_update`），轮到它跑时
   再应用到权限管线，并再发一条 `current_mode_update`。所以对排队中的会话改模式不会影响正在跑的那个。
+- 后台子 Agent 完成后的通知回合不经这个队列，在会话空闲时自己开始；它在跑时，对同一会话的 `session/prompt` 也等它
+  结束再开始（不报 busy），等待期间客户端先收到通知回合的 `session/update`。等待中 `session/cancel` 会中断通知回合，
+  这条提示回 `cancelled`，之后也不会再被发出。
 - 每个回合结束后发 `session_info_update`（`updatedAt`，标题变了才带 `title`）。
-- 关掉一个会话只释放它（跑 SessionEnd Hook）；stdin 关闭时排队的提示回 `cancelled`，等在跑的结束，再依次释放全部会话。
+- 关掉一个会话只释放它（跑 SessionEnd Hook），它的转录、图片与子 Agent 句柄随之可被回收；进程启动时建的那个会话
+  对象由进程持有到退出。stdin 关闭时排队的提示回 `cancelled`，等在跑的结束，再依次释放全部会话。
 
 ### 事件映射
 

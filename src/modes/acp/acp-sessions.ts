@@ -17,6 +17,7 @@ import {
   type AcpListSessionsResult,
 } from "../../drivers/acp/types.js";
 import { RpcError } from "../../drivers/jsonrpc.js";
+import { AmaError } from "../../errors.js";
 import type { PermissionMode } from "../../permissions/types.js";
 import { msg } from "../../i18n/index.js";
 import type { AcpEventMapper } from "./acp-events.js";
@@ -212,9 +213,23 @@ export function pageSessions(
 }
 
 /**
- * 跑一个出队的提示。[M-C0] 直通 `session.prompt`（行为不变）；[M-A] 改为先等后台子 Agent 的通知
- * 回合结束、与通知器竞速报 busy 时再等一轮（docs/memory-plan.md D4、§2.2，Issue #139）。
+ * 跑一个出队的提示（docs/memory-plan.md D4、§2.2，Issue #139）。[M-A]
+ *
+ * 后台子 Agent 的完成通知以 `followUp` 在会话空闲时开回合，不经 {@link PromptQueue}；那一回合在跑时
+ * 直接 `prompt` 会报 busy。这里先等它结束；与通知器竞速输了（等到空闲后它抢先开了回合）再等一轮。
+ * 不用 `streamingBehavior: "followUp"` 入队：`abort()` 不清队列，等待期间的 `session/cancel`
+ * 会让这条提示在之后的周期里冒出来。`job.cancelRequested`（cancel / close / 撤回）→ 不再发，直接返回。
  */
 export async function promptWhenIdle(session: AgentSessionImpl, job: PromptJob): Promise<void> {
-  await session.prompt(job.text, job.images.length > 0 ? { images: job.images } : {});
+  for (;;) {
+    // 等周期而不是看 `state.isStreaming`：busy 以周期为准，周期的收尾阶段 isStreaming 已是 false
+    await session.waitForIdle();
+    if (job.cancelRequested) return;
+    try {
+      await session.prompt(job.text, job.images.length > 0 ? { images: job.images } : {});
+      return;
+    } catch (error) {
+      if (!(error instanceof AmaError && error.code === "busy")) throw error;
+    }
+  }
 }

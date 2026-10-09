@@ -73,6 +73,7 @@ import {
   PromptQueue,
   cancelledResult,
   pageSessions,
+  promptWhenIdle,
   sessionTitle,
   type PooledSession,
   type PromptJob,
@@ -404,6 +405,7 @@ export class AcpServer {
   private async prompt(params: Params, signal?: AbortSignal): Promise<AcpPromptResult> {
     const entry = this.entryOf(params);
     const { text, images } = promptOf(params["prompt"]);
+    let onAbort: (() => void) | undefined;
     const result = new Promise<AcpPromptResult>((resolve, reject) => {
       const job: PromptJob = {
         sessionId: entry.id,
@@ -415,16 +417,19 @@ export class AcpServer {
       };
       // 客户端以 $/cancel_request 撤回：等价 session/cancel，答复由对等端改成 -32800。
       // 连接关闭（stdin 结束）也会 abort 这个 signal——那时不算撤回，已开始的运行照常跑完。
-      signal?.addEventListener(
-        "abort",
-        () => {
-          if (this.peer.isOpen) this.cancelJob(job);
-        },
-        { once: true },
-      );
+      onAbort = () => {
+        if (this.peer.isOpen) this.cancelJob(job);
+      };
+      signal?.addEventListener("abort", onAbort, { once: true });
       this.queue.push(job);
     });
-    const answer = await result;
+    let answer: AcpPromptResult;
+    try {
+      answer = await result;
+    } finally {
+      // 有监听的组合信号（AbortSignal.any）被运行时强持有：不摘掉，job → 会话随之常驻（D2 L1）
+      if (onAbort !== undefined) signal?.removeEventListener("abort", onAbort);
+    }
     if (signal?.aborted === true && this.peer.isOpen)
       throw new RpcError(RPC_ERRORS.requestCancelled, "session/prompt: request cancelled");
     return answer;
@@ -440,7 +445,7 @@ export class AcpServer {
     const before = session.getStats().tokens;
     let failure: unknown;
     try {
-      await session.prompt(job.text, job.images.length > 0 ? { images: job.images } : {});
+      await promptWhenIdle(session, job);
     } catch (error) {
       failure = error;
     }

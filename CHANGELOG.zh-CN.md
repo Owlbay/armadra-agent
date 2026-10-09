@@ -35,6 +35,8 @@
 - **子 Agent 会话少保留**：为 `taskId` 续聊留在内存里的已结束子会话从 16 个降到 4 个（最久未用的先释放；JSONL 一直在，被释放的任务续聊时从它重开）。用 `subagents.retainSessions` 调整（只认用户级，0 = 结束即释放）。
 - **codemode 堆上限**：脚本子进程以 `--max-old-space-size=256` 启动，超出时以脚本错误 `Script exceeded the codemode memory limit (256 MB)` 结束，不再一路涨到超时。用 `codemode.maxHeapMb` 调整（只认用户级，0 不设上限）。
 - **会话列表与恢复不再整读文件**：会话文件按块逐行读取；`ama sessions list` 只解析每个文件的头、首条条目、改名与首条提示（4 个 55 MB 会话：峰值 RSS 约 540 → 90 MB），`--resume` 逐行解析，不再生成整份字符串与 split 数组（55 MB 会话：约 300 → 220 MB）。列表各字段不变。
+- **ACP：关闭的会话可被回收**：关掉的会话连同转录与图片一直留在内存里——每次 `session/prompt` 的取消监听没有摘掉，并且新开的兄弟会话会引用开它时的前台会话。两处都已修正；8 个会话 × 4 轮全部关闭后，堆与堆外内存回到开会话之前的水平。
+- **ACP：后台子 Agent 通知回合进行中的 `session/prompt`**（#139）：通知回合不经 ACP 的提示队列，此时发提示会报「a run is in progress」（-32603）。现在等通知回合结束再开始；等待中 `session/cancel` 回 `cancelled`，这条提示之后也不会再发出。
 
 ## 0.7.3（2026-10-09）
 

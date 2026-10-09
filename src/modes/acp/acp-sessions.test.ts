@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { AcpPromptResult } from "../../drivers/acp/types.js";
 import type { SessionListItem } from "../../session/types.js";
 import {
@@ -8,9 +8,12 @@ import {
   decodeCursor,
   encodeCursor,
   pageSessions,
+  promptWhenIdle,
   sessionTitle,
   type PromptJob,
 } from "./acp-sessions.js";
+import type { AgentSessionImpl } from "../../agent/session.js";
+import { AmaError } from "../../errors.js";
 
 describe("标题清洗", () => {
   it("去掉嵌入资源块（含被截断没有结尾的），取第一个非空行，压空白，≤ 80 字", () => {
@@ -146,5 +149,93 @@ describe("PromptQueue", () => {
     release();
     await waiting;
     expect(queue.running).toBeUndefined();
+  });
+});
+
+describe("promptWhenIdle [M-A]（#139）", () => {
+  /** 只模拟 promptWhenIdle 用到的面：周期（waitForIdle）与 prompt 的 busy 规则。 */
+  function fakeSession() {
+    let cycle: { promise: Promise<void>; end: () => void } | undefined;
+    const startCycle = () => {
+      let end!: () => void;
+      const promise = new Promise<void>((resolve) => (end = resolve));
+      cycle = {
+        promise,
+        end: () => {
+          cycle = undefined;
+          end();
+        },
+      };
+      return cycle;
+    };
+    const prompt = vi.fn(async (_text: string, _options?: unknown) => {
+      if (cycle !== undefined) throw new AmaError("busy", "a run is in progress");
+    });
+    const session = {
+      prompt,
+      waitForIdle: () => cycle?.promise ?? Promise.resolve(),
+    } as unknown as AgentSessionImpl;
+    return { session, prompt, startCycle };
+  }
+  const job = (extra: Partial<PromptJob> = {}): PromptJob => ({
+    sessionId: "s",
+    text: "hi",
+    images: [],
+    cancelRequested: false,
+    resolve: () => undefined,
+    reject: () => undefined,
+    ...extra,
+  });
+
+  it("空闲：直接发；带图时传 images", async () => {
+    const f = fakeSession();
+    await promptWhenIdle(f.session, job());
+    const image = { type: "image" as const, data: "AA==", mimeType: "image/png" };
+    await promptWhenIdle(f.session, job({ images: [image] }));
+    expect(f.prompt.mock.calls).toEqual([
+      ["hi", {}],
+      ["hi", { images: [image] }],
+    ]);
+  });
+
+  it("通知回合在跑：等它结束再发，不报 busy", async () => {
+    const f = fakeSession();
+    const notification = f.startCycle();
+    const done = promptWhenIdle(f.session, job());
+    await new Promise((r) => setTimeout(r, 10));
+    expect(f.prompt).not.toHaveBeenCalled();
+    notification.end();
+    await done;
+    expect(f.prompt).toHaveBeenCalledTimes(1);
+  });
+
+  it("与通知器竞速输了（空闲后它先开了回合）：busy 后再等一轮", async () => {
+    const f = fakeSession();
+    let raced: { end: () => void } | undefined;
+    f.prompt.mockImplementationOnce(async () => {
+      raced = f.startCycle();
+      throw new AmaError("busy", "a run is in progress");
+    });
+    const done = promptWhenIdle(f.session, job());
+    await new Promise((r) => setTimeout(r, 10));
+    expect(f.prompt).toHaveBeenCalledTimes(1);
+    raced!.end();
+    await done;
+    expect(f.prompt).toHaveBeenCalledTimes(2);
+  });
+
+  it("等待中被取消：不再发；其它错误原样抛出", async () => {
+    const f = fakeSession();
+    const notification = f.startCycle();
+    const j = job();
+    const done = promptWhenIdle(f.session, j);
+    j.cancelRequested = true;
+    notification.end();
+    await done;
+    expect(f.prompt).not.toHaveBeenCalled();
+    f.prompt.mockRejectedValueOnce(new AmaError("session_closed", "session is disposed"));
+    await expect(promptWhenIdle(f.session, job())).rejects.toMatchObject({
+      code: "session_closed",
+    });
   });
 });
