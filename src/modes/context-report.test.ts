@@ -204,10 +204,20 @@ describe("/context 命令", () => {
     };
     const before = await runSlashCommand("/context", ctx);
     expect(before).toMatchObject({ kind: "handled" });
+    // 首次请求前：与状态栏的启动基线同一口径——系统提示与工具声明按将要发送的内容估算
+    const fresh = contextSnapshot(ctx.session());
+    expect(fresh.prefixPending).toBe(true);
+    expect(fresh.estimate.tokens).toBe(ctx.session().getStats().contextTokens);
+    expect(fresh.estimate.tokens).toBeGreaterThan(0);
+    expect(fresh.breakdown.prefixTokens).toBe(fresh.breakdown.total);
+    expect(fresh.breakdown.entries.map((e) => e.category)).toEqual(
+      expect.arrayContaining(["system", "tools"]),
+    );
     await ctx.session().prompt("hello there");
     const session = ctx.session();
     const snap = contextSnapshot(session);
     expect(snap.estimate.tokens).toBe(session.getStats().contextTokens);
+    expect(snap.prefixPending).toBe(false);
     expect(snap.breakdown.hasSystem).toBe(true);
     expect(snap.breakdown.prefixTokens).toBeGreaterThan(0);
     const after = await runSlashCommand("/context", ctx);
