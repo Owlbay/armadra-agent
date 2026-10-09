@@ -1,4 +1,15 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { createTmpHome, type TmpHome } from "../helpers/tmp-home.js";
@@ -102,6 +113,79 @@ describe.skipIf(!hasBundle)("e2e：ama -p（bundle 子进程）", () => {
     expect(r.stdout).toBe("hi\n");
     expect(r.stderr).toContain("未在 2 秒内收到管道输入，已忽略");
   });
+});
+
+const ROOT = fileURLToPath(new URL("../..", import.meta.url));
+const isWindows = process.platform === "win32";
+
+/** npm 子命令：Windows 下 npm 是 .cmd，要经 shell；配置与缓存隔离到临时目录，不联网。 */
+function npm(args: string[], cwd: string, sandbox: string): string {
+  const quoted = isWindows ? args.map((a) => (/[\s"]/.test(a) ? `"${a}"` : a)) : args;
+  const r = spawnSync("npm", quoted, {
+    cwd,
+    encoding: "utf8",
+    shell: isWindows,
+    timeout: 120_000,
+    env: {
+      ...process.env,
+      npm_config_userconfig: join(sandbox, "npmrc"),
+      npm_config_cache: join(sandbox, "npm-cache"),
+      npm_config_audit: "false",
+      npm_config_fund: "false",
+      npm_config_update_notifier: "false",
+    },
+  });
+  if (r.status !== 0)
+    throw new Error(`npm ${args.join(" ")} 失败：${r.stderr}${String(r.error ?? "")}`);
+  return r.stdout;
+}
+
+describe.skipIf(!hasBundle)("[M-F] e2e：装包后的全局命令走单文件 bundle（D7）", () => {
+  it("npm pack → 临时目录 npm install → node_modules/.bin/ama --version", () => {
+    const sandbox = realpathSync(mkdtempSync(join(tmpdir(), "ama-pack-")));
+    try {
+      writeFileSync(join(sandbox, "npmrc"), "");
+      const packs = join(sandbox, "packs");
+      mkdirSync(packs);
+      npm(["pack", "--pack-destination", packs], ROOT, sandbox);
+      const tgz = readdirSync(packs).find((f) => f.endsWith(".tgz"));
+      expect(tgz).toBeDefined();
+      const app = join(sandbox, "app");
+      mkdirSync(app);
+      writeFileSync(join(app, "package.json"), JSON.stringify({ name: "app", private: true }));
+      npm(
+        [
+          "install",
+          "--offline",
+          "--ignore-scripts",
+          "--no-package-lock",
+          join(packs, tgz as string),
+        ],
+        app,
+        sandbox,
+      );
+      const bin = join(app, "node_modules", ".bin", isWindows ? "ama.cmd" : "ama");
+      if (!isWindows) {
+        expect(realpathSync(bin)).toBe(
+          realpathSync(join(app, "node_modules", "@armadra", "agent", "dist", "bundle", "ama.cjs")),
+        );
+      }
+      const r = spawnSync(isWindows ? `"${bin}"` : bin, ["--version"], {
+        cwd: app,
+        encoding: "utf8",
+        shell: isWindows,
+        timeout: 30_000,
+        env: { ...process.env, HOME: sandbox, AMA_NO_LOCAL_PROBE: "1" },
+      });
+      const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as {
+        version: string;
+      };
+      expect(r.status).toBe(0);
+      expect(r.stdout.trim()).toBe(pkg.version);
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
+    }
+  }, 180_000);
 });
 
 interface PipeWrite {
