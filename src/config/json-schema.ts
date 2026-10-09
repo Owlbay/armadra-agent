@@ -29,6 +29,7 @@ import {
   CHATGPT_FLAVORS,
   MEMORY_SCOPES,
   MEMORY_SUBAGENT_MODES,
+  MIN_CONTEXT_BUDGET,
 } from "./types.js";
 import { AGENT_ID_PATTERN } from "./schema-w5.js";
 import { AGENTS_RESERVED_KEYS, SUBAGENT_BACKGROUND_MODES } from "./types-w5.js";
@@ -113,6 +114,10 @@ function providerSchema(): Schema {
       channels: { ...strings, description: m.modelChannels },
       modelsDev: {
         description: m.modelsDev,
+        anyOf: [{ type: "string", pattern: "^[^/]+/.+$" }, { const: false }],
+      },
+      catalog: {
+        description: m.modelCatalog,
         anyOf: [{ type: "string", pattern: "^[^/]+/.+$" }, { const: false }],
       },
       headers: stringRecord,
@@ -282,6 +287,7 @@ function buildBaseSchema(): Schema {
         enabled: bool(),
         reserveTokens: num(0),
         keepRecentTokens: num(0),
+        contextBudget: num(MIN_CONTEXT_BUDGET),
         prune: object({
           keepResults: num(0),
           clearAtLeast: { anyOf: [{ const: "auto" }, { type: "number", minimum: 0 }] },
@@ -333,7 +339,7 @@ function buildBaseSchema(): Schema {
         missNotices: bool(),
         warmSubagents: bool(),
       }),
-      request: object({ idleTimeoutMs: num(0) }),
+      request: object({ idleTimeoutMs: num(0), streamIdleTimeoutMs: num(0) }),
       checkpoints: object({
         mode: oneOf(CHECKPOINT_MODES),
         maxFileBytes: num(0),

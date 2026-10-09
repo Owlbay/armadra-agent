@@ -28,6 +28,7 @@ export const en = {
     stringArray: "should be an array of strings",
     array: "should be an array",
     modelsDev: `should be "provider/model" or false`,
+    catalog: `should be "provider/model" or false`,
     modelsEnabled: `should be "provider/model[@channel]" or "provider/*"`,
     noChannels: "the provider has no channels",
     unknownChannelOf: (name: string, available: readonly string[]) =>
@@ -141,6 +142,8 @@ export const en = {
     input: '["text"] or ["text", "image"] (accepts images)',
     modelChannels: "Channels the model is mounted on; the first is preferred",
     modelsDev: 'models.dev entry "provider/model"; false disables enrichment',
+    modelCatalog:
+      'Built-in catalog entry "provider/model" whose intrinsic properties this model inherits; matched by id alias when unset; false disables',
     baseUrl: "Endpoint address",
     channelApiKey: "$ENV / ${ENV} / !command / literal; defaults to the provider's key",
     apiKey: "$ENV / ${ENV} / !command / literal",
@@ -170,6 +173,7 @@ export const zh = {
     stringArray: "应为字符串数组",
     array: "应为数组",
     modelsDev: `应为 "provider/model" 或 false`,
+    catalog: `应为 "provider/model" 或 false`,
     modelsEnabled: `应为 "provider/model[@channel]" 或 "provider/*"`,
     noChannels: "供应商没有 channels",
     unknownChannelOf: (name, available) => `渠道 "${name}" 不存在（可用：${available.join(", ")}）`,
@@ -267,6 +271,8 @@ export const zh = {
     input: '["text"] 或 ["text", "image"]（收图片）',
     modelChannels: "挂载的渠道，第一个是首选",
     modelsDev: 'models.dev 条目 "provider/model"；false 关闭补全',
+    modelCatalog:
+      '继承其固有属性的内置目录条目 "provider/model"；不写时按 id 别名自动匹配；false 关闭',
     baseUrl: "接口地址",
     channelApiKey: "$ENV / ${ENV} / !command / 字面量；缺省用供应商的 key",
     apiKey: "$ENV / ${ENV} / !command / 字面量",

@@ -57,6 +57,11 @@ export type ModelConfig = Partial<Omit<Model, "id" | "provider" | "channel" | "c
   channels?: string[];
   /** models.dev 条目 `provider/model`（显式匹配）；false 关闭 models.dev 补全。 */
   modelsDev?: string | false;
+  /**
+   * [ME-C0] 从内置目录继承模型固有属性：缺省按 id 别名自动匹配；`"provider/id"` 显式指定；false 关闭
+   * （docs/model-efficiency-plan.md D10，实现归 ME-D）。
+   */
+  catalog?: string | false;
 };
 
 /** 只改元数据的覆盖项（含模型级 `api` 与 `channels`）。 */
@@ -115,6 +120,8 @@ export interface CompactionConfig {
   enabled?: boolean;
   reserveTokens?: number;
   keepRecentTokens?: number;
+  /** [ME-C0] 软窗口（≥ 32768）：档一 / 档二 / context_pressure 的窗口取 min(模型窗口, 它)；缺省 = 模型窗口。 */
+  contextBudget?: number;
   /** [W5-C0] 档一裁剪参数（W5-H1）；只认用户级。 */
   prune?: PruneConfig;
   /** [W5-C0] 不被档一裁剪的工具名（W5-H1）；只认用户级。 */
@@ -257,7 +264,17 @@ export const DEFAULT_CACHE_CONFIG: Readonly<Required<CacheConfig>> = Object.free
 export interface RequestConfig {
   /** 等响应头与流中两块数据之间的最长间隔（毫秒），收到任何字节即重新计时；缺省 300 000，0 关闭。 */
   idleTimeoutMs?: number;
+  /**
+   * [ME-C0] 流中两块数据之间的最长间隔（毫秒）；缺省 180 000，0 关闭；环境变量
+   * `AMA_STREAM_IDLE_TIMEOUT_MS` 覆盖（实现归 ME-C，之前 `idleTimeoutMs` 仍管两段）。
+   */
+  streamIdleTimeoutMs?: number;
 }
+
+/** [ME-C0] `compaction.contextBudget` 的下限。 */
+export const MIN_CONTEXT_BUDGET = 32_768;
+/** [ME-C0] `request.streamIdleTimeoutMs` 的缺省（毫秒）。 */
+export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 180_000;
 
 export const CHECKPOINT_MODES: readonly CheckpointMode[] = ["tools", "shadow-git", "off"];
 

@@ -26,6 +26,7 @@ const dynamicDefaultsEn = {
   "models.enabled": "unset: /model shows every model of configured providers",
   fallbackModel: "unset: no fallback",
   "limits.maxTurns": "unset: unlimited",
+  "compaction.contextBudget": "unset: the model's context window",
   "limits.maxCostUsd": "unset: unlimited",
   "ui.replyLanguage": "unset: no reply-language rule is appended (zero-byte change)",
   "ui.agentBar": "auto (embedding hosts turn it off in their profile)",
@@ -51,6 +52,7 @@ const dynamicDefaultsZh = {
   "models.enabled": "不设：/model 显示已配置供应商的全部模型",
   fallbackModel: "不设：不回退",
   "limits.maxTurns": "不设：不限",
+  "compaction.contextBudget": "不设：模型的上下文窗口",
   "limits.maxCostUsd": "不设：不限",
   "ui.replyLanguage": "不设：不追加回复语言规则（零字节变化）",
   "ui.agentBar": "auto（嵌入宿主要关在自己的 profile 写 off）",
@@ -81,6 +83,8 @@ const keysEn = {
   "compaction.enabled": "Compact automatically when the context nears its limit",
   "compaction.reserveTokens": "Tokens reserved for the reply; compaction starts when less is left",
   "compaction.keepRecentTokens": "Tokens of recent messages kept verbatim when compacting",
+  "compaction.contextBudget":
+    "Soft context window (tokens, at least 32768): pruning, compaction and context-pressure notices use min(model window, this value); lower it to keep long sessions cheaper on large-window models",
   "compaction.prune":
     "Tier-one pruning (old tool results replaced with placeholders); user level only (effective from wave 5 W5-H1)",
   "compaction.prune.keepResults": "Keep the most recent N tool results unpruned",
@@ -168,6 +172,8 @@ const keysEn = {
   request: "Model requests; the whole section is user level / profile only",
   "request.idleTimeoutMs":
     "Stream idle timeout (ms): waiting longer for headers or between two chunks counts as stuck and is retried as a retryable error; 0 disables; AMA_IDLE_TIMEOUT_MS overrides",
+  "request.streamIdleTimeoutMs":
+    "Idle limit between two chunks once the stream has started (ms); longer than the header wait because reasoning endpoints can stay silent while thinking; 0 disables; AMA_STREAM_IDLE_TIMEOUT_MS overrides",
   "cache.warming":
     "Warming: off disables, streaming warms while generating, idle also warms while idle",
   "cache.retention": "Cache retention tier: none, short, long (when the provider supports it)",
@@ -262,6 +268,8 @@ const keysZh = {
   "compaction.enabled": "上下文接近上限时自动压缩",
   "compaction.reserveTokens": "为回复预留的 token；剩余不足时触发压缩",
   "compaction.keepRecentTokens": "压缩时原样保留的最近消息 token",
+  "compaction.contextBudget":
+    "软窗口（token，至少 32768）：裁剪、压缩与上下文余量提示按 min(模型窗口, 它) 计算；大窗口模型调低它可让长会话更省钱",
   "compaction.prune": "档一裁剪（旧工具结果换成占位）；只认用户级（第五波 W5-H1 起生效）",
   "compaction.prune.keepResults": "保留最近 N 个工具结果不裁",
   "compaction.prune.clearAtLeast":
@@ -336,6 +344,8 @@ const keysZh = {
   request: "模型请求；整段只认用户级 / profile",
   "request.idleTimeoutMs":
     "流空闲超时（毫秒）：等响应头或两块数据之间超过即判卡住并按可重试错误重试；0 关闭；AMA_IDLE_TIMEOUT_MS 覆盖",
+  "request.streamIdleTimeoutMs":
+    "流开始后两块数据之间的空闲上限（毫秒）；比等响应头宽，因为推理端点思考时可能长时间没有字节；0 关闭；AMA_STREAM_IDLE_TIMEOUT_MS 覆盖",
   "cache.warming": "保温：off 关闭，streaming 生成期间保温，idle 空闲时也保温",
   "cache.retention": "缓存时长档：none、short、long（供应商支持时）",
   "cache.minSavingsUsd": "保温的最低期望节省（美元）",
