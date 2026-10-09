@@ -71,7 +71,8 @@ beforeAll(() => {
     totalBytes += text.length;
     writeFileSync(join(dir, sessionFileName(new Date(start), id)), text);
   }
-});
+  // 只是生成 1000 个夹具文件（被测的扫描另有 LIMIT_MS）；CI Windows 写小文件慢，缺省 10 s 钩子超时不够
+}, 60_000);
 
 afterAll(() => home.cleanup());
 
