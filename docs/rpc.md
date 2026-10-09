@@ -13,7 +13,7 @@
 启动后先发 `hello`，再发当前会话的 `session_start`：
 
 ```json
-{"type":"hello","protocolVersion":1,"agent":"ama","version":"0.1.0","capabilities":["approvals","images","hooks","plans"]}
+{"type":"hello","protocolVersion":1,"agent":"ama","version":"0.1.0","capabilities":["approvals","images","hooks","plans","compact_events"]}
 {"type":"session_start","sessionId":"…","cwd":"/work","reason":"startup"}
 ```
 
@@ -115,7 +115,7 @@
 | `set_client_capabilities` | `capabilities: ("approvals" \| "images" \| "hooks" \| "plans" \| "compact_events")[]` | `{ capabilities }`                                                             |
 | `permission_response`     | `requestId: string`、`decision: "allow" \| "deny" \| "allow_session"`                 | `{ accepted: boolean }`（false = 当前没在等这个 id，已暂存，稍后被问到时生效） |
 
-`compact_events`（docs/memory-plan.md D9，**M-G 起生效**，届时也列进 `hello.capabilities`）：声明后，`turn_end.toolResults`、`message_start` 与 `entry_appended` 不再重复携带工具结果与带图用户消息的正文（以 `contentOmitted: true` 标记），正文只在 `message_end` 与 `tool_execution_end` 里发；不声明时事件形状不变。在此之前声明它只会原样回显，没有效果。
+`compact_events`（docs/memory-plan.md D9）：声明后，`turn_end.toolResults`、`message_start` 与 `entry_appended` 不再重复携带工具结果与带图用户消息的正文（以 `contentOmitted: true` 标记），正文只在 `message_end` 与 `tool_execution_end` 里发；不声明时事件形状逐字节不变。形状见「[精简事件](#精简事件compact_events)」。`stream-json` 没有这个开关，输出始终是全量形状。
 
 ### 工具、权限、发现
 
@@ -215,6 +215,18 @@
 `parentToolCallId` 只出现在 codemode 脚本里经 `tools.*` 发起的内层调用上，值是外层 `codemode` 调用的 id；客户端据此折叠显示。内层调用不进转录。
 
 `message_end`、`turn_end`、`done` / `error` 与回放（`get_messages`、`get_entries`）里的助手消息可能带两个可选字段（模型调用效率批次，docs/model-efficiency-plan.md §1.10）：失败消息的 `retryAfterMs`（`Retry-After`，毫秒），工具调用块的 `rawArguments`（模型输出的原始参数字符串）。`subagent_*` 事件不变；`get_tasks` 的 `TaskInfo` 可带 `context?: "fork" | "fresh"`（子会话的实际上下文模式）。都是新增的可选字段，`RPC_PROTOCOL_VERSION` 不变，客户端忽略不认识的字段即可。
+
+### 精简事件（`compact_events`）
+
+一次工具调用的结果在全量形状下会随 `message_start`、`message_end`、`tool_execution_end`、`turn_end`、`entry_appended` 各出现一次。客户端用 `set_client_capabilities` 声明 `compact_events` 之后，其中三类事件改为：
+
+| 事件             | 全量（未声明）                        | 声明 `compact_events` 时                                                                                                     |
+| ---------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `turn_end`       | `toolResults`：完整的 toolResult 消息 | `toolResults[]` 每项只有 `{ toolCallId, toolName, isError, timestamp, contentOmitted: true }`（不带 `content` 与 `details`） |
+| `message_start`  | `message` 原样                        | `message` 是 toolResult 或带图片的 user 消息时 `content: ""`、`contentOmitted: true`，其余字段不变；其它消息原样             |
+| `entry_appended` | `entry` 原样                          | `message` 条目同上（toolResult、带图片的 user）；其它条目原样                                                                |
+
+`message_end` 与 `tool_execution_end` 始终全量：前者是客户端替换整条消息的依据，后者带 `details`。回放命令（`get_messages`、`get_entries`）不受影响。会话切换后仍按当前声明生效；重新声明不含 `compact_events` 的能力列表即恢复全量。`RPC_PROTOCOL_VERSION` 不变。
 
 ### 子 Agent 事件（第五波）
 

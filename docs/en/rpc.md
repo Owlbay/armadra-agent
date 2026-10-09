@@ -18,7 +18,7 @@ English · [简体中文](../rpc.md)
 On startup the server first sends `hello`, then the current session's `session_start`:
 
 ```json
-{"type":"hello","protocolVersion":1,"agent":"ama","version":"0.1.0","capabilities":["approvals","images","hooks","plans"]}
+{"type":"hello","protocolVersion":1,"agent":"ama","version":"0.1.0","capabilities":["approvals","images","hooks","plans","compact_events"]}
 {"type":"session_start","sessionId":"…","cwd":"/work","reason":"startup"}
 ```
 
@@ -120,7 +120,7 @@ After a session switch the server re-subscribes to events and sends `session_sta
 | `set_client_capabilities` | `capabilities: ("approvals" \| "images" \| "hooks" \| "plans" \| "compact_events")[]` | `{ capabilities }`                                                                                               |
 | `permission_response`     | `requestId: string`, `decision: "allow" \| "deny" \| "allow_session"`                 | `{ accepted: boolean }` (false = not currently waiting for this id; kept and applied when that request is asked) |
 
-`compact_events` (docs/memory-plan.md D9, **effective from M-G**, when it is also listed in `hello.capabilities`): once declared, `turn_end.toolResults`, `message_start` and `entry_appended` no longer repeat the body of tool results and of user messages with images (marked `contentOmitted: true`); the body is sent only in `message_end` and `tool_execution_end`. Without it the event shapes are unchanged. Until then declaring it is only echoed back and has no effect.
+`compact_events` (docs/memory-plan.md D9, Chinese): once declared, `turn_end.toolResults`, `message_start` and `entry_appended` no longer repeat the body of tool results and of user messages with images (marked `contentOmitted: true`); the body is sent only in `message_end` and `tool_execution_end`. Without it the event shapes are byte-for-byte unchanged. Shapes are in [Compact events](#compact-events-compact_events). `stream-json` has no such switch and always emits the full shapes.
 
 ### Tools, permissions, discovery
 
@@ -228,6 +228,18 @@ There is also the non-session event `{"type":"notification","level":"info"|"warn
 `parentToolCallId` appears only on inner calls made through `tools.*` inside codemode scripts; its value is the id of the outer `codemode` call, which clients use to fold the display. Inner calls do not enter the transcript.
 
 Assistant messages in `message_end`, `turn_end`, `done` / `error` and in replays (`get_messages`, `get_entries`) may carry two optional fields (model efficiency batch, docs/model-efficiency-plan.md §1.10, Chinese): `retryAfterMs` on failed messages (`Retry-After`, in ms) and `rawArguments` on tool-call blocks (the raw argument string the model produced). `subagent_*` events are unchanged; `TaskInfo` from `get_tasks` may carry `context?: "fork" | "fresh"` (the sub-session's actual context mode). All are new optional fields, `RPC_PROTOCOL_VERSION` is unchanged, and clients can ignore fields they do not know.
+
+### Compact events (`compact_events`)
+
+In the full shapes, the result of one tool call appears once each in `message_start`, `message_end`, `tool_execution_end`, `turn_end` and `entry_appended`. After the client declares `compact_events` with `set_client_capabilities`, three of these change:
+
+| Event            | Full (not declared)                         | With `compact_events` declared                                                                                                                    |
+| ---------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `turn_end`       | `toolResults`: complete toolResult messages | each `toolResults[]` item is only `{ toolCallId, toolName, isError, timestamp, contentOmitted: true }` (no `content`, no `details`)               |
+| `message_start`  | `message` as is                             | when `message` is a toolResult or a user message with images: `content: ""`, `contentOmitted: true`, other fields unchanged; other messages as is |
+| `entry_appended` | `entry` as is                               | `message` entries as above (toolResult, user with images); other entries as is                                                                    |
+
+`message_end` and `tool_execution_end` are always full: the former is what clients use to replace the whole message, the latter carries `details`. Replay commands (`get_messages`, `get_entries`) are unaffected. The declaration keeps applying after a session switch; declaring a capability list without `compact_events` restores the full shapes. `RPC_PROTOCOL_VERSION` is unchanged.
 
 ### Sub-agent events (wave 5)
 
