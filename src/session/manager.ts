@@ -7,8 +7,8 @@
  * - `open(file)`：读文件（修复末尾半行）、校验版本、加锁；叶子 = 文件中最后一条条目，
  *   若其后还有 `leaf` 行（`/tree` 换叶子落盘，第三波 A7）则取最后一条 leaf 行。
  * - `setLeaf(id)`：已落盘时追加一行 `leaf{id, timestamp}`；延迟会话在 `flush()` 时补写。
- * - `fork(entryId)`：复制 root → entryId 的分支到新文件（头的 parentSession 指回本文件），
- *   不复制 leaf 行。
+ * - `fork(entryId, { head })`：复制 root → entryId 的分支到新文件（头的 parentSession 指回本文件），
+ *   不复制 leaf 行；给了 `head` 时它成为新根条目，复制的首条重挂到它下面（fork 子会话的 ama.task）。
  * - `close()`：释放锁；之后的 append 抛错。
  */
 
@@ -267,11 +267,21 @@ export class SessionManager implements SessionManagerApi {
     this.append({ type: "session_info", name });
   }
 
-  fork(entryId: string): SessionManager {
+  fork(entryId: string, forkOptions: { head?: SessionEntryInput } = {}): SessionManager {
     if (!this.index.has(entryId)) {
       throw new AmaError("invalid_arguments", `no such session entry: ${entryId}`);
     }
     const copied = this.branch(entryId).map((entry) => structuredClone(entry));
+    if (forkOptions.head !== undefined) {
+      const head = {
+        ...forkOptions.head,
+        id: newEntryId(indexEntries(copied)),
+        parentId: null,
+        timestamp: this.now().toISOString(),
+      } as SessionEntry;
+      if (copied[0] !== undefined) copied[0].parentId = head.id;
+      copied.unshift(head);
+    }
     const options: SessionManagerOptions = { now: this.now };
     const parentFile = this.file();
     if (parentFile !== undefined) options.parentSession = parentFile;
