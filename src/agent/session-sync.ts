@@ -4,7 +4,8 @@
  * - `persistMessage`：Agent 的 message_end → 会话条目（LLM 消息 → `message`；custom → `custom_message`）。
  * - `recordModelState`：路径上最近的 model_change / thinking_level_change 与当前不同则补记。
  * - `syncSystemMessage`：目标系统提示 + 工具表与转录重放的状态比对，落全量（首条）或补丁；
- *   中途只追加工具时 tools / rules 节保持已发送的文本（前缀稳定，§9.1）。
+ *   对话开始后 tools / rules 节冻结为已发送的文本（[ME-B] D5：工具增删只经请求工具表与尾部提醒体现，
+ *   开头永不改写，§9.1）。
  * - `runHookWithEvents`：调 HookDispatcher（公共字段按本会话的 depth / sessionId / sessionFile 覆盖），
  *   逐条发 hook_executed；Hook 自身出错记 warning、按无决策处理。
  */
@@ -95,7 +96,8 @@ export function syncSystemMessage(
   recordModelState(core, core.model(), core.thinkingLevel());
   const sections = definedSections(assembleSections({ ...input, tools, cwd: core.cwd }));
   const current = currentSystemState(core.agent.messages);
-  if (current !== undefined) keepSectionsOnToolAppend(current, sections, tools);
+  if (current !== undefined && core.agent.messages.some((message) => message.role !== "system"))
+    keepSectionsAfterStart(current, sections);
   const patch = diffSystem(current, sections, toolDecls(tools));
   if (patch === undefined) return;
   core.appendEntry({ type: "message", message: patch });
@@ -103,17 +105,13 @@ export function syncSystemMessage(
 }
 
 /**
- * 会话中途只**追加**工具（宿主晚注册、setActiveTools 加名字）时，保留已发送的 tools / rules 节：
- * 新工具的声明经请求工具表末尾追加，system 文本不变，前缀缓存不失效（设计 §9.1）。
- * 有工具被移除时照常重写这两节。
+ * 对话开始后保留已发送的 tools / rules 节：新工具的声明经请求工具表末尾追加，移除的工具保留声明、
+ * 尾部提醒「no longer available」，system 文本不变，前缀缓存不失效（设计 §9.1、[ME-B] D5）。
  */
-function keepSectionsOnToolAppend(
+export function keepSectionsAfterStart(
   current: NonNullable<ReturnType<typeof currentSystemState>>,
   sections: Record<string, string>,
-  tools: readonly ToolDefinition[],
 ): void {
-  const now = new Set(tools.map((tool) => tool.name));
-  if (current.tools.some((tool) => !now.has(tool.name))) return;
   for (const name of ["tools", "rules"]) {
     const sent = current.sections[name];
     if (sent === undefined) delete sections[name];
