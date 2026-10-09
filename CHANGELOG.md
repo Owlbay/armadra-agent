@@ -16,6 +16,12 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 - **External agents' context**: when an external agent reports its context usage and window (ACP `usage_update`, Codex
   app-server `tokenUsage`), the numbers go into the task record and `ama.agent-usage`, `getStats().external.byAgent`
   keeps the latest, and `/tasks` and the Agent bar show `ctx 34%`.
+- **`/context`**: a new command that breaks the context down by category — system prompt (per section), tool
+  declarations (per tool), user messages, assistant text, reasoning, tool-call arguments, tool results (per tool name),
+  images, summaries and custom messages — with estimated tokens, share and a bar each. The top shows used / window, tokens
+  left, the source ("reported usage X + estimated Y" or "estimated in full") and the auto-compact trigger; the bottom
+  lists the largest tool results by ordinal, tool name and size only, never their content. Panel in the TUI, plain text
+  in line mode. Read-only; the request body and cache prefix are unchanged.
 
 ## 0.7.1 (2026-10-05)
 

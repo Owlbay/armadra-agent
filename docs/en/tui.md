@@ -219,6 +219,38 @@ Design in [rewind-plan.md](../rewind-plan.md) (Chinese). Every user message that
 - `/plan`: the current plan panel (see "Plan approval" below); `/plan <goal>` enters Plan mode and sends the goal; `/plan approve [mode|fresh]` and `/plan reject` approve / discard directly without a dialog.
 - `/tasks`: focus the agent bar, `/tasks <id>` opens the sub-agent view; `/agents`: the available sub-agent types (see "Sub-agents" below).
 - `/paste`: same as `Ctrl+V`.
+- `/context`: a per-category breakdown of the context (see the next section).
+
+### /context
+
+`/context` answers "what is taking up the context". Interactive mode draws a left-bar panel; line mode, and interactive mode without a panel, print the same content as plain text:
+
+```
+▎ Context
+▎ Used          10.6k / 200k (5.3%)
+▎ Left          189k tokens
+▎ Source        reported usage 9k + estimated 1.6k
+▎ Auto-compact  at 184k, ≈ 173k to go
+▎ Pruning       old tool results trimmed from 129k
+▎
+▎ By category (estimated, 5.8k)
+▎   System prompt and tool declarations are counted from the stored system messages; the full estimate can differ from reported usage.
+▎   System prompt           600  ▮▯▯▯▯▯▯▯▯▯ 10%  rules 500 · preamble 100 · cwd 0
+▎   Tool declarations       333  ▮▯▯▯▯▯▯▯▯▯ 6%  bash 241 · read 91
+▎   …
+▎   Tool results           3.2k  ▮▮▮▮▮▯▯▯▯▯ 55%  read 3k · bash 203
+▎   Images                 1.6k  ▮▮▮▯▯▯▯▯▯▯ 27%  1 image · user 1.6k
+▎
+▎ Largest tool results (top 5)
+▎   #1      3k  read
+▎   #2     203  bash
+```
+
+- **Top**: used / window and percentage (the same measure as `/session`: the latest usable usage plus an estimate of the messages after it), tokens left, the source ("reported usage X + estimated Y"; "estimated in full" when there is no usable usage yet, or a compaction / context edit happened after it), the auto-compact trigger (window − `compaction.reserveTokens`; "off" when disabled, "window unknown" without a window) and where tier-one pruning starts.
+- **By category**: system prompt (per section), tool declarations (per tool), user messages, assistant text, reasoning, tool-call arguments (per tool), tool results (summed per tool name), images (1,600 each), summaries (compaction / branch) and custom messages, each with an estimated token count, share and bar. The categories add up to the character-based estimate of the whole projection (one token per CJK character, other characters / 4), so the total in the heading can differ from "Used" at the top, which prefers the usage reported by the model.
+- **System prompt and tool declarations** come from the system messages stored in the session (the first full one and later patches, matching the estimate); before the first request the branch has no system message yet, both categories are 0 and the panel says they are counted after the first request.
+- **Bottom**: only the ordinal (which tool result in the projection), tool name and size of the 5 largest tool results — **never their content**.
+- Read-only: no session entries are written and the request body is untouched, so the prompt-cache prefix is unaffected.
 
 ## Entering Bypass
 

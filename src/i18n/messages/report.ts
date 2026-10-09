@@ -12,6 +12,7 @@
 import type { CacheMissReason } from "../../ai/cache/types.js";
 import { plural } from "../format.js";
 import type { Messages } from "../types.js";
+import * as contextReport from "./report-context.js";
 
 export const en = {
   /** 内置斜杠命令：`args` 只写需要翻译的占位，说明整句。 */
@@ -33,6 +34,7 @@ export const en = {
     tools: "List / set active tools",
     hooks: "List loaded hooks",
     session: "Session info, usage and cache",
+    context: "Context breakdown by category (estimated), source, window and auto-compact threshold",
     cache: "Cache stats; switch warming for this session; print the prefix fingerprint",
     statusline: "Footer info two lines / one line (Ctrl+G)",
     planArgs: "[goal] | approve [mode|fresh] | reject",
@@ -94,6 +96,8 @@ export const en = {
     cwdAnswer: "Replacement directory (empty line cancels): ",
     notDirectory: (path: string) => `Not a directory: ${path}\n`,
   },
+  /** `/context`：上下文分类明细（report-context.ts）。 */
+  contextReport: contextReport.en,
   /** `/session`、`/cache` 报告与缓存提示行。 */
   cache: {
     unreported: "not reported",
@@ -323,6 +327,7 @@ export const zh = {
     tools: "列出 / 设置活动工具",
     hooks: "列出已加载的 Hook",
     session: "会话信息、用量与缓存",
+    context: "上下文按类别拆分（估算）、来源、窗口与自动压缩阈值",
     cache: "缓存统计；切换本会话保温；打印前缀指纹",
     statusline: "底部信息行两行 / 一行（Ctrl+G）",
     planArgs: "[目标] | approve [模式|fresh] | reject",
@@ -381,6 +386,7 @@ export const zh = {
     cwdAnswer: "替代目录（空行取消）：",
     notDirectory: (path) => `不是目录：${path}\n`,
   },
+  contextReport: contextReport.zh,
   cache: {
     unreported: "未报告",
     unknown: "未知",

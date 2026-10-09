@@ -39,6 +39,7 @@ import {
 } from "./interactive/tasks-report.js";
 import { backgroundTasks, backgroundedText } from "./interactive/task-background.js";
 import { describeCache, describeFingerprint, describeSession } from "./session-report.js";
+import { describeContext } from "./context-report.js";
 import { msg, type Catalog } from "../i18n/index.js";
 
 export { describeSession } from "./session-report.js";
@@ -120,6 +121,7 @@ export const BUILTIN_COMMANDS: readonly CommandInfo[] = [
   command("tools", "tools", { key: "toolsArgs" }),
   command("hooks", "hooks"),
   command("session", "session"),
+  command("context", "context"),
   command("cache", "cache", "[warm off|streaming|idle | fingerprint]"),
   command("statusline", "statusline", "[full|compact]"),
   command("plan", "plan", { key: "planArgs" }),
@@ -307,6 +309,8 @@ export async function runSlashCommand(
     }
     case "session":
       return { kind: "handled", message: describeSession(session) };
+    case "context":
+      return { kind: "handled", message: describeContext(session) };
     case "cache":
       return { kind: "handled", message: cacheCommand(session, args) };
     case "rewind":

@@ -10,6 +10,7 @@ info:/help  List commands
 /tools [names…]  List / set active tools
 /hooks  List loaded hooks
 /session  Session info, usage and cache
+/context  Context breakdown by category (estimated), source, window and auto-compact threshold
 /cache [warm off|streaming|idle | fingerprint]  Cache stats; switch warming for this session; print the prefix fingerprint
 /statusline [full|compact]  Footer info two lines / one line (Ctrl+G)
 /plan [goal] | approve [mode|fresh] | reject  Show the plan and status; with a goal, enter Plan mode; approve / discard a pending plan

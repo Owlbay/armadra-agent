@@ -43,7 +43,7 @@ interface CharCount {
   narrow: number;
 }
 
-function countText(text: string, into: CharCount): CharCount {
+export function countText(text: string, into: CharCount): CharCount {
   let wide = 0;
   let narrow = 0;
   for (let i = 0; i < text.length; i++) {
