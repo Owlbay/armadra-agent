@@ -1,4 +1,4 @@
-{"type":"hello","protocolVersion":1,"agent":"ama","version":"<version>","capabilities":["approvals","images","hooks","plans"]}
+{"type":"hello","protocolVersion":1,"agent":"ama","version":"<version>","capabilities":["approvals","images","hooks","plans","compact_events"]}
 {"type":"session_start","sessionId":"<uuid>","cwd":"<root>/work","reason":"startup"}
 {"type":"entry_appended","entry":{"type":"model_change","provider":"fake","modelId":"echo","id":"<id>","parentId":null,"timestamp":0}}
 {"type":"entry_appended","entry":{"type":"thinking_level_change","thinkingLevel":"medium","id":"<id>","parentId":"<id>","timestamp":0}}
