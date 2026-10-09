@@ -1,6 +1,6 @@
 # 内存占用优化设计（read 流式、ACP 释放、请求体序列化、图片驻留、会话流式读取）
 
-> 状态：**实施设计**（Issue #136，label 改 `ready` 后进入批次）。基线 `main` = `599fc11`（0.7.3 + #133 + #134 ME-C0）。依据：内存测量报告（C0 整理为 [research/memory-2026-10.md](research/memory-2026-10.md)，去掉外部项目名与 `/tmp` 路径）、[design.md](design.md) §9.1（前缀字节稳定）、[session-format.md](session-format.md)、[model-efficiency-plan.md](model-efficiency-plan.md)（#135，**并行实施中**，交集见 §3.0）。批次写法沿用 [acp-plan.md](acp-plan.md)。
+> 状态：**已实施**（Issue #136；M-C0 #145、M-D #157、M-G #158、M-F #159、M-C #160、M-A #161、M-E #162、M-B #163，收尾 M-Z；验收与修正后的目标见 §4，实测见 [benchmarks/memory-2026-10.md](benchmarks/memory-2026-10.md)）。基线 `main` = `599fc11`（0.7.3 + #133 + #134 ME-C0）。依据：内存测量报告（C0 整理为 [research/memory-2026-10.md](research/memory-2026-10.md)，去掉外部项目名与 `/tmp` 路径）、[design.md](design.md) §9.1（前缀字节稳定）、[session-format.md](session-format.md)、[model-efficiency-plan.md](model-efficiency-plan.md)（#135，**并行实施中**，交集见 §3.0）。批次写法沿用 [acp-plan.md](acp-plan.md)。
 > 硬约束不变：零运行时依赖；源码 ≤ 600 行 / 测试 ≤ 1000 行（**`src/agent/session.ts`、`src/agent/subagent-registry.ts`、`src/ai/providers/registry.ts`、`src/cli/compose-session.ts` 不得加行**；`src/modes/acp/acp-server.ts` 已 587 行，本计划只允许它 +≤ 8 行，新逻辑放 `acp-sessions.ts`）；i18n en / zh；**首个请求与相邻回合的请求体逐字节不变**（本计划不改任何请求体内容，只改序列化方式，并以字节比对守住）；`prompt-budget` 三档不变（不碰工具描述与系统提示）；会话文件格式向后兼容，rewind / resume / fork 语义不变；RPC / ACP 新增字段与能力一律可选；测试只用 fake 供应商；真实测量只用 astr 上便宜的 GPT 模型（`astr/gpt-6-luna`），每批 ≤ 15 次请求；代码与文档不出现参考项目名。
 > 范围：报告 P0-1 / P0-2 / P0-3 全部；P1-1…P1-6 全部；P2 中 P2-2（惰性 `Intl.Segmenter`）、P2-3（codemode 子进程堆上限）、P2-7（fake 供应商不留上下文）纳入；P2-1、P2-4、P2-5、P2-6 本波不做，理由见 §7。附带：Issue #139（ACP 后台子 Agent 通知回合进行中时 `session/prompt` 报 busy）并入 M-A，理由见 D4。
 
@@ -397,20 +397,27 @@ forEachLineSync(file, (buf, index, last, offset) => {
 
 每批：`pnpm run ci` 绿；本批 `test/memory/*` 用例在三平台 × Node 22 / 24 稳定通过（上界按 D13 留余量）；rpc / acp 黄金除 G 的 `hello` 一项外字节不变；`prompt-budget` 三档不变；`cache-stability.test.ts` 不改断言；受影响文件 ≤ 600 行。
 
-整体（Z，用 `scripts/bench-memory.mjs` 复测，前 → 后）：
+整体（Z，用 `scripts/bench-memory.mjs` 复测，前 → 后）。目标按各批实测与 Z 复测修正（2026-10-10，[benchmarks/memory-2026-10.md](benchmarks/memory-2026-10.md)「Z」；「之前」= `04c7bc2`，「之后」= `8ac3b20`，3 次中位数）；被修正的原目标写在括号里：
 
-| 场景                            | 报告基线        | 目标                | CI 守护                             |
-| ------------------------------- | --------------- | ------------------- | ----------------------------------- |
-| 全局 `ama --version`            | 105–107 MB      | ≤ 82 MB             | release:check `bin` 断言 + e2e 装包 |
-| `-p` 一轮（fake）               | 92–98 MB        | ≤ 92 MB             | —（Segmenter 惰性由单测守）         |
-| `read` 255 MB 前 100 行         | 757 MB          | ≤ 110 MB            | 32 MB 文件增长 < 2 MB               |
-| `sessions list` 4 × 55 MB       | 486 MB          | ≤ 110 MB            | 24 MB 文件增长 < 2 MB               |
-| `-p --resume` 55 MB             | 333 MB          | ≤ 200 MB            | 增长 < 1.0 × 文件 + 2 MB            |
-| mock HTTP 300 步 + 15 次读图    | 1 189 MB        | ≤ 650 MB            | 序列化 heap 增长 < 3 MB、字节不变   |
-| mock HTTP 300 步无图            | 366–487 MB      | ≤ 360 MB            | 同上                                |
-| ACP 8 会话 × 4 轮 close + GC 后 | 409 MB / ext 90 | ≤ 120 MB / ext ≤ 10 | 实例可回收、external 回基线         |
-| RPC 100 步事件字节              | 86 MB           | ≤ 30 MB（声明能力） | 字节比 < 0.45                       |
-| 真实 astr 8 提示 2 图（TUI）    | 392 MB          | ≤ 300 MB            | —（benchmarks 记录）                |
+| 场景                            | 报告基线        | 目标                                                     | Z 实测（前 → 后）                       | CI 守护                             |
+| ------------------------------- | --------------- | -------------------------------------------------------- | --------------------------------------- | ----------------------------------- |
+| 全局 `ama --version`            | 105–107 MB      | ≤ 82 MB                                                  | 102.4 → 76.7 MB ✓                       | release:check `bin` 断言 + e2e 装包 |
+| `-p` 一轮（fake）               | 92–98 MB        | ≤ 98 MB（原 ≤ 92：bundle 口径本来就在 92–95）            | 111.1（ESM 入口）→ 92.7 MB ✓            | —（Segmenter 惰性由单测守）         |
+| `read` 255 MB 前 100 行         | 757 MB          | ≤ 110 MB                                                 | 774.5 → 103.2 MB ✓                      | 32 MB 文件增长 < 2 MB               |
+| `sessions list` 4 × 55 MB       | 486 MB          | ≤ 110 MB                                                 | 540.9 → 88.2 MB ✓                       | 24 MB 文件增长 < 2 MB               |
+| `-p --resume` 55 MB             | 333 MB          | ≤ 220 MB（原 ≤ 200，注 1）                               | 302.7 → 217.9 MB ✓                      | 只留解析结果（≤ 旧实现 + 2 MB）     |
+| mock HTTP 300 步 + 15 次读图    | 1 189 MB        | ≤ 720 MB（原 ≤ 650，注 2）                               | 1 033.0 → 720.2 MB ✓                    | 序列化 heap 增长 < 3 MB、字节不变   |
+| mock HTTP 300 步无图            | 366–487 MB      | 不高于合入前（原 ≤ 360，注 3）                           | 670.0 → 775.6 MB ✗                      | 同上                                |
+| ACP 8 会话 × 4 轮 close + GC 后 | 409 MB / ext 90 | heap ≤ 20 / ext ≤ 20 MB（原 RSS ≤ 120 / ext ≤ 10，注 4） | heap 25.9 / ext 105.9 → 16.1 / 16.3 ✓   | 实例可回收、external 回基线         |
+| RPC 100 步事件字节              | 86 MB           | 声明能力后 ≤ 原来的 45%（原 ≤ 30 MB，注 5）              | 91.6 → 37.0 MB（0.40）✓                 | 字节比 < 0.45                       |
+| 真实 astr TUI 带图会话          | 392 MB          | ≤ 300 MB                                                 | 4 提示 3 图：275.5 → 218.4 MB ✓（注 6） | —（benchmarks 记录）                |
+
+1. resume 的剩余构成：进程基线约 80 MB；V8 堆约 130 MB，其中可达对象 78 MB（66 MB 是解析出的转录字符串本身），其余是逐行解析后尚未整理的堆空间；external 已从 62 MB 降到 7 MB。再降需要旧 toolResult 正文不常驻（与 P2-4 同一方向），本波不做。
+2. 剩余是每请求对整段上下文的投影与编码（P2-1）与同一时刻多出的一份图片 UTF-8 片段；按消息缓存片段（D3 步骤二，Q1）之后再看 650。
+3. 报告的 366–487 MB 用的是另一个驱动（请求体最大 3.5 MB、共 573 MB），bench 场景请求体最大 8.8 MB、共 1.3 GB，不可直接比；同场景 M-E 合入后峰值上升约 90 MB，堆快照留存不变，判断为 GC 节奏 / 原生分配层面的峰值变化，另开 Issue 跟进（benchmarks「发现」1）。
+4. 关闭后剩下的是启动会话：第一个 `session/new` 认领进程启动时建的会话，它被 `Runtime.session` 持有到进程退出（M-A 遗留，另开 Issue）。bench 不报 close 后的 RSS，改以 heap / external 判定；真实 astr 纯文本场景 close + GC 后 heap 15.5 / ext 7.0 MB。
+5. D9 有意保留 `message_end` 与 `tool_execution_end` 两份正文，5 份留 2 份，下限就是 40%；「−65%」与 D9 不自洽（M-G 实测 0.40）。
+6. 报告的 392 MB 是 8 提示、19 次请求的更长会话；受请求数上限，Z 用同一构建对照跑了 4 提示、5 次请求；M-B 的 3 提示 2 图为 220.4 → 187.3 MB。
 
 ## §5 文档与 CHANGELOG
 
