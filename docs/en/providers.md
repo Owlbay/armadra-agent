@@ -2,7 +2,7 @@
 
 English · [简体中文](../providers.md)
 
-> Translated from the Chinese [docs/providers.md](../providers.md) as of commit `e3bde2e`. When the two differ, the
+> Translated from the Chinese [docs/providers.md](../providers.md) as of commit `514202f`. When the two differ, the
 > Chinese version is authoritative.
 
 Built-in providers, model references, API keys, custom providers and relays, the compat switches of each protocol, and caching. The design rationale is in [design.md](../design.md) §3 and §9.1 (Chinese).
