@@ -73,6 +73,7 @@ import { QueueView, RunIndicator, type EnterMode } from "./run-indicator.js";
 import { StatusArea, statusLineSlash } from "./status-area.js";
 import type { StatusBar } from "./status-bar.js";
 import { createSessionEventHandler } from "./session-events.js";
+import { programStatusUi, type ProgramStatusOptions } from "./program-status-ui.js";
 import { SubagentTracker } from "./subagent-view.js";
 import { loadKeys, processTerminal } from "./terminal-setup.js";
 import { ToolTracker } from "./tool-view.js";
@@ -97,6 +98,8 @@ export interface InteractiveModeOptions {
   onReady?(handle: InteractiveHandle): void;
   /** 剪贴板读取的注入（测试；缺省调系统命令）。 */
   clipboard?: ClipboardDeps;
+  /** 终端程序状态 OSC 7501（缺省只在真实终端启用；测试注入终端时给了才启用）。 */
+  programStatus?: ProgramStatusOptions;
 }
 
 export interface InteractiveHandle {
@@ -131,6 +134,7 @@ export function runInteractiveMode(
 
   let session = currentSession(runtime);
   const tui = new TUI(terminal);
+  const osc7501 = programStatusUi({ tui, runtime, env, options, cwd: () => session.state.cwd });
   const view = new MessageView({
     theme,
     ...(ui.showThinking !== undefined ? { showThinking: ui.showThinking } : {}),
@@ -241,7 +245,7 @@ export function runInteractiveMode(
 
   // ---- 会话事件 -------------------------------------------------------------
 
-  const onEvent = createSessionEventHandler({
+  const handleEvent = createSessionEventHandler({
     view,
     tools,
     status,
@@ -253,6 +257,7 @@ export function runInteractiveMode(
     notice,
     render,
   });
+  const onEvent = osc7501.wrap(handleEvent);
   let unsubscribe = session.subscribe(onEvent);
 
   const startupLevel = startupScreenLevel(runtime);
@@ -518,6 +523,7 @@ export function runInteractiveMode(
     if (hintTimer !== undefined) clearTimeout(hintTimer);
     loader.stop();
     area.dispose();
+    osc7501.exit();
     // 退出摘要留在回滚里；输入框、状态栏等底部区域撤掉，屏幕停在摘要下面
     view.addExitSummary(exitSummaryLines(session.getStats(), now() - startedAt, theme));
     tui.clear();
@@ -562,6 +568,7 @@ export function runInteractiveMode(
       );
       return;
     }
+    osc7501.start();
     runtime.approvals.setUiBroker(broker);
     runtime.notifier.set((message, level) => notice(level, message));
     agentUi.attach(session);
