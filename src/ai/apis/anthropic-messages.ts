@@ -17,6 +17,7 @@ import {
   authHeaders,
   describeErrorJson,
   idleTimeoutOf,
+  streamIdleTimeoutOf,
   mergeHeaders,
   USER_AGENT,
 } from "../http.js";
@@ -30,7 +31,7 @@ import type {
   TranscriptContext,
   Usage,
 } from "../types.js";
-import { postWithCacheFallback } from "./cache-params.js";
+import { clampRequestMaxTokens, postWithMaxTokensFallback } from "./max-tokens.js";
 import {
   ANTHROPIC_VERSION,
   anthropicMessagesUrl,
@@ -200,23 +201,28 @@ async function run(
     if (request.providerThinkingLevel !== undefined) {
       tracker.output.providerThinkingLevel = request.providerThinkingLevel;
     }
+    // 预算型思考的预算由 max_tokens 推导，收紧会让消息缓存失效：不主动收紧（D9）
+    const budgeted = obj(request.body["thinking"])?.["type"] === "enabled";
+    clampRequestMaxTokens(request.body, "max_tokens", model.contextWindow, budgeted);
     const replaced = options.onPayload?.(request.body);
     const body = replaced === undefined ? request.body : replaced;
     const baseUrl = model.baseUrl ?? "https://api.anthropic.com";
-    const response = await postWithCacheFallback(model, anthropicMessagesUrl(baseUrl), {
+    const url = anthropicMessagesUrl(baseUrl);
+    const post = {
       headers: buildHeaders(model, options, request.betas),
       body,
       signal: options.signal,
       timeoutMs: options.timeoutMs,
       idleTimeoutMs: idleTimeoutOf(options),
       onResponse: options.onResponse,
-    });
+    };
+    const response = await postWithMaxTokensFallback(model, url, post, "max_tokens");
     stream.push({ type: "start", partial: tracker.output });
     const state: StreamState = { blocks: new Map(), stop: undefined, sawMessageStop: false };
     for await (const sse of readSseEvents(
       response.body as ReadableStream<Uint8Array>,
       options.signal,
-      idleTimeoutOf(options),
+      streamIdleTimeoutOf(options),
     )) {
       if (sse.event === "ping" || sse.data === "") continue;
       let data: Json;

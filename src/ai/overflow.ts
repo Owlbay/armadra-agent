@@ -16,6 +16,11 @@ import type { AssistantMessage } from "./types.js";
 export const OVERFLOW_PATTERNS: readonly (readonly [RegExp, string])[] = [
   [/prompt is too long/i, "Anthropic: prompt is too long: N tokens > M maximum"],
   [/request_too_large/i, "Anthropic: 413 request_too_large"],
+  // [ME-C] 只有 max-tokens.ts 判定「可用输出 < 1024、不能收紧重发」时这条错误才会冒到会话层
+  [
+    /input length and `?max_tokens`? exceed context limit/i,
+    "Anthropic: input length and max_tokens exceed context limit: X + Y > Z",
+  ],
   [/exceeds the context window/i, "OpenAI: Your input exceeds the context window of this model"],
   [/maximum context length is \d+ tokens/i, "OpenAI / OpenRouter / DeepSeek"],
   [

@@ -23,6 +23,7 @@ import {
   authHeaders,
   describeErrorJson,
   idleTimeoutOf,
+  streamIdleTimeoutOf,
   joinUrl,
   mergeHeaders,
   USER_AGENT,
@@ -38,7 +39,8 @@ import type {
   TranscriptContext,
   Usage,
 } from "../types.js";
-import { affinityHeaders, postWithCacheFallback, resolveCacheRetention } from "./cache-params.js";
+import { affinityHeaders, resolveCacheRetention } from "./cache-params.js";
+import { clampRequestMaxTokens, postWithMaxTokensFallback } from "./max-tokens.js";
 import {
   chatgptHeaders,
   chatgptPrecheck,
@@ -318,17 +320,20 @@ async function post(
     const compat = request.compat;
     const chatgpt = compat.chatgptBackend !== undefined;
     if (chatgpt) chatgptPrecheck(model, compat, options.apiKey);
+    clampRequestMaxTokens(request.body, "max_output_tokens", model.contextWindow);
     const replaced = options.onPayload?.(request.body);
     const baseUrl = model.baseUrl ?? "https://api.openai.com/v1";
     try {
-      const response = await postWithCacheFallback(model, joinUrl(baseUrl, "/responses"), {
+      const url = joinUrl(baseUrl, "/responses");
+      const post = {
         headers: buildHeaders(model, options, compat),
         body: replaced === undefined ? request.body : replaced,
         signal: options.signal,
         timeoutMs: options.timeoutMs,
         idleTimeoutMs: idleTimeoutOf(options),
         onResponse: chatgpt ? quotaOnResponse(compat, options) : options.onResponse,
-      });
+      };
+      const response = await postWithMaxTokensFallback(model, url, post, "max_output_tokens");
       return { response, options, compat };
     } catch (error) {
       if (!chatgpt || !(error instanceof HttpError)) throw error;
@@ -361,7 +366,7 @@ async function run(
     };
     let finished = false;
     const body = response.body as ReadableStream<Uint8Array>;
-    for await (const sse of readSseEvents(body, options.signal, idleTimeoutOf(options))) {
+    for await (const sse of readSseEvents(body, options.signal, streamIdleTimeoutOf(options))) {
       const raw = sse.data.trim();
       if (raw === "" || raw === "[DONE]") continue;
       let data: Json;

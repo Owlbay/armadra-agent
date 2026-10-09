@@ -19,6 +19,7 @@ import {
   authHeaders,
   describeErrorJson,
   idleTimeoutOf,
+  streamIdleTimeoutOf,
   joinUrl,
   mergeHeaders,
   USER_AGENT,
@@ -33,7 +34,8 @@ import type {
   TranscriptContext,
   Usage,
 } from "../types.js";
-import { affinityHeaders, postWithCacheFallback, resolveCacheRetention } from "./cache-params.js";
+import { affinityHeaders, resolveCacheRetention } from "./cache-params.js";
+import { clampRequestMaxTokens, postWithMaxTokensFallback } from "./max-tokens.js";
 import { detectCompat } from "./openai-compat.js";
 import { REASONING_FIELDS, buildOpenAIRequest } from "./openai-request.js";
 import {
@@ -238,16 +240,20 @@ async function run(
     if (request.providerThinkingLevel !== undefined) {
       tracker.output.providerThinkingLevel = request.providerThinkingLevel;
     }
+    const field = request.compat.maxTokensField;
+    clampRequestMaxTokens(request.body, field, model.contextWindow);
     const replaced = options.onPayload?.(request.body);
     const baseUrl = model.baseUrl ?? "https://api.openai.com/v1";
-    const response = await postWithCacheFallback(model, joinUrl(baseUrl, "/chat/completions"), {
+    const url = joinUrl(baseUrl, "/chat/completions");
+    const post = {
       headers: buildHeaders(model, options),
       body: replaced === undefined ? request.body : replaced,
       signal: options.signal,
       timeoutMs: options.timeoutMs,
       idleTimeoutMs: idleTimeoutOf(options),
       onResponse: options.onResponse,
-    });
+    };
+    const response = await postWithMaxTokensFallback(model, url, post, field);
     stream.push({ type: "start", partial: tracker.output });
     const state: StreamState = {
       text: undefined,
@@ -259,7 +265,7 @@ async function run(
       sawDone: false,
     };
     const body = response.body as ReadableStream<Uint8Array>;
-    for await (const sse of readSseEvents(body, options.signal, idleTimeoutOf(options))) {
+    for await (const sse of readSseEvents(body, options.signal, streamIdleTimeoutOf(options))) {
       const data = sse.data.trim();
       if (data === "") continue;
       if (data === "[DONE]") {
