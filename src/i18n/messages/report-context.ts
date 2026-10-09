@@ -19,6 +19,7 @@ export const en = {
   sourceUsage: (usage: string, estimate: string) =>
     `reported usage ${usage} + estimated ${estimate}`,
   sourceEstimate: "estimated in full (no usable usage yet)",
+  sourcePrefix: "system prompt and tools only, estimated before the first request",
   keyAutoCompact: "Auto-compact",
   autoCompact: (at: string, distance: string) => `at ${at}, ≈ ${distance} to go`,
   autoCompactReached: (at: string) => `at ${at}, reached`,
@@ -30,6 +31,8 @@ export const en = {
   prefixCounted:
     "System prompt and tool declarations are counted from the stored system messages; the full estimate can differ from reported usage.",
   prefixPending: "System prompt and tool declarations are not counted until the first request.",
+  prefixEstimated:
+    "System prompt and tool declarations are estimated from what the first request will send.",
   categories: {
     system: "System prompt",
     tools: "Tool declarations",
@@ -66,6 +69,7 @@ export const zh = {
   keySource: "来源",
   sourceUsage: (usage, estimate) => `usage 实测 ${usage} + 估算 ${estimate}`,
   sourceEstimate: "全量估算（还没有可用的 usage）",
+  sourcePrefix: "首次请求前，只有系统提示与工具声明的估算",
   keyAutoCompact: "自动压缩",
   autoCompact: (at, distance) => `${at} 触发，还差 ≈ ${distance}`,
   autoCompactReached: (at) => `${at} 触发，已达到`,
@@ -76,6 +80,7 @@ export const zh = {
   breakdown: (total) => `按类别（估算，${total}）`,
   prefixCounted: "系统提示与工具声明按会话里存的 system 消息计入；全量估算可能与 usage 实测不同。",
   prefixPending: "系统提示与工具声明在首次请求后才计入。",
+  prefixEstimated: "系统提示与工具声明按首次请求将要发送的内容估算。",
   categories: {
     system: "系统提示",
     tools: "工具声明",

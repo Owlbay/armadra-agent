@@ -12,14 +12,22 @@ import type { SystemMessage, ToolDecl } from "../ai/types.js";
 import type { ContextEstimate } from "./estimate.js";
 import { estimateMessageTokens } from "./estimate.js";
 
+/** 将要作为首条 `system` 消息发送的内容（只用于统计，不落盘）。 */
+export function prefixSystemMessage(
+  sections: Readonly<Record<string, string>>,
+  tools: readonly ToolDecl[],
+): SystemMessage {
+  const message: SystemMessage = { role: "system", sections: { ...sections }, timestamp: 0 };
+  if (tools.length > 0) message.toolsAdded = [...tools];
+  return message;
+}
+
 /** 系统提示（已装配的命名节）+ 工具声明的估算。 */
 export function estimatePrefixTokens(
   sections: Readonly<Record<string, string>>,
   tools: readonly ToolDecl[],
 ): number {
-  const message: SystemMessage = { role: "system", sections: { ...sections }, timestamp: 0 };
-  if (tools.length > 0) message.toolsAdded = [...tools];
-  return estimateMessageTokens(message);
+  return estimateMessageTokens(prefixSystemMessage(sections, tools));
 }
 
 /** 上下文估算的来源（`SessionStats.context.source`）。 */

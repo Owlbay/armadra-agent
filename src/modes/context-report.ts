@@ -11,7 +11,7 @@
  */
 
 import { AgentSessionImpl } from "../agent/session.js";
-import { DEFAULT_COMPACTION_SETTINGS } from "../agent/session-compaction.js";
+import { DEFAULT_COMPACTION_SETTINGS, pendingPrefixMessage } from "../agent/session-compaction.js";
 import type { AgentSession } from "../agent/types.js";
 import {
   breakdownMessages,
@@ -48,6 +48,8 @@ const MAX_PARTS = 6;
 export interface ContextSnapshot {
   breakdown: ContextBreakdown;
   estimate: ContextEstimate;
+  /** 首次请求前：系统提示与工具声明按将要发送的那一份估算（与状态栏的启动基线同一口径）。 */
+  prefixPending: boolean;
   window: number | undefined;
   /** 0–100（一位小数，封顶 100）；无窗口时 undefined。 */
   percent: number | undefined;
@@ -63,14 +65,22 @@ export function contextSnapshot(session: AgentSession): ContextSnapshot {
   let messages = session.messages;
   let estimate: ContextEstimate;
   let compaction: Partial<CompactionConfig> = {};
+  let prefixPending = false;
   if (session instanceof AgentSessionImpl) {
     const branch = session.manager.branch();
     const items = buildProjection(branch).items;
     messages = items.map((item) => item.message);
     estimate = estimateProjectedTokens(items, branch);
     compaction = (session.options.compaction ?? {}) as Partial<CompactionConfig>;
+    if (!messages.some((message) => "role" in message && message.role === "system")) {
+      prefixPending = true;
+      messages = [pendingPrefixMessage(session), ...messages];
+    }
   } else estimate = estimateContextTokens(messages);
-  const window = session.getStats().contextWindow;
+  const stats = session.getStats();
+  // 「已用」与状态栏、getStats 同一口径（含启动基线）
+  if (stats.contextTokens !== undefined) estimate = { ...estimate, tokens: stats.contextTokens };
+  const window = stats.contextWindow;
   const reserve = compaction.reserveTokens ?? DEFAULT_COMPACTION_SETTINGS.reserveTokens;
   const budget = window === undefined ? undefined : Math.max(0, window - reserve);
   const percent =
@@ -80,6 +90,7 @@ export function contextSnapshot(session: AgentSession): ContextSnapshot {
   return {
     breakdown: breakdownMessages(messages),
     estimate,
+    prefixPending,
     window,
     percent,
     autoCompaction: session.state.autoCompaction,
@@ -108,8 +119,9 @@ function headerRows(snap: ContextSnapshot): KeyValueRow[] {
     });
   rows.push({
     key: m.keySource,
-    value:
-      estimate.lastUsageIndex === null
+    value: snap.prefixPending
+      ? m.sourcePrefix
+      : estimate.lastUsageIndex === null
         ? m.sourceEstimate
         : m.sourceUsage(
             formatTokenCount(estimate.usageTokens),
@@ -180,7 +192,9 @@ export function describeContext(session: AgentSession): string {
   const { breakdown } = snap;
   const lines = [m.title, ...renderRows(headerRows(snap), "  "), ""];
   lines.push(m.breakdown(formatTokenCount(breakdown.total)));
-  lines.push(`  ${breakdown.hasSystem ? m.prefixCounted : m.prefixPending}`);
+  lines.push(
+    `  ${snap.prefixPending ? m.prefixEstimated : breakdown.hasSystem ? m.prefixCounted : m.prefixPending}`,
+  );
   if (breakdown.total === 0) lines.push(`  ${m.empty}`);
   else lines.push(...renderRows(categoryRows(breakdown, undefined), "  "));
   lines.push("", m.largest(CONTEXT_TOP_RESULTS));
@@ -204,7 +218,16 @@ export function contextPanel(session: AgentSession, theme: Theme): Component {
     theme.bold(m.breakdown(formatTokenCount(breakdown.total))),
     new Indent(
       new Stack([
-        new Text(theme.fg("dim", breakdown.hasSystem ? m.prefixCounted : m.prefixPending)),
+        new Text(
+          theme.fg(
+            "dim",
+            snap.prefixPending
+              ? m.prefixEstimated
+              : breakdown.hasSystem
+                ? m.prefixCounted
+                : m.prefixPending,
+          ),
+        ),
         breakdown.total === 0
           ? theme.fg("dim", m.empty)
           : table(categoryRows(breakdown, theme), true),

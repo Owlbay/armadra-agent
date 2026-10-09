@@ -27,7 +27,8 @@ import {
   estimateProjectedTokens,
   type ContextEstimate,
 } from "../compaction/estimate.js";
-import { estimatePrefixTokens, withPrefixBaseline } from "../compaction/prefix-estimate.js";
+import { prefixSystemMessage, withPrefixBaseline } from "../compaction/prefix-estimate.js";
+import type { SystemMessage } from "../ai/types.js";
 import { planPrune, prunePolicy, type PrunePolicy } from "../compaction/prune-tier.js";
 import { createProtection, skillLocations } from "../compaction/protect.js";
 import { buildPostCompactBlock } from "../compaction/post-compact.js";
@@ -136,14 +137,7 @@ export class CompactionController {
 
   /** 将要发送的系统提示 + 工具声明的估算（与首条 system 消息同样装配，不落盘）。 */
   private prefixTokens(): number {
-    const core = this.core;
-    const tools = core
-      .activeToolNames()
-      .map((name) => core.activeTool(name))
-      .filter((tool): tool is ToolDefinition => tool !== undefined);
-    const system = core.childBase?.().system ?? core.options.system ?? {};
-    const sections = definedSections(assembleSections({ ...system, tools, cwd: core.cwd }));
-    return estimatePrefixTokens(sections, toolDecls(tools));
+    return estimateMessageTokens(pendingPrefixMessage(this.core));
   }
 
   private budget(): number | undefined {
@@ -482,4 +476,18 @@ export class CompactionController {
       return fail(error instanceof Error ? error.message : String(error), aborted);
     }
   }
+}
+
+/**
+ * 首次请求前将要发送的首条 `system` 消息（系统提示 + 工具声明，与真正发送时同样装配）。只用于统计：
+ * `getStats` 的启动基线与 `/context` 的分类明细共用它，口径一致；不写分支、不改请求体。
+ */
+export function pendingPrefixMessage(core: SessionCore): SystemMessage {
+  const tools = core
+    .activeToolNames()
+    .map((name) => core.activeTool(name))
+    .filter((tool): tool is ToolDefinition => tool !== undefined);
+  const system = core.childBase?.().system ?? core.options.system ?? {};
+  const sections = definedSections(assembleSections({ ...system, tools, cwd: core.cwd }));
+  return prefixSystemMessage(sections, toolDecls(tools));
 }
