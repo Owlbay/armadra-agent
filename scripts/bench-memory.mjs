@@ -414,8 +414,15 @@ const scenarios = {
     let total = 0;
     let settle;
     const settled = new Promise((res) => (settle = res));
+    let badLines = 0;
     createInterface({ input: run.child.stdout }).on("line", (line) => {
-      const event = JSON.parse(line);
+      let event;
+      try {
+        event = JSON.parse(line);
+      } catch {
+        badLines++;
+        return;
+      }
       const bytes = Buffer.byteLength(line) + 1;
       total += bytes;
       byType.set(event.type, (byType.get(event.type) ?? 0) + bytes);
@@ -438,7 +445,7 @@ const scenarios = {
       ...peaks(readSamples(run.log)),
       ms: Date.now() - started,
       stdoutBytes: total,
-      note: `${steps} steps${opts.compact ? ", compact_events" : ""}; stdout ${fmtMb(total)} MB (${top})`,
+      note: `${steps} steps${opts.compact ? ", compact_events" : ""}; stdout ${fmtMb(total)} MB${badLines > 0 ? `, ${badLines} bad line(s)` : ""} (${top})`,
     };
   },
 
