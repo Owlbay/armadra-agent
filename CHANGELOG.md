@@ -35,6 +35,7 @@ Fewer full-price re-reads of the prompt prefix and fewer failed requests (docs/m
 - **The global `ama` command runs the single-file bundle**: `bin.ama` now points to `dist/bundle/ama.cjs` instead of the ESM entry, so an npm-installed `ama --version` starts in about 0.11 s instead of 0.18 s with about 25 MB less peak RSS; library imports (`@armadra/agent`, `/host`, `/rpc`, `/tui`, `/acp`) are unchanged. After `pnpm link`, run `pnpm build` so the bundle exists.
 - **Fewer retained sub-agent sessions**: finished sub-agent sessions kept in memory for `taskId` follow-ups drop from 16 to 4 (least recently used are released; the JSONL stays and a released task reopens from it when continued). Configure with `subagents.retainSessions` (user-level, 0 releases on finish).
 - **Codemode heap limit**: the script subprocess starts with `--max-old-space-size=256`; a script that exceeds it ends with the script error `Script exceeded the codemode memory limit (256 MB)` instead of growing until the timeout. Configure with `codemode.maxHeapMb` (user-level, 0 disables).
+- **Session list and resume no longer read whole files**: session files are read line by line in chunks; `ama sessions list` only parses each file's header, first entry, renames and first prompt (4 × 55 MB sessions: peak RSS about 540 → 90 MB), and `--resume` parses line by line without a whole-file string and split array (55 MB session: about 300 → 220 MB). The listed fields are unchanged.
 
 ## 0.7.3 (2026-10-09)
 
