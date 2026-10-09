@@ -2,7 +2,7 @@
 
 English · [简体中文](../permissions.md)
 
-> Translated from the Chinese [docs/permissions.md](../permissions.md) as of commit `ee89edb`. When the two differ, the
+> Translated from the Chinese [docs/permissions.md](../permissions.md) as of commit `6b5455a`. When the two differ, the
 > Chinese version is authoritative.
 
 This document covers ama's six permission modes, the decision order for every tool call, and how the three tiers of `auto` mode, "rule tier → static judgement → model classifier", decide between allowing and asking. The overall design is in [design.md](../design.md) §6.3 and §7 (Chinese); hook input and output are in [hooks.md](../hooks.md) (Chinese).

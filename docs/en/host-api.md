@@ -2,7 +2,7 @@
 
 English · [简体中文](../host-api.md)
 
-> Translated from the Chinese [docs/host-api.md](../host-api.md) as of commit `0065cf4`. When the two differ, the Chinese
+> Translated from the Chinese [docs/host-api.md](../host-api.md) as of commit `979608b`. When the two differ, the Chinese
 > version is authoritative.
 
 A host adapter is a local JS module that ama loads at startup and hands a `HostApi`. With it the adapter can register tools, append to the system prompt, observe events, answer approvals, inject user messages and show notifications and status in the interface. The Armadra canvas plugs in as a host adapter (the canvas tools `canvas_*` / `context_*` are all registered by the adapter). The types are defined in `src/host/types.ts` and exported from `@armadra/agent/host`; `HOST_API_VERSION = 1`. The design rationale is in [design.md](../design.md) §6.2, §6.3 and §11.1 step 13 (Chinese).

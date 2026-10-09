@@ -2,7 +2,7 @@
 
 English · [简体中文](../acp.md)
 
-> Translated from the Chinese [docs/acp.md](../acp.md) as of commit `bd37706`. When the two differ, the Chinese version is
+> Translated from the Chinese [docs/acp.md](../acp.md) as of commit `f6419be`. When the two differ, the Chinese version is
 > authoritative.
 
 ama works on both sides of ACP:

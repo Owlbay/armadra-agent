@@ -28,17 +28,18 @@
 
 ### 内存占用
 
-- **内存优化的基础改动**（docs/memory-plan.md，测量报告见 docs/research/memory-2026-10.md）：配置 schema 接受 `subagents.retainSessions` 与 `codemode.maxHeapMb`，RPC 可以声明 `compact_events` 能力，三者都在后续批次生效。进程级的缓存上报表对每个端点只保留上一条请求的摘要而不是整条记录，不再因此拖住已关闭的会话。
-- **图片按内容去重**：`read` 反复读同一张图、`--image` / `@路径` 附图后又读同一张、恢复的会话里重复出现的图片，内存里只留一份 base64，不再每处一份。会话文件与请求内容不变。
+大输入与长会话的峰值降下来，ACP 关掉的会话能释放（docs/memory-plan.md；测量报告见 docs/research/memory-2026-10.md，前后实测见 docs/benchmarks/memory-2026-10.md）。按大文件与会话、请求与图片、协议模式、分发与上限分组。会话文件、请求字节与工具输出都不变。
+
+- **`read` 读大文件不再整文件进内存**：超过 1 MiB 的文本按 64 KiB 块扫描，只解码要显示的行；读 256 MB 文件的 100 行峰值约 103 MB（原来 775 MB）。输出（行号、总行数、截断说明）与之前逐字节相同。
+- **会话列表与恢复不再整读文件**：会话文件按块逐行读取。`ama sessions list`（恢复选择器与 ACP `session/list` 走同一条路径）只解析每个文件的头、首条条目、改名与首条提示——4 个 55 MB 会话：约 540 → 88 MB；`--resume` 逐行解析，不再生成整份字符串与 split 数组——55 MB 会话：约 300 → 218 MB。列表各字段不变。
+- **带图请求体不再拼成一整个大字符串**：请求里有 64 KiB 以上的字符串（图片 base64）时按片段组装，以准确的 `content-length` 流式发出（不用 chunked）；小请求与以前完全一样。线上字节不变（逐字节比对 `JSON.stringify` 的测试守护），提示缓存不受影响。本地 300 步、读图 15 次的场景峰值从约 1.03 GB 降到约 0.7 GB。
+- **图片按内容去重**：`read` 反复读同一张图、`--image` / `@路径` 附图后又读同一张、恢复的会话里重复出现的图片，内存里只留一份 base64。连同上一条，真实模型的 TUI 会话（3 张 2.4 MB 图）峰值从 276 MB 降到 218 MB。
+- **ACP：关闭的会话可被回收**：关掉的会话连同转录与图片一直留在内存里——每次 `session/prompt` 的取消监听没有摘掉，新开的兄弟会话会引用开它时的前台会话，进程级的缓存上报表还整条保留每个端点的上一条请求。三处都已修正；8 个会话 × 4 轮全部关闭后，堆与堆外内存各回到约 16 MB。进程启动时建的那个会话（被第一个 `session/new` 认领）仍由进程持有到退出。
+- **ACP：后台子 Agent 通知回合进行中的 `session/prompt`**（#139）：通知回合不经 ACP 的提示队列，此时发提示会报「a run is in progress」（-32603）。现在等通知回合结束再开始；等待中 `session/cancel` 回 `cancelled`，这条提示之后也不会再发出。
 - **RPC `compact_events`**：客户端用 `set_client_capabilities` 声明后，`turn_end`、`message_start`、`entry_appended` 不再重复携带工具结果（以及带图用户消息）的正文，改标 `contentOmitted: true`，正文仍在 `message_end` 与 `tool_execution_end` 里。fake 100 步的 stdout 由 91.6 MB 降到 37.0 MB。`hello.capabilities` 列出这一项；不声明时与 `stream-json` 的事件不变。
-- **全局 `ama` 命令走单文件 bundle**：`bin.ama` 从 ESM 入口改为 `dist/bundle/ama.cjs`，npm 安装后的 `ama --version` 启动从约 0.18 s 降到约 0.11 s，峰值 RSS 少约 25 MB；库导入（`@armadra/agent`、`/host`、`/rpc`、`/tui`、`/acp`）不变。`pnpm link` 之后先 `pnpm build` 生成 bundle。
+- **全局 `ama` 命令走单文件 bundle**：`bin.ama` 从 ESM 入口改为 `dist/bundle/ama.cjs`，npm 安装后的 `ama --version` 启动从约 0.18 s 降到约 0.10 s，峰值 RSS 少约 25 MB；库导入（`@armadra/agent`、`/host`、`/rpc`、`/tui`、`/acp`）不变。`pnpm link` 之后先 `pnpm build` 生成 bundle。
 - **子 Agent 会话少保留**：为 `taskId` 续聊留在内存里的已结束子会话从 16 个降到 4 个（最久未用的先释放；JSONL 一直在，被释放的任务续聊时从它重开）。用 `subagents.retainSessions` 调整（只认用户级，0 = 结束即释放）。
 - **codemode 堆上限**：脚本子进程以 `--max-old-space-size=256` 启动，超出时以脚本错误 `Script exceeded the codemode memory limit (256 MB)` 结束，不再一路涨到超时。用 `codemode.maxHeapMb` 调整（只认用户级，0 不设上限）。
-- **会话列表与恢复不再整读文件**：会话文件按块逐行读取；`ama sessions list` 只解析每个文件的头、首条条目、改名与首条提示（4 个 55 MB 会话：峰值 RSS 约 540 → 90 MB），`--resume` 逐行解析，不再生成整份字符串与 split 数组（55 MB 会话：约 300 → 220 MB）。列表各字段不变。
-- **ACP：关闭的会话可被回收**：关掉的会话连同转录与图片一直留在内存里——每次 `session/prompt` 的取消监听没有摘掉，并且新开的兄弟会话会引用开它时的前台会话。两处都已修正；8 个会话 × 4 轮全部关闭后，堆与堆外内存回到开会话之前的水平。
-- **ACP：后台子 Agent 通知回合进行中的 `session/prompt`**（#139）：通知回合不经 ACP 的提示队列，此时发提示会报「a run is in progress」（-32603）。现在等通知回合结束再开始；等待中 `session/cancel` 回 `cancelled`，这条提示之后也不会再发出。
-- **`read` 读大文件不再整文件进内存**：超过 1 MiB 的文本按 64 KiB 块扫描，只解码要显示的行，读 256 MB 文件的 100 行不再需要数倍于文件大小的内存。输出（行号、总行数、截断说明）与之前逐字节相同。
-- **带图请求体不再拼成一整个大字符串**：请求里有 64 KiB 以上的字符串（图片 base64）时按片段组装，以准确的 `content-length` 流式发给服务端（不用 chunked）；小请求与以前完全一样。线上字节不变（逐字节比对 `JSON.stringify` 的测试守护），提示缓存不受影响。本地 300 步、读图 15 次的场景峰值从约 1.05 GB 降到约 0.7 GB。
 
 ## 0.7.3（2026-10-09）
 
