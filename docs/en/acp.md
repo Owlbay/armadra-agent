@@ -47,8 +47,9 @@ One `ama --mode acp` process can keep several sessions open (Zed's threads share
 - **One turn runs at a time**: while another session runs, `session/prompt` goes into a FIFO queue and starts when the previous turn ends; it no longer fails busy. `session/new`, `load`, `resume`, `list`, `set_mode`, `set_config_option` and `close` can be called at any time.
 - When a turn starts, its session becomes the "foreground" session: the host (`HostApi.session.*`), the common fields of hooks and the session seen by tools all switch to it, and "allowed for this session" grants are cleared (switching back means allowing again, as with `/resume` in the TUI).
 - Permission modes are kept per session: `set_mode` on the foreground session applies at once; on another session it is only recorded (a `current_mode_update` is still sent) and applied to the permission pipeline when that session's turn starts, with another `current_mode_update`. So changing the mode of a queued session does not affect the one that is running.
+- The notification turn that follows a finished background subagent does not go through this queue; it starts on its own once the session is idle. While it runs, `session/prompt` on the same session also waits for it to end (no busy error), and the client sees the notification turn's `session/update` first. `session/cancel` while waiting interrupts the notification turn; the prompt answers `cancelled` and is not sent later either.
 - After every turn a `session_info_update` is sent (`updatedAt`; `title` only when it changed).
-- Closing a session releases only that session (running the SessionEnd hook); when stdin closes, queued prompts answer `cancelled`, the running turn is allowed to finish, then all sessions are released in turn.
+- Closing a session releases only that session (running the SessionEnd hook), and its transcript, images and subagent handles can then be garbage-collected; the session object created at process start is held by the process until exit. When stdin closes, queued prompts answer `cancelled`, the running turn is allowed to finish, then all sessions are released in turn.
 
 ### Event mapping
 
