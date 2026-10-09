@@ -50,6 +50,12 @@ export const ALLOWED_LINES = {
     ],
     [/^\s*\.split\(\/\[,，\\s\]\+\/\)/, "输入识别：全角逗号也当分隔符"],
   ],
+  "src/agent/worktree.ts": [
+    [
+      /^\s*\/commondir\|gitdir\|could not read\|unable to read\|无法读取\|/,
+      "输入识别：匹配 git 在中文 locale 下的报错原文（瞬时错误重试），不显示给用户",
+    ],
+  ],
   "src/ai/providers/catalog-data.ts": [
     [/"_reason":"/, "生成数据：价格覆盖的 _reason 是给维护者看的出处说明，不显示、不发给模型"],
   ],

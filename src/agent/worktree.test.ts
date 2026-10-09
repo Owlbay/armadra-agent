@@ -8,7 +8,13 @@ import type { ToolDefinition } from "../tools/types.js";
 import { isChild, lastIsToolResult, subagentHarness } from "./testing/subagent-harness.js";
 import { stubTool } from "./testing/stubs.js";
 import type { SessionEvent } from "./types.js";
-import { createWorktree, finishWorktree, runGit } from "./worktree.js";
+import {
+  createWorktree,
+  finishWorktree,
+  retryTransient,
+  runGit,
+  type GitRunner,
+} from "./worktree.js";
 
 const hasGit = (() => {
   try {
@@ -59,6 +65,58 @@ describe.skipIf(!hasGit)("worktree 隔离（需要 git）", () => {
     expect(outcome).toEqual({ branch: "ama/task-t1", changed: false });
     expect(existsSync(tree.path)).toBe(false);
     expect(await runGit(["branch", "--list", "ama/task-t1"], root)).toBe("");
+  });
+
+  it("并行建 / 删多个 worktree：同一仓库的 worktree 增删与删分支串行，全部成功", async () => {
+    const root = repo();
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const git: GitRunner = async (args, cwd) => {
+      const mutating = args[0] === "worktree" || (args[0] === "branch" && args[1] === "-D");
+      if (mutating) maxInFlight = Math.max(maxInFlight, ++inFlight);
+      try {
+        return await runGit(args, cwd);
+      } finally {
+        if (mutating) inFlight--;
+      }
+    };
+    const ids = ["p1", "p2", "p3", "p4", "p5", "p6"];
+    const trees = await Promise.all(ids.map((id) => createWorktree(root, id, git)));
+    for (const tree of trees) expect(existsSync(tree.path)).toBe(true);
+    const outcomes = await Promise.all(trees.map((tree) => finishWorktree(tree, git)));
+    expect(outcomes.every((o) => !o.changed)).toBe(true);
+    expect(maxInFlight).toBe(1);
+    for (const tree of trees) expect(existsSync(tree.path)).toBe(false);
+    expect(
+      (await runGit(["worktree", "list", "--porcelain"], root)).match(/^worktree /gm),
+    ).toHaveLength(1);
+  });
+
+  it("跨进程的瞬时错误（读到半建的管理目录）短暂重试；其它错误立即抛出", async () => {
+    let calls = 0;
+    const value = await retryTransient(
+      async () => {
+        if (++calls < 3)
+          throw new Error(
+            "fatal: could not read .git/worktrees/x-t2/commondir: Undefined error: 0",
+          );
+        return "ok";
+      },
+      { delayMs: 1 },
+    );
+    expect(value).toBe("ok");
+    expect(calls).toBe(3);
+    calls = 0;
+    await expect(
+      retryTransient(
+        async () => {
+          calls++;
+          throw new Error("fatal: a branch named 'ama/task-x' already exists");
+        },
+        { delayMs: 1 },
+      ),
+    ).rejects.toThrow("already exists");
+    expect(calls).toBe(1);
   });
 
   it("有改动：保留并给分支与 diff 摘要（含未跟踪文件）", async () => {
