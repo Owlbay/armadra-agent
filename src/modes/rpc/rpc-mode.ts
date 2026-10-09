@@ -6,6 +6,7 @@
  * - 审批：客户端 `set_client_capabilities{capabilities:["approvals"]}` 之后才挂 UI broker；
  *   之前的 ask 无人作答 → deny。`permission_request` 带 `timeoutMs`，超时由会话 deny 并发
  *   `permission_resolved`。
+ * - [M-G] 声明 `compact_events` 之后的事件经 `toWireEvent(event, { compact: true })` 精简（json-event.ts）。
  * - 宿主 `ui.notify` → `{type:"notification", level, message}` 一行（stderr 同时一份）。
  * - stdin 关闭：撤下审批（之后的 ask 无人作答 → deny）、等在途命令与已开始的运行结束、
  *   应答写完 → 退出 0（会话由 runCli dispose）。`printf '{…prompt…}' | ama --mode rpc` 因此能拿到
@@ -34,7 +35,13 @@ export interface RpcModeOptions {
   stdout?: NodeJS.WritableStream;
 }
 
-export const RPC_CAPABILITIES: RpcHello["capabilities"] = ["approvals", "images", "hooks", "plans"];
+export const RPC_CAPABILITIES: RpcHello["capabilities"] = [
+  "approvals",
+  "images",
+  "hooks",
+  "plans",
+  "compact_events",
+];
 
 type Command = { id?: unknown; type?: unknown } & Record<string, unknown>;
 
@@ -52,7 +59,10 @@ export async function runRpcMode(
     return writing;
   };
   const subscribe = (s: AgentSession): (() => void) =>
-    s.subscribe((event) => void write(toWireEvent(event)));
+    s.subscribe(
+      (event) =>
+        void write(toWireEvent(event, { compact: ctx.capabilities.has("compact_events") })),
+    );
   let session = currentSession(runtime);
   let unsubscribe = subscribe(session);
   const approvals = new RpcApprovals();

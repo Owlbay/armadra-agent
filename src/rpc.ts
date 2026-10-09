@@ -43,9 +43,11 @@ export type { SessionEvent } from "./agent/types.js";
 
 export const RPC_PROTOCOL_VERSION = 1 as const;
 
-/** `plans`（W5-C0）：客户端声明后计划审批交给客户端（`plan_proposed` → `plan_response`）。 */
+/**
+ * `plans`（W5-C0）：客户端声明后计划审批交给客户端（`plan_proposed` → `plan_response`）。
+ * `compact_events`（M-G）：客户端声明后 turn_end / message_start / entry_appended 不重复带工具结果与图片正文。
+ */
 export type RpcCapability = "approvals" | "images" | "hooks" | "plans" | "compact_events";
-// hello.capabilities 由 M-G 加入 "compact_events"（C0 不改 RPC_CAPABILITIES，黄金不变）
 
 export interface RpcHello {
   type: "hello";
