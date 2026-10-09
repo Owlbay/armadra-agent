@@ -11,7 +11,11 @@
  *   声明了 `tools` / `disallowed-tools`（或调用参数给了 `tools`）时工具表才不同。
  * - 只读类型（`permission-mode: plan`）：子会话用一条 plan 模式的权限管线（规则同父），ask 一律转
  *   deny——写类工具与识别不了的 bash 被拒且不弹审批；`inherit` 共用父的管线（不会比父宽）。
- * - 轮数耗尽且最后停在工具结果上：以 `toolChoice:"none"` 再跑一轮要最终报告，状态 `max_turns`。
+ * - 轮数耗尽且最后停在工具结果上：以 `maxTurns: 1` 再跑一轮要最终报告（只靠提示、不发 `toolChoice`，
+ *   [ME-A] D13 请求选项不变才能命中缓存；仍调用工具则结果回落为「没有文本」），状态 `max_turns`。
+ * - [ME-A] `context: "fork"`（D1–D3，subagent-fork.ts）：子会话复制父分支到发起调用的 assistant 之前，
+ *   不写 `role` 节、工具表与父相同、类型限制改由 `unavailableTools` 在执行层拒绝；任务以 `<task>` 消息
+ *   追加在继承的历史之后。不满足条件时回落 fresh（记 info 日志），结果的 `context` 标实际模式。
  * - broker 包一层，请求带 `context{depth, parentToolCallId, taskId}`，审批事件转发到父会话；
  *   [RW-B] 父的检查点钩子（worktree 里运行时不记）；[W3-C1b] 子会话命中与重计费汇总进父。
  * - [W6-A] 句柄外露 `observe` / `entries`（子 Agent 视图跟随）与 `message`（视图里直接发的消息，
@@ -38,8 +42,9 @@ import type {
 } from "../tools/types.js";
 import { agentRole } from "../agents/builtin.js";
 import { ZERO_USAGE } from "./loop.js";
+import type { RequestRecord } from "../ai/cache/types.js";
 import type { AgentSessionOptions } from "./session-core.js";
-import type { SessionExtensionFactory } from "./session-extensions.js";
+import { forkBrief, forkPlan, requestedContext, type ContextMode } from "./subagent-fork.js";
 import {
   DEFAULT_SUBAGENT_CONCURRENCY,
   SubagentPool,
@@ -73,6 +78,8 @@ export interface SubagentParent extends RegistryHost {
   /** [W3-C1b] 父会话的缓存控制器：汇总子会话的命中与重计费。 */
   readonly cache?: {
     addSubagent(tokens: { cacheRead: number; prompt: number }, reBilledTokens: number): void;
+    /** [ME-A] 父会话上一次真实请求（fork 的前提与上下文比例）。 */
+    readonly lastTurn?: RequestRecord | undefined;
   };
 }
 
@@ -221,23 +228,33 @@ async function startAmaChild(
     if (!lookup.ok) throw new AmaError("model_not_found", `unknown model ${spec.modelRef}`);
     model = lookup.model;
   }
-  const manager = childManager(parent, spec);
+  const thinkingLevel =
+    spec.request.thinkingLevel ?? spec.agent.thinking ?? base.thinkingLevel ?? "off";
+  const wanted =
+    spec.resumeFile === undefined && requestedContext(spec.request, spec.agent) === "fork";
+  const plan = wanted ? forkPlan(parent, spec, model, thinkingLevel) : undefined;
+  if (plan !== undefined && "fallback" in plan)
+    parent.log("info", `task ${spec.taskId}: fork falls back to fresh (${plan.fallback})`);
+  const forked = plan !== undefined && "manager" in plan ? plan.manager : undefined;
+  const mode: ContextMode | undefined = !wanted ? undefined : forked ? "fork" : "fresh";
+  const manager = forked ?? childManager(parent, spec);
   const checkpointHooks = spec.isolated ? undefined : parent.checkpointHooks?.();
-  let finalRound = false;
-  const finalRoundExtension: SessionExtensionFactory = () => ({
-    id: "ama.subagent-final-round",
-    wrapStream: (stream) => (m, context, options) =>
-      stream(m, context, finalRound ? { ...options, toolChoice: "none" } : options),
-  });
   const maxTurns = spec.request.maxTurns ?? spec.agent.maxTurns ?? DEFAULT_SUBAGENT_MAX_TURNS;
+  const allowed = childToolNames(parent, spec, base.activeTools);
+  // fork：工具表 = 父活动集（前缀不变），类型限制的工具在执行层拒绝
+  const inherited = base.activeTools ?? (parent.options.tools ?? []).map((tool) => tool.name);
+  const unavailable = inherited.filter(
+    (name) => !allowed.includes(name) && !PARENT_ONLY_TOOLS.includes(name),
+  );
   const options: AgentSessionOptions = {
     ...parent.options,
     ...base,
-    system: { ...base.system, role: agentRole(spec.agent) },
+    // fork：系统提示与父相同（base.system，不加 role 节）
+    ...(forked === undefined ? { system: { ...base.system, role: agentRole(spec.agent) } } : {}),
     sessionManager: manager,
     model,
-    thinkingLevel: spec.request.thinkingLevel ?? spec.agent.thinking ?? base.thinkingLevel ?? "off",
-    activeTools: childToolNames(parent, spec, base.activeTools),
+    thinkingLevel,
+    ...(forked === undefined ? { activeTools: allowed } : {}),
     brokers: brokersForChild(parent.options.brokers, {
       depth: parent.depth + 1,
       parentToolCallId: spec.request.parentToolCallId,
@@ -246,8 +263,9 @@ async function startAmaChild(
     depth: parent.depth + 1,
     maxTurns,
     subagents: false,
-    extensions: [...(parent.options.extensions ?? []), finalRoundExtension],
   };
+  if (forked !== undefined && unavailable.length > 0)
+    options.unavailableTools = [...(parent.options.unavailableTools ?? []), ...unavailable];
   delete options.checkpointHooks;
   if (checkpointHooks !== undefined) options.checkpointHooks = checkpointHooks;
   if (spec.agent.permissionMode === "plan")
@@ -273,6 +291,7 @@ async function startAmaChild(
     } else if (event.type === "permission_request" || event.type === "permission_resolved")
       parent.emit(event);
   });
+  if (mode !== undefined) run.onEvent({ type: "context", mode });
   const onAbort = (): void => void child.abort();
   run.signal.addEventListener("abort", onAbort, { once: true });
   let billed = { cacheRead: 0, prompt: 0, reBilled: 0 };
@@ -301,25 +320,33 @@ async function startAmaChild(
     const exhausted =
       error === undefined && !run.signal.aborted && turns - startTurns >= maxTurns && toolUse;
     if (exhausted) {
-      finalRound = true;
       options.maxTurns = 1;
       try {
         await child.prompt(FINAL_REPORT_PROMPT);
       } catch (caught) {
         error = caught instanceof Error ? caught.message : String(caught);
       } finally {
-        finalRound = false;
         options.maxTurns = maxTurns;
       }
     }
     const result = collect(child, error, exhausted, run.signal.aborted);
+    if (mode !== undefined) result.context = mode;
     billed = addCache(parent, child.getStats(), billed);
     const file = manager.file();
     if (file !== undefined) result.sessionFile = file;
     return result;
   };
 
-  let current = runOnce(run.prompt, spec.origin);
+  const first =
+    forked === undefined
+      ? run.prompt
+      : forkBrief({
+          prompt: run.prompt,
+          role: spec.agent.prompt,
+          unavailable,
+          ...(spec.isolated ? { worktree: { cwd: spec.cwd, parentCwd: parent.cwd } } : {}),
+        });
+  let current = runOnce(first, spec.origin);
   const handle: TaskHandle = {
     id: manager.id,
     model: `${model.provider}/${model.id}`,
