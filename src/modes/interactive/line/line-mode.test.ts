@@ -51,11 +51,8 @@ describe("行式界面：管道", () => {
 
 describe("行式界面：管道里的错误", () => {
   it("重试中只显示 ↻；最终错误只打印一次；退出码 1", async () => {
-    h = composeHarness([
-      { error: { kind: "overloaded" } },
-      { error: { kind: "overloaded" } },
-      { error: { kind: "overloaded" } },
-    ]);
+    // 529 → rate_limited：重试上限 maxRetries + 2 = 4（[ME-C] D8），共 5 次请求
+    h = composeHarness(Array.from({ length: 5 }, () => ({ error: { kind: "overloaded" } })));
     h.home.write("home/.config/ama/config.json", {
       version: 1,
       retry: { maxRetries: 2, baseDelayMs: 1, maxDelayMs: 2 },
@@ -70,7 +67,7 @@ describe("行式界面：管道里的错误", () => {
     stdin.end("hi\n");
     expect(await done).toBe(1);
     const err = h.stderr();
-    expect(err.match(/↻ 重试/g)).toHaveLength(2);
+    expect(err.match(/↻ 重试/g)).toHaveLength(4);
     expect(err.match(/ama: 错误：/g)).toHaveLength(1);
     expect(err.split("\n").filter((l) => l.startsWith("ama:"))).toHaveLength(1);
     await runtime.dispose();

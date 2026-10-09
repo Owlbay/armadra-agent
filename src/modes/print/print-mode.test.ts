@@ -214,7 +214,7 @@ describe("print 模式", () => {
     });
     expect(await h.run(["-p", "hi", "--model", "fake/echo"])).toBe(0);
     expect(h.stdout()).toBe("ok\n");
-    expect(h.stderr()).toMatch(/^ama: ↻ 重试 1\/3（0s 后）：.+\n$/);
+    expect(h.stderr()).toMatch(/^ama: ↻ 重试 1\/5（0s 后）：.+\n$/); // 529 → rate_limited，上限 3 + 2
   });
 
   it("最终错误 → 退出 1，stderr 给原因；工具 ask 在 print 下被拒", async () => {
