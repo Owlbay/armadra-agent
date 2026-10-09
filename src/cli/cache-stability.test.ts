@@ -5,7 +5,7 @@
  * 摘要请求以上一次真实请求为逐字节前缀续写，压缩后的首个请求是重置点不算未命中。
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   composeHarness,
   recordingHost,
@@ -15,13 +15,23 @@ import { buildAnthropicRequest } from "../ai/apis/anthropic-request.js";
 import { buildOpenAIRequest } from "../ai/apis/openai-request.js";
 import type { FakeResponse } from "../ai/fake/fake-script.js";
 import { ProviderRegistry } from "../ai/providers/registry.js";
-import type { Model, TranscriptContext } from "../ai/types.js";
+import type { Model, SystemMessage, TranscriptContext } from "../ai/types.js";
 import type { SessionEvent } from "../agent/types.js";
+import type { AgentSessionImpl } from "../agent/session.js";
+import { changedSections, fingerprintContext } from "../ai/cache/fingerprint.js";
+import { detectMiss } from "../ai/cache/miss.js";
+import { sharedCacheReporting } from "../ai/cache/reporting.js";
+import { record } from "../agent/testing/cache-records.js";
+import { missReasonText } from "../modes/session-report.js";
+import type { SessionEntry } from "../session/types.js";
 import { SUMMARY_CONTINUATION_PREAMBLE } from "../compaction/summarize-tier.js";
 import type { HostApi } from "../host/types.js";
 
 let h: ComposeHarness;
-afterEach(() => h?.cleanup());
+afterEach(() => {
+  h?.cleanup();
+  vi.useRealTimers();
+});
 
 const registry = new ProviderRegistry({ keys: { useEnv: false, userAuthFile: null } });
 const anthropic = registry.get("anthropic")?.models[0] as Model;
@@ -267,5 +277,287 @@ describe("未命中与摘要续写（第三波 §1.5 / §1.8）", () => {
     expect(cache.lastHitRate).toBeGreaterThan(0.98);
     expect(cache.warming).toMatchObject({ state: "stopped", reason: "no_ttl" });
     await runtime.dispose();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// [ME-B] 开头只写一次（D4 / D5）、档一 / 档二边界（D6）、按节指纹（D15）、软窗口（D16）
+// ---------------------------------------------------------------------------
+
+/** 用配置整条声明 fake/echo（fake 供应商不读 modelOverrides）。 */
+function fakeEchoConfig(model: Json = {}, extra: Json = {}): Json {
+  return {
+    version: 1,
+    providers: {
+      fake: {
+        api: "fake",
+        baseUrl: "fake://local",
+        requiresApiKey: false,
+        models: [
+          {
+            id: "echo",
+            contextWindow: 200_000,
+            cost: { input: 1, output: 2, cacheRead: 0.1, cacheWrite: 1.25 },
+            ...model,
+          },
+        ],
+      },
+    },
+    ...extra,
+  };
+}
+
+/** 脚本用完后一直重复最后一条（摘要请求的次数随切点变化，不逐条写）。 */
+function harnessRepeating(...responses: FakeResponse[]): ComposeHarness {
+  const harness = composeHarness();
+  harness.fake.setScript({ version: 1, responses, whenExhausted: "repeat-last" });
+  return harness;
+}
+
+const turnCalls = () => h.fake.calls.filter((c) => c.options.purpose !== "summary");
+const summaryCalls = () => h.fake.calls.filter((c) => c.options.purpose === "summary");
+const sentMessages = (context: TranscriptContext): Json[] =>
+  buildOpenAIRequest(deepseek, context, { signal }).body["messages"] as Json[];
+
+describe("开头只写一次（ME D4 / D5）", () => {
+  it("压缩前有补丁：压缩后首个请求 system + tools 与压缩前逐字节相同，补丁在摘要后的提醒里；再压缩一次仍相同", async () => {
+    h = harnessRepeating({ text: "## Goal\nok" });
+    h.home.write("work/AGENTS.md", "project rules v1");
+    const first = await h.boot(["--model", "fake/echo"]);
+    await first.session.prompt("q0");
+    await first.dispose();
+    h.home.write("work/AGENTS.md", "project rules v2");
+    const resumed = await h.boot(["--model", "fake/echo", "--continue"]);
+    await resumed.session.prompt("q1");
+    await resumed.session.prompt("q2");
+    await resumed.session.compact();
+    await resumed.session.prompt("q3");
+    await resumed.session.prompt("q4");
+    await resumed.session.compact();
+    await resumed.session.prompt("q5");
+    expect(resumed.session.entries.filter((e) => e.type === "compaction")).toHaveLength(2);
+
+    const turns = turnCalls();
+    expect(turns).toHaveLength(6);
+    const head = JSON.stringify(prefixes(turns[0]!.context));
+    expect(head).toContain("project rules v1");
+    for (const call of turns) expect(JSON.stringify(prefixes(call.context))).toBe(head);
+    for (const call of [turns[3]!, turns[5]!]) {
+      const [summary, reminder] = sentMessages(call.context).slice(1);
+      expect(String(summary?.["content"])).toContain("<summary>");
+      expect(String(reminder?.["content"])).toMatch(/^<system-reminder>\n/);
+      expect(String(reminder?.["content"])).toContain("project rules v2");
+    }
+    // 会话文件里仍只有一条全量 system + 一条补丁（检查点与合成补丁不落盘）
+    const systems = resumed.session.entries.filter(
+      (e) => e.type === "message" && e.message.role === "system",
+    );
+    expect(systems).toHaveLength(2);
+    // 首个请求不含提醒（prompt-budget 只量首个请求，提醒文案不进预算）
+    expect(JSON.stringify(turns[0]!.context)).not.toContain("<system-reminder>");
+    await resumed.dispose();
+  });
+
+  it("移除工具：声明保留、尾部提醒，调用被拒；加回只提醒 available again；system + tools 与指纹始终不变", async () => {
+    h = composeHarness([
+      { text: "a" },
+      { text: "b" },
+      { steps: [{ toolCall: { name: "bash", arguments: { command: "echo hi" } } }] },
+      { text: "c" },
+      { text: "d" },
+    ]);
+    const runtime = await h.boot(["--model", "fake/echo"]);
+    const all = runtime.session.getTools().map((tool) => tool.name);
+    expect(all).toContain("bash");
+    await runtime.session.prompt("q0");
+    runtime.session.setActiveTools(all.filter((name) => name !== "bash"));
+    await runtime.session.prompt("q1");
+    await runtime.session.prompt("q2");
+    runtime.session.setActiveTools(all);
+    await runtime.session.prompt("q3");
+
+    const calls = h.fake.calls;
+    expect(calls).toHaveLength(5);
+    const head = JSON.stringify(prefixes(calls[0]!.context));
+    const fingerprint = JSON.stringify(fingerprintContext(calls[0]!.context, anthropic));
+    for (let i = 0; i < calls.length; i++) {
+      expect(JSON.stringify(prefixes(calls[i]!.context))).toBe(head);
+      expect(JSON.stringify(fingerprintContext(calls[i]!.context, anthropic))).toBe(fingerprint);
+      if (i === 0) continue;
+      const prev = sentMessages(calls[i - 1]!.context);
+      expect(JSON.stringify(sentMessages(calls[i]!.context).slice(0, prev.length))).toBe(
+        JSON.stringify(prev),
+      );
+    }
+    const tail = (i: number) => JSON.stringify(sentMessages(calls[i]!.context).slice(-2));
+    expect(tail(1)).toContain('Tool \\"bash\\" is no longer available in this session');
+    const rejected = runtime.session.messages.find(
+      (m) => m.role === "toolResult" && m.toolName === "bash",
+    );
+    expect(rejected).toMatchObject({ isError: true });
+    expect(JSON.stringify(rejected)).toContain('Tool \\"bash\\" is not available in this session.');
+    expect(tail(4)).toContain('Tool \\"bash\\" is available again.');
+    await runtime.dispose();
+  });
+});
+
+/** n 次 read（各读一个约 `chars` 字符的文件），之后回文本 `final`。 */
+function readLoop(n: number, final: FakeResponse, chars = 8000): FakeResponse[] {
+  for (let i = 0; i < n; i++)
+    h.home.write(`work/f${i}.txt`, `${"x".repeat(79)}\n`.repeat(Math.ceil(chars / 80)));
+  const out: FakeResponse[] = [];
+  for (let i = 0; i < n; i++)
+    out.push({ steps: [{ toolCall: { name: "read", arguments: { path: `f${i}.txt` } } }] });
+  return [...out, final];
+}
+
+let runtimeEntries: readonly SessionEntry[] = [];
+const prunes = () =>
+  runtimeEntries.filter((e) => e.type === "context_edit" && e.reason === "prune");
+
+describe("档一 / 档二边界（ME D6）", () => {
+  const config = fakeEchoConfig(
+    { contextWindow: 60_000 },
+    { compaction: { prune: { clearAtLeast: 2000 } }, cache: { warming: "off" } },
+  );
+
+  // 窗口 60k、预留 16k → 预算 43.6k；8 个结果可裁约 6k。52k：裁完仍超预算、续写放得进窗口；38k：裁完就够
+  it("裁完仍超预算：不裁、直接以上一次请求为前缀续写摘要；裁完够：只裁不摘要", async () => {
+    sharedCacheReporting.clear();
+    h = harnessRepeating();
+    h.home.write("home/.config/ama/config.json", config);
+    h.fake.setScript({
+      version: 1,
+      responses: [...readLoop(8, { text: "a", usage: { input: 52_000 } }), { text: "## Goal\ns" }],
+      whenExhausted: "repeat-last",
+    });
+    const runtime = await h.boot(["--model", "fake/echo"]);
+    await runtime.session.prompt("read them all");
+    await runtime.session.prompt("next");
+    runtimeEntries = runtime.session.entries;
+    const at = runtimeEntries.findIndex((e) => e.type === "compaction");
+    expect(at).toBeGreaterThan(0);
+    expect(prunes()).toEqual([]);
+    const lastTurn = h.fake.calls[8]!;
+    const summary = summaryCalls()[0]!;
+    expect(summary.options.cacheRetention).not.toBe("none");
+    const n = lastTurn.context.messages.length;
+    expect(JSON.stringify(summary.context.messages.slice(0, n))).toBe(
+      JSON.stringify(lastTurn.context.messages),
+    );
+    await runtime.dispose();
+
+    sharedCacheReporting.clear();
+    h.cleanup();
+    h = harnessRepeating();
+    h.home.write("home/.config/ama/config.json", config);
+    h.fake.setScript({
+      version: 1,
+      responses: [...readLoop(8, { text: "a", usage: { input: 38_000 } }), { text: "b" }],
+      whenExhausted: "repeat-last",
+    });
+    const second = await h.boot(["--model", "fake/echo"]);
+    await second.session.prompt("read them all");
+    await second.session.prompt("next");
+    runtimeEntries = second.session.entries;
+    expect(prunes().length).toBeGreaterThan(0);
+    expect(runtimeEntries.some((e) => e.type === "compaction")).toBe(false);
+    expect(summaryCalls()).toEqual([]);
+    await second.dispose();
+  });
+
+  it("缓存已冷（目录 TTL 300 s，空闲 600 s）：不续写，摘要走独立请求（cacheRetention none）", async () => {
+    sharedCacheReporting.clear();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(1_000_000);
+    h = harnessRepeating(
+      { text: "a", usage: { input: 0, cacheWrite: 5000 } },
+      { text: "b", usage: { input: 0, cacheWrite: 55_000 } },
+      { text: "## Goal\ns" },
+    );
+    h.home.write(
+      "home/.config/ama/config.json",
+      fakeEchoConfig(
+        { contextWindow: 60_000, promptCache: { short: 300 } },
+        {
+          cache: { warming: "off" },
+        },
+      ),
+    );
+    const runtime = await h.boot(["--model", "fake/echo"]);
+    await runtime.session.prompt("q0");
+    await runtime.session.prompt("q1");
+    vi.setSystemTime(1_000_000 + 600_000);
+    expect((runtime.session as AgentSessionImpl).cache.isCold()).toBe(true);
+    await runtime.session.prompt("q2");
+    expect(runtime.session.entries.some((e) => e.type === "compaction")).toBe(true);
+    const summaries = summaryCalls();
+    expect(summaries.length).toBeGreaterThan(0);
+    for (const call of summaries) expect(call.options.cacheRetention).toBe("none");
+    expect(summaries[0]!.context.messages.at(-1)).not.toMatchObject({
+      content: expect.stringMatching(new RegExp(`^${SUMMARY_CONTINUATION_PREAMBLE.slice(0, 20)}`)),
+    });
+    await runtime.dispose();
+  });
+});
+
+describe("按节指纹与软窗口（ME D15 / D16）", () => {
+  it("只有 hooks 节变了：cache_miss.detail 为 system:hooks，提示文案带节名", async () => {
+    h = composeHarness();
+    const runtime = await h.boot(["--model", "fake/echo"]);
+    await runtime.session.prompt("q0");
+    const context = h.fake.calls[0]!.context;
+    const [head, ...rest] = context.messages;
+    expect(head?.role).toBe("system");
+    const changed: TranscriptContext = {
+      messages: [
+        {
+          ...(head as SystemMessage),
+          sections: { ...(head as SystemMessage).sections, hooks: "h" },
+        },
+        ...rest,
+      ],
+    };
+    const a = fingerprintContext(context, anthropic);
+    const b = fingerprintContext(changed, anthropic);
+    expect(Object.keys(a.sections ?? {})).toContain("preamble");
+    expect(changedSections(a, b)).toEqual(["hooks"]);
+    const miss = detectMiss(
+      record({ cacheWrite: 30_000, fingerprint: a }),
+      record({ at: 1000, input: 30_000, fingerprint: b }),
+      300_000,
+      { reporting: "reported" },
+    );
+    expect(miss).toMatchObject({ reason: "prefix_changed", detail: "system:hooks" });
+    expect(missReasonText(miss!)).toContain("hooks");
+    await runtime.dispose();
+  });
+
+  it("compaction.contextBudget 64k：1M 窗口的模型按 64k 裁剪与给阈值；不设则不裁", async () => {
+    const run = async (compaction: Json): Promise<SessionEntry[]> => {
+      sharedCacheReporting.clear();
+      h?.cleanup();
+      h = harnessRepeating();
+      h.home.write(
+        "home/.config/ama/config.json",
+        fakeEchoConfig({ contextWindow: 1_000_000 }, { compaction, cache: { warming: "off" } }),
+      );
+      h.fake.setScript({ version: 1, responses: readLoop(10, { text: "done" }, 16_000) });
+      const runtime = await h.boot(["--model", "fake/echo"]);
+      await runtime.session.prompt("read them all");
+      const stats = runtime.session.getStats().context;
+      const budget = (compaction["contextBudget"] as number | undefined) ?? 1_000_000;
+      expect(stats?.autoCompactAt).toBe(budget - 16_384);
+      expect(stats?.pruneAt).toBe(Math.floor(0.7 * (budget - 16_384)));
+      const entries = [...runtime.session.entries];
+      await runtime.dispose();
+      return entries;
+    };
+    const isPrune = (e: SessionEntry) => e.type === "context_edit" && e.reason === "prune";
+    const soft = await run({ contextBudget: 65_536, prune: { clearAtLeast: 2000 } });
+    expect(soft.filter(isPrune).length).toBeGreaterThan(0);
+    expect(soft.some((e) => e.type === "compaction")).toBe(false);
+    const full = await run({ prune: { clearAtLeast: 2000 } });
+    expect(full.filter(isPrune)).toEqual([]);
   });
 });
