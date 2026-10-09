@@ -691,6 +691,17 @@ Anthropic 的 `baseUrl` 以 `/v1` 结尾时请求 `{baseUrl}/messages`，不会�
 中转常把目录里的 `maxTokens` 写成与窗口相同，这时第一次请求会被拒一次，之后同一进程里不再出现；长期用的模型可以
 在 `models[]` / `modelOverrides[]` 里把 `maxTokens` 填成端点实际上限，连第一次也省掉。
 
+### 请求超时与重试
+
+- **超时分两段**：`request.idleTimeoutMs`（缺省 300 000，`AMA_IDLE_TIMEOUT_MS` 覆盖）只管等响应头；流开始后两块数据之间
+  的上限是 `request.streamIdleTimeoutMs`（缺省 180 000，`AMA_STREAM_IDLE_TIMEOUT_MS` 覆盖）。两者都是 0 关闭，超时按
+  可重试错误处理。思考不外露的端点推理阶段可能很久没有字节，误判断流会让整段输出重新计费，所以流中上限不设得更短；
+  以前为慢端点调大 `idleTimeoutMs` 的，现在要调的是 `streamIdleTimeoutMs`。
+- **重试**（`retry.*`）：等待 = `min(maxDelayMs, max(baseDelayMs × 2^(n−1), Retry-After)) × 0.8–1.2 随机`，端点给了
+  `Retry-After` 就至少等那么久（失败消息上记为 `retryAfterMs`）。429 / 529 / rate limit 文案算限流，最多重试
+  `maxRetries + 2` 次；5xx 只认文案开头或 `status` / `HTTP` 之后的状态码（文案中间出现的「500 tokens」不算）。
+- **回退模型**：配了 `fallbackModel` 时，overloaded 先快速重试一次（约 1 s），仍失败才切到回退模型。
+
 ### usage 与 `cacheReported`
 
 原始 usage 里出现任一缓存字段（即使为 0）→ `Usage.cacheReported = true`，都没有 → `false`：Completions 认

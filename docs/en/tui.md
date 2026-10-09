@@ -2,7 +2,7 @@
 
 English · [简体中文](../tui.md)
 
-> Translated from the Chinese [docs/tui.md](../tui.md) as of commit `6a7b5eb`. When the two differ, the Chinese version is
+> Translated from the Chinese [docs/tui.md](../tui.md) as of commit `4b85f89`. When the two differ, the Chinese version is
 > authoritative. Screens below are illustrative; the exact interface wording follows the interface language
 > (`ui.language`, `--lang`, `AMA_LANG`).
 

@@ -2,7 +2,7 @@
 
 English · [简体中文](../providers.md)
 
-> Translated from the Chinese [docs/providers.md](../providers.md) as of commit `e3bde2e`. When the two differ, the
+> Translated from the Chinese [docs/providers.md](../providers.md) as of commit `514202f`. When the two differ, the
 > Chinese version is authoritative.
 
 Built-in providers, model references, API keys, custom providers and relays, the compat switches of each protocol, and caching. The design rationale is in [design.md](../design.md) §3 and §9.1 (Chinese).
@@ -497,6 +497,12 @@ Before each request is sent, its `max_tokens` (Completions' `max_completion_toke
 - **Reactive fix**: when an endpoint rejects with 400 and states the limit (wordings like `Range of max_tokens should be [1, N]` or `max_tokens … must be / at most / less than or equal to N`), the limit for `provider/model` is recorded in an in-process table and the request is resent once with it (like the automatic stripping above, only before the stream starts and still with a single terminal event); later requests in the same process use the limit directly. Anthropic's `input length and max_tokens exceed context limit: X + Y > Z` is resent once with `Z − X` and not recorded as a model limit; when `Z − X` is below 1024 it is handled as a context overflow (compact, then retry).
 
 Relays often list a catalog `maxTokens` equal to the window; the first request is then rejected once and never again in the same process. For a model you use long term, set `maxTokens` to the endpoint's real limit in `models[]` / `modelOverrides[]` to skip even that first rejection.
+
+### Request timeouts and retries
+
+- **Two timeouts**: `request.idleTimeoutMs` (default 300 000, overridden by `AMA_IDLE_TIMEOUT_MS`) only covers waiting for the response headers; once the stream has started, the gap between two chunks is limited by `request.streamIdleTimeoutMs` (default 180 000, overridden by `AMA_STREAM_IDLE_TIMEOUT_MS`). 0 turns either off, and a timeout is handled as a retryable error. Endpoints that hide thinking may send no bytes for a long time while reasoning, and a false stall would bill the whole output again, so the in-stream limit is not shorter; if you raised `idleTimeoutMs` for a slow endpoint before, `streamIdleTimeoutMs` is now the one to raise.
+- **Retries** (`retry.*`): the wait is `min(maxDelayMs, max(baseDelayMs × 2^(n−1), Retry-After)) × random 0.8–1.2`, so when the endpoint sends `Retry-After` ama waits at least that long (recorded as `retryAfterMs` on the failed message). 429 / 529 / rate-limit wording counts as rate limiting and is retried up to `maxRetries + 2` times; a 5xx only counts when the status code starts the message or follows `status` / `HTTP` ("500 tokens" in the middle of the text does not).
+- **Fallback model**: with `fallbackModel` set, an overloaded error is first retried once quickly (about 1 s) and only then switches to the fallback model.
 
 ### usage and `cacheReported`
 
