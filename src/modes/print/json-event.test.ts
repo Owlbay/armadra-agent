@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { AssistantMessage } from "../../ai/types.js";
-import { toJsonLine, toWireEvent } from "./json-event.js";
+import type { AssistantMessage, ToolResultMessage, UserMessage } from "../../ai/types.js";
+import type { SessionEvent } from "../../agent/types.js";
+import { compactEvent, toJsonLine, toWireEvent } from "./json-event.js";
 
 const message: AssistantMessage = {
   role: "assistant",
@@ -81,5 +82,82 @@ describe("线上事件形状", () => {
       n: "10",
       image: { type: "image", data, mimeType: "image/png" },
     });
+  });
+});
+
+describe("[M-G] compact_events", () => {
+  const result: ToolResultMessage = {
+    role: "toolResult",
+    toolCallId: "c1",
+    toolName: "read",
+    content: "BIG",
+    isError: false,
+    details: { lines: 3 },
+    timestamp: 7,
+  };
+  const image = { type: "image", data: "AAAA", mimeType: "image/png" } as const;
+  const withImage: UserMessage = {
+    role: "user",
+    content: [{ type: "text", text: "see" }, image],
+    timestamp: 2,
+  };
+  const plainUser: UserMessage = { role: "user", content: "hi", timestamp: 3 };
+  const entry = (m: ToolResultMessage | UserMessage): SessionEvent => ({
+    type: "entry_appended",
+    entry: { type: "message", id: "e1", parentId: null, timestamp: "t", message: m },
+  });
+
+  it("turn_end.toolResults 每项只留 id / 名称 / isError / timestamp", () => {
+    const wire = toWireEvent(
+      { type: "turn_end", message, toolResults: [result] },
+      { compact: true },
+    );
+    expect(wire).toEqual({
+      type: "turn_end",
+      message,
+      toolResults: [
+        { toolCallId: "c1", toolName: "read", isError: false, timestamp: 7, contentOmitted: true },
+      ],
+    });
+    const empty: SessionEvent = { type: "turn_end", message, toolResults: [] };
+    expect(compactEvent(empty)).toBe(empty);
+  });
+
+  it("message_start / entry_appended：toolResult 与带图 user 去正文；纯文本 user、assistant 原样", () => {
+    expect(compactEvent({ type: "message_start", message: result })).toEqual({
+      type: "message_start",
+      message: { ...result, content: "", contentOmitted: true },
+    });
+    expect(compactEvent({ type: "message_start", message: withImage })).toEqual({
+      type: "message_start",
+      message: { ...withImage, content: "", contentOmitted: true },
+    });
+    const plain: SessionEvent = { type: "message_start", message: plainUser };
+    expect(compactEvent(plain)).toBe(plain);
+    const assistant: SessionEvent = { type: "message_start", message };
+    expect(compactEvent(assistant)).toBe(assistant);
+    expect(compactEvent(entry(result))).toMatchObject({
+      entry: { id: "e1", message: { role: "toolResult", content: "", contentOmitted: true } },
+    });
+    expect(compactEvent(entry(withImage))).toMatchObject({ entry: { message: { content: "" } } });
+    const plainEntry = entry(plainUser);
+    expect(compactEvent(plainEntry)).toBe(plainEntry);
+    expect(result.content).toBe("BIG"); // 不改原事件
+  });
+
+  it("message_end / tool_execution_end 全量；不传 compact 时与原先一致", () => {
+    const end: SessionEvent = { type: "message_end", message: result };
+    expect(toWireEvent(end, { compact: true })).toBe(end);
+    const tool: SessionEvent = {
+      type: "tool_execution_end",
+      toolCallId: "c1",
+      toolName: "read",
+      isError: false,
+      result: { content: "BIG" },
+    };
+    expect(toWireEvent(tool, { compact: true })).toBe(tool);
+    const start: SessionEvent = { type: "message_start", message: result };
+    expect(toWireEvent(start)).toBe(start);
+    expect(toWireEvent(start, { compact: false })).toBe(start);
   });
 });
