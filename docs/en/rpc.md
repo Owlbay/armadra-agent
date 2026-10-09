@@ -115,10 +115,12 @@ After a session switch the server re-subscribes to events and sends `session_sta
 
 ### Approvals
 
-| Command                   | Parameters                                                            | `data`                                                                                                           |
-| ------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `set_client_capabilities` | `capabilities: ("approvals" \| "images" \| "hooks" \| "plans")[]`     | `{ capabilities }`                                                                                               |
-| `permission_response`     | `requestId: string`, `decision: "allow" \| "deny" \| "allow_session"` | `{ accepted: boolean }` (false = not currently waiting for this id; kept and applied when that request is asked) |
+| Command                   | Parameters                                                                            | `data`                                                                                                           |
+| ------------------------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `set_client_capabilities` | `capabilities: ("approvals" \| "images" \| "hooks" \| "plans" \| "compact_events")[]` | `{ capabilities }`                                                                                               |
+| `permission_response`     | `requestId: string`, `decision: "allow" \| "deny" \| "allow_session"`                 | `{ accepted: boolean }` (false = not currently waiting for this id; kept and applied when that request is asked) |
+
+`compact_events` (docs/memory-plan.md D9, **effective from M-G**, when it is also listed in `hello.capabilities`): once declared, `turn_end.toolResults`, `message_start` and `entry_appended` no longer repeat the body of tool results and of user messages with images (marked `contentOmitted: true`); the body is sent only in `message_end` and `tool_execution_end`. Without it the event shapes are unchanged. Until then declaring it is only echoed back and has no effect.
 
 ### Tools, permissions, discovery
 
