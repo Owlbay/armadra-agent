@@ -47,7 +47,7 @@ describe("嵌套调用", () => {
       .map((m) => String(m.content));
     expect(texts).toEqual([
       "Tool read is only callable inside a codemode script: tools.read({...})",
-      "Tool nope not found",
+      'Tool "nope" is not available in this session.',
     ]);
   });
 
@@ -151,7 +151,7 @@ describe("嵌套调用", () => {
     await h.session.prompt("go");
     const result = h.session.messages.find((m) => m.role === "toolResult");
     expect(String(result?.content)).toBe(
-      "ERR bash denied by rule\nOK read ok\nERR Tool nope not found",
+      'ERR bash denied by rule\nOK read ok\nERR Tool "nope" is not available in this session.',
     );
     const ends = h.events.filter(
       (e): e is Extract<SessionEvent, { type: "tool_execution_end" }> =>
