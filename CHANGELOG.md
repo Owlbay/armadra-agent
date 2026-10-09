@@ -44,6 +44,9 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 - **Contributing**: the repository now has issue forms (bug report, feature request, provider / model compatibility,
   documentation), a pull request template, `CONTRIBUTING.md`, `SECURITY.md` and an `AGENTS.md` with the hard constraints
   and review rules. None of these ship in the npm package.
+- **Docs**: design notes, plans and research reports no longer name the third-party projects they were compared with;
+  those are described generically or by code names. Agents, providers and protocols that ama actually drives or supports
+  keep their names.
 
 ## 0.7.1 (2026-10-05)
 
