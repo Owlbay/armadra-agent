@@ -8,7 +8,9 @@
  * - `forceGc()`：一次完整 GC；
  * - `gcUntil(pred, rounds)`：每轮先让出事件循环（清掉 WeakRef 的任务内保活）、GC、再让出
  *   （FinalizationRegistry 回调在宏任务里跑），直到 `pred()` 为真；轮数缺省 10，`AMA_GC_ROUNDS` 可在慢机器上放宽；
- * - `measureGrowth(fn)`：热身一次后，前后各两轮 GC，比较 `heapUsed` / `external` / `arrayBuffers`；
+ * - `measureGrowth(fn)`：热身一次后，前后各两轮 GC 并等堆外记账稳定（ArrayBuffer 后备存储的释放可能
+ *   落后于 `gc()`，本模块加载时关掉并发清扫，`settle` 再兜底等待），比较 `heapUsed` / `external` /
+ *   `arrayBuffers`；
  *   `fn` 的返回值在测量后才释放（结果本身计入增长）；`beforeGc` 是 `fn` 刚结束、尚未 GC 时的增长
  *   （含未回收的临时对象，只作诊断）；
  * - `trackInstances(ctor)`：登记的实例里还活着几个；
@@ -20,6 +22,11 @@ import { setFlagsFromString } from "node:v8";
 import { runInNewContext } from "node:vm";
 import type { ContentBlock } from "../../src/ai/types.js";
 import { SessionManager } from "../../src/session/manager.js";
+
+// ArrayBuffer 后备存储改为在 GC 当中同步清扫：缺省的并发清扫在后台线程释放内存，`gc()` 返回后
+// `external` / `arrayBuffers` 还会延迟下降，热身留下的 Buffer 会被算进「之前」的基线，把随后留存的
+// 同样大小的结果抵成 0（Linux / Windows 的 Node 22、24 上可复现）。运行时设置即生效，未知标志 V8 忽略。
+setFlagsFromString("--no-concurrent-array-buffer-sweeping");
 
 let cachedGc: (() => void) | undefined;
 
@@ -94,12 +101,28 @@ function diff(after: MemorySample, before: MemorySample): Growth {
   return { heapUsed, external, arrayBuffers, total: heapUsed + external + arrayBuffers };
 }
 
+const sameOffHeap = (a: MemorySample, b: MemorySample): boolean =>
+  a.external === b.external && a.arrayBuffers === b.arrayBuffers;
+
+/**
+ * 两轮 GC 后，再等到 `external` / `arrayBuffers` 连续两次采样相同（最多约 100 ms）：ArrayBuffer 的
+ * 后备存储由 V8 在后台线程清扫释放，`gc()` 返回时记账可能还没扣掉（见文件头）。
+ */
 async function settle(): Promise<MemorySample> {
   for (let i = 0; i < 2; i++) {
     forceGc();
     await tick();
   }
-  return sampleMemory();
+  let previous = sampleMemory();
+  for (let i = 0; i < 20; i++) {
+    await new Promise((resolve) => setTimeout(resolve, i < 5 ? 0 : 5));
+    forceGc();
+    await tick();
+    const current = sampleMemory();
+    if (sameOffHeap(previous, current)) return current;
+    previous = current;
+  }
+  return previous;
 }
 
 /** 测 `fn` 之后留下的内存增长（GC 之后）；`warmup` 缺省先跑一次（加载模块、JIT、缓存）。 */
