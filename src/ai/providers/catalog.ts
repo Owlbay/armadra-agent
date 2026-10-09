@@ -37,6 +37,8 @@ export type CatalogEntry = Partial<Omit<CatalogModel, "cost">> & {
   _reason?: string;
   /** 模型级协议（OpenAI 推理模型走 responses 等）。 */
   api?: Api;
+  /** [ME-C0] 中转 / 自定义模型按 id 匹配到本条目时使用的别名（小写、去厂商前缀后比较）；不进 Model。 */
+  aliases?: string[];
 };
 
 /** `catalog/*.json` 的文件形状（覆盖格式）。 */
@@ -45,6 +47,8 @@ export interface CatalogSourceFile {
   provider: string;
   /** 快照里对应的 models.dev 供应商 id；false = 没有（本地服务）。 */
   modelsDev?: string | false;
+  /** [ME-C0] 本供应商用于 auto 模式分类的小模型 id。 */
+  small?: string;
   models: CatalogEntry[];
 }
 
@@ -101,6 +105,12 @@ export function checkCatalogEntry(value: unknown, path: string): string[] {
     problems.push(`${path}.modelsDev`);
   if (value["_reason"] !== undefined && typeof value["_reason"] !== "string")
     problems.push(`${path}._reason`);
+  const aliases = value["aliases"];
+  if (
+    aliases !== undefined &&
+    (!Array.isArray(aliases) || !aliases.every((a) => typeof a === "string" && a.length > 0))
+  )
+    problems.push(`${path}.aliases`);
   if (
     value["maxTokens"] !== undefined &&
     (!isNonNegative(value["maxTokens"]) || value["maxTokens"] === 0)
@@ -192,7 +202,7 @@ export function resolveCatalogEntry(
   entry: CatalogEntry,
   inherited: Partial<CatalogModel>,
 ): { model: CatalogModel; inherited: string[] } {
-  const { modelsDev: _modelsDev, _reason: _r, ...own } = structuredClone(entry);
+  const { modelsDev: _modelsDev, _reason: _r, aliases: _a, ...own } = structuredClone(entry);
   const model = { ...structuredClone(inherited), ...own } as CatalogModel;
   if (own.cost !== undefined && inherited.cost !== undefined)
     model.cost = { ...structuredClone(inherited.cost), ...own.cost };
@@ -235,6 +245,9 @@ function fileProblems(value: unknown): string[] {
   const modelsDev = value["modelsDev"];
   if (modelsDev !== undefined && modelsDev !== false && typeof modelsDev !== "string")
     problems.push("$.modelsDev");
+  const small = value["small"];
+  if (small !== undefined && (typeof small !== "string" || small.length === 0))
+    problems.push("$.small");
   if (!Array.isArray(value["models"])) problems.push("$.models must be an array");
   else {
     const seen = new Set<string>();
