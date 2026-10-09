@@ -114,7 +114,7 @@
 
 `ama.task`（第五波 W5-G）：子会话首条的 `data` 另带 `taskId`、`agent`；父会话在任务开始、每次续聊与结束时各写一条，
 `data` = `TaskInfo`（`taskId, agent, runner, description, background, status, startedAt, endedAt?, turns?, usage?, costUsd?,
-outputFile?, sessionRef?`）+ `parentToolCallId`、`cwd`。同一 `taskId` 取分支上最后一条；resume 时据此重建任务注册表，
+contextTokens?, contextWindow?, outputFile?, sessionRef?`；`contextTokens / contextWindow` 只有外部 Agent 报告时才有）+ `parentToolCallId`、`cwd`。同一 `taskId` 取分支上最后一条；resume 时据此重建任务注册表，
 `status: "running"` 视为 `interrupted`（`taskId` 续聊重开 `sessionRef.sessionFile`）。没有 `status` 的是子会话自己的首条。
 
 第五波登记的类型（docs/wave5-plan.md；括号里是开始写入的批次，之前的版本不会产生，读到未知 `customType` 一律忽略）。`custom_message` 类都是 `display: false`，经扩展点 `beforePrompts` 追加在末尾，不改缓存前缀：
@@ -129,7 +129,7 @@ outputFile?, sessionRef?`）+ `parentToolCallId`、`cwd`。同一 `taskId` 取�
 | `ama.post_compact`   | （不单独成条）   | 回注改为 `compaction.summary` 末尾的 `<post-compact-state>` 块（清单与指针，不含正文；见 `compaction/post-compact.ts`）                  | 写 compaction 条目时（W5-H1），模型看到「摘要 → 回注 → 保留区」                                                                 |
 | `ama.reminder`       | `custom_message` | `content`：提醒（todo 复述、外部文件改动、上下文用量、预算余量、后台命令退出），`<system-reminder>` 包起来                               | 新提示之前按 `reminders.*` 追加（W5-H2）；run 进行中的提醒不单独成条，追加在工具批次最后一条 toolResult 的末尾                  |
 | `ama.agent-session`  | `custom`         | `data: { agent, runner, sessionId, cwd?, taskId? }`：外部 Agent 自己的会话引用（不含原始事件与转录）                                     | 外部 Agent 会话建立 / 续聊时（W5-E）                                                                                            |
-| `ama.agent-usage`    | `custom`         | `data: { agent, sessionId, unit: usd \| tokens \| requests, amount, tokens? }`                                                           | 外部 Agent 每个回合结束（W5-E）；`SessionStats.external` 据此汇总                                                               |
+| `ama.agent-usage`    | `custom`         | `data: { agent, sessionId, unit: usd \| tokens \| requests, amount, tokens?, contextTokens?, contextWindow? }`（上下文只记数字）         | 外部 Agent 每个回合结束（W5-E）；`SessionStats.external` 据此汇总                                                               |
 
 第六波登记的类型（docs/wave6-plan.md §2.2；之前的版本不会产生）：
 

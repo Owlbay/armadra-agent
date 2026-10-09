@@ -236,6 +236,8 @@ class ProcessHandle implements RunnerHandle {
   private readonly agent: string;
   /** [W6-C0] 本回合工具的骨架（id → 种类 / 状态 / 起止），回合结束写 `turn_trace`。 */
   private turnTools = new Map<string, TraceExternalTool>();
+  /** 外部 Agent 最近报告的上下文占用与窗口（只记数字，跨回合保留）。 */
+  private context: { contextTokens?: number; contextWindow?: number } = {};
 
   constructor(
     private readonly runner: ProcessRunner,
@@ -382,6 +384,7 @@ class ProcessHandle implements RunnerHandle {
         this.emit({ type: "notice", level: event.level, text: event.text });
         return;
       case "usage":
+        this.noteContext(event.contextTokens, event.contextWindow);
         if (event.costUsd !== undefined) {
           turnCost.usd = event.costUsd;
           const budget = this.request.budgetUsd;
@@ -403,6 +406,20 @@ class ProcessHandle implements RunnerHandle {
       default:
         return;
     }
+  }
+
+  /** 上下文占用或窗口变了：记下并单独发一条只带它们的 usage（任务记录 / Agent 栏即时更新）。 */
+  private noteContext(tokens: number | undefined, window: number | undefined): void {
+    const next = { ...this.context };
+    if (tokens !== undefined) next.contextTokens = tokens;
+    if (window !== undefined) next.contextWindow = window;
+    if (
+      next.contextTokens === this.context.contextTokens &&
+      next.contextWindow === this.context.contextWindow
+    )
+      return;
+    this.context = next;
+    this.emit({ type: "usage", ...next });
   }
 
   private now(): number {
@@ -503,6 +520,7 @@ class ProcessHandle implements RunnerHandle {
           unit,
           amount,
           ...(usage.totalTokens > 0 ? { tokens: usage.totalTokens } : {}),
+          ...this.context,
         });
         this.emit({ type: "usage", usage, unit, amount });
       }

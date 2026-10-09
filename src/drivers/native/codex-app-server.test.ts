@@ -75,7 +75,7 @@ describe("CodexAppServerDriver（录制回放）", () => {
       "message_delta",
       "usage",
     ]);
-    expect(events.at(-1)).toMatchObject({ contextWindow: 272000 });
+    expect(events.at(-1)).toMatchObject({ contextTokens: 1210, contextWindow: 272000 });
     expect(
       rec
         .last()!

@@ -101,6 +101,13 @@ describe("/tasks", () => {
     expect(taskLine(TASKS[1]!, NOW)).toBe("t2  claude · 失败 · 5.0s  审查改动");
   });
 
+  it("外部 Agent 报告了上下文：一行带 ctx 占用（≥ 10% 取整，以下一位小数）", () => {
+    const external = { ...TASKS[1]!, contextTokens: 92_480, contextWindow: 272_000 };
+    expect(taskLine(external, NOW)).toBe("t2  claude · 失败 · 5.0s · ctx 34%  审查改动");
+    expect(taskLine({ ...external, contextTokens: 1200 }, NOW)).toContain("· ctx 0.4%");
+    expect(taskLine({ ...TASKS[1]!, contextTokens: 1200 }, NOW)).not.toContain("ctx");
+  });
+
   it("line 模式文本：列表与单个任务输出；没有任务", () => {
     expect(describeTasks("none", NOW)).toBe("还没有子 Agent 任务");
     withTasks();

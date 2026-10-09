@@ -24,6 +24,8 @@ export const en = {
     interrupted: "interrupted",
   },
   turns: (n: number) => plural(n, "turn"),
+  /** 外部 Agent 报告的上下文占用（`34%`、`0.4%`）。 */
+  context: (percent: string) => `ctx ${percent}`,
   bar: {
     more: (n: number) => `${n} more`,
     keys: (up: string, down: string) => `${up}${down} select · Enter open · Esc back`,
@@ -103,6 +105,7 @@ export const zh = {
     interrupted: "已中断",
   },
   turns: (n) => `${n} 轮`,
+  context: (percent) => `ctx ${percent}`,
   bar: {
     more: (n) => `另 ${n} 个`,
     keys: (up, down) => `${up}${down} 选择 · Enter 打开 · Esc 返回`,

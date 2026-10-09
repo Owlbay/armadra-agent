@@ -109,6 +109,8 @@ class CodexSession implements DriverSession {
   private tokensTotal: CodexTokens | undefined;
   private tokensAtStart: CodexTokens | undefined;
   private contextWindow: number | undefined;
+  /** 最近一次请求的总量（`tokenUsage.last.totalTokens`）= 线程当前的上下文占用。 */
+  private contextTokens: number | undefined;
   private closed = false;
   private interruptRequested = false;
 
@@ -276,6 +278,7 @@ class CodexSession implements DriverSession {
         input: end.inputTokens - (start?.inputTokens ?? 0),
         output: end.outputTokens - (start?.outputTokens ?? 0),
         cacheRead: end.cachedInputTokens - (start?.cachedInputTokens ?? 0),
+        ...(this.contextTokens !== undefined ? { contextTokens: this.contextTokens } : {}),
         ...(this.contextWindow !== undefined ? { contextWindow: this.contextWindow } : {}),
       });
     }
@@ -300,6 +303,8 @@ class CodexSession implements DriverSession {
         const usage = (params["tokenUsage"] ?? {}) as Json;
         const total = readTokens(usage["total"]);
         if (total !== undefined) this.tokensTotal = total;
+        const last = readTokens(usage["last"]);
+        if (last !== undefined && last.totalTokens > 0) this.contextTokens = last.totalTokens;
         if (typeof usage["modelContextWindow"] === "number")
           this.contextWindow = usage["modelContextWindow"];
         return;

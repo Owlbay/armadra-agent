@@ -217,7 +217,15 @@ export type SessionEventW5 =
 export interface ExternalAgentStats {
   byAgent: Record<
     string,
-    { runs: number; unit: ExternalUsageUnit; amount: number; tokens?: number }
+    {
+      runs: number;
+      unit: ExternalUsageUnit;
+      amount: number;
+      tokens?: number;
+      /** 最近一次报告的上下文占用与窗口（token）；驱动不报时缺省。 */
+      contextTokens?: number;
+      contextWindow?: number;
+    }
   >;
 }
 

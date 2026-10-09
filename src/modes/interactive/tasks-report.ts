@@ -7,6 +7,7 @@
  */
 
 import { cachedAgentInfos } from "../../agents/external.js";
+import { formatTaskContext } from "../../agents/task-record.js";
 import type { AgentInfo } from "../../agents/types.js";
 import { registryOf, sessionAgents, taskRegistryView } from "../../agent/subagent-registry.js";
 import type { SubagentStatus, TaskInfo } from "../../tools/types.js";
@@ -47,6 +48,8 @@ export function taskFacts(task: TaskInfo, now: number): string[] {
     facts.push(
       `↑${formatTokenCount(usage.input + usage.cacheRead + usage.cacheWrite)} ↓${formatTokenCount(usage.output)}`,
     );
+  const context = formatTaskContext(task);
+  if (context !== undefined) facts.push(msg().panels.tasks.context(context));
   if (task.costUsd !== undefined && task.costUsd > 0) facts.push(formatUsd(task.costUsd));
   return facts;
 }

@@ -173,6 +173,9 @@ export type SubagentEvent =
       /** 无美元单位的外部 Agent 按各自单位记（不换算）。 */
       unit?: "usd" | "tokens" | "requests";
       amount?: number;
+      /** 外部 Agent 报告的上下文占用与窗口（回合中途也会单独发一条只带它们的 usage）。 */
+      contextTokens?: number;
+      contextWindow?: number;
     }
   | { type: "notice"; level: "info" | "warn"; text: string };
 
@@ -225,6 +228,9 @@ export interface TaskInfo {
   turns?: number;
   usage?: Usage;
   costUsd?: number;
+  /** 外部 Agent 最近报告的上下文占用与窗口（token，只记数字）；驱动不报时缺省。 */
+  contextTokens?: number;
+  contextWindow?: number;
   outputFile?: string;
   sessionRef?: SubagentSessionRef;
 }

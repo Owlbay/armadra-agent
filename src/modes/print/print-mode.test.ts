@@ -180,6 +180,8 @@ describe("print 模式", () => {
     const [result] = lines();
     expect(result).toMatchObject({ type: "result", stopReason: "stop", text: "done" });
     expect(result?.["cacheHitRate"]).toBe(0.75);
+    // 上下文：最后一条助手消息的用量总量（10 + 2 + 30），fake 模型窗口 200k
+    expect(result?.["context"]).toEqual({ tokens: 42, window: 200_000, percent: 0 });
     expect((result?.["entries"] as unknown[]).length).toBeGreaterThan(2);
   });
 

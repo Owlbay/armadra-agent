@@ -48,6 +48,8 @@ describe("外部 Agent 会话引用与记账", () => {
       unit: "tokens",
       amount: 900,
       tokens: 900,
+      contextTokens: 900,
+      contextWindow: 272000,
     });
     store.recordUsage({ agent: "claude", sessionId: "s2", unit: "usd", amount: 0.5 });
     expect(b.entries.map((e) => (e as { customType: string }).customType)).toEqual([
@@ -64,7 +66,14 @@ describe("外部 Agent 会话引用与记账", () => {
     expect(aggregateExternal(b.entries)).toEqual({
       byAgent: {
         claude: { runs: 2, unit: "usd", amount: 0.75 },
-        codex: { runs: 1, unit: "tokens", amount: 900, tokens: 900 },
+        codex: {
+          runs: 1,
+          unit: "tokens",
+          amount: 900,
+          tokens: 900,
+          contextTokens: 900,
+          contextWindow: 272000,
+        },
       },
     });
   });

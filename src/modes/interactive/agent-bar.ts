@@ -22,6 +22,7 @@
 
 import type { SubagentRegistry } from "../../agent/subagent-registry.js";
 import type { SubagentStatus } from "../../agent/types.js";
+import { formatTaskContext } from "../../agents/task-record.js";
 import { msg } from "../../i18n/index.js";
 import type { TaskInfo } from "../../tools/types.js";
 import {
@@ -48,6 +49,8 @@ export interface BarRow {
   turns: number;
   tool?: string;
   elapsedMs?: number;
+  /** 外部 Agent 报告的上下文占用（已格式化，如 `34%`）。 */
+  context?: string;
 }
 
 /** 栏与视图读的任务注册表（当前会话的 `registryOf(sessionId)`；测试给假的）。 */
@@ -115,6 +118,8 @@ export function taskRow(
     status,
     turns: Math.max(state?.turns ?? 0, info.turns ?? 0),
   };
+  const context = formatTaskContext(info);
+  if (context !== undefined) row.context = context;
   const tool = state?.tools.at(-1);
   if (tool !== undefined && status !== "queued") row.tool = tool;
   if (status !== "queued") {
@@ -136,6 +141,7 @@ export function rowFacts(row: BarRow, withTool = true): string {
   const facts = [statusLabel(row.status)];
   if (row.elapsedMs !== undefined) facts[0] += ` ${formatElapsed(row.elapsedMs)}`;
   if (row.turns > 0) facts.push(msg().agents.turns(row.turns));
+  if (row.context !== undefined) facts.push(msg().agents.context(row.context));
   if (withTool && row.tool !== undefined && row.status === "running") facts.push(row.tool);
   return facts.join(" · ");
 }

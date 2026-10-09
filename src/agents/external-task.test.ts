@@ -11,6 +11,7 @@ import { composeHarness, type ComposeHarness } from "../../test/helpers/compose-
 import type { SessionEvent } from "../agent/types.js";
 import type { FakeResponse } from "../ai/fake/fake-script.js";
 import type { Runtime } from "../cli/runtime.js";
+import { taskRegistryView } from "../agent/subagent-registry.js";
 import { AGENT_SESSION_CUSTOM } from "../drivers/store.js";
 import type { MemoryTransport } from "../drivers/test-support.js";
 import type { ApprovalRequest } from "../permissions/types.js";
@@ -129,6 +130,17 @@ describe("task(agent=acp:ama)：ama 驱动 ama", () => {
     expect(result).toContain("child ran it");
     expect(result).toContain("bash: echo from-child");
     expect(toolResults(p.child).join("\n")).toContain("from-child");
+    // 外部 Agent 的上下文（子 ama 的 usage_update）记进任务与 getStats().external，只有数字
+    const used = p.child.session.getStats().contextTokens;
+    expect(used).toBeGreaterThan(0);
+    expect(taskRegistryView(p.runtime.session.state.sessionId)?.get("t1")).toMatchObject({
+      contextTokens: used,
+      contextWindow: 200_000,
+    });
+    expect(p.runtime.session.getStats().external?.byAgent["acp:ama"]).toMatchObject({
+      contextTokens: used,
+      contextWindow: 200_000,
+    });
     // 外部会话引用（续聊用）带 taskId；原始事件不落盘
     const branch = p.events.filter(
       (e) =>

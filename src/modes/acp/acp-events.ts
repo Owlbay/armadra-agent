@@ -12,9 +12,13 @@
  * | permission_resolved（allow / allow_session）| tool_call_update（in_progress）                                |
  * | tool_execution_end                        | tool_call_update（completed / failed，`[diff?, text]`，locations[].line） |
  * | todo_updated                              | plan                                                             |
- * | turn_end                                  | usage_update（上下文用量、窗口、会话累计美元）                   |
+ * | message_end（助手）/ turn_end             | usage_update（上下文用量、窗口、会话累计美元；与上次同值不发）   |
  * | permission_mode_changed                   | current_mode_update + config_option_update                       |
- * | model_changed / thinking_level_changed    | config_option_update                                             |
+ * | model_changed                             | config_option_update + usage_update（窗口可能变了，不去重）      |
+ * | thinking_level_changed                    | config_option_update                                             |
+ *
+ * new / load（回放之后）/ resume 的答复发出后，{@link AcpEventMapper.announce} 另发一条 `usage_update`，
+ * 客户端不用等第一轮结束就能显示用量。模型窗口未知时不发：schema 里 `size` 必填，不编造窗口。
  *
  * 工具结果只回前 4 KB 文本（完整结果在 ama 会话里）；diff 只在实时事件里有（`fileChange` 不落盘）。
  * `session/load` 回放同一套映射（用户消息 → user_message_chunk，工具结果带文本、无 diff）。
@@ -65,6 +69,8 @@ export class AcpEventMapper {
   private readonly usedWireIds = new Set<string>();
   /** 上次 `session_info_update` 带出的标题。 */
   private lastTitle: string | null = null;
+  /** 上次 `usage_update` 的内容（同值不重发）。 */
+  private lastUsage: string | undefined;
 
   constructor(
     private readonly cwd: string,
@@ -77,11 +83,15 @@ export class AcpEventMapper {
     } = () => ({ configOptions: [], commands: [] }),
   ) {}
 
-  /** 会话 new / load / resume 的响应发出后由服务端调：`available_commands_update` 与 `config_option_update`。 */
+  /**
+   * 会话 new / load / resume 的响应发出后由服务端调：`available_commands_update`、`config_option_update`
+   * 与 `usage_update`（客户端可能刚重建线程，用量不去重，照发一次）。
+   */
   announce(): void {
     const { configOptions, commands } = this.extras();
     this.emit({ sessionUpdate: "available_commands_update", availableCommands: commands });
     this.emit({ sessionUpdate: "config_option_update", configOptions });
+    this.emitUsage(true);
   }
 
   /** 回合结束后由服务端调：`session_info_update`（标题与上次不同才带 title）。 */
@@ -204,6 +214,10 @@ export class AcpEventMapper {
           })),
         });
         return;
+      case "message_end":
+        // 多工具轮里每条助手消息都更新一次用量，不等整轮结束
+        if ("role" in event.message && event.message.role === "assistant") this.emitUsage();
+        return;
       case "turn_end":
         this.emitUsage();
         return;
@@ -221,21 +235,30 @@ export class AcpEventMapper {
           sessionUpdate: "config_option_update",
           configOptions: this.extras().configOptions,
         });
+        if (event.type === "model_changed") this.emitUsage(true); // 换模型照发（窗口可能变了）
         return;
       default:
         return;
     }
   }
 
-  emitUsage(): void {
+  /**
+   * 发一条 `usage_update`：上下文用量、窗口与会话累计美元。窗口未知时不发（`size` 必填）；
+   * 与上次内容相同时不发，`force` 时照发。
+   */
+  emitUsage(force = false): void {
     const stats = this.session().getStats();
     if (stats.contextWindow === undefined) return;
-    this.emit({
+    const update: AcpSessionUpdate = {
       sessionUpdate: "usage_update",
       used: stats.contextTokens ?? 0,
       size: stats.contextWindow,
       ...(stats.cost !== undefined ? { cost: { amount: stats.cost, currency: "USD" } } : {}),
-    });
+    };
+    const key = JSON.stringify(update);
+    if (!force && key === this.lastUsage) return;
+    this.lastUsage = key;
+    this.emit(update);
   }
 
   /** `session/load`：按消息回放历史（工具结果带前 4 KB 文本；diff 不落盘，回放没有）。 */

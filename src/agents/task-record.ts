@@ -299,6 +299,8 @@ export function applyRunnerEvent(
     case "usage":
       if (event.usage !== undefined) record.info.usage = event.usage;
       if (event.unit === "usd" && event.amount !== undefined) record.info.costUsd = event.amount;
+      if (event.contextTokens !== undefined) record.info.contextTokens = event.contextTokens;
+      if (event.contextWindow !== undefined) record.info.contextWindow = event.contextWindow;
       return;
     case "notice":
       sink.log(event.level, `[task ${taskId}] ${event.text}`);
@@ -344,6 +346,24 @@ function recordDisplay(record: TaskRecord, event: SubagentEvent, now: number): v
     default:
       return;
   }
+}
+
+/** 任务的上下文占用（0–100，一位小数，封顶 100）；占用或窗口未知时 undefined。 */
+export function taskContextPercent(
+  info: Pick<TaskInfo, "contextTokens" | "contextWindow">,
+): number | undefined {
+  const { contextTokens: used, contextWindow: size } = info;
+  if (used === undefined || size === undefined || size <= 0) return undefined;
+  return Math.min(100, Math.round((used / size) * 1000) / 10);
+}
+
+/** 上下文占用的显示：≥ 10% 取整，以下保留一位小数（`34%`、`0.4%`）；未知时 undefined。 */
+export function formatTaskContext(
+  info: Pick<TaskInfo, "contextTokens" | "contextWindow">,
+): string | undefined {
+  const percent = taskContextPercent(info);
+  if (percent === undefined) return undefined;
+  return `${percent >= 10 ? Math.round(percent) : percent.toFixed(1)}%`;
 }
 
 /** `subagent_start` 事件（新开或续聊都发）。 */
