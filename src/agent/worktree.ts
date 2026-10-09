@@ -8,11 +8,14 @@
  * - 非 git 目录直接报错，不回落到共享目录；`.ama/worktrees/.gitignore` 写 `*`，父会话的 git 与
  *   grep / glob（读嵌套 .gitignore）都看不到这些目录；
  * - worktree 不保证可运行：依赖（node_modules 等）不共享。
+ * - 并发：同一仓库的 `worktree add / remove` 与删分支会扫描、改写 `.git/worktrees/*`，并行的两个隔离
+ *   任务曾互相读到对方建了一半的管理目录（`无法读取 .git/worktrees/<id>/commondir`）。同进程内按仓库的
+ *   公共 git 目录串行；跨进程（两个 ama 同时开隔离任务）的同类瞬时错误短暂重试。
  */
 
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, resolve } from "node:path";
 
 export interface Worktree {
   /** worktree 根目录。 */
@@ -63,6 +66,58 @@ function realPath(path: string): string {
   }
 }
 
+/** 每个仓库（按公共 git 目录）一条队列：worktree 的增删与删分支串行执行。 */
+const queues = new Map<string, Promise<unknown>>();
+
+export function serialized<T>(key: string, run: () => Promise<T>): Promise<T> {
+  const previous = queues.get(key) ?? Promise.resolve();
+  const current = previous.then(run, run);
+  const tail = current.then(
+    () => undefined,
+    () => undefined,
+  );
+  queues.set(key, tail);
+  void tail.then(() => {
+    if (queues.get(key) === tail) queues.delete(key);
+  });
+  return current;
+}
+
+/** 另一个进程正在增删 worktree 时 git 报的瞬时错误（读到半建的管理目录、锁文件已存在）。 */
+const TRANSIENT =
+  /commondir|gitdir|could not read|unable to read|无法读取|\.lock'?: File exists|Unable to create '.*\.lock'|无法创建 '.*\.lock'/i;
+
+export async function retryTransient<T>(
+  run: () => Promise<T>,
+  options: { attempts?: number; delayMs?: number } = {},
+): Promise<T> {
+  const attempts = options.attempts ?? 5;
+  const delayMs = options.delayMs ?? 50;
+  for (let n = 1; ; n++) {
+    try {
+      return await run();
+    } catch (error) {
+      if (n >= attempts || !TRANSIENT.test(error instanceof Error ? error.message : String(error)))
+        throw error;
+      await new Promise((r) => setTimeout(r, delayMs * n));
+    }
+  }
+}
+
+/** 仓库的公共 git 目录（所有 worktree 共享），作为串行队列的键。 */
+async function commonDir(repo: string, git: GitRunner): Promise<string> {
+  try {
+    return realPath(resolve(repo, (await git(["rev-parse", "--git-common-dir"], repo)).trim()));
+  } catch {
+    return repo;
+  }
+}
+
+/** 串行 + 瞬时错误重试地跑一条会改动 `.git/worktrees` 的 git 命令。 */
+function mutate(key: string, git: GitRunner, args: readonly string[], cwd: string) {
+  return serialized(key, () => retryTransient(() => git(args, cwd)));
+}
+
 export function worktreeBranch(taskId: string): string {
   return `ama/task-${taskId}`;
 }
@@ -86,7 +141,9 @@ export async function createWorktree(
   if (!existsSync(ignore)) writeFileSync(ignore, "*\n");
   const path = join(root, taskId);
   const branch = worktreeBranch(taskId);
-  if (!existsSync(path)) await git(["worktree", "add", "-b", branch, path, base], repo);
+  const key = await commonDir(repo, git);
+  if (!existsSync(path))
+    await mutate(key, git, ["worktree", "add", "-b", branch, path, base], repo);
   const sub = relative(repo, realPath(cwd));
   const childCwd = sub === "" || sub.startsWith("..") ? path : join(path, sub);
   mkdirSync(childCwd, { recursive: true });
@@ -101,8 +158,9 @@ export async function finishWorktree(
   const status = (await git(["status", "--porcelain"], tree.path)).trim();
   const head = (await git(["rev-parse", "HEAD"], tree.path)).trim();
   if (status === "" && head === tree.base) {
-    await git(["worktree", "remove", "--force", tree.path], tree.repo);
-    await git(["branch", "-D", tree.branch], tree.repo).catch(() => "");
+    const key = await commonDir(tree.repo, git);
+    await mutate(key, git, ["worktree", "remove", "--force", tree.path], tree.repo);
+    await mutate(key, git, ["branch", "-D", tree.branch], tree.repo).catch(() => "");
     return { branch: tree.branch, changed: false };
   }
   const stat = (await git(["diff", "--stat", tree.base], tree.path).catch(() => "")).trim();

@@ -140,7 +140,7 @@ JSONL 一直在）。`task{taskId}` / `task_ctl send` 续聊时，保留中的�
 worktree 里与父 cwd 对应的目录。结束时没有改动（工作区干净且没有新提交）就删掉 worktree 与分支；有改动则保留，结果末尾给出
 分支名、路径与 `git diff --stat`（含未跟踪文件），由你决定是否合并。`.ama/worktrees/` 下自动写一个 `.gitignore`（`*`），
 父仓库的 `git status` 与 grep / glob 都看不到这些目录。不在 git 仓库里时直接报错，不会退回共享目录。
-worktree 里的编辑不记进父会话的检查点。注意：worktree 不共享依赖（`node_modules` 等），不保证能直接构建或运行测试。
+多个隔离任务同时开始或结束时，同一仓库的 worktree 增删与删分支按顺序执行（它们都会改 `.git/worktrees`）；另一个 ama 进程同时操作时遇到的瞬时错误会短暂重试。worktree 里的编辑不记进父会话的检查点。注意：worktree 不共享依赖（`node_modules` 等），不保证能直接构建或运行测试。
 
 ### 事件与统计
 
