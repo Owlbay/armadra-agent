@@ -27,6 +27,8 @@ export interface PrefixFingerprint {
   tools: string;
   /** `${provider}/${id}`（原文，不哈希）。 */
   model: string;
+  /** 节名 → hash16，归因时说出哪一节变了。 */
+  sections?: Record<string, string>;
 }
 
 /** 每次真实请求在会话层记一条（内存，不落盘）。 */

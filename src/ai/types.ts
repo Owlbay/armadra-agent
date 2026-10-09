@@ -109,6 +109,8 @@ export interface ToolCallBlock {
   arguments: Record<string, unknown>;
   /** Google thoughtSignature 等。 */
   thoughtSignature?: string;
+  /** 模型输出的原始 arguments 字符串（严格 JSON 可解析时才有）；同协议回放时原样发回。 */
+  rawArguments?: string;
 }
 
 /** 用户消息与工具结果可携带的块。 */
@@ -195,6 +197,8 @@ export interface AssistantMessage {
   providerThinkingLevel?: string;
   /** 供应商原始 finish / stop reason。 */
   rawStopReason?: string;
+  /** 失败响应的 Retry-After（毫秒）；会话层退避取 max(退避, 它)。可选字段，落盘与 RPC 原样透传。 */
+  retryAfterMs?: number;
   timestamp: number;
 }
 

@@ -178,6 +178,7 @@ describe("会话层缓存共享类型（W3-C0 ②）", () => {
       system: string;
       tools: string;
       model: string;
+      sections?: Record<string, string>;
     }>();
     expectTypeOf<CacheMiss["missedCost"]>().toEqualTypeOf<number | undefined>();
     expectTypeOf<CacheMiss["detail"]>().toEqualTypeOf<"system" | "tools" | undefined>();
