@@ -1,16 +1,16 @@
 # R10 · ama 设置面板（`/config`）与命令行改配置 调研
 
 > 只读调研；对象仓库 `/Users/yovinchen/Projects/Rust/Tauri/armadra-agent`（HEAD `07f5088`，v0.5.1）。
-> 参照：Claude Code 2.1.285 打包文本 `/tmp/cc-src/big.txt`（本机 CLI 为 2.1.287）、Codex CLI 0.160.0 二进制字符串、Pi 1.0（`/tmp/pi-1.0/`）、Gemini CLI（本机未安装，按公开资料，未逐条验证）。
+> 参照：工具 A 2.1.285 打包文本 `本机材料`（本机 CLI 为 2.1.287）、工具 B 0.160.0 二进制字符串、工具 C（`本机材料`）、工具 D（本机未安装，按公开资料，未逐条验证）。
 
 ## 0. 结论
 
 1. **做一个数据驱动的 `/config` 面板 + `ama config get|set|unset|list`，两者共用一层「设置编辑核心」**（新文件 `src/config/settings-registry.ts` + `src/config/edit.ts`）：注册表给每个键标 _分组 / 类型 / 生效层级（即时 / 新会话 / 重启）/ 是否动缓存前缀 / 项目级可写性_；编辑核心负责「读盘 → 改一条路径 → `validateConfig` → 项目级跑 `restrictProjectConfig` 判断是否只收紧 → `writeConfigFile` 原子写 + `.bak`」。类型与枚举从现有 `buildConfigJsonSchema()` 推导，不再手写第二份。
 2. **面板只收标量键**：76 个已登记叶子里约 **48 个**适合在面板里改（布尔 / 枚举 / 数字 / 模型引用）；`providers`、`permission.allow/deny/builtinDeny/autoSafeCommands`、`tools.default/disabled`、`*.dirs`、`sandbox.writable`、`agents.<id>`、hooks、密钥**不进面板**，只放一行「入口提示」（`ama providers …`、`/permissions`、`ama config edit`）。
-3. **交互抄 Claude Code 的骨架**：分组标题 + 「标签 · 当前值」行；`↑↓` 移动，`Enter`/`空格` 布尔取反、短枚举循环、长枚举/模型开子选择器、数字开单行输入；`/` 进入搜索（匹配键名、标签、枚举值）；`Esc` 先清搜索再关闭；关闭时把本次改动汇总成一条通知（CC 的 `Set X to Y` / `Config dialog dismissed` 做法）。
-4. **写入层**：缺省用户级 `~/.config/ama/config.json`；`Tab` 切到「项目级」（`.ama/config.json`），只对项目级允许的键可写，且放宽被拒（复用 `restrictProjectConfig` 的同一规则）。profile 层与环境变量覆盖的键在面板里显示为**锁定**（CC 的 `lock` 做法），说明来源，不让改。
-5. **生效**：分三档并在行尾标出——**即时**（ui 的大部分、`permission.mode`、`thinkingLevel`、`compaction.enabled`、`retry.enabled`、`cache.warming`、`ui.statusLine`）、**新会话**（`/new` 后生效：压缩阈值、重试参数、limits、fallbackModel、reminders …）、**重启**（工具表 / codemode / 沙箱 / hooks / skills / agents / `ui.ascii`）。改动**立即写盘**（不设「保存」按钮，与 CC、Pi 一致）。
-6. **缓存前缀提示**：会改工具表、系统提示或模型的项（`tools.preset`、`codemode.mode`、`defaultModel` 作用于当前会话时、`thinkingLevel`）在第一次改动时提示一次（参照 CC："Changing thinking mode mid-conversation will increase latency and may reduce quality."）。
+3. **交互抄 工具 A 的骨架**：分组标题 + 「标签 · 当前值」行；`↑↓` 移动，`Enter`/`空格` 布尔取反、短枚举循环、长枚举/模型开子选择器、数字开单行输入；`/` 进入搜索（匹配键名、标签、枚举值）；`Esc` 先清搜索再关闭；关闭时把本次改动汇总成一条通知（工具 A 的 `Set X to Y` / `Config dialog dismissed` 做法）。
+4. **写入层**：缺省用户级 `~/.config/ama/config.json`；`Tab` 切到「项目级」（`.ama/config.json`），只对项目级允许的键可写，且放宽被拒（复用 `restrictProjectConfig` 的同一规则）。profile 层与环境变量覆盖的键在面板里显示为**锁定**（工具 A 的 `lock` 做法），说明来源，不让改。
+5. **生效**：分三档并在行尾标出——**即时**（ui 的大部分、`permission.mode`、`thinkingLevel`、`compaction.enabled`、`retry.enabled`、`cache.warming`、`ui.statusLine`）、**新会话**（`/new` 后生效：压缩阈值、重试参数、limits、fallbackModel、reminders …）、**重启**（工具表 / codemode / 沙箱 / hooks / skills / agents / `ui.ascii`）。改动**立即写盘**（不设「保存」按钮，与 工具 A、工具 C 一致）。
+6. **缓存前缀提示**：会改工具表、系统提示或模型的项（`tools.preset`、`codemode.mode`、`defaultModel` 作用于当前会话时、`thinkingLevel`）在第一次改动时提示一次（参照 工具 A："Changing thinking mode mid-conversation will increase latency and may reduce quality."）。
 7. **命令行**：`ama config get <key>`、`set <key> <value>`、`unset <key>`、`list [--json] [前缀]`，`--project` 写项目级；值按 schema 类型解析（`true/false`、数字、枚举、`--json` 传数组/对象）；非法值、项目级放宽一律非零退出（`ExitCode.Config`=3）。`config edit` 保留为「整文件编辑」逃生口。
 8. **RPC / SDK 暂不暴露写入**：嵌入宿主（Armadra）走 profile，宿主不应改用户的全局配置；只考虑以后加只读 `get_config`。
 9. **i18n**：面板标签、分组名、生效档提示放 `i18n/messages/config.ts`；键说明来自 `key-docs`，按 R8 的 D4 方案「schema 固定英文、`ama config show`/面板走 locale」。本批**依赖 R8 B0（`msg()` 与 `ui.language`）先合**，`ui.language` 由 B0 加入后面板自动出现。
@@ -20,13 +20,13 @@
 
 ## 1. 参照产品
 
-### 1.1 Claude Code `/config`（2.1.285 打包文本）
+### 1.1 工具 A `/config`（2.1.285 打包文本）
 
 **入口与命令**
 
-- 斜杠命令 `config`，别名 `settings`，描述 "Open settings"，参数提示 `[key=value]`（big.txt @12025097：`aliases:["settings"],type:"local-jsx",name:"config"`）。另有非交互版本 "Set a setting by key"（`supportsNonInteractive:!0`），即 `/config key=value` 直接改一项；匹配不到时回 "isn't a /config setting. Run /config to see what's available."（@21783928）。
+- 斜杠命令 `config`，别名 `settings`，描述 "Open settings"，参数提示 `[key=value]`（@12025097：`aliases:["settings"],type:"local-jsx",name:"config"`）。另有非交互版本 "Set a setting by key"（`supportsNonInteractive:!0`），即 `/config key=value` 直接改一项；匹配不到时回 "isn't a /config setting. Run /config to see what's available."（@21783928）。
 - 旧的独立命令 `/vim`、`/output-style` 已变成隐藏占位，描述 "moved to /config"（@12025097 附近 `Fqt("vim","Editor mode")`）——**零散设置命令向面板收拢**。
-- `claude config get|set|list|add|remove` 子命令在 2.1.287 已不存在：`claude --help` 的 Commands 列表里没有 `config`，打包文本里只剩一处过时提示 "the user can run `claude config list`"（@33084339）。命令行改设置改为 `--settings <file/json>` 与直接编辑 `settings.json`。
+- 旧的 `config get|set|list|add|remove` 子命令在 2.1.287 已不存在：`--help` 的 Commands 列表里没有 `config`，打包文本里只剩一处过时提示（@33084339）。命令行改设置改为 `--settings <file/json>` 与直接编辑 `settings.json`。
 
 **容器**：Settings 对话框四个标签页 `Status / Config / Usage / Stats`（@36719196：`$i,{title:"Status"…}`、`{title:"Config"…}`、`{title:"Usage"}`、`{title:"Stats"}`），`/config` 落在 Config 页。
 
@@ -54,25 +54,25 @@
 
 **交互**：底部提示 `enter/space change`、`/ search`、`Esc close`；搜索框占位 "Search settings…"，过滤规则 = id 含关键字 || 标签含关键字 || 枚举任一选项含关键字（@36640045 附近 `re.type==="enum"&&re.options.some(…)`）；搜索态 Esc = clear。关闭时汇总本次改动，逐条 `Enabled/Disabled X`、`Set X to Y`，无改动则 "Config dialog dismissed"（@36623500）。
 
-**写到哪一层**：每项固定一层，用户不选。设置组件里三种写函数（@21755000 附近）：`R(e)` → `userSettings`（`~/.claude/settings.json`，如 thinking、language）、`fe(e)` → `localSettings`（`.claude/settings.local.json`，如 tips、reduceMotion、outputStyle）、`B(e,o)` → 全局状态 `~/.claude.json`（editorMode、verbose、progressBar 等 UI 偏好）。项目共享层 `projectSettings` 不从面板写。
+**写到哪一层**：每项固定一层，用户不选。设置组件里三种写函数（@21755000 附近）：`R(e)` → `userSettings`（`~/.<工具A>/settings.json`，如 thinking、language）、`fe(e)` → `localSettings`（`.<工具A>/settings.local.json`，如 tips、reduceMotion、outputStyle）、`B(e,o)` → 全局状态 `~/.<工具A>.json`（editorMode、verbose、progressBar 等 UI 偏好）。项目共享层 `projectSettings` 不从面板写。
 
 **生效**：几乎全部即时（直接改 AppState）；少数标签自带说明 "(this directory; applies next session)"（orgMemoryRead）。思考模式在对话进行中切换时提示 "Changing thinking mode mid-conversation will increase latency and may reduce quality."
 
-本机 `~/.claude/settings.json` 结构（只列键，略去值）：`permissions.{allow,deny,defaultMode}`、`env.*`、`enabledPlugins`、`alwaysThinkingEnabled`、`modelSettings`、`tui`、`switchModelsOnFlag`、`cleanupPeriodDays`、`includeCoAuthoredBy` 等——与面板项一一对应的只是一部分，规则列表与 env 都不在面板里。
+本机 `~/.<工具A>/settings.json` 结构（只列键，略去值）：`permissions.{allow,deny,defaultMode}`、`env.*`、`enabledPlugins`、`alwaysThinkingEnabled`、`modelSettings`、`tui`、`switchModelsOnFlag`、`cleanupPeriodDays`、`includeCoAuthoredBy` 等——与面板项一一对应的只是一部分，规则列表与 env 都不在面板里。
 
-### 1.2 Codex CLI 0.160.0
+### 1.2 工具 B 0.160.0
 
-- 没有统一设置面板，按主题分散：`/model`（"choose what model and reasoning effort to use"）、`/permissions`（"choose what Codex is allowed to do"，原 `/approvals`）、`/experimental`（复选 + save，提示 "Some experimental features take effect only in new tasks or after restarting"）、`/statusline`、`/title`、`/theme`、`/keymap`、`/vim`、`/tui`（"choose the TUI mode for the next launch"）、`/debug-config`（"show config layers and requirement sources for debugging"）。
-- 命令行：`-c key=value` 单次覆盖、`--strict-config`、`codex features list|enable|disable`（写 `config.toml`）。全权限切换有二次确认并提供 "Apply full access for this session"（只本会话）。
+- 没有统一设置面板，按主题分散：`/model`（"choose what model and reasoning effort to use"）、`/permissions`（"choose what 工具 B is allowed to do"，原 `/approvals`）、`/experimental`（复选 + save，提示 "Some experimental features take effect only in new tasks or after restarting"）、`/statusline`、`/title`、`/theme`、`/keymap`、`/vim`、`/tui`（"choose the TUI mode for the next launch"）、`/debug-config`（"show config layers and requirement sources for debugging"）。
+- 命令行：`-c key=value` 单次覆盖、`--strict-config`、`features list|enable|disable` 子命令（写 `config.toml`）。全权限切换有二次确认并提供 "Apply full access for this session"（只本会话）。
 - 可借鉴：**层来源调试视图**（ama 已有 `config show` 的来源列）；「只本会话 / 写配置」二选一的措辞。
 
-### 1.3 Pi 1.0 `/settings`
+### 1.3 工具 C `/settings`
 
-- 组件 `pi-tui/dist/components/settings-list.js`：条目 `{id,label,description,currentValue,values?,submenu?}`；Enter 或空格（搜索框为空时）激活：有 `values` 则循环（`(currentIndex+1)%values.length`），有 `submenu` 则开子菜单；可选搜索输入框。
+- 设置列表组件：条目 `{id,label,description,currentValue,values?,submenu?}`；Enter 或空格（搜索框为空时）激活：有 `values` 则循环（`(currentIndex+1)%values.length`），有 `submenu` 则开子菜单；可选搜索输入框。
 - 设置写回 `settings-manager.js:425-450`：**写时重读磁盘文件，只覆盖本会话改过的字段**（`modifiedFields` / `modifiedNestedFields`），带文件锁——避免覆盖用户同时手改的内容。这一点 ama 应照搬。
 - 描述直接写在条目上（选中时显示一行说明），与 ama 的 key-docs 思路一致。
 
-### 1.4 Gemini CLI `/settings`（未本机验证）
+### 1.4 工具 D `/settings`（未本机验证）
 
 - 设置对话框带作用域选择（User / Workspace / System），条目旁标出「在其它作用域被改过」；schema 里有 `requiresRestart`，改了这类项会提示按 `r` 重启生效。
 - 可借鉴：**作用域切换**与**需重启标记**——正好对应 ama 的用户级 / 项目级与三档生效。
@@ -112,7 +112,7 @@
 `src/config/write.ts:12 writeConfigFile(path, config, {backup})`：mkdir → 已存在则复制 `<path>.bak` → 同目录 `<path>.<pid>.tmp` 写 `JSON.stringify(config, null, 2)+"\n"` → 沿用原权限 → rename。现有调用者：`models discover --write`、`providers` 两处。
 
 - config.json 是**严格 JSON**（`load.ts:58 parseJsonText` 用 `JSON.parse`，只容 BOM），没有注释可丢；键顺序随 parse/stringify 保留；但**手排的格式会被规整成 2 空格**（需在文档里说明）。
-- 缺口：不重读磁盘、不做「只改一条路径」；面板连续改多项时若用户同时 `config edit`，后写者覆盖前者。按 Pi 的做法补 `editConfigPath()`：每次写前重读 → 改一条路径 → 校验 → 写。
+- 缺口：不重读磁盘、不做「只改一条路径」；面板连续改多项时若用户同时 `config edit`，后写者覆盖前者。按 工具 C 的做法补 `editConfigPath()`：每次写前重读 → 改一条路径 → 校验 → 写。
 - `.bak` 每次覆盖为上一版，连续改 10 次只剩最近一版；面板会频繁写，可接受（与现有行为一致），但不应为每次切换都产生多份备份。
 
 ### 2.5 当前会话的生效方式（代码证据）
@@ -183,11 +183,11 @@ interface SettingSpec {
 - 锁定：被 `env` / `cli` / `profile` 覆盖的项可以改写入层的值，但行尾标「当前由 X 覆盖，修改在 X 撤掉后生效」；项目级切换下不允许的键整行 dim、Enter 给出原因。
 - 写盘：每次修改**立即**调用 `setConfigValue`；失败弹 error 通知并回滚显示值。
 - 热应用（`apply:"now"`）：经一个 `ConfigApplier`（`interactive-mode.ts` 注入）分派——`ui.*` 调 `view.setOptions / loader.setAnimation / area.setMode / theme.replace` 后 `forceFullRedraw`；`thinkingLevel` → `session.setThinkingLevel`；`permission.mode` → `session.setPermissionMode`（但若项目级更严则提示「项目级 plan 仍生效」）；`compaction.enabled` / `retry.enabled` → `setAutoCompaction / setAutoRetry`；`cache.warming` → `session.cache.setWarming`；同时 `runtime.replaceConfig(remerged)` 让 `/new` 拿到新值。
-- **模型 / 思考类的语义**：面板改的是「缺省值」。`defaultModel` 写盘后询问一次「同时切换当前会话？」（缺省是）；`thinkingLevel`、`permission.mode` 直接同时作用于当前会话（CC 同样即时）。
+- **模型 / 思考类的语义**：面板改的是「缺省值」。`defaultModel` 写盘后询问一次「同时切换当前会话？」（缺省是）；`thinkingLevel`、`permission.mode` 直接同时作用于当前会话（工具 A 同样即时）。
 - 缓存提示：本面板生命周期内，第一次改动 `prefix:true` 的项且当前会话已有助手消息时，在面板底部提示一行「会改变缓存前缀，下一次请求按未命中计费」，不弹确认。
 - 关闭汇总：Esc 关闭时在消息区打一条 info，逐条「主题：dark → light（用户级）」；需重启的项额外一行「以下项重启后生效：…」；无改动不打（或「设置未改动」）。
 - `/config key=value`（或 `/config key value`）：不开面板，直接设一项（走同一 `setConfigValue`，用户级），给出与 CLI 相同的回显；`/config` 带未知键时提示「不是可设置项，用 /config 查看」。
-- 现有零散命令保留：`/model`、`/thinking`、`/permission`、`/statusline` 仍只影响本会话；面板项的说明里注明「只改本会话请用 /model」，与 CC 的 `optionsHint` 一致。
+- 现有零散命令保留：`/model`、`/thinking`、`/permission`、`/statusline` 仍只影响本会话；面板项的说明里注明「只改本会话请用 /model」，与 工具 A 的 `optionsHint` 一致。
 
 ### 3.4 命令行 `ama config`
 
@@ -253,7 +253,7 @@ ama config show / path / edit                  保持现状
 **风险**
 
 - **R1 热切换主题**：主题对象被到处持有；就地换调色板可行，但已进入终端回滚的历史行颜色不变（ama 是主屏模式）。若实现代价大，`ui.theme` 退化为「重启」档。
-- **R2 并发写**：面板与 `config edit`、`models discover --write`、另一个 ama 进程同时写；写前重读能解决大部分，仍无文件锁（Pi 有）。可接受，文档说明。
+- **R2 并发写**：面板与 `config edit`、`models discover --write`、另一个 ama 进程同时写；写前重读能解决大部分，仍无文件锁（工具 C 有）。可接受，文档说明。
 - **R3 格式规整**：手写的 config.json 第一次被面板写回后会被重新缩进；`.bak` 只保留上一版。
 - **R4 项目级与用户级认知**：用户在用户级改了 `permission.mode`，但项目级更严导致「改了没变化」——必须在行内显示生效来源，否则会被当成 bug。
 - **R5 Bypass / full-auto 写盘**：把 `permission.mode` 持久化为 full-auto 影响以后所有会话；面板里进入这两档要有确认，并在确认文案里说明「写入用户级，以后每次启动都生效」；也可只允许面板把缺省设到 auto 为止（待定 D3）。
@@ -263,8 +263,8 @@ ama config show / path / edit                  保持现状
 **待定（需拍板）**
 
 - **D1** 面板里改 `defaultModel` 是否同时切换当前会话（推荐：询问一次，缺省是）；`thinkingLevel` / `permission.mode` 是否同时作用当前会话（推荐：是）。
-- **D2** 是否在面板里提供「只本会话」开关（Codex 风格），还是保持「面板 = 持久化、零散命令 = 本会话」的分工（推荐后者，简单）。
+- **D2** 是否在面板里提供「只本会话」开关（工具 B 风格），还是保持「面板 = 持久化、零散命令 = 本会话」的分工（推荐后者，简单）。
 - **D3** 面板能否把 `permission.mode` 持久化为 `full-auto`（推荐：允许但二次确认）。
-- **D4** 标签页：是否像 CC 一样把 `/session`、`/cache` 并进同一对话框做 `状态 / 设置 / 用量` 标签（推荐本批不做，保持现有面板，后续再议）。
+- **D4** 标签页：是否像 工具 A 一样把 `/session`、`/cache` 并进同一对话框做 `状态 / 设置 / 用量` 标签（推荐本批不做，保持现有面板，后续再议）。
 - **D5** `ama config set` 是否支持数组键（推荐支持 `--json-value`，面板不支持）。
 - **D6** `/config key=value` 写用户级还是询问（推荐写用户级，与 CLI 缺省一致）。

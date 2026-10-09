@@ -8,7 +8,7 @@
 ## 0. 结论
 
 1. **ama 现在没有任何"记忆"能力**：跨会话的持久上下文只有 AGENTS.md 向上查找（`src/config/context-files.ts`），没有 `/memory` 命令、没有记忆工具、没有自动提取。`docs/gap-audit-2026-10.md:20` 已登记缺口，结论是"P2：只做 `/memory`，用 `$EDITOR` 打开 AGENTS.md"，并明确**不做 `#` 快捷记忆**，理由是"会改变系统前缀、打断缓存"（同文件 :181）。
-2. **推荐做"文件型记忆"**：Markdown 文件 + `MEMORY.md` 索引，用户级 `<dataDir>/memory/` + 项目级（放用户数据目录下、按项目路径分桶，**不放进仓库**）。这与 Claude Code 自动记忆、Anthropic `memory_20250818` 工具、Codex `~/.codex/memories/` 一致，也最贴合 ama 的"Skill 渐进披露"思路。
+2. **推荐做"文件型记忆"**：Markdown 文件 + `MEMORY.md` 索引，用户级 `<dataDir>/memory/` + 项目级（放用户数据目录下、按项目路径分桶，**不放进仓库**）。这与 工具 A 自动记忆、Anthropic `memory_20250818` 工具、工具 B `~/.<工具B>/memories/` 一致，也最贴合 ama 的"Skill 渐进披露"思路。
 3. **缺省关闭**：`memory.enabled: false`。关闭时系统提示、工具表、请求体**逐字节不变**（`prompt-budget.test.ts` 现有三档预算不动，这一条作为硬性回归测试）。
 4. **读取策略**：会话开始时把索引（不是正文）渲染进一个**新的系统节 `memory`**，位置在 `skills` 之后、`hooks` 之前；会话内**不再改这个节**。正文由模型按需 `memory view` 读。会话内写入只落盘，**下次会话（或 `/memory reload` / 压缩后）才进前缀**。这样完全满足 design §9.1"前缀字节稳定"。
 5. **模型接口：一个 `memory` 工具**（`view / create / str_replace / delete` 四个命令，兼容 Anthropic `memory_20250818` 的子集与返回文案），路径根限定在 `/memories/{user,project}/`。不复用 `read/write`：项目外写入在 `src/permissions/protected.ts` 里是"受保护写入"，会每次弹审批，且无法单独做脱敏、大小上限、索引维护。
@@ -24,29 +24,29 @@
 
 ### 1.1 总表
 
-| 产品                                        | 存储位置与格式                                                                                                                                                                                   | 写入方式                                                                                         | 读取方式                                                          | 作用域                                                   | 过期/冲突                                                                        | 隐私与安全                                                                                                          | 对缓存影响                                        |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| **Claude Code：CLAUDE.md 层级**             | `~/.claude/CLAUDE.md`、仓库 `CLAUDE.md` / `.claude/CLAUDE.md`、`CLAUDE.local.md`，支持 `@import`                                                                                                 | 用户手写；`/memory` 打开编辑器；旧版 `#` 前缀快捷追加                                            | 会话开始全部注入（用户上下文）                                    | 用户 / 项目 / 本地                                       | 无，靠人维护                                                                     | 项目文件随仓库，本身就是"项目指令"                                                                                  | 会话开始一次性确定；中途修改要重开或 reload       |
-| **Claude Code：自动记忆（memdir）**         | `~/.claude/projects/<sanitized-cwd>/memory/`：`MEMORY.md` 索引 + 每条一个 `.md`，带 YAML frontmatter（`name / description / metadata.type`，type 取 user / feedback / project / reference 一类） | 模型用通用 Write/Edit 写进该目录；用户明说"记住/忘掉"时立即写；可选后台"提取"与"auto-dream"整理  | **索引常驻**提示；正文按需读                                      | 每项目一桶（按 cwd），另有用户级                         | 提示里要求"推荐前先核实"：记忆里的文件、函数可能已改名或删除；整理任务合并重复   | 目录可配，但**签入仓库的 settings 里的 `autoMemoryDirectory` 被忽略**（防仓库把记忆导向别处）；写入有"疑似凭据"拒绝 | 索引在会话开始确定；会话内写入不改前缀            |
-| **Anthropic API `memory_20250818`**         | 客户端实现，逻辑根 `/memories`，可映射到文件/DB                                                                                                                                                  | 模型调用 `memory` 工具：`view / create / str_replace / insert / delete / rename`                 | API 自动加系统指令：先 `view` 记忆目录；之后按需读                | 由应用决定（每用户/每项目）                              | 文档建议"长期未访问就删"、限制文件大小、`view` 截断 16k 字符                     | 文档强调**路径穿越防护**、敏感信息由客户端过滤                                                                      | 工具定义固定；指令由 API 注入（固定文本），不抖动 |
-| **Codex CLI**                               | AGENTS.md（静态）+ `~/.codex/memories/`（生成：`MEMORY.md`、`memory_summary.md`、`raw_memories.md`、`rollout_summaries/` 等）                                                                    | **后台自动生成**：会话空闲足够久后汇总历史会话；有速率余量阈值                                   | 下次会话注入摘要；新版有 `memories.list / search / read` 专用工具 | 每用户每机器                                             | 未被召回的条目约 30 天剪枝（第三方分析）；官方建议把文件当"生成状态"，不推荐手改 | **缺省关闭**；生成字段会脱敏；`disable_on_external_context` 可跳过含 MCP/网页的会话                                 | 会话开始注入；`/memories` 按会话开关读/写         |
-| **Gemini CLI**                              | `~/.gemini/GEMINI.md` 的 `## Gemini Added Memories` 节；GEMINI.md 层级（全局/祖先/子目录）                                                                                                       | `save_memory(fact)` 工具追加一行；用户手写                                                       | 会话开始全部注入；`/memory show` 查看、`/memory refresh` 重新加载 | 用户级（save_memory 只写全局）                           | 无；纯追加                                                                       | 纯文本，用户自看自删                                                                                                | `refresh` 会重建上下文前缀                        |
-| **ChatGPT memory**                          | 服务端；"已保存记忆" + "参考聊天历史"                                                                                                                                                            | 模型自动判断保存，或用户说"记住"；设置里可查看、删除                                             | 注入系统上下文（条目列表 + 历史摘要）                             | 账户级；Projects 可做项目内记忆                          | 用户手动删；临时聊天不读不写                                                     | 可整体关闭；企业可禁用                                                                                              | 服务端产品，不适用                                |
-| **Cursor**                                  | Rules：`.cursor/rules/*.mdc`（frontmatter：description / globs / alwaysApply）、User/Team Rules；**Memories 已于 2.1.x 移除**（社区论坛），建议迁成 Rules                                        | 用户手写；旧 Memories 为自动提取+用户批准                                                        | alwaysApply 常驻；按 glob 自动附加；按描述由模型请求              | 项目 / 用户 / 团队                                       | 无                                                                               | —                                                                                                                   | Rules 按文件匹配附加，会改变上下文                |
-| **Letta / MemGPT**                          | Core memory blocks（persona / human 等，带字符上限）常驻上下文；archival memory（向量库）；recall memory（对话历史检索）                                                                         | 模型工具：`core_memory_append / replace`、`archival_memory_insert`；后台 "sleep-time" agent 整理 | Core 块常驻；archival/recall 用搜索工具                           | 每 agent                                                 | 块有字符上限，迫使模型压缩/改写                                                  | —                                                                                                                   | **每次改 core block 都改系统提示**，缓存不友好    |
-| **Pi 1.0**（`/tmp/pi-1.0/pi-coding-agent`） | 无内置记忆；只有 `AGENTS.md / CLAUDE.md`、`SYSTEM.md`、`APPEND_SYSTEM.md`（`docs/configuration.md:18-45`）                                                                                       | 手写；记忆留给扩展（examples 里也无 memory 扩展）                                                | 会话开始注入                                                      | 用户 / 项目（项目 SYSTEM 需信任，`docs/security.md:42`） | —                                                                                | 项目级系统提示文件需信任                                                                                            | 会话开始确定                                      |
-| **OpenCode**                                | 无内置记忆；AGENTS.md（回落 CLAUDE.md）+ `instructions` 配置；第三方插件如 opencode-agent-memory（`~/.config/opencode/memory/*.md` + `.opencode/memory/*.md`，Letta 式块）                       | 手写 / 插件工具                                                                                  | 会话开始注入 / 插件注入系统提示                                   | 用户 / 项目                                              | —                                                                                | —                                                                                                                   | 插件改系统提示会抖动缓存                          |
+| 产品                                | 存储位置与格式                                                                                                                                                                                    | 写入方式                                                                                         | 读取方式                                                          | 作用域                                                   | 过期/冲突                                                                        | 隐私与安全                                                                                                          | 对缓存影响                                        |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| **工具 A：说明文件层级**            | 用户级说明文件、仓库说明文件（根目录或工具目录下）、本地不入库的说明文件，支持 `@import`                                                                                                          | 用户手写；`/memory` 打开编辑器；旧版 `#` 前缀快捷追加                                            | 会话开始全部注入（用户上下文）                                    | 用户 / 项目 / 本地                                       | 无，靠人维护                                                                     | 项目文件随仓库，本身就是"项目指令"                                                                                  | 会话开始一次性确定；中途修改要重开或 reload       |
+| **工具 A：自动记忆（memdir）**      | `~/.<工具A>/projects/<sanitized-cwd>/memory/`：`MEMORY.md` 索引 + 每条一个 `.md`，带 YAML frontmatter（`name / description / metadata.type`，type 取 user / feedback / project / reference 一类） | 模型用通用 Write/Edit 写进该目录；用户明说"记住/忘掉"时立即写；可选后台"提取"与"auto-dream"整理  | **索引常驻**提示；正文按需读                                      | 每项目一桶（按 cwd），另有用户级                         | 提示里要求"推荐前先核实"：记忆里的文件、函数可能已改名或删除；整理任务合并重复   | 目录可配，但**签入仓库的 settings 里的 `autoMemoryDirectory` 被忽略**（防仓库把记忆导向别处）；写入有"疑似凭据"拒绝 | 索引在会话开始确定；会话内写入不改前缀            |
+| **Anthropic API `memory_20250818`** | 客户端实现，逻辑根 `/memories`，可映射到文件/DB                                                                                                                                                   | 模型调用 `memory` 工具：`view / create / str_replace / insert / delete / rename`                 | API 自动加系统指令：先 `view` 记忆目录；之后按需读                | 由应用决定（每用户/每项目）                              | 文档建议"长期未访问就删"、限制文件大小、`view` 截断 16k 字符                     | 文档强调**路径穿越防护**、敏感信息由客户端过滤                                                                      | 工具定义固定；指令由 API 注入（固定文本），不抖动 |
+| **工具 B**                          | AGENTS.md（静态）+ `~/.<工具B>/memories/`（生成：`MEMORY.md`、`memory_summary.md`、`raw_memories.md`、`rollout_summaries/` 等）                                                                   | **后台自动生成**：会话空闲足够久后汇总历史会话；有速率余量阈值                                   | 下次会话注入摘要；新版有 `memories.list / search / read` 专用工具 | 每用户每机器                                             | 未被召回的条目约 30 天剪枝（第三方分析）；官方建议把文件当"生成状态"，不推荐手改 | **缺省关闭**；生成字段会脱敏；`disable_on_external_context` 可跳过含 MCP/网页的会话                                 | 会话开始注入；`/memories` 按会话开关读/写         |
+| **工具 D**                          | 全局说明文件的「Added Memories」节；说明文件层级（全局/祖先/子目录）                                                                                                                              | `save_memory(fact)` 工具追加一行；用户手写                                                       | 会话开始全部注入；`/memory show` 查看、`/memory refresh` 重新加载 | 用户级（save_memory 只写全局）                           | 无；纯追加                                                                       | 纯文本，用户自看自删                                                                                                | `refresh` 会重建上下文前缀                        |
+| **ChatGPT memory**                  | 服务端；"已保存记忆" + "参考聊天历史"                                                                                                                                                             | 模型自动判断保存，或用户说"记住"；设置里可查看、删除                                             | 注入系统上下文（条目列表 + 历史摘要）                             | 账户级；Projects 可做项目内记忆                          | 用户手动删；临时聊天不读不写                                                     | 可整体关闭；企业可禁用                                                                                              | 服务端产品，不适用                                |
+| **工具 F**                          | Rules：`.<工具F>/rules/*.mdc`（frontmatter：description / globs / alwaysApply）、User/Team Rules；**Memories 已于 2.1.x 移除**（社区论坛），建议迁成 Rules                                        | 用户手写；旧 Memories 为自动提取+用户批准                                                        | alwaysApply 常驻；按 glob 自动附加；按描述由模型请求              | 项目 / 用户 / 团队                                       | 无                                                                               | —                                                                                                                   | Rules 按文件匹配附加，会改变上下文                |
+| **工具 O**                          | Core memory blocks（persona / human 等，带字符上限）常驻上下文；archival memory（向量库）；recall memory（对话历史检索）                                                                          | 模型工具：`core_memory_append / replace`、`archival_memory_insert`；后台 "sleep-time" agent 整理 | Core 块常驻；archival/recall 用搜索工具                           | 每 agent                                                 | 块有字符上限，迫使模型压缩/改写                                                  | —                                                                                                                   | **每次改 core block 都改系统提示**，缓存不友好    |
+| **工具 C**（`本机材料`）            | 无内置记忆；只有 `AGENTS.md` 等说明文件、`SYSTEM.md`、`APPEND_SYSTEM.md`（`docs/configuration.md:18-45`）                                                                                         | 手写；记忆留给扩展（examples 里也无 memory 扩展）                                                | 会话开始注入                                                      | 用户 / 项目（项目 SYSTEM 需信任，`docs/security.md:42`） | —                                                                                | 项目级系统提示文件需信任                                                                                            | 会话开始确定                                      |
+| **工具 E**                          | 无内置记忆；AGENTS.md（回落其它说明文件）+ `instructions` 配置；第三方记忆插件（用户级与项目级 `memory/*.md`，工具 O 式块）                                                                       | 手写 / 插件工具                                                                                  | 会话开始注入 / 插件注入系统提示                                   | 用户 / 项目                                              | —                                                                                | —                                                                                                                   | 插件改系统提示会抖动缓存                          |
 
-### 1.2 本机 Claude Code 自动记忆的格式（只描述结构，不含内容）
+### 1.2 本机 工具 A 自动记忆的格式（只描述结构，不含内容）
 
-- 目录：`~/.claude/projects/<cwd 把 / 换成 ->/memory/`；很多项目目录为空（功能按需写），有内容的目录含 `MEMORY.md` + 若干主题文件。
+- 目录：`~/.<工具A>/projects/<cwd 把 / 换成 ->/memory/`；很多项目目录为空（功能按需写），有内容的目录含 `MEMORY.md` + 若干主题文件。
 - 主题文件 frontmatter 键：`name`、`description`、`metadata.node_type`、`metadata.type`。本机统计 type 只出现 `project`（22）与 `feedback`（7）。
 - `MEMORY.md` 每行一条：`- [标题](file.md) — 一句话钩子`，本机最长行 ~300 字符。
 
-### 1.3 Claude Code 打包文本里的行为要点（`/tmp/cc-src/big.txt`，引用均 ≤ 15 词）
+### 1.3 工具 A 打包文本里的行为要点（`本机材料`，引用均 ≤ 15 词）
 
-- 开关：设置 `autoMemoryEnabled`、环境变量 `CLAUDE_CODE_DISABLE_AUTO_MEMORY`；会话级"off / forced_on / unset"三态判断。
-- 目录：`autoMemoryDirectory` 的说明——"Ignored if set in projectSettings (checked-in .claude/settings.json) for security"。**项目文件不能决定记忆写到哪里**，这一点 ama 应照搬。
+- 开关：设置 `autoMemoryEnabled`、环境变量 `<TOOL>_DISABLE_AUTO_MEMORY`；会话级"off / forced_on / unset"三态判断。
+- 目录：`autoMemoryDirectory` 的说明——"Ignored if set in projectSettings (checked-in .<工具A>/settings.json) for security"。**项目文件不能决定记忆写到哪里**，这一点 ama 应照搬。
 - 索引上限：索引要求控制在若干行且"under ~25KB"，"It's an **index**, not a dump"，每条一行约 150 字符；超出上限报 `index_too_large`。
 - 写入安全：错误码表里有 `content_secret`，提示"memory content appears to contain a credential or API key"——**拒绝写入**而非遮蔽。
 - 不该存什么："What NOT to save in memory"：代码模式、架构、文件路径、git 历史等可从项目现状推出的东西。
@@ -59,16 +59,16 @@
 
 借鉴：
 
-- **索引常驻 + 正文按需**（CC memdir、Anthropic memory tool 的"先 view"）：常驻成本低且固定。
+- **索引常驻 + 正文按需**（工具 A memdir、Anthropic memory tool 的"先 view"）：常驻成本低且固定。
 - **文件即真相**：Markdown 可人读、可 `$EDITOR` 改、可 git 管理；与 AGENTS.md 心智一致。
-- **项目配置不能改记忆位置**（CC）、**缺省关闭 + 按会话开关**（Codex）、**写入拒绝凭据**（CC、Codex）。
+- **项目配置不能改记忆位置**（工具 A）、**缺省关闭 + 按会话开关**（工具 B）、**写入拒绝凭据**（工具 A、工具 B）。
 - **"不要存可从代码推出的东西"**和"使用前核实"两条提示纪律。
 
 避免：
 
-- Letta 式"可编辑常驻块"、Gemini `save_memory` 直接改常驻文件并 refresh：都会在会话内改系统前缀，违背 §9.1。
-- Codex 式"后台读全部历史会话自动生成"作为缺省：成本、隐私和不可解释性都高；ama 只做可选。
-- Cursor 的经验：自动 Memories 最终被撤掉，回到显式 Rules——**显式、用户可控**优先。
+- 工具 O 式"可编辑常驻块"、工具 D `save_memory` 直接改常驻文件并 refresh：都会在会话内改系统前缀，违背 §9.1。
+- 工具 B 式"后台读全部历史会话自动生成"作为缺省：成本、隐私和不可解释性都高；ama 只做可选。
+- 工具 F 的经验：自动 Memories 最终被撤掉，回到显式 Rules——**显式、用户可控**优先。
 
 ---
 
@@ -120,7 +120,7 @@
 }
 ```
 
-- 来源约束：`memory` 段**只认用户级 config 与 profile**；项目级 `.ama/config.json` 只能把 `enabled` 设为 `false`（收紧），不能开、不能改目录——与 design §10.2 "项目级只接受收紧"一致，也对应 CC 对 `autoMemoryDirectory` 的处理。
+- 来源约束：`memory` 段**只认用户级 config 与 profile**；项目级 `.ama/config.json` 只能把 `enabled` 设为 `false`（收紧），不能开、不能改目录——与 design §10.2 "项目级只接受收紧"一致，也对应 工具 A 对 `autoMemoryDirectory` 的处理。
 - 命令行：`--memory` / `--no-memory`；环境变量 `AMA_MEMORY=0|1`。
 - 会话级：`/memory off` 只影响当前会话的**写**（读已在前缀里，关掉读要等下次会话或 `/memory reload`）。
 
@@ -139,7 +139,7 @@
 
 - 放 `dataDir` 而不是 `configDir`：它是"生成状态"，不是配置；也不放进仓库 `.ama/`（避免误提交、避免项目受保护写入、避免仓库预置"记忆"做提示注入）。
 - 项目根：git 顶层（worktree 时用主仓库的 common dir，避免每个 worktree 一份记忆）；非 git 用 cwd。
-- 条目格式（与 CC 相近，便于人读）：
+- 条目格式（与 工具 A 相近，便于人读）：
 
 ```markdown
 ---
@@ -152,7 +152,7 @@ updated: 2026-10-03
 正文（短，事实 + 为什么）。
 ```
 
-- 索引 `MEMORY.md` 由工具**自动重建**（从各文件 frontmatter 的 `name/description` 生成 `- [name](file.md) — description`，按 `updated` 降序），模型不直接编辑索引；用户手改后 `/memory reload` 或下次会话生效。这避免了 CC 里"模型把正文写进索引"的常见问题。
+- 索引 `MEMORY.md` 由工具**自动重建**（从各文件 frontmatter 的 `name/description` 生成 `- [name](file.md) — description`，按 `updated` 降序），模型不直接编辑索引；用户手改后 `/memory reload` 或下次会话生效。这避免了 工具 A 里"模型把正文写进索引"的常见问题。
 - 原子写：临时文件 + rename；同一作用域一把文件锁（复用 `tools/file-mutex.ts` 的思路），防多会话并发。
 
 ### 3.3 模型接口：一个 `memory` 工具
@@ -292,7 +292,7 @@ ama memory enable|disable          # 写用户级 config.json 的 memory.enabled
 
 1. **陈旧记忆误导**：记忆中的路径/命令随代码演变失效。缓解：工具指南"使用前核实"；`updated` 字段；`/memory` 标灰旧条目；P3 tidy。
 2. **提示注入持久化**：恶意仓库内容诱导模型写入"以后总是执行 X"，跨会话生效。缓解：项目作用域需信任；写入首次审批；"资料非指令"包裹；用户级记忆写入同样审批（default 模式）。残余风险：用户在 full-auto 下信任项目，仍可能被写入——在 `docs/memory.md` 安全一节写明。
-3. **缓存失误用**：若有人把 `memory` 节改为会话内实时更新（类似 Letta/Gemini refresh），前缀每次写入都抖动。缓解：稳定性测试锁定；代码注释引用 §9.1。
+3. **缓存失误用**：若有人把 `memory` 节改为会话内实时更新（类似 工具 O/工具 D refresh），前缀每次写入都抖动。缓解：稳定性测试锁定；代码注释引用 §9.1。
 4. **预算膨胀**：索引随时间增长。缓解：4 KB 硬顶 + 截断提示 + `maxFiles`。
 5. **多会话并发**：同项目多个 ama 实例（Armadra 画布多节点）同时写。缓解：作用域锁 + 原子 rename；索引重建幂等。
 6. **与 AGENTS.md 职责重叠**：模型可能把团队约定写进个人记忆。缓解：工具描述引导；`/memory` 里给"迁到 AGENTS.md"的提示（只提示，不自动）。
@@ -303,21 +303,21 @@ ama memory enable|disable          # 写用户级 config.json 的 memory.enabled
 1. **项目作用域键**：按 git 顶层真实路径哈希（推荐）还是按 remote URL（换机器/路径可复用，但同仓库多份 checkout 混用）？
 2. **存放目录**：`dataDir`（推荐，生成状态）还是 `configDir`（便于和 AGENTS.md 放一起、同步 dotfiles）？
 3. **是否声明 Anthropic 原生 `memory_20250818`**：省描述 token 且模型受过训练，但 API 会自动注入"ALWAYS VIEW YOUR MEMORY DIRECTORY BEFORE DOING ANYTHING ELSE"一类强指令，导致每个任务先多一次 `view` 调用，且只在 Anthropic 供应商可用；跨供应商一致性更重要时用自定义工具（推荐 P1 自定义，P2 评估）。
-4. **default 模式写入是否询问**：推荐首次询问 + 本会话允许；也可视为低风险直接放行（CC 的做法接近放行）。
+4. **default 模式写入是否询问**：推荐首次询问 + 本会话允许；也可视为低风险直接放行（工具 A 的做法接近放行）。
 5. **嵌入 Armadra 时是否完全禁用**：推荐 profile 缺省关；是否允许画布节点共享一个项目记忆，需 Armadra 侧决定（与"协作上下文按连线读取"的约定可能冲突：记忆是一条绕过连线的跨节点通道——**若开启，应按工作空间隔离，并在 Armadra 审查规则下视为需评估项**）。
 6. **`/memory reload` 是否保留**：它是唯一的会话内断缓存操作；保留但提示代价（推荐），或删除只靠新会话。
-7. **自动提取是否进路线图**：用户要求"需要时开启"，P3 可以只做手动 `ama memory extract <session-id>`（从历史会话提取候选，用户确认后写入），不做后台自动——更符合 Cursor 撤回自动 Memories 的经验。
+7. **自动提取是否进路线图**：用户要求"需要时开启"，P3 可以只做手动 `ama memory extract <session-id>`（从历史会话提取候选，用户确认后写入），不做后台自动——更符合 工具 F 撤回自动 Memories 的经验。
 
 ---
 
 ## 附：来源
 
 - 本仓库：`src/config/context-files.ts`、`src/agent/system-prompt.ts`、`src/agent/prompt-rules.ts`、`src/agent/session-extensions.ts`、`src/agent/reminders.ts`、`src/compaction/post-compact.ts`、`src/cli/prompt-budget.test.ts`、`src/permissions/protected.ts`、`src/session/redact.ts`、`src/agent/session-subagent.ts`、`src/cli/compose-session.ts`、`docs/design.md` §7.3 / §9.1 / §10、`docs/gap-audit-2026-10.md:20,179,181`、`docs/agents.md:56`、`docs/sessions.md:57`
-- Claude Code：`/tmp/cc-src/big.txt`（关键词 `autoMemoryEnabled`、`autoMemoryDirectory`、`index_too_large`、`content_secret`、`What NOT to save`、`Before recommending from memory`、`extractMemories`、`autoDream`）；本机 `~/.claude/projects/*/memory/`（仅统计格式）
-- Pi 1.0：`/tmp/pi-1.0/pi-coding-agent/docs/configuration.md`、`docs/security.md`
+- 工具 A：`本机材料`（关键词 `autoMemoryEnabled`、`autoMemoryDirectory`、`index_too_large`、`content_secret`、`What NOT to save`、`Before recommending from memory`、`extractMemories`、`autoDream`）；本机 `~/.<工具A>/projects/*/memory/`（仅统计格式）
+- 工具 C：`本机材料`、`docs/security.md`
 - [Anthropic Memory tool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool)
-- [Codex Memories（官方）](https://learn.chatgpt.com/docs/customization/memories.md?surface=app)、[Codex memories 配置实践](https://exsesx.dev/blog/en/codex-memories)、[Mem0：How memory works in Codex CLI](https://mem0.ai/blog/how-memory-works-in-codex-cli)、[openai/codex#30299](https://github.com/openai/codex/issues/30299)
-- [Gemini CLI Memory Tool](https://google-gemini.github.io/gemini-cli/docs/tools/memory.html)
-- [Cursor 论坛：Memories not showing（2.1.x 移除）](https://forum.cursor.com/t/memories-not-showing/143820)、[Cursor Rules 指南](https://www.morphllm.com/cursor-rules-best-practices)
-- [opencode-agent-memory](https://github.com/joshuadavidthomas/opencode-agent-memory)、[OpenCode Memory: AGENTS.md Plus MCP](https://memoryrouter.ai/memory/opencode)
-- ChatGPT memory、Letta/MemGPT：依据公开文档的一般知识（未逐条复核本月版本）
+- 工具 B Memories 官方文档、配置实践与第三方解读、相关 issue #30299
+- 工具 D Memory Tool 文档
+- 工具 F 论坛帖（Memories 于 2.1.x 移除）、Rules 指南
+- 工具 E 的第三方记忆插件、工具 E Memory 相关文章
+- ChatGPT memory、工具 O：依据公开文档的一般知识（未逐条复核本月版本）
