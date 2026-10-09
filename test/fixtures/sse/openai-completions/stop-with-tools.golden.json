@@ -35,7 +35,8 @@
       "name": "bash",
       "arguments": {
         "command": "date"
-      }
+      },
+      "rawArguments": "{\"command\":\"date\"}"
     }
   },
   {
@@ -55,7 +56,8 @@
           "name": "bash",
           "arguments": {
             "command": "date"
-          }
+          },
+          "rawArguments": "{\"command\":\"date\"}"
         }
       ],
       "api": "openai-completions",

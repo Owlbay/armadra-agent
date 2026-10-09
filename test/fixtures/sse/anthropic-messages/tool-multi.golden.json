@@ -23,7 +23,8 @@
       "arguments": {
         "pattern": "TODO\\(",
         "glob": "**/*.ts"
-      }
+      },
+      "rawArguments": "{\"pattern\":\"TODO\\\\(\",\"glob\":\"**/*.ts\"}"
     }
   },
   {
@@ -62,7 +63,8 @@
       "name": "bash",
       "arguments": {
         "command": "echo \"hi\"\n"
-      }
+      },
+      "rawArguments": "{\"command\":\"echo \\\"hi\\\"\\n\"}"
     }
   },
   {
@@ -78,7 +80,8 @@
           "arguments": {
             "pattern": "TODO\\(",
             "glob": "**/*.ts"
-          }
+          },
+          "rawArguments": "{\"pattern\":\"TODO\\\\(\",\"glob\":\"**/*.ts\"}"
         },
         {
           "type": "toolCall",
@@ -92,7 +95,8 @@
           "name": "bash",
           "arguments": {
             "command": "echo \"hi\"\n"
-          }
+          },
+          "rawArguments": "{\"command\":\"echo \\\"hi\\\"\\n\"}"
         }
       ],
       "api": "anthropic-messages",

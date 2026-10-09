@@ -5,7 +5,8 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { collectEvents } from "../event-stream.js";
+import { AssistantEventStreamImpl, collectEvents } from "../event-stream.js";
+import { HttpError } from "../http.js";
 import { FakeProvider, FAKE_MODELS } from "../fake/fake-provider.js";
 import type { ApiImplementation, Model, ProviderData, StreamOptions } from "../types.js";
 import { assertStreamContract } from "../../../test/ai/contract.js";
@@ -20,6 +21,7 @@ import { googleGenerativeAiApi } from "./google-generative-ai.js";
 import { openAICompletionsApi } from "./openai-completions.js";
 import { openAIResponsesApi } from "./openai-responses.js";
 import { createDefaultApiRegistry } from "./api.js";
+import { BlockTracker, createOutput, finishError } from "./shared.js";
 
 type Scenario = "text" | "tool" | "http-error" | "disconnect";
 
@@ -291,5 +293,46 @@ describe("ApiRegistry 懒加载包装", () => {
     expect(
       registry.get("google-generative-ai")?.detectCompat?.(googleModel, provider("google")),
     ).toEqual({ supportsThoughtSignature: true, supportsFunctionResponseParts: true });
+  });
+});
+
+describe("[ME-C] BlockTracker.rawArguments 与 finishError.retryAfterMs", () => {
+  const model = FAKE_MODELS[0] as Model;
+  const toolCall = (json: string) => {
+    const stream = new AssistantEventStreamImpl();
+    const tracker = new BlockTracker(stream, createOutput(model));
+    const index = tracker.startToolCall("c1", "read");
+    tracker.appendToolArgs(index, json);
+    tracker.end(index);
+    return tracker.output.content[0];
+  };
+
+  it("拼接串能严格解析成对象才记原串；坏 JSON、数组、空串不记", () => {
+    expect(toolCall('{"a": 1}')).toMatchObject({ arguments: { a: 1 }, rawArguments: '{"a": 1}' });
+    expect(toolCall('{"a": ')).not.toHaveProperty("rawArguments");
+    expect(toolCall("[1]")).not.toHaveProperty("rawArguments");
+    expect(toolCall("")).not.toHaveProperty("rawArguments");
+  });
+
+  it("HttpError 带 Retry-After → 失败消息 retryAfterMs；中止时不写", () => {
+    const fail = (aborted: boolean) => {
+      const stream = new AssistantEventStreamImpl();
+      const tracker = new BlockTracker(stream, createOutput(model));
+      const controller = new AbortController();
+      if (aborted) controller.abort();
+      const error = new HttpError(429, "429 rate_limit_error: slow down", "", 30_000);
+      finishError(stream, tracker, model, error, controller.signal);
+      return tracker.output;
+    };
+    expect(fail(false)).toMatchObject({ stopReason: "error", retryAfterMs: 30_000 });
+    expect(fail(true)).not.toHaveProperty("retryAfterMs");
+  });
+
+  it("fake 脚本 error.retryAfterMs 写进失败消息", async () => {
+    const fake = new FakeProvider([{ error: { kind: "rate_limit", retryAfterMs: 20_000 } }]);
+    const options = { signal: new AbortController().signal } as StreamOptions;
+    const final = await fake.api.stream(model, BASIC_CONTEXT, options).result();
+    expect(final).toMatchObject({ stopReason: "error", retryAfterMs: 20_000 });
+    expect(final.errorMessage).toMatch(/^429 rate_limit_error/);
   });
 });

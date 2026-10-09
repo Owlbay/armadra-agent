@@ -56,7 +56,8 @@
       "name": "read",
       "arguments": {
         "path": "a.ts"
-      }
+      },
+      "rawArguments": "{\"path\":\"a.ts\"}"
     }
   },
   {
@@ -68,7 +69,8 @@
       "name": "read",
       "arguments": {
         "path": "b.ts"
-      }
+      },
+      "rawArguments": "{\"path\":\"b.ts\"}"
     }
   },
   {
@@ -87,7 +89,8 @@
           "name": "read",
           "arguments": {
             "path": "a.ts"
-          }
+          },
+          "rawArguments": "{\"path\":\"a.ts\"}"
         },
         {
           "type": "toolCall",
@@ -95,7 +98,8 @@
           "name": "read",
           "arguments": {
             "path": "b.ts"
-          }
+          },
+          "rawArguments": "{\"path\":\"b.ts\"}"
         }
       ],
       "api": "openai-completions",

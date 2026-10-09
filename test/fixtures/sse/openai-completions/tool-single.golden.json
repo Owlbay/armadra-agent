@@ -145,7 +145,8 @@
       "name": "read",
       "arguments": {
         "path": "README.md"
-      }
+      },
+      "rawArguments": "{\"path\": \"README.md\"}"
     }
   },
   {
@@ -165,7 +166,8 @@
           "name": "read",
           "arguments": {
             "path": "README.md"
-          }
+          },
+          "rawArguments": "{\"path\": \"README.md\"}"
         }
       ],
       "api": "openai-completions",

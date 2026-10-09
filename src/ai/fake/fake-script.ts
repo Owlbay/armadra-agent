@@ -46,6 +46,8 @@ export interface FakeError {
   kind: FakeErrorKind;
   message?: string;
   status?: number;
+  /** [ME-C] 模拟 `Retry-After`（毫秒）：写进失败消息的 `retryAfterMs`。 */
+  retryAfterMs?: number;
 }
 
 export interface FakeResponse {

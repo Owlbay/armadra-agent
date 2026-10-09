@@ -23,7 +23,8 @@
       "arguments": {
         "path": "README.md"
       },
-      "thoughtSignature": "Q2lRQ0FkSE10b29sc2ln"
+      "thoughtSignature": "Q2lRQ0FkSE10b29sc2ln",
+      "rawArguments": "{\"path\":\"README.md\"}"
     }
   },
   {
@@ -39,7 +40,8 @@
           "arguments": {
             "path": "README.md"
           },
-          "thoughtSignature": "Q2lRQ0FkSE10b29sc2ln"
+          "thoughtSignature": "Q2lRQ0FkSE10b29sc2ln",
+          "rawArguments": "{\"path\":\"README.md\"}"
         }
       ],
       "api": "google-generative-ai",

@@ -52,7 +52,8 @@
       "arguments": {
         "path": "a.ts"
       },
-      "thoughtSignature": "fc_a"
+      "thoughtSignature": "fc_a",
+      "rawArguments": "{\"path\":\"a.ts\"}"
     }
   },
   {
@@ -70,7 +71,8 @@
       "arguments": {
         "path": "b.ts"
       },
-      "thoughtSignature": "fc_b"
+      "thoughtSignature": "fc_b",
+      "rawArguments": "{\"path\":\"b.ts\"}"
     }
   },
   {
@@ -91,7 +93,8 @@
           "arguments": {
             "path": "a.ts"
           },
-          "thoughtSignature": "fc_a"
+          "thoughtSignature": "fc_a",
+          "rawArguments": "{\"path\":\"a.ts\"}"
         },
         {
           "type": "toolCall",
@@ -100,7 +103,8 @@
           "arguments": {
             "path": "b.ts"
           },
-          "thoughtSignature": "fc_b"
+          "thoughtSignature": "fc_b",
+          "rawArguments": "{\"path\":\"b.ts\"}"
         }
       ],
       "api": "openai-responses",

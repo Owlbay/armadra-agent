@@ -36,7 +36,8 @@
       "arguments": {
         "dir": "src"
       },
-      "thoughtSignature": "fc_enc1"
+      "thoughtSignature": "fc_enc1",
+      "rawArguments": "{\"dir\":\"src\"}"
     }
   },
   {
@@ -57,7 +58,8 @@
           "arguments": {
             "dir": "src"
           },
-          "thoughtSignature": "fc_enc1"
+          "thoughtSignature": "fc_enc1",
+          "rawArguments": "{\"dir\":\"src\"}"
         }
       ],
       "api": "openai-responses",

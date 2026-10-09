@@ -84,7 +84,13 @@ describe("FakeProvider", () => {
     expect(first.terminal).toMatchObject({ type: "done", reason: "toolUse" });
     expect(first.final.content).toEqual([
       { type: "thinking", thinking: "plan", thinkingSignature: "fake-signature" },
-      { type: "toolCall", id: "c1", name: "read", arguments: { path: "a.ts" } },
+      {
+        type: "toolCall",
+        id: "c1",
+        name: "read",
+        arguments: { path: "a.ts" },
+        rawArguments: '{"path":"a.ts"}',
+      },
     ]);
     expect(first.events.filter((e) => e.type === "toolcall_delta").length).toBe(4);
     expect(first.final.usage).toMatchObject({ input: 100, output: 7 });
