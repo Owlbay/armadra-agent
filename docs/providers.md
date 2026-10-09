@@ -320,7 +320,9 @@ export PACKY_API_KEY=sk-...
   `providers add --probe`）；
   `--write` 把结果合并进用户级 `config.json`（已有同 id 不覆盖，只写 `id` 与和供应商不同的 `api`，
   原文件备份为 `config.json.bak`）。上下文等元数据在运行时从 models.dev 快照补（见下文「模型元数据」），
-  匹配不到的条目没有 `contextWindow`，自动压缩随之关闭，需要时手动补。
+  id 与官方目录条目对得上的还继承思考映射等固有属性（见下文「从官方目录继承」）；匹配不到的条目没有
+  `contextWindow`，自动压缩随之关闭，需要时手动补。`--probe` 只验证协议，`thinkingFormat` 这类请求格式仍需
+  实测后写进 `modelOverrides`。
 
 ```sh
 ama models discover packy --probe --write --limit 8
@@ -493,10 +495,11 @@ ama providers refresh <id> [--probe …]
 src/ai/providers/catalog.test.ts` 自动删除并重新生成 `catalog-data.ts`（之后跑 prettier）；确实要钉住与快照相同的
   值时在条目上写 `"_reason": "…"`（注释，运行时忽略，该条目不做冗余检查）。目录继承的映射与自定义模型略有不同：
   `maxTokens` 不封顶（取 `min(limit.output, contextWindow)`），缺的缓存价记 0。
-- **优先级**：用户配置（`models[]` / `modelOverrides[]` 里写了的字段）> 内置目录（快照 ⊕ 目录覆盖）> models.dev
-  索引 > 自定义缺省（`maxTokens: 8192`、`input: ["text"]`、`reasoning: false`、不猜 `contextWindow`）。
-  `ama models list` 与 `ama config show` 标出每个字段来自哪里（`config` / `目录` / `models.dev` / `缺省`；内置目录
-  从快照继承的字段标 `models.dev`）。
+- **优先级**：用户配置（`models[]` / `modelOverrides[]` 里写了的字段）> 内置目录（快照 ⊕ 目录覆盖）> 按 id 继承的
+  官方目录固有属性（下节）> models.dev 索引 > 自定义缺省（`maxTokens: 8192`、`input: ["text"]`、
+  `reasoning: false`、不猜 `contextWindow`）。`ama models list` 与 `ama config show` 标出每个字段来自哪里
+  （`config` / `目录` / `目录（按 id 匹配）` / `models.dev` / `缺省`；内置目录从快照继承的字段标 `models.dev`），
+  按 id 继承时另列出目录条目（`目录 deepseek/deepseek-flash`）。
 - **字段映射**（自定义模型）：`contextWindow = limit.context`；`maxTokens = min(limit.output, 65536, contextWindow)`——
   `maxTokens` 每次请求都作为 `max_tokens` 发出，models.dev 给的是原厂上限（不少模型写的是与上下文相同的
   1M），中转换了上游后常拒收超大值，Anthropic 协议的思考预算也从它推导，64k 对编码 Agent 的单轮输出足够，
@@ -518,6 +521,29 @@ src/ai/providers/catalog.test.ts` 自动删除并重新生成 `catalog-data.ts`�
      （`-0902`、`-20250514`、`-2025-05-14`）；
   7. 都没有 → 「未匹配」，保持自定义缺省（不猜 `contextWindow`，自动压缩关闭）。快照只收主流厂商，转售商专有的
      id 可能匹配不到，可在模型上写 `modelsDev` 指向收录的条目。
+
+### 从官方目录继承
+
+中转站与自定义供应商的模型（`models[]` 条目，以及中转上按 id 合成的模型）若 id 能对上内置目录的条目，就继承
+该模型的**固有属性**——它们跟着模型走，换了转售商也不变：
+
+- 继承：`reasoning`、`input`、`thinkingLevelMap`、`promptCache.minTokens`、
+  `compat.requiresReasoningContentOnAssistantMessages`；用户写了的字段不覆盖，`modelOverrides` 仍最高。
+- 不继承：`cost`（中转价不同，要用中转价请自填）、`promptCache.short` / `long`（TTL 是官方主机的承诺）、
+  `compat.thinkingFormat` 等请求格式与缓存主机能力。
+- models.dev：命中时 models.dev 改为显式匹配该目录条目的快照（如 `deepseek/deepseek-flash`，而不是别家转售的同名
+  条目），窗口、输出上限与价格照旧来自 models.dev（价格来源仍标 `models.dev`）；models.dev 不可用时窗口取目录值、
+  输出上限按 64k 封顶。
+- 匹配：小写、去一层厂商前缀（`deepseek-ai/`、`moonshotai/` 一类）与 `:latest` 后，与第一方目录条目的 id 或
+  `aliases` 精确比较，**唯一命中**才继承（两条目录条目撞同一个键时都不用）；聚合商目录（openrouter 等）里
+  `vendor/model` 形式的 id 不参与。精确比较不中时再去掉思考档后缀（`-minimal` / `-low` / `-medium` / `-high` /
+  `-xhigh` / `-tiered`）试一次：这类 id 由中转按名字决定思考档，所以只继承图片、窗口与缓存门槛，`reasoning` 不打开，
+  ama 不再发思考参数。例：`gemini-3.8-flash-low` → `google/gemini-3.8-flash`，带图片输入、1M 窗口。
+- 开关：`models[]` 条目写 `"catalog": false` 关闭；`"catalog": "deepseek/deepseek-v4-pro"` 显式指定目录条目（id
+  对不上时）。目录别名写在 `catalog/*.json` 条目的 `aliases` 里（如 `deepseek-flash` 的 `deepseek-v4-flash`）。
+- 中转把同名 id 指到别的上游时会误配：`ama models list` 的来源列能看出继承了哪条，用 `catalog: false` 关掉。
+  `requiresReasoningContentOnAssistantMessages` 经中转是否成立取决于中转是否透传 `reasoning_content`，不成立时用
+  `modelOverrides` 的 `compat` 写 `false`。
 
 ### 图像输入
 

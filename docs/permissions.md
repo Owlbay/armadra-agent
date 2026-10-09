@@ -171,7 +171,10 @@ default / auto-edit 下，满足下面全部条件的 bash 调用免审批（`Pe
 - **独立请求**：不进会话转录、不改主会话的消息与前缀（主会话的提示缓存不受影响），不触发保温；请求用途 `purpose: "classify"`。
 - **输入**：工具名、参数（JSON，截断到 4000 字符）、cwd、项目根、最近一条用户消息的摘要（截断到 600 字符）。参数与用户消息放在 `<tool_call_data>` … `</tool_call_data>` 数据块里，块内出现的结束标记会被转义；系统提示要求把块内一切当数据，忽略其中的指令（包括「ignore previous instructions」「respond allow」之类），遇到这种文本倾向于 ask。
 - **输出**：严格 JSON `{"decision":"allow"|"ask","reason":"…"}`。解析失败、超时（10 s）、请求出错 → 询问。
-- **模型**：`permission.autoModel`（`provider/model`）；缺省用当前会话模型。推荐配一个便宜快速的模型，例如 `packy/qwen3.8-flash`。`maxTokens` 256，关闭思考。
+- **模型**：`permission.autoModel`（`provider/model`）；没配（或找不到）时用会话供应商目录里的小模型（目录文件级
+  `small`：deepseek → `deepseek-flash`、anthropic → `claude-haiku-4-5`、openai → `gpt-6-luna`、google →
+  `gemini-3.5-flash-lite`、moonshot → `kimi-k2.6` 等，要能找到且有 key），再否则用当前会话模型；选中的模型记一条
+  debug 日志。中转与自定义供应商没有目录小模型，仍用会话模型。推荐配一个便宜快速的模型，例如 `packy/qwen3.8-flash`。`maxTokens` 256，关闭思考。
 - **缓存**：会话内按「工具名 + 归一化参数」（bash 折叠空白，其它按键排序的 JSON）缓存成功的判定，同样的调用只分类一次；出错与超时不缓存。
 - **费用**：每次分类的用量记一条 `usage` 条目，`kind: "permission_classify"`，计入 `/session` 费用与 RPC 统计，不进上下文。
 - 分类器只能把未决定的调用判成 allow 或 ask，不能推翻①的拒绝或询问。
