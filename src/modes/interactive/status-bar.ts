@@ -10,7 +10,9 @@
  *   `Manual · shift+tab 切换    sonnet-4-5 · medium · ↑12.3k ↓1.2k · cache 80% ♨ · $0.12 · ctx 34% · proj ⎇ main 5ae9e54 +12 −3 · 2h24m`
  *   右区顺序：模型 · 思考 · `↑ ↓` · cache · 费用 · rebill · ctx · git · 时长 · queue · codemode · 预设 · [宿主]。
  * - `full`（独立终端缺省，用户样例）：用量类项移到上方速率行（status-line.ts），本行为
- *   `Manual | 模型 思考 | Ctx 3.0% | 目录 ⎇ 分支 短提交 (+a,-d) | $费用 | 会话时长`；Ctx 一位小数、不换余量表。
+ *   `Manual | 模型 思考 | Ctx 3.0% 8.2k/272k auto | 目录 ⎇ 分支 短提交 (+a,-d) | $费用 | 会话时长`；Ctx 一位小数、
+ *   不换余量表，带已用量 / 窗口与自动压缩标记（status-ctx.ts）。
+ * - 上下文：估算值带 `≈`；着色阈值与档一裁剪对齐；流式中有 usage 时显示在途请求的值（`noteStreaming`，≤ 2 Hz）。
  *
  * - 用量来自 `session.getStats()`，只在 `refresh()` 时读取（事件驱动），渲染只拼字符串；时长按渲染时刻算。
  * - [W3-C2] `cache` 是**最近一次**请求的命中率；端点三态 `cache —` / `cache 未报告`；保温中追加 `♨`；
@@ -37,19 +39,14 @@
 
 import { msg } from "../../i18n/index.js";
 import type { AgentSession, SessionCacheStats, SessionStats } from "../../agent/types.js";
+import type { Usage } from "../../ai/types.js";
 import { permissionModeLabel } from "../../permissions/modes.js";
 import { formatModelRef } from "../../ai/providers/channels.js";
 import type { StatusLineMode } from "../../config/types.js";
 import type { GitInfo } from "../../git/info.js";
 import { compactQuotaItem, type QuotaView } from "./status-quota.js";
-import {
-  Meter,
-  levelColor,
-  truncateToWidth,
-  visibleWidth,
-  type Component,
-  type Theme,
-} from "../../tui.js";
+import { LiveContext, compactCtxText, fullCtxParts } from "./status-ctx.js";
+import { truncateToWidth, visibleWidth, type Component, type Theme } from "../../tui.js";
 
 export interface StatusBarSource {
   session(): AgentSession;
@@ -110,6 +107,24 @@ export function cacheText(cache: SessionCacheStats, warm = "♨"): string {
   return `cache ${value}${cache.warming.state === "scheduled" ? ` ${warm}` : ""}`;
 }
 
+/**
+ * 会话累计计费量（不是上下文）：`Σ↑<输入含缓存读写> ↓<输出> R<缓存读> W<缓存写>`，R / W 为 0 不显示；
+ * ASCII 下 `Σ` → `sum `。
+ */
+export function tokensText(
+  t: SessionStats["tokens"],
+  g: Pick<Theme["glyphs"], "ascii" | "arrowUp" | "arrowDown">,
+): string {
+  const prompt = t.input + t.cacheRead + t.cacheWrite;
+  const parts = [
+    `${g.ascii ? "sum " : "Σ"}${g.arrowUp}${formatTokens(prompt)}`,
+    `${g.arrowDown}${formatTokens(t.output)}`,
+  ];
+  if (t.cacheRead > 0) parts.push(`R${formatTokens(t.cacheRead)}`);
+  if (t.cacheWrite > 0) parts.push(`W${formatTokens(t.cacheWrite)}`);
+  return parts.join(" ");
+}
+
 /** 状态费用：会话费用 + 外部 Agent 以美元计的用量；会话费用未知为 undefined。 */
 export function statusCost(stats: SessionStats): number | undefined {
   if (stats.cost === undefined) return undefined;
@@ -142,8 +157,6 @@ export interface RowStyle {
 
 /** 两区之间至少留的空格；不足时退回单区。 */
 const MIN_GAP = 4;
-/** ctx 改用余量表的最小宽度。 */
-const METER_WIDTH = 110;
 
 /** 按优先级丢弃后排成一行（两区 / 单区）；连接符都是 dim。 */
 export function layoutRow(
@@ -249,6 +262,8 @@ export function usageItems(
   queue: number,
   source: StatusBarSource,
   theme: Theme,
+  /** full 速率行：`Σ` 标明会话累计，缓存读写分列 `R / W`；compact 保持 `↑ ↓`（宿主按此解析、窄屏省宽）。 */
+  cumulative = false,
 ): UsageItems {
   const g = theme.glyphs;
   const dim = (text: string): string => theme.fg("dim", text);
@@ -257,7 +272,11 @@ export function usageItems(
   const prompt = t.input + t.cacheRead + t.cacheWrite;
   const cache = stats.cache;
   if (prompt + t.output > 0) {
-    out.tokens = dim(`${g.arrowUp}${formatTokens(prompt)} ${g.arrowDown}${formatTokens(t.output)}`);
+    out.tokens = dim(
+      cumulative
+        ? tokensText(t, g)
+        : `${g.arrowUp}${formatTokens(prompt)} ${g.arrowDown}${formatTokens(t.output)}`,
+    );
     if (cache !== undefined) out.cache = dim(cacheText(cache, g.warm));
     else if (stats.cacheHitRate !== undefined) {
       out.cache = dim(`cache ${Math.round(stats.cacheHitRate * 100)}%`);
@@ -312,15 +331,32 @@ const COMPACT = {
   quota: 17,
 } as const;
 
-/** full 布局本行的优先级（§1.2 下行表）。 */
-const FULL = { model: 0, ctx: 1, cost: 2, duration: 3, branch: 4, dir: 5, diff: 6, thinking: 7 };
+/**
+ * full 布局本行的优先级（§1.2 下行表）。Ctx 段由百分比、已用量（ctxUsed）、`/窗口`（ctxWindow）与
+ * `auto` 标记组成，窄时先丢 auto、`/窗口`，再丢已用量，百分比最后丢。
+ */
+const FULL = {
+  model: 0,
+  ctx: 1,
+  cost: 2,
+  duration: 3,
+  ctxUsed: 4,
+  branch: 5,
+  dir: 6,
+  diff: 7,
+  ctxWindow: 8,
+  thinking: 9,
+  ctxAuto: 13,
+};
 const FULL_HINT = 12;
-/** full 状态栏（用户样例）：段间 ` | `。 */
-const FULL_STYLE: RowStyle = { sep: " | " };
+/** full 状态栏（用户样例）：段间 ` | `；Ctx 段（status-ctx.ts）的成员自带前导空格 / 斜杠，组内不加连接符。 */
+const FULL_STYLE: RowStyle = { sep: " | ", groups: { ctx: { glue: "" } } };
 
 export class StatusBar implements Component {
   private stats: SessionStats | undefined;
   private queue = 0;
+  /** 在途请求的上下文量（message_update 的 usage，≤ 2 Hz 采样）；该消息结束后清掉。 */
+  private readonly live = new LiveContext(() => this.source.now?.() ?? Date.now());
 
   constructor(
     private readonly source: StatusBarSource,
@@ -330,6 +366,19 @@ export class StatusBar implements Component {
   /** 用量、模型等变化后调用（事件驱动；流式期间不必每帧算）。 */
   refresh(): void {
     this.stats = this.source.session().getStats();
+  }
+
+  /**
+   * 流式中的助手消息带了 usage（有的协议在开头就给输入量）：记下在途请求的上下文量，距上次采样
+   * ≥ 500 ms 才更新（≤ 2 Hz）。返回是否更新了。
+   */
+  noteStreaming(usage: Usage | undefined): boolean {
+    return this.live.note(usage);
+  }
+
+  /** 助手消息结束：丢掉在途值，回到统计值。 */
+  clearStreaming(): void {
+    this.live.clear();
   }
 
   setQueue(steering: number, followUp: number): void {
@@ -399,7 +448,9 @@ export class StatusBar implements Component {
     if (usage.cache !== undefined) right(usage.cache, COMPACT.cache);
     if (usage.cost !== undefined) right(usage.cost, COMPACT.cost);
     if (usage.rebill !== undefined) right(usage.rebill, COMPACT.rebill);
-    right(this.ctxText(stats.contextPercent, width, full), p.ctx, full ? { reserve: 10 } : {});
+    const ctx = this.live.view(stats, g.ascii);
+    if (full) fullCtxParts(ctx, theme, FULL).forEach((part) => parts.push(part));
+    else right(compactCtxText(ctx, width, theme), p.ctx);
     this.gitParts(p, full).forEach((part) => parts.push(part));
     if (full) {
       const cost = statusCost(stats);
@@ -463,19 +514,6 @@ export class StatusBar implements Component {
       );
     }
     return out;
-  }
-
-  private ctxText(percent: number | undefined, width: number, decimal: boolean): string {
-    const theme = this.theme;
-    if (percent === undefined) return theme.fg("dim", decimal ? "Ctx ?" : "ctx ?");
-    const color = levelColor(percent / 100);
-    // full 按用户样例总是 `Ctx 3.0%`；compact 宽屏换余量表（现状）
-    if (!decimal && width >= METER_WIDTH) {
-      const meter = new Meter(percent / 100, { label: theme.fg("dim", "ctx"), theme });
-      return meter.render(80)[0] ?? "";
-    }
-    if (decimal) return theme.fg("dim", "Ctx ") + theme.fg(color, `${percent.toFixed(1)}%`);
-    return theme.fg("dim", "ctx ") + theme.fg(color, `${Math.round(percent)}%`);
   }
 
   render(width: number): string[] {

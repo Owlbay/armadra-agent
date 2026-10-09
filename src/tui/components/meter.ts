@@ -19,6 +19,8 @@ export interface MeterOptions {
   warnAt?: number;
   dangerAt?: number;
   theme?: Theme;
+  /** 百分比文本（缺省四舍五入到整数，`72%`）；value 为 undefined 时不调用。 */
+  percent?: (ratio: number) => string;
 }
 
 export const METER_FULL = UNICODE_GLYPHS.meterFull;
@@ -46,7 +48,8 @@ export class Meter implements Component {
   render(width: number): string[] {
     const { theme, label, cells = 10 } = this.options;
     const ratio = this.value === undefined ? undefined : Math.min(1, Math.max(0, this.value));
-    const percent = ratio === undefined ? "—" : `${Math.round(ratio * 100)}%`;
+    const percent =
+      ratio === undefined ? "—" : (this.options.percent?.(ratio) ?? `${Math.round(ratio * 100)}%`);
     const color = (c: SemanticColor, text: string): string => (theme ? theme.fg(c, text) : text);
     const head = label === undefined || label === "" ? "" : `${label} `;
     const filled = ratio === undefined ? 0 : Math.round(ratio * cells);
