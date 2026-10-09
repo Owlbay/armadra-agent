@@ -2,8 +2,11 @@
  * normalizeContext（设计 §1.2 ai/context.ts）：把循环交来的转录（含 `system` 补丁消息）变成
  * 协议可直接拼请求体的形状。
  *
- * - system 折叠：按出现顺序重放全部 system 消息的 `sections`（节名级替换，null 删除），得到
- *   `systemSections`（保持节首次出现的顺序）与拼好的 `systemPrompt`（节间空一行）；
+ * - system 折叠：首条非 system 消息之前的 system 消息按出现顺序重放（节名级替换，null 删除），
+ *   得到 `systemSections`（保持节首次出现的顺序）与拼好的 `systemPrompt`（节间空一行）；
+ * - 中途节补丁（设计 §9.1「会话中途变化的上下文只追加」）：对话开始之后的 system 补丁不改写开头，
+ *   渲染成 `<system-reminder>` 包裹的 user 消息按位置插回，开头与之前的消息逐字节不变；
+ *   例外是补丁移除了工具——工具表本身已变、前缀必然失效，这时全部补丁照旧折回开头；
  * - 工具表：按顺序重放 `toolsRemoved`（先）与 `toolsAdded`（后），同名后者覆盖；
  * - 模态过滤：模型不收图片时，用户消息与工具结果里的图片块换成文字占位。
  *
@@ -15,6 +18,7 @@
 import type {
   AssistantMessage,
   ContentBlock,
+  Message,
   Model,
   NormalizedContext,
   SystemMessage,
@@ -83,14 +87,51 @@ export function normalizeContext(
   context: TranscriptContext,
   options?: NormalizeOptions,
 ): NormalizedContext {
-  const state = new SystemState();
+  const head = new SystemState();
+  const tools = new SystemState();
   const messages: ConversationMessage[] = [];
   const allowImages = allowsImages(options);
+  const fold = removesToolsMidway(context.messages);
+  let pending: string[] = [];
+  const flush = (): void => {
+    if (pending.length === 0) return;
+    messages.push({ role: "user", content: systemReminderText(pending), timestamp: 0 });
+    pending = [];
+  };
   for (const message of context.messages) {
-    if (message.role === "system") state.apply(message);
-    else messages.push(filterMessage(message, allowImages));
+    if (message.role !== "system") {
+      flush();
+      messages.push(filterMessage(message, allowImages));
+      continue;
+    }
+    tools.apply(message);
+    if (fold || messages.length === 0) {
+      head.apply(message);
+      continue;
+    }
+    const text = renderSystemUpdate(message);
+    if (text.length > 0) pending.push(text);
   }
-  return { ...state.snapshot(), messages };
+  flush();
+  return { ...head.snapshot(), tools: tools.snapshot().tools, messages };
+}
+
+/** 对话开始之后有补丁移除了工具（这时整段前缀必然失效，补丁全部折回开头）。 */
+function removesToolsMidway(transcript: readonly Message[]): boolean {
+  let started = false;
+  for (const message of transcript) {
+    if (message.role !== "system") started = true;
+    else if (started && (message.toolsRemoved?.length ?? 0) > 0) return true;
+  }
+  return false;
+}
+
+/** 中途节补丁作为尾部上下文消息送达时的文本（固定英文，与界面语言无关）。 */
+export function systemReminderText(updates: readonly string[]): string {
+  return (
+    `<system-reminder>\n${updates.join("\n\n")}\n\n` +
+    "These updates replace the earlier versions of those system prompt sections.\n</system-reminder>"
+  );
 }
 
 /** 渲染一条中途 system 补丁的文本（节变更；工具表变化由请求的工具列表体现）。 */

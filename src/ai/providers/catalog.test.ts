@@ -140,7 +140,11 @@ describe("模型目录", () => {
     for (const model of catalog.get("moonshot") ?? []) {
       expect(model.promptCache, model.id).toEqual({ short: 300 });
     }
-    const unpromised = ["deepseek", "zhipu", "dashscope", "groq", "xai", "mistral", "openrouter"];
+    // DeepSeek：官方只说缓存「几小时到几天」后清除，按保守的 1 小时登记；实测缓存读按 2048 一块
+    for (const model of catalog.get("deepseek") ?? []) {
+      expect(model.promptCache, model.id).toEqual({ short: 3600, minTokens: 2048 });
+    }
+    const unpromised = ["zhipu", "dashscope", "groq", "xai", "mistral", "openrouter"];
     for (const id of [...unpromised, "google"]) {
       for (const model of catalog.get(id) ?? [])
         expect(model.promptCache, model.id).toBeUndefined();

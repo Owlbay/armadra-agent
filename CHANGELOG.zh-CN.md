@@ -6,6 +6,14 @@
 
 ## 未发布
 
+- **会话中途上下文变化不再打断提示缓存**：resume 时 AGENTS.md、Skills 或 SessionStart Hook 输出变了、宿主 instructions 刷新、压缩后记忆节
+  重新渲染，在不支持对话中途 system 消息的端点上原先会把变化的节并回开头的 system，整段上下文从第 0 个 token 起按全价重读。现在改为在
+  尾部追加一条 `<system-reminder>` 包裹的 user 消息，上一次请求仍是逐字节前缀；只有移除工具的补丁仍改写开头。DeepSeek 接受对话中途的
+  system 消息，但实测模型仍按开头那条回答，所以不为它打开（docs/benchmarks/cache-midconvo-2026-10-09.md）。
+- **不按猜测的缓存寿命提前裁剪**：目录没有承诺 TTL 时，档一裁剪不再按隐式 10 分钟判冷（隐式缓存可能存活数小时）；10 分钟只用于未命中归因。
+- **DeepSeek 目录补缓存信息**：`promptCache: { short: 3600, minTokens: 2048 }`（官方说未使用的缓存「几小时到几天」后清除；缓存读实测按
+  2048 token 一块计）。
+- **`ama models cache-probe` 建议**：目录没有寿命时不再建议自填 `short: 300`，改为说明此时 ama 不保温、不提前裁剪，只有上游文档写明寿命时才填。
 - **终端程序状态（OSC 7501）**：交互界面用 [程序状态协议](https://www.superlogical.com/rex/docs/build/program-status) 把
   idle / working / blocked（permission、question、auth）/ done / error 报告给终端，子 Agent 任务为子记录 `task/<id>`，退出时清掉记录。
   `ui.programStatus`：`auto`（缺省，终端回应检测查询后才发；tmux 里不发）、`on`（不检测；tmux 里经 passthrough）、`off`。检测回复不会

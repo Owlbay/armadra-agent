@@ -530,11 +530,14 @@ describe("openai-completions：请求体与 compat 开关", () => {
       "user",
     ]);
     expect((inline.body["messages"] as Msg[])[0]?.["content"]).toBe("A");
-    const collapsed = buildOpenAIRequest(makeModel("deepseek", "d"), context, opts());
-    expect((collapsed.body["messages"] as Msg[])[0]).toEqual({
-      role: "system",
-      content: "A\n\n/tmp",
-    });
+    const tail = buildOpenAIRequest(makeModel("deepseek", "d"), context, opts());
+    const sent = tail.body["messages"] as Msg[];
+    expect(sent.map((m) => m["role"])).toEqual(["system", "user", "user", "user"]);
+    expect(sent[0]).toEqual({ role: "system", content: "A" });
+    expect(sent[2]?.["content"]).toBe(
+      '<system-reminder>\nSystem prompt section "cwd" was updated:\n\n/tmp\n\n' +
+        "These updates replace the earlier versions of those system prompt sections.\n</system-reminder>",
+    );
   });
 
   it("samplingParams 最后合并；isStrictCompatible", () => {

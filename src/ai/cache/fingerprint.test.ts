@@ -43,13 +43,18 @@ describe("fingerprintContext（§1.2）", () => {
     expect(fingerprintChange(a, c)).toBe("tools");
   });
 
-  it("system 补丁改节 → 只变 system；换模型 → model", () => {
+  it("中途节补丁作为尾部上下文送达 → system 指纹不变；开头的节变了 → system；换模型 → model", () => {
     const base = system([tool("read")]);
     const a = fingerprintContext(context(base, user("q")), model);
     const patch: SystemMessage = { role: "system", sections: { a: "new rules" }, timestamp: 3 };
     const b = fingerprintContext(context(base, user("q"), patch), model);
-    expect(b.tools).toBe(a.tools);
-    expect(fingerprintChange(a, b)).toBe("system");
+    expect(b).toEqual(a);
+    const rewritten = fingerprintContext(
+      context(system([tool("read")], { a: "new rules" }), user("q")),
+      model,
+    );
+    expect(rewritten.tools).toBe(a.tools);
+    expect(fingerprintChange(a, rewritten)).toBe("system");
     const c = fingerprintContext(context(base, user("q")), { provider: "x", id: "y" });
     expect(fingerprintChange(a, c)).toBe("model");
     expect(fingerprintChange(a, a)).toBeUndefined();

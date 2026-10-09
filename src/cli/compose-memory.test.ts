@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { composeHarness, type ComposeHarness } from "../../test/helpers/compose-harness.js";
 import { buildAnthropicRequest } from "../ai/apis/anthropic-request.js";
+import { normalizeContext } from "../ai/context.js";
 import type { FakeResponse } from "../ai/fake/fake-script.js";
 import { ProviderRegistry } from "../ai/providers/registry.js";
 import type { Model, SystemMessage, TranscriptContext } from "../ai/types.js";
@@ -191,7 +192,12 @@ describe("会话里的记忆", () => {
     await runtime.session.compact();
     await runtime.session.prompt("q2");
     const last = h.fake.calls.at(-1)!;
-    expect(prefix(last.context)).toContain("/memories/user/after.md");
+    // 压缩后重渲染的 memory 节以尾部上下文送达：开头的 system 不变，新条目在提醒里
+    expect(prefix(last.context)).not.toContain("/memories/user/after.md");
+    const reminder = normalizeContext(last.context).messages.find(
+      (m) => m.role === "user" && JSON.stringify(m.content).includes("<system-reminder>"),
+    );
+    expect(JSON.stringify(reminder?.content)).toContain("/memories/user/after.md");
     const patch = systemMessages(runtime.session).at(-1)!;
     expect(Object.keys(patch.sections)).toEqual(["memory"]);
     await runtime.dispose();

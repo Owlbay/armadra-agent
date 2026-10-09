@@ -7,6 +7,20 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 
 ## Unreleased
 
+- **Prompt cache survives mid-session context changes**: when AGENTS.md, Skills or SessionStart hook output changed on
+  resume, host instructions were refreshed or the memory section was re-rendered after compaction, the changed section
+  used to be folded back into the leading system prompt on endpoints without mid-conversation system messages, so the
+  whole context was billed at full price from token 0. It is now delivered as a `<system-reminder>` user message at the
+  end, and the previous request stays a byte-for-byte prefix; only a patch that removes tools still rewrites the head.
+  DeepSeek accepts a mid-conversation system message but measurably keeps answering from the leading one, so it stays off
+  there (docs/benchmarks/cache-midconvo-2026-10-09.md).
+- **No early pruning on a guessed cache lifetime**: tier-one pruning no longer treats the cache as cold after an implicit
+  10 minutes when the catalog promises no TTL (implicit caches may live for hours); the 10 minutes remain for miss
+  attribution only.
+- **DeepSeek catalog cache data**: `promptCache: { short: 3600, minTokens: 2048 }` (the vendor says unused cache is
+  cleared after a few hours to a few days; reads were measured in 2048-token blocks).
+- **`ama models cache-probe` advice**: without a catalog lifetime it no longer suggests filling in `short: 300`; it
+  explains that ama then neither warms nor prunes early and to fill in only a documented lifetime.
 - **Terminal program status (OSC 7501)**: the interactive interface reports idle / working / blocked (permission,
   question, auth) / done / error to the terminal with the
   [Program Status Protocol](https://www.superlogical.com/rex/docs/build/program-status), sub-agent tasks as child records

@@ -400,7 +400,7 @@ Inference order: conservative defaults ← inference table (provider id, then ba
 | `requiresReasoningContentOnAssistantMessages` | Earlier assistant messages of reasoning models carry `reasoning_content` (DeepSeek)                                      |
 | `requiresToolResultName`                      | Tool result messages carry `name` (Mistral)                                                                              |
 | `requiresAssistantAfterToolResult`            | Insert an assistant message when a user message directly follows a tool result                                           |
-| `supportsMidConvoSystemMessages`              | Later system prompt patches are inserted back as system messages at their position                                       |
+| `supportsMidConvoSystemMessages`              | Later prompt patches go back as system messages in place; off (default): trailing context, see "Caching"                 |
 | `cacheControlFormat`                          | `anthropic`: put `cache_control` on the system prompt, the last tool and the last user/tool message                      |
 | `supportsStrictTools`                         | Send `strict: true` for strictly compatible tool schemas                                                                 |
 | `supportsStore`                               | Send `store: false`                                                                                                      |
@@ -439,6 +439,8 @@ Most usage in long tasks is cache reads: once the prefix changes, every later re
 
 Prefix stability is guaranteed by assembly: the system prompt sections have a fixed order without timestamps, tools are sorted by name, and mid-session changes are only appended at the end as system patches ([session-format.md](../session-format.md), Chinese).
 
+Section patches after the conversation has started (AGENTS.md, Skills or SessionStart hook output changed on resume, host instructions refreshed, the memory section re-rendered after compaction) **do not rewrite the leading system prompt**: protocols without `supportsMidConvoSystemMessages` render them as a user message wrapped in `<system-reminder>` at the patch's position, so the previous request stays a byte-for-byte prefix. The only exception is a patch that removes tools: the tool list itself changed and the prefix is lost anyway, so all patches are folded back into the head as before. Measured on DeepSeek, a mid-conversation system message is accepted and the prefix cache holds, but the model still answers from the leading one, so DeepSeek keeps the switch off ([cache-midconvo-2026-10-09](../benchmarks/cache-midconvo-2026-10-09.md), Chinese). At the next compaction these patches are folded into the head together with the system checkpoint.
+
 ### Request fields
 
 | Protocol                                  | Field                                                                                                   | Condition                                                                                                    |
@@ -476,7 +478,7 @@ If any cache field appears in the raw usage (even 0) → `Usage.cacheReported = 
 
 ### Model catalog `promptCache`
 
-Only publicly documented values are written (seconds / tokens): all Anthropic models `short 300 / long 3600`, with `minTokens` 512–4096 by model; all OpenAI models `short 300 / long 86400 / minTokens 1024`; all Kimi models `short 300`. DeepSeek, Zhipu, Qwen, Groq, xAI, Mistral, OpenRouter and Google promise no TTL, so it stays empty (no warming; attribution assumes 10 minutes for implicit caching). You can fill it in yourself in `models[]` / `modelOverrides[]`.
+Only publicly documented values are written (seconds / tokens): all Anthropic models `short 300 / long 3600`, with `minTokens` 512–4096 by model; all OpenAI models `short 300 / long 86400 / minTokens 1024`; all Kimi models `short 300`; all DeepSeek models `short 3600 / minTokens 2048` (the vendor only says unused cache is cleared after "a few hours to a few days", so the conservative 1 hour is used; cache reads were measured in 2048-token blocks). Zhipu, Qwen, Groq, xAI, Mistral, OpenRouter and Google promise no TTL, so it stays empty: no warming and no early pruning on a guessed lifetime; only miss attribution assumes 10 minutes for implicit caching. You can fill it in yourself in `models[]` / `modelOverrides[]`; DeepSeek models on relays do not inherit the official catalog values, fill them in the same way if needed.
 
 ### Session layer: fingerprints, misses and three states
 
@@ -541,7 +543,7 @@ ama models cache-probe <provider/id> [--tokens 2048] [--gap-ms 3000] [--json] [-
 
 It sends a deterministic fixed prefix (about `--tokens` tokens) + `Reply with: ok`, `maxTokens: 16`, twice `--gap-ms` apart, and decides:
 
-- `reported`: the second cacheRead ≥ 50% of the prefix; when the catalog has no `promptCache`, it suggests filling in `promptCache.short` to enable warming;
+- `reported`: the second cacheRead ≥ 50% of the prefix; when the catalog has no `promptCache`, it explains that the lifetime is unknown (no warming, no early pruning) and to fill it in only with a lifetime the upstream documents, without suggesting a guessed value — a value that is too short fires warming and early pruning while the cache is still valid;
 - `silent`: reads and writes were 0 both times; it suggests setting `compat.cacheReporting: "silent"`. When the response has cache fields that stay 0, it also hints at a possible write delay (kimi-k2.5 on the same relay read 0 twice 3 seconds apart, but the full prefix on the second request 8 seconds apart), so retry with a larger `--gap-ms`;
 - `inconclusive`: a small read or only writes, most likely a cache granularity or TTL issue.
 
