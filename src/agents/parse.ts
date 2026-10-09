@@ -104,9 +104,12 @@ export function parseAgentDefinition(
   const background = data["background"];
   if (background !== undefined && typeof background !== "boolean")
     return fail("background must be true or false");
+  const context = data["context"];
+  if (context !== undefined && context !== null && context !== "fork" && context !== "fresh")
+    return fail("context must be fork or fresh");
 
   if (runner !== "ama") {
-    const ignored = ["tools", "disallowed-tools", "permission-mode"].filter(
+    const ignored = ["tools", "disallowed-tools", "permission-mode", "context"].filter(
       (key) => data[key] !== undefined,
     );
     if (ignored.length > 0)
@@ -130,5 +133,6 @@ export function parseAgentDefinition(
   if (tools !== undefined) agent.tools = tools;
   if (disallowedTools !== undefined) agent.disallowedTools = disallowedTools;
   if (typeof thinking === "string") agent.thinking = thinking as ModelThinkingLevel;
+  if (context === "fork" || context === "fresh") agent.context = context;
   return { agent, warnings };
 }
