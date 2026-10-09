@@ -11,6 +11,7 @@
 import { readFile, stat } from "node:fs/promises";
 import { extname } from "node:path";
 import { AmaError } from "../errors.js";
+import { internImage } from "../ai/image-intern.js";
 import {
   DEFAULT_IMAGE_BASE64_LIMIT,
   MAX_IMAGE_EDGE,
@@ -318,7 +319,7 @@ export async function loadImageFile(
   const fit = await fitImage(buf, mimeType, options, path);
   if (!fit.ok) throw fitError(path, fit, limit, buf.length, options.resize === "off");
   return {
-    block: { type: "image", data: fit.buf.toString("base64"), mimeType: fit.mimeType },
+    block: internImage({ type: "image", data: fit.buf.toString("base64"), mimeType: fit.mimeType }),
     path,
     mimeType: fit.mimeType,
     bytes: fit.buf.length,

@@ -29,6 +29,7 @@
 ### 内存占用
 
 - **内存优化的基础改动**（docs/memory-plan.md，测量报告见 docs/research/memory-2026-10.md）：配置 schema 接受 `subagents.retainSessions` 与 `codemode.maxHeapMb`，RPC 可以声明 `compact_events` 能力，三者都在后续批次生效。进程级的缓存上报表对每个端点只保留上一条请求的摘要而不是整条记录，不再因此拖住已关闭的会话。
+- **图片按内容去重**：`read` 反复读同一张图、`--image` / `@路径` 附图后又读同一张、恢复的会话里重复出现的图片，内存里只留一份 base64，不再每处一份。会话文件与请求内容不变。
 
 ## 0.7.3（2026-10-09）
 
