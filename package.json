@@ -30,7 +30,7 @@
     "url": "git+https://github.com/Owlbay/armadra-agent.git"
   },
   "bin": {
-    "ama": "dist/cli/main.js"
+    "ama": "dist/bundle/ama.cjs"
   },
   "exports": {
     ".": {

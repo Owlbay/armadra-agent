@@ -31,6 +31,11 @@ interface ReleaseCheckModule {
   checkDocs(input: DocsInput): { errors: string[]; notes: string[] };
   hasVersionSection(text: string, version: string): boolean;
   filesEntryCovers(entry: string, path: string): boolean;
+  checkBin(input: { bin: unknown; exportsBundle: unknown; head?: string }): {
+    errors: string[];
+    notes: string[];
+  };
+  BIN_SHEBANG: string;
   DOC_FILES: string[];
   PACKED_DOC_FILES: string[];
   translationBasis(text: string | undefined): string | undefined;
@@ -44,6 +49,7 @@ const SCRIPT = fileURLToPath(new URL("../scripts/release-check.mjs", import.meta
 const load = (): Promise<ReleaseCheckModule> =>
   import(pathToFileURL(SCRIPT).href) as Promise<ReleaseCheckModule>;
 
+const BIN = "dist/bundle/ama.cjs";
 const V1 = { HOST_API_VERSION: 1, RPC_PROTOCOL_VERSION: 1, SESSION_FORMAT_VERSION: 1 };
 const prev = (version: string, constants: Record<string, number> = V1): Previous => ({
   tag: `v${version}`,
@@ -238,7 +244,15 @@ describe("release-check CLI（临时 git 仓库）", () => {
       mkdirSync(dirname(join(dir, file)), { recursive: true });
       writeFileSync(join(dir, file), text);
     };
-    put("package.json", JSON.stringify({ version, files: PACKAGE_FILES }));
+    put(
+      "package.json",
+      JSON.stringify({
+        version,
+        files: PACKAGE_FILES,
+        bin: { ama: BIN },
+        exports: { "./bundle": `./${BIN}` },
+      }),
+    );
     for (const [file, text] of Object.entries(docFixture(version))) put(file, text);
     put("src/host/types.ts", "export const HOST_API_VERSION = 1 as const;\n");
     put("src/rpc.ts", `export const RPC_PROTOCOL_VERSION = ${rpc} as const;\n`);
@@ -269,6 +283,52 @@ describe("release-check CLI（临时 git 仓库）", () => {
     expect(tagged.status).toBe(0);
     expect(tagged.stdout).toContain("相对 v0.1.0：版本 0.1.0 → 0.2.0");
     expect(run({ GITHUB_REF_TYPE: "tag", GITHUB_REF_NAME: "v0.3.0" }).status).toBe(1);
+  });
+
+  it("[M-F] bin 文件已构建但首行不是 shebang → 退出 1；补上 → 0", () => {
+    repo();
+    write("0.1.0", 1);
+    const file = join(root as string, BIN);
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, "module.exports = 1;\n");
+    const bad = run();
+    expect(bad.status).toBe(1);
+    expect(bad.stderr).toContain("首行不是");
+    writeFileSync(file, "#!/usr/bin/env node\nmodule.exports = 1;\n");
+    expect(run().status).toBe(0);
+  });
+});
+
+describe("[M-F] 全局命令指向 bundle（D7）", () => {
+  it("bin.ama 是 dist/bundle/*.cjs、与 exports['./bundle'] 相同、已构建时首行 shebang", async () => {
+    const { checkBin, BIN_SHEBANG } = await load();
+    const ok = { bin: { ama: BIN }, exportsBundle: `./${BIN}` };
+    expect(checkBin({ ...ok, head: BIN_SHEBANG })).toEqual({ errors: [], notes: [] });
+    expect(checkBin({ ...ok, head: `${BIN_SHEBANG}\r` }).errors).toEqual([]);
+    expect(checkBin(ok).notes[0]).toContain("尚未构建");
+    expect(checkBin({ ...ok, head: "const x = 1;" }).errors[0]).toContain("首行不是");
+    expect(checkBin({ ...ok, bin: { ama: "dist/cli/main.js" } }).errors).toHaveLength(2);
+    expect(checkBin({ ...ok, exportsBundle: "./dist/bundle/other.cjs" }).errors[0]).toContain(
+      "不一致",
+    );
+    expect(checkBin({ bin: "dist/bundle/ama.cjs", exportsBundle: BIN }).errors[0]).toContain(
+      "bin.ama 缺失",
+    );
+  });
+
+  it("本仓库 package.json 通过；构建产物存在时首行就是 shebang", async () => {
+    const { checkBin } = await load();
+    const root = fileURLToPath(new URL("..", import.meta.url));
+    const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
+      bin: { ama: string };
+      exports: Record<string, unknown>;
+    };
+    const path = join(root, pkg.bin.ama);
+    const head = existsSync(path) ? readFileSync(path, "utf8").split("\n")[0] : undefined;
+    expect(
+      checkBin({ bin: pkg.bin, exportsBundle: pkg.exports["./bundle"], ...(head ? { head } : {}) })
+        .errors,
+    ).toEqual([]);
   });
 });
 
