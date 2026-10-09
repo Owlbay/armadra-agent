@@ -8,6 +8,10 @@
 
 - **并行 worktree 隔离**：两个隔离任务同时开始时，可能报 `无法读取 .git/worktrees/<id>/commondir`——`git worktree add` 读到了另一个任务建了一半的管理目录。现在同一仓库的 worktree 增删与删分支按顺序执行，另一个 ama 进程造成的同类瞬时错误短暂重试。
 
+### 模型调用效率
+
+- **模型调用效率改进的契约**（docs/model-efficiency-plan.md）：只加可选字段——工具调用块的 `rawArguments`、失败助手消息的 `retryAfterMs`（会话文件与 RPC 都是可选字段，格式与协议版本不变），`ama.task` 的 data 与 `TaskInfo` 的 `context`，内置模型目录的 `aliases` / `small`。配置 schema 接受 `compaction.contextBudget`、`request.streamIdleTimeoutMs` 与 `models[].catalog`，在后续批次生效。调用不可用的工具时，结果文案改为 `Tool "X" is not available in this session.`
+
 ## 0.7.3（2026-10-09）
 
 - **首次请求前的 `/context`**：状态栏已显示启动基线时，它仍是 `0 / <窗口>`、不计系统提示与工具声明；现在按首次请求将要发送的内容估算这两类（与状态栏基线共用同一份装配），「已用」始终与状态栏和 `getStats()` 一致。
