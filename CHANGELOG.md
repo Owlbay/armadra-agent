@@ -5,6 +5,18 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 > This file is in English starting with 0.6.0. Release notes for 0.1 through 0.5.1 are in Chinese in
 > [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md). New entries go into both files.
 
+## Unreleased
+
+- **ACP context usage right away**: `ama --mode acp` now sends `usage_update` after the `session/new`, `session/load`
+  (after the replay) and `session/resume` responses, after a model change and at the end of every assistant message (so
+  multi-tool turns update too), instead of only at the end of a turn; unchanged values are not resent. With an unknown
+  context window there is still no `usage_update` (`size` is required by the schema).
+- **`-p --output-format json` context**: the result object carries `context: { tokens, window, percent }`; unknown items
+  are omitted.
+- **External agents' context**: when an external agent reports its context usage and window (ACP `usage_update`, Codex
+  app-server `tokenUsage`), the numbers go into the task record and `ama.agent-usage`, `getStats().external.byAgent`
+  keeps the latest, and `/tasks` and the Agent bar show `ctx 34%`.
+
 ## 0.7.1 (2026-10-05)
 
 - **Windows: concurrent OAuth refresh**: while one ama process releases the `auth.json.lock`, another one opening it
