@@ -69,8 +69,8 @@ export interface CacheMiss {
   /** 重计费金额（美元）；模型无价格时缺省（显示 `$?`）。 */
   missedCost?: number;
   reason: CacheMissReason;
-  /** `prefix_changed` 时哪一段变了。 */
-  detail?: "system" | "tools";
+  /** `prefix_changed` 时哪一段变了；[ME-B] system 变时带节名：`system:hooks,memory`。 */
+  detail?: "system" | "tools" | `system:${string}`;
   /** 与上一条可比请求的间隔。 */
   idleMs: number;
 }

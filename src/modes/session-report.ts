@@ -96,11 +96,11 @@ export function missReasonText(miss: Pick<CacheMiss, "reason" | "detail" | "idle
     case "model_changed":
       return m.missModel;
     case "prefix_changed":
-      return miss.detail === "tools"
-        ? m.missTools
-        : miss.detail === "system"
-          ? m.missSystem
-          : m.missPrefix;
+      if (miss.detail === "tools") return m.missTools;
+      if (miss.detail === "system") return m.missSystem;
+      if (miss.detail?.startsWith("system:") === true)
+        return m.missSystemSections(miss.detail.slice("system:".length).replaceAll(",", ", "));
+      return m.missPrefix;
     case "evicted":
       return m.missEvicted;
   }
@@ -403,7 +403,7 @@ export function describeSession(session: AgentSession, now: number = Date.now())
   ].join("\n");
 }
 
-/** `/cache fingerprint`：最近一次真实请求的前缀指纹（system / tools 哈希与模型）。 */
+/** `/cache fingerprint`：最近一次真实请求的前缀指纹（system / tools 哈希与模型；[ME-B] 再逐节列哈希）。 */
 export function describeFingerprint(session: AgentSession): string {
   const m = msg().report.session;
   if (!(session instanceof AgentSessionImpl)) return m.noFingerprint;
@@ -415,6 +415,10 @@ export function describeFingerprint(session: AgentSession): string {
     ...renderRows(
       [
         { key: "system", value: f.system },
+        ...Object.entries(f.sections ?? {}).map(([name, hash]) => ({
+          key: `  ${name}`,
+          value: hash,
+        })),
         { key: "tools", value: f.tools },
         { key: "model", value: f.model },
       ],

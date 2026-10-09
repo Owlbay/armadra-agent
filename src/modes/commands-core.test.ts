@@ -122,7 +122,7 @@ describe("斜杠命令语义层", () => {
     expect(await runSlashCommand("/cache warm", ctx)).toMatchObject({ message: "保温：idle" });
     const print = (await runSlashCommand("/cache fingerprint", ctx)) as { message: string };
     expect(print.message).toMatch(
-      /^前缀指纹（最近一次请求）\n {2}system {2}[0-9a-f]{16}\n {2}tools {3}[0-9a-f]{16}\n {2}model {3}fake\/echo$/,
+      /^前缀指纹（最近一次请求）\n {2}system +[0-9a-f]{16}\n( {4}[a-z_]+ +[0-9a-f]{16}\n)+ {2}tools +[0-9a-f]{16}\n {2}model +fake\/echo$/,
     );
     await expect(runSlashCommand("/cache warm hot", ctx)).rejects.toMatchObject({
       code: "invalid_arguments",

@@ -10,13 +10,14 @@
  * 4. 成本：用本条实付反推——`(cost.input + cost.cacheWrite) / (input + cacheWrite)` 减去读价
  *    （本条有读用实付，否则用目录价）；无价格 → `missedCost` 缺省。
  * 5. 重置点（压缩 / 分支摘要 / 档一裁剪之后的首个请求）由调用方清空 prev；模型切换不豁免。
- * 6. 归因：指纹 system / tools 变 → `prefix_changed`；模型变 → `model_changed`；
+ * 6. 归因：指纹 system / tools 变 → `prefix_changed`（system 变时 `detail` 带变化的节名，如
+ *    `system:hooks,memory`，[ME-B] D15）；模型变 → `model_changed`；
  *    `idleMs > ttl`（无承诺 TTL 的隐式缓存按 600 s）→ `idle`；task 运行占间隔 ≥ 80% →
  *    `subtask`；其余 → `evicted`。
  */
 
 import type { ModelCost } from "../types.js";
-import { fingerprintChange } from "./fingerprint.js";
+import { changedSections, fingerprintChange } from "./fingerprint.js";
 import type { CacheMiss, CacheReporting, RequestRecord } from "./types.js";
 
 /** 无承诺 TTL 的端点（隐式缓存）按 10 分钟估。 */
@@ -102,9 +103,13 @@ export function detectMiss(
   if (cost !== undefined) miss.missedCost = cost;
 
   const change = fingerprintChange(prev.fingerprint, cur.fingerprint);
-  if (change === "system" || change === "tools") {
+  if (change === "tools") {
     miss.reason = "prefix_changed";
     miss.detail = change;
+  } else if (change === "system") {
+    miss.reason = "prefix_changed";
+    const names = changedSections(prev.fingerprint, cur.fingerprint);
+    miss.detail = names.length > 0 ? `system:${names.join(",")}` : "system";
   } else if (change === "model") miss.reason = "model_changed";
   else if (idleMs > (ttlMs ?? IMPLICIT_CACHE_TTL_MS)) miss.reason = "idle";
   else if (idleMs > 0 && (options.subtaskMs ?? 0) >= SUBTASK_SHARE * idleMs) {

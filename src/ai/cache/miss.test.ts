@@ -97,6 +97,22 @@ describe("五种归因（§1.5 第 6 步）", () => {
     });
   });
 
+  it("[ME-B] system 变时 detail 带变化的节名；任一方没有按节指纹 → 仍为 system", () => {
+    const withSections = record({
+      at: 0,
+      cacheRead: 50_000,
+      fingerprint: { sections: { preamble: "p", hooks: "h1", memory: "m1" } },
+    });
+    const changed = cold({
+      fingerprint: { system: "s2", sections: { preamble: "p", hooks: "h2", memory: "m2" } },
+    });
+    expect(detectMiss(withSections, changed, TTL)).toMatchObject({
+      reason: "prefix_changed",
+      detail: "system:hooks,memory",
+    });
+    expect(detectMiss(prev, changed, TTL)?.detail).toBe("system");
+  });
+
   it("model_changed；idle（ttl 缺省按 600 s）；subtask（task 占间隔 ≥ 80%）；其余 evicted", () => {
     expect(detectMiss(prev, cold({ model: "other" }), TTL)?.reason).toBe("model_changed");
     expect(detectMiss(prev, cold({ at: 400_000 }), TTL)).toMatchObject({
