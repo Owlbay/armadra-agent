@@ -71,6 +71,13 @@ export interface CapturedRequest {
   body: unknown;
 }
 
+/** 请求体解析回对象：字符串，或含大字符串时 postJson 发的流（见 ai/json-body.ts）；其它形状原样返回。 */
+export async function requestJson(body: RequestInit["body"]): Promise<unknown> {
+  if (typeof body === "string") return JSON.parse(body);
+  if (body instanceof ReadableStream) return JSON.parse(await new Response(body).text());
+  return body;
+}
+
 /** 用样本替换 fetch；返回捕获到的请求列表。调用方在 afterEach 里 vi.unstubAllGlobals()。 */
 export function stubFetchWithFixture(
   fixture: Fixture,
@@ -86,7 +93,7 @@ export function stubFetchWithFixture(
     captured.push({
       url: String(input),
       headers,
-      body: typeof init?.body === "string" ? JSON.parse(init.body) : init?.body,
+      body: await requestJson(init?.body),
     });
     return new Response(bodyStream(fixture.body, mode, fixture.errorAfterBody), {
       status: fixture.status,
