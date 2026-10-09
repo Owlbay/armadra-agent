@@ -1,0 +1,4 @@
+{"type":"session","version":1,"id":"s-trunc","timestamp":"2026-10-01T00:00:00.000Z","cwd":"/work/proj","agent":{"name":"ama","version":"0.7.3"}}
+{"type":"message","message":{"role":"user","content":"first","timestamp":1},"id":"l0","parentId":null,"timestamp":"t"}
+{"type":"message","message":{"role":"assistant","content":[{"type":"te
+{"type":"message","message":{"role":"user","content":"later","timestamp":1},"id":"l1","parentId":null,"timestamp":"2026-10-01T00:00:01.000Z"}

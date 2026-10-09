@@ -4,3 +4,5 @@
 *.jpg binary
 *.gif binary
 *.webp binary
+# 会话读取的 CRLF 口径语料：保留原字节
+test/fixtures/sessions/crlf.jsonl -text

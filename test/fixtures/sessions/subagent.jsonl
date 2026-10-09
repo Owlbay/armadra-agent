@@ -1,0 +1,4 @@
+{"type":"session","version":1,"id":"s-sub","timestamp":"2026-10-01T00:00:00.000Z","cwd":"/work/proj","agent":{"name":"ama","version":"0.7.3"},"parentSession":"/work/parent.jsonl"}
+{"type":"custom","customType":"ama.task","data":{"agent":"explore"},"id":"g1","parentId":null,"timestamp":"2026-10-01T00:00:01.000Z"}
+{"type":"message","message":{"role":"user","content":"sub task","timestamp":1},"id":"g2","parentId":"g1","timestamp":"2026-10-01T00:00:01.000Z"}
+{"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"r"}],"timestamp":1},"id":"g3","parentId":"g2","timestamp":"2026-10-01T00:00:01.000Z"}

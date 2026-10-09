@@ -1,0 +1,4 @@
+{"type":"session","version":1,"id":"s-corrupt","timestamp":"2026-10-01T00:00:00.000Z","cwd":"/work/proj","agent":{"name":"ama","version":"0.7.3"}}
+{"type":"message","message":{"role":"user","content":"ok","timestamp":1},"id":"k1","parentId":null,"timestamp":"2026-10-01T00:00:01.000Z"}
+not json
+{"type":"message","message":{"role":"user","content":"later","timestamp":1},"id":"k2","parentId":"k1","timestamp":"2026-10-01T00:00:01.000Z"}
