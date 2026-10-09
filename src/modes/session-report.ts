@@ -2,7 +2,8 @@
  * 会话报告与缓存提示文本（第三波 §1.10）。[W3-C2]
  *
  * line 模式、交互模式与 RPC 共用的纯文本层，不含渲染：
- * - `/session`：会话、模型、消息、用量、上下文 + 「缓存」段（`describeSession`）；
+ * - `/session`：会话、模型、消息、累计用量、上下文（估算值带 `≈`，末尾是距自动压缩的余量）+ 「缓存」段
+ *   （`describeSession`）；
  * - `/cache`：只有缓存段（`describeCache`）；`/cache fingerprint`：最近一次真实请求的前缀指纹；
  * - 消息区 / stderr 的一行提示：缓存未命中（只提示 ≥ 20k token 或 ≥ $0.10 的那次）、
  *   上下文跨越 70% / 90%（`cache.missNotices` 为 false 时都不提示，统计不受影响）。
@@ -11,7 +12,12 @@
  */
 
 import { AgentSessionImpl } from "../agent/session.js";
-import type { AgentSession, SessionCacheStats, SessionEvent } from "../agent/types.js";
+import type {
+  AgentSession,
+  SessionCacheStats,
+  SessionEvent,
+  SessionStats,
+} from "../agent/types.js";
 import type {
   CacheMiss,
   CacheMissReason,
@@ -32,6 +38,26 @@ export function formatTokenCount(count: number): string {
   if (count < 100_000) return `${trim((count / 1000).toFixed(1))}k`;
   if (count < 1_000_000) return `${Math.round(count / 1000)}k`;
   return `${trim((count / 1_000_000).toFixed(2))}M`;
+}
+
+/** 上下文量不是来自 usage（压缩后新 usage 之前的全量估算、第一次请求前的前缀基线）。 */
+export function contextEstimated(stats: Pick<SessionStats, "context">): boolean {
+  const source = stats.context?.source;
+  return source !== undefined && source !== "usage";
+}
+
+/**
+ * 上下文行末尾的自动压缩说明：`距自动压缩 ≈ N`（到档二阈值还差多少）；自动压缩关闭或熔断时
+ * `自动压缩关闭`；窗口未知或统计没有 `context` 明细时 undefined。
+ */
+export function autoCompactText(
+  stats: Pick<SessionStats, "context" | "contextTokens" | "contextWindow">,
+): string | undefined {
+  const m = msg().report.session;
+  if (stats.context === undefined || stats.contextWindow === undefined) return undefined;
+  const at = stats.context.autoCompactAt;
+  if (at === undefined) return m.autoCompactOff;
+  return m.toAutoCompact(formatTokenCount(Math.max(0, at - (stats.contextTokens ?? 0))));
 }
 
 export function formatUsd(cost: number | undefined): string {
@@ -351,11 +377,16 @@ export function describeSession(session: AgentSession, now: number = Date.now())
     },
     {
       key: m.keyContext,
-      value: m.context(
-        String(stats.contextTokens ?? "?"),
-        String(stats.contextWindow ?? "?"),
-        percent,
-      ),
+      value: [
+        m.context(
+          `${contextEstimated(stats) ? "≈" : ""}${stats.contextTokens ?? "?"}`,
+          String(stats.contextWindow ?? "?"),
+          percent,
+        ),
+        autoCompactText(stats),
+      ]
+        .filter((part) => part !== undefined)
+        .join(" · "),
     },
   ];
   const tasks = taskStatsText(session);

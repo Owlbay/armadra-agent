@@ -2,7 +2,8 @@
  * 消息区面板（终端界面视觉设计 v1 §3.13）：`/session`、`/cache`、`/permissions` 用左竖条卡片 + 键值表
  * 渲染，而不是把纯文本拍进通知。line 模式与 RPC 仍用 session-report 的文本版。
  *
- * - `/session`：标题 `会话 <id 前 8 位> · <文件>`；模型 / 消息 / 用量 / 上下文（余量表，阈值着色），
+ * - `/session`：标题 `会话 <id 前 8 位> · <文件>`；模型 / 消息 / 累计用量 / 上下文（余量表，阈值着色与档一
+ *   裁剪阈值对齐；估算值带 `≈`；末尾是距自动压缩的余量或「自动压缩关闭」），
  *   空一行后「缓存」段（与 `/cache` 共用 `cacheRows`）；
  * - [W5-U] `/session` 多「子 Agent」行（任务汇总）与「外部 Agent」段（按 Agent 的运行次数与用量，单位不换算）；
  * - `/permissions`：权限模式、判定顺序（折行对齐值列）、规则（allow success、deny error、来源 dim）、
@@ -22,8 +23,11 @@ import {
   type SemanticColor,
   type Theme,
 } from "../../tui.js";
+import { ctxPercentText, ctxWarnAt } from "./status-ctx.js";
 import {
+  autoCompactText,
   cacheRows,
+  contextEstimated,
   externalRows,
   formatTokenCount,
   formatUsd,
@@ -87,13 +91,20 @@ export function sessionPanel(
   const sep = theme.fg("dim", " · ");
   const model = state.model === undefined ? "?" : `${state.model.provider}/${state.model.id}`;
   const ratio = stats.contextPercent === undefined ? undefined : stats.contextPercent / 100;
-  const meter = new Meter(ratio, { theme }).render(40)[0] ?? "";
+  const approx = contextEstimated(stats) ? "≈" : "";
+  const meter =
+    new Meter(ratio, {
+      theme,
+      warnAt: ctxWarnAt(stats),
+      percent: (r) => approx + ctxPercentText(r * 100, false),
+    }).render(40)[0] ?? "";
   const window =
     stats.contextTokens === undefined && stats.contextWindow === undefined
       ? ""
       : sep +
-        `${stats.contextTokens === undefined ? "?" : formatTokenCount(stats.contextTokens)} / ` +
+        `${stats.contextTokens === undefined ? "?" : approx + formatTokenCount(stats.contextTokens)} / ` +
         `${stats.contextWindow === undefined ? "?" : formatTokenCount(stats.contextWindow)}`;
+  const auto = autoCompactText(stats);
   const rows: KeyValueRow[] = [
     {
       key: m.model,
@@ -122,7 +133,7 @@ export function sessionPanel(
         formatUsd(stats.cost),
       ].join(sep),
     },
-    { key: m.context, value: meter + window },
+    { key: m.context, value: meter + window + (auto === undefined ? "" : sep + auto) },
   ];
   const tasks = taskStatsText(session);
   if (tasks !== undefined) rows.push({ key: m.subagents, value: tasks });

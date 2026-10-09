@@ -217,12 +217,15 @@ export const en = {
     keyMessages: "Messages",
     messages: (user: number, assistant: number, tools: number) =>
       `user ${user} · assistant ${assistant} · tool calls ${tools}`,
-    keyUsage: "Usage",
+    keyUsage: "Total usage",
     usage: (input: number, output: number, cacheRead: number, cacheWrite: number, cost: string) =>
       `input ${input} · output ${output} · cache read ${cacheRead} · cache write ${cacheWrite} · ${cost}`,
     keyContext: "Context",
     context: (tokens: string, window: string, percent: string) =>
       `${tokens} / ${window} (${percent}%)`,
+    /** 上下文行末尾：距自动压缩（档二）还有多少 token；自动压缩关闭 / 熔断时换成 autoCompactOff。 */
+    toAutoCompact: (tokens: string) => `≈ ${tokens} until auto-compaction`,
+    autoCompactOff: "auto-compaction off",
     keyAgents: "Sub-agents",
     externalTitle: "External agents",
     noFingerprint: "This session does not provide a prefix fingerprint",
@@ -490,11 +493,13 @@ export const zh = {
     model: (model, thinking, permission) => `${model} · 思考 ${thinking} · 权限 ${permission}`,
     keyMessages: "消息",
     messages: (user, assistant, tools) => `用户 ${user} · 助手 ${assistant} · 工具调用 ${tools}`,
-    keyUsage: "用量",
+    keyUsage: "累计用量",
     usage: (input, output, cacheRead, cacheWrite, cost) =>
       `输入 ${input} · 输出 ${output} · 缓存读 ${cacheRead} · 缓存写 ${cacheWrite} · ${cost}`,
     keyContext: "上下文",
     context: (tokens, window, percent) => `${tokens} / ${window}（${percent}%）`,
+    toAutoCompact: (tokens) => `距自动压缩 ≈ ${tokens}`,
+    autoCompactOff: "自动压缩关闭",
     keyAgents: "子 Agent",
     externalTitle: "外部 Agent",
     noFingerprint: "当前会话不提供前缀指纹",
