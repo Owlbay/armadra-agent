@@ -41,6 +41,9 @@ English · [简体中文](CHANGELOG.zh-CN.md)
   hint on how to set one.
 - **`/session`**: the usage row is labeled as the session total; the context row adds the distance to auto-compaction
   (or "auto-compaction off") and `≈` for estimates.
+- **Contributing**: the repository now has issue forms (bug report, feature request, provider / model compatibility,
+  documentation), a pull request template, `CONTRIBUTING.md`, `SECURITY.md` and an `AGENTS.md` with the hard constraints
+  and review rules. None of these ship in the npm package.
 
 ## 0.7.1 (2026-10-05)
 
