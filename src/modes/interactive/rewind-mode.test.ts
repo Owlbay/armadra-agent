@@ -86,6 +86,16 @@ describe("回滚交互（MemoryTerminal + fake）", () => {
     expect(screen).toContain("3. 恢复代码");
 
     screen = await press(s, "1", 80);
+    // 恢复是异步写盘，慢机器（CI Windows）80 ms 内可能还没写完：等到文件与提示都出现为止
+    for (
+      let i = 0;
+      i < 60 && (fileOf("a.txt") !== "alpha\n" || !screen.includes("已恢复 1 个文件"));
+      i++
+    ) {
+      await tick(50);
+      s.frame();
+      screen = s.terminal.viewport().join("\n");
+    }
     expect(fileOf("a.txt")).toBe("alpha\n");
     expect(s.handle.editor.getText()).toBe("把 alpha 改成大写");
     const users = s.handle.session().messages.filter((m) => m.role === "user");
