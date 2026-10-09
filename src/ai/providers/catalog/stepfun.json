@@ -2,6 +2,7 @@
   "version": 1,
   "provider": "stepfun",
   "modelsDev": "stepfun",
+  "small": "step-3.5-flash",
   "models": [
     {
       "id": "step-5-preview"

@@ -2,6 +2,7 @@
   "version": 1,
   "provider": "zhipu",
   "modelsDev": "zhipuai",
+  "small": "glm-5.3-flash",
   "models": [
     {
       "id": "glm-5.3",

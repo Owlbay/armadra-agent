@@ -2,6 +2,7 @@
   "version": 1,
   "provider": "deepseek",
   "modelsDev": "deepseek",
+  "small": "deepseek-flash",
   "models": [
     {
       "id": "deepseek-v4-pro",
@@ -21,10 +22,14 @@
       "promptCache": {
         "short": 3600,
         "minTokens": 2048
+      },
+      "compat": {
+        "requiresReasoningContentOnAssistantMessages": true
       }
     },
     {
       "id": "deepseek-flash",
+      "aliases": ["deepseek-v4-flash"],
       "maxTokens": 384000,
       "cost": {
         "input": 0.3,
@@ -41,6 +46,9 @@
       "promptCache": {
         "short": 3600,
         "minTokens": 2048
+      },
+      "compat": {
+        "requiresReasoningContentOnAssistantMessages": true
       }
     }
   ]

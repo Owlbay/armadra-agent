@@ -2,6 +2,7 @@
   "version": 1,
   "provider": "dashscope",
   "modelsDev": "alibaba-cn",
+  "small": "qwen3.8-flash",
   "models": [
     {
       "id": "qwen3.8-max",

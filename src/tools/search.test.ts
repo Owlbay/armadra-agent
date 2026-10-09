@@ -6,7 +6,7 @@ import { mkdirSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { makeTmpDir, makeToolContext } from "../../test/helpers/tool-context.js";
-import { GlobMatcher, createGlobTool, globToRegExp } from "./glob.js";
+import { DEFAULT_GLOB_LIMIT, GlobMatcher, createGlobTool, globToRegExp } from "./glob.js";
 import { isIgnoredBy, parseIgnoreFile, parseIgnoreLine, walk } from "./ignore.js";
 import { createGrepTool, formatFileHits } from "./grep.js";
 
@@ -136,6 +136,13 @@ describe("ignore 规则", () => {
 
 describe("glob 工具", () => {
   const tool = createGlobTool();
+  it("[ME-D] 缺省 limit 200（P2-2）", () => {
+    expect(DEFAULT_GLOB_LIMIT).toBe(200);
+    expect(createGlobTool().parameters).toMatchObject({
+      properties: { limit: { description: "Default 200" } },
+    });
+  });
+
   it("按 mtime 倒序、尊重 ignore、limit", async () => {
     const ctx = makeToolContext(root);
     const r = await tool.execute({ pattern: "**/*.ts" }, ctx);
@@ -198,6 +205,24 @@ describe("grep 工具", () => {
         "src/nested/c.ts:6: line6 TODO",
       ].join("\n"),
     );
+  });
+
+  it("[ME-D] 输出按 ctx.maxResultChars 截断，说明写实际上限", async () => {
+    const tmp = makeTmpDir();
+    try {
+      const line = `match ${"w".repeat(60)}`;
+      writeFileSync(join(tmp.dir, "big.txt"), Array.from({ length: 90 }, () => line).join("\n"));
+      const r = await tool.execute(
+        { pattern: "match", limit: 1000 },
+        makeToolContext(tmp.dir, { maxResultChars: 5_000 }),
+      );
+      const text = r.content as string;
+      expect(text.length).toBeLessThanOrEqual(5_000);
+      expect(text).toMatch(/\[Output truncated at 4\.4 KB\. Narrow the search\.\]$/);
+      expect(r.details).toMatchObject({ truncated: true });
+    } finally {
+      tmp.cleanup();
+    }
   });
 
   it("limit 跨文件截停", async () => {

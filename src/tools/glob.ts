@@ -5,7 +5,7 @@
  * 以 `!` 开头的模式是排除。不含 `/` 的模式匹配**文件名**（任意深度），含 `/` 的匹配相对搜索根的
  * 路径。点文件同样参与匹配（`.git` 由遍历层排除）。Windows 上大小写不敏感。
  *
- * 工具：遍历尊重 `.gitignore` / `.ignore`，按 mtime 倒序，缺省上限 1000。
+ * 工具：遍历尊重 `.gitignore` / `.ignore`，按 mtime 倒序，缺省上限 200（[ME-D] P2-2，原 1000）。
  */
 
 import { stat } from "node:fs/promises";
@@ -164,7 +164,7 @@ export interface GlobInput {
   limit?: number;
 }
 
-export const DEFAULT_GLOB_LIMIT = 1000;
+export const DEFAULT_GLOB_LIMIT = 200;
 
 export interface GlobMatchFile {
   abs: string;

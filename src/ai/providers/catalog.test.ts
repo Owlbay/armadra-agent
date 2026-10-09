@@ -5,9 +5,14 @@ import { describe, expect, it } from "vitest";
 import { BUILTIN_PROVIDERS } from "./builtin.js";
 import {
   applyModelOverride,
+  buildAliasIndex,
+  catalogByAlias,
+  catalogByRef,
+  catalogSmall,
   checkCatalogModel,
   inheritedFields,
   loadBuiltinCatalog,
+  normalizeModelId,
   parseCatalogFile,
   redundantFields,
   toModel,
@@ -226,6 +231,56 @@ describe("模型目录", () => {
     );
   });
 
+  it("[ME-D] small 必须是本文件里的模型；有目录的主要几家都给了 small", () => {
+    const model = { id: "a", name: "a", reasoning: false, maxTokens: 1 };
+    expect(() =>
+      parseCatalogFile({ version: 1, provider: "x", small: "b", models: [model] }, "t"),
+    ).toThrowError(/\$\.small not in models: b/);
+    for (const provider of ["anthropic", "openai", "google", "deepseek", "moonshot"])
+      expect(catalogSmall(provider), provider).toBeDefined();
+    expect(catalogSmall("deepseek")).toBe("deepseek-flash");
+    expect(catalogSmall("no-such")).toBeUndefined();
+  });
+
+  it("[ME-D] 别名索引：规范化、第一方 id 与 aliases、唯一命中、思考档后缀", () => {
+    expect(normalizeModelId(" DeepSeek-AI/DeepSeek-V4-Flash:latest ")).toBe("deepseek-v4-flash");
+    expect(catalogByAlias("deepseek-v4-flash")).toMatchObject({
+      ref: "deepseek/deepseek-flash",
+      snapshotRef: "deepseek/deepseek-flash",
+    });
+    expect(catalogByAlias("deepseek-ai/DeepSeek-V4-Flash")?.ref).toBe("deepseek/deepseek-flash");
+    expect(catalogByAlias("gemini-3.8-flash-high")).toMatchObject({
+      ref: "google/gemini-3.8-flash",
+      tier: "high",
+    });
+    expect(catalogByAlias("gemini-3.8-flash")?.tier).toBeUndefined();
+    expect(catalogByAlias("no-such-model")).toBeUndefined();
+    expect(catalogByRef("deepseek/deepseek-flash")?.ref).toBe("deepseek/deepseek-flash");
+    expect(catalogByRef("deepseek/none")).toBeUndefined();
+    expect(catalogByRef("nope")).toBeUndefined();
+    // Model 上不出现 aliases
+    expect(catalogByAlias("deepseek-v4-flash")?.model).not.toHaveProperty("aliases");
+    // 第一方条目各自唯一命中自己（聚合商的 vendor/id 不进索引，不制造歧义）
+    for (const [provider, raw] of Object.entries(CATALOG_SOURCES)) {
+      for (const { id } of (JSON.parse(raw) as CatalogSourceFile).models) {
+        if (!id.includes("/")) expect(catalogByAlias(id)?.ref, id).toBe(`${provider}/${id}`);
+      }
+    }
+    const entry = (id: string, aliases?: string[]) => ({
+      id,
+      name: id,
+      reasoning: false,
+      maxTokens: 1,
+      ...(aliases ? { aliases } : {}),
+    });
+    const index = buildAliasIndex({
+      a: JSON.stringify({ version: 1, provider: "a", models: [entry("m1", ["shared"])] }),
+      b: JSON.stringify({ version: 1, provider: "b", models: [entry("m2", ["Shared"])] }),
+    });
+    expect(index.get("shared")).toBe("ambiguous");
+    expect(index.get("m1")).toEqual({ provider: "a", id: "m1" });
+  });
+
   it("toModel 补 provider / api / input；override 只改元数据并深合并 compat / cost", () => {
     const model = toModel(
       { id: "m", name: "M", reasoning: true, maxTokens: 10 } as never,
@@ -248,5 +303,9 @@ describe("模型目录", () => {
     expect(next.cost).toEqual({ input: 9, output: 2, cacheRead: 0, cacheWrite: 0 });
     expect(next.compat).toEqual({ supportsStore: true, maxTokensField: "max_tokens" });
     expect(next.id).toBe("m");
+    // [ME-D] 配置专用键 catalog 不进 Model
+    expect(applyModelOverride(model, { id: "m", catalog: "x/y" } as never)).not.toHaveProperty(
+      "catalog",
+    );
   });
 });

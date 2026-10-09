@@ -2,6 +2,7 @@
   "version": 1,
   "provider": "anthropic",
   "modelsDev": "anthropic",
+  "small": "claude-haiku-4-5",
   "models": [
     {
       "id": "claude-fable-5-1",

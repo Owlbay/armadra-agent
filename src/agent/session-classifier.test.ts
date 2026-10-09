@@ -240,6 +240,39 @@ describe("auto 模式接分类器", () => {
     expect((await run("fake/missing")).map((c) => c.model.id)).toEqual(["echo"]);
   });
 
+  it("[ME-D] autoModel 未配：用会话供应商目录的 small 模型；找不到时用会话模型；autoModel 优先", async () => {
+    const main = fakeModel({ provider: "deepseek", id: "deepseek-v4-pro" });
+    const small = fakeModel({ provider: "deepseek", id: "deepseek-flash" });
+    const other = fakeModel({ provider: "deepseek", id: "other" });
+    const run = async (models: (typeof main)[], auto?: string) => {
+      const scripted = createScriptedApi(
+        router(
+          [{ toolCalls: [{ name: "bash", args: { command: "node gen.js" } }] }, { text: "ok" }],
+          { "gen.js": ALLOW },
+        ),
+      );
+      const session = new AgentSessionImpl({
+        sessionManager: SessionManager.inMemory(cwd),
+        providers: stubRegistry(models, [scripted.api]),
+        model: main,
+        tools: [bashTool()],
+        permission: new PermissionPipeline({ mode: "auto", rules: [], cwd }),
+        ...(auto !== undefined ? { permissionClassifier: { model: auto } } : {}),
+      });
+      await session.prompt("go");
+      return {
+        classify: scripted.calls.filter(isClassify).map((c) => c.model.id),
+        turns: scripted.calls.filter((c) => !isClassify(c)).map((c) => c.model.id),
+      };
+    };
+    const withSmall = await run([main, small]);
+    expect(withSmall.classify).toEqual(["deepseek-flash"]);
+    // 主会话请求不受影响
+    expect(withSmall.turns).toEqual(["deepseek-v4-pro", "deepseek-v4-pro"]);
+    expect((await run([main])).classify).toEqual(["deepseek-v4-pro"]);
+    expect((await run([main, small, other], "deepseek/other")).classify).toEqual(["other"]);
+  });
+
   it("其它模式不调分类器，tool_execution_end 不带 autoDecision", async () => {
     const h = createHarness({
       cwd,

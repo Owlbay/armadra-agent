@@ -2,6 +2,7 @@
   "version": 1,
   "provider": "groq",
   "modelsDev": "groq",
+  "small": "openai/gpt-oss-20b",
   "models": [
     {
       "id": "openai/gpt-oss-120b",

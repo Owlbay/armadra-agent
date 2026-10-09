@@ -11,6 +11,9 @@
 ### 模型调用效率
 
 - **模型调用效率改进的契约**（docs/model-efficiency-plan.md）：只加可选字段——工具调用块的 `rawArguments`、失败助手消息的 `retryAfterMs`（会话文件与 RPC 都是可选字段，格式与协议版本不变），`ama.task` 的 data 与 `TaskInfo` 的 `context`，内置模型目录的 `aliases` / `small`。配置 schema 接受 `compaction.contextBudget`、`request.streamIdleTimeoutMs` 与 `models[].catalog`，在后续批次生效。
+- **中转模型继承官方目录**（P1-7）：中转 / 自定义模型的 id 唯一命中内置目录条目时（小写、去一层厂商前缀与 `:latest`，也认目录的 `aliases`），继承 `reasoning`、`input`、`thinkingLevelMap`、`promptCache.minTokens` 与 `compat.requiresReasoningContentOnAssistantMessages`，models.dev 改为匹配该条目的快照；不继承价格、TTL 与 `thinkingFormat`。带思考档后缀的 id（`gemini-3.8-flash-low`）去掉后缀再匹配，继承图片与窗口、不打开思考——中转上的 Gemini Flash 不再因「不支持图片」被拒。`models[].catalog: false` 关闭，`"provider/id"` 显式指定；`ama models list` 标「目录（按 id 匹配）」并列出条目。`deepseek-v4-flash` 是 `deepseek-flash` 的别名。
+- **工具结果一次截到位**（P2-1、P2-2）：`read`、`grep`、`bash` 按会话的 `tools.maxToolResultChars`（不超过 50 KB）自己截断，说明里写实际上限与续读位置，不再被会话层二次截中段；描述不再写死大小（前缀更短）。`glob` 缺省最多返回 200 个文件（原 1000）。
+- **auto 模式用小模型分类**（P2-4）：没配 `permission.autoModel` 时，分类器用会话供应商目录里的小模型（目录的 `small`：deepseek-flash、claude-haiku-4-5、gpt-6-luna、gemini-3.5-flash-lite、kimi-k2.6 等），找得到且有 key 才用，否则用会话模型。
 
 ## 0.7.3（2026-10-09）
 

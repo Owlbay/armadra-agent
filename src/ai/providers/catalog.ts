@@ -259,6 +259,8 @@ function fileProblems(value: unknown): string[] {
         seen.add(id);
       }
     });
+    if (typeof small === "string" && small.length > 0 && !seen.has(small))
+      problems.push(`$.small not in models: ${small}`);
   }
   return problems;
 }
@@ -320,11 +322,7 @@ export function parseCatalogFile(
 const caches = new WeakMap<ModelsDevIndex, Map<string, Resolved>>();
 let lastInherited = new Map<string, readonly string[]>();
 
-/**
- * 内置目录：供应商 id → 模型条目（深拷贝，调用方可随意修改）。`index` 缺省用内置快照；传入
- * 「快照 ⊕ 用户刷新」的索引时目录也吃刷新后的数值（缺字段的条目退回内置快照）。
- */
-export function loadBuiltinCatalog(index?: ModelsDevIndex): Map<string, CatalogModel[]> {
+function resolvedCatalog(index?: ModelsDevIndex): Map<string, Resolved> {
   const key = index ?? builtinSnapshotIndex();
   let cache = caches.get(key);
   if (cache === undefined) {
@@ -336,6 +334,15 @@ export function loadBuiltinCatalog(index?: ModelsDevIndex): Map<string, CatalogM
     }
     caches.set(key, cache);
   }
+  return cache;
+}
+
+/**
+ * 内置目录：供应商 id → 模型条目（深拷贝，调用方可随意修改）。`index` 缺省用内置快照；传入
+ * 「快照 ⊕ 用户刷新」的索引时目录也吃刷新后的数值（缺字段的条目退回内置快照）。
+ */
+export function loadBuiltinCatalog(index?: ModelsDevIndex): Map<string, CatalogModel[]> {
+  const cache = resolvedCatalog(index);
   const copy = new Map<string, CatalogModel[]>();
   lastInherited = new Map();
   for (const [provider, resolved] of cache) {
@@ -348,6 +355,111 @@ export function loadBuiltinCatalog(index?: ModelsDevIndex): Map<string, CatalogM
 /** 最近一次 `loadBuiltinCatalog()` 里，该目录模型从快照继承的字段（来源展示用）。 */
 export function catalogInherited(provider: string, modelId: string): readonly string[] {
   return lastInherited.get(`${provider}/${modelId}`) ?? [];
+}
+
+/**
+ * [ME-D] 中转 / 自定义模型按 id 匹配内置目录（docs/model-efficiency-plan.md D10）：小写、去一层
+ * `vendor/` 前缀与 `:latest` 后精确比较；键是第一方条目的 id（含 `/` 的聚合商条目不进索引）与各条
+ * `aliases`。同一个键落在两条上即 ambiguous，不命中。精确不中时再去掉思考档后缀（`-low` 等）试一次。
+ */
+export interface CatalogAliasHit {
+  /** 目录条目 `provider/id`。 */
+  ref: string;
+  /** 合并后的目录模型（深拷贝；内置快照口径）。 */
+  model: CatalogModel;
+  /** 目录条目对应的 models.dev 快照条目。 */
+  snapshotRef?: string;
+  /** 去掉思考档后缀才命中：思考档由中转按 id 决定，调用方不继承思考设置。 */
+  tier?: string;
+}
+
+const TIER_SUFFIX = /-(minimal|low|medium|high|xhigh|tiered)$/;
+
+export function normalizeModelId(id: string): string {
+  return id
+    .trim()
+    .toLowerCase()
+    .replace(/^[a-z0-9_.-]+\//, "")
+    .replace(/:latest$/, "");
+}
+
+export type AliasTarget = { provider: string; id: string; snapshotRef?: string } | "ambiguous";
+let aliasIndex: Map<string, AliasTarget> | undefined;
+
+/** 别名索引（测试可传入自造的目录源）。 */
+export function buildAliasIndex(
+  sources: Readonly<Record<string, string>> = CATALOG_SOURCES,
+): Map<string, AliasTarget> {
+  const index = new Map<string, AliasTarget>();
+  const add = (key: string, target: Exclude<AliasTarget, "ambiguous">): void => {
+    const seen = index.get(key);
+    if (seen === undefined) index.set(key, target);
+    else if (seen === "ambiguous" || seen.provider !== target.provider || seen.id !== target.id)
+      index.set(key, "ambiguous");
+  };
+  for (const raw of Object.values(sources)) {
+    const file = parseCatalogSource(JSON.parse(raw), "catalog");
+    for (const entry of file.models) {
+      const snapshotRef = snapshotRefOf(file, entry);
+      const target = {
+        provider: file.provider,
+        id: entry.id,
+        ...(snapshotRef ? { snapshotRef } : {}),
+      };
+      if (!entry.id.includes("/")) add(normalizeModelId(entry.id), target);
+      for (const alias of entry.aliases ?? []) add(normalizeModelId(alias), target);
+    }
+  }
+  return index;
+}
+
+function hitOf(
+  target: Exclude<AliasTarget, "ambiguous">,
+  tier?: string,
+): CatalogAliasHit | undefined {
+  const model = resolvedCatalog()
+    .get(target.provider)
+    ?.file.models.find((m) => m.id === target.id);
+  if (model === undefined) return undefined;
+  return {
+    ref: `${target.provider}/${target.id}`,
+    model: structuredClone(model),
+    ...(target.snapshotRef !== undefined ? { snapshotRef: target.snapshotRef } : {}),
+    ...(tier !== undefined ? { tier } : {}),
+  };
+}
+
+/** 按 id 唯一命中的目录条目（没有或 ambiguous 返回 undefined）。 */
+export function catalogByAlias(id: string): CatalogAliasHit | undefined {
+  aliasIndex ??= buildAliasIndex();
+  const key = normalizeModelId(id);
+  const exact = aliasIndex.get(key);
+  if (exact !== undefined) return exact === "ambiguous" ? undefined : hitOf(exact);
+  const tier = TIER_SUFFIX.exec(key);
+  if (tier === null) return undefined;
+  const base = aliasIndex.get(key.slice(0, tier.index));
+  return base === undefined || base === "ambiguous" ? undefined : hitOf(base, tier[1]);
+}
+
+/** 显式指定的目录条目 `provider/id`（`models[].catalog`）。 */
+export function catalogByRef(ref: string): CatalogAliasHit | undefined {
+  const slash = ref.indexOf("/");
+  if (slash <= 0) return undefined;
+  const provider = ref.slice(0, slash);
+  const id = ref.slice(slash + 1);
+  const raw = CATALOG_SOURCES[provider];
+  if (raw === undefined) return undefined;
+  const file = parseCatalogSource(JSON.parse(raw), "catalog");
+  const entry = file.models.find((m) => m.id === id);
+  if (entry === undefined) return undefined;
+  const snapshotRef = snapshotRefOf(file, entry);
+  return hitOf({ provider, id, ...(snapshotRef ? { snapshotRef } : {}) });
+}
+
+/** [ME-D] 供应商目录里给 auto 模式分类用的小模型 id（D12）。 */
+export function catalogSmall(provider: string): string | undefined {
+  const raw = CATALOG_SOURCES[provider];
+  return raw === undefined ? undefined : parseCatalogSource(JSON.parse(raw), "catalog").small;
 }
 
 /** 目录条目 → Model（补 provider / api 与缺省 input）。 */
@@ -378,6 +490,8 @@ export function applyModelOverride(
   override: Partial<Omit<Model, "provider" | "api">> & { id: string },
 ): Model {
   const { id: _id, ...rest } = override;
+  // 配置专用键（[ME-D] `catalog`）不进 Model
+  delete (rest as { catalog?: unknown }).catalog;
   const next: Model = { ...model, ...structuredClone(rest) };
   if (override.compat && model.compat) next.compat = { ...model.compat, ...override.compat };
   if (override.cost && model.cost) next.cost = { ...model.cost, ...override.cost };

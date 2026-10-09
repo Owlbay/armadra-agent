@@ -15,7 +15,7 @@ import { displayPath, resolvePath } from "./paths.js";
 import { walk } from "./ignore.js";
 import { GlobMatcher } from "./glob.js";
 import { isBinary } from "./read.js";
-import { DEFAULT_MAX_BYTES, truncateHead, truncateLine } from "./truncate.js";
+import { formatSize, toolOutputBytes, truncateHead, truncateLine } from "./truncate.js";
 
 export interface GrepInput {
   pattern: string;
@@ -173,15 +173,13 @@ export async function executeGrep(input: GrepInput, ctx: ToolContext): Promise<T
   }
   if (matches === 0) return { content: "No matches found", details: { matches: 0, files: 0 } };
   const joined = blocks.join(context > 0 ? "\n--\n" : "\n");
-  const cut = truncateHead(joined, {
-    maxLines: Number.MAX_SAFE_INTEGER,
-    maxBytes: DEFAULT_MAX_BYTES,
-  });
+  const maxBytes = toolOutputBytes(ctx.maxResultChars);
+  const cut = truncateHead(joined, { maxLines: Number.MAX_SAFE_INTEGER, maxBytes });
   let content = cut.content;
   if (limited) {
     content += `\n\n[Stopped at ${limit} matches. Narrow the search or raise limit.]`;
   } else if (cut.truncated) {
-    content += "\n\n[Output truncated at 50 KB. Narrow the search.]";
+    content += `\n\n[Output truncated at ${formatSize(maxBytes)}. Narrow the search.]`;
   }
   return {
     content,

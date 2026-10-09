@@ -3,7 +3,7 @@
  *
  * - `spawn(shell, args, { detached: !win, stdio: [ignore, pipe, pipe] })`，stdout / stderr 合流；
  * - 超时（缺省 120 s，上限 600 s）与 abort 都走 `killProcessTree`：SIGTERM → 2 s → SIGKILL；
- * - 滚动尾部节流后经 `ctx.onUpdate` 流出；超限（2000 行 / 50 KB）尾截断并落全文；
+ * - 滚动尾部节流后经 `ctx.onUpdate` 流出；超限（2000 行 / 50 KB 与会话结果上限减余量取小）尾截断并落全文；
  * - 结构化结果 `{ output, exit_code, truncated, full_output_path?, wall_time_seconds }`；
  *   信号退出 `128 + signo`；非零退出码 → isError；
  * - 注入 `AMA_*` 环境变量（shell.ts）。shell 退出后不等仍占着管道的后台进程。
@@ -30,7 +30,7 @@ import {
   type ProcessDeps,
 } from "./process-tree.js";
 import { OutputAccumulator } from "./output-accumulator.js";
-import { formatSize, resolveOutputDir, safeFileName } from "./truncate.js";
+import { formatSize, resolveOutputDir, safeFileName, toolOutputBytes } from "./truncate.js";
 import { jobsForSession, type BackgroundJobs, type Job } from "./background-jobs.js";
 import {
   looksLikeSandboxDenial,
@@ -230,6 +230,7 @@ export async function executeBash(
     return startBackground(command, { cwd, env, shell, isWindows, sandbox }, ctx, options);
   const started = Date.now();
   const acc = new OutputAccumulator({
+    maxBytes: toolOutputBytes(ctx.maxResultChars),
     spillPath: () =>
       join(resolveOutputDir(ctx.outputDir), safeFileName(`bash-${ctx.toolCallId}.log`)),
   });
@@ -473,8 +474,8 @@ export function createBashTool(options: BashToolOptions = {}): ToolDefinition<Ba
     name: "bash",
     label: "Bash",
     description:
-      "Run a shell command; stdout+stderr combined, keeps the last 2000 lines / 50 KB (full " +
-      `output saved). Timeout ${DEFAULT_BASH_TIMEOUT_MS / 1000} s, max ${MAX_BASH_TIMEOUT_MS / 1000} s. ` +
+      "Run a shell command; stdout+stderr combined, keeps the tail (full output saved to a " +
+      `file). Timeout ${DEFAULT_BASH_TIMEOUT_MS / 1000} s, max ${MAX_BASH_TIMEOUT_MS / 1000} s. ` +
       "background:true gives a job id for {job, action}." +
       sandboxDescription(options.sandbox),
     parameters: {

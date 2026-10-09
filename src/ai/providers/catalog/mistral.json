@@ -2,6 +2,7 @@
   "version": 1,
   "provider": "mistral",
   "modelsDev": "mistral",
+  "small": "mistral-small-latest",
   "models": [
     {
       "id": "mistral-large-latest"

@@ -1,8 +1,9 @@
 /**
  * `read` 工具（设计 §5.2）。[B3]
  *
- * 文本按 `cat -n` 形状返回（行号右对齐 6 位 + Tab）；头截断 2000 行 / 50 KB 先到者，末尾提示
- * `offset` 续读；NUL 嗅探判二进制并拒绝；png / jpg / gif / webp 作为 ImageBlock 返回（MIME 按文件头，
+ * 文本按 `cat -n` 形状返回（行号右对齐 6 位 + Tab）；头截断 2000 行 / 字节上限先到者（50 KB 与
+ * 会话结果上限减余量取小，[ME-D] 一次截到位），末尾提示 `offset` 续读；NUL 嗅探判二进制并拒绝；
+ * png / jpg / gif / webp 作为 ImageBlock 返回（MIME 按文件头，
  * 与 `--image` / `@图片` 共用 image-file.ts；模型不支持图片、超过当前端点的单图上限（base64 后，
  * [W5-I] 按端点分档）或任一边 > 8000 px 时只给路径与尺寸）；成功后 `ctx.markRead(abs)`。
  */
@@ -11,7 +12,7 @@ import { readFile, stat } from "node:fs/promises";
 import type { ContentBlock } from "../ai/types.js";
 import type { ToolContext, ToolDefinition, ToolResult } from "./types.js";
 import { displayPath, resolvePath } from "./paths.js";
-import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, truncateHead } from "./truncate.js";
+import { DEFAULT_MAX_LINES, formatSize, toolOutputBytes, truncateHead } from "./truncate.js";
 import { normalizeToLF, splitBom } from "./edit-fuzzy.js";
 import {
   MAX_IMAGE_FILE_BYTES,
@@ -143,12 +144,13 @@ export async function executeRead(
   const end = input.limit === undefined ? allLines.length : offset - 1 + input.limit;
   const selected = allLines.slice(offset - 1, end);
   const numbered = numberLines(selected, offset);
-  const cut = truncateHead(numbered, { maxLines: DEFAULT_MAX_LINES, maxBytes: DEFAULT_MAX_BYTES });
+  const maxBytes = toolOutputBytes(ctx.maxResultChars);
+  const cut = truncateHead(numbered, { maxLines: DEFAULT_MAX_LINES, maxBytes });
   const lastShown = offset - 1 + cut.outputLines;
   let content = cut.content;
   if (lastShown < allLines.length) {
     const reason = cut.truncated
-      ? ` (output limit ${cut.truncatedBy === "bytes" ? formatSize(DEFAULT_MAX_BYTES) : `${DEFAULT_MAX_LINES} lines`} reached)`
+      ? ` (output limit ${cut.truncatedBy === "bytes" ? formatSize(maxBytes) : `${DEFAULT_MAX_LINES} lines`} reached)`
       : "";
     content += `\n\n[Showing lines ${offset}-${lastShown} of ${allLines.length}${reason}. Use offset=${lastShown + 1} to continue.]`;
   }
@@ -169,9 +171,8 @@ export function createReadTool(options: ReadToolOptions = {}): ToolDefinition<Re
     name: "read",
     label: "Read",
     description:
-      "Read a file. Text comes with line numbers (cat -n), limited to " +
-      `${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)}; page with offset/limit. ` +
-      "Images (png, jpg, gif, webp) come as attachments.",
+      "Read a file with line numbers (cat -n); page with offset/limit, a cut result says where " +
+      "to continue. Images (png, jpg, gif, webp) come as attachments.",
     parameters: {
       type: "object",
       properties: {

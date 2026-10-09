@@ -200,15 +200,20 @@ function resultText(content: string | readonly ContentBlock[]): string {
   return content.map((block) => (block.type === "text" ? block.text : "")).join("");
 }
 
+/** 结果字符上限：嵌套调用 1 MB，否则会话的 `maxToolResultChars`。 */
+function resultLimit(options: ToolRunnerOptions, nested: boolean): number {
+  return nested
+    ? NESTED_MAX_RESULT_CHARS
+    : (options.maxToolResultChars ?? DEFAULT_MAX_TOOL_RESULT_CHARS);
+}
+
 function truncateResult(
   call: ToolCallBlock,
   result: ToolResult,
   options: ToolRunnerOptions,
   nested = false,
 ): ToolResult {
-  const limit = nested
-    ? NESTED_MAX_RESULT_CHARS
-    : (options.maxToolResultChars ?? DEFAULT_MAX_TOOL_RESULT_CHARS);
+  const limit = resultLimit(options, nested);
   const text = resultText(result.content);
   if (text.length <= limit) return result;
   let where = "full output not saved";
@@ -265,7 +270,12 @@ async function execute(
   });
   let result: ToolResult;
   try {
-    const ctx = options.createToolContext(call, signal, onUpdate);
+    const created = options.createToolContext(call, signal, onUpdate);
+    // [ME-D] 工具按会话结果上限一次截到位（D11）；宿主自己给了就不覆盖
+    const ctx =
+      created.maxResultChars !== undefined
+        ? created
+        : { ...created, maxResultChars: resultLimit(options, parent !== undefined) };
     const run = tool.execute(input, ctx).then(
       (value) => value,
       (error: unknown) =>
