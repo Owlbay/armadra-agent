@@ -1,8 +1,9 @@
 /**
  * codemode 父进程侧：起子进程、转发工具调用、超时杀树（设计 §5.5 沙箱第 1–4 条）。[B10]
  *
- * - 命令行：`<node> --permission --allow-fs-read=<入口> --disallow-code-generation-from-strings
- *   <入口> --ama-codemode-sandbox`；Node 22.0–22.12 用 `--experimental-permission`。不授予文件写、
+ * - 命令行：`<node> --max-old-space-size=<MB> --permission --allow-fs-read=<入口>
+ *   --disallow-code-generation-from-strings <入口> --ama-codemode-sandbox`；堆上限取 `codemode.maxHeapMb`
+ *   （缺省 256，0 不加），超出时子进程 OOM 退出，映射为脚本错误（docs/memory-plan.md D10）；Node 22.0–22.12 用 `--experimental-permission`。不授予文件写、
  *   子进程、worker、addon、inspector 权限；以空环境启动（拿不到密钥与会话路径）；嵌入 Electron
  *   时设 `ELECTRON_RUN_AS_NODE=1` 运行同一可执行文件。
  * - 入口：bundle 里是 ama.cjs 同目录的 `ama-sandbox.cjs`（构建脚本定义 `__AMA_SANDBOX_ENTRY__`）；
@@ -43,6 +44,8 @@ declare const __AMA_SANDBOX_ENTRY__: string | undefined;
 export const MAX_COLLECTED_OUTPUT_CHARS = 16 * 1024 * 1024;
 /** 外层 abort 后等子进程自行结束的宽限。 */
 export const ABORT_GRACE_MS = 500;
+/** 子进程 V8 老生代堆上限（MB）缺省值；`codemode.maxHeapMb` 覆盖，0 不设上限。 */
+export const DEFAULT_CODEMODE_HEAP_MB = 256;
 
 /** 子进程入口的绝对路径（realpath）；找不到 → undefined。 */
 export function resolveSandboxEntry(moduleUrl: string = import.meta.url): string | undefined {
@@ -59,12 +62,15 @@ export function resolveSandboxEntry(moduleUrl: string = import.meta.url): string
   return undefined;
 }
 
-/** 子进程参数（不含可执行文件）。 */
+/** 子进程参数（不含可执行文件）。V8 选项必须在 `--permission` 与脚本之前。 */
 export function sandboxArgs(
   entry: string,
   capability: Pick<SandboxCapability, "permissionFlag"> = detectSandboxCapability(),
+  heapMb: number = DEFAULT_CODEMODE_HEAP_MB,
 ): string[] {
+  const heap = Math.floor(heapMb);
   return [
+    ...(heap > 0 ? [`--max-old-space-size=${heap}`] : []),
     capability.permissionFlag,
     `--allow-fs-read=${entry}`,
     "--disallow-code-generation-from-strings",
@@ -121,6 +127,13 @@ export interface SandboxRunRequest {
   os?: Pick<OsSandboxStatus, "kind" | "path">;
   /** true：必须经 OS 沙箱启动（Node 22 / 24 的 strict 依赖它），包装不了直接失败。 */
   requireOsSandbox?: boolean;
+  /** 子进程堆上限（MB），缺省 DEFAULT_CODEMODE_HEAP_MB；0 不设上限。 */
+  maxHeapMb?: number;
+}
+
+/** 子进程因堆上限 OOM 退出时给模型的文案（固定英文）。 */
+export function heapLimitError(heapMb: number): string {
+  return `Script exceeded the codemode memory limit (${heapMb} MB); process the data in smaller pieces`;
 }
 
 export interface SandboxRunResult {
@@ -143,6 +156,7 @@ export interface SandboxRunResult {
 export async function runSandbox(request: SandboxRunRequest): Promise<SandboxRunResult> {
   const started = Date.now();
   const entry = request.entry ?? resolveSandboxEntry();
+  const heapMb = Math.floor(request.maxHeapMb ?? DEFAULT_CODEMODE_HEAP_MB);
   const base = {
     outputs: [] as string[],
     timedOut: false,
@@ -163,7 +177,7 @@ export async function runSandbox(request: SandboxRunRequest): Promise<SandboxRun
   }
   const command = sandboxCommand(
     request.nodePath ?? process.execPath,
-    sandboxArgs(entry, request.capability),
+    sandboxArgs(entry, request.capability, heapMb),
     request.os ?? osSandboxStatus(),
   );
   if (request.requireOsSandbox === true && !command.networkDenied) {
@@ -189,6 +203,7 @@ export async function runSandbox(request: SandboxRunRequest): Promise<SandboxRun
   if (pid !== undefined) result.pid = pid;
   let collected = 0;
   let stderr = "";
+  let outOfMemory = false;
   let settled = false;
   let finish!: () => void;
   const finished = new Promise<void>((resolve) => (finish = resolve));
@@ -233,7 +248,10 @@ export async function runSandbox(request: SandboxRunRequest): Promise<SandboxRun
   child.stdin.on("error", () => {});
   child.stderr.setEncoding("utf8");
   child.stderr.on("data", (chunk: string) => {
-    stderr = (stderr + chunk).slice(-4000);
+    stderr = stderr + chunk;
+    // 原生栈可能把 OOM 那行挤出 4000 字符的尾部：在截断前判定
+    if (heapMb > 0 && /heap out of memory/i.test(stderr)) outOfMemory = true;
+    stderr = stderr.slice(-4000);
   });
   const splitter = new LineSplitter();
   const onLine = (line: string): void => {
@@ -311,6 +329,10 @@ export async function runSandbox(request: SandboxRunRequest): Promise<SandboxRun
   child.on("close", (code, signal) => {
     for (const line of splitter.flush()) onLine(line);
     if (pid !== undefined && !isWindows) untrackProcessGroup(pid);
+    if (outOfMemory) {
+      settle({ ok: false, error: heapLimitError(heapMb) });
+      return;
+    }
     const detail = stderr.trim().split("\n").slice(-3).join(" | ");
     settle({
       ok: false,

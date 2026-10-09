@@ -354,6 +354,32 @@ describe("工厂", () => {
   });
 });
 
+describe("[M-F] codemode.maxHeapMb", () => {
+  it("配置经工厂带到子进程：超出上限时工具结果是脚本错误并写明上限", async () => {
+    const read = stubTool({ name: "read", run: () => ({ content: "r" }) }) as ToolDefinition;
+    const registry = {
+      list: () => ["codemode", "read"],
+      get: (name: string) => (name === "read" ? read : undefined),
+      sourceOf: () => "builtin",
+    };
+    const factory = codemodeToolFactory({ capability: strict, entry: sandboxEntryForTests() });
+    const codemode = factory({
+      config: { tools: { preset: "codemode" }, codemode: { maxHeapMb: 32 } },
+      registry,
+      warn: () => undefined,
+    }) as ToolDefinition;
+    const h = createHarness({
+      script: [call(`const a = []; for (;;) a.push("x".repeat(1024) + a.length);`), { text: "ok" }],
+      tools: [codemode, read],
+      activeTools: ["codemode"],
+    });
+    await h.session.prompt("go");
+    const result = toolResults(h)[0];
+    expect(result?.isError).toBe(true);
+    expect(String(result?.content)).toContain("Script exceeded the codemode memory limit (32 MB)");
+  }, 30_000);
+});
+
 describe("结果与返回值", () => {
   it("bash 解析为 { output, truncated, fullOutputPath?, exitCode, wallTimeMs }，非零退出码也解析", () => {
     const structured = {
