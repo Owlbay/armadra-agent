@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { normalizeContext } from "../ai/context.js";
 import type { ApprovalRequest } from "../permissions/types.js";
 import { createReadTool } from "../tools/read.js";
 import { createHarness } from "./testing/harness.js";
@@ -123,6 +124,50 @@ describe("[S-A] ToolContext.activeTools：会话活动集的只读快照", () =>
     expect(results).toEqual([
       'src is a directory; use glob (e.g. pattern "src/*")',
       "src is a directory; use the ls tool instead",
+    ]);
+  });
+});
+
+describe("[ME-C0] unavailableTools：留在工具表、执行时拒绝", () => {
+  it("调用被拒且文案固定；请求工具表仍含该工具；其余工具照常执行", async () => {
+    let ran = 0;
+    const write = stubTool({
+      name: "write",
+      run: () => {
+        ran++;
+        return { content: "written" };
+      },
+    });
+    const probe = stubTool({ name: "probe" });
+    const h = createHarness({
+      cwd,
+      tools: [write, probe],
+      unavailableTools: ["write"],
+      script: [
+        {
+          toolCalls: [
+            { name: "write", args: {} },
+            { name: "probe", args: {} },
+          ],
+        },
+        { text: "done" },
+      ],
+    });
+    await h.session.prompt("go");
+    expect(ran).toBe(0);
+    const results = h.events.flatMap((e) =>
+      e.type === "tool_execution_end" ? [[e.toolName, e.result.content, e.isError]] : [],
+    );
+    expect(results).toEqual([
+      ["write", 'Tool "write" is not available in this session.', true],
+      ["probe", "probe ok", false],
+    ]);
+    const tools = h.scripted.calls.map((call) =>
+      normalizeContext(call.context).tools.map((t) => t.name),
+    );
+    expect(tools).toEqual([
+      ["probe", "write"],
+      ["probe", "write"],
     ]);
   });
 });

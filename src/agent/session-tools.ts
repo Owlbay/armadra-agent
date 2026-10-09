@@ -28,6 +28,7 @@ import type { ToolContext, ToolResult } from "../tools/types.js";
 import { classifierRequest } from "./session-classifier.js";
 import type { SessionCore } from "./session-core.js";
 import { runSingleToolCall, type ToolRunnerOptions } from "./tool-runner.js";
+import { toolUnavailableText } from "./tool-availability.js";
 import type { NestedCallInfo, ToolCallGate, ToolCallGateContext } from "./types.js";
 
 /** 外层是这个工具时，嵌套调用的 Hook 输入带 `viaCodemode: true`。 */
@@ -152,7 +153,8 @@ export async function gateToolCall(
   ctx: ToolCallGateContext,
 ): Promise<ToolCallGate> {
   const tool = ctx.tool;
-  if (tool === undefined) return { block: true, reason: `Tool ${call.name} not found` };
+  if (tool === undefined || core.options.unavailableTools?.includes(call.name) === true)
+    return { block: true, reason: toolUnavailableText(call.name) };
   let input: unknown = call.arguments;
   let replaced = false;
   let hookDecision: Decision | undefined;
