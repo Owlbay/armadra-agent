@@ -25,6 +25,7 @@ import {
 } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { AmaError } from "../errors.js";
+import { forEachLineSync } from "./line-reader.js";
 import type { SessionLine } from "./types.js";
 
 export const SESSION_FILE_SUFFIX = ".jsonl";
@@ -60,42 +61,45 @@ export interface ReadResult {
   repairedTail: boolean;
 }
 
+/** 空白行（同旧口径 `trim() === ""`）：ASCII 空白直接判定，遇到非 ASCII 字节才解码再 trim。 */
+export function isBlankLine(line: Buffer): boolean {
+  for (const byte of line) {
+    if (byte === 0x20 || (byte >= 0x09 && byte <= 0x0d)) continue;
+    return byte >= 0x80 && line.toString("utf8").trim() === "";
+  }
+  return true;
+}
+
 /**
  * 读并解析 JSONL。`repair: true` 时把末尾半行从文件里截掉（只截最后一行，且只在它无法解析时）。
+ * 按块逐行读（line-reader.ts，docs/memory-plan.md §2.4）：不生成全文字符串与 split 数组。
  */
 export function readSessionLines(file: string, options: { repair?: boolean } = {}): ReadResult {
-  let text: string;
-  try {
-    text = readFileSync(file, "utf8");
-  } catch (error) {
-    throw new AmaError("session_not_found", `cannot read session file ${file}`, { cause: error });
-  }
-  const rawLines = text.split("\n");
-  const endsWithNewline = text.endsWith("\n");
-  if (endsWithNewline) rawLines.pop();
   const lines: SessionLine[] = [];
   let repairedTail = false;
-  for (let i = 0; i < rawLines.length; i++) {
-    const raw = (rawLines[i] ?? "").replace(/\r$/, "");
-    if (raw.trim() === "") continue;
-    try {
-      lines.push(JSON.parse(raw) as SessionLine);
-    } catch (error) {
-      const isLast = i === rawLines.length - 1;
-      if (isLast && !endsWithNewline) {
-        repairedTail = true;
-        if (options.repair === true) {
-          const keep = Buffer.byteLength(rawLines.slice(0, i).join("\n"), "utf8") + (i > 0 ? 1 : 0);
-          truncateSync(file, keep);
+  let unterminated = false;
+  try {
+    forEachLineSync(file, (buf, index, last, offset) => {
+      if (last) unterminated = true;
+      if (isBlankLine(buf)) return;
+      try {
+        lines.push(JSON.parse(buf.toString("utf8")) as SessionLine);
+      } catch (error) {
+        if (last) {
+          repairedTail = true;
+          if (options.repair === true) truncateSync(file, offset);
+          return false;
         }
-        break;
+        throw new AmaError("session_corrupt", `${file}:${index + 1}: invalid JSON line`, {
+          cause: error,
+        });
       }
-      throw new AmaError("session_corrupt", `${file}:${i + 1}: invalid JSON line`, {
-        cause: error,
-      });
-    }
+    });
+  } catch (error) {
+    if (error instanceof AmaError) throw error;
+    throw new AmaError("session_not_found", `cannot read session file ${file}`, { cause: error });
   }
-  if (!repairedTail && !endsWithNewline && text.length > 0 && options.repair === true) {
+  if (!repairedTail && unterminated && options.repair === true) {
     // 最后一行完整但缺 LF：补上，保证后续追加另起一行。
     appendRaw(file, "\n");
   }

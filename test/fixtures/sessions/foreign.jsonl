@@ -1,0 +1,8 @@
+　
+{"type": "session", "version": 1, "id": "s-foreign", "timestamp": "2026-10-01T00:00:00.000Z", "cwd": "/work/proj", "agent": {"name": "ama", "version": "0.7.3"}}
+{"id": "f1", "parentId": null, "type": "message", "timestamp": "t", "message": {"role": "user", "content": "foreign first"}}
+  {"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"z"}],"timestamp":1},"id":"f2","parentId":"f1","timestamp":"2026-10-01T00:00:01.000Z"}
+{"type":"message","message":{"content":"role later","role":"user","timestamp":1},"id":"f3","parentId":"f2","timestamp":"t"}
+{"type":"message","message":{"content":"ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss","role":"system","timestamp":1},"id":"f4","parentId":"f3","timestamp":"t"}
+{"name": "foreign name", "type": "session_info", "id": "f5", "parentId": "f4", "timestamp": "t"}
+{"type":"custom","customType":"x","data":{"k":1},"id":"f6","parentId":"f5","timestamp":"2026-10-01T00:00:01.000Z"}

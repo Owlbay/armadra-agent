@@ -2,8 +2,8 @@
  * 会话文件的字节级按行读取（docs/memory-plan.md D6、§2.4）。[M-C0] 实现与单测；调用方由 [M-C] 接入
  * （`store.ts readSessionLines`、`scan.ts forEachLine`、`list.ts`）。
  *
- * - fd + 定长块（缺省 64 KiB）顺序 `readSync`，以 `indexOf(0x0a)` 切行；跨块的残片拷贝后在行尾
- *   `Buffer.concat`，不生成全文字符串，也不 split 出整个数组；
+ * - fd + 一块复用的缓冲（缺省 64 KiB）顺序 `readSync`，以 `indexOf(0x0a)` 切行；跨块的残片挪到缓冲
+ *   开头续读，一行比缓冲还长时缓冲翻倍——每行不再分配，不生成全文字符串，也不 split 出整个数组；
  * - 回调拿到的 `line` 不含 `\n` 与行尾的一个 `\r`，**只在回调期间有效**（可能是复用块的视图），
  *   需要保留时自行拷贝或解码；空行照样回调（是否跳过由调用方决定）；
  * - `index` 是物理行号（0 起，含空行）；`byteOffset` 是该行首字节在文件中的偏移（修复半行时
@@ -35,39 +35,41 @@ export function forEachLineSync(
   visit: LineVisit,
   chunkBytes: number = LINE_CHUNK_BYTES,
 ): void {
-  const size = Math.max(1, Math.floor(chunkBytes));
   const fd = openSync(file, "r");
   try {
-    const chunk = Buffer.allocUnsafe(size);
-    let pending: Buffer[] = [];
+    // 一块复用的缓冲：未成行的残片挪到开头再续读；一行比缓冲还长时才翻倍（之后沿用）
+    let buf = Buffer.allocUnsafe(Math.max(1, Math.floor(chunkBytes)));
+    let start = 0; // 未成行数据在 buf 中的起点
+    let end = 0; // 有效数据的终点
     let index = 0;
-    let lineStart = 0;
+    let lineStart = 0; // `start` 处对应的文件偏移
     let position = 0;
     for (;;) {
-      const read = readSync(fd, chunk, 0, size, position);
+      if (start > 0) {
+        buf.copyWithin(0, start, end);
+        end -= start;
+        start = 0;
+      }
+      if (end === buf.length) {
+        const grown = Buffer.allocUnsafe(buf.length * 2);
+        buf.copy(grown, 0, 0, end);
+        buf = grown;
+      }
+      const scanFrom = end; // 残片里已确认没有 \n
+      const read = readSync(fd, buf, end, buf.length - end, position);
       if (read === 0) break;
       position += read;
-      const view = chunk.subarray(0, read);
-      let from = 0;
-      for (let nl = view.indexOf(LF, from); nl >= 0; nl = view.indexOf(LF, from)) {
-        let line = view.subarray(from, nl);
-        if (pending.length > 0) {
-          pending.push(line);
-          line = Buffer.concat(pending);
-          pending = [];
-        }
+      end += read;
+      const view = buf.subarray(0, end);
+      for (let nl = view.indexOf(LF, scanFrom); nl >= 0; nl = view.indexOf(LF, start)) {
+        const line = view.subarray(start, nl);
         const offset = lineStart;
-        lineStart += line.length + 1;
-        from = nl + 1;
+        lineStart += nl + 1 - start;
+        start = nl + 1;
         if (visit(stripCr(line), index++, false, offset) === false) return;
       }
-      // 块尾残片：块会被下一次 readSync 覆盖，必须拷贝
-      if (from < read) pending.push(Buffer.from(view.subarray(from)));
     }
-    if (pending.length > 0) {
-      const line = pending.length === 1 ? (pending[0] as Buffer) : Buffer.concat(pending);
-      visit(stripCr(line), index, true, lineStart);
-    }
+    if (end > start) visit(stripCr(buf.subarray(start, end)), index, true, lineStart);
   } finally {
     closeSync(fd);
   }

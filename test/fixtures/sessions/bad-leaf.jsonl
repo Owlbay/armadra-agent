@@ -1,0 +1,3 @@
+{"type":"session","version":1,"id":"s-badleaf","timestamp":"2026-10-01T00:00:00.000Z","cwd":"/work/proj","agent":{"name":"ama","version":"0.7.3"}}
+{"type":"message","message":{"role":"user","content":"x","timestamp":1},"id":"o1","parentId":null,"timestamp":"2026-10-01T00:00:01.000Z"}
+{"type":"leaf","id":5}

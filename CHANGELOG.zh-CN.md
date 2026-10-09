@@ -34,6 +34,7 @@
 - **全局 `ama` 命令走单文件 bundle**：`bin.ama` 从 ESM 入口改为 `dist/bundle/ama.cjs`，npm 安装后的 `ama --version` 启动从约 0.18 s 降到约 0.11 s，峰值 RSS 少约 25 MB；库导入（`@armadra/agent`、`/host`、`/rpc`、`/tui`、`/acp`）不变。`pnpm link` 之后先 `pnpm build` 生成 bundle。
 - **子 Agent 会话少保留**：为 `taskId` 续聊留在内存里的已结束子会话从 16 个降到 4 个（最久未用的先释放；JSONL 一直在，被释放的任务续聊时从它重开）。用 `subagents.retainSessions` 调整（只认用户级，0 = 结束即释放）。
 - **codemode 堆上限**：脚本子进程以 `--max-old-space-size=256` 启动，超出时以脚本错误 `Script exceeded the codemode memory limit (256 MB)` 结束，不再一路涨到超时。用 `codemode.maxHeapMb` 调整（只认用户级，0 不设上限）。
+- **会话列表与恢复不再整读文件**：会话文件按块逐行读取；`ama sessions list` 只解析每个文件的头、首条条目、改名与首条提示（4 个 55 MB 会话：峰值 RSS 约 540 → 90 MB），`--resume` 逐行解析，不再生成整份字符串与 split 数组（55 MB 会话：约 300 → 220 MB）。列表各字段不变。
 
 ## 0.7.3（2026-10-09）
 

@@ -5,7 +5,7 @@ English · [简体中文](../sessions.md)
 > Translated from the Chinese [docs/sessions.md](../sessions.md) as of commit `9ec9f5a`. When the two differ, the Chinese
 > version is authoritative. Sample command output below is illustrative; exact wording follows the interface language.
 
-These commands only read the session directory (`<data dir>/sessions`, changeable with `--session-dir`; the file format is in [session-format.md](../session-format.md), Chinese): no locks, no repair of half-written lines, no file changes, so sessions that are still running can be read too. By default the scope is the sessions of the **current directory**; `--all` covers everything.
+These commands only read the session directory (`<data dir>/sessions`, changeable with `--session-dir`; the file format is in [session-format.md](../session-format.md), Chinese): no locks, no repair of half-written lines, no file changes, so sessions that are still running can be read too. Session files are read line by line in chunks rather than loaded whole: `ama sessions list` parses only each file's header, first entry, renames and first prompt and looks at just the type of every other line, so sessions of tens of MB do not make memory grow with file size; `--resume` likewise parses a session line by line. By default the scope is the sessions of the **current directory**; `--all` covers everything.
 
 ## Stats: `ama stats`
 

@@ -1,0 +1,2 @@
+{"type":"session","version":1,"id":"s-fork","timestamp":"2026-10-01T00:00:00.000Z","cwd":"/work/proj","agent":{"name":"ama","version":"0.7.3"},"parentSession":"/work/parent.jsonl"}
+{"type":"message","message":{"role":"user","content":"forked","timestamp":1},"id":"h1","parentId":null,"timestamp":"2026-10-01T00:00:01.000Z"}

@@ -1,0 +1,14 @@
+{"type":"session","version":1,"id":"s-renames","timestamp":"2026-10-01T00:00:00.000Z","cwd":"/work/proj","agent":{"name":"ama","version":"0.7.3"}}
+{"type":"model_change","provider":"fake","modelId":"fake","id":"a1","parentId":null,"timestamp":"2026-10-01T00:00:01.000Z"}
+{"type":"message","message":{"role":"system","content":"You are ama.","timestamp":1},"id":"a2","parentId":"a1","timestamp":"2026-10-01T00:00:01.000Z"}
+{"type":"message","message":{"role":"user","content":"第一条提示 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","timestamp":1},"id":"a3","parentId":"a2","timestamp":"2026-10-01T00:00:01.000Z"}
+{"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"好的"}],"timestamp":1,"api":"fake","provider":"fake","model":"fake","stopReason":"stop"},"id":"a4","parentId":"a3","timestamp":"2026-10-01T00:00:01.000Z"}
+{"type":"session_info","name":"第一个名字","id":"a5","parentId":"a4","timestamp":"2026-10-01T00:00:01.000Z"}
+
+{"type":"leaf","id":"a3"}
+{"type":"message","message":{"role":"user","content":[{"type":"text","text":"分支 "},{"type":"image","data":"AAAA","mimeType":"image/png"},{"type":"text","text":"继续"}],"timestamp":1},"id":"a6","parentId":"a3","timestamp":"2026-10-01T00:00:01.000Z"}
+{"type":"session_info","name":"second name","id":"a7","parentId":"a6","timestamp":"2026-10-01T00:00:01.000Z"}
+   
+{"type":"message","message":{"role":"toolResult","content":[{"type":"text","text":"ok"}],"timestamp":1,"toolCallId":"c1","toolName":"read","isError":false},"id":"a8","parentId":"a7","timestamp":"2026-10-01T00:00:01.000Z"}
+{"type":"session_info","name":"最终名字","id":"a9","parentId":"a8","timestamp":"2026-10-01T00:00:01.000Z"}
+{"type":"leaf","id":null}
