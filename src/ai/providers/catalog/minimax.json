@@ -2,6 +2,7 @@
   "version": 1,
   "provider": "minimax",
   "modelsDev": "minimax-cn",
+  "small": "MiniMax-M2.5",
   "models": [
     {
       "id": "MiniMax-M3"

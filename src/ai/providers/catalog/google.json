@@ -2,6 +2,7 @@
   "version": 1,
   "provider": "google",
   "modelsDev": "google",
+  "small": "gemini-3.5-flash-lite",
   "models": [
     {
       "id": "gemini-3.8-flash",

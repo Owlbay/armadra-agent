@@ -2,6 +2,7 @@
   "version": 1,
   "provider": "openai",
   "modelsDev": "openai",
+  "small": "gpt-6-luna",
   "models": [
     {
       "id": "gpt-6.1-sol",

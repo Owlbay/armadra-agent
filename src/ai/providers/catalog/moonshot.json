@@ -2,6 +2,7 @@
   "version": 1,
   "provider": "moonshot",
   "modelsDev": "moonshotai-cn",
+  "small": "kimi-k2.6",
   "models": [
     {
       "id": "kimi-k3",
