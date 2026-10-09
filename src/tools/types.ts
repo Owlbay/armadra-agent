@@ -111,6 +111,8 @@ export interface SubagentRequest {
   isolation?: "none" | "worktree";
   /** [W5-C0] 外部 Agent 的美元预算。 */
   budgetUsd?: number;
+  /** [ME-C0] `fork`：继承父会话已完成的回合（同模型、同前缀）；缺省 `fresh`。 */
+  context?: "fork" | "fresh";
 }
 
 /** [W5-C0] 子 Agent 任务的终态（`subagent_end.status`）。 */
@@ -233,6 +235,8 @@ export interface TaskInfo {
   contextWindow?: number;
   outputFile?: string;
   sessionRef?: SubagentSessionRef;
+  /** [ME-C0] 子会话的实际上下文模式（fork 回落为 fresh 时记 `fresh`）；外部 Agent 缺省。 */
+  context?: "fork" | "fresh";
 }
 
 /** [W5-C0] 任务注册表的只读视图（W5-G 的 `SubagentRegistry` 提供）。 */
@@ -253,6 +257,8 @@ export interface ToolContext {
   readonly thinkingLevel?: ModelThinkingLevel;
   /** 截断全文的落盘目录（`<sessionDir>/outputs`）；内存会话为 undefined。 */
   readonly outputDir?: string;
+  /** [ME-C0] 会话层的工具结果上限（字符）；工具据此一次截到位。宿主 / SDK 自建上下文可不给。 */
+  readonly maxResultChars?: number;
   onUpdate(partial: string): void;
   /** 本会话已 read 的绝对路径（write / edit 先读后写检查）。 */
   readonly readFiles: ReadonlySet<string>;
