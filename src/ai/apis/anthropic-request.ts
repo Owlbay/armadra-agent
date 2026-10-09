@@ -7,7 +7,8 @@
  * `ttl: "1h"`，仅 `supportsLongCacheRetention`——官方端点缺省开，中转缺省关、降为 short；最后做 TTL
  * 顺序校验，5m 之后出现 1h 则全部降为 5m）按优先级取前
  * `maxCacheBreakpoints` 个：① 最后一条 user 消息（含工具结果）的最后一个块 ② system 末块
- * ③ 最后一个工具定义（`supportsCacheControlOnTools`）。
+ * ③ 倒数第二条 user 消息的末块（= 上一次请求的写入点；并行工具结果多时最后一条离上次写入点可能超出
+ * 回看窗口）④ 最后一个工具定义（`supportsCacheControlOnTools`）。[ME-C] D7
  *
  * thinking：`adaptiveThinking` 模型发 `{type:"adaptive"}` + `output_config.effort`；
  * 其余推理模型按预算发 `{type:"enabled", budget_tokens}`，预算计入 max_tokens（有工具时带交错思考 beta 头，
@@ -196,11 +197,13 @@ function convertTools(tools: readonly ToolDecl[]): Json[] {
   }));
 }
 
-/** 在最后一条 user 消息的最后一个块上打断点；返回是否打上。 */
-function markLastUser(messages: Json[], cacheControl: Json): boolean {
+/** 在从后数第 `skip + 1` 条 user 消息的最后一个块上打断点；返回是否打上。 */
+function markLastUser(messages: Json[], cacheControl: Json, skip = 0): boolean {
+  let remaining = skip;
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i];
     if (!message || message["role"] !== "user") continue;
+    if (remaining-- > 0) continue;
     const content = message["content"];
     if (typeof content === "string") {
       message["content"] = [{ type: "text", text: content, cache_control: cacheControl }];
@@ -286,6 +289,7 @@ export function buildAnthropicRequest(
     lastSystem["cache_control"] = cacheControl;
     budget--;
   }
+  if (cacheControl && budget > 0 && markLastUser(messages, cacheControl, 1)) budget--;
   const lastTool = tools[tools.length - 1];
   if (cacheControl && budget > 0 && lastTool && compat.supportsCacheControlOnTools) {
     lastTool["cache_control"] = cacheControl;

@@ -89,6 +89,7 @@ describe("anthropic-messages：SSE 样本黄金", () => {
       id: "toolu_function_3t97y4a8pst6_1",
       name: "read",
       arguments: { path: "README.md" },
+      rawArguments: '{"path": "README.md"}',
     });
     const deltas = run.events.filter((e) => e.type === "toolcall_delta");
     expect(deltas.length).toBe(1); // 空增量不发事件
@@ -214,7 +215,7 @@ describe("anthropic-messages：请求", () => {
     expect(request?.body).toMatchObject({ metadata: { user_id: "u" }, stream: true });
   });
 
-  it("三断点缓存：system 末、最后一个工具、最后一条 user（含工具结果）", () => {
+  it("四断点缓存：system 末、最后一个工具、最后一条 user（含工具结果）、倒数第二条 user", () => {
     const context: TranscriptContext = {
       messages: [
         {
@@ -256,7 +257,10 @@ describe("anthropic-messages：请求", () => {
     expect(tools[1]?.["cache_control"]).toEqual({ type: "ephemeral" });
     expect(tools[0]?.["cache_control"]).toBeUndefined();
     const messages = body["messages"] as { role: string; content: Record<string, unknown>[] }[];
-    expect(messages[0]?.content).toBe("first");
+    // [ME-C] D7：倒数第二条 user（上一次请求的写入点）也打断点，字符串内容转成单个文本块
+    expect(messages[0]?.content).toEqual([
+      { type: "text", text: "first", cache_control: { type: "ephemeral" } },
+    ]);
     expect(messages[1]?.content[0]).toMatchObject({ type: "tool_use", id: "call_weird_id" });
     expect(messages[2]?.content[0]).toEqual({
       type: "tool_result",
