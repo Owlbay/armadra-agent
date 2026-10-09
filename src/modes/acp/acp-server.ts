@@ -73,6 +73,7 @@ import {
   PromptQueue,
   cancelledResult,
   pageSessions,
+  promptWhenIdle,
   sessionTitle,
   type PooledSession,
   type PromptJob,
@@ -444,7 +445,7 @@ export class AcpServer {
     const before = session.getStats().tokens;
     let failure: unknown;
     try {
-      await session.prompt(job.text, job.images.length > 0 ? { images: job.images } : {});
+      await promptWhenIdle(session, job);
     } catch (error) {
       failure = error;
     }

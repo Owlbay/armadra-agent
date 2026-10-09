@@ -580,6 +580,81 @@ describe("ama --mode acp 多会话 [ACP-B]", () => {
     await t.finish();
   });
 
+  // #139：后台子 Agent 的完成通知以 followUp 在会话空闲时开回合，不经 ACP 的提示队列
+  const bgTask: FakeResponse = {
+    steps: [
+      {
+        toolCall: {
+          name: "task",
+          arguments: { prompt: "count", agent: "explore", description: "bg", background: true },
+        },
+      },
+    ],
+  };
+  const BG_ARGV = ["--tools", "read,task", "--permission-mode", "full-auto"];
+  /** 等脚本被消费到第 n 条（fake 的请求数）。 */
+  const callsReach = async (n: number) => {
+    for (let i = 0; i < 300 && h.fake.calls.length < n; i++)
+      await new Promise((r) => setTimeout(r, 10));
+    expect(h.fake.calls.length).toBe(n);
+  };
+
+  it("#139：后台子 Agent 的通知回合在跑时 prompt → 排在它之后，不报 -32603", async () => {
+    const t = await start(
+      [
+        bgTask,
+        { delayMs: 100, text: "child report" }, // 子会话
+        { text: "parent done. " }, // 父回合收尾（task 已转后台）
+        { delayMs: 400, text: "notified. " }, // 通知回合
+        { text: "second" }, // 本条 prompt
+      ],
+      undefined,
+      { argv: BG_ARGV },
+    );
+    await t.client.initialize();
+    const s1 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
+    await expect(t.client.prompt(s1, [{ type: "text", text: "go" }])).resolves.toMatchObject({
+      stopReason: "end_turn",
+    });
+    await callsReach(4);
+    await expect(t.client.prompt(s1, [{ type: "text", text: "next" }])).resolves.toMatchObject({
+      stopReason: "end_turn",
+    });
+    expect(text(t, s1)).toBe("parent done. notified. second");
+    expect(t.wire.some((w) => (w.msg["error"] as { code?: number })?.code === -32603)).toBe(false);
+    await t.finish();
+  });
+
+  it("#139：等通知回合期间 session/cancel → cancelled，且这条提示之后不再冒出", async () => {
+    const t = await start(
+      [
+        bgTask,
+        { delayMs: 100, text: "child report" },
+        { text: "parent done. " },
+        { delayMs: 1_500, text: "never shown" }, // 通知回合（被取消打断）
+        { text: "after" },
+      ],
+      undefined,
+      { argv: BG_ARGV },
+    );
+    await t.client.initialize();
+    const s1 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
+    await t.client.prompt(s1, [{ type: "text", text: "go" }]);
+    await callsReach(4);
+    const waiting = t.client.prompt(s1, [{ type: "text", text: "dropped" }]);
+    await new Promise((r) => setTimeout(r, 30));
+    await t.client.cancel(s1);
+    await expect(waiting).resolves.toMatchObject({ stopReason: "cancelled" });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(h.fake.calls.length).toBe(4);
+    await t.client.prompt(s1, [{ type: "text", text: "again" }]);
+    expect(h.fake.calls.length).toBe(5);
+    const prompts = JSON.stringify(t.runtime.session.messages);
+    expect(prompts).not.toContain("dropped");
+    expect(text(t, s1)).toBe("parent done. after");
+    await t.finish();
+  });
+
   it("stdin 关闭：排队的回 cancelled，在跑的跑完，兄弟会话全部释放", async () => {
     const dispose = vi.spyOn(AgentSessionImpl.prototype, "dispose");
     try {
