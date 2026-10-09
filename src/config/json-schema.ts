@@ -319,6 +319,7 @@ function buildBaseSchema(): Schema {
         animation: bool(),
         restoreOnCancel: bool(),
         enterWhileRunning: oneOf(["queue", "interrupt"]),
+        programStatus: oneOf(["auto", "on", "off"]),
         statusLine: oneOf(STATUS_LINE_MODES),
         language: oneOf(LANGUAGE_SETTINGS),
         replyLanguage: str(),

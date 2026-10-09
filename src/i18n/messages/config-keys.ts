@@ -131,6 +131,8 @@ const keysEn = {
     "When Esc interrupts a run before any reply or tool call in this turn, withdraw the turn and put the message back into the input box",
   "ui.enterWhileRunning":
     "Enter while a run is in progress: queue (default) queues the message as a steer delivered at the next delivery point; interrupt stops the current turn and sends it at once. The app.message.interrupt key (default Ctrl+X) does the other one",
+  "ui.programStatus":
+    "Report run state to the terminal with OSC 7501 (idle / working / blocked / done / error): auto (default) sends only after the terminal answers the detection query (off inside tmux), on sends without detecting (inside tmux wrapped in passthrough; needs allow-passthrough on), off never sends. Interactive TUI only",
   "ui.statusLine":
     "Bottom info line: full shows two lines (rate line + status line), compact one; toggle at runtime with Ctrl+G or /statusline (effective from wave 5 W5-A)",
   "ui.language":
@@ -300,6 +302,8 @@ const keysZh = {
     "运行中 Esc 中断、本回合还没有任何回复或工具调用时，撤回该回合并把原消息放回输入框",
   "ui.enterWhileRunning":
     "运行中按 Enter：queue（缺省）排队插话，等下一个投递点送达；interrupt 打断当前回合并立即发送。app.message.interrupt 键（缺省 Ctrl+X）做另一种",
+  "ui.programStatus":
+    "用 OSC 7501 把运行状态报告给终端（idle / working / blocked / done / error）：auto（缺省）终端回应检测查询后才发（tmux 里不发），on 不检测直接发（tmux 里经 passthrough 包裹，需要 allow-passthrough on），off 不发。只用于交互界面",
   "ui.statusLine":
     "底部信息行：full 两行（速率行 + 状态行），compact 一行；运行时 Ctrl+G 或 /statusline 切换（第五波 W5-A 起生效）",
   "ui.language":
