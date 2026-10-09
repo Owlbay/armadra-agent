@@ -8,7 +8,8 @@ import { SONNET_COST } from "./testing/cache-records.js";
 import { createHarness, type Harness } from "./testing/harness.js";
 import type { ScriptStep } from "./testing/scripted-api.js";
 import { fakeModel, stubTool } from "./testing/stubs.js";
-import { cacheKeyOf, cacheTtlMs, resolveCacheSettings } from "./session-cache.js";
+import { cacheTtlMs, resolveCacheSettings } from "./session-cache.js";
+import { cacheKeyOf } from "./session-cache-key.js";
 import type { CacheSettings, SessionEvent } from "./types.js";
 
 const dirs: string[] = [];
