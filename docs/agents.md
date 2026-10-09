@@ -39,6 +39,7 @@ thinking: low
 max-turns: 20 # 缺省 30
 isolation: none # none（缺省）| worktree
 background: false # 不写 = 按 config subagents.background
+context: fresh # fresh（缺省）| fork：继承父会话已完成的回合，见「fork 模式」
 runner: ama # ama（缺省）| claude | codex | acp:<程序>
 ---
 
@@ -69,6 +70,7 @@ runner: ama # ama（缺省）| claude | codex | acp:<程序>
 | `taskId`                                         | 续聊：向已有任务的子会话追加一条消息（忽略 `agent` / `tools` / `model`）                                                                                 |
 | `isolation`                                      | `worktree`：在独立 git worktree 里运行                                                                                                                   |
 | `budgetUsd`                                      | 外部 Agent 的美元预算                                                                                                                                    |
+| `context`                                        | `fresh`（缺省）：子会话从空白开始；`fork`：继承本会话已完成的回合（同模型、同前缀），见「fork 模式」。缺省取类型的 `context`                             |
 | `tools` / `model` / `thinkingLevel` / `maxTurns` | 保留的高级参数（描述里不展开）                                                                                                                           |
 
 同一条回复里的多个 `task` **并行**执行，由会话的任务池限流（`subagents.maxConcurrent`，缺省 4）；排队超过
@@ -77,7 +79,8 @@ runner: ama # ama（缺省）| claude | codex | acp:<程序>
 
 结果是子 Agent 的最终报告，前面带 `[task tN]`。超过 50 KB 时保留开头 70% 与结尾 30%，中间注明省略了多少字节，
 全文写到会话目录的 `outputs/<会话 id>-<taskId>.md`（内存会话写到系统临时目录）。轮数用尽且最后一步停在工具结果上时，
-ama 以「不允许调用工具」再跑一轮要最终报告，结果前加 `[Turn limit reached; …]`，状态 `max_turns`。
+ama 再跑一轮、在消息里要求「不要调用工具、直接给最终报告」，结果前加 `[Turn limit reached; …]`，状态 `max_turns`。这一轮的请求
+不发 `toolChoice`（改动它会让缓存前缀失效）；模型仍调用工具时这一轮就此结束，结果为「(the sub-agent returned no text)」。
 
 ### 前台与后台
 
@@ -142,6 +145,37 @@ worktree 里与父 cwd 对应的目录。结束时没有改动（工作区干净
 父仓库的 `git status` 与 grep / glob 都看不到这些目录。不在 git 仓库里时直接报错，不会退回共享目录。
 多个隔离任务同时开始或结束时，同一仓库的 worktree 增删与删分支按顺序执行（它们都会改 `.git/worktrees`）；另一个 ama 进程同时操作时遇到的瞬时错误会短暂重试。worktree 里的编辑不记进父会话的检查点。注意：worktree 不共享依赖（`node_modules` 等），不保证能直接构建或运行测试。
 
+### fork 模式
+
+`context: "fork"`（调用参数或类型 frontmatter）的子会话**继承父会话到发起这次 `task` 之前的全部对话**：
+
+- 子会话文件复制父分支到发起调用的那条 assistant 之前（同一回复里并行的多个 fork 任务共用这个点），首条仍是
+  `custom{ama.task}`，data 多 `context: "fork"` 与 `forkedFrom`（复制的最后一条条目 id）；`parentSession` 指回父文件。
+- 系统提示与工具表与父**逐字节相同**（不加 `role` 节，`task` / `task_ctl` 仍在表里、按深度拒绝），所以子会话的首个请求
+  就是父上一次请求的前缀加一条 `<task>` 消息，前缀按读价计费；`prompt_cache_key` 沿用父链的根会话 id。
+- 角色说明与任务写在 `<task>` 消息里，声明「上面的请求属于主 Agent、只做这项任务、本块优先于上文的计划与提醒」。子会话
+  看得到父的计划、提醒与读过的文件内容，但 `read` 记录从空开始（编辑前照旧要先读）。
+- 类型声明了 `tools` / `disallowed-tools`（或参数给了 `tools`）时，工具表不变，不可用的工具在执行层拒绝
+  （`Tool "X" is not available in this session.`），并在 `<task>` 里列出。只读类型照旧走只读管线。
+- `isolation: "worktree"` 时子会话的 cwd 是 worktree，`<task>` 里说明上文的相对路径指父目录；cwd 节变化以尾部补丁发送，
+  不影响已缓存的前缀。
+
+以下情况回落为 fresh（日志记一条 info，结果 `details.context` 标 `fresh`）：调用参数或类型指定了与父不同的模型或思考级别；
+父会话还没有发出过请求；父上一次请求的输入超过（窗口 − `compaction.reserveTokens`）的一半。续聊（`taskId`）与 resume
+照原文件重开，不受影响。只在请求了 fork 时 `details.context` 才出现。
+
+何时用 fork：子任务需要你已经读过、讨论过的内容时。fork 的首个请求把父上下文整段带上，按命中价计费；fresh 只发系统提示、
+工具表与任务说明，但你得在 `prompt` 里写清全部背景，子 Agent 往往还要重新读文件。
+
+| 供应商（命中价 / 未命中价）     | 8k 父上下文 fork 一次（实测，见 [benchmarks](benchmarks/efficiency-2026-10.md)「F」） | 适合                         |
+| ------------------------------- | ------------------------------------------------------------------------------------- | ---------------------------- |
+| DeepSeek（约 1/50）             | 命中 77%，与父自己的下一回合相同；折合约 1.9k 全价 token                              | 需要父上下文时几乎总划算     |
+| Kimi（约 1/4–1/10）             | 命中 97.5%                                                                            | 需要父上下文、且要重读较多时 |
+| OpenAI 系（经中转，不发路由键） | 两次分别 0% 与 85%，取决于中转把请求路由到哪个上游                                    | 视中转而定                   |
+| Anthropic（1/10，写入 1.25×）   | 未实测；前缀相同，命中应与父的下一回合相同                                            | 需要父上下文时               |
+
+`explore` 这类只需要定位文件的任务建议保持 fresh；内置类型都缺省 fresh。
+
 ### 事件与统计
 
 RPC / SDK 事件 `subagent_start` / `subagent_update` / `subagent_background` / `subagent_end` 见 [rpc.md](rpc.md)「子 Agent 事件」。
@@ -165,7 +199,7 @@ RPC `get_tasks` / `get_agents` 返回任务快照与可用类型（来源、定�
 
 - 子 Agent 不能再委派（深度 1）；协调多个 Agent 的场景交给宿主（如 Armadra 画布）。
 - 只读类型的 bash 只放行 plan 模式认可的只读命令，识别不了的一律拒绝，宁可少用。
-- 不读取 `.claude/agents`；不支持 fork 模式（继承父对话的子 Agent）。
+- 不读取 `.claude/agents`。fork 模式只用父的模型与思考级别（不同则回落 fresh），外部 Agent 不支持 fork。
 
 ## 外部 Agent
 
