@@ -489,10 +489,33 @@ t2 explore · 运行中 1m05s · 3 轮 · ↑12k ↓3.4k · Esc 返回 · /tasks
 
 `ui.quietStartup` / `--quiet-startup`：`normal` 显示「AMA」字符画与信息列——版本、模型与思考级别、目录（`~` 缩写）与信任状态、权限模式 / 预设 / codemode、已加载的上下文文件 / Skill / 提示模板 / Hook、警告数与常用按键；宽 ≥ 72 列字符画在左、信息在右，48–71 列字符画在上，窄于 48 列退回两行简洁头（版本 · 模型 · 思考 / 模式 · 目录 · 信任）；`ui.logo: "off"` 或 `ui.compact` 只显示信息列。字符画按字母取主题的 accent → user → tool 三色，ASCII 模式换成 `_ / \ |` 拼的字形。启动时播放一次约 1 秒的「点亮」扫描（字形先暗后亮，高亮带从左扫到右，结束定格），只在原地重画、不在回滚里留帧；按任意键立即定格，按键照常进入输入框。以下情况直接显示定格帧：`ui.animation: false`、`NO_COLOR` / 无色终端、非 TTY、嵌入宿主（profile.host）、`CI` 环境、启动即带提示（`ama "…"`）、终端矮于 16 行或内容超出一屏；行式界面、`-p`、RPC、ACP 不画启动头。`header` 只有一行 `✻ ama 版本 · 模型 · 模式 · /help`（profile 缺省）；`silent` 不显示。`--resume` 不带 id、模型没有 key、会话目录不存在、项目资源需要信任时，界面启动前会先出现一个小的选择 / 输入提示，答完收成一行留在屏幕上。
 
+## 终端程序状态（OSC 7501）
+
+交互界面用 [OSC 7501 程序状态协议](https://www.superlogical.com/rex/docs/build/program-status)（rev 0.3）把运行状态报告给终端，支持的终端可以在标签页、侧栏或通知里显示「在跑 / 等你确认 / 完成 / 出错」。报告固定带 `app=ama`；每次报告整体替换该记录。
+
+| 时机                                       | 根记录                                                                                         |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| 启动、切换会话（`/new` `/resume` `/fork`） | `idle`                                                                                         |
+| 回合开始                                   | `working`，msg 是当前活动（思考中 / 回复中 / 运行 bash / 压缩上下文，节流 500 ms、同值不重发） |
+| 出现待人处理的审批（含子 Agent 发起的）    | `blocked` `kind=permission`，msg 是「工具 · 目标」                                             |
+| 计划待审批                                 | `blocked` `kind=question`                                                                      |
+| 回合因登录失效失败（`auth_expired`）       | `blocked` `kind=auth`，msg 是错误首行；下一回合开始或换模型时解除                              |
+| 审批 / 计划处理完                          | 回到 `working`（或回合结束后的状态）                                                           |
+| 回合正常结束                               | `done`；之后在 ama 里按任意键回到 `idle`                                                       |
+| 回合出错                                   | `error`，msg 是错误首行                                                                        |
+| 用户中断（Esc 等）                         | `idle`                                                                                         |
+| 退出交互模式                               | 不带 id 的 `clear`（清掉本程序的全部记录）                                                     |
+
+- 子 Agent 任务另有子记录 `id=task/<短 id>`、title 为任务描述：`working`（msg 是正在用的工具）→ 审批时 `blocked` → 结束时 `done`，失败 / 到达回合上限为 `error`，被中断为 `idle`；下一个主回合开始时清掉已结束的任务记录。
+- 退出用 `clear` 而不是 `done`：用户主动退出时结果已经在屏幕上，留一条「完成」记录只是噪声。
+- `ui.programStatus`：`auto`（缺省）启动时发 `OSC 7501 ; ?` 与 `CSI c`（DA1），先收到 `?` 回复才发报告，DA1 先到或 300 ms 内没有回复就不发；两种回复（含迟到的）都在输入解析里吞掉，不会进输入框。`on` 不检测直接发（规范允许：不认识的 OSC 合规终端会忽略）。`off` 不发也不检测。改动重启生效。
+- tmux：缺省丢弃不认识的 OSC，规范也没覆盖多路复用器。tmux 不把外层终端对透传查询的回复转给窗格，检测不可靠，所以 tmux 里 `auto` 等同 `off`；要用就设 `on`，并在 tmux 里 `set -g allow-passthrough on`，报告会用 DCS passthrough（`ESC P tmux; … ESC \`）包裹。
+- 只用于交互界面。`-p`、RPC、ACP 的 stdout 是数据或协议，不发；`-p` 即使 stderr 是终端也不发——它是一次性进程，结果看退出码，退出后新提示符本来就会丢掉 working 记录，留下 done / error 对脚本化调用只是噪声。
+
 ## 在 tmux / Armadra 终端节点里
 
 - 括号粘贴：启动时开启；粘贴的多行内容整体进入输入框（超过 10 行或 1 000 字符折叠为 `[粘贴 #N · M 行]`），粘贴后紧跟的回车直接发送，适合由外部程序写入。
-- 不查询终端能力、不开鼠标与 Kitty 键盘协议，避免回包混进输入；tmux ≥ 3.4 透传同步输出，旧版本也能正常显示。
+- 除程序状态检测（见上一节，tmux 里不检测）外不查询终端能力、不开鼠标与 Kitty 键盘协议，避免回包混进输入；tmux ≥ 3.4 透传同步输出，旧版本也能正常显示。
 - tmux 的缺省前缀 `C-b` 会被 tmux 客户端吃掉：转后台按 `C-b C-b`（`send-prefix` 透传），或 `↓` 进 Agent 栏按 `b`；进栏用 `↓`，不受前缀影响。
 - 窗口尺寸变化时整屏重画最后一屏，回滚里的历史不受影响。
 - 自动降级：非 TTY、`TERM=dumb`、`--no-tui` 或终端初始化失败时使用行式界面，命令与审批问答相同。
@@ -501,16 +524,17 @@ t2 explore · 运行中 1m05s · 3 轮 · ↑12k ↓3.4k · Esc 返回 · /tasks
 
 `config.json` 的 `ui` 段（项目级也可设）：
 
-| 键                | 缺省        | 作用                                                                                          |
-| ----------------- | ----------- | --------------------------------------------------------------------------------------------- |
-| `ui.theme`        | `dark`      | `dark` / `light` / `auto`；auto 只看 `COLORFGBG`（不发终端查询），猜不出用 dark，建议显式配置 |
-| `ui.ascii`        | 自动检测    | ASCII 字形（`›` → `>`、`⏺` → `*`、`⎿` → `L`、框线 → `+ - \|`、spinner 4 帧）                  |
-| `ui.compact`      | `false`     | 消息区块间不空行、启动头不画字符画                                                            |
-| `ui.logo`         | `auto`      | 启动头的「AMA」字符画；`off` 只显示信息列                                                     |
-| `ui.animation`    | `true`      | `false`：运行中 spinner 静止为 `·`，只在秒数变化时重绘；启动字符画不播放动画                  |
-| `ui.markdown`     | `true`      | `false`：助手正文不做 Markdown 渲染                                                           |
-| `ui.showThinking` | `collapsed` | 见「布局」                                                                                    |
-| `ui.quietStartup` | `normal`    | 见「启动画面」                                                                                |
+| 键                 | 缺省        | 作用                                                                                          |
+| ------------------ | ----------- | --------------------------------------------------------------------------------------------- |
+| `ui.theme`         | `dark`      | `dark` / `light` / `auto`；auto 只看 `COLORFGBG`（不发终端查询），猜不出用 dark，建议显式配置 |
+| `ui.ascii`         | 自动检测    | ASCII 字形（`›` → `>`、`⏺` → `*`、`⎿` → `L`、框线 → `+ - \|`、spinner 4 帧）                  |
+| `ui.compact`       | `false`     | 消息区块间不空行、启动头不画字符画                                                            |
+| `ui.logo`          | `auto`      | 启动头的「AMA」字符画；`off` 只显示信息列                                                     |
+| `ui.animation`     | `true`      | `false`：运行中 spinner 静止为 `·`，只在秒数变化时重绘；启动字符画不播放动画                  |
+| `ui.markdown`      | `true`      | `false`：助手正文不做 Markdown 渲染                                                           |
+| `ui.showThinking`  | `collapsed` | 见「布局」                                                                                    |
+| `ui.quietStartup`  | `normal`    | 见「启动画面」                                                                                |
+| `ui.programStatus` | `auto`      | 终端程序状态 OSC 7501：`auto` / `on` / `off`，见「终端程序状态」                              |
 
 - **ASCII 模式**：`AMA_ASCII=1`（或 `ui.ascii: true`）强制开启，`AMA_ASCII=0` 强制关闭；自动检测在区域设置（`LC_ALL` > `LC_CTYPE` > `LANG`）已设置但不含 UTF-8、`TERM=linux`、Windows 上既没有 `WT_SESSION` 也没有 `TERM_PROGRAM`（旧 conhost）时开启。Windows Terminal 走 Unicode。
 - **字符错位**：`⏺`（U+23FA）、`⎿`、`▎` 在个别字体（尤其 emoji 回退字体）下画成两格，宽度计算按 wcwidth（一格），会出现列错位或残影——换等宽字体或设 `AMA_ASCII=1`。

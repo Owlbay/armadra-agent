@@ -482,10 +482,33 @@ Requires memory to be enabled (`ama memory enable` or `--memory`, see [memory.md
 
 `ui.quietStartup` / `--quiet-startup`: `normal` shows an "AMA" logo with an info column: version, model and thinking level, directory (`~` abbreviated) and trust state, permission mode / preset / codemode, loaded context files / Skills / prompt templates / hooks, warning count and common keys. At 72 columns or wider the logo sits on the left and the info on the right; at 48–71 columns the logo is on top; below 48 columns a two-line header is shown instead (version · model · thinking / mode · directory · trust). `ui.logo: "off"` or `ui.compact` shows only the info column. The logo takes the theme's accent → user → tool colors letter by letter; ASCII mode swaps in a glyph made of `_ / \ |`. On startup a one-off "light-up" sweep plays for about a second (the glyph starts dim, a highlight band sweeps left to right, then it settles); it redraws in place and leaves no frames in the scrollback, and any key settles it at once while the key still goes to the input box. The settled frame is shown directly with `ui.animation: false`, `NO_COLOR` / a colorless terminal, a non-TTY, an embedding host (profile.host), a `CI` environment, a prompt given on the command line (`ama "…"`), a terminal shorter than 16 rows or content taller than one screen; the line interface, `-p`, RPC and ACP draw no startup header. `header` is a single line `✻ ama version · model · mode · /help` (the profile default); `silent` shows nothing. When `--resume` has no id, the model has no key, the session directory does not exist or project resources need trust, a small selection / input prompt appears before the interface starts, collapsing into one line on screen once answered.
 
+## Terminal program status (OSC 7501)
+
+The interactive interface reports its run state to the terminal with the [OSC 7501 Program Status Protocol](https://www.superlogical.com/rex/docs/build/program-status) (rev 0.3), so a supporting terminal can show "running / waiting for you / done / failed" in tabs, sidebars or notifications. Reports always carry `app=ama`; each report replaces that record as a whole.
+
+| When                                                     | Root record                                                                                                                                        |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Startup, switching sessions (`/new` `/resume` `/fork`)   | `idle`                                                                                                                                             |
+| A turn starts                                            | `working`, msg is the current activity (Thinking / Replying / Running bash / Compacting context; throttled to 500 ms, unchanged values not resent) |
+| An approval needs a person (including sub-agents' ones)  | `blocked` `kind=permission`, msg is "tool · target"                                                                                                |
+| A plan awaits approval                                   | `blocked` `kind=question`                                                                                                                          |
+| A turn failed because the login expired (`auth_expired`) | `blocked` `kind=auth`, msg is the first line of the error; cleared when the next turn starts or the model changes                                  |
+| The approval / plan is handled                           | back to `working` (or whatever the turn ended with)                                                                                                |
+| A turn ends normally                                     | `done`; any key pressed in ama afterwards goes back to `idle`                                                                                      |
+| A turn fails                                             | `error`, msg is the first line of the error                                                                                                        |
+| The user interrupts (Esc etc.)                           | `idle`                                                                                                                                             |
+| Leaving interactive mode                                 | `clear` without an id (removes all of this program's records)                                                                                      |
+
+- Sub-agent tasks get child records `id=task/<short id>` with the task description as title: `working` (msg is the tool in use) → `blocked` while an approval waits → `done` when finished, `error` on failure or the turn limit, `idle` when interrupted; finished task records are cleared when the next main turn starts.
+- Exiting sends `clear`, not `done`: when the user quits, the result is already on screen and a lingering "done" record would only be noise.
+- `ui.programStatus`: `auto` (default) sends `OSC 7501 ; ?` and `CSI c` (DA1) at startup and only reports once the `?` reply arrives; if DA1 answers first or nothing arrives within 300 ms it stays silent. Both replies (late ones too) are swallowed by the input parser and never reach the input box. `on` sends without detecting (the spec allows it: conforming terminals ignore unknown OSCs). `off` neither detects nor sends. Changes take effect after a restart.
+- tmux: it drops unknown OSCs by default, and the spec does not cover multiplexers. tmux does not forward the outer terminal's reply to a passthrough query to the pane, so detection is unreliable and `auto` equals `off` inside tmux; to use it set `on` and `set -g allow-passthrough on` in tmux, and reports are wrapped in DCS passthrough (`ESC P tmux; … ESC \`).
+- Interactive interface only. The stdout of `-p`, RPC and ACP is data or protocol, so nothing is sent there; `-p` sends nothing even when stderr is a terminal: it is a one-shot process whose result is the exit code, the next prompt drops working records anyway, and a leftover done / error is only noise for scripted runs.
+
 ## In tmux / Armadra terminal nodes
 
 - Bracketed paste: enabled at startup; pasted multi-line content enters the input box as a whole (folded into a paste placeholder with the line count beyond 10 lines or 1 000 characters), and an Enter right after a paste sends directly, which suits writes from external programs.
-- Terminal capabilities are not queried, and mouse and the Kitty keyboard protocol are not enabled, so no replies get mixed into input; tmux ≥ 3.4 passes synchronized output through, and older versions display fine too.
+- Apart from program status detection (see the previous section; none inside tmux), terminal capabilities are not queried, and mouse and the Kitty keyboard protocol are not enabled, so no replies get mixed into input; tmux ≥ 3.4 passes synchronized output through, and older versions display fine too.
 - tmux's default prefix `C-b` is taken by the tmux client: to move tasks to the background press `C-b C-b` (`send-prefix` passes it through), or `↓` into the agent bar and press `b`; entering the bar uses `↓`, which the prefix does not affect.
 - When the window size changes the last screen is redrawn in full; history in the scrollback is unaffected.
 - Automatic fallback: non-TTY, `TERM=dumb`, `--no-tui` or a failed terminal initialization use line mode, with the same commands and approval prompts.
@@ -494,16 +517,17 @@ Requires memory to be enabled (`ama memory enable` or `--memory`, see [memory.md
 
 The `ui` section of `config.json` (settable at project level too):
 
-| Key               | Default       | Effect                                                                                                                                            |
-| ----------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ui.theme`        | `dark`        | `dark` / `light` / `auto`; auto only looks at `COLORFGBG` (no terminal query) and uses dark when unsure; configuring it explicitly is recommended |
-| `ui.ascii`        | auto-detected | ASCII glyphs (`›` → `>`, `⏺` → `*`, `⎿` → `L`, box lines → `+ - \|`, a 4-frame spinner)                                                           |
-| `ui.compact`      | `false`       | No blank lines between message blocks, no logo in the startup header                                                                              |
-| `ui.logo`         | `auto`        | The "AMA" logo in the startup header; `off` shows only the info column                                                                            |
-| `ui.animation`    | `true`        | `false`: the spinner stays still as `·` while running and redraws only when seconds change; the startup logo does not animate                     |
-| `ui.markdown`     | `true`        | `false`: assistant text is not rendered as Markdown                                                                                               |
-| `ui.showThinking` | `collapsed`   | See "Layout"                                                                                                                                      |
-| `ui.quietStartup` | `normal`      | See "Startup screen"                                                                                                                              |
+| Key                | Default       | Effect                                                                                                                                            |
+| ------------------ | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ui.theme`         | `dark`        | `dark` / `light` / `auto`; auto only looks at `COLORFGBG` (no terminal query) and uses dark when unsure; configuring it explicitly is recommended |
+| `ui.ascii`         | auto-detected | ASCII glyphs (`›` → `>`, `⏺` → `*`, `⎿` → `L`, box lines → `+ - \|`, a 4-frame spinner)                                                           |
+| `ui.compact`       | `false`       | No blank lines between message blocks, no logo in the startup header                                                                              |
+| `ui.logo`          | `auto`        | The "AMA" logo in the startup header; `off` shows only the info column                                                                            |
+| `ui.animation`     | `true`        | `false`: the spinner stays still as `·` while running and redraws only when seconds change; the startup logo does not animate                     |
+| `ui.markdown`      | `true`        | `false`: assistant text is not rendered as Markdown                                                                                               |
+| `ui.showThinking`  | `collapsed`   | See "Layout"                                                                                                                                      |
+| `ui.quietStartup`  | `normal`      | See "Startup screen"                                                                                                                              |
+| `ui.programStatus` | `auto`        | Terminal program status OSC 7501: `auto` / `on` / `off`, see "Terminal program status"                                                            |
 
 - **ASCII mode**: `AMA_ASCII=1` (or `ui.ascii: true`) forces it on, `AMA_ASCII=0` forces it off; auto-detection turns it on when the locale (`LC_ALL` > `LC_CTYPE` > `LANG`) is set but lacks UTF-8, with `TERM=linux`, or on Windows without `WT_SESSION` or `TERM_PROGRAM` (legacy conhost). Windows Terminal uses Unicode.
 - **Misaligned characters**: `⏺` (U+23FA), `⎿` and `▎` render two cells wide in some fonts (emoji fallback fonts in particular), while width is computed per wcwidth (one cell), causing misaligned columns or ghosting; switch to a monospace font or set `AMA_ASCII=1`.
