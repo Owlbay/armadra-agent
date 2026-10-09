@@ -351,6 +351,7 @@ describe("配置契约", () => {
       mode?: "off" | "on" | "only";
       inlineBudget?: number;
       requireStrict?: boolean;
+      maxHeapMb?: number;
     }>();
     expectTypeOf<NonNullable<AmaConfig["tools"]>["preset"]>().toEqualTypeOf<
       "default" | "minimal" | "codemode-only" | "coordinator" | "codemode" | undefined

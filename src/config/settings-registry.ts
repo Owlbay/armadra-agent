@@ -104,6 +104,7 @@ const ROWS: readonly Row[] = [
   row("codemode.mode", "tools", "restart", "tighten", { prefix: true }),
   row("codemode.inlineBudget", "tools", "restart", "deny", { prefix: true }),
   row("codemode.requireStrict", "tools", "restart", "deny"),
+  row("codemode.maxHeapMb", "tools", "restart", "deny"),
   row("tools.maxToolResultChars", "tools", "nextSession", "deny"),
   row("tools.bashTimeoutMs", "tools", "restart", "deny"),
   row("images.resize", "tools", "restart", "deny"),
@@ -146,6 +147,7 @@ const ROWS: readonly Row[] = [
   row("agents.sessionBudgetUsd", "agents", "nextSession", "deny", { kind: "optionalNumber" }),
   row("subagents.maxConcurrent", "agents", "nextSession", "deny"),
   row("subagents.maxPending", "agents", "nextSession", "deny"),
+  row("subagents.retainSessions", "agents", "nextSession", "deny"),
   // [W7-B2] 改 task 工具描述（缺省后台 / 前台两种文案），故 prefix
   row("subagents.background", "agents", "restart", "any", { prefix: true }),
   row("subagents.autoBackgroundAfterMs", "agents", "restart", "any"),

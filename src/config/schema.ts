@@ -350,11 +350,18 @@ export function validateConfig(value: unknown): Diagnostic[] {
       c.stringArray(s, "disabled", p);
     },
   );
-  checkSection(c, value, "codemode", ["mode", "inlineBudget", "requireStrict"], (s, p) => {
-    c.oneOf(s, "mode", p, CODEMODE_MODES);
-    c.number(s, "inlineBudget", p, 0);
-    c.boolean(s, "requireStrict", p);
-  });
+  checkSection(
+    c,
+    value,
+    "codemode",
+    ["mode", "inlineBudget", "requireStrict", "maxHeapMb"],
+    (s, p) => {
+      c.oneOf(s, "mode", p, CODEMODE_MODES);
+      c.number(s, "inlineBudget", p, 0);
+      c.boolean(s, "requireStrict", p);
+      c.number(s, "maxHeapMb", p, 0);
+    },
+  );
   checkSection(c, value, "hooks", ["timeoutMs"], (s, p) => {
     c.number(s, "timeoutMs", p, 1, HOOK_TIMEOUT_MAX_MS);
   });

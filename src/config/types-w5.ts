@@ -96,6 +96,8 @@ export interface SubagentsConfig {
   background?: SubagentBackgroundMode;
   /** [W7-B2] 前台任务运行超过该毫秒数自动转后台；缺省 0 关闭。用户 / 项目级都认。 */
   autoBackgroundAfterMs?: number;
+  /** [M-F] 已结束子会话保留在内存的句柄数（LRU），缺省 4；超出的续聊时从会话文件重开。只认用户级。 */
+  retainSessions?: number;
 }
 
 /** `models.enabled` 的一项：`provider/model[@channel]` 或 `provider/*`。 */

@@ -91,6 +91,29 @@ describe("第五波键的层级", () => {
     expect(merged.config.subagents).toEqual({ maxConcurrent: 2, background: "never" });
   });
 
+  it("[M-C0] subagents.retainSessions / codemode.maxHeapMb：整数 ≥ 0，只认用户级", () => {
+    expect(
+      validateConfig({ version: 1, subagents: { retainSessions: 0 }, codemode: { maxHeapMb: 0 } }),
+    ).toEqual([]);
+    const bad = validateConfig({
+      version: 1,
+      subagents: { retainSessions: -1 },
+      codemode: { maxHeapMb: "256" },
+    });
+    expect(bad.map((d) => [d.severity, d.path])).toEqual([
+      ["error", "codemode.maxHeapMb"],
+      ["error", "subagents.retainSessions"],
+    ]);
+    const result = restrictProjectConfig(
+      project({ subagents: { retainSessions: 64 }, codemode: { maxHeapMb: 0 } }),
+      "default",
+    );
+    expect(result.accepted).toEqual({});
+    const text = result.warnings.join("\n");
+    expect(text).toContain("subagents.retainSessions");
+    expect(text).toContain("codemode.maxHeapMb");
+  });
+
   it("agents.dirs 跨层累加；plan.bash 收紧以用户级为基准", () => {
     const merged = mergeConfigLayers({
       user: project({ agents: { dirs: ["/u"] }, plan: { bash: "ask" } }),
