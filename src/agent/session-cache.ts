@@ -342,8 +342,10 @@ export class SessionCacheController {
   }
 
   /**
-   * [W5-H1] 缓存是否已冷（wave5 §8.2 C3）：上一次请求（含保温）距今超过 TTL（目录无承诺时按隐式
-   * 10 分钟）。只对 `reported` 端点判断；`silent` / `unknown` 返回 false，档一退化为只按阈值。
+   * [W5-H1] 缓存是否已冷（wave5 §8.2 C3）：上一次请求（含保温）距今超过目录承诺的 TTL。
+   * 目录没有承诺 TTL 时返回 false：隐式缓存的寿命可能远长于 10 分钟，按猜测的寿命提前裁剪会改写
+   * 仍然有效的缓存（隐式 600 s 只用于未命中归因）。只对 `reported` 端点判断；`silent` / `unknown`
+   * 返回 false，档一退化为只按阈值。
    */
   isCold(): boolean {
     const prev = this.prev;
@@ -352,7 +354,7 @@ export class SessionCacheController {
     const endpoint = endpointKey({ model, baseUrl: model.baseUrl ?? "" });
     if (this.tracker.get(endpoint, model.compat?.cacheReporting) !== "reported") return false;
     const ttl = cacheTtlMs(this.modelOf(prev), prev.options.cacheRetention);
-    return this.now() - prev.at > (ttl ?? IMPLICIT_CACHE_TTL_MS);
+    return ttl !== undefined && this.now() - prev.at > ttl;
   }
 
   /**

@@ -119,6 +119,23 @@ describe("缓存冷时提前裁（C3）", () => {
     expect(silent.session.cache.isCold()).toBe(false);
   });
 
+  it("isCold：目录没有承诺 TTL 时不按猜测的寿命判冷（隐式缓存可能存活数小时）", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(1_000_000);
+    const implicit = createHarness({
+      model: fakeModel({ contextWindow: 60_000 }),
+      cache: { warming: "off" },
+      script: [
+        { text: "a", usage: { input: 0, cacheWrite: 30_000 } },
+        { text: "b", usage: { input: 1000, cacheRead: 30_000 } },
+      ],
+    });
+    await implicit.session.prompt("q1");
+    await implicit.session.prompt("q2");
+    vi.setSystemTime(1_000_000 + 24 * 3_600_000);
+    expect(implicit.session.cache.isCold()).toBe(false);
+  });
+
   it("冷时未到 0.7 也裁、一次换掉全部候选；热时不裁", async () => {
     const make = () =>
       createHarness({
