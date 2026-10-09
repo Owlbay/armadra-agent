@@ -61,6 +61,29 @@ those notification turns are written to the same session file.
 - A per-file summary is cached in `<data dir>/stats-index.json`, invalidated by file mtime and size; a time-zone change invalidates the whole index; a full scan also drops files that no longer exist. `--no-cache` neither reads nor writes it.
 - Measured (local machine, `src/session/stats-perf.test.ts`): 1000 sessions, 67 MB (12 turns, 24 tool calls and 2 KB tool results each), about 160 ms cold and about 15 ms with the index.
 
+## Context usage of the current session (`getStats()` / `get_session_stats`)
+
+`ama stats` reports historical billed usage; how much context the running session has left is in the context fields of
+`SessionStats` (SDK `session.getStats()`, passed through unchanged by RPC `get_session_stats`; the status bar and `/session` read
+the same fields):
+
+| Field                    | Meaning                                                                                                                                                                                                      |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `contextTokens`          | Estimated tokens of context the next request will carry (see `context.source` for how)                                                                                                                       |
+| `contextWindow`          | The current model's window; **absent** when the model has no window information (fix it with `ama models discover` or by setting `contextWindow` for the model in config)                                    |
+| `contextPercent`         | `contextTokens / contextWindow`, 0–100 with one decimal, capped at 100; **absent** without a window (the UI shows `ctx ?`)                                                                                   |
+| `context.source`         | `usage`: usage of the last valid assistant message + an estimate of the messages after it; `estimate`: no trustworthy usage, the whole context is estimated; `prefix`: the baseline before the first request |
+| `context.usageTokens`    | The part taken from usage; 0 for `estimate` / `prefix`                                                                                                                                                       |
+| `context.trailingTokens` | The estimated part (messages after the usage, or the whole estimate / baseline)                                                                                                                              |
+| `context.autoCompactAt`  | Threshold of automatic summarization (tier two) = window − `compaction.reserveTokens`; **absent** when auto-compaction is off, tripped after repeated failures, or there is no window                        |
+| `context.pruneAt`        | Threshold of tool-result pruning (tier one) = 0.7 × (window − `reserveTokens`); absent under the same conditions                                                                                             |
+
+- **Estimation**: CJK ideographs / kana / hangul count 1 token each, other characters / 4, images 1,600 each; usage uses `totalTokens` (or input + output + cache reads / writes, output included).
+- **Before the first request** (`prefix`): the system prompt and tool table are written to the session only at the first request, so until then the estimate is taken from what is about to be sent (section texts + tool declaration JSON); a new session is not at 0 the moment it opens. This is for stats only: nothing is written to the session and the request body does not change.
+- **After compaction / context edits** (`estimate`): the last usage no longer describes the current context, so the whole context is estimated until the next request brings new usage; the UI puts `≈` in front of the number.
+- **An absent field means "unknown"**, not 0: `contextWindow`, `contextPercent`, `context.autoCompactAt` and `context.pruneAt` are left out of the JSON when absent. Older versions or custom session implementations may not have `context`; reading `contextTokens` is enough there.
+- `tokens` (`{ input, output, cacheRead, cacheWrite, total }`) is the **session total** of billed usage, including requests that never enter the context (compaction summaries, cache warming); do not read it as context usage.
+
 ## Search: `ama sessions search`
 
 ```

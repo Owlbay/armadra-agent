@@ -285,6 +285,7 @@ The `data` of `get_session_stats` is `SessionStats`:
 | `tokens`                                                           | `{ input, output, cacheRead, cacheWrite, total }`, including warming requests                       |
 | `cost`                                                             | USD; absent when any message lacks a cost (the interface shows `$?`)                                |
 | `contextTokens` / `contextWindow` / `contextPercent`               | Current context estimate, window and usage (0–100); absent when the model has no window             |
+| `context`                                                          | Estimate source and auto-compaction thresholds (fields: sessions.md)                                |
 | `cacheHitRate`                                                     | The legacy hit rate: cacheRead / (input + cacheRead + cacheWrite), every request in the denominator |
 | `cache`                                                            | `SessionCacheStats` (example below), present only when the session-layer cache controller is wired  |
 

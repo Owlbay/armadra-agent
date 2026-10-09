@@ -22,6 +22,19 @@ English · [简体中文](CHANGELOG.zh-CN.md)
   left, the source ("reported usage X + estimated Y" or "estimated in full") and the auto-compact trigger; the bottom
   lists the largest tool results by ordinal, tool name and size only, never their content. Panel in the TUI, plain text
   in line mode. Read-only; the request body and cache prefix are unchanged.
+- **Context usage from the start**: before the first request, `contextTokens` is now a baseline estimated from the system
+  prompt and tool declarations that are about to be sent (stats only; nothing is written to the session and the request
+  body is unchanged), so a new session no longer shows `Ctx 0.0%`. `SessionStats.context` (`getStats()`, RPC
+  `get_session_stats`) tells where the number comes from (`usage` / `estimate` / `prefix`) and carries the
+  auto-compaction thresholds `autoCompactAt` / `pruneAt`; absent fields mean "unknown" (docs/sessions.md).
+- **Status bar**: `full` shows `Ctx 3.0% 8.2k/272k auto` (used / window, `auto` while auto-compaction is on; narrow
+  screens drop `auto`, then `/window`, then the used tokens); estimates get a leading `≈`; the warning color starts at
+  the tier-one pruning threshold; `compact` keeps one decimal below 1%. Ctx refreshes right after a message is submitted
+  and, while streaming, follows usage reported by the reply (at most twice a second). The rate line marks billed tokens
+  as the session total `Σ↑ ↓` with cache reads / writes as `R` / `W`. A model without a context window gets a one-time
+  hint on how to set one.
+- **`/session`**: the usage row is labeled as the session total; the context row adds the distance to auto-compaction
+  (or "auto-compaction off") and `≈` for estimates.
 
 ## 0.7.1 (2026-10-05)
 
