@@ -4,13 +4,20 @@
  * 优先级：用户配置写了的字段 > models.dev > 自定义缺省（maxTokens 8192、input ["text"]、
  * reasoning false、不猜 contextWindow）。内置目录的模型不经过这里：目录在 catalog.ts 里已经
  * 「快照 ⊕ 覆盖」合并好（[W5-M1]），这里只给它们标来源。只读传入的索引，不联网。
+ *
+ * [ME-D] 中转模型继承官方目录（D10）：`catalog` 没关时按 id 别名（或显式 `provider/id`）唯一命中
+ * 内置目录条目，继承模型固有属性 `reasoning`、`input`、`thinkingLevelMap`、`promptCache.minTokens`、
+ * `compat.requiresReasoningContentOnAssistantMessages`（用户写了的不覆盖），并把 models.dev 显式
+ * 匹配改为该条目的快照引用；不继承价格、TTL 与 `thinkingFormat`。去掉思考档后缀才命中时（中转按
+ * id 定思考档）不继承思考设置。models.dev 仍补不出的窗口 / 输出上限取目录值。
  */
 
 import type { ModelConfig } from "../../config/types.js";
 import type { Model } from "../types.js";
-import { catalogInherited } from "./catalog.js";
+import { catalogByAlias, catalogByRef, catalogInherited, type CatalogAliasHit } from "./catalog.js";
 import {
   ENRICHABLE_FIELDS,
+  MODELS_DEV_MAX_OUTPUT,
   modelsDevFields,
   type EnrichableField,
   type ModelsDevIndex,
@@ -18,7 +25,7 @@ import {
 } from "./models-dev.js";
 import { msg } from "../../i18n/index.js";
 
-export type FieldSource = "config" | "catalog" | "models.dev" | "default";
+export type FieldSource = "config" | "catalog" | "catalog-alias" | "models.dev" | "default";
 
 export interface ModelMetadata {
   sources: Record<EnrichableField, FieldSource>;
@@ -28,6 +35,8 @@ export interface ModelMetadata {
   looked: boolean;
   /** models.dev 的 tool_call。 */
   toolCall?: boolean;
+  /** [ME-D] 按 id 继承的内置目录条目 `provider/id`。 */
+  catalog?: string;
 }
 
 export type ModelsDevSource = ModelsDevIndex | (() => ModelsDevIndex | undefined) | undefined;
@@ -57,44 +66,109 @@ function needsLookup(entry: Partial<Model>): boolean {
   return ENRICHABLE_FIELDS.some((field) => entry[field] === undefined);
 }
 
+type EnrichedEntry = Omit<ModelConfig, "modelsDev" | "channels" | "catalog">;
+
+function catalogHit(entry: ModelConfig): CatalogAliasHit | undefined {
+  if (entry.catalog === false) return undefined;
+  return typeof entry.catalog === "string" ? catalogByRef(entry.catalog) : catalogByAlias(entry.id);
+}
+
+/** 目录固有属性（用户写了的不覆盖）。 */
+function inheritIntrinsic(
+  out: EnrichedEntry,
+  hit: CatalogAliasHit,
+  sources: Record<EnrichableField, FieldSource>,
+): void {
+  const model = hit.model;
+  if (out.input === undefined && model.input !== undefined) {
+    out.input = [...model.input];
+    sources.input = "catalog-alias";
+  }
+  if (hit.tier === undefined) {
+    if (out.reasoning === undefined) {
+      out.reasoning = model.reasoning;
+      sources.reasoning = "catalog-alias";
+    }
+    if (out.thinkingLevelMap === undefined && model.thinkingLevelMap !== undefined)
+      out.thinkingLevelMap = structuredClone(model.thinkingLevelMap);
+  }
+  const minTokens = model.promptCache?.minTokens;
+  if (minTokens !== undefined && out.promptCache?.minTokens === undefined)
+    out.promptCache = { ...out.promptCache, minTokens };
+  const requires = model.compat?.requiresReasoningContentOnAssistantMessages;
+  if (
+    requires !== undefined &&
+    out.compat?.requiresReasoningContentOnAssistantMessages === undefined
+  )
+    out.compat = { ...out.compat, requiresReasoningContentOnAssistantMessages: requires };
+}
+
+/** models.dev 之后仍缺的窗口与输出上限取目录值（输出按 models.dev 口径封顶）。 */
+function fillLimits(
+  out: EnrichedEntry,
+  hit: CatalogAliasHit,
+  sources: Record<EnrichableField, FieldSource>,
+): void {
+  if (out.contextWindow === undefined && hit.model.contextWindow !== undefined) {
+    out.contextWindow = hit.model.contextWindow;
+    sources.contextWindow = "catalog-alias";
+  }
+  if (out.maxTokens === undefined) {
+    out.maxTokens = Math.min(hit.model.maxTokens, MODELS_DEV_MAX_OUTPUT);
+    sources.maxTokens = "catalog-alias";
+  }
+}
+
 /**
  * 补全一个自定义模型条目（config 的 `models[]` 或合成的模型）。返回补过字段的条目（不含
- * `modelsDev` / `channels` 这些配置专用键）与每个字段的来源。
+ * `modelsDev` / `channels` / `catalog` 这些配置专用键）与每个字段的来源。
  */
 export function enrichEntry(
   entry: ModelConfig,
   index: () => ModelsDevIndex | undefined,
-): { entry: Omit<ModelConfig, "modelsDev" | "channels">; metadata: ModelMetadata } {
-  const { modelsDev, channels: _channels, ...rest } = entry;
+): { entry: EnrichedEntry; metadata: ModelMetadata } {
+  const { modelsDev, channels: _channels, catalog: _catalog, ...rest } = entry;
   const sources = {} as Record<EnrichableField, FieldSource>;
   for (const field of ENRICHABLE_FIELDS) {
     sources[field] = rest[field] !== undefined ? "config" : "default";
   }
   const metadata: ModelMetadata = { sources, looked: false };
-  if (modelsDev === false || (!needsLookup(rest) && modelsDev === undefined)) {
-    return { entry: rest, metadata };
+  const out: EnrichedEntry = { ...rest };
+  const hit = catalogHit(entry);
+  if (hit !== undefined) {
+    metadata.catalog = hit.ref;
+    inheritIntrinsic(out, hit, sources);
   }
-  const idx = index();
-  if (idx === undefined) return { entry: rest, metadata };
-  metadata.looked = true;
-  const match = idx.match(entry.id, typeof modelsDev === "string" ? modelsDev : undefined);
-  metadata.match = match;
-  if (match === undefined) return { entry: rest, metadata };
-  const fields = modelsDevFields(match.model);
-  if (fields.toolCall !== undefined) metadata.toolCall = fields.toolCall;
-  const out: Omit<ModelConfig, "modelsDev" | "channels"> = { ...rest };
-  for (const field of ENRICHABLE_FIELDS) {
-    if (out[field] !== undefined) continue;
-    const value = fields[field];
-    if (value === undefined) continue;
-    (out as Record<string, unknown>)[field] = structuredClone(value);
-    sources[field] = "models.dev";
+  const explicit = typeof modelsDev === "string" ? modelsDev : hit?.snapshotRef;
+  const lookup = modelsDev !== false && (needsLookup(out) || modelsDev !== undefined);
+  const idx = lookup ? index() : undefined;
+  if (idx !== undefined) {
+    metadata.looked = true;
+    // 目录给的快照引用在用户刷新的数据里不存在时，回落按 id 匹配
+    const match =
+      idx.match(entry.id, explicit) ??
+      (modelsDev === undefined && explicit !== undefined ? idx.match(entry.id) : undefined);
+    metadata.match = match;
+    if (match !== undefined) {
+      const fields = modelsDevFields(match.model);
+      if (fields.toolCall !== undefined) metadata.toolCall = fields.toolCall;
+      for (const field of ENRICHABLE_FIELDS) {
+        if (out[field] !== undefined) continue;
+        // 思考档写在 id 里的中转模型：不让 models.dev 打开思考参数
+        if (field === "reasoning" && hit?.tier !== undefined) continue;
+        const value = fields[field];
+        if (value === undefined) continue;
+        (out as Record<string, unknown>)[field] = structuredClone(value);
+        sources[field] = "models.dev";
+      }
+      if (out.name === undefined && fields.name !== undefined) out.name = fields.name;
+      for (const field of METADATA_FIELDS) {
+        if (out[field] === undefined && fields[field] !== undefined)
+          (out as Record<string, unknown>)[field] = fields[field];
+      }
+    }
   }
-  if (out.name === undefined && fields.name !== undefined) out.name = fields.name;
-  for (const field of METADATA_FIELDS) {
-    if (out[field] === undefined && fields[field] !== undefined)
-      (out as Record<string, unknown>)[field] = fields[field];
-  }
+  if (hit !== undefined && modelsDev !== false) fillLimits(out, hit, sources);
   return { entry: out, metadata };
 }
 
