@@ -517,10 +517,10 @@ export async function createSessionAlongside(
   const sessionDir = assembly.paths.sessionDir;
   const fresh = (id?: string): SessionManager =>
     assembly.overrides?.noSession === true
-      ? SessionManager.inMemory(current.cwd)
+      ? SessionManager.inMemory(record.current.cwd)
       : SessionManager.create(
-          sessionDirForCwd(sessionDir, current.cwd),
-          current.cwd,
+          sessionDirForCwd(sessionDir, record.current.cwd),
+          record.current.cwd,
           id !== undefined ? { id } : {},
         );
   let manager: SessionManager;
