@@ -200,7 +200,7 @@ function convertAssistant(model: Model, message: AssistantMessage): Json[] {
         ...(sameModel && itemId?.startsWith("fc") ? { id: itemId } : {}),
         call_id: block.id,
         name: block.name,
-        arguments: JSON.stringify(block.arguments),
+        arguments: block.rawArguments ?? JSON.stringify(block.arguments),
       });
     }
   }

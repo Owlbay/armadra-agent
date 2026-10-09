@@ -70,7 +70,7 @@ describe("ama -p（en）", () => {
       retry: { baseDelayMs: 1, maxDelayMs: 2 },
     });
     expect(await h.run(["-p", "hi", "--model", "fake/echo"])).toBe(0);
-    expect(h.stderr()).toMatch(/^ama: ↻ retry 1\/3 \(in 0s\): .+\n$/);
+    expect(h.stderr()).toMatch(/^ama: ↻ retry 1\/5 \(in 0s\): .+\n$/); // 529 → rate_limited，上限 3 + 2
     h.cleanup();
     const readCall = { steps: [{ toolCall: { name: "read", arguments: { path: "n.txt" } } }] };
     h = composeHarness([readCall, readCall, { text: "x" }], { env: EN });

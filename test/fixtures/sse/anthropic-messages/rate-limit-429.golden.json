@@ -25,7 +25,8 @@
       "stopReason": "error",
       "timestamp": 0,
       "thinkingLevel": "off",
-      "errorMessage": "429 rate_limit_error: Number of request tokens has exceeded your per-minute rate limit"
+      "errorMessage": "429 rate_limit_error: Number of request tokens has exceeded your per-minute rate limit",
+      "retryAfterMs": 7000
     }
   }
 ]

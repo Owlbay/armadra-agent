@@ -1,5 +1,6 @@
 /**
  * 流空闲超时（W4-C）：用本地 node:http 模拟「发一块后停住」「迟迟不回响应头」「慢但不停」。
+ * [ME-C] D18：等响应头用 `idleTimeoutMs`，流中两块之间用 `streamIdleTimeoutMs`（缺省 180 s），两段分开。
  */
 
 import { createServer, type Server, type ServerResponse } from "node:http";
@@ -7,7 +8,13 @@ import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 import { classifyFailure } from "../agent/retry.js";
 import { openAICompletionsApi } from "./apis/openai-completions.js";
-import { DEFAULT_IDLE_TIMEOUT_MS, idleTimeoutOf } from "./http.js";
+import {
+  DEFAULT_IDLE_TIMEOUT_MS,
+  DEFAULT_STREAM_IDLE_TIMEOUT_MS,
+  idleTimeoutOf,
+  streamIdleTimeoutOf,
+} from "./http.js";
+import { DEFAULT_STREAM_IDLE_TIMEOUT_MS as CONFIG_STREAM_IDLE } from "../config/types.js";
 import type { Model, StreamOptions } from "./types.js";
 
 type Handler = (res: ServerResponse) => void;
@@ -71,31 +78,42 @@ describe("流空闲超时", () => {
     expect(idleTimeoutOf({ idleTimeoutMs: 1234 })).toBe(1234);
   });
 
+  it("[ME-C] 流中缺省 180 s（与配置缺省一致）；0 关闭；不受 idleTimeoutMs 影响", () => {
+    expect(DEFAULT_STREAM_IDLE_TIMEOUT_MS).toBe(180_000);
+    expect(CONFIG_STREAM_IDLE).toBe(DEFAULT_STREAM_IDLE_TIMEOUT_MS);
+    expect(streamIdleTimeoutOf({})).toBe(180_000);
+    expect(streamIdleTimeoutOf({ streamIdleTimeoutMs: 0 })).toBeUndefined();
+    expect(streamIdleTimeoutOf({ streamIdleTimeoutMs: 90_000 })).toBe(90_000);
+  });
+
   it("发一块后停住：按空闲超时报错，文案明确且判为可重试", async () => {
     const url = await serve((res) => {
       sseHead(res);
       res.write(chunk("partial"));
     });
     const started = Date.now();
-    const message = await run(url, { idleTimeoutMs: 200 });
+    const message = await run(url, { idleTimeoutMs: 60_000, streamIdleTimeoutMs: 200 });
     expect(Date.now() - started).toBeLessThan(5_000);
     expect(message.stopReason).toBe("error");
     expect(message.errorMessage).toMatch(/Stream stalled: no data from the server for 200 ms/);
     expect(message.errorMessage).toContain("idle timeout");
+    expect(message.errorMessage).toContain("request.streamIdleTimeoutMs");
     expect(classifyFailure(message)).toBe("retryable");
   });
 
-  it("迟迟没有响应头：同一个空闲上限也管连接阶段", async () => {
+  it("迟迟没有响应头：由 idleTimeoutMs 管，流中上限不参与", async () => {
     const url = await serve(() => undefined);
-    const message = await run(url, { idleTimeoutMs: 200 });
+    const message = await run(url, { idleTimeoutMs: 200, streamIdleTimeoutMs: 60_000 });
     expect(message.stopReason).toBe("error");
     expect(message.errorMessage).toMatch(/No response from the server within 200 ms/);
+    expect(message.errorMessage).toContain("request.idleTimeoutMs");
     expect(classifyFailure(message)).toBe("retryable");
   });
 
   it("慢但持续有数据：每收到一块重新计时，不误判", async () => {
     const url = await serve((res) => {
       sseHead(res);
+      res.flushHeaders();
       let sent = 0;
       const timer = setInterval(() => {
         if (sent < 5) {
@@ -110,7 +128,8 @@ describe("流空闲超时", () => {
         res.end("data: [DONE]\n\n");
       }, 100);
     });
-    const message = await run(url, { idleTimeoutMs: 300 });
+    // 响应头上限比块间隔短也不影响流（两段分开）
+    const message = await run(url, { idleTimeoutMs: 50, streamIdleTimeoutMs: 300 });
     expect(message.stopReason).toBe("stop");
     expect(message.content).toEqual([{ type: "text", text: "01234" }]);
   });

@@ -21,6 +21,7 @@ import {
   authHeaders,
   HttpError,
   idleTimeoutOf,
+  streamIdleTimeoutOf,
   joinUrl,
   mergeHeaders,
   postJson,
@@ -38,6 +39,7 @@ import type {
   Usage,
 } from "../types.js";
 import { GOOGLE_BASE_URL, buildGoogleRequest, detectGoogleCompat } from "./google-request.js";
+import { clampGoogleMaxTokens } from "./max-tokens.js";
 import {
   BlockTracker,
   ProviderStopError,
@@ -237,6 +239,7 @@ async function run(
     if (request.providerThinkingLevel !== undefined) {
       tracker.output.providerThinkingLevel = request.providerThinkingLevel;
     }
+    clampGoogleMaxTokens(request.body, model.contextWindow);
     const replaced = options.onPayload?.(request.body);
     let response: Response;
     try {
@@ -258,7 +261,7 @@ async function run(
       idSeed: Date.now().toString(36),
     };
     const body = response.body as ReadableStream<Uint8Array>;
-    for await (const sse of readSseEvents(body, options.signal, idleTimeoutOf(options))) {
+    for await (const sse of readSseEvents(body, options.signal, streamIdleTimeoutOf(options))) {
       const data = sse.data.trim();
       if (data === "" || data === "[DONE]") continue;
       let chunk: Json;

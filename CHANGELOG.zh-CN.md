@@ -14,6 +14,11 @@
 - **中转模型继承官方目录**（P1-7）：中转 / 自定义模型的 id 唯一命中内置目录条目时（小写、去一层厂商前缀与 `:latest`，也认目录的 `aliases`），继承 `reasoning`、`input`、`thinkingLevelMap`、`promptCache.minTokens` 与 `compat.requiresReasoningContentOnAssistantMessages`，models.dev 改为匹配该条目的快照；不继承价格、TTL 与 `thinkingFormat`。带思考档后缀的 id（`gemini-3.8-flash-low`）去掉后缀再匹配，继承图片与窗口、不打开思考——中转上的 Gemini Flash 不再因「不支持图片」被拒。`models[].catalog: false` 关闭，`"provider/id"` 显式指定；`ama models list` 标「目录（按 id 匹配）」并列出条目。`deepseek-v4-flash` 是 `deepseek-flash` 的别名。
 - **工具结果一次截到位**（P2-1、P2-2）：`read`、`grep`、`bash` 按会话的 `tools.maxToolResultChars`（不超过 50 KB）自己截断，说明里写实际上限与续读位置，不再被会话层二次截中段；描述不再写死大小（前缀更短）。`glob` 缺省最多返回 200 个文件（原 1000）。
 - **auto 模式用小模型分类**（P2-4）：没配 `permission.autoModel` 时，分类器用会话供应商目录里的小模型（目录的 `small`：deepseek-flash、claude-haiku-4-5、gpt-6-luna、gemini-3.5-flash-lite、kimi-k2.6 等），找得到且有 key 才用，否则用会话模型。
+- **Anthropic 第 4 个缓存断点**：除最后一条 user、system 末与最后一个工具外，倒数第二条 user（上一次请求的写入点）也打断点，一个回合里并行工具结果很多、超出回看窗口时不再整段重写。`maxCacheBreakpoints` 不足 4 时先舍去最后一个工具。
+- **重试遵守 Retry-After，限流单独计**：退避取 `max(指数退避, Retry-After)`、上限 `retry.maxDelayMs`，再加 ±20% 抖动；429 / 529 / rate limit 比 `retry.maxRetries` 多重试 2 次（`auto_retry_start.maxAttempts` 随之）。5xx 只认文案开头的状态码或 `status` / `HTTP` 之后的，错误文案里的「500 tokens」不再当作服务端错误。配了 `fallbackModel` 时，overloaded 先快速重试一次（1 s）再切模型。
+- **max_tokens 不再让首个请求失败**：上下文窗口已知时把 `max_tokens` 收紧到窗口剩余量以内（Anthropic 预算型思考除外）；端点以 400 说出上限（`Range of max_tokens should be [1, N]` 等）时以该上限重发一次，同一进程里之后的请求直接用它。Anthropic 的 `input length and max_tokens exceed context limit` 按剩余量重发，不足 1024 token 时按上下文溢出处理。
+- **工具调用参数逐字节回放**：Completions 与 Responses 请求把模型输出的参数串原样发回，不再重新序列化，空格差异不再打断前缀缓存；旧会话回落为序列化。
+- **流中空闲超时单独设置**：`request.idleTimeoutMs`（300 s）现在只管等响应头；流开始后两块数据之间改由新的 `request.streamIdleTimeoutMs`（缺省 180 s，`AMA_STREAM_IDLE_TIMEOUT_MS`，0 关闭）管。之前 `idleTimeoutMs` 两段都管，如果你为慢端点调大或关掉了它，请同时设置 `streamIdleTimeoutMs`。
 
 ## 0.7.3（2026-10-09）
 

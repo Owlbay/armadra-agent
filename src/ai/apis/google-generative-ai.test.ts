@@ -73,6 +73,7 @@ describe("google-generative-ai：SSE 样本黄金", () => {
         id: "call_rsp-tool1_0",
         name: "read",
         arguments: { path: "README.md" },
+        rawArguments: '{"path":"README.md"}',
         thoughtSignature: "Q2lRQ0FkSE10b29sc2ln",
       },
     ]);
@@ -94,9 +95,16 @@ describe("google-generative-ai：SSE 样本黄金", () => {
         id: "call_rsp-multi1_1",
         name: "read",
         arguments: { path: "a.ts" },
+        rawArguments: '{"path":"a.ts"}',
         thoughtSignature: "c2lnLW11bHRp",
       },
-      { type: "toolCall", id: "fc-b", name: "read", arguments: { path: "b.ts" } },
+      {
+        type: "toolCall",
+        id: "fc-b",
+        name: "read",
+        arguments: { path: "b.ts" },
+        rawArguments: '{"path":"b.ts"}',
+      },
     ]);
   });
 

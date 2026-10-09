@@ -171,7 +171,7 @@ const keysEn = {
   cache: "Prompt caching; the whole section is user level only",
   request: "Model requests; the whole section is user level / profile only",
   "request.idleTimeoutMs":
-    "Stream idle timeout (ms): waiting longer for headers or between two chunks counts as stuck and is retried as a retryable error; 0 disables; AMA_IDLE_TIMEOUT_MS overrides",
+    "Response idle timeout (ms): waiting longer than this for the response headers counts as stuck and is retried as a retryable error (gaps inside the stream use request.streamIdleTimeoutMs); 0 disables; AMA_IDLE_TIMEOUT_MS overrides",
   "request.streamIdleTimeoutMs":
     "Idle limit between two chunks once the stream has started (ms); longer than the header wait because reasoning endpoints can stay silent while thinking; 0 disables; AMA_STREAM_IDLE_TIMEOUT_MS overrides",
   "cache.warming":
@@ -343,7 +343,7 @@ const keysZh = {
   cache: "提示缓存；整段只认用户级",
   request: "模型请求；整段只认用户级 / profile",
   "request.idleTimeoutMs":
-    "流空闲超时（毫秒）：等响应头或两块数据之间超过即判卡住并按可重试错误重试；0 关闭；AMA_IDLE_TIMEOUT_MS 覆盖",
+    "响应头等待超时（毫秒）：等响应头超过即判卡住并按可重试错误重试（流中两块数据之间由 request.streamIdleTimeoutMs 管）；0 关闭；AMA_IDLE_TIMEOUT_MS 覆盖",
   "request.streamIdleTimeoutMs":
     "流开始后两块数据之间的空闲上限（毫秒）；比等响应头宽，因为推理端点思考时可能长时间没有字节；0 关闭；AMA_STREAM_IDLE_TIMEOUT_MS 覆盖",
   "cache.warming": "保温：off 关闭，streaming 生成期间保温，idle 空闲时也保温",

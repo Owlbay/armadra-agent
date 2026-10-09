@@ -497,7 +497,8 @@
       "name": "read",
       "arguments": {
         "path": "a.ts"
-      }
+      },
+      "rawArguments": "{\"path\": \"a.ts\"}"
     }
   },
   {
@@ -509,7 +510,8 @@
       "name": "read",
       "arguments": {
         "path": "b.ts"
-      }
+      },
+      "rawArguments": "{\"path\": \"b.ts\"}"
     }
   },
   {
@@ -521,7 +523,8 @@
       "name": "ls",
       "arguments": {
         "dir": "src"
-      }
+      },
+      "rawArguments": "{\"dir\": \"src\"}"
     }
   },
   {
@@ -541,7 +544,8 @@
           "name": "read",
           "arguments": {
             "path": "a.ts"
-          }
+          },
+          "rawArguments": "{\"path\": \"a.ts\"}"
         },
         {
           "type": "toolCall",
@@ -549,7 +553,8 @@
           "name": "read",
           "arguments": {
             "path": "b.ts"
-          }
+          },
+          "rawArguments": "{\"path\": \"b.ts\"}"
         },
         {
           "type": "toolCall",
@@ -557,7 +562,8 @@
           "name": "ls",
           "arguments": {
             "dir": "src"
-          }
+          },
+          "rawArguments": "{\"dir\": \"src\"}"
         }
       ],
       "api": "openai-completions",

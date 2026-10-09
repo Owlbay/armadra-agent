@@ -2,8 +2,10 @@
  * 会话层重试（设计 §3.6「重试」「溢出」）。[B2]
  *
  * 判定顺序：上下文溢出（不重试，走压缩）→ 不可重试（配额 / 计费 / key / 401 / 403，快速失败）→
- * 可重试（429、5xx、overloaded、网络错误、断流、空闲超时）→ 其它（不重试）。
- * 延迟 `baseDelayMs × 2^(attempt−1)`，上限 `maxDelayMs`；`sleep` 可被 abort 打断。
+ * 限流（429、529、rate limit；[ME-C] 上限多 2 次）→ 可重试（5xx、overloaded、网络错误、断流、
+ * 空闲超时）→ 其它（不重试）。5xx 只认文案开头的状态码或 `status` / `HTTP` 后的（「500 tokens」不算）。
+ * 延迟 `min(maxDelayMs, max(baseDelayMs × 2^(attempt−1), Retry-After)) × U(0.8, 1.2)`（D8）；
+ * `sleep` 可被 abort 打断。
  * 协议层自身不重试。溢出文案识别只有一份：ai/overflow.ts 的 `isOverflowErrorText`（缺省），可注入替换。
  */
 
@@ -19,7 +21,7 @@ export const DEFAULT_RETRY_SETTINGS: RetrySettings = {
   maxDelayMs: 60_000,
 };
 
-export type FailureKind = "overflow" | "fatal" | "retryable" | "other";
+export type FailureKind = "overflow" | "fatal" | "rate_limited" | "retryable" | "other";
 
 const FATAL_PATTERNS: readonly RegExp[] = [
   /insufficient[_ ]quota/i,
@@ -35,11 +37,17 @@ const FATAL_PATTERNS: readonly RegExp[] = [
   /authentication/i,
 ];
 
-const RETRYABLE_PATTERNS: readonly RegExp[] = [
+/** 限流：先于 RETRYABLE_PATTERNS 判（529 overloaded 也在这里）。 */
+const RATE_LIMIT_PATTERNS: readonly RegExp[] = [
   /\b429\b/,
+  /\b529\b/,
   /rate[_ ]?limit/i,
   /too many requests/i,
-  /\b5\d\d\b/,
+];
+
+const RETRYABLE_PATTERNS: readonly RegExp[] = [
+  /^\s*5\d\d\b/,
+  /\b(?:status|HTTP)\s*[:=]?\s*5\d\d\b/i,
   /overloaded/i,
   /server error/i,
   /service unavailable/i,
@@ -74,6 +82,7 @@ export function classifyFailure(
   const isOverflow = options.isContextOverflow ?? isOverflowErrorText;
   if (isOverflow(text)) return "overflow";
   if (FATAL_PATTERNS.some((pattern) => pattern.test(text))) return "fatal";
+  if (RATE_LIMIT_PATTERNS.some((pattern) => pattern.test(text))) return "rate_limited";
   if (RETRYABLE_PATTERNS.some((pattern) => pattern.test(text))) return "retryable";
   return "other";
 }
@@ -82,10 +91,30 @@ export function resolveRetrySettings(partial: Partial<RetrySettings> = {}): Retr
   return { ...DEFAULT_RETRY_SETTINGS, ...partial };
 }
 
-/** 第 attempt 次重试（1 起）前的等待。 */
-export function retryDelayMs(attempt: number, settings: RetrySettings): number {
-  const raw = settings.baseDelayMs * 2 ** Math.max(0, attempt - 1);
-  return Math.min(raw, settings.maxDelayMs);
+/** 会话层要重试的失败种类。 */
+export function isRetryableKind(kind: FailureKind): boolean {
+  return kind === "retryable" || kind === "rate_limited";
+}
+
+/** 该种类的重试上限：限流多给 2 次（服务端多半在 Retry-After 后就恢复）。 */
+export function maxRetriesFor(kind: FailureKind, settings: RetrySettings): number {
+  return kind === "rate_limited" ? settings.maxRetries + 2 : settings.maxRetries;
+}
+
+/**
+ * 第 attempt 次重试（1 起）前的等待：指数退避与服务端 `Retry-After` 取大、截到 `maxDelayMs`，再乘
+ * U(0.8, 1.2) 抖动（并发会话不在同一时刻一起重试）；取整到毫秒。
+ */
+export function retryDelayMs(
+  attempt: number,
+  settings: RetrySettings,
+  retryAfterMs?: number,
+  random: () => number = Math.random,
+): number {
+  const backoff = settings.baseDelayMs * 2 ** Math.max(0, attempt - 1);
+  const wanted = Math.max(backoff, retryAfterMs ?? 0);
+  const capped = Math.min(wanted, settings.maxDelayMs);
+  return Math.round(capped * (0.8 + 0.4 * random()));
 }
 
 /** 可被 abort 打断的等待；被打断时抛 AmaError{code:"aborted"}。 */

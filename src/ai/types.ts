@@ -456,10 +456,13 @@ export interface StreamOptions {
   headers?: Record<string, string | null>;
   timeoutMs?: number;
   /**
-   * 空闲超时：等响应头、以及流中两块数据之间的最长间隔（每收到字节即重新计时）。缺省 300 000，
-   * 0 关闭。超时报 `idle timeout` 错误，会话层按可重试处理。
+   * 等响应头的空闲超时（毫秒）。缺省 300 000，0 关闭。超时报 `idle timeout` 错误，会话层按可重试处理。
    */
   idleTimeoutMs?: number;
+  /**
+   * [ME-C] 流开始后两块数据之间的最长间隔（毫秒，每收到字节即重新计时）。缺省 180 000，0 关闭。
+   */
+  streamIdleTimeoutMs?: number;
   maxTokens?: number;
   temperature?: number;
   thinkingLevel?: ModelThinkingLevel;

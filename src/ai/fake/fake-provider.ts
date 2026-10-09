@@ -4,6 +4,8 @@
  * `responses[n]` 产出文本 / 思考 / 工具调用 / 429 / 溢出 / 断流 / 延迟。
  *
  * 事件形状与真实协议完全一致（同一个 BlockTracker），契约测试对两条协议与 fake 跑同一套断言。
+ * [ME-C] 工具参数按 JSON 串分块喂给 BlockTracker，所以消息同样带 `rawArguments`；start 之前的错误
+ * 以 `HttpError` 抛出（状态 ≥ 400 时），脚本的 `error.retryAfterMs` 进失败消息的 `retryAfterMs`。
  *
  * 用法：
  * - 测试：`const fake = new FakeProvider([...])`，把 `fake.api` 注册进 ApiRegistry（或直接
@@ -25,6 +27,7 @@ import {
   finishError,
 } from "../apis/shared.js";
 import { contentText, normalizeContext } from "../context.js";
+import { HttpError } from "../http.js";
 import type {
   ApiImplementation,
   AssistantEventStream,
@@ -266,7 +269,8 @@ export class FakeProvider {
       const error = response.error ? describeFakeError(response.error) : undefined;
       if (error && response.error?.kind !== "disconnect") {
         options.onResponse?.(error.status, new Headers());
-        throw new Error(error.message);
+        if (error.status < 400) throw new Error(error.message);
+        throw new HttpError(error.status, error.message, "", response.error?.retryAfterMs);
       }
       options.onResponse?.(200, new Headers({ "content-type": "text/event-stream" }));
       if (options.thinkingLevel) tracker.output.thinkingLevel = options.thinkingLevel;

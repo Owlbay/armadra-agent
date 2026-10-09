@@ -107,8 +107,9 @@ export class SseParser {
 
 /**
  * 从字节流读 SSE 事件；`signal` 中止时停止读取（调用方据此产出 aborted）。
- * `idleTimeoutMs`：等待下一块字节的上限，每收到一块即重新计时（消费者处理事件的时间不计）；
- * 超时取消底层流并抛 `IdleTimeoutError`（phase `stream`）。
+ * `idleTimeoutMs`：等待下一块字节的上限（调用方传 `streamIdleTimeoutOf(options)`，即
+ * `request.streamIdleTimeoutMs`，与等响应头的上限分开），每收到一块即重新计时（消费者处理事件的
+ * 时间不计）；超时取消底层流并抛 `IdleTimeoutError`（phase `stream`）。
  */
 export async function* readSseEvents(
   body: ReadableStream<Uint8Array>,

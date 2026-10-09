@@ -119,7 +119,7 @@ function convertAssistant(
     out["tool_calls"] = calls.map((call) => ({
       id: normalizeCallId(model, call.id),
       type: "function",
-      function: { name: call.name, arguments: JSON.stringify(call.arguments) },
+      function: { name: call.name, arguments: call.rawArguments ?? JSON.stringify(call.arguments) },
     }));
   }
   if (out["content"] === null && calls.length === 0) return undefined;

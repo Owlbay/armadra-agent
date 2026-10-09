@@ -38,7 +38,8 @@
       "name": "glob",
       "arguments": {
         "pattern": "src/**/*.ts"
-      }
+      },
+      "rawArguments": "{\"pattern\":\"src/**/*.ts\"}"
     }
   },
   {
@@ -48,7 +49,8 @@
       "type": "toolCall",
       "id": "call_x2",
       "name": "ls",
-      "arguments": {}
+      "arguments": {},
+      "rawArguments": "{}"
     }
   },
   {
@@ -63,13 +65,15 @@
           "name": "glob",
           "arguments": {
             "pattern": "src/**/*.ts"
-          }
+          },
+          "rawArguments": "{\"pattern\":\"src/**/*.ts\"}"
         },
         {
           "type": "toolCall",
           "id": "call_x2",
           "name": "ls",
-          "arguments": {}
+          "arguments": {},
+          "rawArguments": "{}"
         }
       ],
       "api": "openai-completions",

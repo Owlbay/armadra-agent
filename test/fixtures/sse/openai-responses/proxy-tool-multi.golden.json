@@ -106,7 +106,8 @@
       "arguments": {
         "path": "a.ts"
       },
-      "thoughtSignature": "msg_fb3ee14e-97d3-46fb-937c-4c401d5aa8f8"
+      "thoughtSignature": "msg_fb3ee14e-97d3-46fb-937c-4c401d5aa8f8",
+      "rawArguments": "{\"path\": \"a.ts\"}"
     }
   },
   {
@@ -145,7 +146,8 @@
       "arguments": {
         "path": "b.ts"
       },
-      "thoughtSignature": "msg_aacb4e13-200b-4752-96bd-70c56dd21b9a"
+      "thoughtSignature": "msg_aacb4e13-200b-4752-96bd-70c56dd21b9a",
+      "rawArguments": "{\"path\": \"b.ts\"}"
     }
   },
   {
@@ -179,7 +181,8 @@
       "arguments": {
         "dir": "src"
       },
-      "thoughtSignature": "msg_1cb49848-816b-4b27-a371-78f32b7e6499"
+      "thoughtSignature": "msg_1cb49848-816b-4b27-a371-78f32b7e6499",
+      "rawArguments": "{\"dir\": \"src\"}"
     }
   },
   {
@@ -200,7 +203,8 @@
           "arguments": {
             "path": "a.ts"
           },
-          "thoughtSignature": "msg_fb3ee14e-97d3-46fb-937c-4c401d5aa8f8"
+          "thoughtSignature": "msg_fb3ee14e-97d3-46fb-937c-4c401d5aa8f8",
+          "rawArguments": "{\"path\": \"a.ts\"}"
         },
         {
           "type": "toolCall",
@@ -209,7 +213,8 @@
           "arguments": {
             "path": "b.ts"
           },
-          "thoughtSignature": "msg_aacb4e13-200b-4752-96bd-70c56dd21b9a"
+          "thoughtSignature": "msg_aacb4e13-200b-4752-96bd-70c56dd21b9a",
+          "rawArguments": "{\"path\": \"b.ts\"}"
         },
         {
           "type": "toolCall",
@@ -218,7 +223,8 @@
           "arguments": {
             "dir": "src"
           },
-          "thoughtSignature": "msg_1cb49848-816b-4b27-a371-78f32b7e6499"
+          "thoughtSignature": "msg_1cb49848-816b-4b27-a371-78f32b7e6499",
+          "rawArguments": "{\"dir\": \"src\"}"
         }
       ],
       "api": "openai-responses",

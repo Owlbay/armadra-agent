@@ -71,7 +71,8 @@
       "arguments": {
         "path": "README.md"
       },
-      "thoughtSignature": "msg_4f174008-1efc-493e-ab74-4f64a92bf64e"
+      "thoughtSignature": "msg_4f174008-1efc-493e-ab74-4f64a92bf64e",
+      "rawArguments": "{\"path\": \"README.md\"}"
     }
   },
   {
@@ -92,7 +93,8 @@
           "arguments": {
             "path": "README.md"
           },
-          "thoughtSignature": "msg_4f174008-1efc-493e-ab74-4f64a92bf64e"
+          "thoughtSignature": "msg_4f174008-1efc-493e-ab74-4f64a92bf64e",
+          "rawArguments": "{\"path\": \"README.md\"}"
         }
       ],
       "api": "openai-responses",

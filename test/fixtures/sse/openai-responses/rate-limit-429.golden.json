@@ -26,7 +26,8 @@
       "timestamp": 0,
       "thinkingLevel": "off",
       "providerThinkingLevel": "none",
-      "errorMessage": "429 tokens: Rate limit reached for gpt-5.5 in organization org-xyz on tokens per min (TPM): Limit 30000, Used 29500, Requested 1200. Please try again in 1.4s."
+      "errorMessage": "429 tokens: Rate limit reached for gpt-5.5 in organization org-xyz on tokens per min (TPM): Limit 30000, Used 29500, Requested 1200. Please try again in 1.4s.",
+      "retryAfterMs": 2000
     }
   }
 ]

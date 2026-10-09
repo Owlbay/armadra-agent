@@ -113,6 +113,7 @@ describe("openai-responses：SSE 样本黄金", () => {
         id: "call_enc1",
         name: "ls",
         arguments: { dir: "src" },
+        rawArguments: '{"dir":"src"}',
         thoughtSignature: "fc_enc1",
       },
     ]);
@@ -130,6 +131,7 @@ describe("openai-responses：SSE 样本黄金", () => {
       id: "call_26472a1bf2dd4abd88d1b232",
       name: "read",
       arguments: { path: "README.md" },
+      rawArguments: '{"path": "README.md"}',
       thoughtSignature: "msg_4f174008-1efc-493e-ab74-4f64a92bf64e",
     });
   });
@@ -147,6 +149,7 @@ describe("openai-responses：SSE 样本黄金", () => {
         id: "call_a",
         name: "read",
         arguments: { path: "a.ts" },
+        rawArguments: '{"path":"a.ts"}',
         thoughtSignature: "fc_a",
       },
       {
@@ -154,6 +157,7 @@ describe("openai-responses：SSE 样本黄金", () => {
         id: "call_b",
         name: "read",
         arguments: { path: "b.ts" },
+        rawArguments: '{"path":"b.ts"}',
         thoughtSignature: "fc_b",
       },
     ]);
@@ -389,6 +393,7 @@ describe("openai-responses：请求", () => {
         id: "call_9",
         name: "ls",
         arguments: { dir: "." },
+        rawArguments: '{"dir":"."}',
         thoughtSignature: "fc_9",
       },
     ]);

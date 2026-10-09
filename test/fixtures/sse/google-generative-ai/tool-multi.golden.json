@@ -36,7 +36,8 @@
       "arguments": {
         "path": "a.ts"
       },
-      "thoughtSignature": "c2lnLW11bHRp"
+      "thoughtSignature": "c2lnLW11bHRp",
+      "rawArguments": "{\"path\":\"a.ts\"}"
     }
   },
   {
@@ -59,7 +60,8 @@
       "name": "read",
       "arguments": {
         "path": "b.ts"
-      }
+      },
+      "rawArguments": "{\"path\":\"b.ts\"}"
     }
   },
   {
@@ -79,7 +81,8 @@
           "arguments": {
             "path": "a.ts"
           },
-          "thoughtSignature": "c2lnLW11bHRp"
+          "thoughtSignature": "c2lnLW11bHRp",
+          "rawArguments": "{\"path\":\"a.ts\"}"
         },
         {
           "type": "toolCall",
@@ -87,7 +90,8 @@
           "name": "read",
           "arguments": {
             "path": "b.ts"
-          }
+          },
+          "rawArguments": "{\"path\":\"b.ts\"}"
         }
       ],
       "api": "google-generative-ai",

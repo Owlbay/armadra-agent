@@ -633,18 +633,18 @@ OpenRouter 的 Messages 接口只在 `message_delta` 里给缓存 usage，解析
 
 ### 请求字段
 
-| 协议                                     | 字段                                                                                     | 条件                                                                                     |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `anthropic-messages`                     | 三断点 `cache_control`（最后一条 user、system 末、最后一个工具）                         | `cacheRetention` 不是 `none`                                                             |
-| `anthropic-messages`                     | `ttl: "1h"`                                                                              | `long` 且 `supportsLongCacheRetention`；否则按 5m                                        |
-| `openai-completions`                     | `prompt_cache_key = sessionId`（截 64 字符）                                             | `sendPromptCacheKey` 且不是 `none`                                                       |
-| `openai-completions`                     | `prompt_cache_retention: "24h"`                                                          | `long` 且 `supportsLongCacheRetention`                                                   |
-| `openai-completions`（`anthropic/*` 等） | `cache_control`（`cacheControlFormat: "anthropic"`），`long` 时带 `ttl: "1h"`            | 同 Anthropic                                                                             |
-| `openai-responses`                       | `prompt_cache_key`                                                                       | 同 Completions                                                                           |
-| `openai-responses`                       | `prompt_cache_options: { ttl: "30m" }`，否则 `prompt_cache_retention: "24h"`             | `long` 且 `supportsExplicitPromptCacheMode`；否则 `long` 且 `supportsLongCacheRetention` |
-| OpenAI 两条                              | 亲和头 `x-session-affinity` + 每请求 `x-client-request-id`（OpenRouter：`x-session-id`） | `sendSessionAffinityHeaders` 且有 sessionId                                              |
-| `google-generative-ai`                   | 无（隐式缓存）                                                                           | —                                                                                        |
-| 全部                                     | `toolChoice: "none"` → 各家的「禁止调用工具」写法                                        | 请求带工具时（摘要续写**不用**，见「压缩摘要续写」）                                     |
+| 协议                                     | 字段                                                                                                                                         | 条件                                                                                     |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `anthropic-messages`                     | 四断点 `cache_control`，按优先级取前 `maxCacheBreakpoints` 个：最后一条 user、system 末、倒数第二条 user（上一次请求的写入点）、最后一个工具 | `cacheRetention` 不是 `none`                                                             |
+| `anthropic-messages`                     | `ttl: "1h"`                                                                                                                                  | `long` 且 `supportsLongCacheRetention`；否则按 5m                                        |
+| `openai-completions`                     | `prompt_cache_key = sessionId`（截 64 字符）                                                                                                 | `sendPromptCacheKey` 且不是 `none`                                                       |
+| `openai-completions`                     | `prompt_cache_retention: "24h"`                                                                                                              | `long` 且 `supportsLongCacheRetention`                                                   |
+| `openai-completions`（`anthropic/*` 等） | `cache_control`（`cacheControlFormat: "anthropic"`），`long` 时带 `ttl: "1h"`                                                                | 同 Anthropic                                                                             |
+| `openai-responses`                       | `prompt_cache_key`                                                                                                                           | 同 Completions                                                                           |
+| `openai-responses`                       | `prompt_cache_options: { ttl: "30m" }`，否则 `prompt_cache_retention: "24h"`                                                                 | `long` 且 `supportsExplicitPromptCacheMode`；否则 `long` 且 `supportsLongCacheRetention` |
+| OpenAI 两条                              | 亲和头 `x-session-affinity` + 每请求 `x-client-request-id`（OpenRouter：`x-session-id`）                                                     | `sendSessionAffinityHeaders` 且有 sessionId                                              |
+| `google-generative-ai`                   | 无（隐式缓存）                                                                                                                               | —                                                                                        |
+| 全部                                     | `toolChoice: "none"` → 各家的「禁止调用工具」写法                                                                                            | 请求带工具时（摘要续写**不用**，见「压缩摘要续写」）                                     |
 
 保留层级：`StreamOptions.cacheRetention` 优先；未指定时读 `AMA_CACHE_RETENTION=none|short|long`；都没有为
 `short`。Anthropic 请求体最后做 TTL 顺序校验（tools → system → messages 里 5m 之后出现 1h 则全部降为 5m）。
@@ -666,6 +666,26 @@ Anthropic 的 `baseUrl` 以 `/v1` 结尾时请求 `{baseUrl}/messages`，不会�
 **400 自动剥离**：端点以 400 拒收并在错误体里点名 `prompt_cache_key` / `prompt_cache_retention` /
 `prompt_cache_options` / `cache_control` 时，ama 把 `provider/model` 记入进程内的剥离表，去掉这些字段重发一次
 （仍只有一个终止事件），提示一次建议写哪个开关；同一进程里之后的请求直接不带。
+
+倒数第二条 user 的断点：一次回合里并行工具结果很多时，最后一条 user 离上一次请求的写入点可能超出官方文档说的
+回看窗口（约 20 个块），没有它就要整段重写；断点本身不计费。回看窗口没法经中转实测，这一条按官方文档实现。
+
+### max_tokens
+
+每次请求的 `max_tokens`（Completions 的 `max_completion_tokens`、Responses 的 `max_output_tokens`、Gemini 的
+`maxOutputTokens`）在发出前做两件事：
+
+- **主动收紧**：模型的 `contextWindow` 已知时取 `min(请求值, max(1024, 窗口 − 估算输入 − 2048))`，输入按请求体
+  字符数 / 4 估算（中文多的上下文会估低，由下一条兜底）。Anthropic 预算型思考（`thinking.type: "enabled"`）与带
+  正思考预算的 Gemini 不收紧：预算由上限推导，改它会让消息缓存失效。
+- **被动修正**：端点以 400 拒收并说出上限时（`Range of max_tokens should be [1, N]`、
+  `max_tokens … must be / at most / less than or equal to N` 一类文案），把 `provider/model` 的上限记入进程内的表、
+  以上限重发一次（与上面的 400 自动剥离一样只发生在流开始之前，仍只有一个终止事件），同一进程里之后的请求直接用
+  上限。Anthropic 的 `input length and max_tokens exceed context limit: X + Y > Z` 按 `Z − X` 重发一次、不记为模型
+  上限；`Z − X` 不足 1024 时按上下文溢出处理（压缩后重试）。
+
+中转常把目录里的 `maxTokens` 写成与窗口相同，这时第一次请求会被拒一次，之后同一进程里不再出现；长期用的模型可以
+在 `models[]` / `modelOverrides[]` 里把 `maxTokens` 填成端点实际上限，连第一次也省掉。
 
 ### usage 与 `cacheReported`
 

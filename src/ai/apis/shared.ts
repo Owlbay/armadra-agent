@@ -5,13 +5,15 @@
  * - 每个 `*_start` 恰好对应一个 `*_end`；终止事件之前所有打开的块都会被关闭（出错 / 中止时也
  *   先关块再发 error，消费者不必处理悬空块）；
  * - `toolcall_end` 时 `toolCall.arguments` 一定是对象（容错解析，坏 JSON 退化为 `{}`）；
- * - 流式期间 `arguments` 随增量更新为「到目前为止」的部分对象。
+ * - 流式期间 `arguments` 随增量更新为「到目前为止」的部分对象；
+ * - [ME-C] 拼接出的参数串能严格 `JSON.parse` 成对象时原样记进 `rawArguments`，同协议回放时逐字节发回；
+ * - [ME-C] 失败响应带 `Retry-After` 时写 `retryAfterMs`（会话层退避取两者较大值）。
  */
 
 import { AmaError } from "../../errors.js";
 import { finalizeUsage, emptyUsage } from "../cost.js";
 import type { AssistantEventStreamImpl } from "../event-stream.js";
-import { errorText, hasAuthHeader } from "../http.js";
+import { HttpError, errorText, hasAuthHeader } from "../http.js";
 import { parseToolArguments } from "../json-partial.js";
 import type {
   AssistantMessage,
@@ -143,7 +145,10 @@ export class BlockTracker {
     } else if (entry.kind === "thinking") {
       this.stream.push({ type: "thinking_end", contentIndex: index, partial: this.output });
     } else {
-      if (entry.json.length > 0) entry.block.arguments = parseToolArguments(entry.json);
+      if (entry.json.length > 0) {
+        entry.block.arguments = parseToolArguments(entry.json);
+        if (isStrictObject(entry.json)) entry.block.rawArguments = entry.json;
+      }
       this.stream.push({
         type: "toolcall_end",
         contentIndex: index,
@@ -164,6 +169,16 @@ export class BlockTracker {
   private push(block: TextBlock | ThinkingBlock | ToolCallBlock): number {
     this.output.content.push(block);
     return this.output.content.length - 1;
+  }
+}
+
+/** 严格 JSON 且是对象（数组 / 标量容错解析后是 `{}`，回放原串会与执行的参数不一致）。 */
+function isStrictObject(json: string): boolean {
+  try {
+    const value: unknown = JSON.parse(json);
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  } catch {
+    return false;
   }
 }
 
@@ -197,6 +212,9 @@ export function finishError(
   const aborted = signal.aborted;
   output.stopReason = aborted ? "aborted" : "error";
   output.errorMessage = aborted ? ABORTED_MESSAGE : errorText(error);
+  if (!aborted && error instanceof HttpError && error.retryAfterMs !== undefined) {
+    output.retryAfterMs = error.retryAfterMs;
+  }
   finalizeUsage(model, output.usage);
   stream.push({ type: "error", reason: aborted ? "aborted" : "error", message: output });
 }

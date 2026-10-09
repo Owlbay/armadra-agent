@@ -105,6 +105,7 @@ describe("openai-completions：SSE 样本黄金", () => {
         id: "call_f7dmpjep0vpd9hvftdmbun88",
         name: "read",
         arguments: { path: "README.md" },
+        rawArguments: '{"path": "README.md"}',
       },
     ]);
   });
@@ -118,8 +119,20 @@ describe("openai-completions：SSE 样本黄金", () => {
     );
     expect(run.final.content).toEqual([
       { type: "text", text: "Checking both files." },
-      { type: "toolCall", id: "call_a", name: "read", arguments: { path: "a.ts" } },
-      { type: "toolCall", id: "call_b", name: "read", arguments: { path: "b.ts" } },
+      {
+        type: "toolCall",
+        id: "call_a",
+        name: "read",
+        arguments: { path: "a.ts" },
+        rawArguments: '{"path":"a.ts"}',
+      },
+      {
+        type: "toolCall",
+        id: "call_b",
+        name: "read",
+        arguments: { path: "b.ts" },
+        rawArguments: '{"path":"b.ts"}',
+      },
     ]);
     const textEnd = run.events.findIndex((e) => e.type === "text_end");
     const firstTool = run.events.findIndex((e) => e.type === "toolcall_start");
@@ -135,8 +148,14 @@ describe("openai-completions：SSE 样本黄金", () => {
       makeModel("custom", "local-model"),
     );
     expect(run.final.content).toEqual([
-      { type: "toolCall", id: "call_x1", name: "glob", arguments: { pattern: "src/**/*.ts" } },
-      { type: "toolCall", id: "call_x2", name: "ls", arguments: {} },
+      {
+        type: "toolCall",
+        id: "call_x1",
+        name: "glob",
+        arguments: { pattern: "src/**/*.ts" },
+        rawArguments: '{"pattern":"src/**/*.ts"}',
+      },
+      { type: "toolCall", id: "call_x2", name: "ls", arguments: {}, rawArguments: "{}" },
     ]);
   });
 

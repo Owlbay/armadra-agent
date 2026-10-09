@@ -5,9 +5,10 @@
  * `http.setGlobalProxyFromEnv()`（等价于 `NODE_USE_ENV_PROXY=1`）；SDK 嵌入方自行决定。
  * 本模块不自行实现代理。
  *
- * 超时：`timeoutMs` 只管到拿到响应头为止；`idleTimeoutMs`（缺省 300 s，0 关闭）既管等响应头，
- * 也管流式读取期间两次收到数据之间的间隔（每收到一块字节即重新计时，见 sse.ts）。空闲超时抛
- * `IdleTimeoutError`，文案含 `idle timeout`，会话层按可重试错误处理。
+ * 超时：`timeoutMs` 只管到拿到响应头为止；`idleTimeoutMs`（缺省 300 s，0 关闭）管等响应头；
+ * `streamIdleTimeoutMs`（缺省 180 s，0 关闭）管流式读取期间两次收到数据之间的间隔（每收到一块字节
+ * 即重新计时，见 sse.ts）。[ME-C] D18 空闲超时抛 `IdleTimeoutError`，文案含 `idle timeout`，会话层按
+ * 可重试错误处理。
  *
  * 协议层自身**不重试**（重试在会话层，§3.6）。
  */
@@ -93,13 +94,24 @@ export class RequestTimeoutError extends Error {
   }
 }
 
-/** 流空闲超时缺省值：与 `request.idleTimeoutMs` / `AMA_IDLE_TIMEOUT_MS` 的缺省一致。 */
+/** 等响应头的空闲超时缺省值：与 `request.idleTimeoutMs` / `AMA_IDLE_TIMEOUT_MS` 的缺省一致。 */
 export const DEFAULT_IDLE_TIMEOUT_MS = 300_000;
+/** 流中两块数据之间的空闲超时缺省值：与 `request.streamIdleTimeoutMs` 的缺省一致。 */
+export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 180_000;
 
-/** 请求选项里的空闲超时；未给出用缺省值，0 或负数表示关闭（返回 undefined）。 */
+const positive = (value: number): number | undefined =>
+  Number.isFinite(value) && value > 0 ? value : undefined;
+
+/** 请求选项里等响应头的空闲超时；未给出用缺省值，0 或负数表示关闭（返回 undefined）。 */
 export function idleTimeoutOf(options: { idleTimeoutMs?: number | undefined }): number | undefined {
-  const value = options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
-  return Number.isFinite(value) && value > 0 ? value : undefined;
+  return positive(options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS);
+}
+
+/** 请求选项里流中的空闲超时；未给出用缺省值，0 或负数表示关闭（返回 undefined）。 */
+export function streamIdleTimeoutOf(options: {
+  streamIdleTimeoutMs?: number | undefined;
+}): number | undefined {
+  return positive(options.streamIdleTimeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS);
 }
 
 function formatDuration(ms: number): string {
@@ -107,8 +119,9 @@ function formatDuration(ms: number): string {
 }
 
 /**
- * 服务端在 `idleTimeoutMs` 内没有任何字节：`response` = 发出请求后迟迟没有响应头，
- * `stream` = 流读到一半停住。文案含 `idle timeout`（重试分类据此判为可重试）。
+ * 服务端在空闲上限内没有任何字节：`response` = 发出请求后迟迟没有响应头（`idleTimeoutMs`），
+ * `stream` = 流读到一半停住（`streamIdleTimeoutMs`）。文案含 `idle timeout`（重试分类据此判为可重试），
+ * 并点名对应的配置键与环境变量。
  */
 export class IdleTimeoutError extends Error {
   readonly idleTimeoutMs: number;
@@ -119,7 +132,11 @@ export class IdleTimeoutError extends Error {
       phase === "response"
         ? `No response from the server within ${formatDuration(idleTimeoutMs)}`
         : `Stream stalled: no data from the server for ${formatDuration(idleTimeoutMs)}`;
-    super(`${what} (idle timeout; adjust with request.idleTimeoutMs or AMA_IDLE_TIMEOUT_MS)`);
+    const knob =
+      phase === "response"
+        ? "request.idleTimeoutMs or AMA_IDLE_TIMEOUT_MS"
+        : "request.streamIdleTimeoutMs or AMA_STREAM_IDLE_TIMEOUT_MS";
+    super(`${what} (idle timeout; adjust with ${knob})`);
     this.name = "IdleTimeoutError";
     this.idleTimeoutMs = idleTimeoutMs;
     this.phase = phase;
@@ -193,7 +210,7 @@ export interface PostOptions {
   body: unknown;
   signal: AbortSignal;
   timeoutMs?: number | undefined;
-  /** 等响应头的空闲上限（`timeoutMs` 未给时生效）；undefined 不限。 */
+  /** 等响应头的空闲上限（`timeoutMs` 未给时生效）；undefined 不限。流中的空闲见 `readSseEvents`。 */
   idleTimeoutMs?: number | undefined;
   onResponse?: ((status: number, headers: Headers) => void) | undefined;
 }
@@ -202,7 +219,7 @@ export interface PostOptions {
  * POST JSON 并返回 2xx 响应（body 是 SSE 字节流）。非 2xx → HttpError；超时 → RequestTimeoutError
  * （`timeoutMs`）或 IdleTimeoutError（`idleTimeoutMs`）；调用方的 signal 中止 → 原样抛 AbortError
  * （调用方据 signal.aborted 判 aborted）。超时只覆盖到拿到响应头为止，流式读取期间的空闲由
- * `readSseEvents` 的 `idleTimeoutMs` 控制。
+ * `readSseEvents` 的空闲上限（`streamIdleTimeoutOf`）控制。
  */
 export async function postJson(url: string, options: PostOptions): Promise<Response> {
   const explicit = options.timeoutMs !== undefined && options.timeoutMs > 0;

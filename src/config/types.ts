@@ -262,11 +262,11 @@ export const DEFAULT_CACHE_CONFIG: Readonly<Required<CacheConfig>> = Object.free
  * 模型请求（W4-C）。只认用户级 / profile；环境变量 `AMA_IDLE_TIMEOUT_MS` 覆盖 `idleTimeoutMs`。
  */
 export interface RequestConfig {
-  /** 等响应头与流中两块数据之间的最长间隔（毫秒），收到任何字节即重新计时；缺省 300 000，0 关闭。 */
+  /** 等响应头的最长时间（毫秒）；缺省 300 000，0 关闭。流中的间隔见 `streamIdleTimeoutMs`。 */
   idleTimeoutMs?: number;
   /**
    * [ME-C0] 流中两块数据之间的最长间隔（毫秒）；缺省 180 000，0 关闭；环境变量
-   * `AMA_STREAM_IDLE_TIMEOUT_MS` 覆盖（实现归 ME-C，之前 `idleTimeoutMs` 仍管两段）。
+   * `AMA_STREAM_IDLE_TIMEOUT_MS` 覆盖（cli/compose-request.ts）。
    */
   streamIdleTimeoutMs?: number;
 }
