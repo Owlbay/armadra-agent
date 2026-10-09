@@ -561,7 +561,7 @@ src/ai/providers/catalog.test.ts` 自动删除并重新生成 `catalog-data.ts`�
 | `requiresReasoningContentOnAssistantMessages` | 推理模型的历史助手消息带 `reasoning_content`（DeepSeek）                                                                 |
 | `requiresToolResultName`                      | 工具结果消息带 `name`（Mistral）                                                                                         |
 | `requiresAssistantAfterToolResult`            | 工具结果后紧跟用户消息时插入一条助手消息                                                                                 |
-| `supportsMidConvoSystemMessages`              | 后续系统提示补丁按位置作为 system 消息插回                                                                               |
+| `supportsMidConvoSystemMessages`              | 后续系统提示补丁按位置作为 system 消息插回；关闭（缺省）时作为尾部上下文送达，见「缓存」                                 |
 | `cacheControlFormat`                          | `anthropic`：在 system、最后一个工具、最后一条 user/tool 消息上打 `cache_control`                                        |
 | `supportsStrictTools`                         | 对严格兼容的工具 schema 发 `strict: true`                                                                                |
 | `supportsStore`                               | 发 `store: false`                                                                                                        |
@@ -602,6 +602,8 @@ OpenRouter 的 Messages 接口只在 `message_delta` 里给缓存 usage，解析
 长任务的主要用量是缓存读取：前缀一旦变化，此后每次请求都要按全价重读。ama 分三层处理缓存：**协议层**按各家写法打断点、发缓存键与保留层级，并标记响应里有没有缓存字段；**会话层**记录每次请求的前缀指纹，检测未命中、判定端点报不报缓存、在长工具运行期间保温；**展示层**是状态栏、`/session`、RPC 统计与 `ama models cache-probe`（界面怎么读见 [tui.md](tui.md)「缓存与上下文」）。
 
 前缀稳定由组装保证：系统提示节顺序固定、不含时间戳，工具按名排序，会话中途的变化只以 system 补丁追加在末尾（[session-format.md](session-format.md)「消息」）。
+
+对话开始之后的节补丁（resume 时 AGENTS.md、Skills 或 SessionStart Hook 输出变了，宿主 instructions 刷新，压缩后记忆节重新渲染）**不改写开头的 system**：没有打开 `supportsMidConvoSystemMessages` 的协议把它渲染成 `<system-reminder>` 包裹的 user 消息，插在补丁所在的位置，之前的请求仍是逐字节前缀。只有移除工具的补丁例外——工具表本身已经变了，前缀必然失效，这时全部补丁照旧折回开头。实测 DeepSeek 接受对话中途的 system 消息、前缀缓存也保持，但模型仍按开头那条回答，所以 DeepSeek 不打开这个开关（[cache-midconvo-2026-10-09](benchmarks/cache-midconvo-2026-10-09.md)）。下一次压缩时，这些补丁随 system 检查点并回开头。
 
 ### 请求字段
 
@@ -650,9 +652,10 @@ Anthropic 的 `baseUrl` 以 `/v1` 结尾时请求 `{baseUrl}/messages`，不会�
 ### 模型目录 `promptCache`
 
 只写有公开依据的值（秒 / token）：Anthropic 全部 `short 300 / long 3600`，`minTokens` 按模型 512–4096；OpenAI
-全部 `short 300 / long 86400 / minTokens 1024`；Kimi 全部 `short 300`。DeepSeek、智谱、通义、Groq、xAI、Mistral、
-OpenRouter、Google 没有承诺的 TTL，留空（不保温，归因按隐式缓存 10 分钟估）。可在 `models[]` /
-`modelOverrides[]` 里自填。
+全部 `short 300 / long 86400 / minTokens 1024`；Kimi 全部 `short 300`；DeepSeek 全部 `short 3600 / minTokens 2048`
+（官方只说未使用的缓存「几小时到几天」后清除，取保守的 1 小时；缓存读实测按 2048 token 一块计）。智谱、通义、Groq、
+xAI、Mistral、OpenRouter、Google 没有承诺的 TTL，留空：不保温、不按猜测的寿命提前裁剪，只有未命中归因按隐式缓存
+10 分钟估。可在 `models[]` / `modelOverrides[]` 里自填；中转上的 DeepSeek 模型不继承官方目录的值，需要时照填。
 
 ### 会话层：指纹、未命中与三态
 
@@ -717,7 +720,7 @@ ama models cache-probe <provider/id> [--tokens 2048] [--gap-ms 3000] [--json] [-
 
 用一个确定性的固定前缀（约 `--tokens` token）+ `Reply with: ok`，`maxTokens: 16`，相隔 `--gap-ms` 发两次，判定：
 
-- `reported`：第二次 cacheRead ≥ 前缀的 50%；目录没有 `promptCache` 时建议自填 `promptCache.short` 以启用保温；
+- `reported`：第二次 cacheRead ≥ 前缀的 50%；目录没有 `promptCache` 时提示寿命未知（不保温、不提前裁剪），只有上游文档写明寿命时才自填，不给猜测值——偏短的值会在缓存仍有效时触发保温和提前裁剪；
 - `silent`：两次读写都是 0；建议设 `compat.cacheReporting: "silent"`。响应里有缓存字段但恒为 0 时另提示可能是写入延迟（同一中转的 kimi-k2.5 间隔 3 秒两次都是 0、间隔 8 秒第二次读满前缀），可加大 `--gap-ms` 重试；
 - `inconclusive`：读到一点或只有写入，多半是缓存粒度或 TTL 问题。
 
