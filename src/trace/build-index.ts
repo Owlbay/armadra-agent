@@ -96,7 +96,18 @@ export function traceData(entry: SessionEntry): TraceEntryData | undefined {
     : undefined;
 }
 
+/** [ME-A] fork 式子会话从父复制来的条目（首条 `ama.task{context:"fork"}` 之后到 forkedFrom 为止）。 */
+function forkInherited(entries: readonly SessionEntry[]): Set<string> {
+  const head = entries[0];
+  const data = head?.type === "custom" && head.customType === TASK_CUSTOM_TYPE ? head.data : {};
+  if (!isObject(data) || data["context"] !== "fork" || typeof data["forkedFrom"] !== "string")
+    return new Set();
+  const end = entries.findIndex((entry) => entry.id === data["forkedFrom"]);
+  return new Set(entries.slice(1, end + 1).map((entry) => entry.id));
+}
+
 export function buildIndex(entries: readonly SessionEntry[]): Index {
+  const inherited = forkInherited(entries);
   const index: Index = {
     stepByAssistant: new Map(),
     toolTiming: new Map(),
@@ -115,9 +126,10 @@ export function buildIndex(entries: readonly SessionEntry[]): Index {
     }
     if (entry.type === "custom" && entry.customType === TASK_CUSTOM_TYPE) {
       const data = entry.data;
-      // 子会话自己的首条没有 status，不是父会话的快照
+      // 子会话自己的首条没有 status，不是父会话的快照；fork 继承来的父快照也不算
       if (!isObject(data) || typeof data["taskId"] !== "string" || data["status"] === undefined)
         continue;
+      if (inherited.has(entry.id)) continue;
       const parent = typeof data["parentToolCallId"] === "string" ? data["parentToolCallId"] : "";
       const byTask = index.tasks.get(parent) ?? new Map();
       byTask.set(data["taskId"], { data: data as unknown as TaskData, entryId: entry.id });
