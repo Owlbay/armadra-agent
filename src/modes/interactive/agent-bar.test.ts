@@ -8,7 +8,7 @@ import { fakeRegistry, info, start } from "../../agent/testing/agent-view-fixtur
 import { setLocale } from "../../i18n/index.js";
 import type { TaskInfo } from "../../tools/types.js";
 import { plainTheme, type Theme } from "../../tui.js";
-import { AgentBar, BAR_RETAIN_MS } from "./agent-bar.js";
+import { AgentBar, BAR_RETAIN_MS, rowFacts, taskRow } from "./agent-bar.js";
 import { SubagentTracker } from "./subagent-view.js";
 import { golden, lines, usage } from "./test-support.js";
 
@@ -106,6 +106,22 @@ describe("Agent 栏：帧黄金", () => {
 });
 
 describe("Agent 栏：显示规则", () => {
+  it("外部 Agent 报告了上下文：行里带 ctx 占用；没报窗口时不显示", () => {
+    const ctx = { tracker: new SubagentTracker(() => 0), approvals: new Set<string>(), now: 0 };
+    const external = info("t2", { agent: "codex", runner: "codex", turns: 3 });
+    const row = taskRow(
+      { ...external, contextTokens: 92_480, contextWindow: 272_000 },
+      {
+        ...ctx,
+        queued: false,
+      },
+    );
+    expect(rowFacts(row)).toBe("运行中 · 3 轮 · ctx 34%");
+    expect(
+      rowFacts(taskRow({ ...external, contextTokens: 92_480 }, { ...ctx, queued: false })),
+    ).toBe("运行中 · 3 轮");
+  });
+
   it("结束后未查看的保留 10 分钟；活动的一直在", () => {
     const s = scene();
     expect(s.bar.visibleRows().map((r) => r.taskId)).toEqual(["t1", "t2", "t3", "t4", "t5"]);

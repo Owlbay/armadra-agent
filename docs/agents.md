@@ -256,7 +256,7 @@ ACP Agent 不给 `modes`、改用 category `mode` 的配置项表达模式时，
 - **信任**：只在 ama 已信任的目录里起外部 Agent（`claude -p` 会跳过目录信任对话框并执行项目 hooks 与配置）；未信任时 `task` 报错并提示 `ama trust`。
 - **并发**：外部 Agent 总共 `agents.maxConcurrent`（缺省 3），每个 Agent 另有上限（`agents.<id>.maxConcurrent`，claude 缺省 2）；超出排队，排队可被中断。与 ama 子会话的并发分开计。
 - **预算**：`task` 的 `budgetUsd`（Claude 透传 `--max-budget-usd`，其余按用量累计、超限中断）；`agents.sessionBudgetUsd` 是本会话外部 Agent 的美元总额，用尽后不再启动。Codex 订阅 token、Copilot premium request 按各自单位记，不换算美元；Claude 的 `total_cost_usd` 是它自己的估算。
-- **记账**：每回合写 `custom{ama.agent-usage}`，会话建立写 `custom{ama.agent-session}`（外部 CLI 自己的会话 id，用于续聊）；`/session` 与 `get_session_stats` 的 `external` 段按 Agent 汇总。ama 会话只存最终文本、工具摘要、用量与引用，外部 Agent 的原始事件只在内存里显示，不落盘。
+- **记账**：每回合写 `custom{ama.agent-usage}`，会话建立写 `custom{ama.agent-session}`（外部 CLI 自己的会话 id，用于续聊）；`/session` 与 `get_session_stats` 的 `external` 段按 Agent 汇总。外部 Agent 报告了上下文占用与窗口（ACP 的 `usage_update`、Codex app-server 的 `tokenUsage`）时，只记这两个数字：任务记录与 `ama.agent-usage` 带 `contextTokens / contextWindow`，`external.byAgent` 取最近一次，`/tasks` 与 Agent 栏的任务行显示 `ctx 34%`（低于 10% 保留一位小数）；回合中途变化也会即时更新。ama 会话只存最终文本、工具摘要、用量与引用，外部 Agent 的原始事件只在内存里显示，不落盘。
 - **看门狗**：单回合缺省 30 分钟；中断后 15 秒内没有回合结束就关 stdin 再结束进程树；空闲 10 分钟关进程，能续接的下次续聊时以 resume 重开。外部 Agent 进程登记在 `<数据目录>/drivers/pids.json`，ama 异常退出留下的孤儿在下次使用时清理（核对命令行，pid 被复用的不杀）。
 
 ### 嵌入宿主

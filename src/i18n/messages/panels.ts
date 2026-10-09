@@ -124,6 +124,8 @@ export const en = {
       interrupted: "interrupted",
     },
     turns: (n: number) => plural(n, "turn"),
+    /** 外部 Agent 报告的上下文占用（`34%`、`0.4%`）。 */
+    context: (percent: string) => `ctx ${percent}`,
     agentRunner: (agent: string, runner: string) => `${agent} (${runner})`,
     background: "background",
     none: "No subagent tasks yet",
@@ -242,6 +244,7 @@ export const zh = {
       interrupted: "已中断",
     },
     turns: (n) => `${n} 轮`,
+    context: (percent) => `ctx ${percent}`,
     agentRunner: (agent, runner) => `${agent}（${runner}）`,
     background: "后台",
     none: "还没有子 Agent 任务",
