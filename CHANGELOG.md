@@ -28,6 +28,7 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 ### Memory footprint
 
 - **Groundwork for the memory work** (docs/memory-plan.md, report in docs/research/memory-2026-10.md): the config schema accepts `subagents.retainSessions` and `codemode.maxHeapMb`, and the RPC capability `compact_events` can be declared; all three take effect in later batches. The process-wide cache-reporting table now keeps only a summary of each endpoint's last request instead of the whole record, so it no longer holds on to a closed session.
+- **Images are deduplicated by content**: an image read several times by `read`, attached with `--image` / `@path` and then read again, or repeated in a resumed session now keeps a single base64 copy in memory instead of one per occurrence. Session files and requests are unchanged.
 
 ## 0.7.3 (2026-10-09)
 
