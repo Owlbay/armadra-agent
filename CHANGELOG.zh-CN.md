@@ -4,7 +4,7 @@
 
 > 从 0.6.0 起 [CHANGELOG.md](CHANGELOG.md) 为英文，本文件保留中文记录（0.1–0.5.1 的完整历史在此）。新条目两份都要加。
 
-## 未发布
+## 0.7.2（2026-10-09）
 
 - **会话中途上下文变化不再打断提示缓存**：resume 时 AGENTS.md、Skills 或 SessionStart Hook 输出变了、宿主 instructions 刷新、压缩后记忆节
   重新渲染，在不支持对话中途 system 消息的端点上原先会把变化的节并回开头的 system，整段上下文从第 0 个 token 起按全价重读。现在改为在
