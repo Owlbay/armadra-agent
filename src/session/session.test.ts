@@ -190,7 +190,7 @@ describe("projection", () => {
     expect(u.id).toBeDefined();
   });
 
-  it("compaction：摘要在前、firstKept 之后保留、之前的 system 折成检查点", () => {
+  it("compaction：摘要在前、firstKept 之后保留；检查点只重放对话开始前的 system，之后的补丁合成一条放在摘要后", () => {
     const m = SessionManager.inMemory("/w");
     m.append({
       type: "message",
@@ -216,10 +216,17 @@ describe("projection", () => {
     expect(messages.map((x) => x.role)).toEqual([
       "system",
       "compactionSummary",
+      "system",
       "user",
       "assistant",
       "user",
     ]);
+    expect(messages[0]).toMatchObject({
+      sections: { preamble: "P", cwd: "C" },
+      toolsAdded: [{ name: "read" }],
+    });
+    expect(messages[2]).toMatchObject({ sections: { cwd: "C2" }, toolsRemoved: ["read"] });
+    expect(messages[2]).not.toHaveProperty("toolsAdded");
     const state = replaySystem(messages);
     expect(state).toEqual({ sections: { preamble: "P", cwd: "C2" }, tools: [] });
     expect(model).toEqual({ provider: "p", id: "m" });

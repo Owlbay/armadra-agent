@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { sharedCacheReporting } from "../ai/cache/reporting.js";
 import type { SystemMessage } from "../ai/types.js";
 import { estimateMessageTokens } from "../compaction/estimate.js";
+import { buildProjection } from "../session/projection.js";
 import type { ScriptCall, ScriptStep } from "./testing/scripted-api.js";
 import { createHarness, isSummaryRequest } from "./testing/harness.js";
 import { fakeModel, stubTool } from "./testing/stubs.js";
@@ -103,5 +104,29 @@ describe("getStats().context", () => {
     for (let i = 0; i < 3; i++) watched.session.getStats();
     await watched.session.prompt("hi");
     expect(strip(watched.scripted.calls[0]!)).toBe(strip(quiet.scripted.calls[0]!));
+  });
+
+  it("[ME-B] 中途有补丁时压缩：检查点 + 合成补丁都算 system，压缩后的投影估算不比压缩前大", async () => {
+    const h = createHarness({
+      model,
+      compaction: { ...compaction, keepRecentTokens: 50 },
+      script: reply,
+    });
+    const projected = () =>
+      buildProjection(h.manager.branch()).items.reduce(
+        (sum, item) => sum + estimateMessageTokens(item.message),
+        0,
+      );
+    await h.session.prompt("a ".repeat(4000));
+    h.session.updateSystem({ hostInstructions: ["host rules"] });
+    await h.session.prompt("b ".repeat(4000));
+    const before = projected();
+    await h.session.compact();
+    const systems = buildProjection(h.manager.branch()).items.filter(
+      (item) => item.message.role === "system",
+    );
+    expect(systems).toHaveLength(2);
+    expect(projected()).toBeLessThanOrEqual(before);
+    expect(h.session.getStats().contextTokens).toBeLessThanOrEqual(before);
   });
 });
