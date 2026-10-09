@@ -13,6 +13,7 @@ import { buildOpenAIRequest } from "../ai/apis/openai-request.js";
 import type { FakeResponse } from "../ai/fake/fake-script.js";
 import { ProviderRegistry } from "../ai/providers/registry.js";
 import type { Model, SystemMessage, TranscriptContext } from "../ai/types.js";
+import type { AgentSessionImpl } from "../agent/session.js";
 import type { ToolDefinition } from "../tools/types.js";
 
 let h: ComposeHarness;
@@ -72,7 +73,7 @@ describe("模型调用效率整体验收：前缀不变量（§4-1）", () => {
     for (let i = 0; i < 20; i++) {
       if (i === 8) {
         marks["added"] = turn();
-        first.session.addTool(note);
+        (first.session as AgentSessionImpl).addTool(note);
       }
       if (i === 14) first.session.setActiveTools([...all.filter((n) => n !== "bash"), note.name]);
       await first.session.prompt(`question ${i}`);
