@@ -9,7 +9,7 @@
 |────────────────────────────────────────────────────────────────────────────────
 |› Type a message, / for commands, @ for files, Shift+Enter for newline
 |────────────────────────────────────────────────────────────────────────────────
-|Manual · shift+tab to cycle                echo · medium · ctx ≈0.6% · work · 0s
+|Manual · shift+tab to cycle                echo · medium · ctx ≈<prefix>% · work · 0s
 |
 |
 |
