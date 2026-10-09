@@ -448,7 +448,11 @@ describe("ama --mode acp 多会话 [ACP-B]", () => {
     await t.client.initialize();
     const s1 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
     const running = t.client.prompt(s1, [{ type: "text", text: "1" }]);
-    await new Promise((r) => setTimeout(r, 30));
+    // 等这个回合真的把请求发给 fake（消费掉脚本第 0 条）再关：只等固定 30 ms 时，慢机器（CI Windows）上
+    // 请求还没发出就被取消，第 0 条「never」会留给后面 s2 的 prompt
+    for (let i = 0; i < 200 && h.fake.calls.length === 0; i++)
+      await new Promise((r) => setTimeout(r, 10));
+    expect(h.fake.calls.length).toBe(1);
     await t.client.closeSession(s1);
     await expect(running).resolves.toMatchObject({ stopReason: "cancelled" });
     await expect(t.client.prompt(s1, [{ type: "text", text: "again" }])).rejects.toMatchObject({
