@@ -197,6 +197,7 @@ function w5Sections(): Record<string, Schema> {
       defaultModel: str(),
       background: oneOf(SUBAGENT_BACKGROUND_MODES),
       autoBackgroundAfterMs: num(0),
+      retainSessions: num(0),
     }),
     models: object({ aliases: object({ fast: str(), strong: str() }), enabled: strings }),
     fallbackModel: str(),
@@ -311,6 +312,7 @@ function buildBaseSchema(): Schema {
         mode: oneOf(CODEMODE_MODES),
         inlineBudget: num(0),
         requireStrict: bool(),
+        maxHeapMb: num(0),
       }),
       hooks: object({ timeoutMs: num(1, HOOK_TIMEOUT_MAX_MS) }),
       ui: object({

@@ -110,10 +110,12 @@
 
 ### 审批
 
-| 命令                      | 参数                                                                  | `data`                                                                         |
-| ------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `set_client_capabilities` | `capabilities: ("approvals" \| "images" \| "hooks" \| "plans")[]`     | `{ capabilities }`                                                             |
-| `permission_response`     | `requestId: string`、`decision: "allow" \| "deny" \| "allow_session"` | `{ accepted: boolean }`（false = 当前没在等这个 id，已暂存，稍后被问到时生效） |
+| 命令                      | 参数                                                                                  | `data`                                                                         |
+| ------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `set_client_capabilities` | `capabilities: ("approvals" \| "images" \| "hooks" \| "plans" \| "compact_events")[]` | `{ capabilities }`                                                             |
+| `permission_response`     | `requestId: string`、`decision: "allow" \| "deny" \| "allow_session"`                 | `{ accepted: boolean }`（false = 当前没在等这个 id，已暂存，稍后被问到时生效） |
+
+`compact_events`（docs/memory-plan.md D9，**M-G 起生效**，届时也列进 `hello.capabilities`）：声明后，`turn_end.toolResults`、`message_start` 与 `entry_appended` 不再重复携带工具结果与带图用户消息的正文（以 `contentOmitted: true` 标记），正文只在 `message_end` 与 `tool_execution_end` 里发；不声明时事件形状不变。在此之前声明它只会原样回显，没有效果。
 
 ### 工具、权限、发现
 

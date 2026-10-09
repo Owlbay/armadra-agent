@@ -210,3 +210,11 @@ export function pageSessions(
     ? { sessions, nextCursor: encodeCursor(last.updatedAt, last.sessionId) }
     : { sessions };
 }
+
+/**
+ * 跑一个出队的提示。[M-C0] 直通 `session.prompt`（行为不变）；[M-A] 改为先等后台子 Agent 的通知
+ * 回合结束、与通知器竞速报 busy 时再等一轮（docs/memory-plan.md D4、§2.2，Issue #139）。
+ */
+export async function promptWhenIdle(session: AgentSessionImpl, job: PromptJob): Promise<void> {
+  await session.prompt(job.text, job.images.length > 0 ? { images: job.images } : {});
+}

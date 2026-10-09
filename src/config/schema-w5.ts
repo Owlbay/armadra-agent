@@ -107,13 +107,21 @@ export function validateConfigW5(c: Checker, config: Obj): void {
     c,
     config,
     "subagents",
-    ["maxConcurrent", "maxPending", "defaultModel", "background", "autoBackgroundAfterMs"],
+    [
+      "maxConcurrent",
+      "maxPending",
+      "defaultModel",
+      "background",
+      "autoBackgroundAfterMs",
+      "retainSessions",
+    ],
     (s, p) => {
       c.number(s, "maxConcurrent", p, 1, 64);
       c.number(s, "maxPending", p, 0, 1024);
       c.string(s, "defaultModel", p);
       c.oneOf(s, "background", p, SUBAGENT_BACKGROUND_MODES);
       c.number(s, "autoBackgroundAfterMs", p, 0);
+      c.number(s, "retainSessions", p, 0);
     },
   );
   checkSection(c, config, "models", ["aliases", "enabled"], (s, p) => {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import { record } from "../../agent/testing/cache-records.js";
 import { detectMiss } from "./miss.js";
 import {
@@ -7,6 +7,7 @@ import {
   endpointKey,
   inferGranularity,
 } from "./reporting.js";
+import type { LastRequest } from "./types.js";
 
 const MIN = 1024;
 const TTL = 300_000;
@@ -76,6 +77,21 @@ describe("CacheReportingTracker（§1.6 三态）", () => {
     expect(t.get("nope")).toBe("unknown");
     t.clear();
     expect(t.get(endpointKey(r))).toBe("unknown");
+  });
+
+  it("端点表只留上一条的摘要，不持有转录与回调（L2）", () => {
+    const t = new CacheReportingTracker();
+    const r = record({ input: 5000, at: 7 });
+    t.observe(r, MIN, TTL);
+    const endpoints = (t as unknown as { endpoints: Map<string, { last?: LastRequest }> })
+      .endpoints;
+    const last = endpoints.get(endpointKey(r))?.last;
+    expect(last).toEqual({ at: 7, promptTokens: r.promptTokens, fingerprint: r.fingerprint });
+    expect(last).not.toHaveProperty("options");
+    expect(last).not.toHaveProperty("contextRef");
+    expectTypeOf<LastRequest>().not.toHaveProperty("options");
+    expectTypeOf<LastRequest>().not.toHaveProperty("contextRef");
+    expectTypeOf({ at: 0, promptTokens: 0, fingerprint: r.fingerprint }).toExtend<LastRequest>();
   });
 });
 

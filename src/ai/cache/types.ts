@@ -49,6 +49,13 @@ export interface RequestRecord {
   options: Omit<StreamOptions, "signal">;
 }
 
+/** [M-A] 端点上一条可比请求的摘要；只存比较需要的字段，不持有转录与回调。 */
+export interface LastRequest {
+  at: number;
+  promptTokens: number;
+  fingerprint: PrefixFingerprint;
+}
+
 /** 「供应商不报缓存」三态（§1.6）；按 `(provider, baseUrl 主机名, model)` 维护。 */
 export type CacheReporting = "unknown" | "reported" | "silent";
 

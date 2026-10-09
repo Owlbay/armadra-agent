@@ -195,6 +195,8 @@ export interface CodemodeConfig {
   inlineBudget?: number;
   /** true：运行时 Node 的权限模型不隔离网络（Node 22 / 24）时直接禁用 codemode。 */
   requireStrict?: boolean;
+  /** [M-F] 脚本子进程的 V8 堆上限（MB，`--max-old-space-size`），缺省 256，0 不加；只认用户级。 */
+  maxHeapMb?: number;
 }
 
 export interface HooksSettings {

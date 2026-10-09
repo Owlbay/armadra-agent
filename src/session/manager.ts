@@ -14,15 +14,14 @@
  */
 
 import { randomBytes, randomUUID } from "node:crypto";
-import { statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { AmaError } from "../errors.js";
 import { AMA_VERSION } from "../version.js";
+import { listSessionItems } from "./list.js";
 import { migrateSessionLines } from "./migrate.js";
 import {
   acquireLock,
   appendLines,
-  isSubagentSession,
   isSubagentSessionFile,
   listSessionFiles,
   readSessionLines,
@@ -152,42 +151,7 @@ export class SessionManager implements SessionManagerApi {
 
   /** 只读列出目录下的会话（最新在前）；损坏的文件跳过。 */
   static list(dir: string): SessionListItem[] {
-    const items: SessionListItem[] = [];
-    for (const file of listSessionFiles(dir)) {
-      try {
-        const { header, entries } = migrateSessionLines(readSessionLines(file).lines, file);
-        let name: string | undefined;
-        let firstPrompt: string | undefined;
-        let messageCount = 0;
-        for (const entry of entries) {
-          if (entry.type === "session_info" && entry.name !== undefined) name = entry.name;
-          if (entry.type !== "message" || entry.message.role === "system") continue;
-          messageCount++;
-          if (firstPrompt === undefined && entry.message.role === "user") {
-            const { content } = entry.message;
-            firstPrompt =
-              typeof content === "string"
-                ? content
-                : content.map((block) => (block.type === "text" ? block.text : "")).join("");
-          }
-        }
-        const item: SessionListItem = {
-          id: header.id,
-          file,
-          cwd: header.cwd,
-          createdAt: header.timestamp,
-          modifiedAt: statSync(file).mtime.toISOString(),
-          messageCount,
-        };
-        if (name !== undefined) item.name = name;
-        if (isSubagentSession(header, entries[0])) item.subagent = true;
-        if (firstPrompt !== undefined) item.firstPrompt = firstPrompt.slice(0, 200);
-        items.push(item);
-      } catch {
-        // 损坏 / 不可读：列表里跳过（sessions show 会给出具体错误）
-      }
-    }
-    return items;
+    return listSessionItems(dir);
   }
 
   // -------------------------------------------------------------------------

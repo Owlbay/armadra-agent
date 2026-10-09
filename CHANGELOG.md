@@ -25,6 +25,10 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 - **Soft context window and per-section fingerprints**: `compaction.contextBudget` now takes effect — pruning, summarization, the circuit breaker and `context_pressure` use min(model window, budget). `cache_miss.detail` names the changed system sections (`system:hooks,memory`) and `/cache fingerprint` lists a hash per section. Cache warming on `openai-responses` uses `maxTokens` 16 (the protocol minimum) instead of 1.
 - **Fork-style sub-agents** (`task.context: "fork"`, or `context: fork` in an agent definition; default stays `fresh`): the sub-agent inherits the conversation up to the `task` call, with the same system prompt and tool table as the parent, so its first request reuses the parent's cached prefix (measured on relays: Kimi 97.5% cached, DeepSeek the same as the parent's own next turn). Type tool limits are enforced at execution time instead of changing the tool table. Falls back to `fresh` (logged, `details.context` and `TaskInfo.context` show the actual mode) when another model or thinking level is requested, the parent has not sent a request yet, or the parent context exceeds half of the usable window. The turn-limit final round no longer sends `toolChoice: "none"`, which broke the cached prefix; the report prompt alone asks for no tools.
 
+### Memory footprint
+
+- **Groundwork for the memory work** (docs/memory-plan.md, report in docs/research/memory-2026-10.md): the config schema accepts `subagents.retainSessions` and `codemode.maxHeapMb`, and the RPC capability `compact_events` can be declared; all three take effect in later batches. The process-wide cache-reporting table now keeps only a summary of each endpoint's last request instead of the whole record, so it no longer holds on to a closed session.
+
 ## 0.7.3 (2026-10-09)
 
 - **`/context` before the first request**: it showed `0 / <window>` and left the system prompt and tool declarations out while the status bar already showed the baseline; it now estimates both from what the first request will send (shared with the status-bar baseline), and "Used" always matches the status bar and `getStats()`.

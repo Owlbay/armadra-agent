@@ -27,7 +27,7 @@ const IMPLICIT_DEFAULTS: Partial<AmaConfig> = {
   providers: {},
   permission: { builtinDeny: true, autoSafeCommands: [] },
   tools: { default: [] },
-  codemode: { inlineBudget: DEFAULT_INLINE_BUDGET, requireStrict: false },
+  codemode: { inlineBudget: DEFAULT_INLINE_BUDGET, requireStrict: false, maxHeapMb: 256 },
   cache: { ...DEFAULT_CACHE_CONFIG },
   request: {
     idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS,
@@ -66,7 +66,13 @@ const IMPLICIT_DEFAULTS: Partial<AmaConfig> = {
   images: { resize: "auto" },
   plan: { bash: "readonly", unattended: "stop" },
   agents: { maxConcurrent: 3, dirs: [] },
-  subagents: { maxConcurrent: 4, maxPending: 16, background: "auto", autoBackgroundAfterMs: 0 },
+  subagents: {
+    maxConcurrent: 4,
+    maxPending: 16,
+    background: "auto",
+    autoBackgroundAfterMs: 0,
+    retainSessions: 4,
+  },
   reminders: { todo: true, fileChanges: true, contextPressure: true, budget: true },
   todo: { reminder: 10 },
 };

@@ -24,6 +24,10 @@
 - **软窗口与按节指纹**：`compaction.contextBudget` 生效——档一裁剪、档二摘要、熔断与 `context_pressure` 都按 min(模型窗口, 它) 计算。`cache_miss.detail` 写出变化的 system 节（`system:hooks,memory`），`/cache fingerprint` 逐节列出哈希。`openai-responses` 上的保温请求 `maxTokens` 用协议下限 16 而不是 1。
 - **fork 式子 Agent**（`task.context: "fork"`，或类型定义里写 `context: fork`；缺省仍是 `fresh`）：子会话继承父会话到这次 `task` 调用之前的对话，系统提示与工具表与父相同，首个请求直接复用父的缓存前缀（中转实测：Kimi 命中 97.5%，DeepSeek 与父自己的下一回合相同）。类型限制的工具改为在执行层拒绝，不再改工具表。指定了不同的模型或思考级别、父还没发过请求、或父上下文超过可用窗口一半时回落为 `fresh`（记日志，`details.context` 与 `TaskInfo.context` 标实际模式）。轮数用尽的收尾一轮不再发 `toolChoice: "none"`（它会断开缓存前缀），只靠报告提示要求不调用工具。
 
+### 内存占用
+
+- **内存优化的基础改动**（docs/memory-plan.md，测量报告见 docs/research/memory-2026-10.md）：配置 schema 接受 `subagents.retainSessions` 与 `codemode.maxHeapMb`，RPC 可以声明 `compact_events` 能力，三者都在后续批次生效。进程级的缓存上报表对每个端点只保留上一条请求的摘要而不是整条记录，不再因此拖住已关闭的会话。
+
 ## 0.7.3（2026-10-09）
 
 - **首次请求前的 `/context`**：状态栏已显示启动基线时，它仍是 `0 / <窗口>`、不计系统提示与工具声明；现在按首次请求将要发送的内容估算这两类（与状态栏基线共用同一份装配），「已用」始终与状态栏和 `getStats()` 一致。

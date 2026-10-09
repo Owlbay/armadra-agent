@@ -17,7 +17,7 @@
 
 import type { CacheReportingSetting } from "../types.js";
 import { IMPLICIT_CACHE_TTL_MS } from "./miss.js";
-import type { CacheReporting, PrefixFingerprint, RequestRecord } from "./types.js";
+import type { CacheReporting, LastRequest, PrefixFingerprint, RequestRecord } from "./types.js";
 
 /** 连续这么多票判 silent。 */
 export const SILENT_STREAK = 3;
@@ -61,7 +61,8 @@ function forced(setting: CacheReportingSetting | undefined): CacheReporting | un
 interface EndpointState {
   state: CacheReporting;
   streak: number;
-  last: RequestRecord | undefined;
+  /** 只存摘要：整条记录会持有转录（`contextRef`）与回调（`options`），端点表常驻进程。 */
+  last: LastRequest | undefined;
   /** 非零 cacheRead 的最大公约数与样本数。 */
   divisor: number;
   samples: number;
@@ -87,7 +88,11 @@ export class CacheReportingTracker {
     };
     this.endpoints.set(key, entry);
     const last = entry.last;
-    entry.last = record;
+    entry.last = {
+      at: record.at,
+      promptTokens: record.promptTokens,
+      fingerprint: record.fingerprint,
+    };
     const { cacheRead, cacheWrite, cacheReported } = record.usage;
     if (cacheRead > 0 && Number.isInteger(cacheRead)) {
       entry.divisor = gcd(entry.divisor, cacheRead);

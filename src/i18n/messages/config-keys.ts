@@ -115,6 +115,8 @@ const keysEn = {
     "Budget (estimated tokens) for inlining tool declarations in the description in only mode; beyond it only names are listed",
   "codemode.requireStrict":
     "true: disable codemode when the runtime Node does not isolate the network (Node 22 / 24)",
+  "codemode.maxHeapMb":
+    "V8 heap limit (MB) for the script child process; a script that exceeds it ends with an error; 0 sets no limit",
   hooks: "Hook settings (the hooks themselves live in hooks.json)",
   "hooks.timeoutMs": "Default timeout for a single hook command (ms)",
   ui: "Terminal interface",
@@ -220,6 +222,8 @@ const keysEn = {
     "ama's own task sub-sessions; user level only except background / autoBackgroundAfterMs (effective from wave 5 W5-G)",
   "subagents.maxConcurrent": "Sub-sessions running at the same time",
   "subagents.maxPending": "Queue limit; task fails beyond it",
+  "subagents.retainSessions":
+    "Finished sub-sessions kept in memory (least recently used first out); others reopen from their session file when continued",
   "subagents.defaultModel": "Default sub-session model provider/model[@channel]",
   "subagents.background":
     "Whether task runs in the background by default: auto = background in the TUI / RPC / ACP and foreground with -p; always / never are fixed. The call argument and the agent type's background: override it; user, project and host level",
@@ -293,6 +297,7 @@ const keysZh = {
     "off | on | only；不写时跟随预设：default → on（Node ≥ 25；Node 22 / 24 → off）、codemode-only → only、minimal / coordinator → off；项目级只接受 off",
   "codemode.inlineBudget": "only 模式在描述里内联工具声明的预算（估算 token），超出只列名字",
   "codemode.requireStrict": "true：运行时 Node 不隔离网络（Node 22 / 24）时直接禁用 codemode",
+  "codemode.maxHeapMb": "脚本子进程的 V8 堆上限（MB），超出时脚本以错误结束；0 不设上限",
   hooks: "Hook 设置（Hook 本身写在 hooks.json）",
   "hooks.timeoutMs": "单个 Hook 命令的缺省超时（毫秒）",
   ui: "终端界面",
@@ -385,6 +390,8 @@ const keysZh = {
     "ama 自己的 task 子会话；除 background / autoBackgroundAfterMs 外只认用户级（第五波 W5-G 起生效）",
   "subagents.maxConcurrent": "同时运行的子会话数",
   "subagents.maxPending": "排队上限，超出时 task 报错",
+  "subagents.retainSessions":
+    "内存中保留的已结束子会话数（最久未用的先释放），其余续聊时从会话文件重开",
   "subagents.defaultModel": "子会话缺省模型 provider/model[@channel]",
   "subagents.background":
     "task 缺省是否后台：auto = TUI / RPC / ACP 下后台、-p 下前台；always / never 固定。调用参数与类型定义的 background: 优先；用户、项目、宿主级都认",
