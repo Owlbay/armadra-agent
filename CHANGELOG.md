@@ -31,6 +31,7 @@ Fewer full-price re-reads of the prompt prefix and fewer failed requests (docs/m
 
 - **Groundwork for the memory work** (docs/memory-plan.md, report in docs/research/memory-2026-10.md): the config schema accepts `subagents.retainSessions` and `codemode.maxHeapMb`, and the RPC capability `compact_events` can be declared; all three take effect in later batches. The process-wide cache-reporting table now keeps only a summary of each endpoint's last request instead of the whole record, so it no longer holds on to a closed session.
 - **Images are deduplicated by content**: an image read several times by `read`, attached with `--image` / `@path` and then read again, or repeated in a resumed session now keeps a single base64 copy in memory instead of one per occurrence. Session files and requests are unchanged.
+- **RPC `compact_events`**: a client that declares it with `set_client_capabilities` no longer gets the body of tool results (and of user messages with images) repeated in `turn_end`, `message_start` and `entry_appended` — marked `contentOmitted: true`, the body still comes in `message_end` and `tool_execution_end`. In a 100-step fake run stdout drops from 91.6 MB to 37.0 MB. `hello.capabilities` now lists it; without the declaration, and in `stream-json`, events are unchanged.
 
 ## 0.7.3 (2026-10-09)
 
