@@ -26,6 +26,7 @@ afterEach(() => h?.cleanup());
 const registry = new ProviderRegistry({ keys: { useEnv: false, userAuthFile: null } });
 const anthropic = registry.get("anthropic")?.models[0] as Model;
 const openai = registry.get("openai")?.models[0] as Model;
+const deepseek = registry.get("deepseek")?.models[0] as Model;
 const signal = new AbortController().signal;
 
 type Json = Record<string, unknown>;
@@ -123,6 +124,32 @@ describe("缓存保证（设计 §9.1）", () => {
     expect(systems[1]).toMatchObject({ sections: {} });
     expect(systems[1]?.toolsAdded?.map((t) => t.name)).toEqual(["canvas_note"]);
     await runtime.dispose();
+  });
+
+  it("resume 时 AGENTS.md 变了：开头 system + tools 不变，上一次请求的消息逐条是前缀，新内容在尾部提醒里", async () => {
+    h = composeHarness([{ text: "a" }, { text: "b" }]);
+    h.home.write("work/AGENTS.md", "project rules v1");
+    const first = await h.boot(["--model", "fake/echo"]);
+    await first.session.prompt("q0");
+    await first.dispose();
+    h.home.write("work/AGENTS.md", "project rules v2");
+    const resumed = await h.boot(["--model", "fake/echo", "--continue"]);
+    await resumed.session.prompt("q1");
+    const [a, b] = h.fake.calls.map((call) => call.context) as [
+      TranscriptContext,
+      TranscriptContext,
+    ];
+    expect(JSON.stringify(prefixes(b))).toBe(JSON.stringify(prefixes(a)));
+    expect(JSON.stringify(prefixes(a).anthropic)).toContain("project rules v1");
+    const sent = (context: TranscriptContext): Json[] =>
+      buildOpenAIRequest(deepseek, context, { signal }).body["messages"] as Json[];
+    const before = sent(a);
+    const after = sent(b);
+    expect(JSON.stringify(after.slice(0, before.length))).toBe(JSON.stringify(before));
+    const tail = JSON.stringify(after.slice(before.length));
+    expect(tail).toContain("<system-reminder>");
+    expect(tail).toContain("project rules v2");
+    await resumed.dispose();
   });
 });
 

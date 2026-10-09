@@ -4,6 +4,7 @@ import {
   normalizeContext,
   normalizeContextInline,
   sanitizeText,
+  systemReminderText,
 } from "./context.js";
 import type { TranscriptContext } from "./types.js";
 
@@ -57,6 +58,61 @@ describe("normalizeContext", () => {
     expect(n.messages[0]?.content).toEqual(
       context.messages[1]?.role === "user" && context.messages[1].content,
     );
+  });
+
+  it("中途节补丁不改写开头：渲染成 system-reminder 的 user 消息按位置插回，相邻补丁合成一条", () => {
+    const base: TranscriptContext = {
+      messages: [
+        { role: "system", sections: { preamble: "P", hooks: "h1" }, timestamp: 0 },
+        { role: "system", sections: { host: "H0" }, timestamp: 0 },
+        { role: "user", content: "q0", timestamp: 1 },
+      ],
+    };
+    const later: TranscriptContext = {
+      messages: [
+        ...base.messages,
+        { role: "system", sections: { hooks: "h2" }, timestamp: 2 },
+        { role: "system", sections: { host: null }, toolsAdded: [tool("ls")], timestamp: 2 },
+        { role: "user", content: "q1", timestamp: 3 },
+      ],
+    };
+    const a = normalizeContext(base);
+    const b = normalizeContext(later);
+    expect(a.systemPrompt).toBe("P\n\nh1\n\nH0");
+    expect(b.systemPrompt).toBe(a.systemPrompt);
+    expect(b.systemSections).toEqual(a.systemSections);
+    expect(b.messages.slice(0, a.messages.length)).toEqual(a.messages);
+    expect(b.messages.map((m) => m.role)).toEqual(["user", "user", "user"]);
+    expect(b.messages[1]?.content).toBe(
+      systemReminderText([
+        'System prompt section "hooks" was updated:\n\nh2',
+        'System prompt section "host" was removed.',
+      ]),
+    );
+    expect(b.tools.map((t) => t.name)).toEqual(["ls"]);
+  });
+
+  it("只追加工具的补丁不插消息；补丁移除了工具 → 全部补丁折回开头", () => {
+    const appended = normalizeContext({
+      messages: [
+        { role: "system", sections: { preamble: "P" }, toolsAdded: [tool("read")], timestamp: 0 },
+        { role: "user", content: "q", timestamp: 1 },
+        { role: "system", sections: {}, toolsAdded: [tool("ls")], timestamp: 2 },
+      ],
+    });
+    expect(appended.messages).toHaveLength(1);
+    expect(appended.tools.map((t) => t.name)).toEqual(["read", "ls"]);
+    const removed = normalizeContext({
+      messages: [
+        { role: "system", sections: { preamble: "P" }, toolsAdded: [tool("read")], timestamp: 0 },
+        { role: "user", content: "q", timestamp: 1 },
+        { role: "system", sections: { hooks: "h" }, timestamp: 2 },
+        { role: "system", sections: { tools: "T" }, toolsRemoved: ["read"], timestamp: 3 },
+      ],
+    });
+    expect(removed.systemPrompt).toBe("P\n\nh\n\nT");
+    expect(removed.messages).toHaveLength(1);
+    expect(removed.tools).toEqual([]);
   });
 
   it("模态过滤：模型不收图片时替换为文字占位", () => {
