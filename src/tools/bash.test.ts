@@ -37,6 +37,20 @@ describe.runIf(posix)("bash（真子进程）", () => {
     expect(s.wall_time_seconds).toBeGreaterThanOrEqual(0);
   });
 
+  it("[ME-D] 按 ctx.maxResultChars 保留尾部、全文落盘，结果不超过会话上限", async () => {
+    const r = await tool.execute(
+      { command: "for i in $(seq 1 400); do echo line-$i-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx; done" },
+      makeToolContext(tmp.dir, { maxResultChars: 4_000 }),
+    );
+    const text = r.content as string;
+    expect(text.length).toBeLessThanOrEqual(4_000);
+    expect(text).toContain("line-400-");
+    expect(text).not.toContain("line-1-");
+    const s = r.structured as BashStructured;
+    expect(s.truncated).toBe(true);
+    expect(readFileSync(s.full_output_path as string, "utf8")).toContain("line-1-");
+  });
+
   it("非零退出码 → isError 并写明", async () => {
     const r = await tool.execute({ command: "echo bad; exit 3" }, makeToolContext(tmp.dir));
     expect(r.isError).toBe(true);

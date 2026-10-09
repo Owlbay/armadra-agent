@@ -13,6 +13,18 @@ import { join } from "node:path";
 
 export const DEFAULT_MAX_LINES = 2000;
 export const DEFAULT_MAX_BYTES = 50 * 1024;
+/** [ME-D] 自截时给说明行留的余量（字符）。 */
+export const RESULT_NOTE_RESERVE = 512;
+
+/**
+ * [ME-D] 工具自截的字节上限（D11）：会话的结果上限（`ToolContext.maxResultChars`）减去说明行余量，
+ * 不超过 50 KB——一次截到位，不再被会话层二次截中段。字节数 ≤ N 时字符数必然 ≤ N。
+ */
+export function toolOutputBytes(maxResultChars: number | undefined): number {
+  if (maxResultChars === undefined) return DEFAULT_MAX_BYTES;
+  return Math.max(1024, Math.min(DEFAULT_MAX_BYTES, maxResultChars - RESULT_NOTE_RESERVE));
+}
+
 /** grep 匹配行的字符上限。 */
 export const GREP_MAX_LINE_CHARS = 500;
 

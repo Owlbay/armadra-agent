@@ -79,7 +79,9 @@ describe("发给模型的请求与界面语言无关", () => {
     expect(en).toEqual(zh);
     // 确实走到了截断、读图失败与拒绝三条路径
     const last = zh.at(-1) ?? "";
-    expect(last).toContain("chars omitted");
+    // [ME-D] read 按会话结果上限一次截到位（D11），截断说明来自工具而不是会话层的中段省略
+    expect(last).toContain("output limit 1.5 KB reached");
+    expect(last).not.toContain("chars omitted");
     expect(last).toContain("missing.png");
     expect(last).toContain("call_bash");
   });

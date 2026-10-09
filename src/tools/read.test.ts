@@ -64,6 +64,21 @@ describe("read", () => {
     );
   });
 
+  it("[ME-D] 按 ctx.maxResultChars 一次截到位：说明里是实际上限，内容不超过会话上限", async () => {
+    const line = "z".repeat(99);
+    writeFileSync(join(tmp.dir, "mid.txt"), Array.from({ length: 300 }, () => line).join("\n"));
+    const r = await tool.execute(
+      { path: "mid.txt" },
+      makeToolContext(tmp.dir, { maxResultChars: 10_000 }),
+    );
+    const text = r.content as string;
+    expect(text.length).toBeLessThanOrEqual(10_000);
+    expect(text).toMatch(/output limit 9\.3 KB reached\)\. Use offset=\d+ to continue/);
+    const last = Number(/Showing lines 1-(\d+) of 300/.exec(text)?.[1]);
+    expect(text).toContain(`${String(last).padStart(6)}\t${line}\n\n[Showing`);
+    expect(r.details).toMatchObject({ truncated: true, lastLine: last });
+  });
+
   it("二进制拒绝、目录与不存在报错、空文件", async () => {
     writeFileSync(join(tmp.dir, "bin.dat"), Buffer.from([1, 2, 0, 3]));
     mkdirSync(join(tmp.dir, "d"));
