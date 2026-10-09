@@ -39,7 +39,7 @@ import { toJsonLine, toWireEvent } from "./json-event.js";
 import { formatUsd } from "../../agent/limits.js";
 import type { LimitReachedEvent, PlanProposedEvent, SessionEvent } from "../../agent/types.js";
 import type { ImageBlock } from "../../ai/types.js";
-import type { AgentSession } from "../../agent/types.js";
+import type { AgentSession, SessionStats } from "../../agent/types.js";
 import { registryOf } from "../../agent/subagent-registry.js";
 import { promptImages, sessionModel } from "../image-input.js";
 import { msg } from "../../i18n/index.js";
@@ -238,6 +238,7 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
         usage: stats.tokens,
         cost: stats.cost,
         cacheHitRate: stats.cacheHitRate,
+        ...contextOf(stats),
         ...(stats.cache !== undefined ? { cache: stats.cache } : {}),
         ...(stats.tasks !== undefined ? { tasks: stats.tasks } : {}),
         ...(denied.length > 0 ? { deniedTools: denied } : {}),
@@ -345,4 +346,13 @@ export function describeDenied(denied: readonly DeniedTool[]): string {
   for (const item of denied) counts.set(item.toolName, (counts.get(item.toolName) ?? 0) + 1);
   const tools = [...counts].map(([name, n]) => `${name} ×${n}`);
   return msg().print.print.denied(denied.length, tools, denied[0]?.reason ?? "");
+}
+
+/** json 结果的 `context`：上下文用量、窗口与占用（0–100）；各项未知时省略，全都未知时不带 `context`。 */
+function contextOf(stats: SessionStats): { context?: Record<string, number> } {
+  const context: Record<string, number> = {};
+  if (stats.contextTokens !== undefined) context["tokens"] = stats.contextTokens;
+  if (stats.contextWindow !== undefined) context["window"] = stats.contextWindow;
+  if (stats.contextPercent !== undefined) context["percent"] = stats.contextPercent;
+  return Object.keys(context).length > 0 ? { context } : {};
 }
