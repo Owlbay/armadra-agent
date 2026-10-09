@@ -168,6 +168,36 @@ describe("SessionCacheController：未命中与统计", () => {
   });
 });
 
+describe("[ME-B] 冷缓存不续写、软窗口压力", () => {
+  it("缓存已冷（TTL 300 s 过后）→ summaryContinuation 为 undefined；未冷时可续写", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(1_000_000);
+    const h = createHarness({
+      model: priced,
+      cache: { warming: "off" },
+      script: [step({ input: 0, cacheWrite: 30_000 }), step({ input: 100, cacheRead: 30_000 })],
+    });
+    await h.session.prompt("q0");
+    await h.session.prompt("q1");
+    expect(h.session.cache.summaryContinuation()).toBeDefined();
+    vi.setSystemTime(1_000_000 + 600_000);
+    expect(h.session.cache.isCold()).toBe(true);
+    expect(h.session.cache.summaryContinuation()).toBeUndefined();
+  });
+
+  it("compaction.contextBudget：context_pressure 按 min(窗口, 软窗口) 计", async () => {
+    const h = createHarness({
+      model: fakeModel({ contextWindow: 1_000_000 }),
+      compaction: { contextBudget: 100_000 } as never,
+      cache: { warming: "off" },
+      script: [step({ input: 50_000 }), step({ input: 72_000 }), step({ input: 91_000 })],
+    });
+    for (let i = 0; i < 3; i++) await h.session.prompt(`q${i}`);
+    expect(of(h, "context_pressure").map((e) => e.threshold)).toEqual([70, 90]);
+    expect(of(h, "context_pressure")[1]).toMatchObject({ percent: 91, remainingTokens: 8990 });
+  });
+});
+
 describe("保温接线（fake 计时器）", () => {
   it("工具长时间运行：发出前缀重放（maxTokens 1、purpose warm、同一上下文引用），追加 usage 条目", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });

@@ -19,6 +19,7 @@ import {
   SUMMARIZATION_SYSTEM_PROMPT,
   SUMMARY_CONTINUATION_PREAMBLE,
   SUMMARY_CONTINUATION_TAIL,
+  SUMMARY_MAX_TOKENS,
   completeByContinuation,
   countLlmMessages,
   excerptOf,
@@ -190,6 +191,41 @@ describe("压缩摘要走会话前缀续写（§1.8）", () => {
     });
     await tight.session.prompt("q");
     expect(tight.session.cache.summaryContinuation()).toBeUndefined();
+  });
+
+  it("[ME-B] 思考开启（非预算型协议）：续写的输出上限 = 摘要上限 + 思考预算，不超过模型上限", async () => {
+    const make = (maxTokens: number) => {
+      const h = createHarness({
+        model: fakeModel({ reasoning: true, maxTokens }),
+        thinkingLevel: "medium",
+        compaction: { keepRecentTokens: 50 },
+        cache: { warming: "off" },
+        script: (call) =>
+          isSummaryRequest(call.context) ? { text: "## Goal\nx" } : { text: "y".repeat(400) },
+      });
+      return h;
+    };
+    for (const [max, expected] of [
+      [64_000, SUMMARY_MAX_TOKENS + 8192],
+      [8192, 8192],
+    ] as const) {
+      const h = make(max);
+      await h.session.prompt("x".repeat(800));
+      await h.session.prompt("z".repeat(800));
+      const continuation = h.session.cache.summaryContinuation();
+      expect(continuation?.streamOptions?.maxTokens).toBe(expected);
+      await h.session.compact();
+      const summary = h.scripted.calls.find((c) => isContinuation(c.context))!;
+      expect(summary.options.maxTokens).toBe(expected);
+    }
+    const off = createHarness({
+      model: fakeModel({ reasoning: true }),
+      thinkingLevel: "off",
+      cache: { warming: "off" },
+      script: [{ text: "ok" }],
+    });
+    await off.session.prompt("q");
+    expect(off.session.cache.summaryContinuation()?.streamOptions).not.toHaveProperty("maxTokens");
   });
 
   it("分支摘要同样续写：只摘要被离开的最后 K 条", async () => {

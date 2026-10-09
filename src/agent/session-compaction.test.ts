@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { sharedCacheReporting } from "../ai/cache/reporting.js";
 import type { ScriptCall, ScriptStep } from "./testing/scripted-api.js";
 import { createHarness, isSummaryRequest } from "./testing/harness.js";
+import { effectiveWindow } from "./session-compaction.js";
 import { fakeModel, stubHooks, stubTool } from "./testing/stubs.js";
 import type { SessionEntry } from "../session/types.js";
 
@@ -287,5 +288,27 @@ describe("回注与 PostCompact（C6 / C13）", () => {
       trigger: "manual",
     });
     expect(h.manager.branch().some((e) => e.type === "custom_message")).toBe(false);
+  });
+});
+
+describe("[ME-B] 软窗口（D16）", () => {
+  it("effectiveWindow：min(模型窗口, contextBudget)；未设或窗口未知原样返回", () => {
+    expect(effectiveWindow(1_000_000, { contextBudget: 65_536 })).toBe(65_536);
+    expect(effectiveWindow(32_768, { contextBudget: 65_536 })).toBe(32_768);
+    expect(effectiveWindow(200_000, {})).toBe(200_000);
+    expect(effectiveWindow(200_000, undefined)).toBe(200_000);
+    expect(effectiveWindow(undefined, { contextBudget: 65_536 })).toBeUndefined();
+  });
+
+  it("会话阈值按软窗口：档二 = 软窗口 − 预留，档一 = 0.7 × 档二", () => {
+    const h = createHarness({
+      model: fakeModel({ contextWindow: 1_000_000 }),
+      compaction: { reserveTokens: 10_000, contextBudget: 100_000 } as never,
+      script: [{ text: "ok" }],
+    });
+    expect(h.session.getStats().context).toMatchObject({
+      autoCompactAt: 90_000,
+      pruneAt: Math.floor(0.7 * 90_000),
+    });
   });
 });

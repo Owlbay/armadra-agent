@@ -18,6 +18,10 @@
  *   （只统计，不写分支、不改请求）；附档一 / 档二阈值。压缩调度本身仍只看 `estimate()`。
  * [W3-C1b] 阈值 / 手动压缩与分支摘要优先走会话前缀续写（缓存控制器给前缀），溢出恢复不走
  * （前缀本身已超窗口）；续写失败回落独立请求并记 warning。
+ * [ME-B] D6 档一 / 档二边界：先干跑档一；裁完仍超预算且续写可用（同模型、前缀成立、缓存未冷）→
+ * 不裁、直接续写摘要（被裁内容本来就进摘要，续写比全价独立请求便宜一个数量级）；裁完够 → 只裁；
+ * 缓存已冷 → 照旧先裁，摘要走独立请求。D16 软窗口：`compaction.contextBudget` 设了时档一 / 档二 /
+ * 熔断 / context_pressure 的窗口取 min(模型窗口, 它)。
  */
 
 import { AmaError } from "../errors.js";
@@ -29,7 +33,12 @@ import {
 } from "../compaction/estimate.js";
 import { prefixSystemMessage, withPrefixBaseline } from "../compaction/prefix-estimate.js";
 import type { SystemMessage } from "../ai/types.js";
-import { planPrune, prunePolicy, type PrunePolicy } from "../compaction/prune-tier.js";
+import {
+  planPrune,
+  prunePolicy,
+  type PrunePlan,
+  type PrunePolicy,
+} from "../compaction/prune-tier.js";
 import { createProtection, skillLocations } from "../compaction/protect.js";
 import { buildPostCompactBlock } from "../compaction/post-compact.js";
 import type { CompactionConfig } from "../config/types.js";
@@ -38,6 +47,7 @@ import {
   prepareCompactionAt,
   runCompaction,
   type SummarizerOptions,
+  type SummaryContinuation,
 } from "../compaction/summarize-tier.js";
 import { prepareBranchSummary, runBranchSummary } from "../compaction/branch-summary.js";
 import { buildProjection } from "../session/projection.js";
@@ -60,6 +70,19 @@ export const DEFAULT_COMPACTION_SETTINGS: CompactionSettings = {
 
 /** 保留区不超过 (窗口 − 预留) 的 40%，否则小窗口模型上摘要后仍然溢出。 */
 export const KEEP_RECENT_MAX_RATIO = 0.4;
+
+/**
+ * [ME-B] D16 软窗口：模型窗口与 `compaction.contextBudget` 取小；窗口未知仍 undefined（不压缩）。
+ * `compaction` 是会话选项里展开的 config 段（`contextBudget` 不在 CompactionSettings 类型上）。
+ */
+export function effectiveWindow(
+  contextWindow: number | undefined,
+  compaction: object | undefined,
+): number | undefined {
+  const budget = (compaction as Pick<CompactionConfig, "contextBudget"> | undefined)?.contextBudget;
+  if (contextWindow === undefined || budget === undefined) return contextWindow;
+  return Math.min(contextWindow, budget);
+}
 
 /** Hook additionalContext 的 custom 类型（与 UserPromptSubmit 的相同）。 */
 const HOOK_CONTEXT_CUSTOM_TYPE = "ama.hook_context";
@@ -87,7 +110,12 @@ export class CompactionController {
     this.pruneConfig = {};
     if (extra.prune !== undefined) this.pruneConfig.prune = extra.prune;
     if (extra.pruneExclude !== undefined) this.pruneConfig.pruneExclude = extra.pruneExclude;
-    this.breaker = new CompactionBreaker(this.settings.enabled, core.model().contextWindow);
+    this.breaker = new CompactionBreaker(this.settings.enabled, this.window());
+  }
+
+  /** 档一 / 档二 / 熔断用的窗口（软窗口生效后的值）。 */
+  private window(): number | undefined {
+    return effectiveWindow(this.core.model().contextWindow, this.settings);
   }
 
   get isCompacting(): boolean {
@@ -96,7 +124,7 @@ export class CompactionController {
 
   /** 模型或开关变化后调用。 */
   refresh(): void {
-    this.breaker.configure(this.settings.enabled, this.core.model().contextWindow);
+    this.breaker.configure(this.settings.enabled, this.window());
   }
 
   setAuto(enabled: boolean): void {
@@ -141,7 +169,7 @@ export class CompactionController {
   }
 
   private budget(): number | undefined {
-    const window = this.core.model().contextWindow;
+    const window = this.window();
     return window === undefined ? undefined : Math.max(0, window - this.settings.reserveTokens);
   }
 
@@ -154,11 +182,14 @@ export class CompactionController {
     );
   }
 
-  /** 摘要请求的公共选项；`continuation` 时附上会话前缀续写的材料。 */
+  /**
+   * 摘要请求的公共选项；`continuation` 时附上会话前缀续写的材料（传入对象 = 调用方已算好的那份，
+   * 避免重算）。
+   */
   private async summarizer(
     signal: AbortSignal,
     instructions: string | undefined,
-    continuation: boolean,
+    continuation: boolean | SummaryContinuation,
   ): Promise<SummarizerOptions> {
     const core = this.core;
     const options: SummarizerOptions = {
@@ -174,7 +205,8 @@ export class CompactionController {
         ),
       onInvalid: (reason) => core.log("warn", `${reason}; kept it after one retry`),
     };
-    if (continuation) options.continuation = core.cache?.summaryContinuation();
+    if (typeof continuation === "object") options.continuation = continuation;
+    else if (continuation) options.continuation = core.cache?.summaryContinuation();
     return options;
   }
 
@@ -184,10 +216,8 @@ export class CompactionController {
     return budget === undefined ? undefined : prunePolicy(budget, this.pruneConfig.prune);
   }
 
-  /**
-   * 档一；`need` = 清到目标还要省多少（undefined = 全部候选）。返回省下的 token 估算（0 = 未裁）。
-   */
-  prune(policy: PrunePolicy, need: number | undefined): number {
+  /** 档一干跑；`need` = 清到目标还要省多少（undefined = 全部候选）。 */
+  prunePlan(policy: PrunePolicy, need: number | undefined): PrunePlan {
     const core = this.core;
     const items = buildProjection(core.manager.branch()).items;
     const isProtected = createProtection({
@@ -196,7 +226,11 @@ export class CompactionController {
       exclude: this.pruneConfig.pruneExclude ?? [],
       keepInContext: (name) => core.tool(name)?.annotations?.keepInContext === true,
     });
-    const plan = planPrune(items, { policy, need, outputDir: core.outputDir(), isProtected });
+    return planPrune(items, { policy, need, outputDir: core.outputDir(), isProtected });
+  }
+
+  /** 档一落盘：写 context_edit 并重载消息。返回省下的 token 估算（0 = 未裁）。 */
+  applyPrune(plan: PrunePlan): number {
     for (const item of plan.items) {
       this.core.appendEntry({
         type: "context_edit",
@@ -209,7 +243,10 @@ export class CompactionController {
     return plan.savedTokens;
   }
 
-  /** 阈值检查（档一 → 档二）。失败只记录，不打断 run。 */
+  /**
+   * 阈值检查（档一 → 档二，[ME-B] D6）。失败只记录，不打断 run。
+   * 先干跑档一：裁完仍超预算、熔断允许且续写可用 → 跳过裁剪直接续写摘要；否则照旧先裁。
+   */
   async checkThreshold(signal: AbortSignal): Promise<void> {
     if (!this.breaker.autoEnabled || this.compacting || signal.aborted) return;
     this.breaker.tick();
@@ -219,14 +256,22 @@ export class CompactionController {
     let tokens = this.estimate().tokens;
     // 缓存已冷（C3）：前缀反正要重写，未到阈值也把候选一次换掉（仍要可省 ≥ clearAtLeast）
     const cold = this.core.cache?.isCold() ?? false;
+    let continuation: SummaryContinuation | undefined;
     if (tokens > policy.triggerTokens || cold) {
-      const need = cold ? undefined : tokens - policy.targetTokens;
-      if (this.prune(policy, need) > 0) tokens = this.estimate().tokens;
+      const plan = this.prunePlan(policy, cold ? undefined : tokens - policy.targetTokens);
+      if (!cold && tokens - plan.savedTokens > budget && this.summaryAllowed(budget))
+        continuation = this.core.cache?.summaryContinuation();
+      if (continuation === undefined && this.applyPrune(plan) > 0) tokens = this.estimate().tokens;
     }
     if (tokens <= budget) return;
+    if (!this.summaryAllowed(budget)) return this.warnBlocked();
+    await this.summarize("threshold", signal, undefined, undefined, continuation);
+  }
+
+  /** 熔断是否允许自动摘要（顺带更新「固定前缀超预算」）。 */
+  private summaryAllowed(budget: number): boolean {
     this.breaker.setPrefixOverflow(this.fixedPrefixTokens() > budget);
-    if (!this.breaker.canSummarize()) return this.warnBlocked();
-    await this.summarize("threshold", signal);
+    return this.breaker.canSummarize();
   }
 
   /** 回注块（todo、计划、已加载 Skill、最近文件、转录与 outputs 路径；不含文件正文）。 */
@@ -311,7 +356,7 @@ export class CompactionController {
   async recoverOverflow(signal: AbortSignal): Promise<{ retry: boolean; warning?: string }> {
     if (!this.settings.enabled)
       return { retry: false, warning: "context overflow: auto-compaction is disabled" };
-    if (this.core.model().contextWindow === undefined) {
+    if (this.window() === undefined) {
       return {
         retry: false,
         warning: "context overflow: model has no contextWindow, auto-compaction is off",
@@ -382,6 +427,7 @@ export class CompactionController {
     signal: AbortSignal,
     instructions?: string,
     cutAt?: string,
+    continuation?: SummaryContinuation,
   ): Promise<SummarizeOutcome> {
     const core = this.core;
     this.compacting = true;
@@ -435,7 +481,11 @@ export class CompactionController {
     // 「nothing to compact」不计失败（C5）
     if (plan === undefined) return fail("nothing to compact");
     try {
-      const options = await this.summarizer(signal, customInstructions, trigger !== "overflow");
+      const options = await this.summarizer(
+        signal,
+        customInstructions,
+        trigger === "overflow" ? false : (continuation ?? true),
+      );
       const draft = await runCompaction(plan, options);
       if (signal.aborted) return fail("aborted", true);
       // 回注（C6）：清单与指针接在摘要末尾，模型看到「摘要 → 回注 → 保留区」

@@ -15,7 +15,7 @@
  * 只有已排期之后的异常停止（截止、上限、零命中、过期、否决、失败）回调 `onStopped`。
  */
 
-import type { AssistantMessage, Model, StreamOptions } from "../types.js";
+import type { Api, AssistantMessage, Model, StreamOptions } from "../types.js";
 import { expectedSavings } from "./economics.js";
 import type {
   CacheReporting,
@@ -64,6 +64,14 @@ export interface WarmerDeps {
   onWarmed(record: RequestRecord, message: AssistantMessage, sentAt: number): void;
   onScheduled?(nextWarmAt: number): void;
   onStopped(reason: string): void;
+}
+
+/**
+ * 保温重放的输出上限（[ME-B] D17）：Responses 的 `max_output_tokens` 下限是 16，其余协议 1。
+ * 官方下限无法实测，按文档取值；中转同样适用。
+ */
+export function warmReplayMaxTokens(api: Api): number {
+  return api === "openai-responses" ? 16 : 1;
 }
 
 export function warmDelay(ttlMs: number): number {
