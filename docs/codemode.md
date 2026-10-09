@@ -34,7 +34,7 @@
 { "version": 1, "tools": { "preset": "codemode-only" }, "permission": { "allow": ["codemode"] } }
 ```
 
-其它配置：`codemode.inlineBudget`（`only` 模式在描述里内联声明的预算，估算 token，缺省 3000，超出只列名字；`on` 模式不内联）、`codemode.requireStrict`（见下文沙箱）。项目级配置只能把 `codemode.mode` 设为 `off`。
+其它配置：`codemode.inlineBudget`（`only` 模式在描述里内联声明的预算，估算 token，缺省 3000，超出只列名字；`on` 模式不内联）、`codemode.requireStrict`（见下文沙箱）、`codemode.maxHeapMb`（脚本子进程的堆上限，见下文沙箱）。项目级配置只能把 `codemode.mode` 设为 `off`。
 
 `on` 模式的前缀开销：去重前 `codemode` 描述把已直接暴露的六个工具的声明又内联一遍，其它工具各追加一行提示，系统提示 + 工具表比 `off` 多约 1356 token；现在只多约 390 token（字符 / 4 估算，测试锁定 ≤ 500）。升级后续接的旧会话因为描述字节变化会有一次缓存未命中。
 
@@ -94,8 +94,10 @@
 每次执行起一个子进程：
 
 ```text
-<node> --permission --allow-fs-read=<ama-sandbox.cjs> --disallow-code-generation-from-strings <ama-sandbox.cjs> --ama-codemode-sandbox
+<node> --max-old-space-size=256 --permission --allow-fs-read=<ama-sandbox.cjs> --disallow-code-generation-from-strings <ama-sandbox.cjs> --ama-codemode-sandbox
 ```
+
+- 堆上限：`--max-old-space-size` 取 `codemode.maxHeapMb`（缺省 256 MB，0 不加；只认用户级）。脚本超出时子进程 OOM 退出，工具结果是脚本错误 `Script exceeded the codemode memory limit (256 MB); process the data in smaller pieces`，宿主进程内存不受影响；需要一次处理大数据时调大或分片。
 
 - 空环境启动，拿不到密钥、会话文件与环境变量（Windows 上 libuv 会从父进程补入 PATH、SYSTEMROOT、USERPROFILE 等系统变量，不含密钥）；不授予文件写、子进程、worker、addon、inspector 权限；Node 22.0–22.12 用 `--experimental-permission`；嵌入 Electron 时设 `ELECTRON_RUN_AS_NODE=1`。
 - 子进程里用 `node:vm` 建只含 ECMAScript 内建对象的上下文（`codeGeneration: { strings: false, wasm: false }`，沙箱对象空原型）；全局函数都在上下文内定义，只经一个宿主函数交换 JSON 字符串；子进程主 realm 也禁止字符串生成代码，经构造器链逃逸拿不到 `Function("return process")`。

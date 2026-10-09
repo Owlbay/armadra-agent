@@ -130,11 +130,12 @@ ama 再跑一轮、在消息里要求「不要调用工具、直接给最终报�
 
 ### 续聊、保留与 resume
 
-每个任务有会话内唯一的 `taskId`（`t1`、`t2` …）。子会话结束后不立即释放，最多保留 16 个（最久未用的先释放内存；
-JSONL 一直在）。`task{taskId}` / `task_ctl send` 续聊时，保留中的直接追加消息，已释放的按会话文件重新打开再追加——
+每个任务有会话内唯一的 `taskId`（`t1`、`t2` …）。子会话结束后不立即释放，最多保留 4 个（`subagents.retainSessions`；
+最久未用的先释放内存，JSONL 一直在）。`task{taskId}` / `task_ctl send` 续聊时，保留中的直接追加消息，已释放的按会话文件重新打开再追加——
 同一个任务始终写同一个 JSONL。父会话在任务开始、每次续聊与结束时写一条 `custom{ama.task}`
 （[session-format.md](session-format.md)）；`--resume` 时据此重建任务列表，当时还在运行的标 `interrupted`，仍可续聊。
-内存会话（`--no-session`）的任务被释放后不能续聊。
+内存会话（`--no-session`）的任务被释放后不能续聊。子会话转录常达数十 MB，保留得越多常驻内存越大；频繁轮换续聊
+5 个以上任务时可调大保留数，代价只是被释放的任务续聊时多一次从磁盘重开。
 
 ### worktree 隔离
 
@@ -188,6 +189,7 @@ RPC `get_tasks` / `get_agents` 返回任务快照与可用类型（来源、定�
 | --------------------------------- | -------------------------------------------------------------------------------- |
 | `subagents.maxConcurrent`         | 同时运行的子 Agent，缺省 4                                                       |
 | `subagents.maxPending`            | 排队上限，缺省 16                                                                |
+| `subagents.retainSessions`        | 保留在内存里的已结束子会话数（LRU），缺省 4，0 = 结束即释放；只认用户级          |
 | `subagents.defaultModel`          | 子 Agent 缺省模型，不设继承父会话                                                |
 | `subagents.background`            | `auto`（缺省）\| `always` \| `never`，见「前台与后台」；用户 / 项目 / 宿主级都认 |
 | `subagents.autoBackgroundAfterMs` | 前台任务运行超过该毫秒数自动转后台，缺省 0（关闭）；用户 / 项目级都认            |

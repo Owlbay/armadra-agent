@@ -10,7 +10,8 @@
  * 用法：
  * - 测试：`const fake = new FakeProvider([...])`，把 `fake.api` 注册进 ApiRegistry（或直接
  *   `fake.api.stream(...)`），`fake.calls` 记录每次调用的上下文与选项；
- * - CLI：`--provider fake`；`AMA_FAKE_SCRIPT=<path.json>` 指定脚本（首次调用时读取）。
+ * - CLI：`--provider fake`；`AMA_FAKE_SCRIPT=<path.json>` 指定脚本（首次调用时读取）。缺省实例
+ *   `keepCalls: false`：只计数、不留 `calls`（否则整个进程的转录都被它引用，内存测量多出几十 MB）。
  * - 录制（第三波 §2.4，bundle 级缓存测试）：`AMA_FAKE_RECORD=<file>` 时每次请求向文件追加一行
  *   JSON `{ index, purpose, model, system, tools, messagesCount }`——`system` 是折叠后的系统提示
  *   原文，`tools` 是发给供应商的工具表（按注册顺序），与真实协议请求体的前缀同口径。
@@ -63,6 +64,8 @@ export interface FakeRecordLine {
 export interface FakeProviderOptions {
   /** 录制文件路径（每次请求取一次；undefined = 不录）。 */
   recordFile?: string | (() => string | undefined);
+  /** false：只计数，不往 `calls` 里留上下文与选项（CLI 缺省实例）；缺省 true。 */
+  keepCalls?: boolean;
 }
 
 const FAKE_MODEL_BASE = {
@@ -156,6 +159,8 @@ export class FakeProvider {
   private readonly scriptLoader: (() => FakeScript | undefined) | undefined;
   private loaded = false;
   private readonly recordFile: () => string | undefined;
+  private readonly keepCalls: boolean;
+  private count = 0;
 
   constructor(
     script?: FakeScript | FakeResponse[] | (() => FakeScript | undefined),
@@ -165,6 +170,7 @@ export class FakeProvider {
     else if (script !== undefined) this.setScript(script);
     const record = options.recordFile;
     this.recordFile = typeof record === "function" ? record : () => record;
+    this.keepCalls = options.keepCalls !== false;
   }
 
   readonly api: ApiImplementation = {
@@ -173,7 +179,7 @@ export class FakeProvider {
   };
 
   get callCount(): number {
-    return this.calls.length;
+    return this.count;
   }
 
   setScript(script: FakeScript | FakeResponse[]): void {
@@ -189,6 +195,7 @@ export class FakeProvider {
 
   reset(): void {
     this.calls.length = 0;
+    this.count = 0;
   }
 
   private ensureLoaded(): void {
@@ -213,9 +220,11 @@ export class FakeProvider {
   }
 
   stream(model: Model, context: TranscriptContext, options: StreamOptions): AssistantEventStream {
-    const index = this.calls.length;
-    const { signal: _s, onPayload: _p, onResponse: _r, ...rest } = options;
-    this.calls.push({ index, model, context, options: rest });
+    const index = this.count++;
+    if (this.keepCalls) {
+      const { signal: _s, onPayload: _p, onResponse: _r, ...rest } = options;
+      this.calls.push({ index, model, context, options: rest });
+    }
     this.record(index, model, context, options);
     const response = this.responseFor(index) ?? {
       text: lastUserText(context) || "(no input)",
@@ -351,7 +360,7 @@ export const defaultFakeProvider = new FakeProvider(
     const path = process.env[FAKE_SCRIPT_ENV];
     return path ? loadFakeScript(path) : undefined;
   },
-  { recordFile: () => process.env[FAKE_RECORD_ENV] || undefined },
+  { recordFile: () => process.env[FAKE_RECORD_ENV] || undefined, keepCalls: false },
 );
 
 export const fakeApi: ApiImplementation = defaultFakeProvider.api;

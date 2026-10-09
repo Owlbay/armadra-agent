@@ -15,6 +15,9 @@
  * 5. 英文文档滞后提示（§5.5，只提示不失败，`staleTranslations()`）：`docs/en/<篇>.md` 头部记着翻译时的中文版
  *    提交（`as of commit \`abc1234\``）；中文版此后又改了超过 `STALE_COMMITS` 次时提示同步。浅克隆看不到
  *    基准提交时跳过。
+ * 6. 全局命令（内存设计 D7，`checkBin()`）：`bin.ama` 指向单文件 bundle `dist/bundle/*.cjs`，且与
+ *    `exports["./bundle"]` 相同；文件已构建时首行必须是 `#!/usr/bin/env node`（`pnpm run ci` 里本检查在
+ *    构建之前，未构建只提示）。
  *
  * 纯函数 `checkRelease()` 导出给测试；CLI 部分只负责读 git 与文件（`--root <dir>` 换仓库根，
  * 测试用）。CI 的 checkout 需要
@@ -192,6 +195,35 @@ export function checkDocs(input) {
   return { errors, notes };
 }
 
+/** `bin.ama` 必须是的首行。 */
+export const BIN_SHEBANG = "#!/usr/bin/env node";
+
+const stripDot = (path) => String(path).replace(/^\.\//, "");
+
+/**
+ * 全局命令检查（D7）。
+ * @param {{ bin: unknown, exportsBundle: unknown, head?: string }} input
+ *   `bin`：package.json 的 `bin`；`exportsBundle`：`exports["./bundle"]`；`head`：bin 文件首行（未构建为 undefined）。
+ * @returns {{ errors: string[], notes: string[] }}
+ */
+export function checkBin(input) {
+  const errors = [];
+  const notes = [];
+  const target = input.bin !== null && typeof input.bin === "object" ? input.bin.ama : undefined;
+  if (typeof target !== "string") {
+    errors.push("package.json bin.ama 缺失");
+    return { errors, notes };
+  }
+  if (!/^dist\/bundle\/[^/]+\.cjs$/.test(stripDot(target)))
+    errors.push(`bin.ama（${target}）不是单文件 bundle dist/bundle/*.cjs`);
+  if (typeof input.exportsBundle !== "string" || stripDot(input.exportsBundle) !== stripDot(target))
+    errors.push(`bin.ama（${target}）与 exports["./bundle"]（${input.exportsBundle}）不一致`);
+  if (input.head === undefined) notes.push(`${stripDot(target)} 尚未构建，跳过 shebang 检查`);
+  else if (input.head.replace(/\r$/, "") !== BIN_SHEBANG)
+    errors.push(`${stripDot(target)} 首行不是 ${BIN_SHEBANG}`);
+  return { errors, notes };
+}
+
 /** 中文版在英文版基准之后改了超过这么多次就提示（不失败）。 */
 export const STALE_COMMITS = 5;
 
@@ -277,6 +309,17 @@ function main(argv) {
   });
   result.errors.push(...docResult.errors);
   result.notes.push(...docResult.notes);
+  const binTarget = typeof pkg.bin === "object" && pkg.bin !== null ? pkg.bin.ama : undefined;
+  const binPath = typeof binTarget === "string" ? join(root, binTarget) : undefined;
+  const binResult = checkBin({
+    bin: pkg.bin,
+    exportsBundle: pkg.exports?.["./bundle"],
+    ...(binPath !== undefined && existsSync(binPath)
+      ? { head: readFileSync(binPath, "utf8").slice(0, 200).split("\n")[0] }
+      : {}),
+  });
+  result.errors.push(...binResult.errors);
+  result.notes.push(...binResult.notes);
   const translations = EN_DOCS.map((name) => {
     const basis = translationBasis(docs[`docs/en/${name}.md`]);
     const count =

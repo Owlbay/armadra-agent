@@ -71,6 +71,8 @@ export function subagentEnvironment(
   if (max !== undefined) env.maxConcurrent = max;
   const pending = config.subagents?.maxPending;
   if (pending !== undefined) env.maxPending = pending;
+  const retain = config.subagents?.retainSessions; // [M-F] 子会话句柄 LRU 上限
+  if (retain !== undefined) env.retain = retain;
   // [W7-B1] 缺省后台与自动转后台（配置键 W7-B2 登记于 config/types-w5.ts）
   const sub = config.subagents;
   env.background = resolveTaskBackground(sub?.background, deps.assembly.unattended === true);

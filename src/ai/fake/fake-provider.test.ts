@@ -242,6 +242,20 @@ describe("fake 脚本", () => {
     });
   });
 
+  it("[M-F] keepCalls：缺省留上下文；false 时只计数，脚本仍按调用序号推进", async () => {
+    const kept = new FakeProvider([{ text: "a" }, { text: "b" }]);
+    await run(kept);
+    expect(kept.calls[0]?.context.messages.length).toBeGreaterThan(0);
+    const light = new FakeProvider([{ text: "a" }, { text: "b" }], { keepCalls: false });
+    expect((await run(light)).final.content).toEqual([{ type: "text", text: "a" }]);
+    expect((await run(light)).final.content).toEqual([{ type: "text", text: "b" }]);
+    expect(light.callCount).toBe(2);
+    expect(light.calls).toEqual([]);
+    light.reset();
+    expect(light.callCount).toBe(0);
+    expect((await run(light)).final.content).toEqual([{ type: "text", text: "a" }]);
+  });
+
   it("AMA_FAKE_SCRIPT：缺省实例首次调用时读取脚本文件", async () => {
     const tmp = createTmpHome();
     try {
@@ -252,8 +266,12 @@ describe("fake 脚本", () => {
       writeFileSync(join(tmp.root, "bad.json"), "{");
       expect(() => loadFakeScript(join(tmp.root, "bad.json"))).toThrowError(/not valid JSON/);
       process.env[FAKE_SCRIPT_ENV] = path;
+      const before = defaultFakeProvider.callCount;
       const { final } = await run(defaultFakeProvider);
       expect(final.content).toEqual([{ type: "text", text: "from file" }]);
+      // [M-F] 缺省实例只计数，不留上下文
+      expect(defaultFakeProvider.callCount).toBe(before + 1);
+      expect(defaultFakeProvider.calls).toEqual([]);
     } finally {
       delete process.env[FAKE_SCRIPT_ENV];
       tmp.cleanup();

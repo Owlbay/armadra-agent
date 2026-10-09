@@ -9,7 +9,12 @@
 
 export const SGR_RESET = "\x1b[0m";
 
-const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+let segmenter: Intl.Segmenter | undefined;
+
+/** 字素切分器，首次用到才构造（-p / RPC / ACP / --version 不付 ICU 断字数据的初始化）。 */
+export function graphemeSegmenter(): Intl.Segmenter {
+  return (segmenter ??= new Intl.Segmenter(undefined, { granularity: "grapheme" }));
+}
 
 /** 东亚宽（W）与全角（F）区段，含常见 emoji 区块；按起点升序，二分查找。 */
 const WIDE_RANGES: ReadonlyArray<readonly [number, number]> = [
@@ -185,7 +190,7 @@ function isPlainAscii(s: string): boolean {
 function textWidth(text: string): number {
   if (isPlainAscii(text)) return text.length;
   let width = 0;
-  for (const { segment } of segmenter.segment(text)) width += graphemeWidth(segment);
+  for (const { segment } of graphemeSegmenter().segment(text)) width += graphemeWidth(segment);
   return width;
 }
 
@@ -217,7 +222,7 @@ function* pieces(s: string): Generator<Piece> {
     if (isPlainAscii(run)) {
       for (const ch of run) yield { text: ch, width: 1, escape: false };
     } else {
-      for (const { segment } of segmenter.segment(run)) {
+      for (const { segment } of graphemeSegmenter().segment(run)) {
         yield { text: segment, width: graphemeWidth(segment), escape: false };
       }
     }

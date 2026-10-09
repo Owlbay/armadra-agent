@@ -5,10 +5,13 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 import { sandboxEntryForTests } from "../../test/helpers/codemode-sandbox.js";
+import { measureGrowth } from "../../test/helpers/memory.js";
 import { NO_OS_SANDBOX } from "../sandbox/detect.js";
 import { isGroupAlive } from "../tools/process-tree.js";
 import { detectSandboxCapability } from "./capability.js";
 import {
+  DEFAULT_CODEMODE_HEAP_MB,
+  heapLimitError,
   resolveSandboxEntry,
   runSandbox,
   sandboxArgs,
@@ -217,6 +220,15 @@ describe("runSandbox", () => {
     expect(failed.error).toBe("Error: x (line 1)");
   });
 
+  it("[M-F] 超出堆上限：脚本错误写明上限；宿主堆不随子进程分配增长", async () => {
+    const hog = `const a = []; for (;;) a.push("x".repeat(1024) + a.length);`;
+    const growth = await measureGrowth(() => runSandbox(request(hog, { maxHeapMb: 32 })));
+    expect(growth.result).toMatchObject({ ok: false, timedOut: false });
+    expect(growth.result.error).toBe(heapLimitError(32));
+    expect(growth.result.error).toContain("memory limit (32 MB)");
+    expect(growth.heapUsed).toBeLessThan(5 * 1024 * 1024);
+  }, 30_000);
+
   it("onOutput 流式收到每段输出；入口缺失给出错误", async () => {
     const chunks: string[] = [];
     const result = await runSandbox(
@@ -241,6 +253,7 @@ describe("入口与参数", () => {
   it("参数：权限开关、只读入口、禁字符串生成代码；不授予写 / 子进程 / worker / addon", () => {
     const args = sandboxArgs("/x/ama-sandbox.cjs", { permissionFlag: "--permission" });
     expect(args).toEqual([
+      "--max-old-space-size=256",
       "--permission",
       "--allow-fs-read=/x/ama-sandbox.cjs",
       "--disallow-code-generation-from-strings",
@@ -248,9 +261,19 @@ describe("入口与参数", () => {
       "--ama-codemode-sandbox",
     ]);
     expect(args.join(" ")).not.toMatch(/allow-(fs-write|child-process|worker|addons|wasi)/);
-    expect(sandboxArgs("/e", { permissionFlag: "--experimental-permission" })[0]).toBe(
+    expect(sandboxArgs("/e", { permissionFlag: "--experimental-permission" })[1]).toBe(
       "--experimental-permission",
     );
+  });
+
+  it("[M-F] 堆上限：缺省 256 MB 放首位；0 不加；小数取整", () => {
+    const flag = { permissionFlag: "--permission" } as const;
+    expect(DEFAULT_CODEMODE_HEAP_MB).toBe(256);
+    expect(sandboxArgs("/e", flag)[0]).toBe("--max-old-space-size=256");
+    expect(sandboxArgs("/e", flag, 64.9)[0]).toBe("--max-old-space-size=64");
+    const off = sandboxArgs("/e", flag, 0);
+    expect(off[0]).toBe("--permission");
+    expect(off.join(" ")).not.toContain("max-old-space-size");
   });
 
   it("环境：空；Electron 下 ELECTRON_RUN_AS_NODE=1；Windows 保留 SystemRoot", () => {

@@ -31,6 +31,9 @@
 - **内存优化的基础改动**（docs/memory-plan.md，测量报告见 docs/research/memory-2026-10.md）：配置 schema 接受 `subagents.retainSessions` 与 `codemode.maxHeapMb`，RPC 可以声明 `compact_events` 能力，三者都在后续批次生效。进程级的缓存上报表对每个端点只保留上一条请求的摘要而不是整条记录，不再因此拖住已关闭的会话。
 - **图片按内容去重**：`read` 反复读同一张图、`--image` / `@路径` 附图后又读同一张、恢复的会话里重复出现的图片，内存里只留一份 base64，不再每处一份。会话文件与请求内容不变。
 - **RPC `compact_events`**：客户端用 `set_client_capabilities` 声明后，`turn_end`、`message_start`、`entry_appended` 不再重复携带工具结果（以及带图用户消息）的正文，改标 `contentOmitted: true`，正文仍在 `message_end` 与 `tool_execution_end` 里。fake 100 步的 stdout 由 91.6 MB 降到 37.0 MB。`hello.capabilities` 列出这一项；不声明时与 `stream-json` 的事件不变。
+- **全局 `ama` 命令走单文件 bundle**：`bin.ama` 从 ESM 入口改为 `dist/bundle/ama.cjs`，npm 安装后的 `ama --version` 启动从约 0.18 s 降到约 0.11 s，峰值 RSS 少约 25 MB；库导入（`@armadra/agent`、`/host`、`/rpc`、`/tui`、`/acp`）不变。`pnpm link` 之后先 `pnpm build` 生成 bundle。
+- **子 Agent 会话少保留**：为 `taskId` 续聊留在内存里的已结束子会话从 16 个降到 4 个（最久未用的先释放；JSONL 一直在，被释放的任务续聊时从它重开）。用 `subagents.retainSessions` 调整（只认用户级，0 = 结束即释放）。
+- **codemode 堆上限**：脚本子进程以 `--max-old-space-size=256` 启动，超出时以脚本错误 `Script exceeded the codemode memory limit (256 MB)` 结束，不再一路涨到超时。用 `codemode.maxHeapMb` 调整（只认用户级，0 不设上限）。
 
 ## 0.7.3（2026-10-09）
 

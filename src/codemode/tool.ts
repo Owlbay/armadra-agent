@@ -74,6 +74,8 @@ export interface CodemodeToolOptions {
   /** 子进程入口（测试 / 嵌入方覆盖）。 */
   entry?: string;
   nodePath?: string;
+  /** 子进程堆上限（MB，`codemode.maxHeapMb`）；缺省 256，0 不设上限。 */
+  maxHeapMb?: number;
 }
 
 export interface CodemodeDetails {
@@ -320,6 +322,7 @@ export function createCodemodeTool(options: CodemodeToolOptions): ToolDefinition
         requireOsSandbox: strictNeedsOsSandbox(capability),
         ...(options.entry !== undefined ? { entry: options.entry } : {}),
         ...(options.nodePath !== undefined ? { nodePath: options.nodePath } : {}),
+        ...(options.maxHeapMb !== undefined ? { maxHeapMb: options.maxHeapMb } : {}),
         callTool: async (name, args, signal) => {
           if (!callable.has(name)) throw new Error(`Tool ${name} is not available in codemode`);
           return toScriptValue(name, await ctx.tools.executeTool(name, args, { signal }));
@@ -432,6 +435,8 @@ export function codemodeToolFactory(
     };
     const budget = ctx.config.codemode?.inlineBudget;
     if (budget !== undefined) options.inlineBudget = budget;
+    const heapMb = ctx.config.codemode?.maxHeapMb;
+    if (heapMb !== undefined) options.maxHeapMb = heapMb;
     const maxChars = ctx.config.tools?.maxToolResultChars;
     if (maxChars !== undefined) options.maxResultChars = maxChars;
     if (overrides.entry !== undefined) options.entry = overrides.entry;

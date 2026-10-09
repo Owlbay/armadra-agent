@@ -9,6 +9,8 @@
  * 可打印字符的键名就是字符本身（`a`、`/`、`中`），空格为 `space`。
  */
 
+import { graphemeSegmenter } from "./ansi.js";
+
 export interface KeyEvent {
   /** 键名：`enter`、`up`、`f5`、`a`、`中` …… */
   readonly name: string;
@@ -226,11 +228,9 @@ export function parseKey(data: string): KeyEvent | undefined {
   return withAlt(inner);
 }
 
-const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
-
 function isSingleGrapheme(data: string): boolean {
   let count = 0;
-  for (const _ of graphemeSegmenter.segment(data)) {
+  for (const _ of graphemeSegmenter().segment(data)) {
     count++;
     if (count > 1) return false;
   }
