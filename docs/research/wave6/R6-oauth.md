@@ -8,9 +8,9 @@
 
 1. **ChatGPT 订阅：两条路都能走。**
    - **官方路线**：OpenAI 在 DevDay（2026-09-29）把「Sign in with ChatGPT」(SIWC) 扩展到**订阅额度共享**。开源或本地运行的应用可以**自助动态注册**：用 `client_id=dynamic_agent_client` 登录，服务端按「用户 × 工作空间」签发客户端，无需审批、无需 client secret。端点是 `api.openai.com/v1/responses`，scope 为 `chatgpt.tokens.use.direct`。用户可在 ChatGPT 设置里给每个应用设 10%–100% 的周上限。收费、远程托管的应用仍要填意向表等审批。
-   - **借用 Codex 客户端**（用户已选）：用公开 ID `app_EMoamEEZ73f0CkXaXp7hrann`，经 `auth.openai.com/oauth/*` 拿到 token，再调 `chatgpt.com/backend-api/codex/responses`。OpenAI 人员公开表态支持第三方工具用 Codex 订阅（OpenCode、OpenClaw），但**没有正式条款**。这条路依赖的是逆向得来的私有后端，随时可能变更或收紧。
+   - **借用 Codex 客户端**（用户已选）：用公开 ID `app_EMoamEEZ73f0CkXaXp7hrann`，经 `auth.openai.com/oauth/*` 拿到 token，再调 `chatgpt.com/backend-api/codex/responses`。OpenAI 人员公开表态支持第三方工具用 Codex 订阅，但**没有正式条款**。这条路依赖的是逆向得来的私有后端，随时可能变更或收紧。
 2. **Claude 订阅**：Anthropic 明文禁止第三方提供 Claude.ai 登录、借用订阅凭据，也不允许收集或中转其 token（Claude Code 法务页）。ama **绝不能**自己实现 Claude OAuth。ama 现有的「驱动未修改的官方 `claude` CLI」做法在条文上被明确允许：最终用户用自己的订阅登录未修改的二进制。但 `claude -p` 属于「Agent SDK 用量」，而 2026-04 起官方对 third-party harness 有执法动作，原定 06-15 的「SDK 独立额度」又被暂停、**以后可能重启**。建议继续保留该驱动，不再扩展；不得读取或复用 `~/.claude` 凭据。
-3. **GitHub Copilot**：只有正式合作方（OpenCode，2026-01）获官方支持；其他第三方调用 `copilot_internal` 有封号风险，**不做**。**Gemini CLI / Code Assist OAuth**：Google 明文禁止第三方使用，并已多次封号；2026-06-18 起个人和免费层的这条登录已整体下线，**不做**。
+3. **GitHub Copilot**：只有正式合作方（2026-01 起）获官方支持；其他第三方调用 `copilot_internal` 有封号风险，**不做**。**Gemini CLI / Code Assist OAuth**：Google 明文禁止第三方使用，并已多次封号；2026-06-18 起个人和免费层的这条登录已整体下线，**不做**。
 4. **ama 设计**：新增内置供应商 `chatgpt`（协议 `openai-responses`，新增 compat `chatgptBackend`）、新增 `ama auth login|logout|status chatgpt`。登录支持浏览器 PKCE + 本地回调（1455，被占用则退到 1457），无浏览器时用 `--device` 设备码或 `--paste` 粘贴回调 URL。token 存进 `auth.json` 的新形态 `oauth` 条目（文件权限 0600），用跨进程文件锁串行刷新。`clientId`、`issuer`、`baseUrl` 都可覆盖，以后换自有客户端只需改配置，必要时切换到官方动态注册路径（见 §4.10）。
 5. **最大风险**：私有后端变更，包括 instructions 校验、请求头、字段白名单、attestation；还有条款灰区，以及 refresh token 轮换时多进程竞争导致整条登录失效（`refresh_token_reused`）。
 
@@ -20,7 +20,7 @@
 
 ### 1.1 官方开放现状（SIWC + 订阅额度共享）
 
-- **公告**：DevDay 2026（2026-09-29）上首批 16 家合作方，包括 Devin、Warp、Amp、Kilo Code、OpenCode、OpenClaw、T3、Notion、Vercel 等，Lovable 随后跟进。登录身份功能 7 月已 beta、9 月中向所有人开放，新增的是「应用可消耗用户的订阅额度」（[The New Stack](https://thenewstack.io/sign-in-with-chatgpt/)、[learn.chatgpt.com](https://learn.chatgpt.com/docs/sign-in-with-chatgpt)）。
+- **公告**：DevDay 2026（2026-09-29）上首批 16 家合作方（编码工具与应用厂商），之后陆续有新的合作方加入。登录身份功能 7 月已 beta、9 月中向所有人开放，新增的是「应用可消耗用户的订阅额度」（[The New Stack](https://thenewstack.io/sign-in-with-chatgpt/)、[learn.chatgpt.com](https://learn.chatgpt.com/docs/sign-in-with-chatgpt)）。
 - **计划与上限**：
   - 只有 Plus / Pro 能共享额度（身份登录所有账户都可用）。
   - 用户在 ChatGPT → Settings → Usage → App limits 给每个应用设周上限，按占总周额度的百分比（10%–100%）。上限只是封顶，不预留额度。
@@ -62,10 +62,10 @@
 
 **OpenAI 的态度**：
 
-- 2026-01-09，Codex 负责人 Tibo 发文：「We are working with OpenCode to allow Codex users to use their Codex subscriptions … exploring how to support other awesome actors」（[X](https://x.com/thsottiaux/status/2009742187484065881)）。
-- OpenClaw 文档声称 OpenAI 明确支持在外部工具中用订阅 OAuth（[docs.openclaw.ai](https://docs.openclaw.ai/providers/openai)）。
-- [Codex for Open Source](https://developers.openai.com/community/codex-for-oss) 页面点名了 OpenCode、Cline、pi、OpenClaw。
-- 但这些都**不是条款或协议**。社区插件 README 自限「personal development use … not for production or multi-user」（[numman-ali/opencode-openai-codex-auth](https://github.com/numman-ali/opencode-openai-codex-auth)）。
+- 2026-01-09，Codex 负责人发文表示正与一款第三方编码工具合作、让 Codex 用户在其中使用订阅，并在探索支持更多第三方（[X](https://x.com/thsottiaux/status/2009742187484065881)）。
+- 另有第三方工具的文档声称 OpenAI 明确支持在外部工具中用订阅 OAuth。
+- [Codex for Open Source](https://developers.openai.com/community/codex-for-oss) 页面点名了若干第三方编码工具。
+- 但这些都**不是条款或协议**。社区插件 README 自限「personal development use … not for production or multi-user」。
 
 **技术细节**（以 codex-rs 源码为准，路径相对 `codex-rs/`）：
 
@@ -115,8 +115,8 @@
 - **消费者条款**（2025-10-08 生效）：除 API Key 或明确许可外，禁止以「automated or non-human means, whether through a bot, script, or otherwise」访问服务（[consumer-terms](https://www.anthropic.com/legal/consumer-terms)）。
 - **执法时间线**：
   - 2026-02-20 条款明文化。
-  - 2026-04-04 12:00 PT 起，订阅不再覆盖 third-party harness（先从 OpenClaw 开始，逐步扩大），只能用 extra usage 或 API Key（[Boris Cherny / X](https://x.com/bcherny/status/2040206440556826908)、[TechCrunch](https://techcrunch.com/2026/04/04/anthropic-says-claude-code-subscribers-will-need-to-pay-extra-for-openclaw-support/)）。
-  - 有人问「包一层 Claude Code headless / Agent SDK 的个人本地工具能否用订阅」，Cherny 回「Yep」。但也有报道称 `claude -p` 追加声明「运行在 OpenClaw 内」的系统提示后被 400 拒绝（[productcompass](https://www.productcompass.pm/p/claude-code-pricing)）。
+  - 2026-04-04 12:00 PT 起，订阅不再覆盖 third-party harness（先从一款第三方工具开始，逐步扩大），只能用 extra usage 或 API Key（[Boris Cherny / X](https://x.com/bcherny/status/2040206440556826908)、TechCrunch 报道）。
+  - 有人问「包一层 Claude Code headless / Agent SDK 的个人本地工具能否用订阅」，Cherny 回「Yep」。但也有报道称 `claude -p` 追加声明「运行在某第三方工具内」的系统提示后被 400 拒绝（[productcompass](https://www.productcompass.pm/p/claude-code-pricing)）。
   - 2026-05-13 宣布：06-15 起 Agent SDK、`claude -p`、第三方应用改走独立的「Agent SDK 月度 credit」（Pro $20、Max 5x $100、Max 20x $200）。**06-15 当天暂停**：「For now, nothing has changed: Claude Agent SDK, `claude -p`, and third-party app usage still draw from your subscription's usage limits」（[support.claude.com](https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan)）。
 - **对 ama 的评估**：
   - ama 已有 `src/drivers/native/claude-stream.ts`，用 `claude -p --input-format stream-json …` 驱动未修改的官方二进制，并刻意不用 `--bare`。在条文上属于允许的「最终用户用自己订阅登录未修改的二进制」。
@@ -129,12 +129,12 @@
 
 ## 3. 其它订阅
 
-| 订阅                                         | 官方允许情况                                                                                                                                                                                                                                                                                                                                | 风险                                                                                                                                                                                                                | ama 建议                                              |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| GitHub Copilot                               | 2026-01-16 官方宣布 OpenCode 可用 Pro / Pro+ / Business / Enterprise（正式合作，设备码登录）（[GitHub Changelog](https://github.blog/changelog/2026-01-16-github-copilot-now-supports-opencode/)）。另有「Agent apps」预览（[docs](https://docs.github.com/en/copilot/concepts/agents/agent-apps)）。非合作方调用 `copilot_internal` 无授权 | 社区回答和封禁案例指出，脚本化使用可能被停用 Copilot（[discussion #178117](https://github.com/orgs/community/discussions/178117)）。2026-06 起按 AI Credits 计费                                                    | **不做**。可等 GitHub 开放第三方注册，或走 Agent apps |
-| Gemini CLI / Code Assist OAuth               | Gemini CLI 条款与 FAQ 明文禁止第三方软件使用其 OAuth（点名 OpenCode、OpenClaw、Claude Code）（[tos-privacy.md](https://github.com/google-gemini/gemini-cli/blob/main/docs/resources/tos-privacy.md)、[FAQ](https://geminicli.com/docs/resources/faq/)）                                                                                     | 2026-02 起批量封号（会连带 Gemini CLI 和 Code Assist），二次违规永久封禁（[discussion #20632](https://github.com/google-gemini/gemini-cli/discussions/20632)）。2026-06-18 个人、Pro、Ultra、免费层的这条登录已下线 | **不做**。用 AI Studio Key 或 Vertex                  |
-| Antigravity                                  | 同上，属于被封禁对象                                                                                                                                                                                                                                                                                                                        | 高                                                                                                                                                                                                                  | 不做                                                  |
-| 其它（Kimi、GLM、MiniMax 的 Coding Plan 等） | 多为「订阅制 API Key」，不是 OAuth                                                                                                                                                                                                                                                                                                          | 低                                                                                                                                                                                                                  | 维持现有 Key 方案                                     |
+| 订阅                                         | 官方允许情况                                                                                                                                                                                                                                                      | 风险                                                                                                                                                                                                                | ama 建议                                              |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| GitHub Copilot                               | 2026-01-16 官方宣布一款第三方编码工具可用 Pro / Pro+ / Business / Enterprise（正式合作，设备码登录）（GitHub Changelog）。另有「Agent apps」预览（[docs](https://docs.github.com/en/copilot/concepts/agents/agent-apps)）。非合作方调用 `copilot_internal` 无授权 | 社区回答和封禁案例指出，脚本化使用可能被停用 Copilot（[discussion #178117](https://github.com/orgs/community/discussions/178117)）。2026-06 起按 AI Credits 计费                                                    | **不做**。可等 GitHub 开放第三方注册，或走 Agent apps |
+| Gemini CLI / Code Assist OAuth               | Gemini CLI 条款与 FAQ 明文禁止第三方软件使用其 OAuth（点名若干第三方工具）（[tos-privacy.md](https://github.com/google-gemini/gemini-cli/blob/main/docs/resources/tos-privacy.md)、[FAQ](https://geminicli.com/docs/resources/faq/)）                             | 2026-02 起批量封号（会连带 Gemini CLI 和 Code Assist），二次违规永久封禁（[discussion #20632](https://github.com/google-gemini/gemini-cli/discussions/20632)）。2026-06-18 个人、Pro、Ultra、免费层的这条登录已下线 | **不做**。用 AI Studio Key 或 Vertex                  |
+| Antigravity                                  | 同上，属于被封禁对象                                                                                                                                                                                                                                              | 高                                                                                                                                                                                                                  | 不做                                                  |
+| 其它（Kimi、GLM、MiniMax 的 Coding Plan 等） | 多为「订阅制 API Key」，不是 OAuth                                                                                                                                                                                                                                | 低                                                                                                                                                                                                                  | 维持现有 Key 方案                                     |
 
 ---
 
@@ -371,7 +371,7 @@ ama auth list                                   # 现有命令，新增 kind = "
   - `core/src/client.rs:160-168,995-1012,1300-1335`
   - `core/src/attestation.rs`
   - `backend-client/src/client/rate_limit_resets.rs:126`
-- 社区：numman-ali/opencode-openai-codex-auth（最新提交 2026-01-09）
+- 社区：第三方 Codex 订阅认证插件（最新提交 2026-01-09）
   - `lib/constants.ts:10,26-39`
   - `lib/auth/auth.ts:6-10,186-192`
   - `lib/auth/server.ts:48`
@@ -393,5 +393,4 @@ ama auth list                                   # 现有命令，新增 kind = "
   - [Claude Code legal](https://code.claude.com/docs/en/legal-and-compliance)
   - [Anthropic consumer terms](https://www.anthropic.com/legal/consumer-terms)
   - [Claude Agent SDK & plan](https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan)
-  - [GitHub Changelog: Copilot × OpenCode](https://github.blog/changelog/2026-01-16-github-copilot-now-supports-opencode/)
   - [Gemini CLI ToS](https://github.com/google-gemini/gemini-cli/blob/main/docs/resources/tos-privacy.md)

@@ -8,7 +8,7 @@
 2. **持久化建议：新增一个 `custom{customType:"ama.trace"}` 条目，不扩展 `usage` 条目。** `usage` 条目会被 `usageTotals` / `/session` 计费再算一次（`export.ts:58-63`），把每请求计时塞进去会重复计费或要改所有读方；`custom` 天然「不进上下文」（`session-format.md` 条目表），不碰缓存前缀，也不改 `toolResult` 消息形状（避免任何协议层把多余字段序列化出去）。
 3. **外部 Agent 只能落「无正文骨架」。** wave5 §5.4 明确「原始事件只在内存展示，不进 JSONL（Armadra 审查 P0）」（`docs/wave5-plan.md:388`，`drivers/turn.ts:5-6`）。轨迹只记 kind / status / 起止时间 / 用量 / 计数；工具标题（常含命令行）默认不落，待定项见 §6。全屏视图里的外部 Agent 实时内容用内存环形缓冲，重启后只剩骨架 + 「去原 CLI resume <sessionId>」提示。
 4. **Agent 视图的发消息不能直接复用 `task_ctl send`。** 运行中的任务 `continueTask` 直接报错 `still running; use task_ctl wait or stop first`（`subagent-registry.ts:251-254`）。需要注册表新增 `message(taskId, text)`：运行中 → 子会话 `followUp`（ama runner）/ 排队到回合结束（外部）；已结束 → 等价 `task_ctl send`（后台续聊）。
-5. **`Ctrl+B` 有两处冲突**：编辑器 `tui.editor.cursorLeft: ["left","ctrl+b"]`（`keybindings.ts:15`），以及 **tmux 缺省前缀就是 Ctrl+B**（tmux 用户按不到）。建议照 PR #63 的 Tab 先例：**输入框为空时** Ctrl+B 进入 Agent 栏，否则仍是光标左移；同时提供 **空输入时 ↓** 进入（Claude Code 同款：底栏选择从输入框往下进入），并允许 `keybindings.json` 改键。
+5. **`Ctrl+B` 有两处冲突**：编辑器 `tui.editor.cursorLeft: ["left","ctrl+b"]`（`keybindings.ts:15`），以及 **tmux 缺省前缀就是 Ctrl+B**（tmux 用户按不到）。建议照 PR #63 的 Tab 先例：**输入框为空时** Ctrl+B 进入 Agent 栏，否则仍是光标左移；同时提供 **空输入时 ↓** 进入（工具 A 同款：底栏选择从输入框往下进入），并允许 `keybindings.json` 改键。
 6. **「全屏」必须在主屏约束下做**（`docs/tui.md:5`、`tui-design.md:4`：不切备用屏）。实现为 `showOverlay(..., {anchor:"bottom"})` 且高度 = `rows − 1`（与 rewind 面板同一手法，`rewind-flow.ts:55`），退出时撤掉覆盖层，消息区与回滚历史不变。
 7. **分批：先做一个很小的 B0（契约 + 落盘 + 事件增强），之后 A 与 B 并行，C 依赖 B 的构建器。** 文件所有权见 §5。
 
@@ -16,32 +16,32 @@
 
 ## 1. 参考实现
 
-### 1.1 DeepSeek Harness（dsh）
+### 1.1 工具 Z
 
-- **官方 Trajectory 视图**（`@deepseek-ai/dsh-client-ui-trajectory` README）：一张「按回合组织的事件账本」，记录种类为 User / Assistant / Tool / 嵌套 Subtool / compaction；粗分隔线标回合边界、行内小标记标 step。点记录打开检查器：token、耗时、输入输出、时间、附件摘要。顶部固定一条**计时总览**：Assistant 段把「已记录的 TTFT」与「解码」分开画，可拖选区间过滤、缩放平移。
+- **官方 Trajectory 视图**（官方 README）：一张「按回合组织的事件账本」，记录种类为 User / Assistant / Tool / 嵌套 Subtool / compaction；粗分隔线标回合边界、行内小标记标 step。点记录打开检查器：token、耗时、输入输出、时间、附件摘要。顶部固定一条**计时总览**：Assistant 段把「已记录的 TTFT」与「解码」分开画，可拖选区间过滤、缩放平移。
   - 长历史：**先从尾部加载 50 个节点，向前按需翻页，只渲染可见行（虚拟滚动 + overscan）**。
   - 流式时**跟随尾部，用户上滚则暂停跟随**；**进行中的记录只画起点标记，不编造已耗时**。
-  - 数据来源：运行时独立的 history 源，不读不改聊天快照；dsh 的 resume / fork / replay / transcript / trajectory 都由同一条只追加事件流构建（会话日志是 zstd JSONL）。
-- **dsh-trajectory-traceview**（社区，AFAP）：横向可回放时间线 + minimap、搜索、按回合导航、跟随、分页、step/子调用的耗时与吞吐、prompt 变化对比、原始请求分析、Markdown 导出。
-- **dsh-trajectory**（社区）：会话日志 → 自包含 HTML（带 SHA-256 审计戳）——与本次 C 块同构。
-- **dsh-trajectory-debug**：瀑布图、确定性回放、断点、编辑重跑、fork 对比、性能分析（超出本波范围，回放 / 重跑不做）。
-- **dsh-flow**（两个同名插件）：一个是竖向执行流（turn / user / assistant / tool / 审批 / 重试 / 压缩，SSE 实时追加 + 自动跟随）；另一个是多 Agent 团队层级画布。可借鉴「审批、重试、压缩作为一等节点」。
-- **loongsuite/dsh-plugin**：每回合一棵 OTel GenAI span 树（step、带 TTFT 的 LLM 调用、工具执行、token），走 OTLP 导出——说明「turn → step → llm/tool」的分层能直接映射 OTel。
+  - 数据来源：运行时独立的 history 源，不读不改聊天快照；工具 Z 的 resume / fork / replay / transcript / trajectory 都由同一条只追加事件流构建（会话日志是 zstd JSONL）。
+- **社区插件甲**（轨迹时间线）：横向可回放时间线 + minimap、搜索、按回合导航、跟随、分页、step/子调用的耗时与吞吐、prompt 变化对比、原始请求分析、Markdown 导出。
+- **社区插件乙**（轨迹导出）：会话日志 → 自包含 HTML（带 SHA-256 审计戳）——与本次 C 块同构。
+- **社区插件丙**（轨迹调试）：瀑布图、确定性回放、断点、编辑重跑、fork 对比、性能分析（超出本波范围，回放 / 重跑不做）。
+- **社区插件丁**（两个同名插件）：一个是竖向执行流（turn / user / assistant / tool / 审批 / 重试 / 压缩，SSE 实时追加 + 自动跟随）；另一个是多 Agent 团队层级画布。可借鉴「审批、重试、压缩作为一等节点」。
+- **社区插件戊**（OTel 导出）：每回合一棵 OTel GenAI span 树（step、带 TTFT 的 LLM 调用、工具执行、token），走 OTLP 导出——说明「turn → step → llm/tool」的分层能直接映射 OTel。
 
 **可借鉴**：回合/步骤两级分隔；TTFT 与解码分段着色；尾部优先 + 向前分页 + 虚拟列表；跟随/暂停跟随；进行中不编造时长；检查器分 tab（概要 / 输入 / 输出 / 原始 JSON）。
 
-### 1.2 Claude Code（`/tmp/cc-src/big.txt`，压缩源码检索）
+### 1.2 工具 A（`本机材料`，压缩源码检索）
 
 - 状态里有 `viewingAgentTaskId` 与 `viewSelectionMode`，取值只见 `"none"` / `"viewing-agent"`；进入视图写 `viewSelectionMode:"viewing-agent"`，退出时清空并打点 `tengu_transcript_view_exit`。
 - 底栏选择 `footerSelection` 取值 `"tasks" | "workflows" | "memories" | "frame"`，配合 `coordinatorTaskIndex` 记当前选中项——即「状态行上方的任务栏 + 选择索引」，提示文案 `"Enter to view"`。
 - 任务对象带 `pendingMessages`（`{text, origin, isMeta}`），在视图里输入的消息先进该队列再投递给子 Agent；`retain` / `diskLoaded`：查看时若内存里没转录就**从磁盘加载**；`evictAfter`：离开视图后延时释放。
 - 审批：后台子 Agent 的审批照常弹出，带来源标注。
-- 结论：CC 的模型 = **底栏任务列表（选择态）→ 进入「查看某 Agent」模式（主区换成子 Agent 转录，输入框改投递给它）→ Esc 回主会话**，与已商定的 A 方案一致。
+- 结论：工具 A 的模型 = **底栏任务列表（选择态）→ 进入「查看某 Agent」模式（主区换成子 Agent 转录，输入框改投递给它）→ Esc 回主会话**，与已商定的 A 方案一致。
 
-### 1.3 Codex / OpenCode
+### 1.3 工具 B / 工具 E
 
-- **Codex**：`/agent` 在当前 TUI 内切换 agent 线程并查看进行中的线程；较新版本另有 `codex agents` 任务面板（搜索 / 打开 / 重命名 / 停止）；后台线程的审批在主线程弹出且带来源标签；子 agent 有路径式地址（`/root/agent_a`）。
-- **OpenCode**：子 Agent = 子会话（`parentID`）。`<leader>+Down`（leader 缺省 Ctrl+X）进入第一个子会话，进入后 ←/→ 在兄弟间循环、↑ 回父会话；这些键只在子会话里生效。历史上 ctrl+←/→ 与 macOS 切桌面冲突后改键——**键位冲突是真问题**，佐证本报告对 Ctrl+B 的谨慎。
+- **工具 B**：`/agent` 在当前 TUI 内切换 agent 线程并查看进行中的线程；较新版本另有独立的 agents 任务面板命令（搜索 / 打开 / 重命名 / 停止）；后台线程的审批在主线程弹出且带来源标签；子 agent 有路径式地址（`/root/agent_a`）。
+- **工具 E**：子 Agent = 子会话（`parentID`）。`<leader>+Down`（leader 缺省 Ctrl+X）进入第一个子会话，进入后 ←/→ 在兄弟间循环、↑ 回父会话；这些键只在子会话里生效。历史上 ctrl+←/→ 与 macOS 切桌面冲突后改键——**键位冲突是真问题**，佐证本报告对 Ctrl+B 的谨慎。
 - 可借鉴：在子 Agent 视图里用 ←/→ 切换兄弟任务、Esc/↑ 回父；切换器与查看器分开。
 
 ### 1.4 OpenTelemetry GenAI 语义约定（semantic-conventions-genai 仓库，Development 状态）
@@ -56,10 +56,10 @@
 
 **口径坑**：OTel 的 `gen_ai.usage.input_tokens` **应包含**缓存读写（registry 注 [42]），而 ama `usage.input` **不含**缓存部分（`session-format.md` 消息节）。导出时 `input_tokens = input + cacheRead + cacheWrite`。时间单位 OTel 是秒，ama 内部用 ms。
 
-### 1.5 LangSmith / Langfuse
+### 1.5 两种 LLM 观测平台的数据模型
 
-- **LangSmith Run**：`id`、`trace_id`、`parent_run_id`、`dotted_order`（`<ts>Z<uuid>.<child_ts>Z<child_uuid>…`，按字符串排序即得树序）、`run_type ∈ chain|llm|embedding|prompt|tool|retriever|parser`、`start_time`/`end_time`、**`first_token_time`**、`prompt_tokens`/`completion_tokens`/`total_cost`、`events`、`child_run_ids`。
-- **Langfuse**：Trace（一次请求）→ Observation（共享 `trace_id`，可嵌套），Session 聚合多条 trace。Observation 类型：`event / span / generation / agent / tool / chain / retriever / evaluator / embedding / guardrail`；generation 特有 `model`、`usageDetails`、`costDetails`、**`completionStartTime`**。
+- **观测平台甲的 Run**：`id`、`trace_id`、`parent_run_id`、`dotted_order`（`<ts>Z<uuid>.<child_ts>Z<child_uuid>…`，按字符串排序即得树序）、`run_type ∈ chain|llm|embedding|prompt|tool|retriever|parser`、`start_time`/`end_time`、**`first_token_time`**、`prompt_tokens`/`completion_tokens`/`total_cost`、`events`、`child_run_ids`。
+- **观测平台乙**：Trace（一次请求）→ Observation（共享 `trace_id`，可嵌套），Session 聚合多条 trace。Observation 类型：`event / span / generation / agent / tool / chain / retriever / evaluator / embedding / guardrail`；generation 特有 `model`、`usageDetails`、`costDetails`、**`completionStartTime`**。
 - **启示**：业界统一用「绝对起止时间 + 首 token 绝对时间」而非只存 ttft 差值——ama 也应存 `requestAt / firstTokenAt / doneAt` 三个 epoch ms，差值现算。节点用「类型 + parentId」平铺存储，树在读时组装（ama 的构建器同理）。`dotted_order` 的「可排序路径键」适合 RPC 分页游标。
 
 ---
@@ -120,7 +120,7 @@ interface NodeBase {
   id: string; // 稳定 id：turn = 用户消息 entryId；step = assistant entryId；tool = toolCallId；sub = taskId
   kind: "turn" | "step" | "tool" | "subcall" | "subagent" | "compaction" | "retry_wait" | "aux";
   startedAt?: number;
-  endedAt?: number; // 进行中只有 startedAt（不编造时长，学 dsh）
+  endedAt?: number; // 进行中只有 startedAt（不编造时长）
   approx?: boolean; // 时间来自回退推算（老会话 / 缺 ama.trace）
   status: "ok" | "error" | "aborted" | "denied" | "running" | "retried" | "interrupted";
   entryIds: string[]; // 回到会话条目（Enter 详情、/tree 跳转用）
@@ -235,7 +235,7 @@ buildTrace(input: { header; entries; leaf }, opts: { branch?: "leaf"|"all"; now?
 - 行布局（宽 ≥ 80）：`缩进+折叠符  标签                 耗时  ▕████▒▒▒░░▏  ↑in ↓out  缓存%`
   - 条形：一行内的相对时间轴（本 Turn 范围），`▒`=TTFT、`█`=解码、`░`=工具；`NO_COLOR` / ASCII 降级为 `[==..--]`；宽 < 60 时去掉条形与 token 列，只留「标签 · 耗时」；40 列可用（`tui-design.md` 约束）。
   - 标签例：`#3 用户 "修一下 …"`、`step 2 claude-… ttft 1.2s 64 tok/s`、`  read src/a.ts 0.1s`、`  task t2 explore 1m05s`、`压缩 threshold 8.4s`、`重试等待 4s`。
-- 键：↑↓ / PgUp PgDn / Home End 移动；→ 展开、← 折叠（子 Agent 节点展开即懒加载子轨迹）；Enter 详情卡片（概要 / 用量与缓存 / 参数与结果预览，内容截断与 md 导出同口径 500/2000 字）；`f` 跟随开关（进行中自动开，手动上移即暂停，学 dsh）；Esc 先关详情再关视图。
+- 键：↑↓ / PgUp PgDn / Home End 移动；→ 展开、← 折叠（子 Agent 节点展开即懒加载子轨迹）；Enter 详情卡片（概要 / 用量与缓存 / 参数与结果预览，内容截断与 md 导出同口径 500/2000 字）；`f` 跟随开关（进行中自动开，手动上移即暂停）；Esc 先关详情再关视图。
 - 分页：只渲染可见窗口（列表模型 = 扁平化的可见节点数组 + 窗口偏移），10k 节点也只算可见行；刷新由 `entry_appended` / `telemetry_tick`（≤2 Hz）驱动，增量重建只重算最后一个 Turn。
 - 文案进 i18n（若 W8 的 i18n 已落地则同步中英）。
 
@@ -253,7 +253,7 @@ buildTrace(input: { header; entries; leaf }, opts: { branch?: "leaf"|"all"; now?
 | 参数                          | 说明                                                                            |
 | ----------------------------- | ------------------------------------------------------------------------------- |
 | `branch?: "leaf"\|"all"`      | 缺省 leaf                                                                       |
-| `turnLimit?: number`          | 缺省 50（尾部优先，学 dsh），上限 500                                           |
+| `turnLimit?: number`          | 缺省 50（尾部优先），上限 500                                                   |
 | `before?: string`             | 回合游标（turn id = 用户消息 entryId），向前翻页                                |
 | `since?: string`              | 条目游标（同 `get_entries.since`）：只返回从包含该条目的 Turn 起的 Turn（增量） |
 | `taskId?: string`             | 返回该任务的子轨迹（ama 子会话或外部骨架）                                      |
@@ -266,7 +266,7 @@ buildTrace(input: { header; entries; leaf }, opts: { branch?: "leaf"|"all"; now?
 **数据来源**
 
 - 列表：`taskRegistryView(sessionId).list()`（已有，`TaskInfo`）+ `SubagentTracker` 的实时状态（`subagent-view.ts`，轮数、最近工具、用量）。
-- ama 子 Agent 实时全量：给 `TaskHandle` 加可选 `observe(listener): () => void` 与 `entries(): readonly SessionEntry[]`（`session-subagent.ts` 里 `child.subscribe` / `child.manager.branch()` 外露）；句柄已被 LRU 释放或 resume 后 → **只读加载 `sessionRef.sessionFile`**（CC 的 `diskLoaded` 同理），运行中再 `observe`。
+- ama 子 Agent 实时全量：给 `TaskHandle` 加可选 `observe(listener): () => void` 与 `entries(): readonly SessionEntry[]`（`session-subagent.ts` 里 `child.subscribe` / `child.manager.branch()` 外露）；句柄已被 LRU 释放或 resume 后 → **只读加载 `sessionRef.sessionFile`**（工具 A 的 `diskLoaded` 同理），运行中再 `observe`。
 - 外部 Agent：注册表每任务一个内存环形缓冲（`DriverEvent` 派生的展示事件，上限 2000 条 / 1 MB，不落盘，§5.4）；`SubagentEvent.tool` 增加可选 `id`、`at`，供视图与 `external_turn` 骨架使用。
 - 审批：已有 `permission_request` 带 `context.taskId`（`approval-dialog.ts` 已能标 `[task:<agent>]`）；视图里照常弹审批覆盖层；所查看的任务若在等审批，标题栏显示「等待审批」；Agent 栏条目上加「需审批」标记。
 
@@ -345,10 +345,9 @@ view ──任务被移除──▶ main + 提示
 
 ## 资料
 
-- dsh Trajectory README：https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/client/ui-trajectory/README.md ；npm：https://www.npmjs.com/package/@deepseek-ai/dsh-client-ui-trajectory
-- dsh-trajectory-traceview：https://dshfind.com/en/plugins/AFAP/dsh-trajectory-traceview ；dsh-trajectory：https://dshfind.com/en/plugins/ciceroyang/dsh-trajectory ；dsh-flow：https://dshpluginhub.ai/plugins/dsh-flow ；生态列表：https://github.com/0xsline/awesome-deepseek-harness
+- 工具 Z：官方 Trajectory README 与 npm 包；社区插件与生态列表（插件站点）
 - OTel GenAI semconv：https://github.com/open-telemetry/semantic-conventions-genai （`docs/gen-ai/gen-ai-spans.md`、`gen-ai-agent-spans.md`、`gen-ai-metrics.md`、`docs/registry/attributes/gen-ai.md`）
-- LangSmith Run 格式：https://docs.langchain.com/langsmith/run-data-format ；Langfuse：https://langfuse.com/docs/observability/data-model 、https://langfuse.com/docs/observability/features/observation-types
-- OpenCode 键位：https://opencode.ai/docs/keybinds/ 、https://github.com/anomalyco/opencode/issues/16462
-- Codex 子 Agent：https://learn.chatgpt.com/docs/agent-configuration/subagents 、https://github.com/shanraisshan/codex-cli-best-practice/blob/main/best-practice/codex-subagents.md
-- Claude Code：本机 `/tmp/cc-src/big.txt`（`viewingAgentTaskId`、`viewSelectionMode`、`footerSelection`、`pendingMessages`、`diskLoaded`、`"Enter to view"`）
+- 两种 LLM 观测平台的数据模型文档
+- 工具 E 键位文档与相关 issue
+- 工具 B 子 Agent：官方文档与社区实践
+- 工具 A：本机 `本机材料`（`viewingAgentTaskId`、`viewSelectionMode`、`footerSelection`、`pendingMessages`、`diskLoaded`、`"Enter to view"`）

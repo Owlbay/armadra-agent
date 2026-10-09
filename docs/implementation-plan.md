@@ -2,7 +2,7 @@
 
 > 状态：实施设计（2026-10-02），依据 `docs/design.md` v2 与**已合入代码**逐项核对。基线：`main` = `ead78f6`（B1 / B3 / B4 / B5 已合入，`pnpm run ci` 845 测试绿）；B2 在 PR #5（worktree `ama-wt/b2-loop`，`53bf979`，merge-base `06246af`，**尚未 rebase 到 ead78f6**，文件集与 main 无交集，预计无冲突）。
 > 本文回答五件事：组装根怎么写（§1）、第二波四个批次各自做什么（§2–§5）、第三波 B9 怎么收口（§6）、跨批次修复清单（§7）、风险与待定（§8）。
-> 路径约定：未加前缀的路径相对仓库根 `/Users/yovinchen/Projects/Rust/Tauri/armadra-agent/`；标 `[b2]` 的路径在 `/Users/yovinchen/Projects/Rust/Tauri/ama-wt/b2-loop/`（合入后同路径）。第三方参考只提 Pi。
+> 路径约定：未加前缀的路径相对仓库根 `/Users/yovinchen/Projects/Rust/Tauri/armadra-agent/`；标 `[b2]` 的路径在 `/Users/yovinchen/Projects/Rust/Tauri/ama-wt/b2-loop/`（合入后同路径）。文中不点名第三方项目。
 
 ## §0 结论
 

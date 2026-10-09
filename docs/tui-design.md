@@ -2,7 +2,7 @@
 
 > 适用：`src/tui/**`（组件库）与 `src/modes/interactive/**`（交互模式）。基线 main 217017c。
 > 约束不变：主屏模式（不用备用屏，历史进终端回滚，tmux `capture-pane` 可读）、差分渲染、运行时零依赖、`NO_COLOR` / 16 / 256 / truecolor 降级、40 列可用、中文宽字符正确、Windows Terminal 可用、括号粘贴。
-> 参考对象只有两个：Pi 1.0（组件模型、主题 JSON 的角色划分）与 Claude Code（视觉语言：`›` 输入、`⏺` / `⎿` 工具层级、spinner 动词、底部模式提示、编号审批）。
+> 吸收终端 Agent 的常见设计：组件模型、主题 JSON 的角色划分，以及视觉语言（`›` 输入、`⏺` / `⎿` 工具层级、spinner 动词、底部模式提示、编号审批）。
 
 ## 0. 现状诊断（对照 test/fixtures/tui/*.txt）
 
@@ -480,7 +480,7 @@ tmux 节点里宿主要解析最后一行：嵌入缺省 `compact`，字段顺�
 
 - 标题由原因决定：`需要确认`（mode）/ `危险命令`（dangerous）/ `Hook 要求确认`；来源标注见下文「来源标注」（第五波 W5-U）。边框颜色随预览严重度：danger `error`、warn `warning`、其余 `border`。
 - 工具名 `tool` 粗体，原因标签 `error` / `warning` / `dim`；命令 `code`；预览行按严重度着色（现有）；Auto 判定行 `warning`。
-- 选项编号列表（Claude Code 风格）：选中行 `›` + `selection` bg；右侧按键提示 `dim`。缺省选中：dangerous → 拒绝；其余 → 允许。按键 `y / a / n / Esc / 1 2 3 / ↑↓ Enter / v` 全部有效（旧按键不废）。edit / write 的输入摘要（`−/+` 摘要、`写入 N 行`、本会话未读过标黄）保留。
+- 选项编号列表：选中行 `›` + `selection` bg；右侧按键提示 `dim`。缺省选中：dangerous → 拒绝；其余 → 允许。按键 `y / a / n / Esc / 1 2 3 / ↑↓ Enter / v` 全部有效（旧按键不废）。edit / write 的输入摘要（`−/+` 摘要、`写入 N 行`、本会话未读过标黄）保留。
 - 覆盖层仍为 `bottom` 锚定全宽；对话框打开时输入框提示符变 `dim`，Loader 动词 `等待确认`。
 
 40 列：
