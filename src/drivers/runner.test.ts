@@ -91,7 +91,13 @@ describe("ProcessRunner × 假 ACP Agent", () => {
       },
     });
     expect(customs.map((c) => c.type)).toEqual([AGENT_SESSION_CUSTOM, AGENT_USAGE_CUSTOM]);
-    expect(customs[1]!.data).toMatchObject({ agent: "acp:fake", unit: "tokens", amount: 15 });
+    expect(customs[1]!.data).toMatchObject({
+      agent: "acp:fake",
+      unit: "tokens",
+      amount: 15,
+      contextTokens: 15,
+      contextWindow: 1000,
+    });
     expect(rec.specs[0]!.env).toEqual({ PATH: "/bin" });
     expect(events.map((e) => e.type)).toEqual(
       expect.arrayContaining(["turn", "tool", "text", "usage"]),
@@ -160,6 +166,25 @@ describe("ProcessRunner × 假 ACP Agent", () => {
     cleanups.push(() => handle.stop());
     await handle.wait();
     expect(rec.last()!.wire.some((w) => w.msg["method"] === "session/set_mode")).toBe(false);
+  });
+
+  it("外部 Agent 的上下文：回合中途变化时单独发一条只带占用与窗口的 usage，同值不重发；回合记账带上下文", async () => {
+    const { runner, customs } = setup();
+    const { req, events } = request("one");
+    const handle = await runner.start(req);
+    cleanups.push(() => handle.stop());
+    await handle.send("two");
+    await handle.wait();
+    const context = events.filter((e) => e.type === "usage" && e.usage === undefined);
+    expect(context).toEqual([
+      { type: "usage", contextTokens: 15, contextWindow: 1000 },
+      { type: "usage", contextTokens: 25, contextWindow: 1000 },
+    ]);
+    const usage = customs.filter((c) => c.type === AGENT_USAGE_CUSTOM).map((c) => c.data);
+    expect(usage).toEqual([
+      expect.objectContaining({ contextTokens: 15, contextWindow: 1000 }),
+      expect.objectContaining({ contextTokens: 25, contextWindow: 1000 }),
+    ]);
   });
 
   it("send 续聊同一会话；wait 拿最后一回合", async () => {

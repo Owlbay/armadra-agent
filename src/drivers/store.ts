@@ -31,6 +31,9 @@ export interface AgentUsageRecord {
   unit: ExternalUsageUnit;
   amount: number;
   tokens?: number;
+  /** 回合结束时该 Agent 报告的上下文占用与窗口（只记数字）。 */
+  contextTokens?: number;
+  contextWindow?: number;
 }
 
 /** 会话一侧的最小接口（`ToolContext.session` 或 SessionCore 都能提供）。 */
@@ -111,6 +114,8 @@ export function aggregateExternal(
     }
     row.amount += u.amount;
     if (typeof u.tokens === "number") row.tokens = (row.tokens ?? 0) + u.tokens;
+    if (typeof u.contextTokens === "number") row.contextTokens = u.contextTokens;
+    if (typeof u.contextWindow === "number") row.contextWindow = u.contextWindow;
   }
   return { byAgent };
 }
