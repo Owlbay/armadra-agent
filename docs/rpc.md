@@ -342,7 +342,7 @@
 {"type":"context_pressure","percent":71,"threshold":70,"remainingTokens":57990,"estimatedTurnsLeft":6}
 ```
 
-`cache_miss` 的 `detail` 只在 `prefix_changed` 时给出（`system` / `tools`）。`cache_warm{stopped}` 的 `reason` 取值与含义见 [tui.md](tui.md)「缓存与上下文」。`ama -p --output-format json` 的结果对象另有 `cache` 字段，形状同上。
+`cache_miss` 的 `detail` 只在 `prefix_changed` 时给出（`tools`、`system`，或带变化节名的 `system:<节名,…>`，如 `system:hooks,memory`）。`cache_warm{stopped}` 的 `reason` 取值与含义见 [tui.md](tui.md)「缓存与上下文」。`ama -p --output-format json` 的结果对象另有 `cache` 字段，形状同上。
 
 ## 审批
 

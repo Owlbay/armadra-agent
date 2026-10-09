@@ -103,7 +103,7 @@ Accept edits | shift+tab 切换    claude-opus-5-5 medium | Ctx 3.0% 8.2k/272k a
 未命中行按原因分列（`3 次，重计费 61k token ≈ $0.18（空闲超时 2 · 前缀变化 1）`）；保温行在计时中显示 `streaming · 下次 2m 10s · 期望节省 $0.18 ≥ $0.05`，停止时给原因；有 task 子会话时另有「子任务」行。
 
 - `/cache warm off|streaming|idle`：本会话内切换保温（不写配置；`idle` 在空闲时也保温，适合贵模型）。
-- `/cache fingerprint`：最近一次真实请求的前缀指纹——system 与工具表各一个 16 位哈希加模型名。两次之间哈希变了，就是宿主或 Hook 中途改了系统提示 / 工具表。
+- `/cache fingerprint`：最近一次真实请求的前缀指纹——system 与工具表各一个 16 位哈希加模型名，system 下逐节列出各节的哈希。两次之间哈希变了，就是宿主或扩展绕过补丁改了开头的系统提示 / 工具表，节哈希指出是哪一节。
 
 取舍：状态栏显示最近一次命中率（会话累计放 `/session`）；`cache.missNotices` 缺省开（门槛下很少触发）；`Meter` 组件不进缺省状态栏。命中率、未命中与保温的判定规则见 [providers.md](providers.md)「缓存」。
 

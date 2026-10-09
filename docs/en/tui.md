@@ -109,7 +109,7 @@ The message area (stderr with an `ama: ` prefix in line mode) shows one line in 
 The misses line is broken down by cause (`3, re-billed 61k tokens ≈ $0.18 (idle timeout 2 · prefix change 1)`); while the warming timer runs, the warming line shows `streaming · next in 2m 10s · expected saving $0.18 ≥ $0.05`, and when stopped it gives the reason; with task sub-sessions there is an extra "Sub-tasks" line.
 
 - `/cache warm off|streaming|idle`: switch warming for this session (the config is not written; `idle` also warms while idle, for expensive models).
-- `/cache fingerprint`: the prefix fingerprint of the latest real request: one 16-character hash each for the system prompt and the tool table, plus the model name. If a hash changed between two requests, the host or a hook modified the system prompt / tool table mid-session.
+- `/cache fingerprint`: the prefix fingerprint of the latest real request: one 16-character hash each for the system prompt and the tool table, plus the model name, with a hash per section listed under system. If a hash changed between two requests, the host or an extension changed the leading system prompt / tool table without a patch; the section hashes show which section.
 
 Trade-offs: the status bar shows the latest hit rate (the session total lives in `/session`); `cache.missNotices` is on by default (the thresholds make it rare); the `Meter` component is not in the default status bar. The rules for hit rate, misses and warming are in [providers.md](providers.md) "Caching".
 
