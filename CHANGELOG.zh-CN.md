@@ -22,6 +22,7 @@
 - **提示开头在会话内只写一次**：压缩不再把会话中途的 system 补丁折回开头——检查点只重放对话开始前发过的内容，之后的补丁以 `<system-reminder>` 跟在摘要后面，压缩后首个请求的 system + tools 与压缩前逐字节相同。会话中途移除工具时工具表保留其声明、尾部提醒「已不可用」，调用一律以 `Tool "X" is not available in this session.` 拒绝（未知工具也改用这句，原为 `Tool X not found`）；再加回只提醒「又可用」。提醒的收尾句同时说明工具可用性。
 - **压缩改为续写摘要而不是先裁剪**：裁掉工具结果后仍超预算、且缓存未冷时，不再裁剪，直接续写上一次请求的缓存前缀生成摘要（裁剪会断开这段前缀、变成一次全价的独立摘要请求）；缓存已冷时照旧先裁，也不再尝试续写。开着思考时，续写的输出上限 = 摘要上限 + 思考预算。
 - **软窗口与按节指纹**：`compaction.contextBudget` 生效——档一裁剪、档二摘要、熔断与 `context_pressure` 都按 min(模型窗口, 它) 计算。`cache_miss.detail` 写出变化的 system 节（`system:hooks,memory`），`/cache fingerprint` 逐节列出哈希。`openai-responses` 上的保温请求 `maxTokens` 用协议下限 16 而不是 1。
+- **fork 式子 Agent**（`task.context: "fork"`，或类型定义里写 `context: fork`；缺省仍是 `fresh`）：子会话继承父会话到这次 `task` 调用之前的对话，系统提示与工具表与父相同，首个请求直接复用父的缓存前缀（中转实测：Kimi 命中 97.5%，DeepSeek 与父自己的下一回合相同）。类型限制的工具改为在执行层拒绝，不再改工具表。指定了不同的模型或思考级别、父还没发过请求、或父上下文超过可用窗口一半时回落为 `fresh`（记日志，`details.context` 与 `TaskInfo.context` 标实际模式）。轮数用尽的收尾一轮不再发 `toolChoice: "none"`（它会断开缓存前缀），只靠报告提示要求不调用工具。
 
 ## 0.7.3（2026-10-09）
 
