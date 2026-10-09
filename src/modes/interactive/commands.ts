@@ -6,7 +6,8 @@
  *   之前分叉，消息文本回填编辑器）、权限模式、思考级别；
  * - 交互模式自有命令：`/tree`（同一文件内换叶子到选中消息之前，文本回填编辑器，可改后重发形成新分支）、
  *   `/permissions`（当前模式、判定顺序与已加载规则）；`/help` 追加这两条与按键说明。
- * - `/session`、`/cache`（无参数）与 `/permissions` 在消息区画左竖条面板（panels.ts），不再拍成文本。
+ * - `/session`、`/cache`（无参数）与 `/permissions` 在消息区画左竖条面板（panels.ts），不再拍成文本；
+ *   `/context` 同样画面板（context-report.ts，`PANEL_COMMANDS`），没有面板时回落文本。
  * - `/rewind`（无参数）打开回滚列表与确认面板（rewind-flow.ts）；带参数走 commands-core，对话变了时
  *   重画消息区并回填原消息。
  * - 不是命令（含模板与 `/skill:`）返回 false，调用方把整行当提示发出。
@@ -36,6 +37,7 @@ import {
   type CommandInfo,
   type CommandResult,
 } from "../commands-core.js";
+import { contextPanel } from "../context-report.js";
 import { contentText, type NoticeLevel } from "./message-view.js";
 import { cachePanel, permissionsPanel, sessionPanel } from "./panels.js";
 import {
@@ -131,6 +133,12 @@ export const PANEL_COMMANDS: Readonly<
   trace: async (ui, args) => {
     if (ui.traceView === undefined) return false;
     await ui.traceView(args === "" ? undefined : args);
+    return true;
+  },
+  context: async (ui) => {
+    const theme = ui.theme?.();
+    if (ui.panel === undefined || theme === undefined) return false;
+    ui.panel(contextPanel(ui.session(), theme));
     return true;
   },
   memory: async (ui, args) => {

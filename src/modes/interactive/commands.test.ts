@@ -4,7 +4,7 @@ import type { AgentSession } from "../../agent/types.js";
 import { currentSession, switchSession } from "../../cli/compose-session.js";
 import type { Runtime } from "../../cli/runtime.js";
 import { setLocale } from "../../i18n/index.js";
-import type { SelectItem } from "../../tui.js";
+import { plainTheme, type SelectItem } from "../../tui.js";
 import { ALL_COMMANDS, keyHints, runInteractiveCommand, type CommandUi } from "./commands.js";
 import { golden } from "./test-support.js";
 import type { PickerSpec } from "./pickers.js";
@@ -53,6 +53,22 @@ async function boot(script?: Parameters<typeof composeHarness>[0]): Promise<Runt
 const byValue = (value: string) => (spec: PickerSpec) => spec.items.find((i) => i.value === value);
 
 describe("交互命令", () => {
+  it("/context：有面板钩子时画面板，没有时回落文本通知", async () => {
+    const rt = await boot();
+    const { ui, notices } = recordingUi(rt);
+    expect(await runInteractiveCommand("/context", ui)).toBe(true);
+    expect(notices[0]).toContain("info:上下文\n");
+    const panels: string[][] = [];
+    const withPanel: CommandUi = {
+      ...ui,
+      theme: () => plainTheme(),
+      panel: (component) => panels.push(component.render(80)),
+    };
+    expect(await runInteractiveCommand("/context", withPanel)).toBe(true);
+    expect(notices).toHaveLength(1);
+    expect(panels[0]?.join("\n")).toContain("上下文");
+  });
+
   it("不是命令（普通文本、模板、/skill:）返回 false", async () => {
     const rt = await boot();
     const { ui } = recordingUi(rt);
