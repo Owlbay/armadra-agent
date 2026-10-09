@@ -153,7 +153,9 @@ src/
     types.ts                Api、Provider、Model、Compat、Message、AssistantEvent、StreamOptions                      350 [B0]
     event-stream.ts         AsyncIterable + result()                                                                  100 [B1]
     sse.ts                  SSE 解析器（event / data / 多行 data / 注释 / CRLF）                                        120 [B1]
-    http.ts                 fetch 包装：超时、头合并（null 删除）、错误体读取、代理 env 透传说明                        120 [B1]
+    http.ts                 fetch 包装：超时、头合并（null 删除）、错误体读取、带图请求体流式发送（json-body.ts）、代理 env 透传说明 300 [B1]
+    json-body.ts            请求体分片序列化：含 ≥ 64 KiB 字符串时按结构拼片段，大字符串原样写入；postJson 以流 + content-length 发送，字节与 JSON.stringify 相同 225 [M-B]
+    image-intern.ts         图片按内容哈希驻留（WeakRef 表 + FinalizationRegistry 清键），同一张图只留一份 base64          70  [M-D]
     json-partial.ts         容错 JSON 片段解析（流式 tool_call 参数）                                                   150 [B1]
     overflow.ts             上下文溢出错误识别（各家文案正则）                                                          100 [B1]
     cost.ts                 阶梯价、1h 缓存写 2×、Usage.input 不含缓存                                                 80  [B1]
@@ -180,7 +182,9 @@ src/
     manager.ts              SessionManager：open / create / inMemory、append、leaf、fork、clone、name                   500 [B2]
     projection.ts           buildContextEntries / buildProjection / buildContext                                        250 [B2]
     tree.ts                 树结构、公共祖先、路径                                                                       200 [B2]
-    store.ts                目录编码、文件名、原子追加、锁、trash                                                       220 [B2]
+    store.ts                目录编码、文件名、原子追加、锁、trash；按块逐行读取会话文件                                 220 [B2]
+    line-reader.ts          fd + 64 KiB 块逐行回调（复用缓冲、可提前停止）、lineTypeOf 只看行首                          90  [M-C]
+    list.ts                 会话列表：只解析头、首条、改名与首条提示，其余行只看类型                                      145 [M-C]
     migrate.ts              v1 文件读取兜底（预留）                                                                     60  [B2]
   compaction/
     estimate.ts             contextTokens 估算（含 output；编辑在 usage 之后则按投影重估）                              120 [B2]
@@ -197,6 +201,7 @@ src/
     paths.ts                展开 ~、相对 cwd 解析、禁止 NUL、符号链接策略                                               100 [B3]
     file-mutex.ts           按路径串行化读 - 改 - 写                                                                    60  [B3]
     read.ts                 文本 / 二进制检测 / 图片附件 / offset-limit                                                 220 [B3]
+    read-lines.ts           > 1 MiB 文本的字节窗口：64 KiB 块扫描，只解码要显示的行，口径与整读逐字节相同                155 [M-E]
     write.ts                整文件写、建父目录、先读后写检查                                                            130 [B3]
     edit.ts                 多处替换、唯一性、不重叠、BOM / CRLF 保留、diff 到 details                                  350 [B3]
     edit-fuzzy.ts           模糊匹配回退（NFKC、行尾空白、引号归一）                                                    200 [B3]
@@ -281,7 +286,7 @@ test/
 ```json
 {
   "name": "@armadra/agent", "version": "0.1.0", "type": "module", "license": "MIT",
-  "bin": { "ama": "dist/cli/main.js" },
+  "bin": { "ama": "dist/bundle/ama.cjs" },
   "exports": {
     ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
     "./host": { "types": "./dist/host.d.ts", "import": "./dist/host.js" },
@@ -350,6 +355,8 @@ export interface AssistantEventStream extends AsyncIterable<AssistantEvent> { re
 ```
 
 流契约（测试逐条断言）：请求成功后先 `start`；块事件配对；**恰好一个**终止事件；取消 → `error{reason:"aborted"}`；`toolcall_end` 时参数已是合法对象；**流函数不抛错**，失败编码进 `error` 事件（缺 key 例外：同步抛 `AmaError{code:"no_api_key"}`，启动期就能发现）。
+
+请求体序列化（`ai/json-body.ts`，2026-10 内存批次 M-B）：协议层只构造请求对象，`postJson` 负责编码。请求里没有 ≥ 64 KiB 的字符串时照旧 `JSON.stringify` 发字符串；有（图片 base64、超长工具输出）时沿普通对象 / 数组结构拼片段，小子树、带 `toJSON` 的值与 `undefined` / 函数 / symbol 的处理全部交给原生，大字符串确认无需转义后原样作为一个片段，再以 `ReadableStream` 逐片段编码发送并带准确的 `content-length`（定长，不走 chunked；不传 Buffer——fetch 会把 BufferSource 请求体再复制两份）。发出的字节与 `Buffer.from(JSON.stringify(body))` 逐字节相同（四协议请求体 × 缓存档位与 500 个随机 JSON 守护），所以 §9.1 的前缀稳定不受影响；`onPayload` 仍拿到对象。
 
 | 协议                   | 批次 | 理由                                                                                                                                                    |
 | ---------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -521,7 +528,7 @@ export interface ToolResult {
 
 | 工具    | 参数                                                                          | 权限 / 模式          | 行为规格                                                                                                                                                                                                                                                                                                                              |
 | ------- | ----------------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `read`  | `path, offset?(1 起), limit?`                                                 | read / parallel      | 相对 cwd 解析，`~` 展开；文本返回 `行号→内容`（`cat -n` 形状）；**头截断** 2000 行或字节上限先到者（上限 = 50 KB 与 `maxToolResultChars − 512` 取小，至少 1 KB；结果一次截到位，会话层不再二次截断），末尾写实际上限并提示 `offset` 续读，工具描述不写具体数字；二进制（NUL 嗅探）拒绝；图片 `png/jpg/gif/webp` 作为 ImageBlock 返回（模型不支持 image 则给路径与尺寸）；成功后加入 `ctx.readFiles`                                                                           |
+| `read`  | `path, offset?(1 起), limit?`                                                 | read / parallel      | 相对 cwd 解析，`~` 展开；文本返回 `行号→内容`（`cat -n` 形状）；**头截断** 2000 行或字节上限先到者（上限 = 50 KB 与 `maxToolResultChars − 512` 取小，至少 1 KB；结果一次截到位，会话层不再二次截断），末尾写实际上限并提示 `offset` 续读，工具描述不写具体数字；二进制（NUL 嗅探）拒绝；超过 1 MiB 的文本按 64 KiB 块字节窗口读取，只解码要显示的行，`totalLines` 只计换行，输出与整读逐字节相同（`tools/read-lines.ts`）；图片 `png/jpg/gif/webp` 作为 ImageBlock 返回（模型不支持 image 则给路径与尺寸）；成功后加入 `ctx.readFiles`                                                                           |
 | `write` | `path, content`                                                               | write / sequential   | 整文件覆盖，自动建父目录；文件存在且不在 `readFiles` → 错误「先 read」；保留原文件的 BOM 与换行风格（若存在）；`details: { bytes, created }`                                                                                                                                                                                             |
 | `edit`  | `path, edits: [{oldText, newText}], replaceAll?`                              | write / sequential   | 每处在**原文**上匹配、必须唯一且互不重叠（`replaceAll` 例外）；先精确再模糊（NFKC、行尾空白、引号 / 破折号归 ASCII）；不唯一 → 错误含出现次数与首两处行号；保留 BOM / CRLF；`details.diff` 统一 diff 给 TUI；要求先 read                                                                                                                 |
 | `bash`  | `command, timeoutMs?(缺省 120000，上限 600000), cwd?, description?`           | execute / sequential | shell：`AMA_SHELL` → POSIX `/bin/bash` → `sh`；Windows `AMA_SHELL` → Git Bash 已知路径 → `powershell -NoProfile -Command`；`spawn(shell, ["-c", command], { detached: !win, stdio: [ignore, pipe, pipe] })`；滚动尾部流式 `onUpdate`；超限（2000 行或与 `read` 相同的字节上限）**尾截断**并给 `full_output_path`，说明写实际上限；结果 `{output, exit_code, truncated, wall_time_seconds}`；信号退出 `128+signo`；注入 `AMA_SESSION_ID / AMA_SESSION_FILE / AMA_PROVIDER / AMA_MODEL / AMA_THINKING / AMA_DEPTH`；退出时清理所有活子进程 |
@@ -570,7 +577,7 @@ ama 不知道画布；Armadra 适配器经 `HostApi.tools.register` 注册 `canv
 
 **沙箱（零依赖）**：
 
-1. 每次执行起一个子进程：`<node> --permission --allow-fs-read=<沙箱入口文件> <沙箱入口>`；嵌入 Electron 时以 `ELECTRON_RUN_AS_NODE=1` 运行同一可执行文件。子进程**不授予**文件写、子进程、worker、addon、inspector 权限。
+1. 每次执行起一个子进程：`<node> --max-old-space-size=<n> --permission --allow-fs-read=<沙箱入口文件> <沙箱入口>`（`n` = `codemode.maxHeapMb`，缺省 256，0 不加该参数；子进程堆溢出时以脚本错误 `Script exceeded the codemode memory limit (<n> MB); process the data in smaller pieces` 结束，固定英文）；嵌入 Electron 时以 `ELECTRON_RUN_AS_NODE=1` 运行同一可执行文件。子进程**不授予**文件写、子进程、worker、addon、inspector 权限。
 2. 子进程里用 `node:vm` 建一个只含 ECMAScript 内建对象的上下文，注入上表的全局函数，`codeGeneration: { strings: false, wasm: false }`；超时由父进程强杀子进程树。
 3. `tools.*` 经 stdin / stdout 的 JSON 行协议回调父进程，由父进程的 `tool-runner` 执行；子进程本身拿不到任何密钥、会话文件或环境变量（以空环境启动）。
 4. 网络：Node ≥ 25 的权限模型同时拒绝网络（本机 Node 26 实测：`--permission` 下 `fetch` 返回 `ERR_ACCESS_DENIED`）；**Node 22 / 24 的权限模型不管网络**，脚本若逃出 `vm` 就能联网。所以：运行时 Node ≥ 25 → `strict`；Node 22 / 24 → `codemode` 仍可用但状态栏与工具描述标注「网络未隔离」，`config.codemode.requireStrict: true` 时直接禁用该工具。（S2 起：子进程另经操作系统沙箱启动，Node 22 / 24 有 `sandbox-exec` / bwrap / unshare 时同样 `strict`，见 [sandbox.md](sandbox.md)。）
@@ -1080,6 +1087,8 @@ export type { ToolDefinition, ToolContext, ToolResult, Model, ProviderData, Sess
 
 事件：v1 列表改名 `auto_retry_start / auto_retry_end`，加 `entry_appended{entry}`、`hook_executed`、`permission_mode_changed`、`agent_before_settle`；`message_update` 线上为纯增量 + 最新 `usage`；`agent_end{stopReason, willRetry}`。`permission_request` 带 `timeoutMs`，服务端超时自动 deny 并发 `permission_resolved`。
 
+精简事件（能力 `compact_events`，2026-10 内存批次 M-G）：客户端经 `set_client_capabilities` 声明后，`turn_end.toolResults[]` 每项只留 `{ toolCallId, toolName, isError, timestamp, contentOmitted: true }`，`message_start` 与 `entry_appended`（`message` 条目）里的 toolResult / 带图片的 user 消息 `content: ""` 并标 `contentOmitted: true`；`message_end` 与 `tool_execution_end` 始终全量（前者是客户端替换整条消息的依据，后者带 `details`）。未声明时线路逐字节不变，`hello.capabilities` 列出这一项；`-p --output-format stream-json` 没有这个开关。同一个大结果由 5 份降到 2 份（事件字节约 40%）。见 [rpc.md](rpc.md)「精简事件」。
+
 第五波增量：命令 `plan_response / get_plan / get_todos / get_tasks / get_agents`、能力 `plans`、事件 `plan_* / subagent_* / todo_updated / limit_reached / model_fallback / telemetry_tick`；另有 `--mode acp`（ACP 服务端）与 `@armadra/agent/acp`，见 [wave5-plan.md](wave5-plan.md) §5.6、§6.5、§9。
 
 ## §14 分发
@@ -1087,9 +1096,11 @@ export type { ToolDefinition, ToolContext, ToolResult, Model, ProviderData, Sess
 | 产物                        | 构建                                                              | 用途                                                                       |
 | --------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | `dist/`（ESM + d.ts）        | `tsc -p tsconfig.build.json`                                      | SDK；宿主拿类型（Armadra 以 Git 依赖 `github:Owlbay/armadra-agent#v0.x` 或 Release tarball 安装） |
-| `dist/bundle/ama.cjs`       | esbuild，全部内联，无原生模块，`target node22`                    | 宿主随包携带；`node ama.cjs` 或 `ELECTRON_RUN_AS_NODE=1 <Electron> ama.cjs` |
+| `dist/bundle/ama.cjs`       | esbuild，全部内联，无原生模块，`target node22`                    | 全局 `ama` 命令（`bin.ama`）；宿主随包携带；`node ama.cjs` 或 `ELECTRON_RUN_AS_NODE=1 <Electron> ama.cjs` |
 | GitHub Release              | `v*` 标签 → CI 全绿 → 附 `ama.cjs` + `ama-sandbox.cjs` + `SHA256SUMS` + `package.tgz`（`pnpm pack`） | 不走 npm 的用户直接跑 `ama.cjs`（与 `ama-sandbox.cjs` 同目录），或 `npm i -g ./package.tgz` |
 | npm publish                 | 0.2.1 起：`v*` 标签 → release job 在 GitHub Release 之后 `npm publish --provenance --access public`（npm ≥ 11.5.1 先用 OIDC 可信发布——npmjs.com 上为 `Owlbay/armadra-agent` 的 `ci.yml` 配 Trusted Publisher；换不到令牌时回退 `NODE_AUTH_TOKEN` = 仓库 secret `NPM_TOKEN`；两者都没有则 job 失败；版本已在 npm 上则跳过） | `npm i -g @armadra/agent`；SDK `import … from "@armadra/agent"`；包内只有 `dist/`（无源映射、无测试辅助）、README、LICENSE、CHANGELOG 与用户文档 |
+
+全局命令指向 bundle（2026-10 内存批次 M-F）：`bin.ama` = `dist/bundle/ama.cjs`（带 shebang，版本号构建时内联），比 ESM 入口启动快约一半、峰值 RSS 少约 25 MB；库导出（`.`、`./host`、`./rpc`、`./tui`、`./acp`）仍是 ESM `dist/*.js`。开发者 `pnpm link` 之后要先 `pnpm build` 生成 bundle。`release:check` 断言 `bin.ama` 是 `dist/bundle/*.cjs`、与 `exports["./bundle"]` 相同、已构建时首行是 shebang；e2e 用 `npm pack` 装包后跑 `node_modules/.bin/ama --version`。
 
 版本语义：`HOST_API_VERSION` 或 RPC `protocolVersion` 变 → 主版本；其余 semver。Windows：CI 跑单测 + `-p` 冒烟 + line 模式括号粘贴测试；TUI 在 Windows Terminal 手测。
 
