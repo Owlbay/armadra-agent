@@ -2,7 +2,7 @@
 
 > 状态：目标设计 v2（2026-10-02），未开始实施；替代 v1 全文。仓库 `github.com/Owlbay/armadra-agent`（MIT），npm 包名 `@armadra/agent`（0.2.1 起发布到 npm，打 `v*` tag 时由 CI 发布；Release 附件照常提供），可执行名 `ama`。
 > 两种用法都是一等公民：① 任意目录下的独立 CLI；② 嵌入 Armadra 画布作为协调者（Armadra 仓库 `docs/design/coordinator-agent.md`，下称「文档 B」；其 `HostApi`、`profile.json`、事件词汇、内置 id `ama` 的契约以本文 §6.2 / §10.3 / §13 为准）。
-> 参考版本 Pi 1.0（2026-10-01）。设计只借鉴 Pi 的分层、流事件契约、会话树、压缩与 TUI 组件模型；运行时不依赖它，也不出现其它任何第三方项目名。本文面向一个多代理并行实施团队：§1 给到文件级的目录树与所有权，§16 给批次与验收。
+> 设计吸收业界常见的分层、流事件契约、会话树、压缩与 TUI 组件模型；运行时不依赖任何第三方项目，文中也不出现第三方项目名。本文面向一个多代理并行实施团队：§1 给到文件级的目录树与所有权，§16 给批次与验收。
 
 ## §0 结论
 
@@ -10,24 +10,24 @@
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
 | D1  | **单包** `@armadra/agent`，子路径导出 `.`（SDK）、`./host`（宿主适配器类型）、`./rpc`（RPC 类型）、`./tui`（组件库，供宿主写对话框）、`./bundle`（单文件入口）                                                      | 一人维护多包只增加版本对齐成本；子路径导出已足够隔离契约面                                                                                                            | 加 `./tui` |
 | D2  | 技术栈：Node ≥ 22、TypeScript 5.9 strict、pnpm、vitest 4、prettier 3、esbuild；源码 ESM，bundle 输出 **CJS 单文件**；**运行时依赖为零**                                                                             | Armadra 三条 bundle 都是 CJS 单文件 `target: node22`，用 `ELECTRON_RUN_AS_NODE=1` 启动；零依赖让单文件无原生模块、无许可证拖累、启动快                                 | 零依赖收紧 |
-| D3  | **协议实现与供应商数据分离**：`ai/apis/*` 只实现协议（第一期 `anthropic-messages`、`openai-completions`；第二波 `google-generative-ai`、`openai-responses`），供应商 = `{id, baseUrl, api, envKeys, models[], compat}` 数据 | Pi 以 10 个协议接纳 40+ 供应商证明了这个拆法；国内常用供应商几乎全是 OpenAI 兼容线，两条协议即覆盖 §3.3 清单的 80%                                                     | 新 |
+| D3  | **协议实现与供应商数据分离**：`ai/apis/*` 只实现协议（第一期 `anthropic-messages`、`openai-completions`；第二波 `google-generative-ai`、`openai-responses`），供应商 = `{id, baseUrl, api, envKeys, models[], compat}` 数据 | 同类工具以十来个协议接纳 40+ 供应商，证明了这个拆法；国内常用供应商几乎全是 OpenAI 兼容线，两条协议即覆盖 §3.3 清单的 80%                                                     | 新 |
 | D4  | 内置供应商目录 13 家（§3.3），模型目录随包携带（`ai/providers/catalog/*.json`），用户用 `config.json` 增删改；**只支持 API Key**，不做 OAuth，不联网刷目录                                                              | 需求已定；OAuth 的刷新与存储是另一期                                                                                                                                  | 新 |
 | D5  | ama 的核心是**调用**：调用模型、调用工具、调用 Skill、调用子 Agent（`task`）、嵌入时调用画布上其它 CLI Agent（宿主注册的 `canvas_*` 工具）。**不做 MCP**，只做 Skill                                                | 五类调用在循环里是同一条路径（tool_call → 权限 → 执行）；MCP 的进程管理与权限模型是独立一期                                                                            | 明确 |
-| D6  | **两层 Hook**：① 用户配置的命令式 Hook（`hooks.json`，事件 SessionStart…Notification，stdin/stdout JSON，退出码语义）；② 进程内宿主适配器 `HostApi`（`--host`）。顺序：命令式 Hook → 权限管线 → 宿主 broker → 执行 | Pi 没有命令式 Hook，这是 ama 自有设计；两层职责不同：命令式 Hook 给用户与项目做策略，HostApi 给宿主做集成                                                             | 新 |
+| D6  | **两层 Hook**：① 用户配置的命令式 Hook（`hooks.json`，事件 SessionStart…Notification，stdin/stdout JSON，退出码语义）；② 进程内宿主适配器 `HostApi`（`--host`）。顺序：命令式 Hook → 权限管线 → 宿主 broker → 执行 | 命令式 Hook 是 ama 自有设计；两层职责不同：命令式 Hook 给用户与项目做策略，HostApi 给宿主做集成                                                             | 新 |
 | D7  | 核心零宿主概念；适配器**放宿主仓库**，本仓库只发布类型与 `HOST_API_VERSION = 1`；`create()` 返回 `undefined` 表示不激活                                                                                               | 适配器讲的是 Armadra 的 HTTP 面与令牌，随宿主发布节奏变                                                                                                               | 保留 |
-| D8  | 事件词汇沿用 Pi 扩展事件名（`session_start … agent_settled`，加 `tool_approval_requested/resolved`）                                                                                                                | Armadra `hook/normalize/pi.ts` 零翻译                                                                                                                                 | 保留 |
-| D9  | 会话是 **JSONL 条目树**；`message` 字段名与 Pi v3 一致；只追加                                                                                                                                                      | 分叉与分支摘要需要树；Armadra 历史解析几乎可复用                                                                                                                      | 保留 |
-| D10 | 两档压缩：档一裁剪（`context_edit`，无模型调用）、档二摘要（`compaction`）；**上下文估算含 output**；溢出 / `length` → 压缩后以新 run **重试一次**；会话层重试 3 次（2 s 起 ×2，上限 60 s），失败尝试用 `context_edit` 剔除 | 吸收 Pi 的教训：少算 output 会晚触发；失败尝试留在历史但不回放最干净                                                                                                  | 修订 |
-| D11 | 权限管线固定顺序：拒绝（规则 ∪ Hook deny）→ 危险命令 → 模式 → 允许（规则 ∪ Hook allow）；无人值守 `ask → deny`；**项目级配置只能收紧**，放宽只认用户级 / 命令行 / profile；项目级 Hook 与 Skill 需要**信任**           | 克隆来的仓库不能靠 `.ama/` 放开 `bash`；信任是 Pi 的做法，收紧是 ama 的加固                                                                                           | 修订 |
-| D12 | 交互界面是**差分渲染的终端 UI**（主屏模式、非备用屏），组件模型「给定宽度返回行」；范围是 Pi 的子集（砍掉清单 §12.9）；`--no-tui` 行式降级保留；`TERM=dumb` / 非 TTY 自动降级                                           | Armadra 终端节点在 tmux 里跑，需要终端自己的回滚、括号粘贴 + `\r` 提交；备用屏与鼠标在那里是负担                                                                      | 修订 |
-| D13 | 入口：`ama`（TUI）、`ama --no-tui`、`-p`（text / json / stream-json）、`--mode rpc`（stdio JSONL，Pi 形状）、SDK                                                                                                       | RPC 与 SDK 服务嵌入与测试；`-p` 服务脚本                                                                                                                              | 保留 |
+| D8  | 事件词汇沿用通行的扩展事件名（`session_start … agent_settled`，加 `tool_approval_requested/resolved`）                                                                                                                | Armadra 侧 Hook 归一化零翻译                                                                                                                                        | 保留 |
+| D9  | 会话是 **JSONL 条目树**；`message` 字段名沿用通行形状；只追加                                                                                                                                                      | 分叉与分支摘要需要树；Armadra 历史解析几乎可复用                                                                                                                      | 保留 |
+| D10 | 两档压缩：档一裁剪（`context_edit`，无模型调用）、档二摘要（`compaction`）；**上下文估算含 output**；溢出 / `length` → 压缩后以新 run **重试一次**；会话层重试 3 次（2 s 起 ×2，上限 60 s），失败尝试用 `context_edit` 剔除 | 吸收业界教训：少算 output 会晚触发；失败尝试留在历史但不回放最干净                                                                                                  | 修订 |
+| D11 | 权限管线固定顺序：拒绝（规则 ∪ Hook deny）→ 危险命令 → 模式 → 允许（规则 ∪ Hook allow）；无人值守 `ask → deny`；**项目级配置只能收紧**，放宽只认用户级 / 命令行 / profile；项目级 Hook 与 Skill 需要**信任**           | 克隆来的仓库不能靠 `.ama/` 放开 `bash`；信任是通行做法，收紧是 ama 的加固                                                                                           | 修订 |
+| D12 | 交互界面是**差分渲染的终端 UI**（主屏模式、非备用屏），组件模型「给定宽度返回行」；范围刻意收窄（砍掉清单 §12.9）；`--no-tui` 行式降级保留；`TERM=dumb` / 非 TTY 自动降级                                           | Armadra 终端节点在 tmux 里跑，需要终端自己的回滚、括号粘贴 + `\r` 提交；备用屏与鼠标在那里是负担                                                                      | 修订 |
+| D13 | 入口：`ama`（TUI）、`ama --no-tui`、`-p`（text / json / stream-json）、`--mode rpc`（stdio JSONL）、SDK                                                                                                       | RPC 与 SDK 服务嵌入与测试；`-p` 服务脚本                                                                                                                              | 保留 |
 | D14 | 独立模式的协调能力 = 同进程 `task` 子 Agent（深度 ≤ 1，并发 ≤ 4）；多 CLI 编排只在宿主下由宿主工具提供（第五波修订：独立模式也可经 `task(agent=…)` 驱动外部 CLI Agent，嵌入时由宿主注入 runner，见 [wave5-plan.md](wave5-plan.md) D13、D17）                                                                                                               | 终端、连线、worktree 是宿主领域                                                                                                                                       | 保留 |
 | D15 | 分发：仓库 `pnpm build` 产出 npm 包形状（ESM + d.ts）与 `dist/bundle/ama.cjs`；GitHub Release 附 `ama.cjs` + `ama-sandbox.cjs` + `package.tgz` + `SHA256SUMS`；0.2.1 起 `v*` tag 由 CI `npm publish --provenance` 发布 `@armadra/agent`（0.3.0 之后优先 OIDC 可信发布，`NPM_TOKEN` 作回退）；Armadra 从 npm、Git 依赖或 Release 产物拉取 | 0.2.0 先只发 Release；包形状一直保持可发布，0.2.1 起在 release job 末尾加一步 npm 发布，provenance 把包与仓库 / 提交绑定 | 修订（0.2.1） |
 | D16 | 测试不依赖真 key：脚本化 `fake` 供应商 + 录制的 SSE 样本黄金文件；TUI 用 `MemoryTerminal` 断言帧内容                                                                                                                 | CI 三平台可跑；供应商差异收敛在样本里                                                                                                                                 | 新 |
 | D17 | 单文件 ≤ 600 行（源码；测试文件 `*.test.ts` 放宽到 ≤ 1000 行），超出即拆；每个批次有明确文件所有权，跨批次只改自己拥有的文件，契约文件由 B0 所有                                                                                                             | 并行代理不互相覆盖；评审粒度可控                                                                                                                                      | 新 |
 | D18 | 加入 **codemode**（§5.5）：一个 `codemode` 工具让模型写一段 JS 脚本编排多次工具调用，只有脚本输出回到模型；脚本跑在 `node --permission` 子进程的 `vm` 上下文里，零依赖；`codemode.mode: off \| on \| only`，缺省 `off`（由工具预设 `codemode` 打开，§5.6；2026-10 改为跟随预设：`default` 预设在 Node ≥ 25 时 `on`，预设 `codemode` 更名 `codemode-only`，见 §5.5） | 长流程任务的主要成本是「每次工具结果都带着整段历史回到模型」；把多步调用合进一次往返，实测可把累计 token 降到四分之一 | 新 |
 | D19 | **工具预设**（§5.6）：默认 `default` 预设只给模型 6 个工具（read / edit / write / bash / grep / glob），`ls`、`todo`、`task`、`codemode` 默认关；删除 `skill` 工具（`read` 即可读 SKILL.md）；预设 `minimal` / `codemode` / `coordinator` 按场景切换 | 成本主要来自往返次数而非工具定义大小（10 个工具约 1650 token、在缓存前缀里）；ama 默认要审批 bash，保留只读的 grep / glob 才能让搜索免审批、跨平台 | 新 |
-| D20 | **精简配置**：零配置可用——检测到任一供应商的标准环境变量即选其缺省模型直接运行；用户只需一个 `config.json`，常用键不超过 5 个（`defaultModel`、`tools.preset`、`permission.mode`、`providers`、`thinkingLevel`）；其余全部有缺省 | 配置越少，出错与文档成本越低；与 Pi「开箱即用」的思路一致 | 新 |
+| D20 | **精简配置**：零配置可用——检测到任一供应商的标准环境变量即选其缺省模型直接运行；用户只需一个 `config.json`，常用键不超过 5 个（`defaultModel`、`tools.preset`、`permission.mode`、`providers`、`thinkingLevel`）；其余全部有缺省 | 配置越少，出错与文档成本越低；即「开箱即用」 | 新 |
 | D21 | **缓存保证**（§9.1）：系统提示与工具表构成字节稳定的前缀，跨回合不变；预设在会话开始时固定；工具表变化只以补丁追加；测试断言前缀逐字节稳定；状态栏显示缓存命中率 | 长任务的主要用量是缓存读取，前缀一旦抖动，缓存全部失效，成本成倍上升 | 新 |
 
 ### 第五波增补（0.5.0）
@@ -349,7 +349,7 @@ export type AssistantEvent =
 export interface AssistantEventStream extends AsyncIterable<AssistantEvent> { result(): Promise<AssistantMessage> }
 ```
 
-流契约（与 Pi 相同，测试逐条断言）：请求成功后先 `start`；块事件配对；**恰好一个**终止事件；取消 → `error{reason:"aborted"}`；`toolcall_end` 时参数已是合法对象；**流函数不抛错**，失败编码进 `error` 事件（缺 key 例外：同步抛 `AmaError{code:"no_api_key"}`，启动期就能发现）。
+流契约（测试逐条断言）：请求成功后先 `start`；块事件配对；**恰好一个**终止事件；取消 → `error{reason:"aborted"}`；`toolcall_end` 时参数已是合法对象；**流函数不抛错**，失败编码进 `error` 事件（缺 key 例外：同步抛 `AmaError{code:"no_api_key"}`，启动期就能发现）。
 
 | 协议                   | 批次 | 理由                                                                                                                                                    |
 | ---------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -530,7 +530,7 @@ export interface ToolResult {
 
 `task` 在第五波扩展为统一入口：`agent` 参数选择子 Agent 类型或外部 CLI Agent（定义文件 `.ama/agents/*.md`、内置 general / explore / plan），同轮并行、后台运行、`taskId` 续聊、worktree 隔离，配套 `task_ctl`；见 [wave5-plan.md](wave5-plan.md) §5、§7。
 
-通用安全：所有路径工具拒绝含 NUL 的路径；`paths.ts` 不做沙箱（与 Pi 相同声明：信任边界是容器 / VM），但 `permission.deny` 规则 `write(**/.git/**)`、`read(**/.ssh/**)` 等由内置缺省 deny 表给出，用户可移除。Windows：路径统一 `path`；`bash` 在 PowerShell 回退时把 `exit_code` 从 `$LASTEXITCODE` 取；`process-tree.ts` 用 `taskkill`；`grep/glob` 大小写不敏感文件系统提示。
+通用安全：所有路径工具拒绝含 NUL 的路径；`paths.ts` 不做沙箱（业界通行的声明：信任边界是容器 / VM），但 `permission.deny` 规则 `write(**/.git/**)`、`read(**/.ssh/**)` 等由内置缺省 deny 表给出，用户可移除。Windows：路径统一 `path`；`bash` 在 PowerShell 回退时把 `exit_code` 从 `$LASTEXITCODE` 取；`process-tree.ts` 用 `taskkill`；`grep/glob` 大小写不敏感文件系统提示。
 
 ### §5.3 Skill（渐进披露）
 
@@ -592,12 +592,12 @@ ama 不知道画布；Armadra 适配器经 `HostApi.tools.register` 注册 `canv
 
 **判断依据**：工具定义本身的成本很小（实测 10 个内置工具约 1 650 token，处在缓存前缀里）；真正的成本是**往返次数**——每多一次工具调用，整段历史就多读一次。所以取舍看四点：会不会诱导模型拆成很多小调用、单独成工具能否让权限细分（只读免审批、写入按路径）、跨平台可用性、使用场景。
 
-**与 Pi 的差异**：Pi 默认只开 read / bash / edit / write，因为它默认不审批；ama 的 `default` 权限模式对 `bash` 每次都问，若去掉 grep / glob，最常见的「搜代码」会每次弹审批（`-p` 下直接被拒）。用「识别只读 bash 命令」来绕开不可靠（`find -exec`、`rg --pre`、管道与命令替换都可能有副作用），所以保留只读的 grep / glob，用约 380 token 的缓存前缀换免审批且跨平台的搜索。
+**与常见做法的差异**：不少同类工具默认只开 read / bash / edit / write，因为它们默认不审批；ama 的 `default` 权限模式对 `bash` 每次都问，若去掉 grep / glob，最常见的「搜代码」会每次弹审批（`-p` 下直接被拒）。用「识别只读 bash 命令」来绕开不可靠（`find -exec`、`rg --pre`、管道与命令替换都可能有副作用），所以保留只读的 grep / glob，用约 380 token 的缓存前缀换免审批且跨平台的搜索。
 
 | 预设          | 模型直接看到                                         | 脚本内可调用（codemode）              | 用途                                         |
 | ------------- | ---------------------------------------------------- | ------------------------------------- | -------------------------------------------- |
 | `default`     | read、edit、write、bash、grep、glob（第五波 D20 曾加 todo，0.5.0 复测未过门撤回）；网络隔离时另加 codemode | 全部内置工具（含 ls、todo、task）      | 独立编码，缺省                               |
-| `minimal`     | read、edit、write、bash                              | —（显式 `on` 时全部内置工具）          | 与 Pi 一致；适合 `full-auto`；没有 grep / glob，检索走 bash（见下） |
+| `minimal`     | read、edit、write、bash                              | —（显式 `on` 时全部内置工具）          | 业界常见组合；适合 `full-auto`；没有 grep / glob，检索走 bash（见下） |
 | `codemode-only` | codemode                                           | 全部内置工具（含 ls、todo、task）      | 长流程、工具密集任务                         |
 | `coordinator` | read、宿主注册的 canvas_* / context_*（codemode 可选） | 只有活动集：read 与 canvas_* 等       | 嵌入 Armadra 的协调者：不写文件、不跑 bash   |
 
@@ -919,7 +919,7 @@ tool_call（模型产出）
 | 8  | 以**会话的 cwd** 为准：信任决策（`--trust/--no-trust` → trust.json → 交互询问 → 非交互不信任）                                                                                                                                                                             | —                                                                                                             |
 | 9  | 读项目级 `.ama/config.json`，按 §7.2 收紧规则合并；被忽略的放宽项记 warning                                                                                                                                                                                                | 语法错误 → **3**                                                                                              |
 | 10 | 资源发现：`context-files`（AGENTS.md 向上，外层在前）→ skills（§5.3 顺序，信任过滤）→ prompts 模板 → hooks.json（用户 / profile / 项目，信任过滤）→ `--instructions` 文件                                                                                                 | 文件读错 → warning 继续；hooks.json 语法错 → **3**；`--instructions` 不存在 → **3**                           |
-| 11 | 供应商与模型：`ProviderRegistry.build(builtin, config.providers)` → 解析模型（`--model` > 续会话最后 `model_change` > `config.defaultModel` > 第一个有 key 的供应商的目录首条）→ `auth.resolveApiKey(provider)`（§3.5）                                                   | 模型不存在 → **4** 并列出候选；`--provider` 不带 `--model` → **2**（不回退到别家缺省模型，同 Pi 1.0）；无 key 且 `requiresApiKey` → **4** 并提示 `ama auth set <provider>` 与环境变量名；交互模式改为弹模型选择器而非退出 |
+| 11 | 供应商与模型：`ProviderRegistry.build(builtin, config.providers)` → 解析模型（`--model` > 续会话最后 `model_change` > `config.defaultModel` > 第一个有 key 的供应商的目录首条）→ `auth.resolveApiKey(provider)`（§3.5）                                                   | 模型不存在 → **4** 并列出候选；`--provider` 不带 `--model` → **2**（不回退到别家缺省模型）；无 key 且 `requiresApiKey` → **4** 并提示 `ama auth set <provider>` 与环境变量名；交互模式改为弹模型选择器而非退出 |
 | 12 | 工具注册表：内置 → `config.tools.disabled` → `--tools` / `--exclude-tools`                                                                                                                                                                                                 | 未知工具名 → **2**                                                                                            |
 | 13 | 宿主适配器：`--host` / profile.host → `loader.load()`（版本校验）→ `create(api)`（超时 10 s）→ `undefined` 则不激活；激活后它注册工具、追加指令、设 broker                                                                                                                | 模块加载失败 → **6**；`hostApi` 版本不等 → **78**；`create` 抛错 / 超时 → **6**                               |
 | 14 | 组装 `AgentSession`（系统提示装配、权限管线、HookDispatcher、broker 链）；发 `session_start`；跑 `SessionStart` Hook（可追加上下文）                                                                                                                                       | Hook 退出码 2 → **6**；其它 Hook 错误 → warning                                                               |
@@ -1019,18 +1019,18 @@ export interface Theme { fg(name: SemanticColor, s: string): string; bg(...): st
 | 无 Kitty / 无鼠标        | 不查询、不启用；避免回包                                                                                        |
 | 自动降级                 | `TERM=dumb`、非 TTY、`--no-tui` → line 模式（同一套命令与审批 `y/n/a` 问答）                                     |
 
-### §12.9 相对 Pi 的砍掉清单
+### §12.9 砍掉清单
 
 备用屏 / 全屏模式与自管滚动、鼠标事件与选区、Kitty 键盘协议与键释放事件、图片渲染、九种覆盖层锚点（只留两种）、kill ring、HStack / ScrollView / SettingsList、`system` 主题的终端颜色探测、Markdown 表格与语法高亮、可替换页眉页脚、扩展自定义组件 API（宿主只能 `notify` / `setStatus`）、会话 HTML 导出、`!` 用户 bash 行、每日提示与 logo 动画。
 
-### §12.10 显示模式与启动画面（对照 Pi 1.0）
+### §12.10 显示模式与启动画面
 
-Pi 1.0 把 TUI 默认改为全屏（备用屏），并以 `tuiMode: "regular"` 保留终端原生回滚；ama 的取舍如下。
+同类工具常把 TUI 默认设为全屏（备用屏），另留一个保留终端原生回滚的模式；ama 的取舍如下。
 
 | 项         | ama 决定                                                                                                                                                                                  | 理由                                                                                                                           |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| 显示模式   | 第一期**只有主屏模式**（相当于 Pi 的 `regular`）；配置键 `ui.tuiMode` 与参数 `--tui-mode` 预留，取值 `regular`，`fullscreen` 记为后置（§12.9 砍掉清单）                                  | 嵌入 Armadra 时 core 要用 tmux 读屏、对话要进回滚供 `context_terminal` 读取、Eco 休眠后 resume 要能看到历史；备用屏会让三者都变差 |
-| 启动画面   | `ui.quietStartup`：`normal`（AMA 字符画 + 信息列：模型 / 目录与信任 / 模式 / 已加载资源 / 警告；启动时点亮一次；窄屏、`ui.logo: off` 或 `ui.compact` 不画字符画）、`header`（一行 `✻ ama 版本 · 模型 · 模式 · /help`）、`silent`（不输出）；参数 `--quiet-startup <档>` | 与 Pi 1.0 的 `quietStartup` 同义                                                                                                |
+| 显示模式   | 第一期**只有主屏模式**（保留终端原生回滚）；配置键 `ui.tuiMode` 与参数 `--tui-mode` 预留，取值 `regular`，`fullscreen` 记为后置（§12.9 砍掉清单）                                  | 嵌入 Armadra 时 core 要用 tmux 读屏、对话要进回滚供 `context_terminal` 读取、Eco 休眠后 resume 要能看到历史；备用屏会让三者都变差 |
+| 启动画面   | `ui.quietStartup`：`normal`（AMA 字符画 + 信息列：模型 / 目录与信任 / 模式 / 已加载资源 / 警告；启动时点亮一次；窄屏、`ui.logo: off` 或 `ui.compact` 不画字符画）、`header`（一行 `✻ ama 版本 · 模型 · 模式 · /help`）、`silent`（不输出）；参数 `--quiet-startup <档>` | 启动画面可分档收起                                                                                                             |
 | 嵌入缺省   | profile.config 缺省 `ui.quietStartup: "header"`                                                                                                                                           | 画布节点窄，资源清单由画布自己展示                                                                                              |
 
 ## §13 SDK 与 RPC
