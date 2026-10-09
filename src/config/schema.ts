@@ -8,7 +8,13 @@
 
 import { isAbsolute } from "node:path";
 import { msg } from "../i18n/index.js";
-import type { AmaConfig, AuthFile, ProfileFile, TrustFile } from "./types.js";
+import {
+  MIN_CONTEXT_BUDGET,
+  type AmaConfig,
+  type AuthFile,
+  type ProfileFile,
+  type TrustFile,
+} from "./types.js";
 import {
   Checker,
   THINKING_LEVELS,
@@ -165,6 +171,14 @@ function checkModels(
     ) {
       c.error(join(p, "modelsDev"), msg().config.schema.modelsDev);
     }
+    const catalog = item["catalog"];
+    if (
+      catalog !== undefined &&
+      catalog !== false &&
+      (typeof catalog !== "string" || !/^[^/]+\/.+$/.test(catalog))
+    ) {
+      c.error(join(p, "catalog"), msg().config.schema.catalog);
+    }
     c.stringArray(item, "channels", p);
     const used = item["channels"];
     if (Array.isArray(used)) {
@@ -297,11 +311,18 @@ export function validateConfig(value: unknown): Diagnostic[] {
       c.error(join(p, "builtinDeny"), msg().config.schema.builtinDeny);
     }
   });
-  const compactionKeys = ["enabled", "reserveTokens", "keepRecentTokens", ...W5_COMPACTION_KEYS];
+  const compactionKeys = [
+    "enabled",
+    "reserveTokens",
+    "keepRecentTokens",
+    "contextBudget",
+    ...W5_COMPACTION_KEYS,
+  ];
   checkSection(c, value, "compaction", compactionKeys, (s, p) => {
     c.boolean(s, "enabled", p);
     c.number(s, "reserveTokens", p);
     c.number(s, "keepRecentTokens", p);
+    c.number(s, "contextBudget", p, MIN_CONTEXT_BUDGET);
     checkCompactionW5(c, s, p);
   });
   checkSection(
@@ -375,8 +396,9 @@ export function validateConfig(value: unknown): Diagnostic[] {
     },
   );
   checkSection(c, value, "skills", ["dirs"], (s, p) => c.stringArray(s, "dirs", p));
-  checkSection(c, value, "request", ["idleTimeoutMs"], (s, p) => {
+  checkSection(c, value, "request", ["idleTimeoutMs", "streamIdleTimeoutMs"], (s, p) => {
     c.number(s, "idleTimeoutMs", p, 0);
+    c.number(s, "streamIdleTimeoutMs", p, 0);
   });
   checkSection(c, value, "checkpoints", ["mode", "maxFileBytes", "keep"], (s, p) => {
     c.oneOf(s, "mode", p, CHECKPOINT_MODES);

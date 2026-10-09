@@ -65,8 +65,15 @@ export const en = {
             : `model not found: ${ref} (ama models list shows available models)`;
       }
     },
-    source: (source: FieldSource): string =>
-      source === "catalog" ? "catalog" : source === "default" ? "default" : source,
+    /** [ME-C0] `catalog-alias`：中转 / 自定义模型按 id 匹配内置目录后继承的字段（ME-D 起使用）。 */
+    source: (source: FieldSource | "catalog-alias"): string =>
+      source === "catalog"
+        ? "catalog"
+        : source === "catalog-alias"
+          ? "catalog (via id)"
+          : source === "default"
+            ? "default"
+            : source,
     unmatched: "unmatched",
     match: (kind: MatchKind, ref: string, normalized: string | undefined): string => {
       const label: Record<MatchKind, string> = {
@@ -156,7 +163,14 @@ export const zh = {
             : `模型不存在：${ref}（ama models list 查看可用模型）`;
       }
     },
-    source: (source) => (source === "catalog" ? "目录" : source === "default" ? "缺省" : source),
+    source: (source) =>
+      source === "catalog"
+        ? "目录"
+        : source === "catalog-alias"
+          ? "目录（按 id 匹配）"
+          : source === "default"
+            ? "缺省"
+            : source,
     unmatched: "未匹配",
     match: (kind, ref, normalized) => {
       const label: Record<MatchKind, string> = {

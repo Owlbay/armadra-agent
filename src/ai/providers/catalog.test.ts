@@ -206,6 +206,26 @@ describe("模型目录", () => {
     ).toThrowError(/duplicated/);
   });
 
+  it("[ME-C0] aliases 为非空字符串数组、small 为非空字符串；合并后的模型不带 aliases", () => {
+    const model = { id: "a", name: "a", reasoning: false, maxTokens: 1 };
+    const file = (extra: Record<string, unknown>, entry: Record<string, unknown> = {}) => ({
+      version: 1,
+      provider: "x",
+      models: [{ ...model, ...entry }],
+      ...extra,
+    });
+    const parsed = parseCatalogFile(file({ small: "a" }, { aliases: ["a-v1", "vendor/a"] }), "t");
+    expect(parsed.models[0]).toEqual(model);
+    expect(() => parseCatalogFile(file({ small: 1 }), "t")).toThrowError(/\$\.small/);
+    expect(() => parseCatalogFile(file({ small: "" }), "t")).toThrowError(/\$\.small/);
+    expect(() => parseCatalogFile(file({}, { aliases: "a-v1" }), "t")).toThrowError(
+      /\$\.models\[0\]\.aliases/,
+    );
+    expect(() => parseCatalogFile(file({}, { aliases: ["ok", ""] }), "t")).toThrowError(
+      /\$\.models\[0\]\.aliases/,
+    );
+  });
+
   it("toModel 补 provider / api / input；override 只改元数据并深合并 compat / cost", () => {
     const model = toModel(
       { id: "m", name: "M", reasoning: true, maxTokens: 10 } as never,

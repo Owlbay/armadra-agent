@@ -245,6 +245,9 @@ export interface SessionManagerApi {
   getTree(): SessionTreeNode[];
   name(): string | undefined;
   setName(name: string): void;
-  /** 复制 root → entryId 的分支到新文件（parentSession 指回）。 */
-  fork(entryId: string): SessionManagerApi;
+  /**
+   * 复制 root → entryId 的分支到新文件（parentSession 指回）；`head` 作为新根条目，复制的首条重挂到
+   * 它下面（[ME-C0] fork 子会话的 `custom{ama.task}` 标记）。
+   */
+  fork(entryId: string, options?: { head?: SessionEntryInput }): SessionManagerApi;
 }

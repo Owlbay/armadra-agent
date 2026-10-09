@@ -46,6 +46,8 @@ export interface AgentSessionOptions {
   tools?: readonly ToolDefinition[];
   /** 活动集；缺省 = tools 全部。 */
   activeTools?: readonly string[];
+  /** [ME-C0] 留在请求工具表里、执行时拒绝的工具（fork 子会话的 tools / disallowed-tools）。 */
+  unavailableTools?: readonly string[];
   /** 权限管线（B3）；缺省 = 全部放行。 */
   permission?: PermissionPipelineApi;
   /** 审批回答者链：宿主 broker → UI broker；都返回 undefined → deny（无人值守）。 */

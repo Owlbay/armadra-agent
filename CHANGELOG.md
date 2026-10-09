@@ -9,6 +9,10 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 
 - **Parallel worktree isolation**: two isolated tasks starting together could fail with `could not read .git/worktrees/<id>/commondir`, because `git worktree add` read the other task's half-created admin directory. Worktree add / remove and branch deletion now run one at a time per repository, and the same transient errors from another ama process are retried briefly.
 
+### Model efficiency
+
+- **Contracts for the model-efficiency work** (docs/model-efficiency-plan.md): new optional fields only — `rawArguments` on tool-call blocks and `retryAfterMs` on failed assistant messages (session files and RPC, format and protocol versions unchanged), `context` on `ama.task` data and `TaskInfo`, `aliases` / `small` in the built-in model catalog. The config schema accepts `compaction.contextBudget`, `request.streamIdleTimeoutMs` and `models[].catalog`; they take effect in later batches.
+
 ## 0.7.3 (2026-10-09)
 
 - **`/context` before the first request**: it showed `0 / <window>` and left the system prompt and tool declarations out while the status bar already showed the baseline; it now estimates both from what the first request will send (shared with the status-bar baseline), and "Used" always matches the status bar and `getStats()`.

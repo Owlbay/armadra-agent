@@ -111,6 +111,7 @@ const ROWS: readonly Row[] = [
   row("compaction.enabled", "context", "now", "any"),
   row("compaction.reserveTokens", "context", "nextSession", "any"),
   row("compaction.keepRecentTokens", "context", "nextSession", "any"),
+  row("compaction.contextBudget", "context", "nextSession", "any", { kind: "optionalNumber" }),
   row("compaction.prune.keepResults", "context", "nextSession", "deny"),
   row("compaction.prune.clearAtLeast", "context", "nextSession", "deny"),
   row("cache.warming", "context", "now", "deny", { envOverride: "AMA_CACHE_WARMING" }),
@@ -120,6 +121,9 @@ const ROWS: readonly Row[] = [
   row("cache.warmSubagents", "context", "nextSession", "deny"),
   row("request.idleTimeoutMs", "context", "nextSession", "deny", {
     envOverride: "AMA_IDLE_TIMEOUT_MS",
+  }),
+  row("request.streamIdleTimeoutMs", "context", "nextSession", "deny", {
+    envOverride: "AMA_STREAM_IDLE_TIMEOUT_MS",
   }),
   row("retry.enabled", "context", "now", "deny"),
   row("retry.maxRetries", "context", "nextSession", "deny"),

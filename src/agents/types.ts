@@ -35,6 +35,8 @@ export interface AgentDefinition {
    */
   background?: boolean;
   runner: AgentRunnerSpec;
+  /** [ME-C0] frontmatter `context:`：`fork` 继承父会话已完成的回合；缺省 `fresh`。 */
+  context?: "fork" | "fresh";
   /** 正文：追加到子会话系统提示末尾的角色说明。 */
   prompt: string;
   source: AgentSource;

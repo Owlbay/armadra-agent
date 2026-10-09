@@ -15,7 +15,12 @@ import { DEFAULT_CODEX_CLIENT_VERSION } from "../auth/chatgpt/presets.js";
 import { messagesFor, msg } from "../i18n/index.js";
 import { DEFAULT_INLINE_BUDGET } from "../codemode/declarations.js";
 import { DEFAULT_CONFIG, mergeConfig } from "./merge.js";
-import { DEFAULT_CACHE_CONFIG, DEFAULT_CHECKPOINTS_CONFIG, type AmaConfig } from "./types.js";
+import {
+  DEFAULT_CACHE_CONFIG,
+  DEFAULT_CHECKPOINTS_CONFIG,
+  DEFAULT_STREAM_IDLE_TIMEOUT_MS,
+  type AmaConfig,
+} from "./types.js";
 
 /** 代码里生效、但 DEFAULT_CONFIG 不写的缺省（写进去会改变合并结果或 `config.codemode` 的有无）。 */
 const IMPLICIT_DEFAULTS: Partial<AmaConfig> = {
@@ -24,7 +29,10 @@ const IMPLICIT_DEFAULTS: Partial<AmaConfig> = {
   tools: { default: [] },
   codemode: { inlineBudget: DEFAULT_INLINE_BUDGET, requireStrict: false },
   cache: { ...DEFAULT_CACHE_CONFIG },
-  request: { idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS },
+  request: {
+    idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS,
+    streamIdleTimeoutMs: DEFAULT_STREAM_IDLE_TIMEOUT_MS,
+  },
   ui: {
     compact: false,
     logo: "auto",

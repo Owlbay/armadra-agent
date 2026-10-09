@@ -9,7 +9,6 @@
  */
 
 import { modelRefOf } from "../ai/providers/channels.js";
-import { readFileSync } from "node:fs";
 import { evaluateWarm } from "../ai/cache/economics.js";
 import { fingerprintContext } from "../ai/cache/fingerprint.js";
 import { DEFAULT_MIN_CACHE_TOKENS, IMPLICIT_CACHE_TTL_MS, detectMiss } from "../ai/cache/miss.js";
@@ -29,9 +28,9 @@ import { CacheWarmer, replayBlocker, type WarmerTimers } from "../ai/cache/warme
 import type { AssistantMessage, CacheRetention, Model, StreamOptions } from "../ai/types.js";
 import { estimateTextTokens } from "../compaction/estimate.js";
 import { SUMMARY_MAX_TOKENS, type SummaryContinuation } from "../compaction/summarize-tier.js";
-import type { SessionManager } from "../session/manager.js";
 import type { AgentMessage } from "../session/types.js";
 import type { StreamFn } from "./loop.js";
+import { cacheKeyOf } from "./session-cache-key.js";
 import { convertToLlm } from "./transform.js";
 import type { SessionCore } from "./session-core.js";
 import type { CacheSettings, SessionCacheStats } from "./types.js";
@@ -46,7 +45,6 @@ export const DEFAULT_CACHE_SETTINGS: Readonly<CacheSettings> = Object.freeze({
 
 export const PRESSURE_THRESHOLDS = [70, 90] as const;
 const GROWTH_SAMPLES = 5;
-const TASK_CUSTOM_TYPE = "ama.task";
 
 export function resolveCacheSettings(partial: Partial<CacheSettings> = {}): CacheSettings {
   const settings = { ...DEFAULT_CACHE_SETTINGS };
@@ -70,35 +68,6 @@ export function cacheTtlMs(model: Model, retention?: CacheRetention): number | u
   const cache = model.promptCache;
   const seconds = retention === "long" && cache?.long !== undefined ? cache.long : cache?.short;
   return seconds === undefined ? undefined : seconds * 1000;
-}
-
-function readHead(file: string): { id?: string; parentSession?: string; task: boolean } {
-  try {
-    const [header, first] = readFileSync(file, "utf8").split("\n", 2);
-    const parsed = JSON.parse(header ?? "{}") as { id?: string; parentSession?: string };
-    const entry = first ? (JSON.parse(first) as { customType?: string }) : undefined;
-    return { ...parsed, task: entry?.customType === TASK_CUSTOM_TYPE };
-  } catch {
-    return { task: false };
-  }
-}
-
-/** fork 链上的根会话 id（task 子会话与非 fork 会话用自己的 id）。 */
-export function cacheKeyOf(manager: SessionManager): string {
-  const header = manager.header();
-  const isTask = manager
-    .entries()
-    .some((entry) => entry.type === "custom" && entry.customType === TASK_CUSTOM_TYPE);
-  if (header.parentSession === undefined || isTask) return manager.id;
-  let id = manager.id;
-  let file: string | undefined = header.parentSession;
-  for (let depth = 0; depth < 8 && file !== undefined; depth++) {
-    const head = readHead(file);
-    if (head.id === undefined || head.task) break;
-    id = head.id;
-    file = head.parentSession;
-  }
-  return id;
 }
 
 interface TurnSnapshot {
