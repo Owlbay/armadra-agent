@@ -14,6 +14,7 @@
  */
 
 import { AMA_VERSION } from "../version.js";
+import { jsonFetchBody } from "./json-body.js";
 import type { AuthHeader } from "./types.js";
 
 export type HeaderSource = Readonly<Record<string, string | null | undefined>> | undefined;
@@ -215,6 +216,16 @@ export interface PostOptions {
   onResponse?: ((status: number, headers: Headers) => void) | undefined;
 }
 
+/** 流式请求体须带 `content-length`（不走 chunked，部分中转不收）；已有同名头时以算出的字节数为准。 */
+function withContentLength(
+  headers: Record<string, string>,
+  length: number | undefined,
+): Record<string, string> {
+  return length === undefined
+    ? headers
+    : mergeHeaders(headers, { "content-length": String(length) });
+}
+
 /**
  * POST JSON 并返回 2xx 响应（body 是 SSE 字节流）。非 2xx → HttpError；超时 → RequestTimeoutError
  * （`timeoutMs`）或 IdleTimeoutError（`idleTimeoutMs`）；调用方的 signal 中止 → 原样抛 AbortError
@@ -230,10 +241,12 @@ export async function postJson(url: string, options: PostOptions): Promise<Respo
   const signal = AbortSignal.any([options.signal, timer.signal]);
   let response: Response;
   try {
+    const payload = jsonFetchBody(options.body);
     response = await fetch(url, {
       method: "POST",
-      headers: options.headers,
-      body: JSON.stringify(options.body),
+      headers: withContentLength(options.headers, payload.contentLength),
+      body: payload.body,
+      ...(payload.contentLength === undefined ? {} : { duplex: "half" as const }),
       signal,
     });
   } catch (error) {
