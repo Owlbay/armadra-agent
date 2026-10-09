@@ -31,6 +31,7 @@ const IMPLICIT_DEFAULTS: Partial<AmaConfig> = {
     animation: true,
     restoreOnCancel: true,
     enterWhileRunning: "queue",
+    programStatus: "auto",
     language: "auto",
   },
   // [W6-C0] 第六波键的缺省（行为由各批次实现）

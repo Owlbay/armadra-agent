@@ -214,6 +214,8 @@ export interface UiConfig extends UiConfigW6 {
   restoreOnCancel?: boolean;
   /** 运行中按 Enter：queue（缺省）排队插话，interrupt 打断并立即发送（与 `app.message.interrupt` 互换）。 */
   enterWhileRunning?: "queue" | "interrupt";
+  /** 终端程序状态 OSC 7501：auto（缺省）检测通过才发，on 不检测直接发，off 不发。 */
+  programStatus?: "auto" | "on" | "off";
   /** [W5-C0] 底部信息行（W5-A）：缺省独立终端 full、嵌入宿主（有 profile）compact。 */
   statusLine?: StatusLineMode;
 }

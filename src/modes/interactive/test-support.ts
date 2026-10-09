@@ -20,6 +20,7 @@ import type { ClipboardDeps } from "../../tools/clipboard-image.js";
 import { MemoryTerminal, plainTheme, stripAnsi, type Component, type Theme } from "../../tui.js";
 import { AMA_VERSION } from "../../version.js";
 import { runInteractiveMode, type InteractiveHandle } from "./interactive-mode.js";
+import type { ProgramStatusOptions } from "./program-status-ui.js";
 
 export function usage(partial: Partial<Usage> = {}): Usage {
   return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, ...partial };
@@ -123,6 +124,8 @@ export async function start(
     statusLine?: "full" | "compact";
     /** 剪贴板读取的注入（W5-U；缺省不允许调系统命令）。 */
     clipboard?: ClipboardDeps;
+    /** 启用终端程序状态 OSC 7501（缺省不启用）。 */
+    programStatus?: ProgramStatusOptions;
   } = {},
 ): Promise<Started> {
   if (options.keepHarness !== true || started.h === undefined)
@@ -155,6 +158,7 @@ export async function start(
     clipboard: options.clipboard ?? {
       run: async () => ({ code: null, stdout: Buffer.alloc(0), stderr: "", missing: true }),
     },
+    ...(options.programStatus !== undefined ? { programStatus: options.programStatus } : {}),
     onReady: (x) => (handle = x),
   });
   if (handle === undefined) throw new Error("not ready");

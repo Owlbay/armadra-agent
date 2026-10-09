@@ -6,6 +6,10 @@
 
 ## 未发布
 
+- **终端程序状态（OSC 7501）**：交互界面用 [程序状态协议](https://www.superlogical.com/rex/docs/build/program-status) 把
+  idle / working / blocked（permission、question、auth）/ done / error 报告给终端，子 Agent 任务为子记录 `task/<id>`，退出时清掉记录。
+  `ui.programStatus`：`auto`（缺省，终端回应检测查询后才发；tmux 里不发）、`on`（不检测；tmux 里经 passthrough）、`off`。检测回复不会
+  进输入框。print / RPC / ACP 模式不发。
 - **ACP 立即有上下文用量**：`ama --mode acp` 在 `session/new`、`session/load`（回放之后）、`session/resume` 答复之后、换模型时与每条助手
   消息结束时都发 `usage_update`（多工具回合中途也更新），不再只在回合结束时发；与上次同值不重发。窗口未知时仍不发（schema 里 `size` 必填）。
 - **`-p --output-format json` 带上下文**：结果对象加 `context: { tokens, window, percent }`，未知项省略。

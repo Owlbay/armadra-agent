@@ -7,6 +7,12 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 
 ## Unreleased
 
+- **Terminal program status (OSC 7501)**: the interactive interface reports idle / working / blocked (permission,
+  question, auth) / done / error to the terminal with the
+  [Program Status Protocol](https://www.superlogical.com/rex/docs/build/program-status), sub-agent tasks as child records
+  `task/<id>`, and clears its records on exit. `ui.programStatus`: `auto` (default, only after the terminal answers the
+  detection query; off inside tmux), `on` (no detection; tmux passthrough), `off`. Detection replies never reach the input
+  box. Print / RPC / ACP modes send nothing.
 - **ACP context usage right away**: `ama --mode acp` now sends `usage_update` after the `session/new`, `session/load`
   (after the replay) and `session/resume` responses, after a model change and at the end of every assistant message (so
   multi-tool turns update too), instead of only at the end of a turn; unchanged values are not resent. With an unknown
