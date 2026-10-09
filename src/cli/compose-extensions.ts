@@ -27,6 +27,7 @@ import { createLimitsExtension } from "../agent/limits.js";
 import { createRemindersExtension, remindersSettings } from "../agent/reminders.js";
 import { planExtensionFor } from "../plan/compose.js";
 import { createSubagentsFactory } from "./compose-agents.js";
+import { requestTimeoutsFactory } from "./compose-request.js";
 import type { SessionAssembly } from "./deps.js";
 import { createExternalStatsExtension } from "../drivers/store.js";
 
@@ -54,5 +55,6 @@ export function composeExtensions(deps: ComposeExtensionDeps): SessionExtensionF
     ({ core }) =>
       core.depth > 0 ? undefined : createExternalStatsExtension(() => core.manager.branch()),
     createSubagentsFactory(deps), // [W5-G] 子 Agent 任务注册表
+    requestTimeoutsFactory(deps), // [ME-C] request.streamIdleTimeoutMs → 每次请求的流中空闲上限
   ];
 }

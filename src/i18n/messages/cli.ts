@@ -171,6 +171,8 @@ export const en = {
       `AMA_CACHE_RETENTION=${value} is invalid (none | short | long), ignored`,
     invalidIdleTimeout: (value: string) =>
       `AMA_IDLE_TIMEOUT_MS=${value} is invalid (expected milliseconds ≥ 0), ignored`,
+    invalidStreamIdleTimeout: (value: string) =>
+      `AMA_STREAM_IDLE_TIMEOUT_MS=${value} is invalid (expected milliseconds ≥ 0), ignored`,
     notSessionManager:
       "The composition root only accepts SessionManager instances (created by sessions.open)",
     apiNotImplemented: (ref: string, api: string, viaOpenrouter: boolean) =>
@@ -339,6 +341,8 @@ export const zh = {
       `AMA_CACHE_RETENTION=${value} 无效（none | short | long），已忽略`,
     invalidIdleTimeout: (value) =>
       `AMA_IDLE_TIMEOUT_MS=${value} 无效（应为不小于 0 的毫秒数），已忽略`,
+    invalidStreamIdleTimeout: (value) =>
+      `AMA_STREAM_IDLE_TIMEOUT_MS=${value} 无效（应为不小于 0 的毫秒数），已忽略`,
     notSessionManager: "组装根只接受 SessionManager 实例（由 sessions.open 创建）",
     apiNotImplemented: (ref, api, viaOpenrouter) =>
       `模型 ${ref} 的协议 ${api} 尚未实现` + (viaOpenrouter ? "；过渡期请经 openrouter 调用" : ""),
