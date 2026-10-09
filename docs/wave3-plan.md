@@ -1,7 +1,7 @@
 # 第三波设计与实施计划
 
 > 状态：实施设计（2026-10-02）。基线：`main` = `68c2beb`（B1–B6、B8、B10 已合入，`pnpm run ci` 约 1250 测试绿）；B7 交互模式已合入 main（PR #12）。
-> 设计依据：`docs/design.md`（§5.5 codemode、§5.6 预设、§9 压缩、§9.1 缓存保证、§10.0 精简配置、§13 SDK / RPC）、`docs/implementation-plan.md`（§6 B9、§7 表 A / 表 B、§9 增补）、生态调研（只借鉴设计，不复制代码；文中第三方只提 Pi，其余以「生态里的某类插件」指代）、真实中转实测。
+> 设计依据：`docs/design.md`（§5.5 codemode、§5.6 预设、§9 压缩、§9.1 缓存保证、§10.0 精简配置、§13 SDK / RPC）、`docs/implementation-plan.md`（§6 B9、§7 表 A / 表 B、§9 增补）、生态调研（只吸收设计，不复制代码；文中不点名第三方，以「同类工具」「生态里的某类插件」指代）、真实中转实测。
 > 路径相对仓库根；`[W3-xx]` 为本波批次编号（§3）。
 
 ## §0 结论
@@ -111,7 +111,7 @@ export function detectMiss(
 ): CacheMiss | undefined;
 ```
 
-算法（Pi 内置做法 + 两点改进）：
+算法（业界常见做法 + 两点改进）：
 
 1. 不计的情形：没有 `prev`；`cur.promptTokens === 0`；`cur.cacheRead + cur.cacheWrite === 0` 且该端点状态不是 `reported`（§1.6）；`prev.promptTokens < minTokens`（低于最小可缓存长度判 unknown 不判 miss，这是「低于门槛不判未命中」的生态做法）。
 2. `missed = min(prev.promptTokens, cur.promptTokens) − cur.cacheRead`；`missed ≤ noiseFloor` 不计，`noiseFloor = max(1024, promptCache.minTokens ?? 1024, 端点推断的缓存粒度)`（粒度见 §1.6；实测 DeepSeek 经中转按 2048 一块报 cacheRead，不足一块的尾部会被算成假未命中，`docs/benchmarks/cache-2026-10-02.md` E1 / E5）。
@@ -166,7 +166,7 @@ export class CacheWarmer {
 | 触发     | 每个 `purpose: "turn"` 的真实请求发出时 `start()`（替换上一轮）；`agent_settled` 时 `streaming` 模式停止、`idle` 模式转空闲相；`setModel` / `setThinkingLevel` / 压缩 / `/tree` / `dispose` 时 `cancel()`，等下一次真实请求再开始                                                                                                                                       |
 | 延迟     | `delay = max(1s, floor(min(0.9·TTL, TTL − 10s)))`；TTL ≤ 10 s 不保温；**计时从请求发出算**（生成 3 分钟的回答只剩 2 分钟）                                                                                                                                                                                                                                              |
 | 截止     | `deadline = nextWarmAt + (TTL − delay) / 2`；计时器迟到超过截止（睡眠、事件循环阻塞）直接停止——迟到的刷新大概率是一次全价写入                                                                                                                                                                                                                                           |
-| 上限     | streaming 相 60 min、idle 相 30 min（从起始真实请求算）；连续 2 次保温响应 `cacheRead + cacheWrite === 0` 即停（Pi 没有这条，对用户自填 `promptCache` 的端点很重要）                                                                                                                                                                                                    |
+| 上限     | streaming 相 60 min、idle 相 30 min（从起始真实请求算）；连续 2 次保温响应 `cacheRead + cacheWrite === 0` 即停（常见实现没有这条，对用户自填 `promptCache` 的端点很重要）                                                                                                                                                                                               |
 | 经济性   | `promptTokens` = 上一次真实请求的 input + cacheRead + cacheWrite；`hitCost = price({cacheRead: P})`；`missCost = price(cacheWrite > 0 ? {cacheWrite: P} : {input: P}) − hitCost`；`warmCost = price({cacheRead: P, output: 1})`；`p = 1`（streaming）/ `0.15`（idle）；`p·missCost − warmCost ≥ cache.minSavingsUsd（0.05）` 才发；价格为 0 或缺 → 「经济性不可算」不发 |
 | 不可重放 | anthropic-messages 且 `reasoning` 开且 `!compat.adaptiveThinking`：预算从 `max_tokens` 推导（`anthropic-request.ts:237-239`），`max_tokens: 1` 会去掉 thinking 块，改变缓存键 → 不保温；`cacheRetention: "none"` 的请求不保温；被 `onPayload` 替换过请求体的不保温                                                                                                      |
 | 发送     | `api.stream(model, record.contextRef, { ...record.options, maxTokens: 1, purpose: "warm", signal })`，不经重试，失败静默；计时器 `unref()`                                                                                                                                                                                                                              |
@@ -174,7 +174,7 @@ export class CacheWarmer {
 | 否决钩子 | 每次刷新前调 `decide({ warmCost, missCost, probability, action })`；宿主经 HostApi 新增 `api.cache.onWarmingDecision(handler)`（§2.6 扩展也用它）；出错回落内置决策                                                                                                                                                                                                     |
 | 配置来源 | `cache.warming` 只认用户级 / profile（项目级忽略并 warning，同 `permission.allow` 的处理，`src/config/merge.ts:134-198`）；`AMA_CACHE_WARMING` 环境变量覆盖；`/cache warm off                                                                                                                                                                                           | streaming | idle` 会话内临时切换 |
 
-按目录价格的盈亏点（P 为前缀 token）：Fable 5.1 streaming ≥ 4.1k / idle ≥ 31.5k；Sonnet 5.5 23.8k / 345k；Kimi K3 20.8k / 476k；DeepSeek Flash 174k / 永不。结论与 Pi 一致：长工具运行期间几乎总划算（这正是 `bash` 长测试与 `task` 子任务的场景），空闲保温留给贵模型。
+按目录价格的盈亏点（P 为前缀 token）：Fable 5.1 streaming ≥ 4.1k / idle ≥ 31.5k；Sonnet 5.5 23.8k / 345k；Kimi K3 20.8k / 476k；DeepSeek Flash 174k / 永不。结论与业界常见判断一致：长工具运行期间几乎总划算（这正是 `bash` 长测试与 `task` 子任务的场景），空闲保温留给贵模型。
 
 ### §1.8 压缩摘要走会话前缀续写
 

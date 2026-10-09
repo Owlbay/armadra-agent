@@ -1,20 +1,20 @@
 # Agent 切换修复与主会话并行交流设计
 
-> 针对两条用户反馈：① 「`Ctrl+B` / `↓` 进 Agent 栏、Enter 开子 Agent 视图没有效果」；② 「ama 运行其它 Agent 时主会话应该还能继续交流，像 Claude Code 那样」。
+> 针对两条用户反馈：① 「`Ctrl+B` / `↓` 进 Agent 栏、Enter 开子 Agent 视图没有效果」；② 「ama 运行其它 Agent 时主会话应该还能继续交流」。
 > 本文是设计稿（目标），现状以 [tui.md](tui.md)「子 Agent」与 [agents.md](agents.md) 为准；实施完成后把本文结论回写到那两份文档，本文留作依据。
 > 复现基于 main `98edd83`（0.6.2 + 未发布修复）的打包产物 `dist/bundle/ama.cjs`，2026-10-03。
 
 ## §0 结论
 
-| #   | 决定                                                                                                                                                                                                                                                                                                                                             | 理由 / 证据                                                                                                                                                                                                                |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D1  | 问题 1 不是处理器坏了：按键链路在 80×24 / 120×40、运行中 / 空闲、tmux 内（`send-keys`）/ tmux 外（expect 伪终端）都能进栏、开视图（§1.2）。失败只在四种环境条件下复现：tmux 客户端吞掉 `Ctrl+B`；`↓` 又只在「栏可见」时生效；嵌入宿主（有 profile）缺省 `ui.agentBar: "off"`；输入框有字时两个键都无声落回编辑器。                               | §1.2 复现记录、§1.3 根因（`key-dispatch.ts:153-160`、`agent-ui.ts:305-306`、`merge.ts:60`、`keybindings.ts:50`）                                                                                                           |
-| D2  | 修法是换键位 + 放宽门控 + 给反馈，不改状态机：`↓`（空输入，**有任务即可**，不再要求栏可见）成为进栏主键；`Ctrl+B` 改作「前台任务转后台」（与 Claude Code 对齐）；运行提示行与栏末行写明按键；输入有字时按进栏键给一行提示。                                                                                                                      | tmux 缺省前缀就是 `C-b`，Claude Code 自己的 keybindings 文档也把 tmux `ctrl+b` 列为要避开的冲突；`↓` 在空输入、未浏览历史时本来是空操作（`editor.ts:293-296`），可以无损征用                                               |
-| D3  | 子 Agent 缺省后台运行（`task.background` 缺省 `true`），模型只在「下一步必须等结果」时写 `background:false`；`-p` 强制前台缺省。工具描述与一句规则按 Claude Code 的措辞改写，固定英文、会话内不变。                                                                                                                                              | Claude Code 工具描述：「Agents run in the background by default… Set to false only when your very next action depends on this agent's result」；现有后台通道（`notify` → `followUp(origin:"task")`、W5-H2 收尾投递）已稳定 |
-| D4  | 新增「转后台」原语：`SubagentRegistry.background(taskId?)` 让阻塞中的前台 `task`（及 `task_ctl wait`）立即以固定英文结果返回，主回合继续，任务改记后台、完成后照常 `<task-notification>`。入口：TUI `Ctrl+B`、栏 / 视图内 `b`、`/tasks bg [id]`、RPC `background_task`、SDK `session.backgroundTask()`、配置 `subagents.autoBackgroundAfterMs`。 | Claude Code 的 `background_tasks` 控制请求：「Each blocking tool call returns immediately with a 'running in the background' tool_result and the turn continues」                                                          |
-| D5  | Esc 语义不变：中断主回合连带中止**仍是前台**的任务（它们属于本回合）；已转后台 / 本来就是后台的任务不受影响。                                                                                                                                                                                                                                    | 转后台时解绑父 `signal`（`subagent-registry.ts:277-281` 的 `onParentAbort`）即可；与 Claude Code 一致                                                                                                                      |
-| D6  | 后台任务的审批不再独占主输入框：主会话忙或输入框有字时「停靠」在 Agent 栏（状态「等待审批」+ 提示行），空闲且输入为空时自动弹出；栏里 Enter 立即处理。前台任务与主会话自己的审批照旧立即弹出。                                                                                                                                                   | 现在审批框一开就 `editor.disableSubmit = true`（`interactive-mode.ts:462-470`），后台任务一问权限主会话就不能发消息，与「继续交流」矛盾                                                                                    |
-| D7  | 分三批实施：A「Agent 栏可达性」、B「core 转后台与缺省后台」（可再拆 B1 / B2）并行；C「TUI 接入转后台与审批停靠」在 A、B 之后。文件所有权互不重叠（§5）。                                                                                                                                                                                         | A 只碰键位与栏；B 只碰 core / 工具 / RPC / 配置；C 才把两者接起来                                                                                                                                                          |
+| #   | 决定                                                                                                                                                                                                                                                                                                                                             | 理由 / 证据                                                                                                                                                 |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | 问题 1 不是处理器坏了：按键链路在 80×24 / 120×40、运行中 / 空闲、tmux 内（`send-keys`）/ tmux 外（expect 伪终端）都能进栏、开视图（§1.2）。失败只在四种环境条件下复现：tmux 客户端吞掉 `Ctrl+B`；`↓` 又只在「栏可见」时生效；嵌入宿主（有 profile）缺省 `ui.agentBar: "off"`；输入框有字时两个键都无声落回编辑器。                               | §1.2 复现记录、§1.3 根因（`key-dispatch.ts:153-160`、`agent-ui.ts:305-306`、`merge.ts:60`、`keybindings.ts:50`）                                            |
+| D2  | 修法是换键位 + 放宽门控 + 给反馈，不改状态机：`↓`（空输入，**有任务即可**，不再要求栏可见）成为进栏主键；`Ctrl+B` 改作「前台任务转后台」（与同类终端 Agent 的习惯对齐）；运行提示行与栏末行写明按键；输入有字时按进栏键给一行提示。                                                                                                              | tmux 缺省前缀就是 `C-b`，同类工具的键位文档也把 tmux `ctrl+b` 列为要避开的冲突；`↓` 在空输入、未浏览历史时本来是空操作（`editor.ts:293-296`），可以无损征用 |
+| D3  | 子 Agent 缺省后台运行（`task.background` 缺省 `true`），模型只在「下一步必须等结果」时写 `background:false`；`-p` 强制前台缺省。工具描述与一句规则按业界常见措辞改写，固定英文、会话内不变。                                                                                                                                                     | 同类工具的工具描述普遍写明缺省后台、只有下一步依赖结果时才改前台；现有后台通道（`notify` → `followUp(origin:"task")`、W5-H2 收尾投递）已稳定                |
+| D4  | 新增「转后台」原语：`SubagentRegistry.background(taskId?)` 让阻塞中的前台 `task`（及 `task_ctl wait`）立即以固定英文结果返回，主回合继续，任务改记后台、完成后照常 `<task-notification>`。入口：TUI `Ctrl+B`、栏 / 视图内 `b`、`/tasks bg [id]`、RPC `background_task`、SDK `session.backgroundTask()`、配置 `subagents.autoBackgroundAfterMs`。 | 同类工具的转后台控制请求：阻塞中的工具调用立即以「已转后台」结果返回，回合继续                                                                              |
+| D5  | Esc 语义不变：中断主回合连带中止**仍是前台**的任务（它们属于本回合）；已转后台 / 本来就是后台的任务不受影响。                                                                                                                                                                                                                                    | 转后台时解绑父 `signal`（`subagent-registry.ts:277-281` 的 `onParentAbort`）即可；与业界常见行为一致                                                        |
+| D6  | 后台任务的审批不再独占主输入框：主会话忙或输入框有字时「停靠」在 Agent 栏（状态「等待审批」+ 提示行），空闲且输入为空时自动弹出；栏里 Enter 立即处理。前台任务与主会话自己的审批照旧立即弹出。                                                                                                                                                   | 现在审批框一开就 `editor.disableSubmit = true`（`interactive-mode.ts:462-470`），后台任务一问权限主会话就不能发消息，与「继续交流」矛盾                     |
+| D7  | 分三批实施：A「Agent 栏可达性」、B「core 转后台与缺省后台」（可再拆 B1 / B2）并行；C「TUI 接入转后台与审批停靠」在 A、B 之后。文件所有权互不重叠（§5）。                                                                                                                                                                                         | A 只碰键位与栏；B 只碰 core / 工具 / RPC / 配置；C 才把两者接起来                                                                                           |
 
 需要用户确认的事项见 §6（都给了推荐缺省，不确认就按推荐做）。
 
@@ -57,7 +57,7 @@
 
 ### §1.3 根因
 
-1. **键选错了**：`app.agents.focus` 缺省 `["ctrl+b", "down"]`（`src/tui/keybindings.ts:50`）。`Ctrl+B` 是 tmux 的缺省前缀，在 tmux 客户端里永远到不了 ama（#11）；Claude Code 的 keybindings 文档也把「tmux (`ctrl+b`)」列为必须警告的冲突，它自己把 `ctrl+b` 用作「任务转后台」而不是导航。用户若在 tmux 里（或任何把 `Ctrl+B` 当快捷键的宿主）试 `Ctrl+B`，就是「没有效果」。
+1. **键选错了**：`app.agents.focus` 缺省 `["ctrl+b", "down"]`（`src/tui/keybindings.ts:50`）。`Ctrl+B` 是 tmux 的缺省前缀，在 tmux 客户端里永远到不了 ama（#11）；同类工具的键位文档也把 tmux 的 `ctrl+b` 列为必须警告的冲突，并把 `ctrl+b` 用作「任务转后台」而不是导航。用户若在 tmux 里（或任何把 `Ctrl+B` 当快捷键的宿主）试 `Ctrl+B`，就是「没有效果」。
 2. **`↓` 的门控比 `Ctrl+B` 严**：`agent-ui.ts:306` 对 `down` 额外要求 `bar.visible`，而 `visibleRows()`（`agent-bar.ts:160-170`）在任务结束并被查看后、或超过 10 分钟后为空——这时 `↓` 没反应、`Ctrl+B` 却能进栏（#7 vs #8）。tmux 用户被引导用 `↓`，恰好撞上更严的门。
 3. **嵌入宿主缺省关闭**：`PROFILE_DEFAULTS.ui.agentBar = "off"`（`src/config/merge.ts:60`）。带 profile 启动（Armadra 画布等）时 `barEnabled()` 为 false，`focusFromKey` 直接返回 false，两个键都落回编辑器，`/tasks` 退回旧选择器——与反馈完全吻合的「全部不能用」。
 4. **零反馈**：三种落空（有字、栏关闭、无任务）都无声；运行提示行只写 `Esc 中断`，未聚焦的栏不显示任何按键提示，用户无从得知「要先清空输入」或「在 tmux 里换键」。
@@ -78,14 +78,14 @@
 
 ## §2 问题 2：主会话在子 Agent 运行时继续交流
 
-### §2.1 对照 Claude Code
+### §2.1 业界常见行为
 
-从本机打包文本（`/tmp/cc-src/big.txt`）核对到的行为：
+同类终端 Agent 的常见行为：
 
-- 子 Agent 缺省后台：工具参数说明「Agents run in the background by default; you will be notified」；系统提示要求「do NOT sleep, poll, or proactively check on its progress」。
-- 前台任务可转后台：键位上下文 `Task` 绑定 `ctrl+b` 与 chord `ctrl+x ctrl+b` → `task:background`；控制请求 `background_tasks` 说明「Each blocking tool call returns immediately with a 'running in the background' tool_result」，无 `tool_use_id` 时「backgrounds all foreground tasks (Ctrl+B semantics)」。
-- 转后台的工具结果是固定文案，并区分原因：手动（`backgroundedByUser`）、超时自动（`timedOutAfterMs`）、为投递排队消息而转（`backgroundedToDeliverMessage`：「so that a message that arrived while it was running can reach you; it was not interrupted」）。
-- 完成以 `task-notification` 消息注入，是后台任务报告而非用户发言；`/tasks` 列表管理后台任务（`x` 停止）；可以查看子 Agent 对话（`viewingAgentTaskId`）。
+- 子 Agent 缺省后台：工具参数写明缺省后台、完成后会收到通知；系统提示要求不要睡眠、轮询或主动查进度。
+- 前台任务可转后台：任务上下文里 `ctrl+b`（或 chord）触发转后台；对应的控制请求让阻塞中的工具调用立即以「已转后台」结果返回，不指定任务时把全部前台任务转后台。
+- 转后台的工具结果是固定文案，并区分原因：手动、超时自动、为投递排队消息而转（说明任务没有被打断）。
+- 完成以任务通知消息注入，是后台任务报告而非用户发言；`/tasks` 列表管理后台任务（`x` 停止）；可以查看子 Agent 对话。
 
 ### §2.2 现状
 
@@ -133,7 +133,7 @@ running ──任何队列非空且回合收尾──► 同周期续投（W5-H2
 | `↓`         | 输入为空且有子 Agent 任务 → 进栏（`app.agents.focus`）；否则编辑器（下移 / 历史下一条）                                      | 下一项                                                           | 正文下翻一行                      | 批次 A。空输入未浏览历史时 `↓` 本是空操作，无损                 |
 | `Ctrl+B`    | 有阻塞中的前台 task / `task_ctl wait` → 全部转后台（`app.tasks.background`），**不看输入框是否有字**；否则编辑器（光标左移） | 转后台**选中的**任务（只对前台任务有效）                         | 转后台正在看的任务                | 批次 C。tmux 里按 `C-b C-b`（缺省 `send-prefix`）透传；文档写明 |
 | `b`         | —（可打印字符进输入框）                                                                                                      | 同 `Ctrl+B`（选中项）                                            | —（进输入框）                     | 给 tmux 用户的无前缀替代                                        |
-| `x`         | —                                                                                                                            | 停止选中任务（1.5 s 内再按一次确认，提示行写「再按 x 停止 t2」） | —（用 `/tasks stop`）             | 对齐 Claude Code `/tasks` 的 `x`                                |
+| `x`         | —                                                                                                                            | 停止选中任务（1.5 s 内再按一次确认，提示行写「再按 x 停止 t2」） | —（用 `/tasks stop`）             | 对齐同类工具 `/tasks` 的 `x`                                    |
 | `Enter`     | 提交（运行中 = steer）                                                                                                       | 打开视图；选中项「等待审批」时先弹它的审批框                     | 发给子 Agent                      | D6 的停靠审批入口                                               |
 | `Esc`       | 运行中：中断主回合（连带中止前台任务；后台任务不受影响）；空闲：双击回滚                                                     | 返回输入框                                                       | 输入为空返回，有字清空            | 不变                                                            |
 | `Alt+Enter` | followUp                                                                                                                     | —                                                                | —                                 | 不变                                                            |
@@ -288,9 +288,9 @@ A ∥ B1 ∥ B2 可三代理并行；C 在 A 与 B1 合入后由一个代理做�
 
 | #   | 事项                                                                                                                  | 推荐缺省                                                                                                                                                                       |
 | --- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Q1  | 子 Agent 缺省后台（TUI / RPC / ACP），模型需要结果时自己写 `background:false`？还是保持缺省前台、只加 `Ctrl+B` 转后台 | **缺省后台**（与 Claude Code 一致；用户反馈的核心诉求）。保留 `subagents.background: "never"` 给想要旧行为的人                                                                 |
-| Q2  | `Ctrl+B` 从「进 Agent 栏」改为「前台任务转后台」，`↓`（空输入）成为唯一缺省进栏键                                     | **改**。tmux 吃 `Ctrl+B` 是问题 1 的直接原因之一；转后台是 Claude Code 的 `Ctrl+B` 语义，复用肌肉记忆；进栏另有 `/tasks`                                                       |
+| Q1  | 子 Agent 缺省后台（TUI / RPC / ACP），模型需要结果时自己写 `background:false`？还是保持缺省前台、只加 `Ctrl+B` 转后台 | **缺省后台**（与业界常见行为一致；用户反馈的核心诉求）。保留 `subagents.background: "never"` 给想要旧行为的人                                                                  |
+| Q2  | `Ctrl+B` 从「进 Agent 栏」改为「前台任务转后台」，`↓`（空输入）成为唯一缺省进栏键                                     | **改**。tmux 吃 `Ctrl+B` 是问题 1 的直接原因之一；转后台是同类工具里 `Ctrl+B` 的常见语义，复用肌肉记忆；进栏另有 `/tasks`                                                      |
 | Q3  | 嵌入宿主（有 profile）是否继续缺省关闭 Agent 栏                                                                       | **不再强制关**：`PROFILE_DEFAULTS` 删掉 `agentBar: "off"`，Armadra 需要关时在自己的 profile 写 `ui.agentBar: "off"`。若 Armadra 的终端节点确实不该显示栏，则保留现状、只修键位 |
 | Q4  | 后台任务的审批「停靠」（主会话忙或有草稿时不弹，空闲自动弹）还是照旧立即弹模态框                                      | **停靠**（D6）；前台任务与主会话自己的审批不变                                                                                                                                 |
-| Q5  | `-p` 结束时还有后台任务：等它们与通知回合结束（受预算约束）还是直接退出并中止                                         | **等**（Claude Code 的 `-p` 同样等后台 Agent 落定）；缺省 `-p` 本就前台，只影响显式 `background:true`                                                                          |
+| Q5  | `-p` 结束时还有后台任务：等它们与通知回合结束（受预算约束）还是直接退出并中止                                         | **等**（同类工具的打印模式同样等后台 Agent 落定）；缺省 `-p` 本就前台，只影响显式 `background:true`                                                                            |
 | Q6  | `subagents.autoBackgroundAfterMs` 缺省 0（关闭）还是给一个值（如 120000）                                             | **0**。先让人用 `Ctrl+B` 决定；观察一版后再定                                                                                                                                  |
