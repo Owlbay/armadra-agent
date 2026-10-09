@@ -15,6 +15,7 @@
 
 import { randomBytes, randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
+import { internSessionImages } from "../ai/image-intern.js";
 import { AmaError } from "../errors.js";
 import { AMA_VERSION } from "../version.js";
 import { listSessionItems } from "./list.js";
@@ -130,6 +131,7 @@ export class SessionManager implements SessionManagerApi {
     try {
       const { lines } = readSessionLines(file, { repair: true });
       const { header, entries, leafId } = migrateSessionLines(lines, file);
+      internSessionImages(entries); // D5：同一图片的 base64 只留一份；JSONL 不变
       return new SessionManager(
         header,
         entries,

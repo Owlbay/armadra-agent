@@ -9,6 +9,7 @@
  */
 
 import { readFile, stat } from "node:fs/promises";
+import { internImage } from "../ai/image-intern.js";
 import type { ContentBlock } from "../ai/types.js";
 import type { ToolContext, ToolDefinition, ToolResult } from "./types.js";
 import { displayPath, resolvePath } from "./paths.js";
@@ -100,7 +101,7 @@ async function readImage(
       : "";
   const blocks: ContentBlock[] = [
     { type: "text", text: caption + note },
-    { type: "image", data: fit.buf.toString("base64"), mimeType: fit.mimeType },
+    internImage({ type: "image", data: fit.buf.toString("base64"), mimeType: fit.mimeType }),
   ];
   return { content: blocks, details };
 }
