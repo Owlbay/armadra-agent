@@ -7,7 +7,7 @@ import { ProviderRegistry } from "../ai/providers/registry.js";
 import type { Model, TranscriptContext } from "../ai/types.js";
 import { AgentCatalog } from "../agents/catalog.js";
 import { SessionManager } from "../session/manager.js";
-import { sessionDirForCwd } from "../session/store.js";
+import { isSubagentSessionFile, sessionDirForCwd } from "../session/store.js";
 import type { SessionEntry, SessionLine } from "../session/types.js";
 import { buildIndex } from "../trace/build-index.js";
 import {
@@ -169,6 +169,8 @@ describe("[ME-A] fork 子会话的首个请求", () => {
       );
     const forkedFrom = h.manager.branch()[assistant - 1]!.id;
     expect((head as { data: { forkedFrom: string } }).data.forkedFrom).toBe(forkedFrom);
+    // `ama sessions` / `-c` 的子会话过滤对 fork 子会话同样成立
+    expect(isSubagentSessionFile(file)).toBe(true);
   });
 
   it("同一条 assistant 里并行的两个 fork 任务共享 fork 点，前缀都与父相同", async () => {
