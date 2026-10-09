@@ -9,6 +9,7 @@
  *   （孤立 ESC 即 Escape 键）。缺省：SSH / tmux 下 100 ms，本地 10 ms。
  */
 
+import { graphemeSegmenter } from "./ansi.js";
 import { PASTE_END, PASTE_START } from "./keys.js";
 
 export interface StdinBufferOptions {
@@ -35,8 +36,6 @@ type Scan =
   | { kind: "complete"; length: number }
   | { kind: "incomplete" }
   | { kind: "paste-start"; length: number };
-
-const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
 /** 从 0 开始扫描一个转义序列（buf[0] === ESC）。 */
 function scanEscape(buf: string): Scan {
@@ -80,7 +79,7 @@ function scanEscape(buf: string): Scan {
   }
   // Alt 前缀 + 单个字素
   const rest = buf.slice(1);
-  const first = segmenter.segment(rest.slice(0, 64))[Symbol.iterator]().next();
+  const first = graphemeSegmenter().segment(rest.slice(0, 64))[Symbol.iterator]().next();
   const segment = first.done ? rest[0]! : first.value.segment;
   return { kind: "complete", length: 1 + segment.length };
 }
@@ -189,7 +188,7 @@ export class StdinBuffer {
   private nextTextLength(buf: string): number {
     const c = buf.charCodeAt(0);
     if (c < 0x20 || c === 0x7f) return 1;
-    const first = segmenter.segment(buf.slice(0, 64))[Symbol.iterator]().next();
+    const first = graphemeSegmenter().segment(buf.slice(0, 64))[Symbol.iterator]().next();
     if (first.done) return 1;
     // 字素簇不能吞掉后面的 ESC 或控制字符
     let len = first.value.segment.length;

@@ -16,7 +16,7 @@
 
 import { msg } from "../../i18n/index.js";
 import { CURSOR_MARKER, type Component, type Focusable, type Theme } from "../component.js";
-import { truncateToWidth, visibleWidth } from "../ansi.js";
+import { graphemeSegmenter, truncateToWidth, visibleWidth } from "../ansi.js";
 import { defaultKeybindings, type Keybindings } from "../keybindings.js";
 import { isPasteData, isPrintableText, unwrapPaste } from "../keys.js";
 import { plainTheme } from "../theme.js";
@@ -81,8 +81,6 @@ interface VisualRow {
   /** 本逻辑行的最后一段。 */
   last: boolean;
 }
-
-const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 
 /** 提示符 `› ` / 续行缩进的宽度。 */
 const PROMPT_WIDTH = 2;
@@ -333,7 +331,7 @@ export class Editor implements Component, Focusable {
     const line = this.buffer.getLines()[row.line]!;
     let col = row.start;
     let width = 0;
-    for (const { segment, index } of segmenter.segment(line.slice(row.start, row.end))) {
+    for (const { segment, index } of graphemeSegmenter().segment(line.slice(row.start, row.end))) {
       const w = visibleWidth(segment);
       if (width + w > targetWidth) break;
       width += w;
@@ -346,7 +344,7 @@ export class Editor implements Component, Focusable {
 
   private prevGrapheme(line: string, col: number): number {
     let prev = 0;
-    for (const { index } of segmenter.segment(line)) {
+    for (const { index } of graphemeSegmenter().segment(line)) {
       if (index >= col) break;
       prev = index;
     }
@@ -452,7 +450,7 @@ export class Editor implements Component, Focusable {
       let start = 0;
       let used = 0;
       let pos = 0;
-      const graphemes = [...segmenter.segment(text)];
+      const graphemes = [...graphemeSegmenter().segment(text)];
       let gi = 0;
       while (gi < graphemes.length) {
         const g = graphemes[gi]!;
@@ -569,7 +567,7 @@ export class Editor implements Component, Focusable {
 }
 
 function nextGrapheme(text: string, pos: number): string {
-  const first = segmenter
+  const first = graphemeSegmenter()
     .segment(text.slice(pos, pos + 32))
     [Symbol.iterator]()
     .next();

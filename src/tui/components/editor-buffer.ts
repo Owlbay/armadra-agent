@@ -8,6 +8,8 @@
  * - 不做选区（无鼠标、无 kill ring，§12.9）。
  */
 
+import { graphemeSegmenter } from "../ansi.js";
+
 export interface Position {
   line: number;
   col: number;
@@ -27,11 +29,9 @@ interface Snapshot {
 
 type EditKind = "type-word" | "type-space" | "other";
 
-const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
-
 function graphemeStarts(line: string): number[] {
   const starts: number[] = [];
-  for (const { index } of segmenter.segment(line)) starts.push(index);
+  for (const { index } of graphemeSegmenter().segment(line)) starts.push(index);
   starts.push(line.length);
   return starts;
 }

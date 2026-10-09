@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   SGR_RESET,
   codePointWidth,
@@ -139,5 +139,36 @@ describe("padToWidth", () => {
   it("补空格到宽度", () => {
     expect(padToWidth("中", 4)).toBe("中  ");
     expect(padToWidth("abcdef", 3)).toBe("abcdef");
+  });
+});
+
+describe("[M-F] 字素切分器惰性构造", () => {
+  it("载入 ansi / keys / stdin-buffer / editor 不构造 Intl.Segmenter；首次量宽才构造且只一次", async () => {
+    const Original = Intl.Segmenter;
+    let constructed = 0;
+    class Counting extends Original {
+      constructor(...args: ConstructorParameters<typeof Intl.Segmenter>) {
+        super(...args);
+        constructed++;
+      }
+    }
+    const intl = Intl as { Segmenter: typeof Intl.Segmenter };
+    intl.Segmenter = Counting;
+    try {
+      vi.resetModules();
+      const ansi = await import("./ansi.js");
+      await import("./keys.js");
+      await import("./stdin-buffer.js");
+      await import("./components/editor-buffer.js");
+      await import("./components/editor.js");
+      expect(constructed).toBe(0);
+      expect(ansi.visibleWidth("中a")).toBe(3);
+      expect(ansi.visibleWidth("👍🏽")).toBe(2);
+      expect(constructed).toBe(1);
+      expect(ansi.graphemeSegmenter()).toBe(ansi.graphemeSegmenter());
+    } finally {
+      intl.Segmenter = Original;
+      vi.resetModules();
+    }
   });
 });
