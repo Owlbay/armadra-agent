@@ -6,6 +6,7 @@
  * png / jpg / gif / webp 作为 ImageBlock 返回（MIME 按文件头，
  * 与 `--image` / `@图片` 共用 image-file.ts；模型不支持图片、超过当前端点的单图上限（base64 后，
  * [W5-I] 按端点分档）或任一边 > 8000 px 时只给路径与尺寸）；成功后 `ctx.markRead(abs)`。
+ * [M-E] 超过 1 MiB 的文本按字节窗口读（read-lines.ts），输出与整读逐字节相同。
  */
 
 import { readFile, stat } from "node:fs/promises";
@@ -15,6 +16,7 @@ import type { ToolContext, ToolDefinition, ToolResult } from "./types.js";
 import { displayPath, resolvePath } from "./paths.js";
 import { DEFAULT_MAX_LINES, formatSize, toolOutputBytes, truncateHead } from "./truncate.js";
 import { normalizeToLF, splitBom } from "./edit-fuzzy.js";
+import { STREAM_READ_THRESHOLD, readHead, readLineWindow } from "./read-lines.js";
 import {
   MAX_IMAGE_FILE_BYTES,
   fitImage,
@@ -37,6 +39,8 @@ export interface ReadToolOptions {
   supportsImages?(ctx: ToolContext): boolean;
   /** [W5-I] 当前模型的单图上限与缩放设置；缺省 5 MB（base64 后）。 */
   imageOptions?(ctx: ToolContext): ImageFitOptions;
+  /** [M-E] 超过这个字节数的文本文件走字节窗口；缺省 `STREAM_READ_THRESHOLD`，测试注入 0 / Infinity。 */
+  streamThreshold?: number;
 }
 
 const SNIFF_BYTES = 8000;
@@ -46,6 +50,9 @@ export function isBinary(buf: Buffer): boolean {
   for (let i = 0; i < end; i++) if (buf[i] === 0) return true;
   return false;
 }
+
+const binaryMessage = (shown: string): string =>
+  `${shown} appears to be a binary file; refusing to read it`;
 
 function error(message: string): ToolResult {
   return { content: message, isError: true };
@@ -123,43 +130,59 @@ export async function executeRead(
 
   if (imageMimeFromPath(abs) !== undefined) return readImage(abs, shown, ctx, options);
 
-  const buf = await readFile(abs);
-  if (isBinary(buf)) return error(`${shown} appears to be a binary file; refusing to read it`);
-
-  const { text } = splitBom(buf.toString("utf8"));
-  const normalized = normalizeToLF(text);
-  const allLines = normalized === "" ? [] : normalized.replace(/\n$/, "").split("\n");
+  const offset = input.offset ?? 1;
+  const badOffset = !Number.isInteger(offset) || offset < 1;
+  const badLimit = input.limit !== undefined && (!Number.isInteger(input.limit) || input.limit < 1);
+  const maxBytes = toolOutputBytes(ctx.maxResultChars);
+  let totalLines: number;
+  let selected: string[];
+  if (info.size > (options.streamThreshold ?? STREAM_READ_THRESHOLD)) {
+    // [M-E] 大文件按字节窗口读：只解码要显示的行，结果与整读逐字节相同（D1）
+    if (isBinary(readHead(abs, SNIFF_BYTES))) return error(binaryMessage(shown));
+    const want = Math.min(input.limit ?? Infinity, DEFAULT_MAX_LINES + 1);
+    const win = readLineWindow(
+      abs,
+      badOffset ? 1 : offset,
+      badOffset || badLimit ? 0 : want,
+      maxBytes,
+    );
+    totalLines = win.totalLines;
+    selected = win.lines;
+  } else {
+    const buf = await readFile(abs);
+    if (isBinary(buf)) return error(binaryMessage(shown));
+    const { text } = splitBom(buf.toString("utf8"));
+    const normalized = normalizeToLF(text);
+    const allLines = normalized === "" ? [] : normalized.replace(/\n$/, "").split("\n");
+    totalLines = allLines.length;
+    const end = input.limit === undefined ? undefined : offset - 1 + input.limit;
+    selected = badOffset || badLimit ? [] : allLines.slice(offset - 1, end);
+  }
   ctx.markRead(abs);
-  if (allLines.length === 0) {
+  if (totalLines === 0) {
     return { content: `(${shown} is empty)`, details: { path: abs, totalLines: 0 } };
   }
 
-  const offset = input.offset ?? 1;
-  if (!Number.isInteger(offset) || offset < 1) return error("offset must be an integer ≥ 1");
-  if (offset > allLines.length) {
-    return error(`offset ${offset} is beyond the end of ${shown} (${allLines.length} lines)`);
+  if (badOffset) return error("offset must be an integer ≥ 1");
+  if (offset > totalLines) {
+    return error(`offset ${offset} is beyond the end of ${shown} (${totalLines} lines)`);
   }
-  if (input.limit !== undefined && (!Number.isInteger(input.limit) || input.limit < 1)) {
-    return error("limit must be an integer ≥ 1");
-  }
-  const end = input.limit === undefined ? allLines.length : offset - 1 + input.limit;
-  const selected = allLines.slice(offset - 1, end);
+  if (badLimit) return error("limit must be an integer ≥ 1");
   const numbered = numberLines(selected, offset);
-  const maxBytes = toolOutputBytes(ctx.maxResultChars);
   const cut = truncateHead(numbered, { maxLines: DEFAULT_MAX_LINES, maxBytes });
   const lastShown = offset - 1 + cut.outputLines;
   let content = cut.content;
-  if (lastShown < allLines.length) {
+  if (lastShown < totalLines) {
     const reason = cut.truncated
       ? ` (output limit ${cut.truncatedBy === "bytes" ? formatSize(maxBytes) : `${DEFAULT_MAX_LINES} lines`} reached)`
       : "";
-    content += `\n\n[Showing lines ${offset}-${lastShown} of ${allLines.length}${reason}. Use offset=${lastShown + 1} to continue.]`;
+    content += `\n\n[Showing lines ${offset}-${lastShown} of ${totalLines}${reason}. Use offset=${lastShown + 1} to continue.]`;
   }
   return {
     content,
     details: {
       path: abs,
-      totalLines: allLines.length,
+      totalLines,
       firstLine: offset,
       lastLine: lastShown,
       truncated: cut.truncated,

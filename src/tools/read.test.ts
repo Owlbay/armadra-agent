@@ -15,8 +15,12 @@ const PNG_1x2 = Buffer.from(
   "hex",
 );
 
-describe("read", () => {
-  const tool = createReadTool();
+// [M-E] 每个用例在整读与字节窗口两条路径上各跑一遍（阈值注入），结果必须相同
+describe.each([
+  ["整读", Infinity],
+  ["字节窗口", 0],
+])("read（%s）", (_name, streamThreshold) => {
+  const tool = createReadTool({ streamThreshold });
 
   it("cat -n 形状并登记 readFiles", async () => {
     writeFileSync(join(tmp.dir, "a.txt"), "\uFEFFone\r\ntwo\nthree\n");
@@ -136,7 +140,7 @@ describe("read", () => {
     const blocks = r.content as { type: string; mimeType?: string; text?: string }[];
     expect(blocks[0]?.text).toContain("1x2");
     expect(blocks[1]).toMatchObject({ type: "image", mimeType: "image/png" });
-    const noImg = createReadTool({ supportsImages: () => false });
+    const noImg = createReadTool({ supportsImages: () => false, streamThreshold });
     const r2 = await noImg.execute({ path: "p.png" }, ctx);
     expect(typeof r2.content).toBe("string");
     expect(r2.content).toContain("does not accept image input");
