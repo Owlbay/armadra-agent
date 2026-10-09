@@ -3,15 +3,16 @@
  *
  * 与 store.ts / manager.ts 的区别：这里**从不加锁、不修复、不写文件**——正在运行的会话也能读。
  * - `sessionFilesInScope`：按 cwd（只看它的编码子目录）或全部子目录（跳过 `.trash`）列文件，最新在前；
- * - `forEachLine`：按行回调（不先 split 出整个数组）；
+ * - `forEachLine`：按块读盘、按行回调（不读全文、不 split）；提前返回即停止读盘；
  * - `lineType`：ama 写入的行以 `{"type":"…"` 开头（manager 的 append 把 type 放在第一个键），
  *   据此不解析就能跳过不需要的行；其它程序写的行退回 JSON.parse；
  * - `readSessionReadOnly`：头 + 条目 + 叶子（同 migrate.ts 的规则），末尾半行忽略、中间坏行抛错。
  */
 
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
 import { AmaError } from "../errors.js";
+import { forEachLineSync } from "./line-reader.js";
 import { migrateSessionLines, type MigratedSession } from "./migrate.js";
 import {
   SESSION_FILE_SUFFIX,
@@ -80,25 +81,23 @@ export function findSessionFileReadOnly(root: string, id: string, cwd?: string):
 
 /**
  * 逐行回调（不含行尾 `\n` / `\r`，跳过空行）；`last` 表示文件最后一行且没有换行结尾
- * （可能是写入中途的半行）。回调返回 false 提前结束。
+ * （可能是写入中途的半行）。回调返回 false 提前结束——按块读盘（line-reader.ts），停下即不再读。
  */
 export function forEachLine(
   file: string,
   visit: (line: string, index: number, last: boolean) => boolean | void,
+  chunkBytes?: number,
 ): void {
-  const text = readFileSync(file, "utf8");
-  let start = 0;
   let index = 0;
-  while (start < text.length) {
-    let end = text.indexOf("\n", start);
-    const last = end === -1;
-    if (last) end = text.length;
-    let line = text.slice(start, end);
-    if (line.endsWith("\r")) line = line.slice(0, -1);
-    start = end + 1;
-    if (line.trim() === "") continue;
-    if (visit(line, index++, last) === false) return;
-  }
+  forEachLineSync(
+    file,
+    (buf, _physical, last) => {
+      const line = buf.toString("utf8");
+      if (line.trim() === "") return;
+      return visit(line, index++, last);
+    },
+    chunkBytes,
+  );
 }
 
 const TYPE_PREFIX = '{"type":"';
