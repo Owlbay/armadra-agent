@@ -277,7 +277,7 @@ export const en = {
     adviceInconclusive:
       "The second request read only a little cache or only wrote: maybe cache granularity or TTL; retry with a larger --tokens or a shorter --gap-ms",
     advicePromptCache: (provider: string, id: string) =>
-      `Fill in promptCache.short yourself to enable warming (providers.${provider}.modelOverrides: [{ "id": "${id}", "promptCache": { "short": 300 } }])`,
+      `The catalog has no cache lifetime for this model, so ama neither warms it nor prunes early. Fill in promptCache only with a lifetime the upstream documents (providers.${provider}.modelOverrides: [{ "id": "${id}", "promptCache": { "short": <seconds> } }]); a guessed short value fires warming and early pruning while the cache is still valid`,
     intAtLeast: (name: string, min: number) => `--${name} must be an integer ≥ ${min}`,
     yes: "yes",
     no: "no",
@@ -535,7 +535,7 @@ export const zh = {
     adviceInconclusive:
       "第二次只读到少量缓存或只有写入：可能是缓存粒度或 TTL 问题，可加大 --tokens 或缩短 --gap-ms 重试",
     advicePromptCache: (provider, id) =>
-      `可自填 promptCache.short 以启用保温（providers.${provider}.modelOverrides: [{ "id": "${id}", "promptCache": { "short": 300 } }]）`,
+      `目录里没有这个模型的缓存寿命，ama 不保温、也不提前裁剪。只有上游文档写明了寿命时才填 promptCache（providers.${provider}.modelOverrides: [{ "id": "${id}", "promptCache": { "short": <秒数> } }]）；猜一个偏短的值会在缓存仍有效时触发保温和提前裁剪`,
     intAtLeast: (name, min) => `--${name} 应为不小于 ${min} 的整数`,
     yes: "有",
     no: "无",

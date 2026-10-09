@@ -110,7 +110,7 @@ const probe = (...extra: string[]) =>
   runModels(["cache-probe", "relay/kimi", "--gap-ms", "0", ...extra], io(), deps());
 
 describe("ama models cache-probe [W3-C2]", () => {
-  it("reported：第二次读到 ≥ 50% 前缀；两次请求前缀逐字节一致、purpose probe、maxTokens 16、short；目录无 promptCache 时建议自填", async () => {
+  it("reported：第二次读到 ≥ 50% 前缀；两次请求前缀逐字节一致、purpose probe、maxTokens 16、short；目录无 promptCache 时提示寿命未知、不给猜测值", async () => {
     writeConfig();
     script = [
       { input: 2_100, cacheReported: true },
@@ -136,9 +136,11 @@ describe("ama models cache-probe [W3-C2]", () => {
       "usage 字段（openai-completions 读取）：prompt_tokens_details.cached_tokens",
     );
     expect(text).toContain("判定：reported（第二次读到前缀的 95%）");
+    expect(text).toContain("建议：目录里没有这个模型的缓存寿命，ama 不保温、也不提前裁剪。");
     expect(text).toContain(
-      '建议：可自填 promptCache.short 以启用保温（providers.relay.modelOverrides: [{ "id": "kimi"',
+      'providers.relay.modelOverrides: [{ "id": "kimi", "promptCache": { "short": <秒数> } }]',
     );
+    expect(text).not.toContain('"short": 300');
   });
 
   it("silent 与 --json：两次都 0、字段缺失；建议写 compat.cacheReporting；预估写 stderr", async () => {
