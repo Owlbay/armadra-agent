@@ -267,6 +267,42 @@ describe("ama --mode acp", () => {
   });
 });
 
+describe("ama --mode acp 用量 usage_update", () => {
+  it("new / load（回放后）/ 换模型后各有一条 usage_update，used 等于 getStats().contextTokens", async () => {
+    const t = await start([{ text: "hello back", usage: { input: 40, output: 2 } }]);
+    await t.client.initialize();
+    const settle = () => new Promise((r) => setTimeout(r, 10));
+    const usages = () =>
+      t.updates
+        .filter((u) => u.update.sessionUpdate === "usage_update")
+        .map((u) => u.update as { used: number; size: number });
+    const created = await t.client.newSession(t.runtime.paths.cwd);
+    const stats = () => t.runtime.session.getStats();
+    await settle();
+    expect(usages()).toEqual([
+      expect.objectContaining({ used: stats().contextTokens ?? 0, size: 200_000 }),
+    ]);
+    await t.client.prompt(created.sessionId, [{ type: "text", text: "hi" }]);
+    // 助手 message_end 已发过，turn_end 同值不重发
+    expect(usages()).toHaveLength(2);
+    expect(usages()[1]!.used).toBe(stats().contextTokens);
+    expect(stats().contextTokens).toBeGreaterThan(0);
+
+    t.updates.length = 0;
+    await t.client.loadSession(created.sessionId, t.runtime.paths.cwd);
+    await settle();
+    const kinds = t.updates.map((u) => u.update.sessionUpdate);
+    expect(kinds.indexOf("usage_update")).toBeGreaterThan(kinds.indexOf("agent_message_chunk"));
+    expect(usages()).toEqual([expect.objectContaining({ used: stats().contextTokens })]);
+
+    t.updates.length = 0;
+    await t.client.setConfigOption(created.sessionId, "model", "fake/reasoning");
+    await settle();
+    expect(usages()).toEqual([expect.objectContaining({ used: stats().contextTokens })]);
+    await t.finish();
+  });
+});
+
 describe("runCli 分派 --mode acp", () => {
   it("装配按 rpc，模式交给 runAcpMode", async () => {
     vi.resetModules();

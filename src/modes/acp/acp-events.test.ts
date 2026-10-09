@@ -41,9 +41,12 @@ const CONFIG: AcpSessionConfigOption[] = [
 ];
 const COMMANDS: AcpAvailableCommand[] = [{ name: "skill:review", description: "Review code" }];
 
-function mapper(): { m: AcpEventMapper; out: AcpSessionUpdate[] } {
+function mapper(stats: () => Record<string, unknown> = () => ({})): {
+  m: AcpEventMapper;
+  out: AcpSessionUpdate[];
+} {
   const out: AcpSessionUpdate[] = [];
-  const session = { getStats: () => ({}) } as unknown as AgentSession;
+  const session = { getStats: stats } as unknown as AgentSession;
   const m = new AcpEventMapper(
     CWD,
     (u) => out.push(u),
@@ -331,6 +334,43 @@ describe("AcpEventMapper", () => {
       },
     ]);
     expectValid(out);
+  });
+
+  it("usage_update：announce 与换模型照发；助手 message_end / turn_end 同值去重；窗口未知不发", () => {
+    let stats: Record<string, unknown> = { contextTokens: 0, contextWindow: 1000, cost: 0 };
+    const { m, out } = mapper(() => stats);
+    const usage = () => out.filter((u) => u.sessionUpdate === "usage_update");
+    const assistant = { type: "message_end", message: { role: "assistant" } } as SessionEvent;
+    m.announce();
+    m.announce(); // 再次 load：客户端可能刚重建线程，照发
+    expect(usage()).toEqual([
+      { sessionUpdate: "usage_update", used: 0, size: 1000, cost: { amount: 0, currency: "USD" } },
+      { sessionUpdate: "usage_update", used: 0, size: 1000, cost: { amount: 0, currency: "USD" } },
+    ]);
+    out.length = 0;
+    stats = { contextTokens: 120, contextWindow: 1000, cost: 0.5 };
+    m.onEvent({ type: "message_end", message: { role: "user" } } as SessionEvent);
+    expect(usage()).toEqual([]);
+    m.onEvent(assistant);
+    m.onEvent({ type: "turn_end" } as SessionEvent);
+    expect(usage()).toEqual([
+      {
+        sessionUpdate: "usage_update",
+        used: 120,
+        size: 1000,
+        cost: { amount: 0.5, currency: "USD" },
+      },
+    ]);
+    stats = { contextTokens: 300, contextWindow: 1000, cost: 0.5 };
+    m.onEvent(assistant); // 多工具轮内的下一条助手消息
+    m.onEvent({ type: "model_changed", model: { provider: "fake", id: "echo" } } as SessionEvent);
+    expect(usage().map((u) => (u as { used: number }).used)).toEqual([120, 300, 300]);
+    expectValid(out);
+    out.length = 0;
+    stats = { contextTokens: 300 };
+    m.announce();
+    m.onEvent(assistant);
+    expect(usage()).toEqual([]);
   });
 
   it("回放：tool_call 带 name，toolResult 带前 4 KB 文本、无 diff", () => {
