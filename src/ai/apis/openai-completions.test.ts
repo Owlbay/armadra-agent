@@ -555,7 +555,8 @@ describe("openai-completions：请求体与 compat 开关", () => {
     expect(sent[0]).toEqual({ role: "system", content: "A" });
     expect(sent[2]?.["content"]).toBe(
       '<system-reminder>\nSystem prompt section "cwd" was updated:\n\n/tmp\n\n' +
-        "These updates replace the earlier versions of those system prompt sections.\n</system-reminder>",
+        "These updates replace the earlier versions of those system prompt sections; " +
+        "tool availability notes above are current.\n</system-reminder>",
     );
   });
 
