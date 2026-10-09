@@ -23,7 +23,7 @@ afterEach(() => h?.cleanup());
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
 
 function normalize(wire: readonly WireLine[], root: string): string {
-  // 第一次 prompt 之前的 usage_update 是启动基线（系统提示 + 工具声明的估算），随平台与临时目录路径变化
+  // 第一次 prompt 之前的 usage_update 是启动基线（系统提示 + 工具声明的估算），随平台与临时目录路径变化，不进黄金
   let prompted = false;
   return (
     wire
@@ -32,7 +32,8 @@ function normalize(wire: readonly WireLine[], root: string): string {
         if (w.dir === "in" && msg.method === "session/prompt") prompted = true;
         const baseline = !prompted && msg.params?.update?.sessionUpdate === "usage_update";
         return JSON.stringify(w, (key, value: unknown) => {
-          if (baseline && key === "used") return "<prefix>";
+          // 记为 0（黄金也要过 schema 校验，used 必须是整数）
+          if (baseline && key === "used") return 0;
           if (key === "timestamp" || key === "durationMs") return 0;
           if (key === "updatedAt" && typeof value === "string") return "<time>";
           if (key === "version" && typeof value === "string") return "<version>";
