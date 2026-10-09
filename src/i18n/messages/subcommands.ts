@@ -263,8 +263,14 @@ export const en = {
     image: "images",
     channels: (names: readonly string[]) => `channels ${names.join(",")}`,
     price: "price",
-    sources: (parts: readonly string[], match: string | undefined, noTools: boolean) =>
+    sources: (
+      parts: readonly string[],
+      match: string | undefined,
+      noTools: boolean,
+      catalog?: string,
+    ) =>
       `sources ${parts.join(" · ")}` +
+      (catalog !== undefined ? `; catalog ${catalog}` : "") +
       (match !== undefined ? `; models.dev ${match}` : "") +
       (noTools ? "; no tool calling" : ""),
   },
@@ -521,8 +527,9 @@ export const zh = {
     image: "图片",
     channels: (names) => `渠道 ${names.join(",")}`,
     price: "价格",
-    sources: (parts, match, noTools) =>
+    sources: (parts, match, noTools, catalog) =>
       `来源 ${parts.join(" · ")}` +
+      (catalog !== undefined ? `；目录 ${catalog}` : "") +
       (match !== undefined ? `；models.dev ${match}` : "") +
       (noTools ? "；不支持工具调用" : ""),
   },

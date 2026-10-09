@@ -1,6 +1,7 @@
 /**
  * 模型元数据的一行描述（`ama models list`、`ama config show`、`ama providers`）：上下文、输出、思考、
- * 图片、渠道，以及每个字段来自哪里（config / 目录 / models.dev / 缺省）与 models.dev 匹配。
+ * 图片、渠道，以及每个字段来自哪里（config / 目录 / 按 id 继承的目录 / models.dev / 缺省）、继承的
+ * 目录条目与 models.dev 匹配。
  */
 
 import { sourceText, type ModelMetadata } from "../../ai/providers/enrich.js";
@@ -59,5 +60,5 @@ export function sourcesLine(metadata: ModelMetadata | undefined): string | undef
     (field) => `${label[field]} ${sourceText(metadata.sources[field])}`,
   );
   const match = metadata.looked ? matchLabel(metadata.match) : undefined;
-  return t.sources(parts, match, metadata.toolCall === false);
+  return t.sources(parts, match, metadata.toolCall === false, metadata.catalog);
 }

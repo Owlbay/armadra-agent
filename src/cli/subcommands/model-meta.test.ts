@@ -89,6 +89,28 @@ describe("models list / config show：渠道与元数据来源", () => {
     expect(text).toContain("models.dev 未匹配");
   });
 
+  it("[ME-D] 中转模型按 id 继承目录：来源标「目录（按 id 匹配）」并列出目录条目（不发请求）", async () => {
+    home.write("home/.config/ama/config.json", {
+      version: 1,
+      providers: {
+        relay: {
+          apiKey: "sk-test",
+          api: "openai-completions",
+          baseUrl: "https://relay.example/v1",
+          models: [{ id: "deepseek-v4-flash" }, { id: "gemini-3.8-flash-low" }],
+        },
+      },
+    });
+    expect(await runModels(["list", "--provider", "relay"], io(), deps)).toBe(0);
+    const text = out.join("");
+    expect(text).toContain("  relay/deepseek-v4-flash  ctx 1M · out 66k · 思考 · 图片\n");
+    expect(text).toMatch(
+      /图片 目录（按 id 匹配） · 思考 目录（按 id 匹配） · 价格 models\.dev；目录 deepseek\/deepseek-flash；models\.dev 显式 deepseek\/deepseek-flash/,
+    );
+    expect(text).toContain("  relay/gemini-3.8-flash-low  ctx 1M · out 66k · 图片\n");
+    expect(text).toContain("；目录 google/gemini-3.8-flash；");
+  });
+
   it("config show --json 带渠道与来源", async () => {
     seed();
     expect(await runConfig(["show", "--json"], io(), deps as RuntimeDeps)).toBe(0);
