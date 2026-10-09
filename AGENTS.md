@@ -14,6 +14,8 @@
 
 ## 按需阅读与验证
 
+- 提交信息、分支、PR 与 issue 规范见 [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md)。
+
 - 设计与硬约束见 [docs/design.md](docs/design.md)（§1 依赖方向、§2 工程约定、§9.1 缓存保证）；用户与集成文档的索引在 [README](README.md#documentation)。
 - 双语：`README.md` / `README.zh-CN.md`、`CHANGELOG.md` / `CHANGELOG.zh-CN.md` 成对维护，新条目两份都加到未发布段；`docs/en/` 七篇是中文版的英文译本，改中文版时同步。文案约定见 [docs/i18n.md](docs/i18n.md)。
 - 协议形状改动同步 [docs/rpc.md](docs/rpc.md)、[docs/host-api.md](docs/host-api.md)、[docs/acp.md](docs/acp.md) 或 [docs/session-format.md](docs/session-format.md)。
