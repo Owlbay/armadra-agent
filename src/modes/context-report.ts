@@ -11,7 +11,11 @@
  */
 
 import { AgentSessionImpl } from "../agent/session.js";
-import { DEFAULT_COMPACTION_SETTINGS, pendingPrefixMessage } from "../agent/session-compaction.js";
+import {
+  DEFAULT_COMPACTION_SETTINGS,
+  effectiveWindow,
+  pendingPrefixMessage,
+} from "../agent/session-compaction.js";
 import type { AgentSession } from "../agent/types.js";
 import {
   breakdownMessages,
@@ -82,7 +86,8 @@ export function contextSnapshot(session: AgentSession): ContextSnapshot {
   if (stats.contextTokens !== undefined) estimate = { ...estimate, tokens: stats.contextTokens };
   const window = stats.contextWindow;
   const reserve = compaction.reserveTokens ?? DEFAULT_COMPACTION_SETTINGS.reserveTokens;
-  const budget = window === undefined ? undefined : Math.max(0, window - reserve);
+  const soft = effectiveWindow(window, compaction);
+  const budget = soft === undefined ? undefined : Math.max(0, soft - reserve);
   const percent =
     window === undefined || window <= 0
       ? undefined

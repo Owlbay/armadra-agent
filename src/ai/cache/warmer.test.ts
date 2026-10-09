@@ -9,6 +9,7 @@ import {
   WARM_STREAMING_CAP_MS,
   replayBlocker,
   warmDelay,
+  warmReplayMaxTokens,
   type WarmerDeps,
   type WarmerTimers,
 } from "./warmer.js";
@@ -156,6 +157,14 @@ function rig(initial: Partial<RigState> = {}): Rig {
   });
   return out;
 }
+
+describe("保温重放的输出上限（ME D17）", () => {
+  it("Responses 取 16（max_output_tokens 下限），其余协议 1", () => {
+    expect(warmReplayMaxTokens("openai-responses")).toBe(16);
+    for (const api of ["anthropic-messages", "openai-completions", "google-generative-ai", "fake"])
+      expect(warmReplayMaxTokens(api)).toBe(1);
+  });
+});
 
 describe("保温延迟与截止（§1.7）", () => {
   it("delay = max(1s, floor(min(0.9·TTL, TTL − 10s)))；TTL ≤ 10 s 不保温（无事件）", () => {

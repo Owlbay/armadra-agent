@@ -43,6 +43,7 @@ import { CODEMODE_TOOL } from "../tools/presets.js";
 import { executionModeOf } from "../tools/registry.js";
 import { truncateMiddle } from "../tools/truncate.js";
 import type { ToolContext, ToolDefinition, ToolResult } from "../tools/types.js";
+import { toolUnavailableText } from "./tool-availability.js";
 
 export const ABORTED_TOOL_TEXT = "aborted by user";
 export const DEFAULT_MAX_TOOL_RESULT_CHARS = 30_000;
@@ -134,7 +135,7 @@ function notFoundText(name: string, options: ToolRunnerOptions): string {
   if (options.getNestedTool?.(name) !== undefined && options.getTool(CODEMODE_TOOL) !== undefined) {
     return `Tool ${name} is only callable inside a codemode script: tools.${name}({...})`;
   }
-  return `Tool ${name} not found`;
+  return toolUnavailableText(name);
 }
 
 async function prepare(

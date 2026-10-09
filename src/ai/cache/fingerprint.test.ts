@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Message, SystemMessage, ToolDecl, TranscriptContext } from "../types.js";
-import { fingerprintChange, fingerprintContext, hash16 } from "./fingerprint.js";
+import { changedSections, fingerprintChange, fingerprintContext, hash16 } from "./fingerprint.js";
 
 const model = { provider: "anthropic", id: "claude-sonnet-5-5" };
 
@@ -58,5 +58,16 @@ describe("fingerprintContext（§1.2）", () => {
     const c = fingerprintContext(context(base, user("q")), { provider: "x", id: "y" });
     expect(fingerprintChange(a, c)).toBe("model");
     expect(fingerprintChange(a, a)).toBeUndefined();
+  });
+
+  it("[ME-B] 按节指纹：每个非空节一个 hash16；changedSections 按节顺序列改动 / 新增，再列消失的", () => {
+    const a = fingerprintContext(context(system([], { a: "rules", b: "x", c: "y" })), model);
+    expect(Object.keys(a.sections ?? {})).toEqual(["a", "b", "c"]);
+    expect(a.sections?.["a"]).toBe(hash16("rules"));
+    const b = fingerprintContext(context(system([], { a: "rules", b: "x2", d: "z" })), model);
+    expect(changedSections(a, b)).toEqual(["b", "d", "c"]);
+    expect(changedSections(a, a)).toEqual([]);
+    const { sections: _s, ...legacy } = a;
+    expect(changedSections(legacy, b)).toEqual([]);
   });
 });

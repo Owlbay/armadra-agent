@@ -224,7 +224,7 @@ describe("工具执行", () => {
       m.role === "toolResult" ? [String(m.content)] : [],
     );
     expect(texts[0]).toMatch(/Invalid arguments.*\n\$\.path: expected string/);
-    expect(texts[1]).toBe("Tool nope not found");
+    expect(texts[1]).toBe('Tool "nope" is not available in this session.');
   });
 
   it("terminate 整批为真才提前结束", async () => {

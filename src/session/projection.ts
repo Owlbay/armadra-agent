@@ -5,8 +5,11 @@
  *   `firstKeptEntryId` 到 compaction 之间的非 system 条目，再放 compaction 之后的条目。
  * - `buildProjection(branch)`：对上一步的条目套用 `context_edit`（同一目标在活动分支上最新一条赢；
  *   `null` 剔除，字符串只换内容、保留角色与元数据），并把每个条目映射为 `AgentMessage`。
- *   有 compaction 时，compaction 之前的全部 system 消息折成一条完整的 system 检查点放在最前
- *   （会话条目里不另存检查点，重放即可得到）。
+ *   有 compaction 时（[ME-B] D4「开头只写一次」）：检查点只重放**对话开始前**（首条非 system
+ *   条目之前）的 system 消息，与压缩前请求的开头逐字节相同；此后到 compaction 之间的补丁合并成一条
+ *   合成补丁放在摘要之后，由 normalizeContext 渲染为尾部提醒。合成补丁的 `toolsAdded` 按首次出现
+ *   的顺序、用首次发送的声明，工具表与压缩前一致；多次压缩递归成立（都从原始条目重放）。
+ *   会话条目里不另存检查点与合成补丁，重放即可得到。
  * - `buildContext(branch)`：投影消息 + 路径上最近的模型 / 思考级别选择。
  */
 
@@ -142,7 +145,11 @@ export interface SystemState {
   tools: ToolDecl[];
 }
 
-/** 依次应用转录里的 system 消息（首条全量，之后是补丁）；没有 system 消息 → undefined。 */
+/**
+ * 依次应用转录里的 system 消息（首条全量，之后是补丁）；没有 system 消息 → undefined。
+ * 工具「保留原位、只换内容」（与 normalizeContext 一致）；同一条里先加后删（`diffSystem` 的补丁两者
+ * 不相交，只有压缩的合成补丁会对同名既加又删：声明过、现已移除）。
+ */
 export function replaySystem(messages: Iterable<AgentMessage | Message>): SystemState | undefined {
   let found = false;
   const sections = new Map<string, string>();
@@ -154,11 +161,8 @@ export function replaySystem(messages: Iterable<AgentMessage | Message>): System
       if (text === null) sections.delete(name);
       else sections.set(name, text);
     }
+    for (const tool of message.toolsAdded ?? []) tools.set(tool.name, tool);
     for (const name of message.toolsRemoved ?? []) tools.delete(name);
-    for (const tool of message.toolsAdded ?? []) {
-      tools.delete(tool.name);
-      tools.set(tool.name, tool);
-    }
   }
   if (!found) return undefined;
   return { sections: Object.fromEntries(sections), tools: [...tools.values()] };
@@ -171,9 +175,83 @@ export function systemCheckpoint(state: SystemState, timestamp: number): SystemM
   return message;
 }
 
+function sameDecl(a: ToolDecl, b: ToolDecl): boolean {
+  return (
+    a.description === b.description && JSON.stringify(a.parameters) === JSON.stringify(b.parameters)
+  );
+}
+
+/**
+ * 压缩的合成补丁：`head`（对话开始前的状态）→ 之后全部补丁重放的结果。节按差异给；工具先列对话中
+ * 首次出现的新名字（首次发送的声明，normalizeContext 冻结的就是它），再列内容有更新的（只更新重放
+ * 状态，不改请求工具表）；移除 = 声明过而现在不在。无差异 → undefined。
+ */
+export function synthesizeSystemPatch(
+  head: SystemState,
+  later: readonly SystemMessage[],
+  timestamp: number,
+): SystemMessage | undefined {
+  const full = replaySystem([systemCheckpoint(head, timestamp), ...later]) ?? head;
+  const sections: Record<string, string | null> = {};
+  for (const [name, text] of Object.entries(full.sections))
+    if (head.sections[name] !== text) sections[name] = text;
+  for (const name of Object.keys(head.sections))
+    if (!(name in full.sections)) sections[name] = null;
+  const sent = new Map(head.tools.map((tool) => [tool.name, tool]));
+  const added: ToolDecl[] = [];
+  for (const message of later)
+    for (const tool of message.toolsAdded ?? []) {
+      if (sent.has(tool.name)) continue;
+      sent.set(tool.name, tool);
+      added.push(tool);
+    }
+  const now = new Map(full.tools.map((tool) => [tool.name, tool]));
+  for (const [name, tool] of sent) {
+    const current = now.get(name);
+    if (current !== undefined && !sameDecl(current, tool)) added.push(current);
+  }
+  const removed = [...sent.keys()].filter((name) => !now.has(name));
+  if (Object.keys(sections).length === 0 && added.length === 0 && removed.length === 0)
+    return undefined;
+  const patch: SystemMessage = { role: "system", sections, timestamp };
+  if (added.length > 0) patch.toolsAdded = added.map((tool) => ({ ...tool }));
+  if (removed.length > 0) patch.toolsRemoved = removed;
+  return patch;
+}
+
 // ---------------------------------------------------------------------------
 // 投影
 // ---------------------------------------------------------------------------
+
+/** 对话开始：首条进上下文且不是 system 的条目（custom_message 算；custom / usage 等不算）。 */
+function startsConversation(entry: SessionEntry): boolean {
+  const message = entryToMessage(entry);
+  return message !== undefined && message.role !== "system";
+}
+
+function systemMessagesOf(entries: readonly SessionEntry[]): SystemMessage[] {
+  const out: SystemMessage[] = [];
+  for (const entry of entries)
+    if (entry.type === "message" && entry.message.role === "system") out.push(entry.message);
+  return out;
+}
+
+/** 压缩之前的 system 状态：开头检查点（对话开始前）+ 合成补丁（之后的全部补丁）。 */
+function compactedSystem(
+  before: readonly SessionEntry[],
+  timestamp: number,
+): { checkpoint?: SystemMessage; patch?: SystemMessage } {
+  let headEnd = before.findIndex(startsConversation);
+  if (headEnd < 0) headEnd = before.length;
+  const head = replaySystem(systemMessagesOf(before.slice(0, headEnd)));
+  const later = systemMessagesOf(before.slice(headEnd));
+  const out: { checkpoint?: SystemMessage; patch?: SystemMessage } = {};
+  if (head !== undefined) out.checkpoint = systemCheckpoint(head, timestamp);
+  if (later.length === 0) return out;
+  const patch = synthesizeSystemPatch(head ?? { sections: {}, tools: [] }, later, timestamp);
+  if (patch !== undefined) out.patch = patch;
+  return out;
+}
 
 export function buildProjection(branch: readonly SessionEntry[]): Projection {
   const edits = collectContextEdits(branch);
@@ -181,29 +259,23 @@ export function buildProjection(branch: readonly SessionEntry[]): Projection {
   const compaction = at >= 0 ? (branch[at] as CompactionEntry) : undefined;
   const items: ContextItem[] = [];
 
-  if (compaction !== undefined) {
-    const before: Message[] = [];
-    for (const entry of branch.slice(0, at)) {
-      if (entry.type === "message" && entry.message.role === "system") before.push(entry.message);
-    }
-    const state = replaySystem(before);
-    if (state !== undefined) {
-      items.push({
-        entry: compaction,
-        message: systemCheckpoint(state, parseTime(compaction.timestamp)),
-      });
-    }
-  }
+  const system =
+    compaction === undefined
+      ? {}
+      : compactedSystem(branch.slice(0, at), parseTime(compaction.timestamp));
+  if (compaction !== undefined && system.checkpoint !== undefined)
+    items.push({ entry: compaction, message: system.checkpoint });
 
   for (const entry of buildContextEntries(branch)) {
     let message = entryToMessage(entry);
-    if (message === undefined) continue;
-    const edit = edits.get(entry.id);
-    if (edit !== undefined) {
-      if (edit.replacement === null) continue;
-      message = applyReplacement(message, edit.replacement);
+    if (message !== undefined) {
+      const edit = edits.get(entry.id);
+      if (edit === undefined) items.push({ entry, message });
+      else if (edit.replacement !== null)
+        items.push({ entry, message: applyReplacement(message, edit.replacement) });
     }
-    items.push({ entry, message });
+    if (entry === compaction && system.patch !== undefined)
+      items.push({ entry: compaction, message: system.patch });
   }
   return { items, messages: items.map((item) => item.message), compaction };
 }

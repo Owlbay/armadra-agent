@@ -24,13 +24,20 @@ import type {
   WarmingDecisionHandler,
   WarmingMode,
 } from "../ai/cache/types.js";
-import { CacheWarmer, replayBlocker, type WarmerTimers } from "../ai/cache/warmer.js";
+import {
+  CacheWarmer,
+  replayBlocker,
+  warmReplayMaxTokens,
+  type WarmerTimers,
+} from "../ai/cache/warmer.js";
+import { thinkingBudget } from "../ai/thinking.js";
 import type { AssistantMessage, CacheRetention, Model, StreamOptions } from "../ai/types.js";
 import { estimateTextTokens } from "../compaction/estimate.js";
 import { SUMMARY_MAX_TOKENS, type SummaryContinuation } from "../compaction/summarize-tier.js";
 import type { AgentMessage } from "../session/types.js";
 import type { StreamFn } from "./loop.js";
 import { cacheKeyOf } from "./session-cache-key.js";
+import { effectiveWindow } from "./session-compaction.js";
 import { convertToLlm } from "./transform.js";
 import type { SessionCore } from "./session-core.js";
 import type { CacheSettings, SessionCacheStats } from "./types.js";
@@ -329,11 +336,13 @@ export class SessionCacheController {
   /**
    * 摘要续写的前缀（第三波 §1.8）：当前转录按回合同样的方式转换，且上一次 turn 请求的消息
    * 逐条是它的前缀（缓存必然命中）、加上摘要输出放得进窗口；否则 undefined（走独立请求）。
+   * [ME-B] D6：缓存已冷（`isCold()`）不续写——前缀要全价重写，不如裁剪后的独立请求小；思考开启
+   * 且不是预算型协议时，输出上限 = 摘要上限 + 思考预算（不超过模型上限），免得思考吃掉摘要。
    */
   summaryContinuation(): SummaryContinuation | undefined {
     const record = this.lastTurnRecord;
     const model = this.core.model();
-    if (record === undefined || this.disposed) return undefined;
+    if (record === undefined || this.disposed || this.isCold()) return undefined;
     if (
       model.provider !== record.model.provider ||
       model.id !== record.model.id ||
@@ -369,7 +378,13 @@ export class SessionCacheController {
       payloadReplaced: false,
       reporting: "reported",
     });
+    const level = rest.thinkingLevel;
     if (budget === "thinking_budget") streamOptions.maxTokens = maxTokens ?? model.maxTokens;
+    else if (model.reasoning && level !== undefined && level !== "off")
+      streamOptions.maxTokens = Math.min(
+        model.maxTokens,
+        SUMMARY_MAX_TOKENS + thinkingBudget(model, level),
+      );
     return { prefix: { messages }, streamOptions };
   }
 
@@ -452,7 +467,7 @@ export class SessionCacheController {
   }
 
   private checkPressure(record: RequestRecord, model: Model): void {
-    const window = model.contextWindow;
+    const window = effectiveWindow(model.contextWindow, this.core.options.compaction);
     if (window === undefined || window <= 0) return;
     const used = record.promptTokens + record.usage.output;
     const percent = Math.min(100, Math.round((used / window) * 1000) / 10);
@@ -516,8 +531,14 @@ export class SessionCacheController {
   private async replay(record: RequestRecord, signal: AbortSignal): Promise<AssistantMessage> {
     const inner = this.inner;
     if (inner === undefined) throw new Error("stream not wrapped");
-    const options: StreamOptions = { ...record.options, maxTokens: 1, purpose: "warm", signal };
-    return inner(this.modelOf(record), record.contextRef, options).result();
+    const model = this.modelOf(record);
+    const options: StreamOptions = {
+      ...record.options,
+      maxTokens: warmReplayMaxTokens(model.api),
+      purpose: "warm",
+      signal,
+    };
+    return inner(model, record.contextRef, options).result();
   }
 
   private onWarmed(record: RequestRecord, message: AssistantMessage, sentAt: number): void {

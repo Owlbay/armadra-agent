@@ -335,7 +335,7 @@ The `data` of `get_session_stats` is `SessionStats`:
 {"type":"context_pressure","percent":71,"threshold":70,"remainingTokens":57990,"estimatedTurnsLeft":6}
 ```
 
-`cache_miss` gives `detail` only for `prefix_changed` (`system` / `tools`). The values and meanings of `reason` for `cache_warm{stopped}` are in [tui.md](tui.md) "Cache and context". The result object of `ama -p --output-format json` also has a `cache` field of the same shape.
+`cache_miss` gives `detail` only for `prefix_changed` (`tools`, `system`, or `system:<section,…>` naming the changed sections, such as `system:hooks,memory`). The values and meanings of `reason` for `cache_warm{stopped}` are in [tui.md](tui.md) "Cache and context". The result object of `ama -p --output-format json` also has a `cache` field of the same shape.
 
 It also carries `context: { tokens, window, percent }` (context used, window size and usage 0–100, defined like `contextTokens` / `contextWindow` / `contextPercent` in the table above); an unknown item is omitted (for a model without a window only `tokens` is present), and when all are unknown there is no `context`.
 

@@ -629,7 +629,11 @@ OpenRouter 的 Messages 接口只在 `message_delta` 里给缓存 usage，解析
 
 前缀稳定由组装保证：系统提示节顺序固定、不含时间戳，工具按名排序，会话中途的变化只以 system 补丁追加在末尾（[session-format.md](session-format.md)「消息」）。
 
-对话开始之后的节补丁（resume 时 AGENTS.md、Skills 或 SessionStart Hook 输出变了，宿主 instructions 刷新，压缩后记忆节重新渲染）**不改写开头的 system**：没有打开 `supportsMidConvoSystemMessages` 的协议把它渲染成 `<system-reminder>` 包裹的 user 消息，插在补丁所在的位置，之前的请求仍是逐字节前缀。只有移除工具的补丁例外——工具表本身已经变了，前缀必然失效，这时全部补丁照旧折回开头。实测 DeepSeek 接受对话中途的 system 消息、前缀缓存也保持，但模型仍按开头那条回答，所以 DeepSeek 不打开这个开关（[cache-midconvo-2026-10-09](benchmarks/cache-midconvo-2026-10-09.md)）。下一次压缩时，这些补丁随 system 检查点并回开头。
+**开头的 system 与工具声明在会话内只写一次。** 对话开始之后的节补丁（resume 时 AGENTS.md、Skills 或 SessionStart Hook 输出变了，宿主 instructions 刷新，压缩后记忆节重新渲染）不改写开头：没有打开 `supportsMidConvoSystemMessages` 的协议把它渲染成 `<system-reminder>` 包裹的 user 消息，插在补丁所在的位置，之前的请求仍是逐字节前缀。实测 DeepSeek 接受对话中途的 system 消息、前缀缓存也保持，但模型仍按开头那条回答，所以 DeepSeek 不打开这个开关（[cache-midconvo-2026-10-09](benchmarks/cache-midconvo-2026-10-09.md)）。
+
+工具表同理：对话开始后新加的工具追加在工具表末尾；**移除工具不删声明**，提醒里写一句 `Tool "X" is no longer available in this session; calls to it are rejected.`，模型仍去调用时执行层拒绝（`Tool "X" is not available in this session.`）；再加回只提醒 `Tool "X" is available again.`，声明沿用第一次发送的版本。系统提示的 `tools` / `rules` 两节在对话开始后也冻结为已发送的文本。
+
+压缩不重写开头：压缩后的 system 检查点只重放对话开始前的 system 消息，之后的全部补丁合并成一条放在摘要后面（同样渲染为提醒），工具表按第一次出现的顺序与版本重建。所以压缩前后的首个请求 system + tools 逐字节相同，多次压缩也一样，只有摘要之后的消息需要按全价写入。
 
 ### 请求字段
 
@@ -705,10 +709,10 @@ xAI、Mistral、OpenRouter、Google 没有承诺的 TTL，留空：不保温、�
 
 ### 会话层：指纹、未命中与三态
 
-每次真实请求在内存里记一条记录：前缀指纹（system 与工具表各取 sha256 前 16 位 hex，加 `provider/model`）、`promptTokens`（input + cacheRead + cacheWrite）、用量与发出时刻。下一次请求与上一条比对：
+每次真实请求在内存里记一条记录：前缀指纹（system 与工具表各取 sha256 前 16 位 hex，加 `provider/model`，另记每个 system 节的哈希，`/cache fingerprint` 逐节列出）、`promptTokens`（input + cacheRead + cacheWrite）、用量与发出时刻。下一次请求与上一条比对：
 
 - **未命中**：`missed = min(上次前缀, 本次前缀) − 本次 cacheRead`，低于噪声下限（`max(1024, promptCache.minTokens, 端点缓存粒度)`）不计——有的端点按块报缓存读（DeepSeek 经中转是 2048 一块），粒度取同一端点（供应商 + 主机 + 模型）观察到的非零 cacheRead 的最大公约数，至少 2 个样本且在 128–8192 之间才采信，只在内存、进程内跨会话复用；相对比例超过随规模自适应的门槛（约 `0.10 × √(100k / 前缀)`，夹在 2%–30%），或绝对值 ≥ 20 000 才记一次。重计费金额按本条实付单价与读价之差估算，模型无价格时只有 token。
-- **原因**（按顺序判定）：system / 工具表指纹变了 → `prefix_changed`（`detail` 说明哪段，多半是宿主中途注册工具或 Hook 上下文变化）；模型变了 → `model_changed`；间隔超过 TTL → `idle`（目录没有 TTL 的隐式缓存按 10 分钟估）；两次请求之间 `task` 子任务占了间隔的 80% 以上 → `subtask`；其余 → `evicted`（服务端淘汰）。
+- **原因**（按顺序判定）：system / 工具表指纹变了 → `prefix_changed`（`detail` 说明哪段：`tools`，或 `system:<节名,…>`，例如 `system:hooks,memory`；开头只写一次之后，这通常意味着宿主或扩展绕过补丁直接改了首条 system）；模型变了 → `model_changed`；间隔超过 TTL → `idle`（目录没有 TTL 的隐式缓存按 10 分钟估）；两次请求之间 `task` 子任务占了间隔的 80% 以上 → `subtask`；其余 → `evicted`（服务端淘汰）。
 - **不算未命中**：压缩、分支摘要、档一裁剪之后的首个请求（上下文合法地变了）；前缀低于最小可缓存长度。切换模型**不**豁免。
 - **三态**：按 `(provider, baseUrl 主机名, model)` 在进程内维护。`unknown`：还没有足够长的可比请求；`reported`：出现过 cacheRead 或 cacheWrite > 0；`silent`：连续 3 个可比请求（前缀 ≥ minTokens、指纹未变、间隔 < TTL）读写都是 0，或 `compat.cacheReporting: "silent"`。只有 `reported` 时显示命中率、检测未命中并保温；`unknown` / `silent` 的请求不进命中率分母，界面显示 `—` / `未报告` 而不是 0%。
 
@@ -716,7 +720,7 @@ xAI、Mistral、OpenRouter、Google 没有承诺的 TTL，留空：不保温、�
 
 ### 保温
 
-工具长时间运行（长测试、`task` 子任务、codemode 脚本）时，前缀可能在下一次请求前过期。保温在 TTL 到期前重放上一次真实请求（同模型、同上下文，`maxTokens: 1`），只买一次读价，把缓存续上。
+工具长时间运行（长测试、`task` 子任务、codemode 脚本）时，前缀可能在下一次请求前过期。保温在 TTL 到期前重放上一次真实请求（同模型、同上下文，`maxTokens` 取协议允许的最小值：`openai-responses` 为 16，其余为 1），只买一次读价，把缓存续上。
 
 | 项     | 规则                                                                                                                                                                                       |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -732,7 +736,9 @@ xAI、Mistral、OpenRouter、Google 没有承诺的 TTL，留空：不保温、�
 
 ### 压缩摘要续写
 
-档二压缩的摘要请求不再另起一段新对话，而是在与上一次真实请求逐字节相同的前缀后面追加一条摘要指令（`cacheRetention: "short"`），所以整段历史按读价计费。续写请求**不发 `tool_choice`**：实测中转与 Kimi 在 `tool_choice: "none"` 时渲染的提示不带工具定义，前缀在工具段断开、读不到缓存；Anthropic 也写明改动 tool_choice 会让消息缓存失效。工具表照常发，「不要调用工具、只输出摘要」写在末尾指令里。响应为空、被截断、含工具调用或请求出错时，回落为独立的摘要请求（`cacheRetention: "none"`）并记 warning。
+档二压缩的摘要请求不再另起一段新对话，而是在与上一次真实请求逐字节相同的前缀后面追加一条摘要指令（`cacheRetention: "short"`），所以整段历史按读价计费。续写请求**不发 `tool_choice`**：实测中转与 Kimi 在 `tool_choice: "none"` 时渲染的提示不带工具定义，前缀在工具段断开、读不到缓存；Anthropic 也写明改动 tool_choice 会让消息缓存失效。工具表照常发，「不要调用工具、只输出摘要」写在末尾指令里。响应为空、被截断、含工具调用或请求出错时，回落为独立的摘要请求（`cacheRetention: "none"`）并记 warning。开了思考的模型（预算随 `max_tokens` 推导的 Anthropic 除外），续写的输出上限为摘要上限 4096 加上该级别的思考预算（不超过模型上限），免得思考用完额度、摘要被截断。
+
+档一 / 档二的先后：阈值检查先算档一（裁剪工具结果）能省多少。裁完就回到预算内 → 只裁；裁完仍超预算、且可以续写（同一模型、上一次请求仍是逐字节前缀、缓存没冷）→ **不裁**，直接续写摘要——被裁的内容本来就要进摘要，而裁剪会改写历史、让续写的前缀断开，变成一次全价的独立请求；缓存已经冷了（超过目录承诺的 TTL）→ 照旧先裁，摘要走独立请求，因为前缀反正要全价重写，裁剪后的请求更小。
 
 ### 配置
 

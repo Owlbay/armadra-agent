@@ -121,6 +121,7 @@ export const en = {
     missModel: "after switching model",
     missTools: "tool list changed",
     missSystem: "system prompt changed",
+    missSystemSections: (sections: string) => `system prompt changed: ${sections}`,
     missPrefix: "prefix changed",
     missEvicted: "evicted by the server",
     missNotice: (reason: string, tokens: string, cost: string | undefined) =>
@@ -412,6 +413,7 @@ export const zh = {
     missModel: "切换模型后",
     missTools: "工具表变化",
     missSystem: "系统提示变化",
+    missSystemSections: (sections) => `系统提示变化：${sections}`,
     missPrefix: "前缀变化",
     missEvicted: "服务端已淘汰",
     missNotice: (reason, tokens, cost) =>

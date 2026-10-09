@@ -181,7 +181,9 @@ describe("会话层缓存共享类型（W3-C0 ②）", () => {
       sections?: Record<string, string>;
     }>();
     expectTypeOf<CacheMiss["missedCost"]>().toEqualTypeOf<number | undefined>();
-    expectTypeOf<CacheMiss["detail"]>().toEqualTypeOf<"system" | "tools" | undefined>();
+    expectTypeOf<CacheMiss["detail"]>().toEqualTypeOf<
+      "system" | "tools" | `system:${string}` | undefined
+    >();
     expectTypeOf<WarmerStatus["state"]>().toEqualTypeOf<"inactive" | "scheduled" | "stopped">();
     expectTypeOf<WarmDecision["action"]>().toEqualTypeOf<"warm" | "stop">();
     expectTypeOf<ReturnType<WarmingDecisionHandler>>().toEqualTypeOf<
