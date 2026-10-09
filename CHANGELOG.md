@@ -11,7 +11,7 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 
 ### Model efficiency
 
-- **Contracts for the model-efficiency work** (docs/model-efficiency-plan.md): new optional fields only — `rawArguments` on tool-call blocks and `retryAfterMs` on failed assistant messages (session files and RPC, format and protocol versions unchanged), `context` on `ama.task` data and `TaskInfo`, `aliases` / `small` in the built-in model catalog. The config schema accepts `compaction.contextBudget`, `request.streamIdleTimeoutMs` and `models[].catalog`; they take effect in later batches. A tool call to a tool that is not available now gets `Tool "X" is not available in this session.`
+- **Contracts for the model-efficiency work** (docs/model-efficiency-plan.md): new optional fields only — `rawArguments` on tool-call blocks and `retryAfterMs` on failed assistant messages (session files and RPC, format and protocol versions unchanged), `context` on `ama.task` data and `TaskInfo`, `aliases` / `small` in the built-in model catalog. The config schema accepts `compaction.contextBudget`, `request.streamIdleTimeoutMs` and `models[].catalog`; they take effect in later batches.
 
 ## 0.7.3 (2026-10-09)
 

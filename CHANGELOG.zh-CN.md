@@ -10,7 +10,7 @@
 
 ### 模型调用效率
 
-- **模型调用效率改进的契约**（docs/model-efficiency-plan.md）：只加可选字段——工具调用块的 `rawArguments`、失败助手消息的 `retryAfterMs`（会话文件与 RPC 都是可选字段，格式与协议版本不变），`ama.task` 的 data 与 `TaskInfo` 的 `context`，内置模型目录的 `aliases` / `small`。配置 schema 接受 `compaction.contextBudget`、`request.streamIdleTimeoutMs` 与 `models[].catalog`，在后续批次生效。调用不可用的工具时，结果文案改为 `Tool "X" is not available in this session.`
+- **模型调用效率改进的契约**（docs/model-efficiency-plan.md）：只加可选字段——工具调用块的 `rawArguments`、失败助手消息的 `retryAfterMs`（会话文件与 RPC 都是可选字段，格式与协议版本不变），`ama.task` 的 data 与 `TaskInfo` 的 `context`，内置模型目录的 `aliases` / `small`。配置 schema 接受 `compaction.contextBudget`、`request.streamIdleTimeoutMs` 与 `models[].catalog`，在后续批次生效。
 
 ## 0.7.3（2026-10-09）
 
