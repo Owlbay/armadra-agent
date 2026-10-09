@@ -856,6 +856,25 @@ tool_call（模型产出）
 | 保温 | `cache.warming`：`off` / `streaming`（缺省，工具运行期间）/ `idle`；TTL 到期前重放上一次请求（`maxTokens`：`openai-responses` 16，其余 1），从请求发出时刻计时；`p·missCost − warmCost ≥ minSavingsUsd` 才发；streaming 60 min、idle 30 min 上限，连续 2 次零命中即停；成功记 `usage{kind:"cache_warm"}` 条目；宿主 `cache.onWarmingDecision` 可否决 | `src/ai/cache/warmer.test.ts`、`economics.test.ts` |
 | 摘要续写 | 档二摘要在与上一次真实请求逐字节相同的前缀（含 tools）后追加摘要指令（`cacheRetention: "short"`；不发 `toolChoice`，改动它会断开缓存前缀，禁止调用工具只写在指令里），按读价计；缓存已冷时不续写；思考开启且非预算型协议时 `maxTokens = min(model.maxTokens, 4096 + 思考预算)`；空回复 / 截断 / 含工具调用 / 出错回落独立请求 | `src/compaction/continuation.test.ts` |
 
+### §9.2 内存预算
+
+2026-10 内存批次（[memory-plan.md](memory-plan.md)，实测见 [benchmarks/memory-2026-10.md](benchmarks/memory-2026-10.md)）之后的上限。CI 不以 RSS 作硬断言（D13）：守护测试用 `WeakRef` + 显式 GC、堆增长上限与字节比对，RSS 数字由 `node scripts/bench-memory.mjs` 在本地复测（macOS / Node 26，3 次中位数）。改动下列路径时先跑对应守护测试，涉及峰值的再跑一次 bench 并更新 benchmarks。
+
+| 场景 | 上限（bench 峰值 RSS 等） | 守护测试 |
+| --- | --- | --- |
+| 全局 `ama --version` | ≤ 82 MB，≤ 0.10 s（实测 76.7） | `test/release-check.test.ts`（`bin.ama` 是 bundle、与 `exports["./bundle"]` 相同、首行 shebang）；e2e `npm pack` 装包后 `.bin/ama --version`；`src/tui/ansi.test.ts`（载入 TUI 模块不构造 `Intl.Segmenter`） |
+| `-p` 一轮（fake） | ≤ 98 MB（实测 92.7） | 同上 |
+| `read` 256 MB 文件前 100 行 | ≤ 110 MB（实测 103.2） | `test/memory/read-huge.test.ts`（32 MB 文件读开头 / 近尾部 100 行，GC 前后增长都 < 2 MB）；`src/tools/read-lines.test.ts`（两条路径逐字节相同） |
+| `sessions list` 4 × 55 MB | ≤ 110 MB（实测 88.2） | `test/memory/session-files.test.ts`（24 MB 会话：GC 后增长 < 2 MB，过程中 heap < 0.2 × 文件、external < 0.5 × 文件）；`src/session/list.test.ts`（新旧口径深度相等） |
+| `-p --resume` 55 MB | ≤ 220 MB（实测 217.9；剩余是转录本身约 66 MB 与堆余量） | `test/memory/session-files.test.ts`（`readSessionLines` 只留解析结果 ≤ 旧实现 + 2 MB，过程中 external < 0.5 × 文件）；`src/session/store.test.ts` |
+| mock HTTP 300 步 + 15 次读图 | ≤ 720 MB（实测 720.2） | `test/memory/json-body.test.ts`（36 MB 图片请求体：heap 增长 < 3 MB，external ≈ 结果长度；流式请求体读完不留增长）；`src/ai/json-body.test.ts`（四协议请求体与 500 个随机 JSON 与 `JSON.stringify` 逐字节相同） |
+| 同一张图多次出现 | 内存里一份 base64 | `test/memory/image-intern.test.ts`（`read` 5 次同一 block、附图与 `read` 同一 block、会话里 4 处同一 block；第 2–5 次增长 < 200 KB） |
+| ACP 8 会话 × 4 轮全部 close + GC | heap ≤ 20 MB、external ≤ 20 MB（fake；实测 16.1 / 16.3，剩余是启动会话） | `test/memory/acp-release.test.ts`（关闭后实例回收、`taskControl` 注销、端点摘要不含回调、external 回到基线） |
+| RPC 100 步事件字节 | 声明 `compact_events` 后 ≤ 原来的 45%（实测 0.40） | `test/memory/rpc-bytes.test.ts`（1 MB 结果：未声明 5 份、声明后 2 份，字节比 < 0.45；`stream-json` 不变） |
+| codemode 子进程 | 堆 ≤ `codemode.maxHeapMb`（缺省 256 MB） | `src/codemode/host-side.test.ts`（参数首位；32 MB 上限下真实子进程 OOM → 脚本错误，宿主 heap 增长 < 5 MB） |
+| 已结束子 Agent 会话 | 内存里至多 `subagents.retainSessions` 个（缺省 4） | `src/agent/subagent-registry.test.ts`（6 个任务后前 2 个句柄释放、仍可续聊） |
+| 真实 TUI 带图会话 | ≤ 300 MB（astr，4 提示 3 图实测 218.4） | —（benchmarks 记录） |
+
 ## §10 配置、密钥、profile
 
 ### §10.1 文件与位置
