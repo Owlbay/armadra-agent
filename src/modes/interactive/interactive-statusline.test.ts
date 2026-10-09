@@ -59,7 +59,8 @@ describe("底部信息行（交互界面）", () => {
     expect(s.handle.area.layout()).toBe("compact");
     const [hint, bar] = tail(s.terminal, 2);
     expect(hint).toBe("状态栏：精简（一行）");
-    expect(bar).toMatch(/^Manual · shift\+tab 切换 +echo · medium · ctx 0% · work · 0s$/);
+    // 第一次请求前：系统提示 + 工具声明的前缀基线（≈，不是 0）
+    expect(bar).toMatch(/^Manual · shift\+tab 切换 +echo · medium · ctx ≈0\.\d% · work · 0s$/);
     expect(s.terminal.viewport().join("\n")).not.toContain("[-]");
     s.type("\x07");
     expect(s.handle.area.layout()).toBe("full");
@@ -89,9 +90,10 @@ describe("底部信息行（交互界面）", () => {
     const [rate, bar] = tail(s.terminal, 2);
     // 假供应商整块到达：没有速率（tps —），但有输出量与 ttft
     expect(rate).toMatch(
-      /^ +tps: — • 17 tok \/ [\d.]+s \(ttft [\d.]+s\) · ↑900 ↓17 · cache — · \[-\]$/,
+      /^ +tps: — • 17 tok \/ [\d.]+s \(ttft [\d.]+s\) · Σ↑900 ↓17 · cache — · \[-\]$/,
     );
-    expect(bar).toMatch(/ echo medium \| Ctx \d+\.\d% \| work \| \$0\.001 \| 0s$/);
+    // 有了 usage：不带 ≈；full 显示已用量 / 窗口
+    expect(bar).toMatch(/ echo medium \| Ctx \d+\.\d% 917\/200k \| work \| \$0\.001 \| 0s$/);
     s.handle.exit(0);
     await s.done;
   });

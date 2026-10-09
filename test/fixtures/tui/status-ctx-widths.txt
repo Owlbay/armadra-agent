@@ -1,0 +1,12 @@
+# 160
+|Manual | shift+tab 切换                                                       chatgpt/gpt-6-astra medium | Ctx 3.0% 8.2k/272k auto | proj ⎇ master 5ae9e54 | 15s|
+# 120
+|Manual | shift+tab 切换               chatgpt/gpt-6-astra medium | Ctx 3.0% 8.2k/272k auto | proj ⎇ master 5ae9e54 | 15s|
+# 80
+|Manual            gpt-6-astra | Ctx 3.0% 8.2k/272k | proj ⎇ master 5ae9e54 | 15s|
+# 60
+|Manual                     gpt-6-astra | Ctx 3.0% 8.2k | 15s|
+# 45
+|Manual              gpt | Ctx 3.0% 8.2k | 15s|
+# 34
+|Manual        gpt | Ctx 3.0% | 15s|

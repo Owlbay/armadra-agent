@@ -3,7 +3,8 @@
  *
  * 统计口径：活动分支上的全部条目（不是投影）——被压缩 / 剔除的消息仍计入用量与成本；
  * 压缩与分支摘要请求的 usage 也计入；`usage` 条目（缓存保温等不进上下文的请求，第三波 §1.7）
- * 计入 token 与费用但不算消息。上下文 % 用投影感知估算（§9）。
+ * 计入 token 与费用但不算消息。上下文 % 用投影感知估算（§9）；`context` 标明估算来源（usage / 全量估算 /
+ * 启动前缀基线）与自动压缩阈值。
  */
 
 import { modelRefOf } from "../ai/providers/channels.js";
@@ -12,7 +13,12 @@ import type { PermissionMode } from "../permissions/types.js";
 import type { SessionManager } from "../session/manager.js";
 import type { SessionEntry } from "../session/types.js";
 import type { Agent } from "./agent.js";
-import type { SessionCacheStats, SessionState, SessionStats } from "./types.js";
+import type {
+  SessionCacheStats,
+  SessionContextStats,
+  SessionState,
+  SessionStats,
+} from "./types.js";
 import type { QuotaUpdateEvent, SubscriptionStats } from "./types-w6.js";
 
 export interface StateInput {
@@ -53,7 +59,9 @@ export interface StatsInput {
   sessionId: string;
   sessionFile: string | undefined;
   branch: readonly SessionEntry[];
-  contextTokens: number | undefined;
+  contextTokens?: number | undefined;
+  /** 会话的上下文估算（CompactionController.contextStats，含来源与阈值）；给了以它的 tokens 为准。 */
+  context?: { tokens: number; detail: SessionContextStats };
   contextWindow: number | undefined;
   /** [W3-C1b] 会话层缓存控制器的统计（未接线时缺省）。 */
   cache?: SessionCacheStats;
@@ -121,12 +129,11 @@ export function computeStats(input: StatsInput): SessionStats {
       addCost(entry.usage);
     }
   }
+  const contextTokens = input.context?.tokens ?? input.contextTokens;
   const contextPercent =
-    input.contextWindow === undefined ||
-    input.contextTokens === undefined ||
-    input.contextWindow <= 0
+    input.contextWindow === undefined || contextTokens === undefined || input.contextWindow <= 0
       ? undefined
-      : Math.min(100, Math.round((input.contextTokens / input.contextWindow) * 1000) / 10);
+      : Math.min(100, Math.round((contextTokens / input.contextWindow) * 1000) / 10);
   const stats: SessionStats = {
     sessionId: input.sessionId,
     sessionFile: input.sessionFile,
@@ -136,10 +143,11 @@ export function computeStats(input: StatsInput): SessionStats {
     toolResults,
     tokens,
     cost,
-    contextTokens: input.contextTokens,
+    contextTokens,
     contextWindow: input.contextWindow,
     contextPercent,
   };
+  if (input.context !== undefined) stats.context = { ...input.context.detail };
   const rate = cacheHitRate(tokens);
   if (rate !== undefined) stats.cacheHitRate = rate;
   if (input.cache !== undefined) stats.cache = input.cache;

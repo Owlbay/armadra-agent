@@ -155,7 +155,7 @@ describe("[W7] full 左右分区", () => {
   it("compact：记号顺序不变（单行，开关仍在右区既有位置，配额短项在行尾）", () => {
     const [line] = rows(240, { subscription: true, layout: "compact" }).map(stripAnsi);
     expect(line).toMatch(
-      /^Bypass permissions · shift\+tab 切换 {4,}chatgpt\/gpt-6-astra@codex · medium · ↑1\.2k ↓185 · ctx ▮*▯+ 1% · yovinchen · 1m · codemode on · 5h 12% 周 31%$/,
+      /^Bypass permissions · shift\+tab 切换 {4,}chatgpt\/gpt-6-astra@codex · medium · ↑1\.2k ↓185 · ctx ▮*▯+ 0\.5% · yovinchen · 1m · codemode on · 5h 12% 周 31%$/,
     );
     expect(rows(240, { subscription: true, layout: "compact" })).toHaveLength(1);
   });

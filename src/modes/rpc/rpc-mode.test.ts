@@ -434,6 +434,15 @@ describe("RPC get_session_stats.cache [W3-C2]", () => {
       contextRemainingTokens: expect.any(Number),
       estimatedTurnsLeft: expect.any(Number),
     });
+    // 上下文来源与自动压缩阈值原样带出（usage = 最后一条有效 usage，阈值按窗口 − 预留）
+    expect(stats["context"]).toEqual({
+      source: "usage",
+      usageTokens: 150_010,
+      trailingTokens: 0,
+      autoCompactAt: (stats["contextWindow"] as number) - 16_384,
+      pruneAt: Math.floor(0.7 * ((stats["contextWindow"] as number) - 16_384)),
+    });
+    expect(stats["contextTokens"]).toBe(150_010);
     const types = lines.map((l) => l["type"]);
     expect(types).toContain("context_pressure");
     expect(types).toContain("cache_miss");

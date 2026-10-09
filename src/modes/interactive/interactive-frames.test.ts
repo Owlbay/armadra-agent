@@ -38,7 +38,10 @@ describe("启动头", () => {
         argv: ["--trust", "--codemode", "off"],
       });
       // Windows 上目录显示为 ~\work
-      const shot = snapshot(s.terminal, "startup normal").replaceAll("~\\work", "~/work");
+      // 启动基线（≈x%）按系统提示估算，随平台与路径变化，不进黄金
+      const shot = snapshot(s.terminal, "startup normal")
+        .replaceAll("~\\work", "~/work")
+        .replace(/≈\d+(?:\.\d)?%/g, "≈<prefix>%");
       golden(`startup-normal-${columns}x24`, shot);
       s.handle.exit(0);
       await s.done;
@@ -67,7 +70,10 @@ describe("启动头（en）", () => {
         quietStartup: "normal",
         argv: ["--trust", "--codemode", "off"],
       });
-      const shot = snapshot(s.terminal, "startup normal").replaceAll("~\\work", "~/work");
+      // 启动基线（≈x%）按系统提示估算，随平台与路径变化，不进黄金
+      const shot = snapshot(s.terminal, "startup normal")
+        .replaceAll("~\\work", "~/work")
+        .replace(/≈\d+(?:\.\d)?%/g, "≈<prefix>%");
       golden(`en/startup-normal-${columns}x24`, shot);
       s.handle.exit(0);
       await s.done;

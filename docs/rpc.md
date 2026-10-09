@@ -292,6 +292,7 @@
 | `tokens`                                                           | `{ input, output, cacheRead, cacheWrite, total }`，含保温请求的用量         |
 | `cost`                                                             | 美元；任一条消息缺成本时缺省（界面显示 `$?`）                               |
 | `contextTokens` / `contextWindow` / `contextPercent`               | 当前上下文估算、窗口与占用（0–100）；模型没有窗口时缺省                     |
+| `context`                                                          | 估算来源与自动压缩阈值（字段与缺省语义见 sessions.md）                      |
 | `cacheHitRate`                                                     | 旧口径命中率：cacheRead /（input + cacheRead + cacheWrite），全部请求进分母 |
 | `cache`                                                            | `SessionCacheStats`（下例），会话层缓存控制器接线时才有                     |
 

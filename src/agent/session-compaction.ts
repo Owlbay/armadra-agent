@@ -14,6 +14,8 @@
  *   `overflow`，受跳闸限制）→ 压缩后估算 ≤ 0.8 × 窗口才重试。
  * - 手动 `/compact`：PreCompact（trigger `manual`）→ 摘要；成功清零熔断。
  * PreCompact 的 `decision: "block"` 取消本次压缩；`customInstructions` 追加到摘要提示。
+ * - 统计（`contextStats`，供 getStats）：投影估算标来源；系统消息落盘前加系统提示 + 工具声明的前缀基线
+ *   （只统计，不写分支、不改请求）；附档一 / 档二阈值。压缩调度本身仍只看 `estimate()`。
  * [W3-C1b] 阈值 / 手动压缩与分支摘要优先走会话前缀续写（缓存控制器给前缀），溢出恢复不走
  * （前缀本身已超窗口）；续写失败回落独立请求并记 warning。
  */
@@ -25,6 +27,7 @@ import {
   estimateProjectedTokens,
   type ContextEstimate,
 } from "../compaction/estimate.js";
+import { estimatePrefixTokens, withPrefixBaseline } from "../compaction/prefix-estimate.js";
 import { planPrune, prunePolicy, type PrunePolicy } from "../compaction/prune-tier.js";
 import { createProtection, skillLocations } from "../compaction/protect.js";
 import { buildPostCompactBlock } from "../compaction/post-compact.js";
@@ -39,7 +42,14 @@ import { prepareBranchSummary, runBranchSummary } from "../compaction/branch-sum
 import { buildProjection } from "../session/projection.js";
 import type { BranchSummaryEntry, CompactionEntry } from "../session/types.js";
 import type { SessionCore } from "./session-core.js";
-import type { CompactionResult, CompactionSettings, CompactionTrigger } from "./types.js";
+import { assembleSections, definedSections, toolDecls } from "./system-prompt.js";
+import type { ToolDefinition } from "../tools/types.js";
+import type {
+  CompactionResult,
+  CompactionSettings,
+  CompactionTrigger,
+  SessionContextStats,
+} from "./types.js";
 
 export const DEFAULT_COMPACTION_SETTINGS: CompactionSettings = {
   enabled: true,
@@ -96,6 +106,44 @@ export class CompactionController {
   estimate(): ContextEstimate {
     const branch = this.core.manager.branch();
     return estimateProjectedTokens(buildProjection(branch).items, branch);
+  }
+
+  /**
+   * 统计用的上下文量（`getStats`）：投影估算标上来源；系统消息还没落盘时加上前缀基线（系统提示 +
+   * 工具声明，只统计不写分支）。附自动压缩的两个阈值（自动压缩可用时）。压缩调度仍用 `estimate()`。
+   */
+  contextStats(): { tokens: number; detail: SessionContextStats } {
+    const branch = this.core.manager.branch();
+    const items = buildProjection(branch).items;
+    const sourced = withPrefixBaseline(
+      estimateProjectedTokens(items, branch),
+      items.some((item) => item.message.role === "system"),
+      () => this.prefixTokens(),
+    );
+    const detail: SessionContextStats = {
+      source: sourced.source,
+      usageTokens: sourced.usageTokens,
+      trailingTokens: sourced.trailingTokens,
+    };
+    const budget = this.budget();
+    const policy = this.prunePolicy();
+    if (this.breaker.autoEnabled && budget !== undefined && policy !== undefined) {
+      detail.autoCompactAt = budget;
+      detail.pruneAt = Math.floor(policy.triggerTokens);
+    }
+    return { tokens: sourced.tokens, detail };
+  }
+
+  /** 将要发送的系统提示 + 工具声明的估算（与首条 system 消息同样装配，不落盘）。 */
+  private prefixTokens(): number {
+    const core = this.core;
+    const tools = core
+      .activeToolNames()
+      .map((name) => core.activeTool(name))
+      .filter((tool): tool is ToolDefinition => tool !== undefined);
+    const system = core.childBase?.().system ?? core.options.system ?? {};
+    const sections = definedSections(assembleSections({ ...system, tools, cwd: core.cwd }));
+    return estimatePrefixTokens(sections, toolDecls(tools));
   }
 
   private budget(): number | undefined {

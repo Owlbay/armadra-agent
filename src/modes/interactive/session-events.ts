@@ -1,10 +1,15 @@
 /**
  * 交互界面的会话事件分派：`SessionEvent` → 消息区、工具视图、状态栏、运行指示。[B7]
  * 从 interactive-mode.ts 拆出（W5-U：第五波事件先交给 agent-ui.ts，预算到限的 agent_settled warning 不重复显示）。
+ *
+ * 状态栏刷新时机：用户消息落盘（message_end，紧跟 message_start）后立刻刷新，尾部估算马上反映进 Ctx；
+ * 流式中助手消息带 usage 时按 ≤ 2 Hz 采样在途请求的上下文量（StatusBar.noteStreaming），消息结束后回到统计值。
+ * 模型没有上下文窗口（`ctx ?`）时每个模型提示一次怎么补。
  */
 
 import { msg } from "../../i18n/index.js";
 import type { AgentSession, SessionEvent } from "../../agent/types.js";
+import { formatModelRef } from "../../ai/providers/channels.js";
 import { cacheEventNotice, cacheNoticesEnabled } from "../session-report.js";
 import type { AgentUi } from "./agent-ui.js";
 import { compactionErrorText, ImageBudgetNotices, LIMIT_WARNING } from "./event-notices.js";
@@ -30,6 +35,17 @@ export interface SessionEventDeps {
 export function createSessionEventHandler(deps: SessionEventDeps): (event: SessionEvent) => void {
   const { view, tools, status, area, agentUi, indicator, session, setQueue, notice, render } = deps;
   const images = new ImageBudgetNotices((text) => notice("info", text));
+  const windowHinted = new Set<string>();
+  /** 刷新状态栏；模型没有上下文窗口时每个模型提示一次。 */
+  const refresh = (): void => {
+    status.refresh();
+    if (status.current().contextWindow !== undefined) return;
+    const model = session().state.model;
+    const ref = model === undefined ? undefined : formatModelRef(model);
+    if (ref === undefined || windowHinted.has(ref)) return;
+    windowHinted.add(ref);
+    view.addNotice("info", msg().interactive.statusLine.noWindow(ref));
+  };
   return (event: SessionEvent): void => {
     if (area.onEvent(event) || agentUi().onEvent(event)) {
       // [W7-A] 子任务出现 / 结束：运行提示行的「↓ Agent 栏」跟着变
@@ -42,7 +58,7 @@ export function createSessionEventHandler(deps: SessionEventDeps): (event: Sessi
         // 预算到限已由 limit_reached 给出友好提示
         if (event.warning !== undefined && event.warning !== LIMIT_WARNING)
           view.addNotice("warn", event.warning);
-        status.refresh();
+        refresh();
         break;
       case "message_start": {
         const message = event.message;
@@ -55,12 +71,14 @@ export function createSessionEventHandler(deps: SessionEventDeps): (event: Sessi
       }
       case "message_update":
         view.updateAssistant(event.message);
+        status.noteStreaming(event.message.usage);
         break;
       case "message_end":
         if (event.message.role === "assistant") {
           view.endAssistant(event.message);
+          status.clearStreaming();
           status.refresh();
-        }
+        } else if (event.message.role === "user") refresh();
         break;
       case "tool_execution_start": {
         const started = tools.start(event);
@@ -107,7 +125,7 @@ export function createSessionEventHandler(deps: SessionEventDeps): (event: Sessi
       case "model_changed":
       case "thinking_level_changed":
       case "session_changed":
-        status.refresh();
+        refresh();
         render();
         return;
       default:

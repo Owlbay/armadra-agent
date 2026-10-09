@@ -81,13 +81,20 @@ describe("会话报告文本", () => {
   });
 
   it("/session 面板黄金：会话五行 + 缓存段（报告状态、命中率、未命中按原因、保温、余量、子任务）", () => {
-    expect(describeSession(fakeSession({ cache: CACHE }), NOW)).toBe(
+    const context = {
+      source: "usage" as const,
+      usageTokens: 700_000,
+      trailingTokens: 20_000,
+      autoCompactAt: 983_616,
+      pruneAt: 688_531,
+    };
+    expect(describeSession(fakeSession({ cache: CACHE, context }), NOW)).toBe(
       [
-        "会话    0193abcd-0000-7000-8000-000000000001（未落盘）",
-        "模型    packy/kimi-k2.5 · 思考 medium · 权限 default",
-        "消息    用户 9 · 助手 12 · 工具调用 30",
-        "用量    输入 60000 · 输出 40000 · 缓存读 1050000 · 缓存写 90000 · $1.2345",
-        "上下文  720000 / 1000000（72%）",
+        "会话      0193abcd-0000-7000-8000-000000000001（未落盘）",
+        "模型      packy/kimi-k2.5 · 思考 medium · 权限 default",
+        "消息      用户 9 · 助手 12 · 工具调用 30",
+        "累计用量  输入 60000 · 输出 40000 · 缓存读 1050000 · 缓存写 90000 · $1.2345",
+        "上下文    720000 / 1000000（72%） · 距自动压缩 ≈ 264k",
         "缓存",
         "  输入      1.2M = 缓存读 1.05M（88%）+ 未缓存 150k（其中写入 90k）",
         "  报告状态  reported",
@@ -98,6 +105,22 @@ describe("会话报告文本", () => {
         "  子任务    2 个会话，命中率 71%",
       ].join("\n"),
     );
+  });
+
+  it("上下文行：估算值带 ≈；自动压缩关闭时注明；窗口未知或没有明细时不加说明", () => {
+    const row = (stats: Partial<SessionStats>): string =>
+      describeSession(fakeSession(stats), NOW)
+        .split("\n")
+        .find((line) => line.startsWith("上下文"))!;
+    const estimate = { source: "estimate" as const, usageTokens: 0, trailingTokens: 720_000 };
+    expect(row({ context: estimate })).toBe("上下文    ≈720000 / 1000000（72%） · 自动压缩关闭");
+    expect(row({ context: { ...estimate, source: "prefix", autoCompactAt: 983_616 } })).toBe(
+      "上下文    ≈720000 / 1000000（72%） · 距自动压缩 ≈ 264k",
+    );
+    expect(row({ context: estimate, contextWindow: undefined, contextPercent: undefined })).toBe(
+      "上下文    ≈720000 / ?（?%）",
+    );
+    expect(row({})).toBe("上下文    720000 / 1000000（72%）");
   });
 
   it("三态：未报告 / 未知不显示命中率；无价重计费 $?；保温停止原因与 off", () => {

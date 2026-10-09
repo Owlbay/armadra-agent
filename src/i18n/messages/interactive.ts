@@ -120,6 +120,11 @@ export const en = {
     cacheSilent: "n/a",
     sandbox: "sandbox",
     cycleHint: "shift+tab to cycle",
+    /** full 本行 Ctx 段末尾：自动压缩开着。 */
+    autoCompact: "auto",
+    /** 模型没有上下文窗口（状态栏 `ctx ?`）时提示一次。 */
+    noWindow: (model: string) =>
+      `Context window unknown for ${model}: the status bar shows ctx ? and auto-compaction is off. Run \`ama models discover\` or set contextWindow for this model in the config.`,
     /** [W6] 订阅配额行（full 第三行）与窄屏 / compact 短格式；标签自带分隔（英文冒号后空格）。 */
     quota: {
       session: "Session: ",
@@ -258,6 +263,9 @@ export const zh = {
     cacheSilent: "未报告",
     sandbox: "沙箱",
     cycleHint: "shift+tab 切换",
+    autoCompact: "auto",
+    noWindow: (model) =>
+      `${model} 没有上下文窗口信息：状态栏显示 ctx ?，自动压缩关闭。运行 \`ama models discover\`，或在配置里为该模型设置 contextWindow。`,
     quota: {
       session: "5 小时：",
       reset: "重置：",

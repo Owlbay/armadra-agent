@@ -8,7 +8,8 @@
  * - [W7] 左右分区：左 = 状态 / 开关（`codemode on|only`〔网络未隔离追加 `net!`〕· `沙箱` · `preset 名` ·
  *   `→ 回退模型` · `queue N` · [宿主]），没有开关时左区为空、右区右对齐；右 = 度量：
  *   `tps: <速率>`（流式中是最近 2 s 窗口的瞬时值、前缀 accent；结束后是该请求的平均值；还没有请求时 `tps: —`）
- *   • `<输出 token> tok / <耗时>`（首 token 起算）`(avg <会话均速> · ttft <首 token 延迟>)` · `↑ ↓` · cache ·
+ *   • `<输出 token> tok / <耗时>`（首 token 起算）`(avg <会话均速> · ttft <首 token 延迟>)` · `Σ↑ ↓ R W`（会话累计
+ *   计费量，不是上下文；R / W 为缓存读写，为 0 不显示） · cache ·
  *   rebill，行尾 `[-]`（折叠提示：Ctrl+G 或 `/statusline compact`）；`•` 走字形表（ASCII `*`）；
  * - 数据：`StatusBar.current()` 的 `telemetry` 与用量（同一次 getStats）；流式中 `telemetry_tick` 时刷新；
  * - 丢弃顺序（数字大先丢；`tps` 与 `[-]` 永不丢）：右区度量先丢——tok/耗时 12 → token 11 → cache 10 →
@@ -138,7 +139,7 @@ export class StatusLine implements Component {
       );
     }
 
-    const usage = usageItems(stats, this.bar.queued(), this.source, theme);
+    const usage = usageItems(stats, this.bar.queued(), this.source, theme, true);
     add("right", usage.tokens, PRIORITY.tokens);
     add("right", usage.cache, PRIORITY.cache);
     add("right", usage.rebill, PRIORITY.rebill);
