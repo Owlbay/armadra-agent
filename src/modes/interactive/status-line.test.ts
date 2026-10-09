@@ -140,12 +140,12 @@ describe("速率行", () => {
     const r = rig("full");
     const [top, bottom] = r.rows(200);
     expect(top).toMatch(
-      /^ {4,}tps: 99 tok\/s • 546 tok \/ 5\.5s \(avg 100 · ttft 1\.4s\) · ↑12k ↓1\.2k · cache 83% ♨ · \[-\]$/,
+      /^ {4,}tps: 99 tok\/s • 546 tok \/ 5\.5s \(avg 100 · ttft 1\.4s\) · Σ↑12k ↓1\.2k R10k W300 · cache 83% ♨ · \[-\]$/,
     );
     expect(bottom).toMatch(
-      /^Manual \| shift\+tab 切换 {4,}anthropic\/claude-opus-5-5 medium \| Ctx 3\.0% \| vitaweave ⎇ main 5ae9e54 \(\+12,-3\) \| \$0\.26 \| 2h24m$/,
+      /^Manual \| shift\+tab 切换 {4,}anthropic\/claude-opus-5-5 medium \| Ctx 3\.0% 6\.0k\/200k \| vitaweave ⎇ main 5ae9e54 \(\+12,-3\) \| \$0\.26 \| 2h24m$/,
     );
-    expect(r.rows(99)[1]).toContain("claude-opus-5-5 medium | Ctx 3.0% |");
+    expect(r.rows(99)[1]).toContain("claude-opus-5-5 | Ctx 3.0% 6.0k |");
   });
 
   it("compact：只有一行（速率行不占行，没有 [-]），用量类项回到状态栏", () => {
@@ -174,7 +174,7 @@ describe("速率行", () => {
       /^ +tps: 123 tok\/s • 1\.2k tok \/ 9\.9s \(avg 80 · ttft 0\.9s\) /,
     );
     r.set({ telemetry: { sessionStartedAt: 0 } });
-    expect(r.rows(200)[0]).toMatch(/^ +tps: — · ↑12k/);
+    expect(r.rows(200)[0]).toMatch(/^ +tps: — · Σ↑12k/);
     const tagged = Object.assign(Object.create(plainTheme()) as Theme, {
       fg: (c: string, t: string) => `<${c}>${t}`,
     });
@@ -204,10 +204,10 @@ describe("速率行", () => {
     const at = (w: number): string => r.rows(w)[0]!.replace(/ {4,}/, " ‖ ");
     const SW = "codemode on · preset codemode · queue 1 · [x]";
     expect(at(200)).toBe(
-      `${SW} ‖ tps: 99 tok/s • 546 tok / 5.5s (avg 100 · ttft 1.4s) · ↑12k ↓1.2k · cache 83% ♨ · rebill $0.05 · [-]`,
+      `${SW} ‖ tps: 99 tok/s • 546 tok / 5.5s (avg 100 · ttft 1.4s) · Σ↑12k ↓1.2k R10k W300 · cache 83% ♨ · rebill $0.05 · [-]`,
     );
-    expect(at(140)).toBe(
-      `${SW} ‖ tps: 99 tok/s (avg 100 · ttft 1.4s) · ↑12k ↓1.2k · cache 83% ♨ · rebill $0.05 · [-]`,
+    expect(at(150)).toBe(
+      `${SW} ‖ tps: 99 tok/s (avg 100 · ttft 1.4s) · Σ↑12k ↓1.2k R10k W300 · cache 83% ♨ · rebill $0.05 · [-]`,
     );
     expect(at(130)).toBe(
       `${SW} ‖ tps: 99 tok/s (avg 100 · ttft 1.4s) · cache 83% ♨ · rebill $0.05 · [-]`,
@@ -223,7 +223,7 @@ describe("速率行", () => {
     expect(r.rows(24)[0]).toBe("     tps: 99 tok/s · [-]");
     const plainRow = rig("full").rows(100)[0]!;
     expect(plainRow).toMatch(
-      /^ +tps: 99 tok\/s • 546 tok \/ 5\.5s \(avg 100 · ttft 1\.4s\) · ↑12k ↓1\.2k · cache 83% ♨ · \[-\]$/,
+      /^ +tps: 99 tok\/s • 546 tok \/ 5\.5s \(avg 100 · ttft 1\.4s\) · Σ↑12k ↓1\.2k R10k W300 · cache 83% ♨ · \[-\]$/,
     );
   });
 
@@ -241,17 +241,32 @@ describe("速率行", () => {
     );
   });
 
-  it("状态行（full）丢弃顺序：思考 → 增删 → 目录 → 分支 → 时长 → 费用 → ctx → 模型；模式不丢", () => {
-    const r = rig("full");
+  it("状态行（full）丢弃顺序：auto → 思考 → /窗口 → 增删 → 目录 → 分支 → 已用量 → 时长 → 费用 → ctx → 模型；模式不丢", () => {
+    const context = {
+      source: "usage" as const,
+      usageTokens: 6_000,
+      trailingTokens: 0,
+      autoCompactAt: 183_616,
+      pruneAt: 128_531,
+    };
+    const r = rig("full", { stats: { context } });
     const at = (w: number): string => r.rows(w)[1]!.replace(/ {4,}/, " ‖ ");
+    expect(at(160)).toBe(
+      "Manual | shift+tab 切换 ‖ anthropic/claude-opus-5-5 medium | Ctx 3.0% 6.0k/200k auto | vitaweave ⎇ main 5ae9e54 (+12,-3) | $0.26 | 2h24m",
+    );
+    expect(at(120)).toBe(
+      "Manual ‖ anthropic/claude-opus-5-5 medium | Ctx 3.0% 6.0k/200k | vitaweave ⎇ main 5ae9e54 (+12,-3) | $0.26 | 2h24m",
+    );
     expect(at(99)).toBe(
-      "Manual ‖ claude-opus-5-5 medium | Ctx 3.0% | vitaweave ⎇ main 5ae9e54 (+12,-3) | $0.26 | 2h24m",
+      "Manual ‖ claude-opus-5-5 | Ctx 3.0% 6.0k | vitaweave ⎇ main 5ae9e54 (+12,-3) | $0.26 | 2h24m",
     );
     expect(at(90)).toBe(
-      "Manual ‖ claude-opus-5-5 | Ctx 3.0% | vitaweave ⎇ main 5ae9e54 (+12,-3) | $0.26 | 2h24m",
+      "Manual ‖ claude-opus-5-5 | Ctx 3.0% 6.0k | vitaweave ⎇ main 5ae9e54 | $0.26 | 2h24m",
     );
-    expect(at(80)).toBe("Manual ‖ claude-opus-5-5 | Ctx 3.0% | ⎇ main 5ae9e54 | $0.26 | 2h24m");
-    expect(at(60)).toBe("Manual ‖ claude-opus-5-5 | Ctx 3.0% | $0.26 | 2h24m");
+    expect(at(80)).toBe(
+      "Manual ‖ claude-opus-5-5 | Ctx 3.0% 6.0k | ⎇ main 5ae9e54 | $0.26 | 2h24m",
+    );
+    expect(at(60)).toBe("Manual ‖ claude-opus-5-5 | Ctx 3.0% 6.0k | $0.26 | 2h24m");
     expect(at(50)).toBe("Manual ‖ claude-opus-5-5 | Ctx 3.0% | $0.26");
     expect(at(40)).toBe("Manual ‖ claude-opus | Ctx 3.0%");
     expect(at(24)).toBe("Manual ‖ claude-opus");

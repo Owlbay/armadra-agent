@@ -15,7 +15,7 @@
 |────────────────────────────────────────────────────────────
 |› Type a message, / for commands, @ for files, Shift+Enter …
 |────────────────────────────────────────────────────────────
-|Manual                    echo · medium · ctx 0% · work · 0s
+|Manual                 echo · medium · ctx ≈0.6% · work · 0s
 |
 |
 |
