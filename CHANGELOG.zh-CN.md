@@ -11,6 +11,10 @@
 - **`-p --output-format json` 带上下文**：结果对象加 `context: { tokens, window, percent }`，未知项省略。
 - **外部 Agent 的上下文**：外部 Agent 报告了上下文占用与窗口（ACP `usage_update`、Codex app-server `tokenUsage`）时，数字记进任务记录与
   `ama.agent-usage`，`getStats().external.byAgent` 取最近一次，`/tasks` 与 Agent 栏显示 `ctx 34%`。
+- **`/context`**：新命令，把上下文按类别拆开——系统提示（按节）、工具声明（按工具）、用户消息、助手文本、推理、工具调用参数、
+  工具结果（按工具名汇总）、附件图片、摘要、自定义消息——每类给 token 估算、占比与条形；顶部是已用 / 窗口、剩余、来源（「usage
+  实测 X + 估算 Y」或「全量估算」）与自动压缩触发点，底部只按序号、工具名与大小列出最大的工具结果，不显示正文。交互模式是面板，
+  line 模式是纯文本。统计只读，不改请求体与缓存前缀。
 
 ## 0.7.1（2026-10-05）
 
