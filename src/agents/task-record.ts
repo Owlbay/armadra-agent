@@ -305,6 +305,9 @@ export function applyRunnerEvent(
     case "notice":
       sink.log(event.level, `[task ${taskId}] ${event.text}`);
       return;
+    case "context":
+      record.info.context = event.mode;
+      return;
     case "turn_trace":
       sink.appendTrace?.({
         kind: "external_turn",

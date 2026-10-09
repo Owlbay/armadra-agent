@@ -83,11 +83,20 @@ describe("定义文件解析", () => {
     ["---\ndescription: d\nisolation: docker\n---\n", /isolation/],
     ["---\ndescription: d\nbackground: maybe\n---\n", /background/],
     ["---\ndescription: d\nthinking: max\n---\n", /thinking/],
+    ["---\ndescription: d\ncontext: inherit\n---\n", /context must be fork or fresh/],
     ["---\ndescription: d\nrunner: gemini\n---\n", /unknown runner/],
   ])("不合格不加载：%s", (text, message) => {
     const parsed = parseAgentDefinition(text, "/d/a.md", "user");
     expect(parsed.agent).toBeUndefined();
     expect(parsed.warnings.join("\n")).toMatch(message);
+  });
+
+  it("[ME-A] context: fork / fresh；缺省不设（= fresh）", () => {
+    const parse = (extra: string) =>
+      parseAgentDefinition(`---\ndescription: d\n${extra}---\nbody`, "/d/a.md", "user").agent;
+    expect(parse("context: fork\n")?.context).toBe("fork");
+    expect(parse("context: fresh\n")?.context).toBe("fresh");
+    expect(parse("")).not.toHaveProperty("context");
   });
 
   it("外部 runner：tools / permission-mode 忽略并 warning；acp:<program> 合法", () => {

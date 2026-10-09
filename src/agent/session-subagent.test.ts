@@ -226,7 +226,7 @@ describe("结果上限、轮数耗尽、未知类型", () => {
     expect(file.startsWith(h.manager.directory()!)).toBe(true);
   });
 
-  it("maxTurns 用尽且停在工具结果：toolChoice none 收尾一轮要报告，状态 max_turns", async () => {
+  it("maxTurns 用尽且停在工具结果：收尾一轮只靠提示要报告（不发 toolChoice，ME-A D13），状态 max_turns", async () => {
     const h = subagentHarness({
       script: (call) => {
         if (!isChild(call))
@@ -238,11 +238,30 @@ describe("结果上限、轮数耗尽、未知类型", () => {
     await h.session.prompt("go");
     const child = h.scripted.calls.filter(isChild);
     expect(child).toHaveLength(3);
-    expect(child.map((c) => c.options.toolChoice)).toEqual([undefined, undefined, "none"]);
+    // P2-5：收尾一轮的请求选项与前面相同（toolChoice 会让请求换一套参数、缓存前缀失效）
+    expect(child.map((c) => c.options.toolChoice)).toEqual([undefined, undefined, undefined]);
     const result = toolResults(h)[0]!;
     expect(String(result.content)).toBe(`[task t1] ${MAX_TURNS_NOTE}\n\nfinal report`);
     expect(result.details).toMatchObject({ status: "max_turns" });
     expect(of(h.events, "subagent_end")[0]).toMatchObject({ status: "max_turns" });
+  });
+
+  it("收尾一轮仍调用工具：maxTurns 1 结束，结果回落为「没有文本」，状态 max_turns", async () => {
+    const h = subagentHarness({
+      script: (call) =>
+        isChild(call)
+          ? { toolCalls: [{ name: "read", args: {} }] }
+          : parentTurn(call, [{ name: "task", args: { prompt: "p", maxTurns: 1 } }]),
+    });
+    await h.session.prompt("go");
+    const child = h.scripted.calls.filter(isChild);
+    expect(child).toHaveLength(2);
+    expect(userTexts(child[1]!)).toContain(FINAL_REPORT_PROMPT);
+    const result = toolResults(h)[0]!;
+    expect(String(result.content)).toBe(
+      `[task t1] ${MAX_TURNS_NOTE}\n\n(the sub-agent returned no text)`,
+    );
+    expect(result.details).toMatchObject({ status: "max_turns" });
   });
 
   it("未知类型 → 错误并列出可用类型；类型的 max-turns / role 生效", async () => {

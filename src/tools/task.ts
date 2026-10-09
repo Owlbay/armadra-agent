@@ -12,6 +12,8 @@
  * - **parallel**：同一回复里的多个 task 真并行（会话注册表的池限流，缺省 4）；与 sequential 工具
  *   （edit 等）同批时仍按 tool-runner 的规则整批串行。
  * - 深度 ≤ 1：子会话的工具表里保留 task（与父字节一致，缓存前缀可复用），运行时在这里拒绝。
+ * - [ME-A] `context: "fork"`：子会话继承本会话已完成的回合（同模型、同前缀）；`details.context` 是实际
+ *   模式（不满足条件时回落 `fresh`）。
  * - 结果 = 子 Agent 的最终报告（> 50 KB 截头尾、全文落 outputs/，见 agents/result.ts）+ details。
  */
 
@@ -43,23 +45,31 @@ export interface TaskInput {
   model?: string;
   thinkingLevel?: ModelThinkingLevel;
   maxTurns?: number;
+  context?: "fork" | "fresh";
 }
 
 /** 预留（并发上限在会话的任务注册表，见 agent/subagent-registry.ts）。 */
 export interface TaskToolOptions {}
 
+/**
+ * [ME-A] 两版描述共用的开头：fresh / fork 两种上下文。default+task 与 codemode-only 的预算余量都只有
+ * 几十 token，加 `context` 参数时整段改写、字符数基本不增（`agent` 参数的「Default general」也去掉，
+ * 清单里 general 已标 default）。
+ */
+export const TASK_CONTEXT_LEAD =
+  "Delegate to a sub-agent (fresh context: give full instructions; context fork: inherits " +
+  "this conversation).";
+
 /** 缺省前台（`-p`、`subagents.background: never`）时的描述。 */
 export const FOREGROUND_DESCRIPTION =
-  "Delegate to a sub-agent (fresh context; give full instructions). Returns its final report. " +
-  "Tasks in one reply run in parallel; writers should use isolation worktree. background: " +
-  "returns a taskId now (see task_ctl); taskId: continue that task.";
+  `${TASK_CONTEXT_LEAD} Returns its final report. Parallel in one reply; writers use isolation ` +
+  "worktree. background: returns a taskId (see task_ctl); taskId: continue it.";
 
 /** [W7-B1] 缺省后台（交互 / RPC / ACP，docs/agents-concurrency-plan.md §2.6）时的描述。 */
 export const BACKGROUND_DESCRIPTION =
-  "Delegate to a sub-agent (fresh context; give full instructions). Runs in the background by " +
-  "default: returns a taskId; a <task-notification> follows when done, so keep working. " +
-  "background:false if your next step needs the result. taskId: continue a task. Tasks in one " +
-  "reply run in parallel; writers use isolation worktree.";
+  `${TASK_CONTEXT_LEAD} Runs in the background by default: returns a taskId; a ` +
+  "<task-notification> follows; keep working. background:false waits for the result. " +
+  "taskId: continue it. Parallel in one reply; writers use isolation worktree.";
 
 /** 描述里类型清单的标题（清单本身另有 400 token 预算，见 agents/catalog.ts）。 */
 export const TASK_AGENTS_HEADING = "\nAgents:\n";
@@ -96,6 +106,8 @@ export function buildSubagentRequest(input: TaskInput, ctx: ToolContext): Subage
   if (input.isolation !== undefined && input.isolation !== "none" && input.isolation !== "worktree")
     return 'isolation must be "none" or "worktree"';
   if (input.budgetUsd !== undefined && !(input.budgetUsd > 0)) return "budgetUsd must be > 0";
+  if (input.context !== undefined && input.context !== "fork" && input.context !== "fresh")
+    return 'context must be "fork" or "fresh"';
   const request: SubagentRequest = {
     prompt: input.prompt,
     parentToolCallId: ctx.toolCallId,
@@ -115,6 +127,7 @@ export function buildSubagentRequest(input: TaskInput, ctx: ToolContext): Subage
   if (input.tools !== undefined) request.tools = input.tools.filter((t) => t !== "task");
   if (input.model !== undefined) request.model = input.model;
   if (input.thinkingLevel !== undefined) request.thinkingLevel = input.thinkingLevel;
+  if (input.context !== undefined) request.context = input.context;
   return request;
 }
 
@@ -131,7 +144,7 @@ export function createTaskTool(_options: TaskToolOptions = {}): ToolDefinition<T
       type: "object",
       properties: {
         prompt: { type: "string" },
-        agent: { type: "string", description: "Default general" },
+        agent: { type: "string" },
         description: { type: "string" },
         background: { type: "boolean" },
         taskId: { type: "string" },
@@ -141,6 +154,7 @@ export function createTaskTool(_options: TaskToolOptions = {}): ToolDefinition<T
         model: { type: "string" },
         thinkingLevel: { type: "string", enum: [...THINKING] },
         maxTurns: { type: "integer" },
+        context: { type: "string", enum: ["fork", "fresh"] },
       },
       required: ["prompt"],
       additionalProperties: false,
@@ -163,6 +177,7 @@ export function createTaskTool(_options: TaskToolOptions = {}): ToolDefinition<T
           ...(result.status !== undefined ? { status: result.status } : {}),
           ...(result.sessionFile !== undefined ? { sessionFile: result.sessionFile } : {}),
           ...(result.outputFile !== undefined ? { outputFile: result.outputFile } : {}),
+          ...(result.context !== undefined ? { context: result.context } : {}),
           usage: result.usage,
           stopReason: result.stopReason,
         };

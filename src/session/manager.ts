@@ -8,7 +8,8 @@
  *   若其后还有 `leaf` 行（`/tree` 换叶子落盘，第三波 A7）则取最后一条 leaf 行。
  * - `setLeaf(id)`：已落盘时追加一行 `leaf{id, timestamp}`；延迟会话在 `flush()` 时补写。
  * - `fork(entryId, { head })`：复制 root → entryId 的分支到新文件（头的 parentSession 指回本文件），
- *   不复制 leaf 行；给了 `head` 时它成为新根条目，复制的首条重挂到它下面（fork 子会话的 ama.task）。
+ *   不复制 leaf 行；给了 `head` 时它成为新根条目，复制的首条重挂到它下面（fork 子会话的 ama.task）；
+ *   `cwd` 缺省同本会话（[ME-A] 隔离的 fork 子会话传 worktree）。
  * - `close()`：释放锁；之后的 append 抛错。
  */
 
@@ -267,7 +268,10 @@ export class SessionManager implements SessionManagerApi {
     this.append({ type: "session_info", name });
   }
 
-  fork(entryId: string, forkOptions: { head?: SessionEntryInput } = {}): SessionManager {
+  fork(
+    entryId: string,
+    forkOptions: { head?: SessionEntryInput; cwd?: string } = {},
+  ): SessionManager {
     if (!this.index.has(entryId)) {
       throw new AmaError("invalid_arguments", `no such session entry: ${entryId}`);
     }
@@ -285,7 +289,7 @@ export class SessionManager implements SessionManagerApi {
     const options: SessionManagerOptions = { now: this.now };
     const parentFile = this.file();
     if (parentFile !== undefined) options.parentSession = parentFile;
-    const header = SessionManager.newHeader(this.cwd, options, this.now());
+    const header = SessionManager.newHeader(forkOptions.cwd ?? this.cwd, options, this.now());
     let storage: Storage;
     if (this.storage.kind === "memory") storage = { kind: "memory" };
     else if (this.storage.kind === "lazy") storage = { kind: "lazy", dir: this.storage.dir };

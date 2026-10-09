@@ -65,7 +65,7 @@ declare const tools: {
     limit?: number;
   }): Promise<string>;
   /**
-   * Delegate to a sub-agent (fresh context; give full instructions). Returns its final report. Tasks in one reply run in parallel; writers should use isolation worktree. background: returns a taskId now (see task_ctl); taskId: continue that task.
+   * Delegate to a sub-agent (fresh context: give full instructions; context fork: inherits this conversation). Returns its final report. Parallel in one reply; writers use isolation worktree. background: returns a taskId (see task_ctl); taskId: continue it.
    * Agents:
    * - general: General-purpose sub-agent (default): researches and changes code like you do.
    * - explore: Read-only search: locates files, symbols and code paths; returns paths with line numbers.
@@ -73,7 +73,6 @@ declare const tools: {
    */
   task(args: {
     prompt: string;
-    /** Default general */
     agent?: string;
     description?: string;
     background?: boolean;
@@ -84,6 +83,7 @@ declare const tools: {
     model?: string;
     thinkingLevel?: "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
     maxTurns?: number;
+    context?: "fork" | "fresh";
   }): Promise<string>;
   /** Manage sub-agent tasks started by task: list them, wait for one, stop it, read its output, or send it a follow-up message (runs in background). */
   task_ctl(args: {
