@@ -105,6 +105,34 @@ describe("taskId 续聊", () => {
   });
 });
 
+describe("[M-F] 句柄保留缺省 4", () => {
+  it("6 个任务后只留最近 4 个子会话句柄，前 2 个被释放；被释放的仍可按会话文件续聊", async () => {
+    const prompts = ["p1", "p2", "p3", "p4", "p5", "p6"];
+    const h = subagentHarness({
+      dir: dir(),
+      script: script({
+        ...Object.fromEntries(prompts.map((p) => [p, task({ prompt: p })])),
+        again: task({ prompt: "again", taskId: "t1" }),
+      }),
+    });
+    for (const p of prompts) await h.session.prompt(p);
+    const reg = registryOf(h.manager.id) as unknown as {
+      tasks: Map<string, { handle?: unknown }>;
+    };
+    const held = [...reg.tasks].map(([id, record]) => [id, record.handle !== undefined]);
+    expect(held).toEqual([
+      ["t1", false],
+      ["t2", false],
+      ["t3", true],
+      ["t4", true],
+      ["t5", true],
+      ["t6", true],
+    ]);
+    await h.session.prompt("again");
+    expect(String(results(h).at(-1)?.content)).toBe("[task t1] answer 2");
+  });
+});
+
 describe("resume 重建注册表", () => {
   it("从父会话 custom{ama.task} 重建：完成的保留、运行中的标 interrupted；序号接续；续聊重开子会话", async () => {
     const first = subagentHarness({

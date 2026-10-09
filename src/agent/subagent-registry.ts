@@ -7,7 +7,7 @@
  *   宿主，经 `env.runners`）；同一 `task(agent=…)` 入口；
  * - 并发池（`subagents.maxConcurrent`，缺省 4）+ 排队上限（`maxPending`，缺省 16，超出报错不要重试）；
  * - 前台（等结果）/ 后台（立即返回 taskId，完成后 `<task-notification>` 走父会话 followUp 队列）；
- * - `taskId` 续聊：句柄保留 16 个（LRU，释放的只是内存，JSONL 永在），被释放或 resume 后按会话
+ * - `taskId` 续聊：句柄保留 4 个（`subagents.retainSessions`，LRU，释放的只是内存，JSONL 永在），被释放或 resume 后按会话
  *   文件 / 外部会话 id 重新接上；
  * - 结果 > 50 KB 保留头尾并全文落 `outputs/`；轮数耗尽加说明；worktree 隔离；
  * - 事件 `subagent_start / update / end`；父会话 `custom{ama.task}` 记任务快照（带 `status`），
@@ -72,7 +72,7 @@ import {
 
 export const DEFAULT_SUBAGENT_CONCURRENCY = 4;
 export const DEFAULT_MAX_PENDING = 16;
-export const DEFAULT_RETAINED = 16;
+export const DEFAULT_RETAINED = 4;
 
 export { SubagentPool, TASK_CUSTOM_TYPE, type AmaRunnerSpec, type TaskHandle };
 export type { BackgroundReason };
