@@ -137,6 +137,8 @@ export interface SessionCore {
   /** 任一已登记工具（不限于活动集；嵌套调用用）。 */
   tool(name: string): ToolDefinition | undefined;
   activeToolNames(): string[];
+  /** 当前的系统提示静态部分（`updateSystem` 之后的；统计启动基线用）。缺省时用 `options.system`。 */
+  childBase?(): Pick<AgentSessionOptions, "system">;
   runHook(
     event: HookEvent,
     payload: HookEventPayload,

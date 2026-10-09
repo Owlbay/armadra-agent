@@ -65,7 +65,7 @@ import { PresetToolRegistry } from "./tools/presets.js";
 import type { ToolDefinition } from "./tools/types.js";
 
 /** [W3-C2] 统计类型：`session.getStats()`、RPC `get_session_stats`、`-p --output-format json` 的 `cache`。 */
-export type { SessionCacheStats, SessionStats } from "./agent/types.js";
+export type { SessionCacheStats, SessionContextStats, SessionStats } from "./agent/types.js";
 /** [RW-B] 回滚：`session.rewindPoints()`、`session.rewind()`、`summarizeFrom / summarizeUpTo`。 */
 export type {
   CodeRestoreResult,

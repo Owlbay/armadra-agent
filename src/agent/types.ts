@@ -403,6 +403,8 @@ export interface SessionStats extends SessionStatsW5, SessionStatsW6 {
   contextWindow: number | undefined;
   /** 0–100；无窗口时 undefined（显示 `ctx ?`）。 */
   contextPercent: number | undefined;
+  /** 上下文用量的来源与压缩阈值（`contextTokens` 怎么来的）；旧实现与测试替身可缺省。 */
+  context?: SessionContextStats;
   /**
    * 缓存命中率 0–1 = cacheRead /（input + cacheRead + cacheWrite）（设计 §9.1）；
    * 还没有任何输入用量时不给。
@@ -410,6 +412,23 @@ export interface SessionStats extends SessionStatsW5, SessionStatsW6 {
   cacheHitRate?: number;
   /** [W3-C0] 缓存可观测性（第三波 §1.10）；会话层缓存控制器（C1b）未接线时缺省。 */
   cache?: SessionCacheStats;
+}
+
+/**
+ * `SessionStats.context`：`contextTokens` 的来源与自动压缩阈值（只统计，不改请求）。
+ * - `usage`：最后一条有效助手消息的 usage（`usageTokens`）+ 其后消息的估算（`trailingTokens`）；
+ * - `estimate`：没有可信的 usage（压缩 / 上下文编辑之后、新 usage 到来之前，或从未有 usage），按投影全量估算；
+ * - `prefix`：系统消息还没落盘（第一次请求前），用当前系统提示 + 工具声明估算的基线加上已有消息的估算。
+ * 后两种 `usageTokens` 为 0、`trailingTokens` 等于 `contextTokens`。
+ */
+export interface SessionContextStats {
+  source: "usage" | "estimate" | "prefix";
+  usageTokens: number;
+  trailingTokens: number;
+  /** 档二自动摘要的阈值（窗口 − reserveTokens）；自动压缩关闭、熔断或窗口未知时缺省。 */
+  autoCompactAt?: number;
+  /** 档一裁剪的阈值（0.7 ×（窗口 − reserveTokens））；缺省条件同上。 */
+  pruneAt?: number;
 }
 
 /** [W3-C0] `SessionStats.cache`（`get_session_stats` / `/session` / `-p --output-format json`）。 */

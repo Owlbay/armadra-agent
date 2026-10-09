@@ -543,15 +543,15 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
   }
 
   getStats(): SessionStats {
-    const contextTokens = this.compaction.estimate().tokens;
+    const context = this.compaction.contextStats();
     const contextWindow = this.settings.model.contextWindow;
     const stats = computeStats({
       sessionId: this.manager.id,
       sessionFile: this.manager.file(),
       branch: this.manager.branch(),
-      contextTokens,
+      context,
       contextWindow,
-      cache: this.cache.stats({ tokens: contextTokens, window: contextWindow }),
+      cache: this.cache.stats({ tokens: context.tokens, window: contextWindow }),
       quota: this.lastQuota,
     });
     return this.extensions.contributeStats(stats);
