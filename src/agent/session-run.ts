@@ -12,6 +12,9 @@
  * - 最终失败后若 followUp 队列非空，照常投递。
  * - [W5-H2] 模型回退：可重试错误在 overloaded 时、或重试用尽后，若配置了 `fallbackModel` 就切过去
  *   重试一次本请求（`model_fallback` 事件），回退模型回复后切回主模型；每个周期最多一次。
+ *   [ME-C] overloaded 先快速重试一次（1 s 基数 + 抖动，计一次 attempt），仍失败才回退（D8）。
+ * - [ME-C] 退避取 `retryDelayMs(attempt, settings, 失败消息的 retryAfterMs)`；限流（rate_limited）的
+ *   重试上限 = maxRetries + 2，`auto_retry_start.maxAttempts` 随之。
  * - [W5-H2] 扩展经 `noteSettleWarning` 登记的 warning（预算到限 `limit_reached`）写进本周期的 agent_settled；
  *   `limit_reached:` 开头的错误回复（预算拦下请求）不重试。
  * - [W5-H2] run 带 `warning`（重复调用检测 `repeated_tool_call`）：不跑 Stop Hook，agent_settled 带该 warning。
@@ -22,7 +25,14 @@ import { AmaError } from "../errors.js";
 import type { AgentMessage } from "../session/types.js";
 import type { RunOutcome } from "./loop.js";
 import { formatModelRef, modelRefOf } from "../ai/providers/channels.js";
-import { classifyFailure, retryDelayMs, sleep } from "./retry.js";
+import {
+  classifyFailure,
+  isRetryableKind,
+  maxRetriesFor,
+  retryDelayMs,
+  sleep,
+  type FailureKind,
+} from "./retry.js";
 import type { SessionCore } from "./session-core.js";
 import type { CompactionController } from "./session-compaction.js";
 import type { PromptDisposition, RetrySettings } from "./types.js";
@@ -48,7 +58,16 @@ function takeSettleWarning(core: SessionCore): string | undefined {
 export type RunDecision =
   | { kind: "done" }
   | { kind: "aborted" }
-  | { kind: "retry"; errorMessage: string }
+  | {
+      kind: "retry";
+      errorMessage: string;
+      /** [ME-C] 本次失败的种类（决定重试上限）。 */
+      failure?: FailureKind;
+      /** [ME-C] overloaded 回退前的快速重试：1 s 基数。 */
+      quick?: boolean;
+      /** [ME-C] 失败响应的 Retry-After（毫秒）。 */
+      retryAfterMs?: number;
+    }
   | { kind: "overflow" }
   | { kind: "failed"; errorMessage: string }
   /** [W5-H2] 切到 `fallbackModel` 重试一次本请求（overloaded，或可重试错误的重试已用尽）。 */
@@ -101,16 +120,38 @@ export function decideAfterRun(
   }
   const settings = deps.retry();
   const canFallback =
-    kind === "retryable" && !fallbackUsed && fallbackTarget(deps.core) !== undefined;
-  if (canFallback && OVERLOADED.test(errorMessage)) return { kind: "fallback", errorMessage };
-  if (kind === "retryable" && settings.enabled && retryAttempt < settings.maxRetries) {
-    return { kind: "retry", errorMessage };
+    isRetryableKind(kind) && !fallbackUsed && fallbackTarget(deps.core) !== undefined;
+  const retry: RunDecision = { kind: "retry", errorMessage, failure: kind };
+  if (last.retryAfterMs !== undefined) retry.retryAfterMs = last.retryAfterMs;
+  if (canFallback && OVERLOADED.test(errorMessage)) {
+    return retryAttempt === 0 && settings.enabled
+      ? { ...retry, quick: true }
+      : { kind: "fallback", errorMessage };
+  }
+  if (isRetryableKind(kind) && settings.enabled && retryAttempt < maxRetriesFor(kind, settings)) {
+    return retry;
   }
   if (canFallback) return { kind: "fallback", errorMessage };
   return { kind: "failed", errorMessage };
 }
 
 const OVERLOADED = /overloaded/i;
+/** [ME-C] overloaded 快速重试的退避基数（设置的基数更小时取设置）。 */
+export const QUICK_RETRY_BASE_MS = 1000;
+
+/** 本次重试的等待与上限（`auto_retry_start` 的 delayMs / maxAttempts）。 */
+function retryPlan(
+  decision: Extract<RunDecision, { kind: "retry" }>,
+  attempt: number,
+  settings: RetrySettings,
+): { delayMs: number; maxAttempts: number } {
+  const quickBase = Math.min(QUICK_RETRY_BASE_MS, settings.baseDelayMs);
+  const base = decision.quick === true ? { ...settings, baseDelayMs: quickBase } : settings;
+  return {
+    delayMs: retryDelayMs(decision.quick === true ? 1 : attempt, base, decision.retryAfterMs),
+    maxAttempts: maxRetriesFor(decision.failure ?? "retryable", settings),
+  };
+}
 
 /** 能切换模型的会话（AgentSessionImpl 的公开 `setModel`；SessionCore 不含它）。 */
 type ModelSwitcher = SessionCore & { setModel?(ref: string): Promise<void> };
@@ -281,19 +322,18 @@ async function runSettledCycle(
       retryAttempt++;
       deps.setRetrying(true);
       excludeFailedAttempt(core, outcome.lastAssistant, "retry");
-      const settings = deps.retry();
-      const delayMs = retryDelayMs(retryAttempt, settings);
+      const { delayMs, maxAttempts } = retryPlan(current, retryAttempt, deps.retry());
       core.emit({
         type: "auto_retry_start",
         attempt: retryAttempt,
-        maxAttempts: settings.maxRetries,
+        maxAttempts,
         delayMs,
         errorMessage: current.errorMessage,
       });
       void core.runHook("Notification", {
         notification: {
           kind: "retry",
-          message: `retry ${retryAttempt}/${settings.maxRetries}: ${current.errorMessage}`,
+          message: `retry ${retryAttempt}/${maxAttempts}: ${current.errorMessage}`,
         },
       });
       try {

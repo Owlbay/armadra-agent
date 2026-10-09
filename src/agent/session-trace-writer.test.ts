@@ -120,7 +120,7 @@ describe("ama.trace 写入（会话）", () => {
   it("回退：写 fallback 条，回退模型的 step 带 fallbackFrom", async () => {
     const h = setup(
       (call) =>
-        call.index === 0
+        call.index <= 1 // [ME-C] overloaded 先快速重试一次，再失败才回退
           ? { kind: "error", message: "529 overloaded_error: Overloaded" }
           : { text: "rescued" },
       "fake/backup",
@@ -132,7 +132,7 @@ describe("ama.trace 写入（会话）", () => {
       to: "fake/backup",
     });
     const steps = all.filter((t): t is TraceStepData => t.kind === "step");
-    expect(steps.at(-1)).toMatchObject({ attempt: 2, fallbackFrom: "fake/echo" });
+    expect(steps.at(-1)).toMatchObject({ attempt: 3, fallbackFrom: "fake/echo" });
   });
 });
 

@@ -35,7 +35,7 @@ describe("会话层重试", () => {
     expect(
       of(h.events, "auto_retry_start").map((e) => [e.attempt, e.maxAttempts, e.delayMs]),
     ).toEqual([
-      [1, 3, 1],
+      [1, 5, 1], // [ME-C] 429 → rate_limited，上限 maxRetries + 2
       [2, 3, 2],
     ]);
     expect(of(h.events, "auto_retry_end")).toEqual([
@@ -72,9 +72,9 @@ describe("会话层重试", () => {
     const always429: ScriptStep = { kind: "error", message: "429" };
     const h2 = createHarness({ script: () => always429, retry: { maxRetries: 2, baseDelayMs: 1 } });
     await h2.session.prompt("hi");
-    expect(h2.scripted.calls).toHaveLength(3);
+    expect(h2.scripted.calls).toHaveLength(5); // [ME-C] 限流多重试 2 次
     expect(of(h2.events, "auto_retry_end")).toEqual([
-      { type: "auto_retry_end", success: false, attempt: 2, finalError: "429" },
+      { type: "auto_retry_end", success: false, attempt: 4, finalError: "429" },
     ]);
   });
 

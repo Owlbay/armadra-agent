@@ -179,13 +179,13 @@ describe("retry", () => {
     expect(classifyFailure(failed("prompt is too long: 210000 tokens > 200000"))).toBe("overflow");
     expect(classifyFailure(failed("429 insufficient_quota"))).toBe("fatal");
     expect(classifyFailure(failed("401 invalid api key"))).toBe("fatal");
-    expect(classifyFailure(failed("429 Too Many Requests"))).toBe("retryable");
-    expect(classifyFailure(failed("529 overloaded_error"))).toBe("retryable");
+    expect(classifyFailure(failed("429 Too Many Requests"))).toBe("rate_limited");
+    expect(classifyFailure(failed("529 overloaded_error"))).toBe("rate_limited");
     expect(classifyFailure(failed("fetch failed: ECONNRESET"))).toBe("retryable");
     expect(classifyFailure(failed("weird"))).toBe("other");
     // 缺省用 ai/overflow.ts 的同一张表：Kimi 文案算溢出，限流文案不算
     expect(classifyFailure(failed("exceeded model token limit: 262144"))).toBe("overflow");
-    expect(classifyFailure(failed("429 rate limit: token limit exceeded"))).toBe("retryable");
+    expect(classifyFailure(failed("429 rate limit: token limit exceeded"))).toBe("rate_limited");
     expect(
       classifyFailure(assistant({ stopReason: "length", content: [{ type: "text", text: "…" }] })),
     ).toBe("overflow");
@@ -198,7 +198,10 @@ describe("retry", () => {
 
   it("退避 2 s ×2，上限 60 s；sleep 可被 abort 打断", async () => {
     const settings = resolveRetrySettings();
-    expect([1, 2, 3, 10].map((n) => retryDelayMs(n, settings))).toEqual([2000, 4000, 8000, 60000]);
+    const mid = (): number => 0.5; // 抖动 U(0.8, 1.2) 取中点 = ×1
+    expect([1, 2, 3, 10].map((n) => retryDelayMs(n, settings, undefined, mid))).toEqual([
+      2000, 4000, 8000, 60000,
+    ]);
     const controller = new AbortController();
     const pending = sleep(10_000, controller.signal);
     controller.abort();
