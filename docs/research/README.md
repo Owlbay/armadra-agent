@@ -4,7 +4,7 @@
 - 第六波（2026-10-03）：[wave6/](wave6/README.md) 下 R6–R10，设计见 `docs/wave6-plan.md`。
 - ACP 补全（2026-10-04）：[acp-gap-2026-10.md](acp-gap-2026-10.md)，对照 ACP v1 schema 1.24.1 的差距审计与实测；设计见 `docs/acp-plan.md`。
 - 模型调用效率（2026-10-10）：[model-efficiency-audit-2026-10.md](model-efficiency-audit-2026-10.md)，缓存命中、token 用量、重试与 max_tokens 的审计与实测；设计见 `docs/model-efficiency-plan.md`。
-- 内存占用（2026-10-10）：[memory-2026-10.md](memory-2026-10.md)，启动、TUI、`-p`、ACP、RPC 的峰值与常驻内存、泄漏点与优化清单；复现脚本 `scripts/bench-memory.mjs`，设计见 `docs/memory-plan.md`。
+- 内存占用（2026-10-10）：[memory-2026-10.md](memory-2026-10.md)，启动、TUI、`-p`、ACP、RPC 的峰值与常驻内存、泄漏点与优化清单；复现脚本 `scripts/bench-memory.mjs`，设计见 `docs/memory-plan.md`，优化后的实测见 `docs/benchmarks/memory-2026-10.md`。
 
 ## 第五波
 
