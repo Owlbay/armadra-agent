@@ -19,6 +19,7 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 - **`subagents.forkMaxContextRatio`**: the share of (window − `compaction.reserveTokens`) above which a fork sub-agent falls back to fresh is now configurable (0.05–0.95, default 0.5, user level only). Built-in types, `general` included, stay fresh by default; docs/agents.md explains the per-turn cost of re-reading the parent context.
 - **Fork sub-agents are told `task` / `task_ctl` are unavailable**: the `<task>` message now lists them and asks not to call them (they stay in the tool list and are still rejected by depth). In two DeepSeek retests the sub-agent still made one rejected `task` call each time.
 - **Background fork tasks report their mode right away**: the `running` result of a background `task` now carries `details.context` (`fork` / `fresh`) once the mode is known; a queued task or one waiting for its worktree still gets it later in `TaskInfo.context`.
+- **Background `bash` job output fits the session result limit in one cut**: `{job, action: "wait" | "output" | "stop"}` now tail-truncates to the same byte limit as foreground `bash` (50 KB or `maxToolResultChars` − 512, whichever is smaller) instead of a fixed 2000 lines / 50 KB that the session then cut again in the middle; the note still gives the shown line count and `Full output: <path>`.
 
 ## 0.7.5 (2026-10-10)
 
