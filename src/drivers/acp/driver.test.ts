@@ -16,7 +16,13 @@ import type {
   DriverSession,
 } from "../types.js";
 import { runFakeAcpAgent, type FakeAcpAgentOptions } from "./testing/fake-agent.js";
-import { AcpDriver, pickConfigModeValue, pickModeId, pickModelValue } from "./driver.js";
+import {
+  AcpDriver,
+  acpTurnUsage,
+  pickConfigModeValue,
+  pickModeId,
+  pickModelValue,
+} from "./driver.js";
 import { catalogEntry } from "../catalog.js";
 import { PERMISSION_MODES_STRICT_FIRST } from "../../permissions/types.js";
 import { ACP_METHODS, RPC_ERRORS, type AcpSessionUpdate } from "./types.js";
@@ -415,6 +421,30 @@ describe("[ACP-D] 客户端侧", () => {
     });
     expect(pickModelValue("a/x", [option])?.current).toBe(true);
     expect(pickModelValue("x", undefined)).toBeUndefined();
+  });
+
+  it("[#198] 用量：totalTokens = input + output 时 input 含缓存；会话累计的按差值", () => {
+    // Copilot 1.0.95 实测（两轮，会话累计，input 含缓存）
+    const t1 = {
+      inputTokens: 25301,
+      outputTokens: 85,
+      totalTokens: 25386,
+      cachedReadTokens: 7680,
+    };
+    const t2 = {
+      inputTokens: 50645,
+      outputTokens: 172,
+      totalTokens: 50817,
+      cachedReadTokens: 32896,
+    };
+    expect(acpTurnUsage(t1, {})).toEqual({ input: 17621, output: 85, cacheRead: 7680 });
+    expect(acpTurnUsage(t2, t1)).toEqual({ input: 128, output: 87, cacheRead: 25216 });
+    // codex-acp / claude-agent-acp：本回合、input 不含缓存
+    expect(acpTurnUsage({ inputTokens: 199, outputTokens: 5, cachedReadTokens: 26368 })).toEqual({
+      input: 199,
+      output: 5,
+      cacheRead: 26368,
+    });
   });
 
   it("[#198] 实测的模式表：每个 ama 模式都有映射，且从不落到放开全部权限的模式", () => {

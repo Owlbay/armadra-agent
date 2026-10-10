@@ -27,6 +27,8 @@ export interface CatalogCandidate {
   modes?: Partial<Record<PermissionMode, string>>;
   permissions?: DriverCapabilities["permissions"];
   usage?: DriverCapabilities["usage"];
+  /** `session/prompt` 答复的 usage 是会话累计（缺省按本回合）。 */
+  acpUsage?: "session";
   /** 一次性打印模式的方言。 */
   oneshot?: "claude" | "codex" | "gemini";
 }
@@ -152,6 +154,7 @@ export const DRIVER_CATALOG: readonly CatalogEntry[] = [
         args: ["--acp", "--stdio"],
         usage: "requests",
         modes: COPILOT_MODES,
+        acpUsage: "session",
       },
     ],
   },

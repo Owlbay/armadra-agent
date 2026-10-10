@@ -42,6 +42,7 @@ import {
   type AcpAuthMethod,
   type AcpContentBlock,
   type AcpPromptResult,
+  type AcpPromptUsage,
   type AcpRequestPermissionParams,
   type AcpRequestPermissionResult,
   type AcpSessionConfigOption,
@@ -123,6 +124,37 @@ export function pushAcpUpdate(update: AcpSessionUpdate, turn: TurnCollector): vo
     default:
       return;
   }
+}
+
+type TurnUsage = { input?: number; output?: number; cacheRead?: number };
+
+/**
+ * `session/prompt` 答复的 usage → 本回合用量（ama 口径：input 不含缓存命中）。
+ * - `previous`：Agent 报的是会话累计（如 Copilot）时，上一回合的原始累计值，相减得本回合；
+ * - 有 `totalTokens` 且它等于 input + output 时，input 含缓存命中部分，减去 cachedRead。
+ */
+export function acpTurnUsage(usage: AcpPromptUsage, previous?: AcpPromptUsage): TurnUsage {
+  const diff = (key: keyof AcpPromptUsage): number | undefined => {
+    const now = usage[key];
+    if (now === undefined) return undefined;
+    return previous === undefined ? now : Math.max(0, now - (previous[key] ?? 0));
+  };
+  const input = diff("inputTokens");
+  const output = diff("outputTokens");
+  const cacheRead = diff("cachedReadTokens");
+  const { totalTokens: total, inputTokens: rawIn = 0, outputTokens: rawOut = 0 } = usage;
+  const cached = usage.cachedReadTokens ?? 0;
+  const includesCache =
+    total !== undefined &&
+    cached > 0 &&
+    Math.abs(total - (rawIn + rawOut)) < Math.abs(total - (rawIn + rawOut + cached));
+  return {
+    ...(input !== undefined
+      ? { input: includesCache ? Math.max(0, input - (cacheRead ?? 0)) : input }
+      : {}),
+    ...(output !== undefined ? { output } : {}),
+    ...(cacheRead !== undefined ? { cacheRead } : {}),
+  };
 }
 
 /** ama 模式在 Agent 那边想要的模式 id，按优先级（显式映射 > 同名）。 */
@@ -266,6 +298,9 @@ class AcpDriverSession implements DriverSession {
   private notices: string[] = [];
   /** 本回合已发过 cancel。 */
   private cancelling = false;
+  /** Agent 的 usage 是会话累计时，上一回合的原始值（{@link acpTurnUsage}）。 */
+  private usageTotals: AcpPromptUsage | undefined;
+  private cumulativeUsage = false;
 
   constructor(
     private readonly agentId: string,
@@ -292,6 +327,7 @@ class AcpDriverSession implements DriverSession {
       onProtocolError: (_line, reason) => this.deps.log?.("debug", `${this.agentId}: ${reason}`),
     });
     const signal = options.signal;
+    this.cumulativeUsage = candidate.acpUsage === "session";
     await this.client.initialize(signal);
     let opened: Awaited<ReturnType<AcpDriverSession["openSession"]>>;
     try {
@@ -395,11 +431,10 @@ class AcpDriverSession implements DriverSession {
       });
       const usage = result.usage;
       if (usage != null) {
-        turn.mergeUsage({
-          ...(usage.inputTokens !== undefined ? { input: usage.inputTokens } : {}),
-          ...(usage.outputTokens !== undefined ? { output: usage.outputTokens } : {}),
-          ...(usage.cachedReadTokens !== undefined ? { cacheRead: usage.cachedReadTokens } : {}),
-        });
+        turn.mergeUsage(
+          acpTurnUsage(usage, this.cumulativeUsage ? (this.usageTotals ?? {}) : undefined),
+        );
+        if (this.cumulativeUsage) this.usageTotals = usage;
       }
       return turn.result(result.stopReason);
     } finally {
