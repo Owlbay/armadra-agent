@@ -11,6 +11,9 @@
  *   不复制 leaf 行；给了 `head` 时它成为新根条目，复制的首条重挂到它下面（fork 子会话的 ama.task）；
  *   `cwd` 缺省同本会话（[ME-A] 隔离的 fork 子会话传 worktree）。
  * - `close()`：释放锁；之后的 append 抛错。
+ * - 图片卸载（#170，offload.ts）：已落盘会话里，活动分支上被 `context_edit` 改写的含图消息只留占位
+ *   （`data: ""`），`entries()` / `branch()` / `getEntry()` 返回卸载后的对象；`getEntries()` 与
+ *   `fork()` 从文件回读原文；`setLeaf()` 换分支后回读不再被改写的条目。内存会话不卸载。
  */
 
 import { randomBytes, randomUUID } from "node:crypto";
@@ -20,6 +23,7 @@ import { AmaError } from "../errors.js";
 import { AMA_VERSION } from "../version.js";
 import { listSessionItems } from "./list.js";
 import { migrateSessionLines } from "./migrate.js";
+import { ImageOffload, editTargets } from "./offload.js";
 import {
   acquireLock,
   appendLines,
@@ -50,6 +54,8 @@ export interface SessionManagerOptions {
   parentSession?: string;
   /** 指定会话 id（`--session-id`）。 */
   id?: string;
+  /** 图片回读失败等告警（缺省丢弃）。 */
+  warn?: (message: string) => void;
 }
 
 type Storage =
@@ -74,6 +80,10 @@ export class SessionManager implements SessionManagerApi {
   private storage: Storage;
   private closed = false;
   private readonly now: () => Date;
+  private readonly images: ImageOffload;
+  private readonly warn: ((message: string) => void) | undefined;
+  /** 已知的会话文件字节数（新行的行首偏移）。 */
+  private fileBytes = 0;
 
   private constructor(
     header: SessionHeader,
@@ -81,6 +91,8 @@ export class SessionManager implements SessionManagerApi {
     storage: Storage,
     now: () => Date,
     leafId?: string | null,
+    warn?: (message: string) => void,
+    images?: ImageOffload,
   ) {
     this._header = header;
     this.id = header.id;
@@ -92,6 +104,8 @@ export class SessionManager implements SessionManagerApi {
       leafId === undefined || (leafId !== null && !this.index.has(leafId)) ? last : leafId;
     this.storage = storage;
     this.now = now;
+    this.warn = warn;
+    this.images = images ?? new ImageOffload(warn);
   }
 
   private static newHeader(cwd: string, options: SessionManagerOptions, now: Date): SessionHeader {
@@ -115,7 +129,14 @@ export class SessionManager implements SessionManagerApi {
   /** `dir` 是会话文件所在目录（通常是 `sessionDirForCwd(sessionsRoot, cwd)`）。 */
   static create(dir: string, cwd: string, options: SessionManagerOptions = {}): SessionManager {
     const now = options.now ?? (() => new Date());
-    return new SessionManager(this.newHeader(cwd, options, now()), [], { kind: "lazy", dir }, now);
+    return new SessionManager(
+      this.newHeader(cwd, options, now()),
+      [],
+      { kind: "lazy", dir },
+      now,
+      undefined,
+      options.warn,
+    );
   }
 
   static createForCwd(
@@ -126,19 +147,35 @@ export class SessionManager implements SessionManagerApi {
     return this.create(sessionDirForCwd(sessionsRoot, cwd), cwd, options);
   }
 
-  static open(file: string, options: { now?: () => Date } = {}): SessionManager {
+  static open(
+    file: string,
+    options: { now?: () => Date; warn?: (message: string) => void } = {},
+  ): SessionManager {
     const lock = acquireLock(file);
     try {
-      const { lines } = readSessionLines(file, { repair: true });
+      const images = new ImageOffload(options.warn);
+      const targets = editTargets(file);
+      const { lines, bytes } = readSessionLines(file, {
+        repair: true,
+        onLine: (line, locator) => {
+          const entry = line as SessionEntry;
+          images.load(entry, locator, targets.has(entry.id));
+        },
+      });
       const { header, entries, leafId } = migrateSessionLines(lines, file);
       internSessionImages(entries); // D5：同一图片的 base64 只留一份；JSONL 不变
-      return new SessionManager(
+      const manager = new SessionManager(
         header,
         entries,
         { kind: "file", file, lock },
         options.now ?? (() => new Date()),
         leafId,
+        options.warn,
+        images,
       );
+      manager.fileBytes = bytes ?? 0;
+      manager.syncImages();
+      return manager;
     } catch (error) {
       lock.release();
       throw error;
@@ -188,10 +225,18 @@ export class SessionManager implements SessionManagerApi {
       parentId: this.leaf,
       timestamp: this.now().toISOString(),
     } as SessionEntry;
-    if (this.storage.kind === "file") appendLines(this.storage.file, [entry]);
+    if (this.storage.kind === "file") {
+      const written = appendLines(this.storage.file, [entry]);
+      this.images.track(entry, { offset: this.fileBytes, length: written - 1 });
+      this.fileBytes += written;
+    }
     this._entries.push(entry);
     this.index.set(entry.id, entry);
     this.leaf = entry.id;
+    if (entry.type === "context_edit" && this.storage.kind === "file") {
+      const target = this.index.get(entry.targetId);
+      if (target !== undefined && this.branch().includes(target)) this.images.offload(target);
+    }
     return entry;
   }
 
@@ -200,7 +245,27 @@ export class SessionManager implements SessionManagerApi {
       throw new AmaError("invalid_arguments", `no such session entry: ${id}`);
     }
     this.leaf = id;
-    if (this.storage.kind === "file") appendLines(this.storage.file, [this.leafLine()]);
+    if (this.storage.kind === "file") {
+      this.fileBytes += appendLines(this.storage.file, [this.leafLine()]);
+    }
+    this.syncImages();
+  }
+
+  /** 按当前活动分支卸载 / 回读图片（只对已落盘的会话）。 */
+  private syncImages(): void {
+    if (this.storage.kind === "file")
+      this.images.sync(this.storage.file, this.branch(), this.index);
+  }
+
+  /** 原文条目（已卸载的从文件回读一份副本）。 */
+  private original(entry: SessionEntry): SessionEntry {
+    if (this.storage.kind !== "file" || !this.images.isOffloaded(entry.id)) return entry;
+    return this.images.original(this.storage.file, entry);
+  }
+
+  /** 已卸载图片的条目数（测试与诊断用）。 */
+  offloadedCount(): number {
+    return this.images.size;
   }
 
   private leafLine(): LeafLine {
@@ -212,10 +277,9 @@ export class SessionManager implements SessionManagerApi {
   }
 
   getEntries(since?: string): { entries: SessionEntry[]; leafId: string | null } {
-    if (since === undefined) return { entries: [...this._entries], leafId: this.leaf };
-    const at = this._entries.findIndex((entry) => entry.id === since);
+    const at = since === undefined ? -1 : this._entries.findIndex((entry) => entry.id === since);
     return {
-      entries: at < 0 ? [...this._entries] : this._entries.slice(at + 1),
+      entries: this._entries.slice(at + 1).map((entry) => this.original(entry)),
       leafId: this.leaf,
     };
   }
@@ -241,7 +305,10 @@ export class SessionManager implements SessionManagerApi {
     if (!this.index.has(entryId)) {
       throw new AmaError("invalid_arguments", `no such session entry: ${entryId}`);
     }
-    const copied = this.branch(entryId).map((entry) => structuredClone(entry));
+    const copied = this.branch(entryId).map((entry) => {
+      const original = this.original(entry);
+      return original === entry ? structuredClone(entry) : original;
+    });
     if (forkOptions.head !== undefined) {
       const head = {
         ...forkOptions.head,
@@ -260,7 +327,7 @@ export class SessionManager implements SessionManagerApi {
     if (this.storage.kind === "memory") storage = { kind: "memory" };
     else if (this.storage.kind === "lazy") storage = { kind: "lazy", dir: this.storage.dir };
     else storage = { kind: "lazy", dir: dirname(this.storage.file) };
-    const forked = new SessionManager(header, copied, storage, this.now);
+    const forked = new SessionManager(header, copied, storage, this.now, undefined, this.warn);
     if (parentFile !== undefined) forked.flush();
     return forked;
   }
@@ -276,11 +343,18 @@ export class SessionManager implements SessionManagerApi {
     if (this.storage.kind === "file") return this.storage.file;
     const file = join(this.storage.dir, sessionFileName(new Date(this._header.timestamp), this.id));
     const moved = this.leaf !== (this._entries.at(-1)?.id ?? null);
-    writeNewSessionFile(file, [
+    const lengths = writeNewSessionFile(file, [
       this._header,
       ...this._entries,
       ...(moved ? [this.leafLine()] : []),
     ]);
+    let offset = 0;
+    lengths.forEach((length, i) => {
+      const entry = i === 0 ? undefined : this._entries[i - 1];
+      if (entry !== undefined) this.images.track(entry, { offset, length });
+      offset += length + 1;
+    });
+    this.fileBytes = offset;
     let lock: SessionLock | undefined;
     try {
       lock = acquireLock(file);
@@ -288,6 +362,7 @@ export class SessionManager implements SessionManagerApi {
       lock = undefined;
     }
     this.storage = { kind: "file", file, lock };
+    this.syncImages();
     return file;
   }
 

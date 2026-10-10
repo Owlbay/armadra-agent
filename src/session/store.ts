@@ -26,6 +26,7 @@ import {
 import { basename, dirname, join } from "node:path";
 import { AmaError } from "../errors.js";
 import { forEachLineSync } from "./line-reader.js";
+import type { LineLocator } from "./offload.js";
 import type { SessionLine } from "./types.js";
 
 export const SESSION_FILE_SUFFIX = ".jsonl";
@@ -59,6 +60,8 @@ export interface ReadResult {
   lines: SessionLine[];
   /** 末尾半行被截掉时为 true。 */
   repairedTail: boolean;
+  /** 给了 `onLine` 时：读完（含修复）后的文件字节数。 */
+  bytes?: number;
 }
 
 /** 空白行（同旧口径 `trim() === ""`）：ASCII 空白直接判定，遇到非 ASCII 字节才解码再 trim。 */
@@ -74,7 +77,14 @@ export function isBlankLine(line: Buffer): boolean {
  * 读并解析 JSONL。`repair: true` 时把末尾半行从文件里截掉（只截最后一行，且只在它无法解析时）。
  * 按块逐行读（line-reader.ts，docs/memory-plan.md §2.4）：不生成全文字符串与 split 数组。
  */
-export function readSessionLines(file: string, options: { repair?: boolean } = {}): ReadResult {
+export function readSessionLines(
+  file: string,
+  options: {
+    repair?: boolean;
+    /** 每解析出一行就回调（行位置不含行尾；#170 图片卸载在这里就地剥掉图片）。 */
+    onLine?: (line: SessionLine, locator: LineLocator) => void;
+  } = {},
+): ReadResult {
   const lines: SessionLine[] = [];
   let repairedTail = false;
   let unterminated = false;
@@ -82,8 +92,9 @@ export function readSessionLines(file: string, options: { repair?: boolean } = {
     forEachLineSync(file, (buf, index, last, offset) => {
       if (last) unterminated = true;
       if (isBlankLine(buf)) return;
+      let line: SessionLine;
       try {
-        lines.push(JSON.parse(buf.toString("utf8")) as SessionLine);
+        line = JSON.parse(buf.toString("utf8")) as SessionLine;
       } catch (error) {
         if (last) {
           repairedTail = true;
@@ -94,6 +105,8 @@ export function readSessionLines(file: string, options: { repair?: boolean } = {
           cause: error,
         });
       }
+      options.onLine?.(line, { offset, length: buf.length });
+      lines.push(line);
     });
   } catch (error) {
     if (error instanceof AmaError) throw error;
@@ -103,33 +116,39 @@ export function readSessionLines(file: string, options: { repair?: boolean } = {
     // 最后一行完整但缺 LF：补上，保证后续追加另起一行。
     appendRaw(file, "\n");
   }
-  return { lines, repairedTail };
+  if (options.onLine === undefined) return { lines, repairedTail };
+  return { lines, repairedTail, bytes: statSync(file).size };
 }
 
-function appendRaw(file: string, text: string): void {
+function appendRaw(file: string, text: string): number {
   const fd = openSync(file, "a");
   try {
-    writeSync(fd, text);
+    return writeSync(fd, text);
   } finally {
     closeSync(fd);
   }
 }
 
-/** 追加若干行（一次 write，O_APPEND）。 */
-export function appendLines(file: string, lines: readonly SessionLine[]): void {
-  if (lines.length === 0) return;
-  appendRaw(file, lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
+/** 追加若干行（一次 write，O_APPEND），返回写入的字节数。 */
+export function appendLines(file: string, lines: readonly SessionLine[]): number {
+  if (lines.length === 0) return 0;
+  return appendRaw(file, lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
 }
 
-/** 新建文件：先写临时文件再 rename，避免出现只有半个头的文件。 */
-export function writeNewSessionFile(file: string, lines: readonly SessionLine[]): void {
+/**
+ * 新建文件：先写临时文件再 rename，避免出现只有半个头的文件。返回每行的字节数（不含行尾，与
+ * `lines` 同序）。
+ */
+export function writeNewSessionFile(file: string, lines: readonly SessionLine[]): number[] {
   mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
   if (existsSync(file)) {
     throw new AmaError("session_exists", `session file already exists: ${file}`);
   }
   const tmp = `${file}.${process.pid}.tmp`;
-  writeFileSync(tmp, lines.map((line) => JSON.stringify(line)).join("\n") + "\n", { mode: 0o600 });
+  const texts = lines.map((line) => JSON.stringify(line));
+  writeFileSync(tmp, texts.join("\n") + "\n", { mode: 0o600 });
   renameSync(tmp, file);
+  return texts.map((text) => Buffer.byteLength(text));
 }
 
 // ---------------------------------------------------------------------------
