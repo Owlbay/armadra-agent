@@ -114,6 +114,7 @@ export function validateConfigW5(c: Checker, config: Obj): void {
       "background",
       "autoBackgroundAfterMs",
       "retainSessions",
+      "forkMaxContextRatio",
     ],
     (s, p) => {
       c.number(s, "maxConcurrent", p, 1, 64);
@@ -122,6 +123,7 @@ export function validateConfigW5(c: Checker, config: Obj): void {
       c.oneOf(s, "background", p, SUBAGENT_BACKGROUND_MODES);
       c.number(s, "autoBackgroundAfterMs", p, 0);
       c.number(s, "retainSessions", p, 0);
+      c.number(s, "forkMaxContextRatio", p, 0.05, 0.95);
     },
   );
   checkSection(c, config, "models", ["aliases", "enabled"], (s, p) => {

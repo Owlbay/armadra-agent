@@ -15,6 +15,9 @@
 ### 会话
 
 - **会话图片读不回时有提示**：降级图片因会话文件被其它进程改写而读不回时，告警进会话日志（stderr 一行 `ama: [warn] cannot read session entry …`，受 `AMA_LOG` 过滤；TUI 显示在通知区），不再被丢弃。打开文件期间的告警先缓冲、会话建好时补出（最多 16 条，其余计数）；`--fork` 的源会话走同一日志。
+- **`subagents.forkMaxContextRatio`**：fork 子 Agent 回落为 fresh 的比例（父上一次请求占（窗口 − `compaction.reserveTokens`）的份额）可配置，0.05–0.95，缺省 0.5，只认用户级。内置类型（包括 `general`）仍缺省 fresh；docs/agents.md 说明了每回合重读父上下文的成本。
+- **fork 子 Agent 被告知 `task` / `task_ctl` 不可用**：`<task>` 消息列出这两个工具并要求不要调用（它们仍在工具表里、按深度拒绝）。两次 DeepSeek 复测里子 Agent 仍各调了一次被拒的 `task`。
+- **后台 fork 任务立即给出模式**：后台 `task` 的 `running` 结果在模式已知时带 `details.context`（`fork` / `fresh`）；排队或等待 worktree 的任务仍在之后的 `TaskInfo.context` 里给出。
 
 ## 0.7.5（2026-10-10）
 

@@ -198,6 +198,7 @@ function w5Sections(): Record<string, Schema> {
       background: oneOf(SUBAGENT_BACKGROUND_MODES),
       autoBackgroundAfterMs: num(0),
       retainSessions: num(0),
+      forkMaxContextRatio: num(0.05, 0.95),
     }),
     models: object({ aliases: object({ fast: str(), strong: str() }), enabled: strings }),
     fallbackModel: str(),

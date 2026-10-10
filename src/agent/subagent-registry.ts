@@ -157,7 +157,7 @@ export class SubagentRegistry implements TaskControl {
 
   constructor(
     private readonly host: RegistryHost,
-    private readonly env: SubagentEnvironment,
+    readonly env: SubagentEnvironment,
   ) {
     this.catalog = env.catalog;
     this.pool = new SubagentPool(env.maxConcurrent ?? DEFAULT_SUBAGENT_CONCURRENCY);
@@ -352,7 +352,7 @@ export class SubagentRegistry implements TaskControl {
     const file = this.outputFileFor(record.info.taskId);
     if (background) {
       void running.then((result) => this.notifier.notify(record, result));
-      return Promise.resolve(startedResult(record, file));
+      return startedResult(record, file, running);
     }
     // [W7-B1] 前台：转后台（background()）时等待者先行 resolve，工具调用立即返回
     const { waiter, promise } = foregroundWaiter(() => {

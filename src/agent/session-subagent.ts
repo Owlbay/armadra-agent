@@ -232,7 +232,9 @@ async function startAmaChild(
     spec.request.thinkingLevel ?? spec.agent.thinking ?? base.thinkingLevel ?? "off";
   const wanted =
     spec.resumeFile === undefined && requestedContext(spec.request, spec.agent) === "fork";
-  const plan = wanted ? forkPlan(parent, spec, model, thinkingLevel) : undefined;
+  // #149：比例来自 `subagents.forkMaxContextRatio`（注册表环境里的整段配置）
+  const ratio = subagentRegistryFor(parent).env.modelConfig?.subagents?.forkMaxContextRatio;
+  const plan = wanted ? forkPlan(parent, spec, model, thinkingLevel, ratio) : undefined;
   if (plan !== undefined && "fallback" in plan)
     parent.log("info", `task ${spec.taskId}: fork falls back to fresh (${plan.fallback})`);
   const forked = plan !== undefined && "manager" in plan ? plan.manager : undefined;
@@ -246,6 +248,11 @@ async function startAmaChild(
   const unavailable = inherited.filter(
     (name) => !allowed.includes(name) && !PARENT_ONLY_TOOLS.includes(name),
   );
+  // #150：<task> 里也列出按深度拒绝的 task / task_ctl（执行层的拒绝文案不变）
+  const briefUnavailable = [
+    ...unavailable,
+    ...PARENT_ONLY_TOOLS.filter((name) => inherited.includes(name)),
+  ];
   const options: AgentSessionOptions = {
     ...parent.options,
     ...base,
@@ -343,7 +350,7 @@ async function startAmaChild(
       : forkBrief({
           prompt: run.prompt,
           role: spec.agent.prompt,
-          unavailable,
+          unavailable: briefUnavailable,
           ...(spec.isolated ? { worktree: { cwd: spec.cwd, parentCwd: parent.cwd } } : {}),
         });
   let current = runOnce(first, spec.origin);

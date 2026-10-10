@@ -5,7 +5,7 @@
  *   同一条 assistant 里并行的多个 fork 任务共享同一个 fork 点。
  * - `forkPlan`：满足条件时用 `SessionManager.fork(entryId, { head })` 复制分支，`head` 是
  *   `custom{ama.task, context:"fork", forkedFrom}`（子会话首条仍是 `ama.task`）；否则给出回落原因：
- *   与父不同的模型 / 思考级别、父还没有真实请求、父上一次请求超过 `FORK_MAX_CONTEXT_RATIO` ×
+ *   与父不同的模型 / 思考级别、父还没有真实请求、父上一次请求超过 `subagents.forkMaxContextRatio`（缺省 0.5）×
  *  （窗口 − reserveTokens）、找不到发起调用的 assistant。续聊与 resume 不经过这里（照原文件重开）。
  * - `forkBrief`：角色说明 + 任务合成一条 user 消息（固定英文），追加在继承的历史之后；子会话不写
  *   `role` 节，工具表与父逐字节相同，类型限制的工具在执行层拒绝（`unavailableTools`）。
@@ -19,8 +19,18 @@ import type { SubagentRequest } from "../tools/types.js";
 import type { AgentSessionOptions } from "./session-core.js";
 import { DEFAULT_COMPACTION_SETTINGS } from "./session-compaction.js";
 
-/** 父上一次请求的输入 token 超过（子模型窗口 − reserveTokens）的这个比例时回落 fresh。 */
+/**
+ * 父上一次请求的输入 token 超过（子模型窗口 − reserveTokens）的这个比例时回落 fresh；
+ * 缺省值，可由 `subagents.forkMaxContextRatio` 覆盖（#149）。
+ */
 export const FORK_MAX_CONTEXT_RATIO = 0.5;
+
+/** 配置的比例：非有限数或不在 (0, 1) 内时用缺省。 */
+export function forkRatio(ratio: number | undefined): number {
+  return ratio !== undefined && Number.isFinite(ratio) && ratio > 0 && ratio < 1
+    ? ratio
+    : FORK_MAX_CONTEXT_RATIO;
+}
 
 const TASK_CUSTOM_TYPE = "ama.task";
 
@@ -69,13 +79,14 @@ export type ForkPlan = { manager: SessionManager; forkedFrom: string } | { fallb
 
 /**
  * D3 的回落条件依次检查，全部通过才复制分支（复制即落盘：父有文件时子会话文件立即写出）。
- * `model` / `thinking` 是子会话按类型与参数解析出的值。
+ * `model` / `thinking` 是子会话按类型与参数解析出的值；`ratio` 是 `subagents.forkMaxContextRatio`。
  */
 export function forkPlan(
   parent: ForkParent,
   spec: ForkSpec,
   model: Model,
   thinking: ModelThinkingLevel,
+  ratio?: number,
 ): ForkPlan {
   const base = parent.childBase();
   if (model.provider !== base.model.provider || model.id !== base.model.id)
@@ -87,8 +98,7 @@ export function forkPlan(
   const reserve =
     parent.options.compaction?.reserveTokens ?? DEFAULT_COMPACTION_SETTINGS.reserveTokens;
   const window = model.contextWindow;
-  const limit =
-    window === undefined ? Infinity : FORK_MAX_CONTEXT_RATIO * Math.max(0, window - reserve);
+  const limit = window === undefined ? Infinity : forkRatio(ratio) * Math.max(0, window - reserve);
   if (last.promptTokens > limit)
     return { fallback: `parent context ${last.promptTokens} tokens exceeds ${Math.floor(limit)}` };
   const forkedFrom = forkPoint(parent.manager.branch(), spec.request.parentToolCallId);
@@ -131,7 +141,7 @@ export function forkBrief(input: ForkBriefInput): string {
     "You are a sub-agent forked from the conversation above at this point. The main agent cannot " +
       "see your work, only your final reply; do not delegate further. Requests above were for the " +
       "main agent: do only this task. Instructions in this block take precedence over earlier " +
-      "plans or reminders above.",
+      "plans or reminders above. Do not call task or task_ctl.",
   ];
   if (input.worktree !== undefined)
     lines.push(

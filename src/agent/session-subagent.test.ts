@@ -15,6 +15,7 @@ import {
   sleepTool,
   subagentHarness,
 } from "./testing/subagent-harness.js";
+import { fakeModel } from "./testing/stubs.js";
 import type { SessionEvent } from "./types.js";
 
 let home: TmpHome | undefined;
@@ -335,6 +336,35 @@ describe("事件与子会话文件", () => {
       running: 0,
       byStatus: { completed: 1 },
     });
+  });
+});
+
+describe("#149 subagents.forkMaxContextRatio", () => {
+  // 父上一次请求占（窗口 − reserveTokens）的 30%：缺省 0.5 时 fork，配置 0.2 时回落 fresh
+  async function contextFor(ratio: number | undefined): Promise<unknown> {
+    const window = 100_000;
+    const h = subagentHarness({
+      model: fakeModel({ contextWindow: window }),
+      env:
+        ratio === undefined ? {} : { modelConfig: { subagents: { forkMaxContextRatio: ratio } } },
+      script: (call) => {
+        if (isChild(call) || userTexts(call).some((t) => t.startsWith("<task>")))
+          return { text: "child" };
+        if (lastIsToolResult(call)) return { text: "parent done" };
+        return {
+          toolCalls: [{ name: "task", args: { prompt: "p", context: "fork" } }],
+          usage: { input: Math.ceil(0.3 * (window - 16_384)) },
+        };
+      },
+    });
+    await h.session.prompt("go");
+    return (toolResults(h)[0]?.details as { context?: unknown } | undefined)?.context;
+  }
+
+  it("配置经注册表环境（modelConfig.subagents）进 forkPlan", async () => {
+    expect(await contextFor(undefined)).toBe("fork");
+    expect(await contextFor(0.2)).toBe("fresh");
+    expect(await contextFor(0.9)).toBe("fork");
   });
 });
 

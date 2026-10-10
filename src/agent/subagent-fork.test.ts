@@ -20,6 +20,7 @@ import {
   forkBrief,
   forkPlan,
   forkPoint,
+  forkRatio,
   requestedContext,
   type ForkParent,
 } from "./subagent-fork.js";
@@ -134,7 +135,10 @@ describe("[ME-A] fork 子会话的首个请求", () => {
     expect(first.context.messages.slice(0, -1)).toEqual(parentLast.context.messages);
     const brief = String(forked.messages[n]?.["content"]);
     expect(brief).toContain("<instructions>\ninvestigate\n</instructions>");
-    expect(brief).not.toContain("Tools not available");
+    // #150：按深度拒绝的 task / task_ctl 也写进 <task>（只此一行，工具表不变）
+    expect(brief).toContain(
+      "Tools not available to you: task, task_ctl. Calls to them are rejected.",
+    );
     // 选项相同（不加 toolChoice），cache key 沿用父链根 id
     expect(first.options.toolChoice).toBeUndefined();
     expect(first.options.sessionId).toBe(parentLast.options.sessionId);
@@ -214,7 +218,9 @@ describe("[ME-A] 类型限制与深度", () => {
     const { parentLast, child } = await runParent(h, 1);
     expect(anthropicPrefix(child[0]!.context)).toBe(anthropicPrefix(parentLast.context));
     const brief = userTexts(child[0]!.context).at(-1)!;
-    expect(brief).toContain("Tools not available to you: write, bash. Calls to them are rejected.");
+    expect(brief).toContain(
+      "Tools not available to you: write, bash, task, task_ctl. Calls to them are rejected.",
+    );
     expect(brief).toContain("<role>\nreader role\n</role>");
     const rejected = child[1]!.context.messages.at(-1);
     expect(rejected).toMatchObject({ role: "toolResult", toolName: "bash", isError: true });
@@ -246,6 +252,10 @@ describe("[ME-A] 类型限制与深度", () => {
       toolName: "task_ctl",
       isError: true,
     });
+    // 执行层仍是深度拒绝的文案（task / task_ctl 不进 unavailableTools）
+    expect(JSON.stringify(fork[1]!.context.messages.at(-1))).toContain(
+      "task_ctl is not available inside a sub-agent.",
+    );
     const file = of(h.events, "subagent_start")[1]!.sessionFile!;
     const entries = lines(file).filter((l): l is SessionEntry => l.type !== "session");
     // 父的 t1 快照被复制进来了，但索引不计
@@ -361,6 +371,25 @@ describe("[ME-A] forkPlan / forkPoint / forkBrief", () => {
     expect(plan.manager.branch().map((e) => e.type)).toEqual(["custom", "message"]);
   });
 
+  it("#149 forkMaxContextRatio：0.2 时刚过线回落、0.9 时放行；非法值按 0.5", () => {
+    const window = 100_000;
+    const usable = window - 16_384;
+    const model = fakeModel({ contextWindow: window });
+    const at = (tokens: number, ratio: number | undefined) =>
+      forkPlan(parentWith({ promptTokens: tokens }).parent, spec("call-1"), model, "off", ratio);
+    expect(at(Math.floor(0.2 * usable) + 1, 0.2)).toMatchObject({
+      fallback: `parent context ${Math.floor(0.2 * usable) + 1} tokens exceeds ${Math.floor(0.2 * usable)}`,
+    });
+    expect(at(Math.floor(0.2 * usable), 0.2)).toHaveProperty("manager");
+    expect(at(Math.floor(0.9 * usable) - 1, 0.9)).toHaveProperty("manager");
+    expect(at(Math.floor(0.5 * usable) + 1, 0.9)).toHaveProperty("manager");
+    for (const bad of [Number.NaN, 0, 1, -0.3, 2, Number.POSITIVE_INFINITY, undefined]) {
+      expect(forkRatio(bad)).toBe(FORK_MAX_CONTEXT_RATIO);
+      expect(at(Math.floor(0.5 * usable) + 1, bad)).toHaveProperty("fallback");
+    }
+    expect(forkRatio(0.05)).toBe(0.05);
+  });
+
   it("forkPoint：assistant 是首条时找不到", () => {
     expect(forkPoint([], "x")).toBeUndefined();
     const { manager, callId } = parentWith(undefined);
@@ -383,7 +412,7 @@ describe("[ME-A] forkPlan / forkPoint / forkBrief", () => {
     expect(text).toBe(
       [
         "<task>",
-        "You are a sub-agent forked from the conversation above at this point. The main agent cannot see your work, only your final reply; do not delegate further. Requests above were for the main agent: do only this task. Instructions in this block take precedence over earlier plans or reminders above.",
+        "You are a sub-agent forked from the conversation above at this point. The main agent cannot see your work, only your final reply; do not delegate further. Requests above were for the main agent: do only this task. Instructions in this block take precedence over earlier plans or reminders above. Do not call task or task_ctl.",
         "Working directory for this task: /repo/.ama/worktrees/t1. Relative paths in the conversation above refer to /repo.",
         "<instructions>\ndo it\n</instructions>",
         "Complete the task, then end with a concise report: what you did, key findings, files changed (if any).",
