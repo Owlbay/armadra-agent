@@ -135,3 +135,43 @@ describe("[ME-D] 注册表：自定义供应商的模型受益，modelOverrides 
     expect(k9.ok && k9.model.name).toBe("K9");
   });
 });
+
+describe("显式引用写错时给 warning（#154）", () => {
+  it("catalog 不命中 → 一条 warning、不继承（也不回落按 id 别名）", () => {
+    const { entry, metadata } = enrichEntry(
+      { id: "deepseek-v4-flash", catalog: "deepseek/nope" },
+      none,
+      "relay",
+    );
+    expect(metadata.warnings).toEqual([
+      'catalog "deepseek/nope" for "relay/deepseek-v4-flash" not found; ignored',
+    ]);
+    expect(metadata.catalog).toBeUndefined();
+    expect(entry.thinkingLevelMap).toBeUndefined();
+    expect(entry.promptCache).toBeUndefined();
+    // 没给 providerId 时文案用 ?
+    expect(enrichEntry({ id: "m", catalog: "x/y" }, none).metadata.warnings).toEqual([
+      'catalog "x/y" for "?/m" not found; ignored',
+    ]);
+  });
+
+  it("正确引用、catalog: false、不写 → 无 warnings", () => {
+    for (const entry of [
+      { id: "my-relay-name", catalog: "deepseek/deepseek-v4-pro" },
+      { id: "deepseek-v4-flash", catalog: false as const },
+      { id: "deepseek-v4-flash" },
+      { id: "totally-unknown-model" },
+    ]) {
+      expect(enrichEntry(entry, snapshot, "relay").metadata.warnings).toBeUndefined();
+    }
+  });
+
+  it("modelsDev 显式引用查过但不命中 → 同形 warning；没有索引时不告警", () => {
+    expect(
+      enrichEntry({ id: "m", modelsDev: "nobody/nothing" }, snapshot, "relay").metadata.warnings,
+    ).toEqual(['modelsDev "nobody/nothing" for "relay/m" not found']);
+    expect(
+      enrichEntry({ id: "m", modelsDev: "nobody/nothing" }, none, "relay").metadata.warnings,
+    ).toBeUndefined();
+  });
+});

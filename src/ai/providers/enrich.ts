@@ -37,6 +37,8 @@ export interface ModelMetadata {
   toolCall?: boolean;
   /** [ME-D] 按 id 继承的内置目录条目 `provider/id`。 */
   catalog?: string;
+  /** 显式 `catalog` / `modelsDev` 引用不命中时的告警（注册表转成 warnings，#154）。 */
+  warnings?: string[];
 }
 
 export type ModelsDevSource = ModelsDevIndex | (() => ModelsDevIndex | undefined) | undefined;
@@ -121,11 +123,14 @@ function fillLimits(
 
 /**
  * 补全一个自定义模型条目（config 的 `models[]` 或合成的模型）。返回补过字段的条目（不含
- * `modelsDev` / `channels` / `catalog` 这些配置专用键）与每个字段的来源。
+ * `modelsDev` / `channels` / `catalog` 这些配置专用键）与每个字段的来源。显式 `catalog: "provider/id"`
+ * 或 `modelsDev` 引用不命中时记入 `metadata.warnings`（`providerId` 用于告警文案）；写错的 `catalog`
+ * 不回落按 id 继承——用户显式指定，按指定失败处理。
  */
 export function enrichEntry(
   entry: ModelConfig,
   index: () => ModelsDevIndex | undefined,
+  providerId?: string,
 ): { entry: EnrichedEntry; metadata: ModelMetadata } {
   const { modelsDev, channels: _channels, catalog: _catalog, ...rest } = entry;
   const sources = {} as Record<EnrichableField, FieldSource>;
@@ -134,10 +139,14 @@ export function enrichEntry(
   }
   const metadata: ModelMetadata = { sources, looked: false };
   const out: EnrichedEntry = { ...rest };
+  const warnings: string[] = [];
+  const ref = `${providerId ?? "?"}/${entry.id}`;
   const hit = catalogHit(entry);
   if (hit !== undefined) {
     metadata.catalog = hit.ref;
     inheritIntrinsic(out, hit, sources);
+  } else if (typeof entry.catalog === "string") {
+    warnings.push(`catalog "${entry.catalog}" for "${ref}" not found; ignored`);
   }
   const explicit = typeof modelsDev === "string" ? modelsDev : hit?.snapshotRef;
   const lookup = modelsDev !== false && (needsLookup(out) || modelsDev !== undefined);
@@ -168,7 +177,10 @@ export function enrichEntry(
       }
     }
   }
+  if (typeof modelsDev === "string" && metadata.looked && metadata.match === undefined)
+    warnings.push(`modelsDev "${modelsDev}" for "${ref}" not found`);
   if (hit !== undefined && modelsDev !== false) fillLimits(out, hit, sources);
+  if (warnings.length > 0) metadata.warnings = warnings;
   return { entry: out, metadata };
 }
 

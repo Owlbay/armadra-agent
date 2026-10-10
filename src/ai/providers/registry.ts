@@ -317,9 +317,8 @@ export class ProviderRegistry implements ProviderRegistryApi {
       );
     for (const entry of config.models ?? []) {
       // 模型级 api（第三波 §2.3）：同一中转下不同模型走不同协议；缺省沿用供应商（或渠道）的。
-      const { entry: filled, metadata } = enrichEntry(entry, this.modelsDev);
-      if (typeof entry.modelsDev === "string" && metadata.looked && metadata.match === undefined)
-        this.warn(`modelsDev "${entry.modelsDev}" for "${id}/${entry.id}" not found`);
+      const { entry: filled, metadata } = enrichEntry(entry, this.modelsDev, id);
+      for (const warning of metadata.warnings ?? []) this.warn(warning);
       const model = withCustomDefaults(filled, id, entry.api ?? provider.api);
       // 内置供应商上没写 channels 的模型：定渠道时挂全部渠道（settleBuiltinChannels）
       if (provider.channels !== undefined && (entry.channels !== undefined || !provider.builtin))
