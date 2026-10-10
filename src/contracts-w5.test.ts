@@ -257,8 +257,9 @@ describe("第五波 ④：runner / 驱动 / 定义文件、审批来源、宿主
       "allow_once" | "allow_always" | "reject_once" | "reject_always"
     >();
     expectTypeOf<ReturnType<AgentDriver["open"]>>().toEqualTypeOf<Promise<DriverSession>>();
+    // #198 新增 pi 原生驱动 `pi-rpc`（只加成员）
     expectTypeOf<AgentDriver["kind"]>().toEqualTypeOf<
-      "acp" | "acp-adapter" | "claude-stream" | "codex-app-server" | "oneshot" | "host"
+      "acp" | "acp-adapter" | "claude-stream" | "codex-app-server" | "pi-rpc" | "oneshot" | "host"
     >();
   });
 

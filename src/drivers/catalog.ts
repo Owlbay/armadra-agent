@@ -159,6 +159,20 @@ export const DRIVER_CATALOG: readonly CatalogEntry[] = [
     ],
   },
   {
+    agentId: "pi",
+    label: "Pi",
+    // 社区 ACP 适配器 pi-acp 不发 request_permission（pi 没有审批通道），会让工具不经人直接执行，不收录
+    candidates: [
+      {
+        kind: "pi-rpc",
+        program: "pi",
+        args: ["--mode", "rpc"],
+        verified: ">=1.1.0 <2.0.0",
+        usage: "usd",
+      },
+    ],
+  },
+  {
     agentId: "goose",
     label: "Goose",
     candidates: [{ kind: "acp", program: "goose", args: ["acp"] }],
@@ -223,6 +237,17 @@ export function candidateCapabilities(c: CatalogCandidate): DriverCapabilities {
         modes: ALL_MODES,
         usage: "tokens",
         images: false,
+      };
+    case "pi-rpc":
+      // 审批经 ama 加载的审批闸扩展交给人（native/pi-gate.ts）
+      return {
+        resume: "resume",
+        list: false,
+        permissions: "interactive",
+        steer: true,
+        modes: ALL_MODES,
+        usage: "usd",
+        images: true,
       };
     case "oneshot":
       return {

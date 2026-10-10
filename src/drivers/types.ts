@@ -24,7 +24,7 @@ export interface DriverCapabilities {
 }
 
 export type DriverKind =
-  "acp" | "acp-adapter" | "claude-stream" | "codex-app-server" | "oneshot" | "host";
+  "acp" | "acp-adapter" | "claude-stream" | "codex-app-server" | "pi-rpc" | "oneshot" | "host";
 
 export interface DriverProbe {
   installed: boolean;

@@ -45,6 +45,8 @@ export const en = {
       `${agent} wants to ask you a question (${tool}); ama does not answer for you and asked it to put the question in its final reply`,
     askedQuestionCodex: (agent: string) =>
       `${agent} wants to ask you a question; ama does not answer for you — have it put the question in its final reply`,
+    extensionDialog: (agent: string, title: string) =>
+      `${agent}: an extension asked for input (${title}); ama does not answer for you, cancelled`,
     mcpElicitation: (agent: string) =>
       `${agent}'s MCP server asked for input; ama does not answer for you, cancelled`,
   },
@@ -118,6 +120,7 @@ export const zh = {
     askedQuestion: (agent, tool) =>
       `${agent} 想向你提问（${tool}）；ama 不代答，已请它把问题写进最终回复`,
     askedQuestionCodex: (agent) => `${agent} 想向你提问；ama 不代答，请让它把问题写进最终回复`,
+    extensionDialog: (agent, title) => `${agent}：扩展请求输入（${title}）；ama 不代答，已取消`,
     mcpElicitation: (agent) => `${agent} 的 MCP 服务器请求输入；ama 不代答，已取消`,
   },
   hooks: {

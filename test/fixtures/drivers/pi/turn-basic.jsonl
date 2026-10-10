@@ -1,0 +1,11 @@
+// pi 1.1.0 + openai-codex/gpt-6-luna 实录（2026-10-10，#198；去掉 system 消息、agent_end 全量回放与签名）：握手 → 「只回 OK」→ 上下文统计
+{"dir":"in","msg":{"id":"$state","type":"get_state"}}
+{"dir":"out","msg":{"id":"$state","type":"response","command":"get_state","success":true,"data":{"model":{"id":"gpt-6-luna","provider":"openai-codex","contextWindow":272000},"sessionId":"c6738909-4821-4a13-bad7-c2352be9feec","isStreaming":false}}}
+{"dir":"in","msg":{"id":"$p1","type":"prompt","message":"Reply with exactly OK and nothing else."}}
+{"dir":"out","msg":{"id":"$p1","type":"response","command":"prompt","success":true,"data":{"disposition":"started"}}}
+{"dir":"out","msg":{"type":"agent_start"}}
+{"dir":"out","msg":{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"OK"}}}
+{"dir":"out","msg":{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"OK"}],"provider":"openai-codex","model":"gpt-6-luna","usage":{"input":1803,"output":5,"cacheRead":0,"cacheWrite":0,"reasoning":0,"totalTokens":1808,"cost":{"input":0.00018030000000000002,"output":2.4999999999999998e-06,"cacheRead":0,"cacheWrite":0,"total":0.00018280000000000003}},"stopReason":"stop","rawStopReason":"completed","durationMs":2128,"thinkingLevel":"medium"}}}
+{"dir":"out","msg":{"type":"agent_settled","aborted":false}}
+{"dir":"in","msg":{"id":"$stats1","type":"get_session_stats"}}
+{"dir":"out","msg":{"id":"$stats1","type":"response","command":"get_session_stats","success":true,"data":{"sessionId":"c6738909-4821-4a13-bad7-c2352be9feec","userMessages":1,"assistantMessages":1,"toolCalls":0,"toolResults":0,"totalMessages":3,"tokens":{"input":1803,"output":5,"cacheRead":0,"cacheWrite":0,"total":1808},"cost":0.00018280000000000003,"contextUsage":{"tokens":1808,"contextWindow":272000,"percent":0.6647058823529413}}}}
