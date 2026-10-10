@@ -41,10 +41,25 @@ function runningResult(record: TaskRecord, text: string, outputFile?: string): S
     status: "running",
   };
   if (outputFile !== undefined) result.outputFile = outputFile;
+  // #156：fork / fresh 已定时带上实际模式（与完成结果的 details.context 同源）
+  if (record.info.context !== undefined) result.context = record.info.context;
   return result;
 }
 
-export function startedResult(record: TaskRecord, outputFile?: string): SubagentResult {
+/**
+ * 直接后台的工具结果。`settle`（任务的运行 promise）给出时先等一个宏任务：ama 子会话在第一个
+ * await 之前就发出 `context` 事件，池有空位时此刻模式已知；排队或 worktree 隔离未就绪时不带。
+ */
+export async function startedResult(
+  record: TaskRecord,
+  outputFile?: string,
+  settle?: Promise<unknown>,
+): Promise<SubagentResult> {
+  if (settle !== undefined)
+    await Promise.race([
+      settle.catch(() => undefined),
+      new Promise<void>((resolve) => setImmediate(resolve)),
+    ]);
   return runningResult(record, startedText(record.info.taskId, record.agent.name), outputFile);
 }
 

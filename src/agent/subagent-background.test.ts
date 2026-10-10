@@ -9,7 +9,8 @@ import type { ComposeExtensionDeps } from "../cli/compose-extensions.js";
 import { backgroundedText } from "../agents/result.js";
 import type { ToolResultMessage } from "../ai/types.js";
 import type { ToolDefinition } from "../tools/types.js";
-import { resolveTaskBackground } from "./subagent-background.js";
+import type { TaskRecord } from "../agents/task-record.js";
+import { backgroundedResult, resolveTaskBackground, startedResult } from "./subagent-background.js";
 import { registryOf } from "./subagent-registry.js";
 import type { ScriptCall, ScriptStep } from "./testing/scripted-api.js";
 import { stubTool, waitOrAbort } from "./testing/stubs.js";
@@ -259,6 +260,36 @@ describe("前台任务转后台（background）", () => {
     expect(registry.background()).toEqual([]);
     expect(of(h.events, "subagent_end")).toHaveLength(1);
     await h.session.dispose();
+  });
+});
+
+describe("#156 running 结果的 details.context", () => {
+  const record = (context?: "fork" | "fresh") =>
+    ({
+      info: { taskId: "t1", ...(context === undefined ? {} : { context }) },
+      agent: { name: "general" },
+    }) as unknown as TaskRecord;
+
+  it("startedResult 等一个宏任务：期间模式已知则带上，未知（排队）则不带", async () => {
+    const known = record();
+    const pending = new Promise<never>(() => undefined);
+    setImmediate(() => (known.info.context = "fork"));
+    expect(await startedResult(known, "/out/t1", pending)).toMatchObject({
+      status: "running",
+      context: "fork",
+      outputFile: "/out/t1",
+    });
+    const queued = await startedResult(record(), undefined, pending);
+    expect(queued).not.toHaveProperty("context");
+    expect(queued.status).toBe("running");
+    // 运行 promise 先失败也不抛
+    const failed = await startedResult(record("fresh"), undefined, Promise.reject(new Error("x")));
+    expect(failed.context).toBe("fresh");
+  });
+
+  it("backgroundedResult 带已知模式；未请求 fork 时不带", () => {
+    expect(backgroundedResult(record("fork"), "user", 0).context).toBe("fork");
+    expect(backgroundedResult(record(), "timeout", 1000)).not.toHaveProperty("context");
   });
 });
 

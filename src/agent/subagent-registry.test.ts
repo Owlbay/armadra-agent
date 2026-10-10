@@ -273,6 +273,42 @@ describe("后台运行与完成通知", () => {
   });
 });
 
+describe("#156 后台 fork 任务的 running 结果带 details.context", () => {
+  it("池有空位：结果 context = fork；池满排队：不带，TaskInfo.context 后到", async () => {
+    const counter = { running: 0, peak: 0 };
+    const isFork = (call: ScriptCall) =>
+      userTexts(call.context).some((t) => t.startsWith("<task>"));
+    const h = subagentHarness({
+      env: { maxConcurrent: 1 },
+      extraTools: [sleepTool(counter, 30)],
+      script: (call) => {
+        if (isFork(call) || isChild(call))
+          return lastIsToolResult(call)
+            ? { text: "forked report" }
+            : { toolCalls: [{ name: "sleep", args: {} }] };
+        if (lastIsToolResult(call)) return { text: "parent done" };
+        if (lastUser(call) !== "go") return { text: "ack" };
+        const args = { prompt: "dig", context: "fork", background: true };
+        return {
+          toolCalls: [
+            { name: "task", args },
+            { name: "task", args },
+          ],
+        };
+      },
+    });
+    await h.session.prompt("go");
+    const [first, second] = results(h);
+    expect(first?.details).toMatchObject({ taskId: "t1", status: "running", context: "fork" });
+    expect(second?.details).toMatchObject({ taskId: "t2", status: "running" });
+    expect(second?.details).not.toHaveProperty("context");
+    const registry = registryOf(h.manager.id)!;
+    await waitUntil(() => registry.get("t2")?.status === "completed");
+    expect(registry.get("t2")?.context).toBe("fork");
+    await h.session.dispose();
+  });
+});
+
 describe("外部 runner（统一入口）", () => {
   function stubRunner(log: SubagentRunRequest[], sends: string[]): SubagentRunner {
     return {
