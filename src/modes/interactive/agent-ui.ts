@@ -101,6 +101,8 @@ export function agentCommandHooks(get: () => AgentUi): Pick<CommandUi, "agentBar
 }
 
 const TASK_NOTICE = /^\[task (t\d+)\] ([\s\S]*)$/;
+/** #183：会话图片读不回（`ImageOffload` 的告警）转通知区。 */
+const SESSION_NOTICE = /^cannot read session entry (\S+) back from /;
 
 export class AgentUi {
   readonly plan: PlanFlow;
@@ -219,6 +221,11 @@ export class AgentUi {
         const taskId = match[1] as string;
         const agent = taskRegistryView(session.state.sessionId)?.get(taskId)?.agent ?? "task";
         this.deps.notice(level === "warn" ? "warn" : "info", `[${agent} · ${taskId}] ${match[2]}`);
+        return;
+      }
+      const image = level === "warn" ? SESSION_NOTICE.exec(message) : null;
+      if (image !== null) {
+        this.deps.notice("warn", msg().interactive.events.imageReadBackFailed(image[1] as string));
         return;
       }
       original?.call(holder, level, message);

@@ -1,17 +1,20 @@
+import { writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTmpHome, type TmpHome } from "../../test/helpers/tmp-home.js";
 import { fakeProviderData } from "../ai/fake/fake-provider.js";
 import { SessionManager } from "../session/manager.js";
 import { sessionDirForCwd } from "../session/store.js";
 import { DEFAULT_CONFIG } from "../config/merge.js";
 import { buildProviderRegistry, probeLocalProviders } from "./compose-providers.js";
+import { createRuntimeDeps } from "./compose.js";
 import { createSessionStore, findSessionFile } from "./compose-store.js";
 
 let home: TmpHome | undefined;
 let server: Server | undefined;
 afterEach(() => {
+  vi.restoreAllMocks();
   home?.cleanup();
   home = undefined;
   server?.close();
@@ -76,6 +79,76 @@ describe("会话存储", () => {
     });
     expect(done.moved).toEqual([a.file()]);
     expect(findSessionFile(root, a.id)).toBeUndefined();
+  });
+});
+
+describe("#183 --fork 的源会话：图片读不回的告警交给 log", () => {
+  /** 含图消息被 context_edit 改写（打开时卸载）的会话。 */
+  function withImage(root: string, cwd: string): SessionManager {
+    const manager = SessionManager.create(sessionDirForCwd(root, cwd), cwd);
+    const content = [
+      { type: "text" as const, text: "x" },
+      { type: "image" as const, mimeType: "image/png", data: "aW1n" },
+    ];
+    const id = manager.append({
+      type: "message",
+      message: { role: "user", content, timestamp: 1 },
+    }).id;
+    manager.append({
+      type: "context_edit",
+      targetId: id,
+      replacement: "[image omitted]",
+      reason: "image_budget",
+    });
+    manager.flush();
+    manager.close();
+    return manager;
+  }
+
+  /** 打开之后、fork 之前文件被外部改写。 */
+  function rewriteAfterOpen(): void {
+    const open = SessionManager.open.bind(SessionManager);
+    vi.spyOn(SessionManager, "open").mockImplementation((file, options) => {
+      const manager = open(file, options);
+      writeFileSync(file, "{}\n".repeat(4), "utf8");
+      return manager;
+    });
+  }
+
+  it("createSessionStore(log)：fork 源会话回读失败 → log(warn) 恰好 1 次", async () => {
+    home = createTmpHome();
+    const root = home.path("sessions");
+    const source = withImage(root, home.cwd);
+    rewriteAfterOpen();
+    const logged: [string, string][] = [];
+    const store = createSessionStore((level, message) => logged.push([level, message]));
+    const forked = await store.open(
+      { kind: "fork", id: source.id },
+      { sessionDir: root, cwd: home.cwd },
+    );
+    expect(logged).toHaveLength(1);
+    expect(logged[0]![0]).toBe("warn");
+    expect(logged[0]![1]).toMatch(/^cannot read session entry \S+ back from /);
+    (forked as SessionManager).close();
+  });
+
+  it("装配：createRuntimeDeps 的 log 传到会话存储", async () => {
+    home = createTmpHome();
+    const root = home.path("sessions");
+    const source = withImage(root, home.cwd);
+    rewriteAfterOpen();
+    const logged: string[] = [];
+    const deps = createRuntimeDeps({
+      env: home.env,
+      probeLocal: false,
+      log: (_l, m) => logged.push(m),
+    });
+    const forked = await deps.sessions.open(
+      { kind: "fork", id: source.id },
+      { sessionDir: root, cwd: home.cwd },
+    );
+    expect(logged).toHaveLength(1);
+    (forked as SessionManager).close();
   });
 });
 

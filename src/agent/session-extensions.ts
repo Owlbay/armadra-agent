@@ -20,6 +20,7 @@
  *   工厂在会话构造中途调用：只可读 `core.options / depth / cwd / manager`，不要 emit 或请求模型。
  * - 钩子抛错不影响会话：同步钩子的异常记 warn 日志后忽略；`beforePrompts` / `onAgentSettled`
  *   的异常同样记日志、按「无追加」处理。
+ * - 会话级诊断（#183）：构造时顺带把 `core.manager` 的告警接到 `core.log`（每个会话实例一次）。
  * - `onAgentSettled` 不要等待人工输入（计划审批等）：需要等待的流程自行异步进行，之后用
  *   `prompt / followUp` 开新回合。
  */
@@ -68,6 +69,8 @@ export class SessionExtensions {
       if (extension !== undefined) list.push(extension);
     }
     this.list = list;
+    // 会话级诊断（#183）：manager 的告警（图片读不回）走会话日志；动态读 options.log，TUI 换掉也生效
+    core.manager.setWarn((message) => core.log("warn", message));
   }
 
   get size(): number {

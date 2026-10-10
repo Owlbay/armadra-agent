@@ -10,7 +10,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import type { ContentBlock, ImageBlock, UserMessage } from "../ai/types.js";
 import { SessionManager } from "./manager.js";
 import { migrateSessionLines } from "./migrate.js";
-import { hasImages, readLineAt } from "./offload.js";
+import { ImageOffload, PENDING_WARNINGS, hasImages, readLineAt } from "./offload.js";
 import { buildProjection } from "./projection.js";
 import { appendLines, readSessionLines, writeNewSessionFile } from "./store.js";
 import type { SessionEntry } from "./types.js";
@@ -223,5 +223,40 @@ describe("SessionManager 图片卸载", () => {
     expect(imagesOf(m.getEntry(u1))[0]?.data).toBe("");
     expect(warnings).toHaveLength(2);
     m.close();
+  });
+
+  it("告警出口后接（#183）：之前的告警缓冲，setWarn 时按序冲出恰好 1 条，同一条目不再告警", () => {
+    const { m, u1, beforeEdits } = persisted();
+    writeFileSync(m.file()!, "{}\n".repeat(10), "utf8");
+    m.setLeaf(beforeEdits); // u1、u2 都回读失败，进缓冲
+    const warnings: string[] = [];
+    m.setWarn((message) => warnings.push(message));
+    expect(warnings).toHaveLength(2);
+    expect(warnings[0]).toMatch(new RegExp(`^cannot read session entry ${u1} back from `));
+    m.setLeaf(m.entries().at(-1)!.id);
+    m.setLeaf(beforeEdits);
+    m.getEntries();
+    expect(warnings).toHaveLength(2);
+    // 换出口：缓冲已清空，不重放
+    const later: string[] = [];
+    m.setWarn((message) => later.push(message));
+    expect(later).toEqual([]);
+    m.close();
+  });
+
+  it("缓冲超过上限：多出的折叠成一条计数", () => {
+    const images = new ImageOffload();
+    const total = PENDING_WARNINGS + 3;
+    const missing = join(freshDir(), "gone.jsonl");
+    for (let i = 0; i < total; i++) {
+      const entry = { type: "message", id: `e${i}`, message: userWith("x", png(1, 16)) };
+      images.load(entry as SessionEntry, { offset: 0, length: 10 }, true);
+      expect(images.hydrate(missing, entry as SessionEntry)).toBe(false);
+    }
+    const warnings: string[] = [];
+    images.setWarn((message) => warnings.push(message));
+    expect(warnings).toHaveLength(PENDING_WARNINGS + 1);
+    expect(warnings[0]).toMatch(/^cannot read session entry e0 back from /);
+    expect(warnings.at(-1)).toBe("and 3 more session entries could not be read back");
   });
 });

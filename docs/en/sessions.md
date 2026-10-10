@@ -219,6 +219,7 @@ Rolling back code (`/rewind`, design in [rewind-plan.md](../rewind-plan.md), Chi
 - For conversation-only or code-only rewinds, an `ama.rewind-note` is appended at the end before the next prompt to tell the model which files disagree with the conversation; nothing is appended for conversation + code.
 - In-memory sessions and `checkpoints.mode: "off"` create no checkpoints, so only conversation rewinds are possible.
 - When Esc interrupts a run before this turn produced any reply or tool call, the turn is withdrawn and the original message put back (`ui.restoreOnCancel`, default true).
+- Going back to before images were downgraded reads them back from the session file; if the file was changed externally and they cannot be read back, the images stay empty and one warning is logged (`AMA_LOG`; shown in the notice area in the TUI).
 
 ## Request details (design, not implemented)
 
