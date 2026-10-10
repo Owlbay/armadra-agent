@@ -9,6 +9,9 @@
 
 import type { ImageBlock } from "../../ai/types.js";
 import type { AgentSessionImpl } from "../../agent/session.js";
+import type { TaskControl } from "../../agents/task-control.js";
+import { disposeSessionAlongside } from "../../cli/compose-session.js";
+import type { Runtime } from "../../cli/runtime.js";
 import type { AgentMessage, SessionListItem } from "../../session/types.js";
 import {
   RPC_ERRORS,
@@ -238,4 +241,54 @@ export async function promptWhenIdle(
       if (!(error instanceof AmaError && error.code === "busy")) throw error;
     }
   }
+}
+
+const BUSY = Symbol("busy");
+
+/** 当前没有周期（含收尾阶段）：`waitForIdle()` 已结算即空闲。 */
+async function idleNow(session: AgentSessionImpl): Promise<boolean> {
+  return (await Promise.race([session.waitForIdle(), Promise.resolve(BUSY)])) !== BUSY;
+}
+
+/**
+ * 关会话前把它安静下来（Issue #167）：先停在跑的后台任务（被停止的任务不发完成通知），再反复 abort，
+ * 直到隔一个宏任务仍然空闲——已完成任务排在投递链上的通知会在上一周期结算后的微任务里开新周期，
+ * 一次 abort 不够。超过 `rounds` 轮仍不空闲返回 false。被打断的通知回合与用户 cancel 同样留下中断标记。
+ */
+export async function quiesce(
+  session: AgentSessionImpl,
+  control: TaskControl | undefined,
+  rounds = 50,
+): Promise<boolean> {
+  for (const task of control?.list() ?? [])
+    if (task.status === "running") await control?.stop(task.taskId).catch(() => undefined);
+  for (let i = 0; i < rounds; i++) {
+    await session.abort();
+    await new Promise((resolve) => setImmediate(resolve));
+    if (await idleNow(session)) return true;
+  }
+  return false;
+}
+
+/**
+ * `disposeSessionAlongside` 的安静版：撞上 busy（SessionEnd Hook 期间又开了通知回合）→ 再 quiesce 重试；
+ * dispose 之后若还有周期（与 dispose 同一时刻开出来的）再 abort 一次。
+ */
+export async function disposeQuiet(
+  runtime: Runtime,
+  session: AgentSessionImpl,
+  fallback: AgentSessionImpl,
+  control?: TaskControl,
+  retries = 3,
+): Promise<void> {
+  for (let i = 0; ; i++) {
+    try {
+      await disposeSessionAlongside(runtime, session, fallback);
+      break;
+    } catch (error) {
+      if (i >= retries || !(error instanceof AmaError && error.code === "busy")) throw error;
+      await quiesce(session, control);
+    }
+  }
+  await session.abort();
 }

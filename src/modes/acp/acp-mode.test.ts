@@ -12,6 +12,9 @@ import type {
 import { golden, memoryTransport, type WireLine } from "../../drivers/test-support.js";
 import { assertAcpWire } from "../../../test/helpers/acp-schema.js";
 import { AgentSessionImpl } from "../../agent/session.js";
+import { taskControl } from "../../agents/task-control.js";
+import { currentSession } from "../../cli/compose-session.js";
+import { gcUntil, trackInstances } from "../../../test/helpers/memory.js";
 import { msg } from "../../i18n/index.js";
 import type { ApprovalBroker } from "../../permissions/types.js";
 import { AcpEventMapper } from "./acp-events.js";
@@ -679,6 +682,63 @@ describe("ama --mode acp 多会话 [ACP-B]", () => {
       cachedReadTokens: 2,
       cachedWriteTokens: 0,
     });
+    await t.finish();
+  });
+
+  it("#167：通知回合在跑时 session/close → {}，后续通知不再开回合、无更新、实例回收；他会话照常出队", async () => {
+    const task = (description: string) => ({
+      toolCall: {
+        name: "task",
+        arguments: { prompt: "count", agent: "explore", description, background: true },
+      },
+    });
+    const t = await start(
+      [
+        { steps: [task("a"), task("b")] },
+        { delayMs: 100, text: "report" }, // 子会话 a
+        { delayMs: 300, text: "report" }, // 子会话 b
+        { text: "parent done. " },
+        { delayMs: 1_500, text: "notified a" }, // a 的通知回合（close 打断）
+        { delayMs: 1_500, text: "notified b" }, // b 的通知：排在投递链上，不得开出回合
+        { text: "other" },
+      ],
+      undefined,
+      { argv: BG_ARGV },
+    );
+    await t.client.initialize();
+    const s1 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
+    const s2 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
+    await t.client.prompt(s1, [{ type: "text", text: "go" }]);
+    const tracker = trackInstances(AgentSessionImpl);
+    // 独立函数里取会话：async 测试体挂起时会留住局部变量
+    const track = (): void => void tracker.add(currentSession(t.runtime) as AgentSessionImpl);
+    track();
+    await callsReach(5);
+    // 两个任务都结束：b 的通知已在投递链上等 a 的通知回合结束
+    for (
+      let i = 0;
+      i < 300 &&
+      taskControl(s1)
+        ?.list()
+        .some((x) => x.status === "running");
+      i++
+    )
+      await new Promise((r) => setTimeout(r, 10));
+    const other = t.client.prompt(s2, [{ type: "text", text: "hi" }]);
+    await expect(t.client.closeSession(s1)).resolves.toEqual({});
+    const seen = t.updates.length;
+    await expect(other).resolves.toMatchObject({ stopReason: "end_turn" });
+    expect(taskControl(s1)).toBeUndefined();
+    await new Promise((r) => setTimeout(r, 500));
+    expect(t.updates.slice(seen).filter((u) => u.sessionId === s1)).toEqual([]);
+    expect(text(t, s1)).not.toContain("notified");
+    // fake 记下的请求选项（onQuota 闭包）持有会话，测量前丢掉
+    for (const call of h.fake.calls as { context?: unknown; options?: unknown }[]) {
+      call.context = undefined;
+      call.options = {};
+    }
+    expect(await gcUntil(() => tracker.alive === 0)).toBe(true);
+    expect(t.wire.some((w) => (w.msg["error"] as { code?: number })?.code === -32603)).toBe(false);
     await t.finish();
   });
 

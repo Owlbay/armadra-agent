@@ -25,12 +25,12 @@ import type { AgentSession, SessionEvent } from "../../agent/types.js";
 import {
   createSessionAlongside,
   currentSession,
-  disposeSessionAlongside,
   setForegroundSession,
 } from "../../cli/compose-session.js";
 import { listSessions } from "../../cli/compose-store.js";
 import type { Runtime } from "../../cli/runtime.js";
 import { AgentSessionImpl } from "../../agent/session.js";
+import { taskControl } from "../../agents/task-control.js";
 import { RpcError, type IncomingRequestContext, type JsonRpcPeer } from "../../drivers/jsonrpc.js";
 import {
   ACP_METHODS,
@@ -72,8 +72,10 @@ import { clientCapabilitiesOf, type AcpConnection } from "./acp-connection.js";
 import {
   PromptQueue,
   cancelledResult,
+  disposeQuiet,
   pageSessions,
   promptWhenIdle,
+  quiesce,
   sessionTitle,
   type PooledSession,
   type PromptJob,
@@ -217,13 +219,14 @@ export class AcpServer {
         .abort()
         .catch(() => undefined);
     await this.queue.settled();
-    for (const session of this.sessions()) await session.waitForIdle().catch(() => undefined);
+    for (const s of this.sessions())
+      if (s instanceof AgentSessionImpl) await quiesce(s, taskControl(s.state.sessionId));
     const foreground = this.session();
     for (const entry of this.pool.values()) entry.unsubscribe();
     for (const session of this.sessions()) {
       if (session === foreground || !(session instanceof AgentSessionImpl)) continue;
       if (!(foreground instanceof AgentSessionImpl)) continue;
-      await disposeSessionAlongside(this.runtime, session, foreground).catch(() => undefined);
+      await disposeQuiet(this.runtime, session, foreground).catch(() => undefined);
     }
     this.pool.clear();
     this.standby = undefined;
@@ -380,12 +383,10 @@ export class AcpServer {
     if (entry === undefined) return {};
     this.pool.delete(id);
     this.queue.cancelQueued(id);
-    const running = this.queue.running;
-    if (running?.sessionId === id) {
-      running.cancelRequested = true;
-      await entry.session.abort().catch(() => undefined);
-      await this.queue.settled(id);
-    }
+    // [#167] 通知回合不经队列：不论谁在跑都先安静下来（停后台任务、abort 到空闲）
+    if (this.queue.running?.sessionId === id) this.queue.running.cancelRequested = true;
+    await quiesce(entry.session, taskControl(id));
+    await this.queue.settled(id);
     entry.unsubscribe();
     let fallback = this.session();
     if (fallback === entry.session) {
@@ -398,7 +399,7 @@ export class AcpServer {
       }
     }
     if (fallback instanceof AgentSessionImpl)
-      await disposeSessionAlongside(this.runtime, entry.session, fallback);
+      await disposeQuiet(this.runtime, entry.session, fallback, taskControl(id));
     return {};
   }
 
