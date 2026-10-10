@@ -63,12 +63,16 @@ function ctx(dir = cwd): CheckpointBackendContext {
   };
 }
 
+/**
+ * 缺省冻结快照时钟：3 秒耗时上限按真实时间判，CI 负载高时（Windows 起 git 子进程慢）第一回合会被判
+ * too_slow 降级，下一个检查点就没有影子提交（#190）。只有测超时的用例自带 now。
+ */
 function backend(extra: Partial<CheckpointBackendSettings> = {}, dir = cwd): CheckpointBackend {
   return createCheckpointBackendFactory({
     mode: "shadow-git",
     dataDir,
     ...extra,
-    shadow: { homeDir: join(root, "home"), ...extra.shadow },
+    shadow: { homeDir: join(root, "home"), now: () => 0, ...extra.shadow },
   })(ctx(dir))!;
 }
 
@@ -132,6 +136,8 @@ describe("影子 git 回滚 bash 改动", () => {
       if (kind === "git 仓库") gitInit(cwd);
       const b = backend();
       await bashScenario(b);
+      // 降级或 git 出错都会留 warn；先断言它，失败时直接看到原因
+      expect(logs.filter((l) => l.startsWith("warn"))).toEqual([]);
       expect(shadowCommitOf("u1")).toMatch(/^[0-9a-f]{40,64}$/);
       expect(shadowCommitOf("u2")).toMatch(/^[0-9a-f]{40,64}$/);
       expect(existsSync(join(shadowRepoDir(dataDir, cwd), "HEAD"))).toBe(true);
@@ -152,7 +158,7 @@ describe("影子 git 回滚 bash 改动", () => {
       expect(logs.filter((l) => l.startsWith("warn"))).toEqual([]);
       // 用户仓库的索引没被碰过
       if (kind === "git 仓库") expect(existsSync(join(cwd, ".git", "index"))).toBe(false);
-    });
+    }, 60_000); // 十几个 git 子进程，Windows CI 上单个用例可达 10 秒
   }
 
   it("影子提交串成链：每个回合的父是上一个影子提交", async () => {
