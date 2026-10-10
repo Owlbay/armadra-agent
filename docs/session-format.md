@@ -99,6 +99,16 @@
 - fork（`--fork <id>`、`/fork`、RPC `fork`）：把根 → 指定条目的分支复制到新文件，头的 `parentSession` 指回原文件；不复制 `leaf` 行。
 - `task` 子会话：独立文件，头带 `parentSession`，首条条目是 `custom{customType:"ama.task"}`。fork 式子会话（`task.context: "fork"`）同样如此：父会话分支被复制到新文件，首条 `ama.task` 作为新根条目，复制的首条重挂到它下面（`data.context: "fork"`、`data.forkedFrom` = 复制到的父条目 id）。
 
+## 内存表示
+
+文件格式与上面完全一致；以下只是 `SessionManager` 在内存里的取舍（#170）。已落盘的会话里，**活动分支上被活动分支上的 `context_edit`（任何 reason）改写的 `message` 条目**不再进上下文，它的图片块在内存里换成 `data: ""` 的占位（`mimeType` 保留），只记该行在文件中的位置，需要原文时按位置读回一行：
+
+- `entries()` / `branch()` / `getEntry()` 与 SDK 的 `session.entries` 返回占位版本；投影不受影响（被改写的条目本来就用替换文本）。
+- RPC `get_entries`（`getEntries()`）与 fork 从文件读回原文，fork 出的文件含全部 base64。
+- 换叶子（`/tree`、rewind 回到编辑之前）后，不再被生效编辑改写的条目就地回读，之前拿到的同一消息对象也随之恢复；回到编辑之后再次卸载。打开文件时先扫一遍 `context_edit` 行，读到被改写的条目时随即剥掉图片，峰值不含这些旧图。
+- 内存会话（`inMemory`）与尚未落盘的延迟会话不卸载。文本内容（如被 `prune` 的工具结果）照旧常驻。
+- 会话文件被其它进程改写（如 trash 后被清理）导致读不回时，该条目保留占位并告警，不抛错。
+
 ## custom 类型
 
 `custom` 不进上下文，`custom_message` 进上下文。ama 自己使用的 `customType`：
