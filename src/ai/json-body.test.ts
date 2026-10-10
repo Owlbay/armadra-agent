@@ -11,7 +11,12 @@ import { buildAnthropicRequest } from "./apis/anthropic-request.js";
 import { buildGoogleRequest } from "./apis/google-request.js";
 import { buildOpenAIRequest } from "./apis/openai-request.js";
 import { buildResponsesRequest } from "./apis/openai-responses-request.js";
-import { jsonFetchBody, LARGE_STRING_BYTES, serializeJsonBody } from "./json-body.js";
+import {
+  jsonFetchBody,
+  LARGE_STRING_BYTES,
+  serializeJsonBody,
+  STREAM_CHUNK_CHARS,
+} from "./json-body.js";
 import type { Api, Message, Model, StreamOptions, TranscriptContext } from "./types.js";
 
 const native = (value: unknown): Buffer => Buffer.from(JSON.stringify(value), "utf8");
@@ -167,6 +172,28 @@ describe("jsonFetchBody", () => {
         ...[BIG.base64, BIG.cjk, BIG.quote].map((v) => Buffer.byteLength(JSON.stringify(v))),
       ) + 64,
     );
+  });
+
+  it("大片段分块发出：切点不拆开成对代理项，每块单独解码无替换字符，拼接逐字节相同", async () => {
+    const emoji = "😀".repeat(STREAM_CHUNK_CHARS); // 两倍块长，切点落在每个码元位置都试一遍
+    for (const head of ["", "x", "中", "xx"]) {
+      for (const body of [
+        { [`k${head}`]: `${head}${emoji}` },
+        [head, emoji],
+        [`${head}${emoji}`],
+      ]) {
+        const { body: stream } = jsonFetchBody(body);
+        expect(stream).toBeInstanceOf(ReadableStream);
+        const chunks: Uint8Array[] = [];
+        for await (const chunk of stream as ReadableStream<Uint8Array>) chunks.push(chunk);
+        expect(chunks.length).toBeGreaterThan(2);
+        for (const chunk of chunks) {
+          expect(Buffer.from(chunk).toString("utf8")).not.toContain("\ufffd");
+          expect(chunk.length).toBeLessThanOrEqual(STREAM_CHUNK_CHARS * 3);
+        }
+        expect(Buffer.concat(chunks).equals(native(body))).toBe(true);
+      }
+    }
   });
 
   it("顶层就是大字符串：需要转义时整体交给原生", async () => {

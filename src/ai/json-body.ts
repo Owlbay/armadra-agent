@@ -196,16 +196,23 @@ export interface JsonFetchBody {
 }
 
 /**
+ * 流式请求体每块最多编码的码元数：大片段（一整张图）按游标切片（V8 切片串不拷贝）逐块编码，
+ * 发送期间只多出一块的 UTF-8 字节，而不是一整张图。
+ */
+export const STREAM_CHUNK_CHARS = 256 * 1024;
+
+/**
  * 给 fetch 的请求体。不含大字符串时就是 `JSON.stringify(body)`（与以前完全相同）；含大字符串时是
  * 逐片段编码的流，并给出总字节数。不交给 fetch 一个 Buffer：Node 的 fetch 会把 BufferSource
  * 请求体再复制两份（实测 mock 300 步带图峰值反而从约 1.0 GB 升到 1.85 GB），流则按片段边读边发，
- * 同一时刻只多出一个片段的 UTF-8 字节。字节序列与 `serializeJsonBody` 相同。
+ * 同一时刻只多出一块（≤ {@link STREAM_CHUNK_CHARS} 码元）的 UTF-8 字节。字节序列与 `serializeJsonBody` 相同。
  */
 export function jsonFetchBody(body: unknown): JsonFetchBody {
   const split = jsonParts(body);
   if (split === undefined) return { body: JSON.stringify(body) };
   const { parts } = split;
   let next = 0;
+  let offset = 0; // 当前片段已发出的码元数
   const stream = new ReadableStream<Uint8Array>({
     pull(controller) {
       const part = parts[next];
@@ -213,8 +220,16 @@ export function jsonFetchBody(body: unknown): JsonFetchBody {
         controller.close();
         return;
       }
-      parts[next++] = ""; // 发出即放手，片段（拼出来的小文本）可尽早回收
-      controller.enqueue(Buffer.from(part, "utf8"));
+      let end = Math.min(part.length, offset + STREAM_CHUNK_CHARS);
+      // 不把成对代理项切开（片段里只有成对的：孤立代理项已被原生转义）
+      const last = part.charCodeAt(end - 1);
+      if (end < part.length && last >= 0xd800 && last <= 0xdbff) end--;
+      const piece = offset === 0 && end === part.length ? part : part.slice(offset, end);
+      if (end === part.length) {
+        parts[next++] = ""; // 发完即放手，片段（拼出来的小文本）可尽早回收
+        offset = 0;
+      } else offset = end;
+      controller.enqueue(Buffer.from(piece, "utf8"));
     },
     cancel() {
       parts.length = 0;
