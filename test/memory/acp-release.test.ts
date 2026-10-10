@@ -1,9 +1,9 @@
 /**
  * ACP 关闭会话后可回收（docs/memory-plan.md D2、§2.2、§3「[M-A]」测试 1）。[M-A]
  *
- * fake 下开 6 个会话各跑 2 轮（第一轮读一张图），逐个 `session/close` 后：会话实例被回收（只剩
- * `Runtime.session` 固定持有的启动会话与关掉最后一个会话时补的待命会话）、子 Agent 控制面已注销、
- * 共享缓存报告表不持有转录与回调、图片占的内存回到基线附近。
+ * fake 下开 6 个会话各跑 2 轮（第一轮读一张图），逐个 `session/close` 后：会话实例全部被回收（含被
+ * 第一个 `session/new` 认领的启动会话，#165；只剩关掉最后一个会话时补的待命会话）、子 Agent 控制面
+ * 已注销、共享缓存报告表不持有转录与回调、图片占的内存回到基线附近。
  */
 
 import { writeFileSync } from "node:fs";
@@ -24,8 +24,6 @@ import { gcUntil, sampleMemory, trackInstances } from "../helpers/memory.js";
 
 const SESSIONS = 6;
 const IMAGE_BYTES = 1536 * 1024;
-/** 一张图在转录里的 base64 字节数。 */
-const IMAGE_BASE64 = Math.ceil(IMAGE_BYTES / 3) * 4;
 
 let h: ComposeHarness | undefined;
 afterEach(() => h?.cleanup());
@@ -104,8 +102,7 @@ describe("ACP 会话关闭后可回收 [M-A]", () => {
     const track = (sessionId: string): void => {
       const session = currentSession(runtime);
       expect(session.state.sessionId).toBe(sessionId);
-      // 启动会话由 Runtime.session 固定持有（进程内只此一个），不计入
-      if (session !== runtime.session) tracker.add(session as AgentSessionImpl);
+      tracker.add(session as AgentSessionImpl);
     };
     /** 开一个会话跑两轮：读第 i 张图 → 纯文本。 */
     const runSession = async (i: number): Promise<void> => {
@@ -133,7 +130,7 @@ describe("ACP 会话关闭后可回收 [M-A]", () => {
     const baseline = heapAndOffHeap();
 
     for (let i = 1; i < SESSIONS; i++) await runSession(i);
-    expect(tracker.created).toBe(SESSIONS - 1);
+    expect(tracker.created).toBe(SESSIONS);
     expect(ids.every((id) => taskControl(id) !== undefined)).toBe(true);
     dropFakeCalls();
     await gcUntil(() => false, 3);
@@ -150,8 +147,9 @@ describe("ACP 会话关闭后可回收 [M-A]", () => {
     expect(await gcUntil(() => tracker.alive === 0)).toBe(true);
     await gcUntil(() => false, 3);
     const closed = heapAndOffHeap() - baseline;
-    // 图片全部释放（实测约 0.8 MB：关掉最后一个会话时补的待命会话等）；任何一张图没放都会超
-    expect(closed).toBeLessThan(IMAGE_BASE64);
+    // 图片全部释放，含基线里启动会话那张（#165；实测约 −3.4 MB，补的待命会话约 0.8 MB 已计入）；
+    // 启动会话或任何一张图没放都会超
+    expect(closed).toBeLessThan(0);
 
     mem.transport.stdin.end();
     expect(await exit).toBe(0);
