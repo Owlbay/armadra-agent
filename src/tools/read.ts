@@ -16,7 +16,7 @@ import type { ToolContext, ToolDefinition, ToolResult } from "./types.js";
 import { displayPath, resolvePath } from "./paths.js";
 import { DEFAULT_MAX_LINES, formatSize, toolOutputBytes, truncateHead } from "./truncate.js";
 import { normalizeToLF, splitBom } from "./edit-fuzzy.js";
-import { STREAM_READ_THRESHOLD, readHead, readLineWindow } from "./read-lines.js";
+import { STREAM_READ_THRESHOLD, readHeadAsync, readLineWindowAsync } from "./read-lines.js";
 import {
   MAX_IMAGE_FILE_BYTES,
   fitImage,
@@ -138,9 +138,9 @@ export async function executeRead(
   let selected: string[];
   if (info.size > (options.streamThreshold ?? STREAM_READ_THRESHOLD)) {
     // [M-E] 大文件按字节窗口读：只解码要显示的行，结果与整读逐字节相同（D1）
-    if (isBinary(readHead(abs, SNIFF_BYTES))) return error(binaryMessage(shown));
+    if (isBinary(await readHeadAsync(abs, SNIFF_BYTES))) return error(binaryMessage(shown));
     const want = Math.min(input.limit ?? Infinity, DEFAULT_MAX_LINES + 1);
-    const win = readLineWindow(
+    const win = await readLineWindowAsync(
       abs,
       badOffset ? 1 : offset,
       badOffset || badLimit ? 0 : want,

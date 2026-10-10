@@ -43,6 +43,23 @@ describe("[M-E] read 32 MB 文件", () => {
     expect(growth.beforeGc.total).toBeLessThan(2 * MB);
   });
 
+  it("扫描整个文件期间让出事件循环：读的同时其它回调持续得到执行（#171）", async () => {
+    // 计 setImmediate 轮数而不是 1 ms 计时器：stat 等前置 await 也会让出一两轮，计时器在同步扫描下
+    // 也可能碰巧触发；按块 await 时 32 MB（512 块）期间至少跑几十轮，同步扫描至多两三轮。
+    let turns = 0;
+    let running = true;
+    const spin = (): void => {
+      turns++;
+      if (running) setImmediate(spin);
+    };
+    setImmediate(spin);
+    const result = await readHuge({ offset: 400_000, limit: 100 }).finally(() => {
+      running = false;
+    });
+    expect(result.details).toMatchObject({ totalLines: file.lines, firstLine: 400_000 });
+    expect(turns).toBeGreaterThanOrEqual(32);
+  });
+
   it("offset 超界：错误文案给出正确的总行数", async () => {
     const result = await readHuge({ offset: file.lines + 1 });
     expect(result).toEqual({
