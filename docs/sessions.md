@@ -200,6 +200,7 @@ ama sessions trace <id|文件> [--html [文件]] [--json] [--output <文件>] [-
 - 仅对话或仅代码时，下一次提示前在末尾追加一条 `ama.rewind-note` 告诉模型哪些文件与对话不一致；对话 + 代码不追加。
 - 内存会话与 `checkpoints.mode: "off"` 不建检查点，只能仅对话。
 - 运行中 Esc 中断、本回合还没有任何回复或工具调用时，撤回该回合并回填原消息（`ui.restoreOnCancel`，缺省 true）。
+- 回到图片被降级之前时图片从会话文件回读；文件已被外部改写、读不回时图片保留为空，并告警一次（`AMA_LOG`，TUI 显示在通知区；见 [session-format.md](session-format.md)「内存表示」）。
 
 ## 请求明细（设计，未实现）
 

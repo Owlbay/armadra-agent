@@ -13,6 +13,10 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 - **Learned `max_tokens` limits persist across processes**: when an endpoint rejects with a 400 stating its output limit, the limit is now also written to `<dataDir>/models/max-tokens-caps.json` and loaded back on startup, so later processes no longer get the first request rejected once per model (packy `kimi-k2.5`: second process 0 rejections, previously 1). Entries expire after 30 days; delete the file to re-probe.
 - **Warning for a wrong `models[].catalog` reference**: `catalog: "provider/id"` that matches no catalog entry now produces a registry warning (startup header count, `ama models list`, `AMA_LOG`) instead of silently inheriting nothing.
 
+### Sessions
+
+- **Unreadable session images are reported**: when a downgraded image cannot be read back because the session file was changed by another process, the warning now reaches the session log (`ama: [warn] cannot read session entry …` on stderr, filtered by `AMA_LOG`; a notice in the TUI) instead of being dropped. Warnings raised while the file is being opened are buffered and shown once the session is ready (at most 16, the rest counted); the source session of `--fork` reports through the same log.
+
 ## 0.7.5 (2026-10-10)
 
 ### Memory footprint

@@ -12,6 +12,10 @@
 - **学到的 `max_tokens` 上限跨进程保留**：端点以 400 说出输出上限时，上限同时写入 `<dataDir>/models/max-tokens-caps.json`，启动时载回，之后的进程不再每个模型首个请求被拒一次（packy `kimi-k2.5`：第二个进程 0 次 400，原为 1 次）。条目 30 天过期，删掉该文件即重测。
 - **`models[].catalog` 写错时给 warning**：`catalog: "provider/id"` 不命中任何目录条目时，注册表记一条 warning（启动头部计数、`ama models list`、`AMA_LOG`），不再静默不继承。
 
+### 会话
+
+- **会话图片读不回时有提示**：降级图片因会话文件被其它进程改写而读不回时，告警进会话日志（stderr 一行 `ama: [warn] cannot read session entry …`，受 `AMA_LOG` 过滤；TUI 显示在通知区），不再被丢弃。打开文件期间的告警先缓冲、会话建好时补出（最多 16 条，其余计数）；`--fork` 的源会话走同一日志。
+
 ## 0.7.5（2026-10-10）
 
 ### 内存占用
