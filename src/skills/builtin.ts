@@ -24,7 +24,7 @@ export interface BuiltinSkill {
 
 const AMA_DOCS_BODY = `# ama quick reference
 
-ama is the coding agent running this session. Docs: https://github.com/Owlbay/armadra-agent (README.md, docs/).
+ama is the coding agent running this session. Docs: https://github.com/AMA-Link/armadra-agent (README.md, docs/).
 
 ## Files
 - User config dir \`~/.config/ama/\` (\`AMA_CONFIG_DIR\`; Windows \`%APPDATA%\\ama\`): \`config.json\`, \`auth.json\` (keys, 0600), \`hooks.json\`, \`keybindings.json\`, \`trust.json\`, \`AGENTS.md\`, \`skills/\`, \`prompts/\`.

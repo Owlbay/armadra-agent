@@ -147,7 +147,7 @@ export const BUILTIN_PROVIDERS: readonly BuiltinProvider[] = [
     baseUrl: "https://openrouter.ai/api/v1",
     envKeys: ["OPENROUTER_API_KEY", "AMA_API_KEY_OPENROUTER"],
     headers: {
-      "HTTP-Referer": "https://github.com/Owlbay/armadra-agent",
+      "HTTP-Referer": "https://github.com/AMA-Link/armadra-agent",
       "X-Title": "ama",
     },
     requiresApiKey: true,
