@@ -273,6 +273,55 @@ describe("auto 模式接分类器", () => {
     expect((await run([main, small, other], "deepseek/other")).classify).toEqual(["other"]);
   });
 
+  it("[#153] 中转 / 自定义供应商：按会话模型继承的目录条目找模型表里列出的同厂商小模型", async () => {
+    const relay = (id: string) => fakeModel({ provider: "relay", id });
+    const run = async (session: string, listed: string[], auto?: string) => {
+      const scripted = createScriptedApi(
+        router(
+          [{ toolCalls: [{ name: "bash", args: { command: "node gen.js" } }] }, { text: "ok" }],
+          { "gen.js": ALLOW },
+        ),
+      );
+      const logs: string[] = [];
+      const models = [session, ...listed.filter((id) => id !== session)].map(relay);
+      const agent = new AgentSessionImpl({
+        sessionManager: SessionManager.inMemory(cwd),
+        providers: stubRegistry(models, [scripted.api]),
+        model: models[0]!,
+        tools: [bashTool()],
+        permission: new PermissionPipeline({ mode: "auto", rules: [], cwd }),
+        log: (level, message) => logs.push(`${level} ${message}`),
+        ...(auto !== undefined ? { permissionClassifier: { model: auto } } : {}),
+      });
+      await agent.prompt("go");
+      return {
+        classify: scripted.calls.filter(isClassify).map((c) => c.model.id),
+        turns: scripted.calls.filter((c) => !isClassify(c)).map((c) => c.model.id),
+        picked: logs.filter((l) => l.includes("permission classifier model")),
+      };
+    };
+    // 别名继承：deepseek-v4-flash → deepseek/deepseek-flash（deepseek 的 small）
+    const aliased = await run("deepseek-v4-pro", ["deepseek-v4-flash"]);
+    expect(aliased.classify).toEqual(["deepseek-v4-flash"]);
+    expect(aliased.turns).toEqual(["deepseek-v4-pro", "deepseek-v4-pro"]);
+    expect(aliased.picked).toEqual(["debug permission classifier model: relay/deepseek-v4-flash"]);
+    // 小模型 id 与目录相同；思考档后缀的会话模型照样推断
+    expect((await run("gpt-6-sol", ["gpt-6-luna"])).classify).toEqual(["gpt-6-luna"]);
+    expect((await run("gpt-6-sol-high", ["gpt-6-luna"])).classify).toEqual(["gpt-6-luna"]);
+    // 模型表没列出小模型 / 小模型只有思考档变体：用会话模型（不合成）
+    expect((await run("deepseek-v4-pro", [])).classify).toEqual(["deepseek-v4-pro"]);
+    expect((await run("gpt-6-sol", ["gpt-6-luna-high"])).classify).toEqual(["gpt-6-sol"]);
+    // 会话模型本身就是小模型、或不继承任何目录条目：用会话模型
+    expect((await run("deepseek-v4-flash", ["deepseek-v4-pro"])).classify).toEqual([
+      "deepseek-v4-flash",
+    ]);
+    expect((await run("my-model", ["deepseek-v4-flash"])).classify).toEqual(["my-model"]);
+    // permission.autoModel 仍优先
+    expect(
+      (await run("deepseek-v4-pro", ["deepseek-v4-flash", "other"], "relay/other")).classify,
+    ).toEqual(["other"]);
+  });
+
   it("其它模式不调分类器，tool_execution_end 不带 autoDecision", async () => {
     const h = createHarness({
       cwd,
