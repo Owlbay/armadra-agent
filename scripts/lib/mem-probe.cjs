@@ -7,15 +7,36 @@
 //   AMA_MEM_TAG        写进每行的标签，缺省 "ama"
 //   AMA_MEM_SNAP_EXIT  退出时把堆快照写到这个路径
 //   AMA_MEM_ALLOC      退出时把采样分配剖析（含已回收的分配）写到这个路径
+//   AMA_MEM_VMMAP_AT   仅 macOS：启动后这些毫秒数（逗号分隔，如 "3000,8000"）各跑一次 `vmmap -summary <pid>`，
+//                      输出写到 `<AMA_MEM_LOG>.vmmap-<ms>.txt`，并同时记一行 ev:"vmmap" 便于对齐
 // 信号（Windows 无）：SIGUSR1 → 若以 --expose-gc 启动则先 GC，再记一行 ev:"gc"。
 //
-// 每行：{ tag, pid, ev, t, rss, heapUsed, heapTotal, external, arrayBuffers, maxRss? }，
-// ev ∈ start | tick | gc | exit；exit 行带 maxRss（process.resourceUsage().maxRSS，字节），
+// 每行：{ tag, pid, ev, t, rss, heapUsed, heapTotal, external, arrayBuffers, other,
+//         oldSpace, oldSpaceUsed, largeObjectSpace, largeObjectSpaceUsed, codeSpace, codeSpaceUsed, maxRss? }，
+// ev ∈ start | tick | gc | vmmap | exit；exit 行带 maxRss（process.resourceUsage().maxRSS，字节），
 // 这是进程整个生命周期的峰值 RSS，不受采样间隔影响。
+// other = rss − heapTotal − external：既不在 V8 堆（含已提交未使用的页）也不在 external 里的常驻内存
+// （原生 malloc、代码、线程栈等）；*Space / *SpaceUsed 取自 v8.getHeapSpaceStatistics() 的
+// space_size / space_used_size（old_space、large_object_space、code_space）。
 "use strict";
 
 const fs = require("node:fs");
 const v8 = require("node:v8");
+
+const SPACES = {
+  old_space: "oldSpace",
+  large_object_space: "largeObjectSpace",
+  code_space: "codeSpace",
+};
+
+function heapSpaces(line) {
+  for (const space of v8.getHeapSpaceStatistics()) {
+    const key = SPACES[space.space_name];
+    if (key === undefined) continue;
+    line[key] = space.space_size;
+    line[`${key}Used`] = space.space_used_size;
+  }
+}
 
 const log = process.env.AMA_MEM_LOG;
 // 子进程（bash、codemode、外部 Agent）不继承探针
@@ -38,7 +59,9 @@ if (log) {
       heapTotal: m.heapTotal,
       external: m.external,
       arrayBuffers: m.arrayBuffers,
+      other: m.rss - m.heapTotal - m.external,
     };
+    heapSpaces(line);
     if (ev === "exit") line.maxRss = process.resourceUsage().maxRSS * 1024;
     try {
       fs.appendFileSync(log, JSON.stringify(line) + "\n");
@@ -63,6 +86,28 @@ if (log) {
     if (snap) v8.writeHeapSnapshot(snap);
   });
   write("start");
+
+  const vmmapAt = process.env.AMA_MEM_VMMAP_AT;
+  if (vmmapAt && process.platform === "darwin") {
+    const { execFile } = require("node:child_process");
+    for (const ms of vmmapAt
+      .split(",")
+      .map(Number)
+      .filter((n) => Number.isFinite(n) && n >= 0)) {
+      setTimeout(() => {
+        write("vmmap");
+        const out = `${log}.vmmap-${ms}.txt`;
+        const args = ["-summary", String(process.pid)];
+        execFile("vmmap", args, { maxBuffer: 32 * 1024 * 1024 }, (error, stdout, stderr) => {
+          try {
+            fs.writeFileSync(out, error ? `vmmap failed: ${error.message}\n${stderr}` : stdout);
+          } catch {
+            // 同上
+          }
+        });
+      }, ms).unref();
+    }
+  }
 }
 
 const allocOut = process.env.AMA_MEM_ALLOC;
