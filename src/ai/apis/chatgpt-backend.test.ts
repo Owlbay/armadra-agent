@@ -332,6 +332,21 @@ describe("codex 后端", () => {
     expect(server.requests.filter((r) => r.path.endsWith("/responses"))).toHaveLength(3);
   });
 
+  it("[#198] 400 模型不支持 ChatGPT 账户 → model_unavailable，提示刷新发现缓存，不重试", async () => {
+    const { run } = await setup("codex");
+    // 2026-10-10 实测：发现缓存（10-03）里的 gpt-6-astra 已被后端撤下
+    server.responses.push({
+      status: 400,
+      body: {
+        detail: "The 'gpt-6-astra' model is not supported when using Codex with a ChatGPT account.",
+      },
+    });
+    const message = await run();
+    expect(message.errorMessage).toMatch(/^model_unavailable: /);
+    expect(message.errorMessage).toContain("ama models discover chatgpt");
+    expect(server.requests.filter((r) => r.path.endsWith("/responses"))).toHaveLength(1);
+  });
+
   it("429 usage_limit_reached → quota_exceeded 带重置时间", async () => {
     const { run, quotas } = await setup("codex");
     server.responses.push({

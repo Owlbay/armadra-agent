@@ -223,12 +223,13 @@ developer 消息（前缀依然稳定）。compat `toolsInNamespace: true` 时�
 
 **错误码**（错误文案以码开头，宿主按码判断）：
 
-| 码               | 来源                                                                                                         | 处理                                  |
-| ---------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------- |
-| `quota_exceeded` | siwc 429 `subscription_sharing_usage_limit_exceeded`；codex 429 `usage_limit_reached` / `usage_not_included` | 不重试；附重置时间并发 `quota_update` |
-| `auth_expired`   | 401 刷新一次仍失败、刷新永久失败、条目 `needsLogin`                                                          | 不重试；重新 `ama auth login chatgpt` |
-| `not_eligible`   | siwc 403 `subscription_sharing_user_not_eligible`                                                            | 不重试、不重登；排查见下              |
-| （原样）         | 503 等                                                                                                       | 走会话层现有的退避重试                |
+| 码                  | 来源                                                                                                         | 处理                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| `quota_exceeded`    | siwc 429 `subscription_sharing_usage_limit_exceeded`；codex 429 `usage_limit_reached` / `usage_not_included` | 不重试；附重置时间并发 `quota_update`                                                   |
+| `auth_expired`      | 401 刷新一次仍失败、刷新永久失败、条目 `needsLogin`                                                          | 不重试；重新 `ama auth login chatgpt`                                                   |
+| `not_eligible`      | siwc 403 `subscription_sharing_user_not_eligible`                                                            | 不重试、不重登；排查见下                                                                |
+| `model_unavailable` | codex 400「model is not supported when using Codex with a ChatGPT account」                                  | 不重试；后端模型表变了（发现缓存过期），运行 `ama models discover chatgpt` 刷新后换模型 |
+| （原样）            | 503 等                                                                                                       | 走会话层现有的退避重试                                                                  |
 
 **`not_eligible` 排查**：账户不能把套餐额度共享给 ama。可能的原因：账户套餐（额度共享只对 Plus / Pro 开放）；工作空间
 账户（Team / Enterprise / Edu 可能未开放）；地区受限或预览期尚未开放——**Pro 账户仍报此错时最可能是这一条**。可以改用
