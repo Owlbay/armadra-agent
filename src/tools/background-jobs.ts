@@ -5,7 +5,7 @@
  *   这里只拿到 ChildProcess；stdout / stderr 直接写进 `outputPath`（文件描述符交给子进程，ama 退出也不
  *   会因管道断开而 SIGPIPE）。POSIX 自成进程组并登记（进程退出时同步 SIGKILL 残留组）。
  * - `wait(id, timeoutMs)`：等到退出或超时；`stop(id)`：杀整棵树（SIGTERM → 宽限 → SIGKILL）；
- *   `output(id)`：读输出文件尾部（2000 行 / 50 KB）。
+ *   `output(id, options?)`：读输出文件尾部（缺省 2000 行 / 50 KB，调用方可传字节上限）。
  * - 生命周期事件经 `onChange` 发出（started / exited / stopped）；`takeExited()` 取走尚未通知的已退出
  *   任务（提醒通道 reminders.ts 据此告诉模型「后台命令 jobId 已退出（码 N）」）。
  * - 按会话 id 登记（`jobsForSession`）；`disposeSessionJobs` 在会话 dispose 时回收进程树。
@@ -22,7 +22,7 @@ import {
   untrackProcessGroup,
   type ProcessDeps,
 } from "./process-tree.js";
-import { truncateTail, type TruncateResult } from "./truncate.js";
+import { truncateTail, type TruncateOptions, type TruncateResult } from "./truncate.js";
 
 export type JobStatus = "running" | "exited" | "stopped";
 
@@ -157,8 +157,8 @@ export class BackgroundJobs {
     return entry.job;
   }
 
-  /** 输出文件尾部（2000 行 / 50 KB）。 */
-  output(id: string): (TruncateResult & { job: Job }) | undefined {
+  /** 输出文件尾部（缺省 2000 行 / 50 KB；调用方可传字节上限，#155）。 */
+  output(id: string, options: TruncateOptions = {}): (TruncateResult & { job: Job }) | undefined {
     const entry = this.entries.get(id);
     if (entry === undefined) return undefined;
     let text = "";
@@ -168,7 +168,7 @@ export class BackgroundJobs {
     } catch {
       // 输出文件被删：按空输出
     }
-    return { ...truncateTail(text), job: entry.job };
+    return { ...truncateTail(text, options), job: entry.job };
   }
 
   /** 取走已退出、尚未通知的任务（提醒通道用；wait 已看到退出的也算已知）。 */

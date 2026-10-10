@@ -18,6 +18,7 @@
 - **`subagents.forkMaxContextRatio`**：fork 子 Agent 回落为 fresh 的比例（父上一次请求占（窗口 − `compaction.reserveTokens`）的份额）可配置，0.05–0.95，缺省 0.5，只认用户级。内置类型（包括 `general`）仍缺省 fresh；docs/agents.md 说明了每回合重读父上下文的成本。
 - **fork 子 Agent 被告知 `task` / `task_ctl` 不可用**：`<task>` 消息列出这两个工具并要求不要调用（它们仍在工具表里、按深度拒绝）。两次 DeepSeek 复测里子 Agent 仍各调了一次被拒的 `task`。
 - **后台 fork 任务立即给出模式**：后台 `task` 的 `running` 结果在模式已知时带 `details.context`（`fork` / `fresh`）；排队或等待 worktree 的任务仍在之后的 `TaskInfo.context` 里给出。
+- **后台 `bash` 任务输出按会话结果上限一次截到位**：`{job, action: "wait" | "output" | "stop"}` 改为按与前台 `bash` 相同的字节上限（50 KB 与 `maxToolResultChars` − 512 取小）尾截断，不再固定 2000 行 / 50 KB 再被会话层截掉中段；说明行照旧写显示行数与 `Full output: <路径>`。
 
 ## 0.7.5（2026-10-10）
 

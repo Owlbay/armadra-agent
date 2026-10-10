@@ -6,6 +6,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeTmpDir, makeToolContext } from "../../test/helpers/tool-context.js";
+import { BackgroundJobs } from "./background-jobs.js";
 import { createBashTool, type BashDetails, type BashStructured } from "./bash.js";
 
 const posix = process.platform !== "win32";
@@ -49,6 +50,35 @@ describe.runIf(posix)("bash（真子进程）", () => {
     const s = r.structured as BashStructured;
     expect(s.truncated).toBe(true);
     expect(readFileSync(s.full_output_path as string, "utf8")).toContain("line-1-");
+  });
+
+  it("[#155] 后台任务的 wait / output 结果按 ctx.maxResultChars 一次截到位", async () => {
+    const jobs = new BackgroundJobs();
+    try {
+      const bg = createBashTool({ jobs: () => jobs });
+      const ctx = makeToolContext(tmp.dir, { maxResultChars: 3_000, outputDir: tmp.dir });
+      await bg.execute(
+        {
+          command: "for i in $(seq 1 500); do echo job-$i-xxxxxxxxxxxxxxxxxxxxxxxxxx; done",
+          background: true,
+        },
+        ctx,
+      );
+      const results = [
+        await bg.execute({ job: "bg1", action: "wait", timeoutMs: 5_000 }, ctx),
+        await bg.execute({ job: "bg1", action: "output" }, ctx),
+      ];
+      for (const r of results) {
+        const text = r.content as string;
+        expect(text.length).toBeLessThanOrEqual(3_000);
+        expect(text).toContain("job-500-");
+        expect(text).not.toContain("job-1-");
+        expect(text).toContain("Full output: ");
+        expect(r.structured).toEqual({ jobId: "bg1", status: "exited", exit_code: 0 });
+      }
+    } finally {
+      await jobs.disposeAll();
+    }
   });
 
   it("非零退出码 → isError 并写明", async () => {

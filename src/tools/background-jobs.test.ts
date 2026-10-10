@@ -119,4 +119,26 @@ describe.runIf(posix)("后台 bash（真子进程）", () => {
     await jobs.disposeAll();
     expect(alive(pid as number)).toBe(false);
   });
+
+  it("[#155] output(id, { maxBytes }) 按字节上限尾截断；不传按缺省", async () => {
+    const tool = createBashTool({ jobs: () => jobs });
+    const ctx = makeToolContext(tmp.dir, { outputDir: tmp.dir });
+    await tool.execute(
+      {
+        command: "for i in $(seq 1 600); do echo row-$i-xxxxxxxxxxxxxxxxxxxx; done",
+        background: true,
+      },
+      ctx,
+    );
+    await jobs.wait("bg1", 5000);
+    const capped = jobs.output("bg1", { maxBytes: 2048 });
+    expect(capped?.truncated).toBe(true);
+    expect(capped?.truncatedBy).toBe("bytes");
+    expect(capped?.outputBytes).toBeLessThanOrEqual(2048);
+    expect(capped?.content).toContain("row-600-");
+    expect(capped?.content).not.toContain("row-1-");
+    const full = jobs.output("bg1");
+    expect(full?.truncated).toBe(false);
+    expect(full?.content).toContain("row-1-");
+  });
 });
