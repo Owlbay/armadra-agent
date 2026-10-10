@@ -95,6 +95,7 @@ export const DRIVER_CATALOG: readonly CatalogEntry[] = [
         kind: "acp-adapter",
         program: "claude-agent-acp",
         args: [],
+        verified: ">=0.89.0 <1.0.0",
         usage: "usd",
         modes: CLAUDE_ACP_MODES,
       },
@@ -116,6 +117,7 @@ export const DRIVER_CATALOG: readonly CatalogEntry[] = [
         kind: "acp-adapter",
         program: "codex-acp",
         args: [],
+        verified: ">=2.2.0 <3.0.0",
         usage: "tokens",
         modes: CODEX_ACP_MODES,
       },
@@ -151,7 +153,7 @@ export const DRIVER_CATALOG: readonly CatalogEntry[] = [
   {
     agentId: "opencode",
     label: "OpenCode",
-    candidates: [{ kind: "acp", program: "opencode", args: ["acp"] }],
+    candidates: [{ kind: "acp", program: "opencode", args: ["acp"], verified: ">=1.18.0 <2.0.0" }],
   },
   {
     agentId: "copilot",
@@ -161,6 +163,7 @@ export const DRIVER_CATALOG: readonly CatalogEntry[] = [
         kind: "acp",
         program: "copilot",
         args: ["--acp", "--stdio"],
+        verified: ">=1.0.95 <2.0.0",
         usage: "requests",
         modes: COPILOT_MODES,
         acpUsage: "session",
