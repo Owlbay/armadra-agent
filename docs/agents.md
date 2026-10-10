@@ -158,12 +158,15 @@ worktree 里与父 cwd 对应的目录。结束时没有改动（工作区干净
   看得到父的计划、提醒与读过的文件内容，但 `read` 记录从空开始（编辑前照旧要先读）。
 - 类型声明了 `tools` / `disallowed-tools`（或参数给了 `tools`）时，工具表不变，不可用的工具在执行层拒绝
   （`Tool "X" is not available in this session.`），并在 `<task>` 里列出。只读类型照旧走只读管线。
+- `<task>` 同时列出按深度拒绝的 `task` / `task_ctl` 并要求不要调用它们（执行层仍是深度拒绝的文案）。实测仍有模型把父消息里
+  「调用 task」的指令当成自己的：调一次被拒，多一轮请求，有时随后只回报失败、不做子任务（见 [benchmarks](benchmarks/efficiency-2026-10.md)「F2」）。
 - `isolation: "worktree"` 时子会话的 cwd 是 worktree，`<task>` 里说明上文的相对路径指父目录；cwd 节变化以尾部补丁发送，
   不影响已缓存的前缀。
 
 以下情况回落为 fresh（日志记一条 info，结果 `details.context` 标 `fresh`）：调用参数或类型指定了与父不同的模型或思考级别；
-父会话还没有发出过请求；父上一次请求的输入超过（窗口 − `compaction.reserveTokens`）的一半。续聊（`taskId`）与 resume
-照原文件重开，不受影响。只在请求了 fork 时 `details.context` 才出现。
+父会话还没有发出过请求；父上一次请求的输入超过（窗口 − `compaction.reserveTokens`）× `subagents.forkMaxContextRatio`
+（缺省 0.5）。续聊（`taskId`）与 resume 照原文件重开，不受影响。只在请求了 fork 时 `details.context` 才出现；后台任务的
+`running` 结果也带它，任务排队或 worktree 隔离尚未就绪时该结果不带，`get_tasks` / 完成通知的 `TaskInfo.context` 仍有。
 
 何时用 fork：子任务需要你已经读过、讨论过的内容时。fork 的首个请求把父上下文整段带上，按命中价计费；fresh 只发系统提示、
 工具表与任务说明，但你得在 `prompt` 里写清全部背景，子 Agent 往往还要重新读文件。
@@ -175,7 +178,14 @@ worktree 里与父 cwd 对应的目录。结束时没有改动（工作区干净
 | OpenAI 系（经中转，不发路由键） | 两次分别 0% 与 85%，取决于中转把请求路由到哪个上游                                    | 视中转而定                   |
 | Anthropic（1/10，写入 1.25×）   | 未实测；前缀相同，命中应与父的下一回合相同                                            | 需要父上下文时               |
 
-`explore` 这类只需要定位文件的任务建议保持 fresh；内置类型都缺省 fresh。
+fork 的成本不止首请求：子会话**每一回合**都重读整段父前缀。按命中价折算，8k 父上下文 × 30 回合在 DeepSeek（1/50）上约
+4.8k 全价 token，在 Kimi / Anthropic（1/4–1/10）上约 24k–60k，中转落空时全价。所以 DeepSeek 上子任务只要重读 ≥ 1 份
+已读文件就划算；Kimi / Anthropic 上只在子任务**主要**依赖父上下文时用；经不发路由键的中转不建议。窗口很大的模型上可以调低
+`subagents.forkMaxContextRatio`，免得几十万 token 的父上下文被每回合重读。
+
+`explore` 这类只需要定位文件的任务建议保持 fresh；内置类型（包括 `general`）都缺省 fresh：`general` 的典型任务（按指令
+改某处代码）通常不需要父上下文、回合又多，而且长会话里 fork 会按上面的比例静默回落，缺省 fork 会让同一类型在不同时刻拿到
+不同的上下文。需要时在调用参数或类型定义里写 `context: fork`。
 
 ### 事件与统计
 
@@ -191,6 +201,7 @@ RPC `get_tasks` / `get_agents` 返回任务快照与可用类型（来源、定�
 | `subagents.maxPending`            | 排队上限，缺省 16                                                                |
 | `subagents.retainSessions`        | 保留在内存里的已结束子会话数（LRU），缺省 4，0 = 结束即释放；只认用户级          |
 | `subagents.defaultModel`          | 子 Agent 缺省模型，不设继承父会话                                                |
+| `subagents.forkMaxContextRatio`   | fork 回落比例（见「fork 模式」），0.05–0.95，缺省 0.5；只认用户级                |
 | `subagents.background`            | `auto`（缺省）\| `always` \| `never`，见「前台与后台」；用户 / 项目 / 宿主级都认 |
 | `subagents.autoBackgroundAfterMs` | 前台任务运行超过该毫秒数自动转后台，缺省 0（关闭）；用户 / 项目级都认            |
 | `agents.dirs`                     | 追加的定义目录                                                                   |

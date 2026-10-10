@@ -16,6 +16,9 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 ### Sessions
 
 - **Unreadable session images are reported**: when a downgraded image cannot be read back because the session file was changed by another process, the warning now reaches the session log (`ama: [warn] cannot read session entry …` on stderr, filtered by `AMA_LOG`; a notice in the TUI) instead of being dropped. Warnings raised while the file is being opened are buffered and shown once the session is ready (at most 16, the rest counted); the source session of `--fork` reports through the same log.
+- **`subagents.forkMaxContextRatio`**: the share of (window − `compaction.reserveTokens`) above which a fork sub-agent falls back to fresh is now configurable (0.05–0.95, default 0.5, user level only). Built-in types, `general` included, stay fresh by default; docs/agents.md explains the per-turn cost of re-reading the parent context.
+- **Fork sub-agents are told `task` / `task_ctl` are unavailable**: the `<task>` message now lists them and asks not to call them (they stay in the tool list and are still rejected by depth). In two DeepSeek retests the sub-agent still made one rejected `task` call each time.
+- **Background fork tasks report their mode right away**: the `running` result of a background `task` now carries `details.context` (`fork` / `fresh`) once the mode is known; a queued task or one waiting for its worktree still gets it later in `TaskInfo.context`.
 
 ## 0.7.5 (2026-10-10)
 
