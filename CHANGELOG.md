@@ -5,6 +5,19 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 > This file is in English starting with 0.6.0. Release notes for 0.1 through 0.5.1 are in Chinese in
 > [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md). New entries go into both files.
 
+## Unreleased
+
+### External agents
+
+- **New `pi` driver**: `task(agent="pi")` drives `pi --mode rpc` (verified with pi 1.1.0). pi has no approval channel of its own, so ama loads a minimal extension for that run (`-e`, written to a per-session temp dir and deleted on close; pi's config is untouched) that routes every non-read-only tool call to ama: rejected in `plan` / `allowlist` (which also only enable `read,grep,find,ls`), `edit` / `write` allowed from `auto-edit` up, everything else asks you. Dialogs from your own pi extensions are cancelled, never answered. Two-turn resume, steer, interrupt, USD usage and context occupancy are reported. The community `pi-acp` adapter is not listed: it never sends permission requests (#198).
+- **Cursor CLI listed as unverified**: `task(agent="cursor")` runs `cursor-agent acp` per Cursor's ACP docs (modes `agent` / `plan` / `ask`); not tested locally because it is not installed (#198).
+- **Codex one-shot mode works outside git repos**: `codex exec` / `exec resume` now pass `--skip-git-repo-check` (ama only starts external agents in directories it already trusts); previously they failed immediately in a non-git directory (#198).
+- **ACP adapters no longer stay in a looser mode**: explicit mode maps for claude-agent-acp (`auto-edit` → `acceptEdits`, `full-auto` → `auto`, so a user default of `bypassPermissions` is replaced), codex-acp (`plan` / `default` → `read-only`, `auto-edit` → `workspace-write`, `auto` / `full-auto` → `agent`; `plan` used to refuse to start) and Copilot (URL mode ids `…#plan` / `…#agent`). Modes that open every permission are never chosen (#198).
+- **`model` reaches ACP agents**: `agents.<id>.model` and the `task` `model` argument are now applied through the agent's `model` session config option (matched by value, name, or the model part of `provider/model`); when nothing matches you get a notice and the agent's default model (#198).
+- **Usage numbers corrected**: Codex (app-server and `exec`) and Copilot report input tokens including cache hits, and Copilot's ACP usage is a session total; ama now subtracts the cached part and takes per-turn differences, so totals no longer count cache reads twice. Claude stream-json now reports context occupancy and window like the other drivers (#198).
+- **Verified ranges updated** after a real-CLI audit on 2026-10-10: claude-agent-acp 0.89, codex-acp 2.2, Copilot 1.0.95, OpenCode 1.18, pi 1.1; capability matrix in docs/agents.md, numbers in docs/benchmarks/external-agents-2026-10.md (#198).
+- **`model_unavailable` for ChatGPT models the account cannot use**: a codex-backend 400 "model is not supported when using Codex with a ChatGPT account" now fails with `model_unavailable` and tells you to refresh the list with `ama models discover chatgpt` (the backend withdrew `gpt-6-astra`, which an older discovery cache still listed) (#198).
+
 ## 0.7.6 (2026-10-10)
 
 ### Model efficiency

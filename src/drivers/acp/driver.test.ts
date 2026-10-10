@@ -16,7 +16,15 @@ import type {
   DriverSession,
 } from "../types.js";
 import { runFakeAcpAgent, type FakeAcpAgentOptions } from "./testing/fake-agent.js";
-import { AcpDriver, pickConfigModeValue } from "./driver.js";
+import {
+  AcpDriver,
+  acpTurnUsage,
+  pickConfigModeValue,
+  pickModeId,
+  pickModelValue,
+} from "./driver.js";
+import { catalogEntry } from "../catalog.js";
+import { PERMISSION_MODES_STRICT_FIRST } from "../../permissions/types.js";
 import { ACP_METHODS, RPC_ERRORS, type AcpSessionUpdate } from "./types.js";
 
 const CWD = "/work";
@@ -30,13 +38,17 @@ function fakeDriver(options: FakeAcpAgentOptions = {}) {
   return { driver, rec };
 }
 
-const open = (driver: AcpDriver, extra: { resume?: string; mode?: "plan" | "default" } = {}) =>
+const open = (
+  driver: AcpDriver,
+  extra: { resume?: string; mode?: "plan" | "default"; model?: string } = {},
+) =>
   driver.open({
     cwd: CWD,
     mode: extra.mode ?? "default",
     env: {},
     signal: new AbortController().signal,
     ...(extra.resume !== undefined ? { resume: extra.resume } : {}),
+    ...(extra.model !== undefined ? { model: extra.model } : {}),
   });
 
 let sessions: DriverSession[] = [];
@@ -367,6 +379,98 @@ describe("[ACP-D] 客户端侧", () => {
     expect(pickConfigModeValue("plan", candidate, option)).toBe("plan");
     expect(pickConfigModeValue("allowlist", candidate, option)).toBe("plan");
     expect(pickConfigModeValue("auto", candidate, option)).toBeUndefined();
+  });
+
+  it("[#198] 模型：按 category model 的配置项设置（值、名称不分大小写）；没有时提示用缺省", async () => {
+    const { driver, rec } = fakeDriver({ configOptions: true });
+    sessions.push(await open(driver, { model: "Large" }));
+    expect(
+      rec.last()!.wire.find((w) => w.msg["method"] === "session/set_config_option")?.msg["params"],
+    ).toMatchObject({ configId: "model", value: "large" });
+    assertAcpWire(rec.last()!.wire);
+    const other = fakeDriver({ configOptions: true });
+    const session = await open(other.driver, { model: "nope" });
+    sessions.push(session);
+    expect(
+      other.rec.last()!.wire.some((w) => w.msg["method"] === "session/set_config_option"),
+    ).toBe(false);
+    const events: DriverEvent[] = [];
+    await session.prompt([{ type: "text", text: "hi" }], {
+      onEvent: (e) => events.push(e),
+      onPermission: noPermission,
+    });
+    expect(events.some((e) => e.type === "notice" && e.text.includes("nope"))).toBe(true);
+  });
+
+  it("[#198] provider/model 形式的值按模型部分匹配", () => {
+    const option = {
+      id: "model",
+      name: "Model",
+      category: "model",
+      type: "select",
+      currentValue: "a/x",
+      options: [
+        { value: "a/x", name: "X" },
+        { value: "opencode/free-1", name: "Free" },
+      ],
+    };
+    expect(pickModelValue("free-1", [option])).toEqual({
+      configId: "model",
+      value: "opencode/free-1",
+      current: false,
+    });
+    expect(pickModelValue("a/x", [option])?.current).toBe(true);
+    expect(pickModelValue("x", undefined)).toBeUndefined();
+  });
+
+  it("[#198] 用量：totalTokens = input + output 时 input 含缓存；会话累计的按差值", () => {
+    // Copilot 1.0.95 实测（两轮，会话累计，input 含缓存）
+    const t1 = {
+      inputTokens: 25301,
+      outputTokens: 85,
+      totalTokens: 25386,
+      cachedReadTokens: 7680,
+    };
+    const t2 = {
+      inputTokens: 50645,
+      outputTokens: 172,
+      totalTokens: 50817,
+      cachedReadTokens: 32896,
+    };
+    expect(acpTurnUsage(t1, {})).toEqual({ input: 17621, output: 85, cacheRead: 7680 });
+    expect(acpTurnUsage(t2, t1)).toEqual({ input: 128, output: 87, cacheRead: 25216 });
+    // codex-acp / claude-agent-acp：本回合、input 不含缓存
+    expect(acpTurnUsage({ inputTokens: 199, outputTokens: 5, cachedReadTokens: 26368 })).toEqual({
+      input: 199,
+      output: 5,
+      cacheRead: 26368,
+    });
+  });
+
+  it("[#198] 实测的模式表：每个 ama 模式都有映射，且从不落到放开全部权限的模式", () => {
+    const states = {
+      "claude-agent-acp": ["default", "acceptEdits", "plan", "auto", "bypassPermissions"],
+      "codex-acp": ["read-only", "workspace-write", "agent", "agent-full-access"],
+      "cursor-agent": ["agent", "plan", "ask"],
+      copilot: ["agent", "plan", "autopilot"].map(
+        (m) => `https://agentclientprotocol.com/protocol/session-modes#${m}`,
+      ),
+    };
+    const loose = /bypassPermissions|full-access|autopilot/;
+    for (const [program, ids] of Object.entries(states)) {
+      const c = ["claude", "codex", "copilot", "cursor"]
+        .flatMap((id) => catalogEntry(id)!.candidates)
+        .find((x) => x.program === program)!;
+      const state = {
+        currentModeId: ids.at(-1)!,
+        availableModes: ids.map((id) => ({ id, name: id })),
+      };
+      for (const mode of PERMISSION_MODES_STRICT_FIRST) {
+        const picked = pickModeId(mode, c, state);
+        expect(picked, `${program} ${mode}`).toBeDefined();
+        expect(picked).not.toMatch(loose);
+      }
+    }
   });
 
   it("--auth-required：开会话 -32000 → agent_auth_required，文案列出方法与终端命令", async () => {

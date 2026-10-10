@@ -76,6 +76,8 @@ export const en = {
       "  2. Workspace account: Team / Enterprise / Edu workspaces may not offer it\n" +
       "  3. Region restriction, or not yet rolled out during the preview (most likely when a Pro account still gets this error)\n" +
       "You can sign in the other way instead: ama auth login chatgpt --flavor codex",
+    modelUnavailable: (model: string) =>
+      `${model} is not available to this ChatGPT account (400 from the codex backend). The backend's model list changes over time: run ama models discover chatgpt to refresh it, then pick a listed model with /model or --model`,
     flavorMismatch: (current: string, ref: string, pinned: string) =>
       `signed in with ${current}, but ${ref} pins the @${pinned} channel. Drop @${pinned} so the channel follows the sign-in, or run ama auth login chatgpt --flavor ${pinned}`,
   },
@@ -211,6 +213,8 @@ export const zh = {
       "  2. 工作空间账户：Team / Enterprise / Edu 工作空间可能未开放\n" +
       "  3. 地区受限，或预览期尚未开放（Pro 账户仍报此错时最可能是这一条）\n" +
       "可以改用另一种登录方式：ama auth login chatgpt --flavor codex",
+    modelUnavailable: (model) =>
+      `${model} 在这个 ChatGPT 账户下不可用（codex 后端回 400）。后端的模型表会变化：运行 ama models discover chatgpt 刷新，再用 /model 或 --model 选表里的模型`,
     flavorMismatch: (current, ref, pinned) =>
       `当前以 ${current} 方式登录，但 ${ref} 显式指定了 @${pinned} 渠道。去掉 @${pinned} 让渠道跟随登录方式，或运行 ama auth login chatgpt --flavor ${pinned}`,
   },

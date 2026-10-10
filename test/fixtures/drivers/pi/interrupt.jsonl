@@ -1,0 +1,13 @@
+// 手写（按 pi 1.1.0 docs/rpc-commands.md 与实录的事件形状）：长输出时 abort → agent_settled{aborted} → cancelled
+{"dir":"in","msg":{"id":"$state","type":"get_state"}}
+{"dir":"out","msg":{"id":"$state","type":"response","command":"get_state","success":true,"data":{"sessionId":"p-int","isStreaming":false}}}
+{"dir":"in","msg":{"id":"$p1","type":"prompt","message":"count to 400"}}
+{"dir":"out","msg":{"id":"$p1","type":"response","command":"prompt","success":true,"data":{"disposition":"started"}}}
+{"dir":"out","msg":{"type":"agent_start"}}
+{"dir":"out","msg":{"type":"message_update","assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"1\n2\n"}}}
+{"dir":"in","msg":{"id":"$abort","type":"abort"}}
+{"dir":"out","msg":{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"1\n2\n"}],"usage":{"input":40,"output":4,"cacheRead":0,"cost":{"total":0.0001}},"stopReason":"aborted","errorMessage":"Request was aborted"}}}
+{"dir":"out","msg":{"type":"agent_settled","aborted":true}}
+{"dir":"out","msg":{"id":"$abort","type":"response","command":"abort","success":true}}
+{"dir":"in","msg":{"id":"$stats","type":"get_session_stats"}}
+{"dir":"out","msg":{"id":"$stats","type":"response","command":"get_session_stats","success":true,"data":{"contextUsage":{"tokens":44,"contextWindow":272000,"percent":0.02}}}}

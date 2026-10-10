@@ -222,6 +222,7 @@ const TURN_INTERRUPT: ReadonlySet<DriverKind> = new Set([
   "acp-adapter",
   "claude-stream",
   "codex-app-server",
+  "pi-rpc",
 ]);
 
 class ProcessHandle implements RunnerHandle {

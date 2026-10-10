@@ -27,6 +27,8 @@ export interface CatalogCandidate {
   modes?: Partial<Record<PermissionMode, string>>;
   permissions?: DriverCapabilities["permissions"];
   usage?: DriverCapabilities["usage"];
+  /** `session/prompt` 答复的 usage 是会话累计（缺省按本回合）。 */
+  acpUsage?: "session";
   /** 一次性打印模式的方言。 */
   oneshot?: "claude" | "codex" | "gemini";
 }
@@ -46,12 +48,57 @@ const ALL_MODES: readonly PermissionMode[] = [
   "full-auto",
 ];
 
+/**
+ * 模式 id 与 ama 不同名的 ACP Agent 的映射（2026-10 实测）。没有映射时 ama 会留在 Agent 自己的当前模式，
+ * 而它可能比 ama 宽（如用户把 Claude 的缺省设成 bypassPermissions），所以已知的 Agent 一律写全。
+ * 从不映射到放开全部权限的模式（Claude `bypassPermissions`、Codex `agent-full-access`、Copilot autopilot）。
+ */
+const CLAUDE_ACP_MODES: Partial<Record<PermissionMode, string>> = {
+  plan: "plan",
+  default: "default",
+  "auto-edit": "acceptEdits",
+  auto: "auto",
+  "full-auto": "auto",
+};
+/** codex-acp：`read-only` 是只读沙箱、写操作要审批（等同 app-server 的 on-request / read-only）。 */
+const CODEX_ACP_MODES: Partial<Record<PermissionMode, string>> = {
+  plan: "read-only",
+  default: "read-only",
+  "auto-edit": "workspace-write",
+  auto: "agent",
+  "full-auto": "agent",
+};
+const COPILOT_MODE = "https://agentclientprotocol.com/protocol/session-modes#";
+const COPILOT_MODES: Partial<Record<PermissionMode, string>> = {
+  plan: `${COPILOT_MODE}plan`,
+  default: `${COPILOT_MODE}agent`,
+  "auto-edit": `${COPILOT_MODE}agent`,
+  auto: `${COPILOT_MODE}agent`,
+  "full-auto": `${COPILOT_MODE}agent`,
+};
+
+/** Cursor CLI（官方 ACP 文档）：`plan` 只读，`agent` 是完整工具权限（需要授权的仍发 request_permission）。 */
+const CURSOR_MODES: Partial<Record<PermissionMode, string>> = {
+  plan: "plan",
+  default: "agent",
+  "auto-edit": "agent",
+  auto: "agent",
+  "full-auto": "agent",
+};
+
 export const DRIVER_CATALOG: readonly CatalogEntry[] = [
   {
     agentId: "claude",
     label: "Claude Code",
     candidates: [
-      { kind: "acp-adapter", program: "claude-agent-acp", args: [], usage: "usd" },
+      {
+        kind: "acp-adapter",
+        program: "claude-agent-acp",
+        args: [],
+        verified: ">=0.89.0 <1.0.0",
+        usage: "usd",
+        modes: CLAUDE_ACP_MODES,
+      },
       {
         kind: "claude-stream",
         program: "claude",
@@ -66,7 +113,14 @@ export const DRIVER_CATALOG: readonly CatalogEntry[] = [
     agentId: "codex",
     label: "Codex",
     candidates: [
-      { kind: "acp-adapter", program: "codex-acp", args: [], usage: "tokens" },
+      {
+        kind: "acp-adapter",
+        program: "codex-acp",
+        args: [],
+        verified: ">=2.2.0 <3.0.0",
+        usage: "tokens",
+        modes: CODEX_ACP_MODES,
+      },
       {
         kind: "codex-app-server",
         program: "codex",
@@ -99,14 +153,43 @@ export const DRIVER_CATALOG: readonly CatalogEntry[] = [
   {
     agentId: "opencode",
     label: "OpenCode",
-    candidates: [{ kind: "acp", program: "opencode", args: ["acp"] }],
+    candidates: [{ kind: "acp", program: "opencode", args: ["acp"], verified: ">=1.18.0 <2.0.0" }],
   },
   {
     agentId: "copilot",
     label: "GitHub Copilot CLI",
     candidates: [
-      { kind: "acp", program: "copilot", args: ["--acp", "--stdio"], usage: "requests" },
+      {
+        kind: "acp",
+        program: "copilot",
+        args: ["--acp", "--stdio"],
+        verified: ">=1.0.95 <2.0.0",
+        usage: "requests",
+        modes: COPILOT_MODES,
+        acpUsage: "session",
+      },
     ],
+  },
+  {
+    agentId: "pi",
+    label: "Pi",
+    // 社区 ACP 适配器 pi-acp 不发 request_permission（pi 没有审批通道），会让工具不经人直接执行，不收录
+    candidates: [
+      {
+        kind: "pi-rpc",
+        program: "pi",
+        args: ["--mode", "rpc"],
+        verified: ">=1.1.0 <2.0.0",
+        usage: "usd",
+      },
+    ],
+  },
+  {
+    agentId: "cursor",
+    label: "Cursor CLI",
+    // 未实测（本机未装）：按官方文档 `cursor-agent acp`，模式 agent / plan / ask；`cursor/ask_question`
+    // 等阻塞式扩展方法 ama 不实现（回 method not found，不代答）
+    candidates: [{ kind: "acp", program: "cursor-agent", args: ["acp"], modes: CURSOR_MODES }],
   },
   {
     agentId: "goose",
@@ -173,6 +256,17 @@ export function candidateCapabilities(c: CatalogCandidate): DriverCapabilities {
         modes: ALL_MODES,
         usage: "tokens",
         images: false,
+      };
+    case "pi-rpc":
+      // 审批经 ama 加载的审批闸扩展交给人（native/pi-gate.ts）
+      return {
+        resume: "resume",
+        list: false,
+        permissions: "interactive",
+        steer: true,
+        modes: ALL_MODES,
+        usage: "usd",
+        images: true,
       };
     case "oneshot":
       return {

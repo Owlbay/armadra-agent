@@ -111,6 +111,37 @@ export interface ClaudeResult {
   };
   permission_denials?: { tool_name?: string }[];
   errors?: string[];
+  /** 进程内累计，按模型分；`contextWindow` 是该模型的上下文窗口（2.1.x 起）。 */
+  modelUsage?: Record<string, { contextWindow?: number }>;
+}
+
+/** 一条主线 assistant 消息的用量 = 这次请求后的上下文占用（输入 + 缓存读写 + 输出）。 */
+export function claudeContextTokens(usage: unknown): number | undefined {
+  if (typeof usage !== "object" || usage === null) return undefined;
+  const u = usage as Record<string, unknown>;
+  let total = 0;
+  for (const key of [
+    "input_tokens",
+    "cache_read_input_tokens",
+    "cache_creation_input_tokens",
+    "output_tokens",
+  ])
+    if (typeof u[key] === "number") total += u[key];
+  return total > 0 ? total : undefined;
+}
+
+/** result.modelUsage 里某模型（缺省取最大）的上下文窗口。 */
+export function claudeContextWindow(
+  result: ClaudeResult,
+  model: string | undefined,
+): number | undefined {
+  const entries = result.modelUsage ?? {};
+  const hit = model !== undefined ? entries[model]?.contextWindow : undefined;
+  if (typeof hit === "number" && hit > 0) return hit;
+  const windows = Object.values(entries)
+    .map((e) => e.contextWindow)
+    .filter((w): w is number => typeof w === "number" && w > 0);
+  return windows.length > 0 ? Math.max(...windows) : undefined;
 }
 
 /** result.subtype → 回合结束原因；`undefined` 表示执行出错（调用方按错误处理）。 */

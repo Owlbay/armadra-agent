@@ -67,7 +67,8 @@ describe("CodexAppServerDriver（录制回放）", () => {
     expect(result).toMatchObject({
       stopReason: "end_turn",
       finalText: "OK",
-      usage: { input: 1200, output: 10, cacheRead: 1000 },
+      // Codex 的 inputTokens 含缓存（totalTokens = input + output）：ama 的 input 去掉缓存部分
+      usage: { input: 200, output: 10, cacheRead: 1000 },
     });
     expect(events.map((e) => e.type)).toEqual([
       "thought_delta",
@@ -114,7 +115,7 @@ describe("CodexAppServerDriver（录制回放）", () => {
     expect(result).toMatchObject({
       finalText: "Tests pass.",
       toolSummary: ["✓ execute $ pnpm test"],
-      usage: { input: 260, output: 40, cacheRead: 50 },
+      usage: { input: 210, output: 40, cacheRead: 50 },
     });
     expect(events.find((e) => e.type === "plan")).toEqual({
       type: "plan",

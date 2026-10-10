@@ -10,7 +10,9 @@
  * - 出错恢复（每种至多一次）：401 → 强制刷新重试；SIWC 400 `subscription_sharing_unsupported_capability` → 删去
  *   `error.param` 重试；codex 400 `Instructions are not valid` → 本会话切 developer-message 重试；
  * - 错误映射（文案带码前缀，宿主按码判断）：429 配额 → `quota_exceeded`（不重试）；失效 → `auth_expired`；
- *   SIWC 403 `subscription_sharing_user_not_eligible` → `not_eligible`（i18n 文案列出原因）；503 留给会话层现有重试；
+ *   SIWC 403 `subscription_sharing_user_not_eligible` → `not_eligible`（i18n 文案列出原因）；codex 400「model is not
+ *   supported when using Codex with a ChatGPT account」→ `model_unavailable`（发现缓存过期时常见，提示刷新）；
+ *   503 留给会话层现有重试；
  * - 渠道跟随登录方式由会话层做（auth/chatgpt/follow.ts）；到这里仍不符说明用户显式写了 `@渠道`，报
  *   `chatgpt_flavor_mismatch`（i18n）；
  * - 用量：`cost = 0`、`billing: "subscription"`。
@@ -284,6 +286,17 @@ export function recoverChatGptError(
       return { kind: "retry" };
     }
   }
+  if (
+    backend === "codex" &&
+    error.status === 400 &&
+    /not supported when using codex with a chatgpt account/i.test(error.body)
+  )
+    return {
+      kind: "fail",
+      error: new Error(
+        `model_unavailable: ${msg().auth.request.modelUnavailable(`${provider}/${model.id}`)}`,
+      ),
+    };
   if (
     backend === "codex" &&
     error.status === 400 &&

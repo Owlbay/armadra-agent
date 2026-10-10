@@ -182,12 +182,13 @@ ama auth logout chatgpt                # siwc revokes the refresh token first, t
 
 **Error codes** (error messages start with the code; hosts decide by code):
 
-| Code             | Source                                                                                                       | Handling                                                  |
-| ---------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------- |
-| `quota_exceeded` | siwc 429 `subscription_sharing_usage_limit_exceeded`; codex 429 `usage_limit_reached` / `usage_not_included` | no retry; carries the reset time and emits `quota_update` |
-| `auth_expired`   | a 401 still failing after one refresh, a permanently failed refresh, an entry marked `needsLogin`            | no retry; run `ama auth login chatgpt` again              |
-| `not_eligible`   | siwc 403 `subscription_sharing_user_not_eligible`                                                            | no retry, no re-login; see troubleshooting below          |
-| (as is)          | 503 and similar                                                                                              | the session layer's existing backoff retries              |
+| Code                | Source                                                                                                       | Handling                                                                                                                     |
+| ------------------- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `quota_exceeded`    | siwc 429 `subscription_sharing_usage_limit_exceeded`; codex 429 `usage_limit_reached` / `usage_not_included` | no retry; carries the reset time and emits `quota_update`                                                                    |
+| `auth_expired`      | a 401 still failing after one refresh, a permanently failed refresh, an entry marked `needsLogin`            | no retry; run `ama auth login chatgpt` again                                                                                 |
+| `not_eligible`      | siwc 403 `subscription_sharing_user_not_eligible`                                                            | no retry, no re-login; see troubleshooting below                                                                             |
+| `model_unavailable` | codex 400 "model is not supported when using Codex with a ChatGPT account"                                   | no retry; the backend's model list changed (stale discovery cache): run `ama models discover chatgpt` and pick another model |
+| (as is)             | 503 and similar                                                                                              | the session layer's existing backoff retries                                                                                 |
 
 **Troubleshooting `not_eligible`**: the account cannot share its plan usage with ama. Possible causes: the plan (sharing is offered to Plus / Pro only); a workspace account (Team / Enterprise / Edu may not offer it); a region restriction or a preview that has not rolled out yet — **the most likely cause when a Pro account still gets this error**. You can sign in with `ama auth login chatgpt --flavor codex` instead. A successful siwc login only means authorization passed; whether plan usage can be shared is only confirmed on the first request.
 

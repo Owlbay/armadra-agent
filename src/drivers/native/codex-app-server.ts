@@ -273,11 +273,13 @@ class CodexSession implements DriverSession {
     const start = this.tokensAtStart;
     const end = this.tokensTotal;
     if (end !== undefined) {
+      // Codex 的 inputTokens 含缓存命中部分；ama 的 input 不含（与 cacheRead 相加才是总输入）
+      const cacheRead = end.cachedInputTokens - (start?.cachedInputTokens ?? 0);
       turn.push({
         type: "usage",
-        input: end.inputTokens - (start?.inputTokens ?? 0),
+        input: end.inputTokens - (start?.inputTokens ?? 0) - cacheRead,
         output: end.outputTokens - (start?.outputTokens ?? 0),
-        cacheRead: end.cachedInputTokens - (start?.cachedInputTokens ?? 0),
+        cacheRead,
         ...(this.contextTokens !== undefined ? { contextTokens: this.contextTokens } : {}),
         ...(this.contextWindow !== undefined ? { contextWindow: this.contextWindow } : {}),
       });

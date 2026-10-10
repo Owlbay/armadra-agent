@@ -23,6 +23,7 @@ import { HostRunnerRegistry } from "./host-runners.js";
 import { ClaudeStreamDriver } from "./native/claude-stream.js";
 import { CodexAppServerDriver } from "./native/codex-app-server.js";
 import { OneshotDriver } from "./native/oneshot.js";
+import { PiRpcDriver } from "./native/pi-rpc.js";
 import type { ApproveFn } from "./permissions.js";
 import { PidRegistry, pidsFile } from "./pids.js";
 import { poolFromConfig, type DriverPool } from "./pool.js";
@@ -47,6 +48,8 @@ export function createDriver(
       return new ClaudeStreamDriver(agentId, candidate, deps);
     case "codex-app-server":
       return new CodexAppServerDriver(agentId, candidate, deps);
+    case "pi-rpc":
+      return new PiRpcDriver(agentId, candidate, deps);
     case "oneshot":
       return new OneshotDriver(agentId, candidate, deps);
   }

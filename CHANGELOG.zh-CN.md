@@ -4,6 +4,19 @@
 
 > 从 0.6.0 起 [CHANGELOG.md](CHANGELOG.md) 为英文，本文件保留中文记录（0.1–0.5.1 的完整历史在此）。新条目两份都要加。
 
+## 未发布
+
+### 外部 Agent
+
+- **新增 `pi` 驱动**：`task(agent="pi")` 驱动 `pi --mode rpc`（pi 1.1.0 实测）。pi 自己没有审批通道，ama 以 `-e` 给这一次运行加载一个最小扩展（写在每个会话自己的临时目录、关会话即删，不碰 pi 的配置），把只读工具以外的调用交给 ama：`plan` / `allowlist` 直接拒绝（并只开 `read,grep,find,ls`），`auto-edit` 及更宽放行 `edit` / `write`，其余问你。你自己的 pi 扩展弹出的对话框一律取消、不代答。支持两轮续聊、steer、中断、美元用量与上下文占用。社区适配器 `pi-acp` 从不发权限请求，不收录（#198）。
+- **收录 Cursor CLI（未验证）**：`task(agent="cursor")` 按官方 ACP 文档运行 `cursor-agent acp`（模式 `agent` / `plan` / `ask`）；本机未安装，未实测（#198）。
+- **Codex 一次性模式在非 git 目录可用**：`codex exec` / `exec resume` 带上 `--skip-git-repo-check`（ama 只在自己已信任的目录里起外部 Agent）；此前在非 git 目录直接失败（#198）。
+- **ACP 适配器不再停在更宽的模式**：claude-agent-acp（`auto-edit` → `acceptEdits`、`full-auto` → `auto`，用户缺省为 `bypassPermissions` 时也会改回）、codex-acp（`plan` / `default` → `read-only`、`auto-edit` → `workspace-write`、`auto` / `full-auto` → `agent`；此前 `plan` 拒绝启动）、Copilot（URL 形式的模式 id `…#plan` / `…#agent`）写入显式映射，从不选放开全部权限的模式（#198）。
+- **`model` 交给 ACP Agent**：`agents.<id>.model` 与 `task` 的 `model` 参数经 Agent 的 `model` 会话配置项设置（按值、名称或 `provider/model` 的模型部分匹配）；没有匹配时提示并用它的缺省模型（#198）。
+- **用量口径修正**：Codex（app-server 与 `exec`）和 Copilot 报的 input 含缓存命中，Copilot 的 ACP usage 还是会话累计；ama 现在扣掉缓存部分、按回合取差值，总量不再把缓存读算两次。Claude stream-json 也像其它驱动一样上报上下文占用与窗口（#198）。
+- **已验证区间更新**：2026-10-10 用真实 CLI 实测，claude-agent-acp 0.89、codex-acp 2.2、Copilot 1.0.95、OpenCode 1.18、pi 1.1；能力矩阵见 docs/agents.md，数字见 docs/benchmarks/external-agents-2026-10.md（#198）。
+- **ChatGPT 账户不可用的模型报 `model_unavailable`**：codex 后端以 400「model is not supported when using Codex with a ChatGPT account」拒绝时，报 `model_unavailable` 并提示用 `ama models discover chatgpt` 刷新模型表（后端已撤下 `gpt-6-astra`，旧的发现缓存里还有它）（#198）。
+
 ## 0.7.6（2026-10-10）
 
 ### 模型调用效率

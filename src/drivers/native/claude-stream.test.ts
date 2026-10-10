@@ -90,6 +90,12 @@ describe("ClaudeStreamDriver（录制回放）", () => {
       usage: { input: 3, output: 2, cacheRead: 12000, costUsd: 0.0123 },
     });
     expect(events.filter((e) => e.type === "message_delta").map((e) => e.text)).toEqual(["O", "K"]);
+    // [#198] 上下文：主线最后一条 assistant 的用量 + result.modelUsage 里该模型的窗口
+    expect(events.filter((e) => e.type === "usage").at(-1)).toEqual({
+      type: "usage",
+      contextTokens: 12005,
+      contextWindow: 200000,
+    });
     expect(events.find((e) => e.type === "thought_delta")).toEqual({
       type: "thought_delta",
       text: "trivial",

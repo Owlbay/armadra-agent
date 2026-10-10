@@ -33,6 +33,8 @@ import type {
 } from "../types.js";
 import {
   CLAUDE_QUESTION_TOOLS,
+  claudeContextTokens,
+  claudeContextWindow,
   claudePermissionMode,
   claudeStopReason,
   claudeTodos,
@@ -145,6 +147,8 @@ class ClaudeStreamSession implements DriverSession {
   private interrupted = false;
   private sawPartialText = false;
   private lastTotalCost = 0;
+  /** 最近一条主线 assistant 消息的上下文占用与模型（result 里查窗口用）。 */
+  private context: { tokens?: number; model?: string } = {};
   private closed = false;
   private exited = false;
 
@@ -257,6 +261,13 @@ class ClaudeStreamSession implements DriverSession {
       ...(u.cache_read_input_tokens !== undefined ? { cacheRead: u.cache_read_input_tokens } : {}),
       ...(cost !== undefined ? { costUsd: cost } : {}),
     });
+    const window = claudeContextWindow(result, this.context.model);
+    if (this.context.tokens !== undefined || window !== undefined)
+      turn.push({
+        type: "usage",
+        ...(this.context.tokens !== undefined ? { contextTokens: this.context.tokens } : {}),
+        ...(window !== undefined ? { contextWindow: window } : {}),
+      });
     if (typeof result.result === "string" && result.result !== "") turn.setFinalText(result.result);
     const denials = result.permission_denials?.length ?? 0;
     if (denials > 0)
@@ -382,6 +393,12 @@ class ClaudeStreamSession implements DriverSession {
     if (turn === undefined || !Array.isArray(message["content"])) return;
     // 子 Agent（Task）内部的消息不进最终文本
     const nested = typeof parent === "string" && parent !== "";
+    const tokens = nested ? undefined : claudeContextTokens(message["usage"]);
+    if (tokens !== undefined)
+      this.context = {
+        tokens,
+        ...(typeof message["model"] === "string" ? { model: message["model"] } : {}),
+      };
     for (const block of message["content"] as Json[]) {
       if (
         block["type"] === "text" &&
