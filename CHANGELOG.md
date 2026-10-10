@@ -5,6 +5,12 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 > This file is in English starting with 0.6.0. Release notes for 0.1 through 0.5.1 are in Chinese in
 > [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md). New entries go into both files.
 
+## Unreleased
+
+### Model efficiency
+
+- **The auto-mode classifier picks a small model on relays and custom providers too**: when the session model inherits an official catalog entry by id (e.g. `packy/deepseek-v4-pro`), the classifier uses the same vendor's catalog `small` model if the provider's model table lists it (`packy/deepseek-v4-flash`); only listed models are used, never synthesized ones. `permission.autoModel` still overrides (#153).
+
 ## 0.7.5 (2026-10-10)
 
 ### Memory footprint
