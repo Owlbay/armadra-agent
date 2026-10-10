@@ -112,6 +112,8 @@ export const en = {
       `Background command ${jobId} stopped: ${command}`,
     compactionFailed: (error: string) => `Compaction failed: ${error}`,
     compactionCancelled: "Compaction cancelled",
+    imageReadBackFailed: (id: string) =>
+      `Session image for entry ${id} could not be read back (file changed); it stays empty`,
   },
   statusLine: {
     usage: "Usage: /statusline [full|compact]",
@@ -255,6 +257,7 @@ export const zh = {
     backgroundStopped: (jobId, command) => `后台命令 ${jobId} 已停止：${command}`,
     compactionFailed: (error) => `压缩失败：${error}`,
     compactionCancelled: "压缩已取消",
+    imageReadBackFailed: (id: string) => `会话文件已改变，条目 ${id} 的图片读不回，保留为空`,
   },
   statusLine: {
     usage: "用法：/statusline [full|compact]",

@@ -80,6 +80,17 @@ describe("AgentUi", () => {
     expect(s.logged.at(-1)).toBe("info [task t2] after");
   });
 
+  it("#183 会话图片读不回的告警转到通知区，不再写原日志；其它级别照常", () => {
+    const s = setup();
+    s.ui.attach(s.session);
+    const line =
+      "cannot read session entry ab12cd34 back from /s/x.jsonl: Error: line does not match";
+    s.options.log?.("warn", line);
+    s.options.log?.("debug", line);
+    expect(s.notices).toEqual(["warn 会话文件已改变，条目 ab12cd34 的图片读不回，保留为空"]);
+    expect(s.logged).toEqual([`debug ${line}`]);
+  });
+
   it("子 Agent 事件刷新 task 工具行；后台任务结束提示；harness 事件提示", () => {
     const s = setup();
     s.tools.start({ toolCallId: "c1", toolName: "task", args: { description: "x" } });
