@@ -38,7 +38,7 @@ async function readImageBlock(path: string): Promise<ImageBlock> {
 }
 
 describe("[M-D] 图片驻留", () => {
-  it("同一 PNG 经 read 读 5 次：5 个 block 是同一对象；第 2–5 次合计增长 < 200 KB", async () => {
+  it("同一 PNG 经 read 读 5 次：5 个 block 是同一对象；第 2–5 次合计增长小于一份图片", async () => {
     const path = writePng("same.png", 1024 * KB);
     const first = await readImageBlock(path);
     expect(first.data.length).toBeGreaterThan(1300 * KB);
@@ -48,7 +48,8 @@ describe("[M-D] 图片驻留", () => {
       return blocks;
     });
     for (const block of growth.result) expect(block).toBe(first);
-    expect(growth.total).toBeLessThan(200 * KB);
+    // 不驻留时会多 4 份（约 5.4 MB）；阈值取一份，Windows 上 GC 后的堆噪声可达数百 KB
+    expect(growth.total).toBeLessThan(first.data.length);
   });
 
   it("附图（loadImageFile）与 read 读同一文件：同一个 block", async () => {
