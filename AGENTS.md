@@ -16,10 +16,10 @@
 
 - 提交信息、分支、PR 与 issue 规范见 [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md)；接到需求先建或找到对应 Issue，按其中「需求流程」推进（Issue → 设计回填 → PR 关联 → 合并后收尾）。
 
-- 设计与硬约束见 [docs/design/design.md](docs/design/design.md)（§1 依赖方向、§2 工程约定、§9.1 缓存保证）；用户与集成文档的索引在 [README](README.md#documentation)。
-- 双语：`README.md` / `README.zh-CN.md`、`CHANGELOG.md` / `CHANGELOG.zh-CN.md` 成对维护，新条目两份都加到未发布段；`docs/en/` 七篇是中文版的英文译本，改中文版时同步。文案约定见 [docs/guides/i18n.md](docs/guides/i18n.md)。
+- 设计与硬约束见 [docs/design/design.md](docs/design/design.md)（§1 依赖方向、§2 工程约定、§9.1 缓存保证）；文档按 `guides/`（现状）、`reference/`（协议与格式）、`design/`（目标设计）、`history/` 与 `research/`（只用于追溯）分层，索引在 [docs/README.md](docs/README.md)，新增文档登记进去。
+- 双语：`README.md` / `README.zh-CN.md`、`CHANGELOG.md` / `CHANGELOG.zh-CN.md` 成对维护，新条目两份都加到未发布段；`docs/en/` 按同样分层放七篇英文译本，改中文版时同步。文案约定见 [docs/guides/i18n.md](docs/guides/i18n.md)。
 - 协议形状改动同步 [docs/reference/rpc.md](docs/reference/rpc.md)、[docs/reference/host-api.md](docs/reference/host-api.md)、[docs/reference/acp.md](docs/reference/acp.md) 或 [docs/reference/session-format.md](docs/reference/session-format.md)。
-- 验证：`pnpm run ci`（类型检查、prettier、依赖与 i18n 检查、发版检查、测试、构建与 bundle 冒烟）；bundle 级端到端 `AMA_E2E=1 pnpm test:e2e`。pnpm 10 起 `pnpm ci` 是内置命令，必须写 `pnpm run ci`。
+- 验证：`pnpm run ci`（类型检查、prettier、依赖与 i18n 检查、文档链接检查 `pnpm check:docs`、发版检查、测试、构建与 bundle 冒烟）；bundle 级端到端 `AMA_E2E=1 pnpm test:e2e`。pnpm 10 起 `pnpm ci` 是内置命令，必须写 `pnpm run ci`。
 - CI 在 macOS / Linux / Windows × Node 22 / 24 上跑；路径、换行与 shell 差异要考虑 Windows。
 - 发布由维护者推 `v<版本>` tag 触发：CI 创建 GitHub Release 并经 npm 可信发布（OIDC）推送 `@armadra/agent`；本地不手动 `npm publish`。
 

@@ -8,6 +8,6 @@
 | [R7-memory.md](R7-memory.md)                     | Memory 模块（缺省关闭、文件型、索引常驻正文按需）                                     | §3           |
 | [R8-i18n.md](R8-i18n.md)                         | 中英双语：盘点、机制选型、测试策略、文档方案、拆分                                    | §5           |
 | [R9-agent-view-trace.md](R9-agent-view-trace.md) | Agent 栏、子 Agent 全屏视图、轨迹持久化与 `/trace` / HTML / `get_trace`               | §1、§2       |
-| [R10-config.md](R10-config.md)                   | `/config` 设置面板与 `ama config get                                                  | set`         | §6  |
+| [R10-config.md](R10-config.md)                   | `/config` 设置面板与 `ama config get\|set`                                            | §6           |
 
 报告中的推荐与 `wave6-plan.md` §0 决定表不一致时（例如 R6 以借用 Codex 客户端为主方案），以决定表为准。
