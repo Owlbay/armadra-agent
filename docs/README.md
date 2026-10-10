@@ -52,18 +52,20 @@
 
 ## history/ 已完成的计划与审计
 
-| 文档                                                       | 内容                                                       |
-| ---------------------------------------------------------- | ---------------------------------------------------------- |
-| [第二、三波实施设计](history/implementation-plan.md)       | 组装根、RPC / SDK、交互模式、codemode 各批次               |
-| [第三波计划](history/wave3-plan.md)                        | 缓存设计与验收、其余批次编排                               |
-| [第五波计划](history/wave5-plan.md)                        | 状态栏、模型元数据、渠道、外部 Agent、Plan、子 Agent、压缩 |
-| [第六波计划](history/wave6-plan.md)                        | Agent 栏、轨迹、记忆、ChatGPT 登录、双语、`/config`        |
-| [检查点与回滚](history/rewind-plan.md)                     | 检查点、回滚与影子 git                                     |
-| [ACP 补全](history/acp-plan.md)                            | 对照 ACP v1 schema 的补全                                  |
-| [Agent 切换与并行交流](history/agents-concurrency-plan.md) | Agent 栏进入方式、后台审批停靠                             |
-| [内存占用优化](history/memory-plan.md)                     | read 流式、ACP 释放、图片驻留                              |
-| [模型调用效率](history/model-efficiency-plan.md)           | 缓存、用量、重试与元数据                                   |
-| [缺口与默认值审计](history/gap-audit-2026-10.md)           | 2026-10-02 的只读审计                                      |
+| 文档                                                       | 内容                                                         |
+| ---------------------------------------------------------- | ------------------------------------------------------------ |
+| [第二、三波实施设计](history/implementation-plan.md)       | 组装根、RPC / SDK、交互模式、codemode 各批次                 |
+| [第三波计划](history/wave3-plan.md)                        | 缓存设计与验收、其余批次编排                                 |
+| [第五波计划](history/wave5-plan.md)                        | 状态栏、模型元数据、渠道、外部 Agent、Plan、子 Agent、压缩   |
+| [第六波计划](history/wave6-plan.md)                        | Agent 栏、轨迹、记忆、ChatGPT 登录、双语、`/config`          |
+| [检查点与回滚](history/rewind-plan.md)                     | 检查点、回滚与影子 git                                       |
+| [ACP 补全](history/acp-plan.md)                            | 对照 ACP v1 schema 的补全                                    |
+| [Agent 切换与并行交流](history/agents-concurrency-plan.md) | Agent 栏进入方式、后台审批停靠                               |
+| [内存占用优化](history/memory-plan.md)                     | read 流式、ACP 释放、图片驻留                                |
+| [模型调用效率](history/model-efficiency-plan.md)           | 缓存、用量、重试与元数据                                     |
+| [未关闭 Issue 设计与分批](history/open-issues-plan.md)     | #149–#156、#183：fork 缺省、子会话防串台、取样、上限持久化等 |
+| [内存优化遗留项](history/memory-residue-plan.md)           | #165–#173：常驻会话、通知回合、图片释放、读窗口等            |
+| [缺口与默认值审计](history/gap-audit-2026-10.md)           | 2026-10-02 的只读审计                                        |
 
 ## research/ 与 benchmarks/
 
