@@ -13,6 +13,8 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 - **Closed ACP sessions free the startup session too**: `Runtime.session` and `Runtime.sessionManager` now follow the current session instead of staying on the one created at startup, so after `session/close` its transcript and images are garbage-collected like any other session's. SDK code that reads `runtime.session` after a session switch now gets the new session.
 - **ACP `session/prompt` usage covers only its own turn**: a prompt that waited for a background subagent's notification turn no longer counts that turn's tokens in `usage`.
 - **`session/close` during a notification turn**: it used to fail with -32603 and keep the session in memory; now running background subagents are stopped, the running turn (notification turns included) is interrupted, already queued notifications no longer start a turn, and the session is released with no further `session/update`. Closing stdin quiets sessions the same way.
+- **Streamed request bodies are encoded in small chunks**: a request body with images is sent in chunks of at most 256 Ki characters instead of one whole image at a time, so sending no longer holds an extra UTF-8 copy of each image. Request bytes are unchanged.
+- **Images are written into requests without a per-request copy**: image data goes from the transcript straight into the request body instead of first being joined into a new data-URL string on every request, and its escape check runs once per image. Mock 300-step session with 15 images: peak RSS about 707 → 495 MB, peak heapUsed about 264 → 130–156 MB. Request bytes are unchanged; SDK `onPayload` callbacks now see large images as objects with `toJSON` (`JSON.stringify` gives the same text).
 
 ## 0.7.4 (2026-10-10)
 
