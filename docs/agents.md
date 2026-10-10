@@ -222,15 +222,48 @@ ama 能以各 CLI 自己的账户、模型与权限策略驱动外部编码 Agen
 
 每个 Agent 有一条候选链，按优先级取第一个已安装、且支持当前模式的：原生 ACP > 已装的 ACP 适配器 > 原生结构化协议 > 一次性打印模式。
 
-| `agent`                                   | 候选（优先级从高到低）                                                                                              | 已验证版本          |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| `claude`                                  | `claude-agent-acp`（ACP 适配器）→ `claude -p` stream-json（原生）→ `claude -p --output-format json`（一次性，只读） | stream-json：2.1.x  |
-| `codex`                                   | `codex-acp`（ACP 适配器）→ `codex app-server`（原生）→ `codex exec --json`（一次性，只读）                          | app-server：0.160.x |
-| `gemini`                                  | `gemini --acp` → `gemini -p --output-format stream-json`（一次性，只读）                                            | 未验证              |
-| `qwen`                                    | `qwen --acp`（0.23.x 有不发权限请求的问题，只在 plan 下用）                                                         | 未验证              |
-| `kimi` / `opencode` / `goose` / `copilot` | 各自的 ACP 子命令                                                                                                   | 未验证              |
-| `ama`                                     | `ama --mode acp`                                                                                                    | 随 ama              |
-| `acp:<program>`                           | 任意 ACP Agent：表里有同名程序就用它的参数，否则不带参数启动                                                        | —                   |
+| `agent`          | 候选（优先级从高到低）                                                                                              | 已验证版本                           |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| `claude`         | `claude-agent-acp`（ACP 适配器）→ `claude -p` stream-json（原生）→ `claude -p --output-format json`（一次性，只读） | 适配器 0.89.x；stream-json 2.1.x     |
+| `codex`          | `codex-acp`（ACP 适配器）→ `codex app-server`（原生）→ `codex exec --json`（一次性，只读）                          | 适配器 2.2.x；app-server 0.160–0.162 |
+| `copilot`        | `copilot --acp --stdio`                                                                                             | 1.0.95                               |
+| `opencode`       | `opencode acp`                                                                                                      | 1.18.x                               |
+| `pi`             | `pi --mode rpc`（原生；审批经 ama 加载的审批闸扩展，见下）                                                          | 1.1.x                                |
+| `cursor`         | `cursor-agent acp`（按官方文档：模式 `agent` / `plan` / `ask`）                                                     | 未验证（本机未装）                   |
+| `gemini`         | `gemini --acp` → `gemini -p --output-format stream-json`（一次性，只读）                                            | 未验证                               |
+| `qwen`           | `qwen --acp`（0.23.x 有不发权限请求的问题，只在 plan 下用）                                                         | 未验证                               |
+| `kimi` / `goose` | 各自的 ACP 子命令                                                                                                   | 未验证                               |
+| `ama`            | `ama --mode acp`                                                                                                    | 随 ama                               |
+| `acp:<program>`  | 任意 ACP Agent：表里有同名程序就用它的参数，否则不带参数启动                                                        | —                                    |
+
+pi 的社区 ACP 适配器 `pi-acp` 不收录：pi 本身没有审批通道，适配器不发 `session/request_permission`，工具会不经人直接执行。
+ama 改为直接驱动 `pi --mode rpc`，并以 `-e` 给这一次运行加载一个最小扩展（写在每个会话自己的临时目录，关会话即删，不碰 pi 的配置）：
+只读内置工具（`read` / `grep` / `find` / `ls`）以外的调用都经 RPC 的扩展对话框交给 ama——`plan` / `allowlist` 直接拒绝（并以
+`--tools` 只开只读工具），`auto-edit` 及更宽的模式放行 `edit` / `write`，其余交给人。用户自己的扩展弹出的对话框一律取消、不代答。
+
+#### 实测能力矩阵（2026-10-10）
+
+每条路径在临时目录各跑两个会话：非 git 目录里两轮「只回 OK」+ 一次触发审批的写文件（`default` 模式）；git 目录里长输出时中断，再续一轮。
+模型用各家最便宜的：Claude `haiku`、Codex `gpt-6-luna`、Copilot `gpt-5-mini`、OpenCode `opencode/mimo-v2.6-flash-free`、pi `openai-codex/gpt-6-luna`。
+记录与原始数字见 [benchmarks/external-agents-2026-10.md](benchmarks/external-agents-2026-10.md)。
+
+| 路径                       | 两轮续聊 | 审批写文件                                        | 中断后续聊    | 用量 / 上下文                     | 非 git 目录    |
+| -------------------------- | -------- | ------------------------------------------------- | ------------- | --------------------------------- | -------------- |
+| Claude stream-json 2.1.295 | 通过     | 通过（`Write` 交人）                              | 通过（1.9 s） | 美元 + token；上下文（本次新增）  | 通过           |
+| claude-agent-acp 0.89.0    | 通过     | 通过                                              | 通过（2.3 s） | 美元 + token + 上下文             | 通过           |
+| Codex app-server 0.162.1   | 通过     | 通过（命令提权交人）                              | 通过（2.5 s） | token + 上下文                    | 通过           |
+| codex-acp 2.2.2            | 通过     | 未触发：只读沙箱下模型没申请提权，直接报写入被拒  | 通过（2.6 s） | token + 上下文                    | 通过           |
+| `codex exec`（一次性）     | 通过     | 不支持（只读）                                    | 结束进程      | token                             | 通过（修复后） |
+| Copilot ACP 1.0.95         | 通过     | 通过                                              | 通过（4.6 s） | 请求数；token + 上下文            | 通过           |
+| OpenCode ACP 1.18.35       | 通过     | 未触发：OpenCode 自己的权限配置放行编辑，没有问人 | 通过（6.2 s） | token + 上下文（免费模型 0 美元） | 通过           |
+| pi RPC 1.1.0               | 通过     | 通过（经审批闸交人）                              | 通过（2.7 s） | 美元（pi 按价目估算）+ 上下文     | 通过           |
+| Cursor ACP                 | —        | —                                                 | —             | —                                 | 未验证         |
+
+模式映射按实测写进驱动表：claude-agent-acp 的 `auto-edit` → `acceptEdits`、`full-auto` → `auto`（用户把缺省设成
+`bypassPermissions` 时也会被改回 ama 对应的模式）；codex-acp 的 `plan` / `default` → `read-only`、`auto-edit` → `workspace-write`、
+`auto` / `full-auto` → `agent`；Copilot 的模式 id 是 URL（`…/session-modes#agent|plan|autopilot`），`plan` 对 `#plan`、其余对 `#agent`。
+从不映射到放开全部权限的模式（`bypassPermissions`、`agent-full-access`、`autopilot`）。OpenCode 的模式来自用户自己的 agent 配置，
+没有同名模式时按它的缺省运行并提示；没有只读模式时 `plan` 拒绝启动。
 
 版本越过已验证区间时仍会启动，但会提示协议可能有变化（Claude 的 stream-json 控制协议不是公开接口，Codex app-server 标为实验）。`/agents` 与 RPC `get_agents` 列出探测结果（只查 PATH 与 `--version`，不联网、不计费；结果缓存在 `<数据目录>/drivers.json`）。
 
@@ -249,7 +282,9 @@ ama 能以各 CLI 自己的账户、模型与权限策略驱动外部编码 Agen
 - **前台 / 后台 / 续聊**：与 ama 子会话相同——结果是外部 Agent 的最终文本加工具摘要与修改的文件（≤ 50 KB）；
   `background: true` 完成后收到 `<task-notification>`；`task{taskId}` / `task_ctl send` 在同一外部会话里续聊（进程还在就直接
   追加一轮；空闲关闭或被停止过的，以外部会话 id `resume` 重开）；`task_ctl stop` 发协议级中断，挂起的审批回「已取消」。
-- **模型**：`agents.<id>.model` 或 `task` 的 `model` 参数原样交给外部 CLI；`subagents.defaultModel`（ama 的模型）不传。
+- **模型**：`agents.<id>.model` 或 `task` 的 `model` 参数原样交给外部 CLI（原生驱动用各自的 `--model` / `-m`；ACP Agent
+  经 category `model` 的会话配置项设置，按值、名称或 `provider/model` 的模型部分匹配，没有匹配时提示并用它的缺省模型）；
+  `subagents.defaultModel`（ama 的模型）不传。
 - `/agents` 与 RPC `get_agents` 列出类型目录与外部 Agent（`installed` / `version`，会话建立时异步探测并缓存）；`/tasks` 查看任务输出、
   停止任务。界面见 [tui.md](tui.md)「子 Agent」。
 - 外部 Agent 自己报告的提示（预算用尽、超时、模式降级、拒答提问等）在交互界面的消息区显示为一行 `[claude · t3] …`，
@@ -277,6 +312,7 @@ ama 能以各 CLI 自己的账户、模型与权限策略驱动外部编码 Agen
 | `auto`      | `auto`                               | `on-request` / `workspace-write`                           | 同上                                                     |
 | `full-auto` | `auto`（从不给 `bypassPermissions`） | `never` / `workspace-write`（从不给 `danger-full-access`） | 同上                                                     |
 
+上表 ACP 一列是缺省规则；模式 id 与 ama 不同名的 Agent 在驱动表里有显式映射（见上文「实测能力矩阵」后的说明）。
 ACP Agent 不给 `modes`、改用 category `mode` 的配置项表达模式时，按上表同一映射在配置项的可选值里找，经 `session/set_config_option` 设置（见 [acp.md](acp.md)「作为客户端」）。
 
 一次性打印模式不能审批，只在只读任务下用。
@@ -320,4 +356,13 @@ CI 不跑真实 CLI。本机已登录 `claude` / `codex` 时：
 AMA_E2E_AGENTS=1 pnpm vitest run src/drivers/agents.e2e.test.ts src/agents/external-task.e2e.test.ts
 ```
 
-驱动层每家两轮「只回 OK」加一次触发审批的写文件（临时目录），会使用你的订阅额度；Claude 跑前后比对 `~/.claude` 下 settings 文件的指纹。`task` 层每家一次写文件（首次确认与写文件审批由测试代替人允许）加一轮 `taskId` 续聊；父会话用 fake 供应商。驱动的单元测试用 `test/fixtures/drivers/` 下的手写录制回放，`task` 层的零费用端到端是 ama 驱动 ama（`src/agents/external-task.test.ts`），都不发起计费请求。
+驱动层每家两轮「只回 OK」加一次触发审批的写文件（临时目录），会使用你的订阅额度；Claude 跑前后比对 `~/.claude` 下 settings 文件的指纹。`task` 层每家一次写文件（首次确认与写文件审批由测试代替人允许）加一轮 `taskId` 续聊；父会话用 fake 供应商。
+
+逐条驱动路径实测（上面的能力矩阵）用 `AMA_E2E_AUDIT` 指定 `<agent>/<驱动种类>[@模型]`，强制只走这一条路径：
+
+```sh
+AMA_E2E_AUDIT="claude/claude-stream@haiku,codex/oneshot@gpt-6-luna,pi/pi-rpc@openai-codex/gpt-6-luna" \
+  AMA_E2E_AUDIT_OUT=/tmp/audit.jsonl pnpm vitest run src/drivers/agents-audit.e2e.test.ts
+```
+
+驱动的单元测试用 `test/fixtures/drivers/` 下的录制回放（pi 的两段是 2026-10 实录，其余手写），`task` 层的零费用端到端是 ama 驱动 ama（`src/agents/external-task.test.ts`），都不发起计费请求。
