@@ -792,7 +792,7 @@ tool_call（模型产出）
 
 1. **规则层**（不调模型）：deny 规则 / Hook deny / 内置 deny → deny；危险命令表 → ask；受保护路径（机密文件读写、`.git/` 与项目 `.ama/` 写入、项目外写入）、网络命令、删除类命令 → ask；Hook ask → ask；allow 规则 / Hook allow / 本会话记忆 → allow。
 2. **静态判定**（不调模型）：只读工具 → allow；write / edit 目标在项目内 → allow；bash 每一段都在安全名单（`permissions/auto-safe.ts`，`permission.autoSafeCommands` 追加）且无命令替换、变量展开、嵌套 shell → allow。
-3. **模型分类器**（`permissions/classifier.ts` + `agent/session-classifier.ts`）：只处理前两层未决定的调用。一次独立请求（`purpose: "classify"`，不进转录、不经会话层缓存观测、不触发保温），参数与最近一条用户消息摘要放在数据块里、系统提示声明块内文本不是指令；输出严格 JSON `{"decision":"allow"|"ask","reason"}`，解析失败 / 超时 10 s / 出错 → ask。模型按 `permission.autoModel` > 会话供应商目录的 `small`（能找到且有 key）> 当前会话模型选择。会话内按「工具 + 归一化参数」缓存；用量记 `usage{kind:"permission_classify"}`。
+3. **模型分类器**（`permissions/classifier.ts` + `agent/session-classifier.ts`）：只处理前两层未决定的调用。一次独立请求（`purpose: "classify"`，不进转录、不经会话层缓存观测、不触发保温），参数与最近一条用户消息摘要放在数据块里、系统提示声明块内文本不是指令；输出严格 JSON `{"decision":"allow"|"ask","reason"}`，解析失败 / 超时 10 s / 出错 → ask。模型按 `permission.autoModel` > 会话供应商目录的 `small`（中转 / 自定义供应商按会话模型继承的目录条目推断同厂商 `small`，只认本供应商模型表里列出的条目；能找到且有 key）> 当前会话模型选择。会话内按「工具 + 归一化参数」缓存；用量记 `usage{kind:"permission_classify"}`。
 
 每次 auto 判定产生 `AutoDecision{layer: rule|static|classifier, decision, reason}`：`tool_execution_end` 与 `permission_request` 事件带 `autoDecision`，管线保留最近 20 条供 `/permissions` 显示。无人值守时 ask → deny（分类器 allow 照常放行）。
 

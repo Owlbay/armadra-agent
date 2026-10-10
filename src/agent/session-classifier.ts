@@ -4,6 +4,8 @@
  * - 模型：`options.permissionClassifier.model`（config `permission.autoModel`）解析成功就用它；
  *   否则（未配置、找不到；找不到时记一次 warning）[ME-D] 用会话供应商目录里的小模型（目录文件级
  *   `small`，D12；要能找到且有 key），再否则用当前会话模型；选择结果记一次 debug。
+ * - [#153] 中转 / 自定义供应商（没有目录文件）：会话模型按 id 继承的目录条目 → 原厂 `small` →
+ *   本供应商模型表（config `models[]`、发现缓存）里**已列出**的同一条目；不走合成路径。
  * - 请求是**独立**的：只有分类系统提示与一条用户消息，不带会话转录与工具表；`purpose: "classify"`
  *   让会话层缓存包装直接透传（不观测、不暂停 / 触发保温、不成为下一次请求的前缀依据）；
  *   `cacheRetention: "none"`，关闭思考，`maxTokens` 256。
@@ -16,7 +18,7 @@ import {
   PermissionClassifier,
   type ClassifierRequest,
 } from "../permissions/classifier.js";
-import { catalogSmall } from "../ai/providers/catalog.js";
+import { catalogByAlias, catalogSmall } from "../ai/providers/catalog.js";
 import type { SessionCore } from "./session-core.js";
 
 export const CLASSIFY_USAGE_KIND = "permission_classify";
@@ -35,9 +37,26 @@ interface ClassifierState {
   logged?: string;
 }
 
-/** 会话供应商的目录小模型：能找到且 key 可用（或无需 key）才用。 */
+/** [#153] 会话模型继承的目录条目所属厂商的 `small`，在本供应商模型表里列出的条目 id。 */
+function inferredSmall(core: SessionCore, session: Model): string | undefined {
+  const hit = catalogByAlias(session.id);
+  if (hit === undefined) return undefined;
+  const origin = hit.ref.slice(0, hit.ref.indexOf("/"));
+  const small = catalogSmall(origin);
+  const target = `${origin}/${small}`;
+  if (small === undefined || hit.ref === target) return undefined;
+  const listed = core.options.providers.get(session.provider)?.models ?? [];
+  return listed.find((m) => {
+    if (m.id === small) return true;
+    const entry = catalogByAlias(m.id);
+    return entry?.ref === target && entry.tier === undefined;
+  })?.id;
+}
+
+/** 分类用的小模型：会话供应商的目录 small，或 [#153] 推断出的同厂商小模型；能找到且 key 可用（或无需 key）才用。 */
 async function smallModel(core: SessionCore, session: Model): Promise<Model | undefined> {
-  const small = catalogSmall(session.provider);
+  const own = catalogSmall(session.provider);
+  const small = own === undefined ? inferredSmall(core, session) : own;
   if (small === undefined || small === session.id) return undefined;
   const lookup = core.options.providers.findModel(`${session.provider}/${small}`);
   if (!lookup.ok) return undefined;
