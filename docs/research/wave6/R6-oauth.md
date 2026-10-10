@@ -355,7 +355,7 @@ ama auth list                                   # 现有命令，新增 kind = "
   - `src/agent/session.ts:128-135,184-187`
   - `src/cli/subcommands/auth.ts:23-26`
   - `src/drivers/native/claude-stream.ts:1-15`
-  - `docs/providers.md:169-178`
+  - `docs/guides/providers.md:169-178`
 - codex-rs：
   - `login/src/server.rs:77-80,194,585-618,620-640`
   - `login/src/auth/manager.rs:212-216,1626-1700,1718`

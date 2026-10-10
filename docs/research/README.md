@@ -1,14 +1,14 @@
 # 调研报告
 
-- 第五波（2026-10-02）：本目录下 R1–R5，设计见 `docs/wave5-plan.md`。
-- 第六波（2026-10-03）：[wave6/](wave6/README.md) 下 R6–R10，设计见 `docs/wave6-plan.md`。
-- ACP 补全（2026-10-04）：[acp-gap-2026-10.md](acp-gap-2026-10.md)，对照 ACP v1 schema 1.24.1 的差距审计与实测；设计见 `docs/acp-plan.md`。
-- 模型调用效率（2026-10-10）：[model-efficiency-audit-2026-10.md](model-efficiency-audit-2026-10.md)，缓存命中、token 用量、重试与 max_tokens 的审计与实测；设计见 `docs/model-efficiency-plan.md`。
-- 内存占用（2026-10-10）：[memory-2026-10.md](memory-2026-10.md)，启动、TUI、`-p`、ACP、RPC 的峰值与常驻内存、泄漏点与优化清单；复现脚本 `scripts/bench-memory.mjs`，设计见 `docs/memory-plan.md`，优化后的实测见 `docs/benchmarks/memory-2026-10.md`。
+- 第五波（2026-10-02）：本目录下 R1–R5，设计见 `docs/history/wave5-plan.md`。
+- 第六波（2026-10-03）：[wave6/](wave6/README.md) 下 R6–R10，设计见 `docs/history/wave6-plan.md`。
+- ACP 补全（2026-10-04）：[acp-gap-2026-10.md](acp-gap-2026-10.md)，对照 ACP v1 schema 1.24.1 的差距审计与实测；设计见 `docs/history/acp-plan.md`。
+- 模型调用效率（2026-10-10）：[model-efficiency-audit-2026-10.md](model-efficiency-audit-2026-10.md)，缓存命中、token 用量、重试与 max_tokens 的审计与实测；设计见 `docs/history/model-efficiency-plan.md`。
+- 内存占用（2026-10-10）：[memory-2026-10.md](memory-2026-10.md)，启动、TUI、`-p`、ACP、RPC 的峰值与常驻内存、泄漏点与优化清单；复现脚本 `scripts/bench-memory.mjs`，设计见 `docs/history/memory-plan.md`，优化后的实测见 `docs/benchmarks/memory-2026-10.md`。
 
 ## 第五波
 
-`docs/wave5-plan.md` 的设计依据，只用于追溯；现状以代码与 `docs/` 其余文档为准。报告里的代码行号对应写作时的 `main`，`/tmp/...` 路径是调研时的本地材料，不在仓库中。引用第三方产品只记录行为，原文引用每段不超过 15 词。作为设计参照的同类工具不具名，以「工具 A」「工具 B」…代号指代（各报告代号一致）；ama 实际驱动或兼容的外部 Agent、供应商与协议照常写名字。
+`docs/history/wave5-plan.md` 的设计依据，只用于追溯；现状以代码与 `docs/` 其余文档为准。报告里的代码行号对应写作时的 `main`，`/tmp/...` 路径是调研时的本地材料，不在仓库中。引用第三方产品只记录行为，原文引用每段不超过 15 词。作为设计参照的同类工具不具名，以「工具 A」「工具 B」…代号指代（各报告代号一致）；ama 实际驱动或兼容的外部 Agent、供应商与协议照常写名字。
 
 | 报告                                                 | 主题                                       |
 | ---------------------------------------------------- | ------------------------------------------ |

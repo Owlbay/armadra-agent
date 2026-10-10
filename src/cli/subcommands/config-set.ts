@@ -1,5 +1,5 @@
 /**
- * `ama config get | set | unset | list` (docs/wave6-plan.md §6.4, D24-D26). [W6-S]
+ * `ama config get | set | unset | list` (docs/history/wave6-plan.md §6.4, D24-D26). [W6-S]
  *
  * Thin layer over config/edit.ts (the `/config` panel uses the same core):
  * - `get <key> [--json]`: effective value, source layer and apply tier;

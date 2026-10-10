@@ -23,7 +23,7 @@ export const SECTION_ORDER = [
   "rules",
   "project_context",
   "skills",
-  // [W6-C0] 记忆索引（W6-M，docs/wave6-plan.md §3.4）；未开启时为 undefined，字节不变
+  // [W6-C0] 记忆索引（W6-M，docs/history/wave6-plan.md §3.4）；未开启时为 undefined，字节不变
   "memory",
   "hooks",
   "cwd",

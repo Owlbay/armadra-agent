@@ -8,7 +8,7 @@ body:
     attributes:
       label: 文档位置 / Location
       description: 文件路径或链接，带上章节更好；`ama --help` 与 `/help` 的文本也算。 / File path or link, ideally with the section; `ama --help` and `/help` text count too.
-      placeholder: docs/providers.md「渠道」 / docs/en/providers.md "Channels"
+      placeholder: docs/guides/providers.md「渠道」 / docs/en/guides/providers.md "Channels"
     validations:
       required: true
 

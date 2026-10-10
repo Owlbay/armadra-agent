@@ -1,5 +1,5 @@
 /**
- * SIWC 的 `ext_agent_host_id`（docs/wave6-plan.md D16）：每个安装稳定不变，存
+ * SIWC 的 `ext_agent_host_id`（docs/history/wave6-plan.md D16）：每个安装稳定不变，存
  * `<dataDir>/chatgpt-host.json`（0600，按安装、不随 dotfiles 同步），形如 `urn:uuid:…`。[W6-O]
  */
 

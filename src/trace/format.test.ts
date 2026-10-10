@@ -1,5 +1,5 @@
 /**
- * 轨迹扁平化与格式化（docs/wave6-plan.md §2.4）：行模型、分页、条形、line 模式文本黄金。[W6-T1]
+ * 轨迹扁平化与格式化（docs/history/wave6-plan.md §2.4）：行模型、分页、条形、line 模式文本黄金。[W6-T1]
  * 更新黄金：`AMA_UPDATE_GOLDEN=1 pnpm vitest run src/trace/format.test.ts`。
  */
 

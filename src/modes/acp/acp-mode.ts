@@ -1,5 +1,5 @@
 /**
- * `ama --mode acp` 的进程入口（docs/wave5-plan.md §5.6）。[W5-E]
+ * `ama --mode acp` 的进程入口（docs/history/wave5-plan.md §5.6）。[W5-E]
  *
  * - stdin / stdout 是 ACP（JSON-RPC 2.0 over NDJSON），不发 hello（ACP 由客户端 `initialize` 起头）；
  *   诊断与宿主通知写 stderr。

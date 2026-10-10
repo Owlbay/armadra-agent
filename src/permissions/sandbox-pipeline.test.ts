@@ -1,5 +1,5 @@
 /**
- * [S2] 「沙箱内命令免审批」真值表（docs/permissions.md「判定顺序」）：模式 × 是否在沙箱内 × 危险命令 /
+ * [S2] 「沙箱内命令免审批」真值表（docs/guides/permissions.md「判定顺序」）：模式 × 是否在沙箱内 × 危险命令 /
  * deny 规则 / Hook ask / 机密路径 / sandbox:false × 无人值守 → 放行 / 询问 / 拒绝。沙箱状态用假的，
  * 不依赖本机。
  */

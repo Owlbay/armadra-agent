@@ -1,5 +1,5 @@
 /**
- * 轨迹（docs/wave6-plan.md §2.1、§2.2、D5、D6）。[W6-C0] 纯类型，经 `@armadra/agent` 导出。
+ * 轨迹（docs/history/wave6-plan.md §2.1、§2.2、D5、D6）。[W6-C0] 纯类型，经 `@armadra/agent` 导出。
  *
  * 两部分：
  * - **持久化**：`custom{customType:"ama.trace"}` 条目的 `data`（`TraceEntryData`），由

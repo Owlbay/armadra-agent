@@ -15,8 +15,8 @@
    - `codex exec --json` 和 `claude -p --output-format json` 只能当「一次性、不接受审批」的兜底。
 3. **ama 目前完全没有驱动外部 CLI Agent 的能力**：
    - 独立使用时只有同进程子 Agent `task`（`src/tools/task.ts`）。
-   - 嵌入 Armadra 时，画布工具 `canvas_*` 由 Armadra 侧的适配器经 `HostApi.tools.register` 注册（设计 §5.4，`docs/design.md:507-509`）。
-   - 仓库里没有 ACP、没有 MCP（D5 明确「不做 MCP」，`docs/design.md:15`），也没有 spawn 外部 Agent 的代码。
+   - 嵌入 Armadra 时，画布工具 `canvas_*` 由 Armadra 侧的适配器经 `HostApi.tools.register` 注册（设计 §5.4，`docs/design/design.md:507-509`）。
+   - 仓库里没有 ACP、没有 MCP（D5 明确「不做 MCP」，`docs/design/design.md:15`），也没有 spawn 外部 Agent 的代码。
 4. **推荐分层**：
    - `drivers/` 下定义统一接口 `AgentDriver`，内部事件用 ACP 的词汇。
    - 适配器的优先级：原生 ACP（`acp`）> 已安装的官方 ACP 适配器（`acp-adapter`）> 原生结构化协议（`claude-stream`、`codex-app-server`）> 一次性打印模式（`oneshot`，不能审批，只在只读或沙箱下用）。
@@ -129,7 +129,7 @@ Armadra `acp-session-view.md` 的 `core/acp/` 设计（client、adapters 表、n
 | 能力                  | 位置                                                                                                                                                                       | 说明                                                                                                                                                                                                                                                                                                                  |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 同进程子 Agent `task` | `src/tools/task.ts:1-117`                                                                                                                                                  | 深度不超过 1；并发由 `SubagentPool`（`src/agent/session-subagent.ts:27`，`session.ts:170` 缺省并发）控制；结果是最后一条助手文本加 `details{sessionFile, usage, stopReason}`；子 Agent 的审批串到父会话，标 `[task]`（`permissions/types.ts` 的 `ApprovalRequestContext.depth`）。**模型由 ama 自己调，不是外部 CLI** |
-| 宿主注册工具          | `src/host/types.ts:96-142`（`HostApi.tools.register/disable`）                                                                                                             | Armadra 适配器经它注册 `canvas_team`、`canvas_send`、`canvas_inbox`、`context_*` 等，并 `disable("task")`（设计 §5.4，`docs/design.md:507-509`；Armadra `coordinator-agent.md:113-136`）                                                                                                                              |
+| 宿主注册工具          | `src/host/types.ts:96-142`（`HostApi.tools.register/disable`）                                                                                                             | Armadra 适配器经它注册 `canvas_team`、`canvas_send`、`canvas_inbox`、`context_*` 等，并 `disable("task")`（设计 §5.4，`docs/design/design.md:507-509`；Armadra `coordinator-agent.md:113-136`）                                                                                                                       |
 | codemode 编排         | `src/codemode/*`，设计 §5.5                                                                                                                                                | 脚本里 `tools.<name>()` 走同一条权限管线，并发上限 8，可以 `Promise.allSettled`。**这是多 Agent 并行编排现成的载体**                                                                                                                                                                                                  |
 | 审批 broker 链        | `permissions/types.ts:114-120`（`ApprovalBroker.ask` 返回 undefined 时交给下一个回答者：宿主 → UI → 无人值守拒绝）；RPC 侧 `RpcApprovals`（`modes/rpc/commands.ts:33-60`） | 驱动层收到子 Agent 的权限请求后，可以直接投进这条链                                                                                                                                                                                                                                                                   |
 | RPC 服务端            | `src/rpc.ts`、`src/modes/rpc/*`                                                                                                                                            | ama **作为被控方**的协议，33 条命令、`hello{protocolVersion:1}`；分帧 `jsonl.ts` 可以给客户端复用                                                                                                                                                                                                                     |
@@ -287,7 +287,7 @@ export type DriverEvent =
 4. 父 abort、`agent_stop`、超时：所有挂起的请求回 `cancelled`（ACP 规范要求）。
 5. `elicitation/create`、Claude 的 `AskUserQuestion` / `ExitPlanMode`、Codex 的 `item/tool/requestUserInput`：作为「Agent 在问人」显示，**只接受人的输入**。
 6. 权限模式映射：ama 给子 Agent 选的模式**不得比 ama 当前模式更宽**。例如 ama 在 `default` 时不能以 `bypassPermissions` 或 `danger-full-access` 起子 Agent；要宽于此必须用户显式配置 `agents.<id>.maxMode`。
-7. 对话框标注来源，如 `[claude · 会话 abc]`，与现在 `task` 标 `[task]` 同一手法（`docs/design.md` R10）。
+7. 对话框标注来源，如 `[claude · 会话 abc]`，与现在 `task` 标 `[task]` 同一手法（`docs/design/design.md` R10）。
 
 ### 3.5 会话与上下文在 Agent 之间传递
 

@@ -1,5 +1,5 @@
 /**
- * 消息目录：report 的 `/context` 部分（键名规范见 docs/i18n.md）。
+ * 消息目录：report 的 `/context` 部分（键名规范见 docs/guides/i18n.md）。
  *
  * 单文件 600 行上限，从 `report.ts` 拆出；经 `msg().report.contextReport` 取用（modes/context-report.ts）。
  * 只有数字与名字的格式，不含任何正文。en 是形状源；zh 用 `satisfies Messages<typeof en>`。

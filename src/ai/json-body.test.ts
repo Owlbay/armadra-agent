@@ -1,5 +1,5 @@
 /**
- * 请求体分块序列化（docs/memory-plan.md D3、§2.3、[M-B] 测试 1）：与
+ * 请求体分块序列化（docs/history/memory-plan.md D3、§2.3、[M-B] 测试 1）：与
  * `Buffer.from(JSON.stringify(body), "utf8")` 逐字节相同——四个协议由黄金会话构造的请求体，
  * 以及 500 个随机 JSON（含 toJSON、undefined、NaN、-0、U+2028、孤立代理项、大字符串）。
  */

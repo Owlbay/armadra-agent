@@ -1,5 +1,5 @@
 /**
- * 工具可用性的固定英文文案（docs/model-efficiency-plan.md §1.4、D5）：执行层拒绝与尾部提醒共用，
+ * 工具可用性的固定英文文案（docs/history/model-efficiency-plan.md §1.4、D5）：执行层拒绝与尾部提醒共用，
  * 发给模型，两种界面语言下逐字节相同。[ME-C0]
  * [ME-B] 两条提醒由 `ai/context.ts` 渲染（ai 不 import agent），定义移到那里、这里再导出。
  */

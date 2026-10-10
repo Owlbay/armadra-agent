@@ -1,5 +1,5 @@
 /**
- * 第五波配置键的形状（docs/wave5-plan.md §9）。[W5-C0] 契约文件：C0 只定形状、校验（schema-w5.ts）、
+ * 第五波配置键的形状（docs/history/wave5-plan.md §9）。[W5-C0] 契约文件：C0 只定形状、校验（schema-w5.ts）、
  * 说明与缺省（key-docs.ts）、JSON Schema；行为由各批次实现，未实现前这些键被接受但不起作用。
  *
  * 层级：项目级只接受 `plan.bash`（只能更严）、`reminders`、`ui.statusLine`（随 `ui` 段）；其余只认
@@ -77,7 +77,7 @@ export function agentEntry(
   return typeof entry === "object" && !Array.isArray(entry) ? entry : undefined;
 }
 
-/** [W7-B2] 子 Agent 缺省前台还是后台（docs/agents-concurrency-plan.md §2.6）。 */
+/** [W7-B2] 子 Agent 缺省前台还是后台（docs/history/agents-concurrency-plan.md §2.6）。 */
 export const SUBAGENT_BACKGROUND_MODES = ["auto", "always", "never"] as const;
 export type SubagentBackgroundMode = (typeof SUBAGENT_BACKGROUND_MODES)[number];
 

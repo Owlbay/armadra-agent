@@ -1,5 +1,5 @@
 /**
- * 内置供应商（设计 §3.3、docs/wave5-plan.md §3.2）。这里只放供应商级数据；模型来自 catalog/*.json，
+ * 内置供应商（设计 §3.3、docs/history/wave5-plan.md §3.2）。这里只放供应商级数据；模型来自 catalog/*.json，
  * compat 由各协议的 detectCompat 推断（openai-compat.ts、anthropic-compat.ts 的主机表），这里只写推断
  * 不出来的东西。
  *
@@ -7,7 +7,7 @@
  * registry 物化时与用户 config 的 `channels` 合并（同名字段级覆盖、新名追加），用户的 `defaultChannel`
  * 优先。供应商级 `api` + `baseUrl` 是**单渠道回落**：用户（config / auth.json / `*_BASE_URL`）把
  * baseUrl 改到别处时内置渠道整体作废，按这一对单渠道处理（与引入内置渠道之前的行为一致）。
- * 只做按量计费端点；Coding Plan 类订阅端点不做内置渠道（D9），见 docs/providers.md。
+ * 只做按量计费端点；Coding Plan 类订阅端点不做内置渠道（D9），见 docs/guides/providers.md。
  *
  * `baseUrlEnv`（第三波 §2.3）：通行约定的 baseUrl 环境变量（OpenAI SDK 的 `OPENAI_BASE_URL`、
  * Claude Code 的 `ANTHROPIC_BASE_URL`），设了就把内置供应商指向中转站，零配置可用；优先级低于
@@ -247,7 +247,7 @@ export const BUILTIN_PROVIDERS: readonly BuiltinProvider[] = [
     requiresApiKey: true,
   },
   {
-    // [W6-O] ChatGPT 订阅（docs/wave6-plan.md §4、D14）：`ama auth login chatgpt` 写 auth.json 的 OAuth 条目；
+    // [W6-O] ChatGPT 订阅（docs/history/wave6-plan.md §4、D14）：`ama auth login chatgpt` 写 auth.json 的 OAuth 条目；
     // 缺省渠道在组装时按条目的 flavor 定（compose-providers.ts）。模型表为空：`chatgpt/<slug>` 任意接受，
     // `ama models discover chatgpt` 列出账户可用的 slug。缓存只有 prompt_cache_key（无 24h / 30m 显式缓存）。
     id: "chatgpt",

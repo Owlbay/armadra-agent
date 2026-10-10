@@ -1,5 +1,5 @@
 /**
- * 真实外部 CLI 的端到端（docs/wave5-plan.md §5.7、§14 第 3 条）：只在本地、`AMA_E2E_AGENTS=1` 时跑，
+ * 真实外部 CLI 的端到端（docs/history/wave5-plan.md §5.7、§14 第 3 条）：只在本地、`AMA_E2E_AGENTS=1` 时跑，
  * CI 永不设置。需要用户已登录的 `claude` / `codex`——**会使用你的订阅额度**（每家约 3 个小请求）。
  *
  *   AMA_E2E_AGENTS=1 pnpm vitest run src/drivers/agents.e2e.test.ts

@@ -1,5 +1,5 @@
 /**
- * 恢复代码（docs/rewind-plan.md §3.2）。[RW-A]
+ * 恢复代码（docs/history/rewind-plan.md §3.2）。[RW-A]
  *
  * 对每个已跟踪文件，取目标检查点里的记录，没有则取该文件最早的记录：
  * 1. 记录 `skipped` → 报告 too_large / not_regular；

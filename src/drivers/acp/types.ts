@@ -1,5 +1,5 @@
 /**
- * ACP（Agent Client Protocol）v1 的子集类型（docs/wave5-plan.md §5.1，D14）。[W5-E]
+ * ACP（Agent Client Protocol）v1 的子集类型（docs/history/wave5-plan.md §5.1，D14）。[W5-E]
  *
  * 手写、零依赖；只收 ama 作为客户端（驱动外部 Agent）与服务端（`ama --mode acp`）两侧用到的部分：
  * `initialize`、`authenticate`、`session/new|load|resume|list|close`、`session/prompt|cancel|set_mode|set_config_option`、

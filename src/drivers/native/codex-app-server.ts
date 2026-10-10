@@ -1,5 +1,5 @@
 /**
- * Codex 原生驱动：`codex app-server`（stdio JSON-RPC，docs/wave5-plan.md §5.1，R2 §1.3）。[W5-E]
+ * Codex 原生驱动：`codex app-server`（stdio JSON-RPC，docs/history/wave5-plan.md §5.1，R2 §1.3）。[W5-E]
  *
  * - `initialize{clientInfo}` → `initialized` 通知 → `thread/start`（或 `thread/resume`，带
  *   `excludeTurns` 不回放）→ 每回合 `turn/start`，以对应 turn 的 `turn/completed` 结束；

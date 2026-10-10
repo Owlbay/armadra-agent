@@ -1,6 +1,6 @@
 name: models-dev
 
-# 每周刷新入库的 models.dev 快照（docs/wave5-plan.md §2.3、docs/providers.md「模型元数据」）。
+# 每周刷新入库的 models.dev 快照（docs/history/wave5-plan.md §2.3、docs/guides/providers.md「模型元数据」）。
 # 有改动才往固定分支 chore/models-dev-refresh 开 / 更新 PR；不推 main、不发布，合并由人做。
 # PR 用 secrets.MODELS_DEV_PR_TOKEN（GitHub App installation token 或 fine-grained PAT，需
 # contents: write + pull-requests: write）创建，才能触发 ci.yml；没有该 secret 时用缺省 token

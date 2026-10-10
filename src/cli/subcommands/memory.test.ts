@@ -1,5 +1,5 @@
 /**
- * `ama memory`（docs/wave6-plan.md §3.5）：list / show / path / rm / edit / enable / disable 的输出快照。
+ * `ama memory`（docs/history/wave6-plan.md §3.5）：list / show / path / rm / edit / enable / disable 的输出快照。
  */
 
 import { existsSync, readFileSync } from "node:fs";

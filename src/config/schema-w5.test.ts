@@ -1,5 +1,5 @@
 /**
- * 第五波配置键（docs/wave5-plan.md §9）：校验、项目级限制、累加型列表、agents.<id> 取值。[W5-C0]
+ * 第五波配置键（docs/history/wave5-plan.md §9）：校验、项目级限制、累加型列表、agents.<id> 取值。[W5-C0]
  * 两边一致性（validateConfig ↔ config.schema.json）在 json-schema.test.ts 的正反例里。
  */
 

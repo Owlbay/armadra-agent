@@ -1,5 +1,5 @@
 /**
- * 状态行的 git 信息（docs/wave5-plan.md §1.3）。[W5-A]
+ * 状态行的 git 信息（docs/history/wave5-plan.md §1.3）。[W5-A]
  *
  * - 分支与短提交零依赖读 `.git/HEAD`（`checkpoints/git-head.ts`，worktree / 子模块的 gitdir 文件、
  *   packed-refs 都认）；detached 时没有分支只显示短提交；还没有提交的分支只显示分支名。

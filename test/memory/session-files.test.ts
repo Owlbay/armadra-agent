@@ -1,5 +1,5 @@
 /**
- * 会话文件流式读取的内存回归（docs/memory-plan.md D6、D13、[M-C] 测试 2）：24 MB 会话（中文文本 + 2 张
+ * 会话文件流式读取的内存回归（docs/history/memory-plan.md D6、D13、[M-C] 测试 2）：24 MB 会话（中文文本 + 2 张
  * 1 MB 图）上，`listSessionItems` 不留增长、读的过程中不出现整文件大小的字符串 / Buffer；
  * `readSessionLines` 只留解析出的条目（与旧实现相同），过程中不再有整文件 Buffer。
  *

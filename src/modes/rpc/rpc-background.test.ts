@@ -1,5 +1,5 @@
 /**
- * [W7-B2] RPC `background_task`（docs/agents-concurrency-plan.md §2.5）：黄金记录 background.out.jsonl——前台
+ * [W7-B2] RPC `background_task`（docs/history/agents-concurrency-plan.md §2.5）：黄金记录 background.out.jsonl——前台
  * task 运行中转后台 → 工具调用立即返回固定文本、`subagent_background`，父继续；任务结束后 `subagent_end` 与
  * `origin: "task"` 的通知回合。fake 供应商父子共用一份脚本：子会话的首个请求带延迟，父阻塞在前台 task 上，
  * 请求先后因此确定。

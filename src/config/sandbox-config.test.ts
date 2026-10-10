@@ -1,4 +1,4 @@
-/** `sandbox` 配置段（docs/sandbox.md「配置」）：校验与项目级限制。 */
+/** `sandbox` 配置段（docs/guides/sandbox.md「配置」）：校验与项目级限制。 */
 
 import { describe, expect, it } from "vitest";
 import { buildConfigJsonSchema } from "./json-schema.js";

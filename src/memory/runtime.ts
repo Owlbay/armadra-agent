@@ -1,5 +1,5 @@
 /**
- * 一次运行的记忆状态（docs/wave6-plan.md §3）。[W6-M]
+ * 一次运行的记忆状态（docs/history/wave6-plan.md §3）。[W6-M]
  *
  * 组装根（cli/compose-memory.ts）在 `memory.enabled` 时建一个，交给工具（tool.ts）、系统节与 `/memory`。
  * 没开启时根本不建：不读盘、不注册工具、不渲染节（请求体逐字节不变）。

@@ -117,8 +117,16 @@ describe("release-check 规则", () => {
   });
 });
 
-const EN_DOCS = ["tui", "permissions", "providers", "rpc", "host-api", "sessions", "acp"];
-const PACKAGE_FILES = ["docs/en/*.md", "README.zh-CN.md", "CHANGELOG.md", "CHANGELOG.zh-CN.md"];
+const EN_DOCS = [
+  "guides/tui",
+  "guides/permissions",
+  "guides/providers",
+  "reference/rpc",
+  "reference/host-api",
+  "guides/sessions",
+  "reference/acp",
+];
+const PACKAGE_FILES = ["docs/en", "README.zh-CN.md", "CHANGELOG.md", "CHANGELOG.zh-CN.md"];
 
 /** 合格的双语文档（CHANGELOG 两份都有该版本段）。 */
 function docFixture(version: string): Record<string, string> {
@@ -181,7 +189,7 @@ describe("release-check 双语文档（第六波 §5.5）", () => {
   it("缺文件、files 漏列、顶部没有互链 → 报错", async () => {
     const { checkDocs } = await load();
     const docs: Record<string, string | undefined> = docFixture("0.6.0");
-    docs["docs/en/rpc.md"] = undefined;
+    docs["docs/en/reference/rpc.md"] = undefined;
     docs["README.zh-CN.md"] = "# ama\n";
     const result = checkDocs({
       version: "0.6.0",
@@ -189,7 +197,7 @@ describe("release-check 双语文档（第六波 §5.5）", () => {
       packageFiles: ["README.zh-CN.md", "CHANGELOG.md"],
     });
     expect(result.errors).toEqual([
-      "缺少 docs/en/rpc.md",
+      "缺少 docs/en/reference/rpc.md",
       "package.json files 没有包含 CHANGELOG.zh-CN.md",
       ...EN_DOCS.map((name) => `package.json files 没有包含 docs/en/${name}.md`),
       "README.zh-CN.md 顶部缺少到 README.md 的链接",
@@ -209,6 +217,8 @@ describe("release-check 双语文档（第六波 §5.5）", () => {
     expect(filesEntryCovers("./docs/en/", "docs/en/rpc.md")).toBe(true);
     expect(filesEntryCovers("docs/*.md", "docs/en/rpc.md")).toBe(false);
     expect(filesEntryCovers("docs/**", "docs/en/rpc.md")).toBe(true);
+    expect(filesEntryCovers("docs/en/*.md", "docs/en/reference/rpc.md")).toBe(false);
+    expect(filesEntryCovers("docs/en/**/*.md", "docs/en/reference/rpc.md")).toBe(true);
   });
 });
 

@@ -1,5 +1,5 @@
 /**
- * 消息目录：interactive 的消息区部分（键名规范见 docs/i18n.md）。[W6-I2]
+ * 消息目录：interactive 的消息区部分（键名规范见 docs/guides/i18n.md）。[W6-I2]
  *
  * 单文件 600 行上限，`interactive.ts` 拆出：消息区（`message-view.ts`）、运行指示（`run-indicator.ts`）、
  * 工具摘要与工具块（`tool-summary.ts`、`tool-view.ts`）。经 `msg().interactive.view` 取用。

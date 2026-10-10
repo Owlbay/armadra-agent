@@ -1,5 +1,5 @@
 /**
- * `memory` 工具（docs/wave6-plan.md §3.3、D10）：命令分派、子会话与 /memory off 的执行层拒绝、错误给模型的英文说明。
+ * `memory` 工具（docs/history/wave6-plan.md §3.3、D10）：命令分派、子会话与 /memory off 的执行层拒绝、错误给模型的英文说明。
  */
 
 import { mkdtempSync, realpathSync, rmSync } from "node:fs";

@@ -1,5 +1,5 @@
 /**
- * Settings registry (docs/wave6-plan.md §6.1, D24-D26). [W6-S]
+ * Settings registry (docs/history/wave6-plan.md §6.1, D24-D26). [W6-S]
  *
  * One row per key that the `/config` panel and `ama config set` treat as a scalar setting: group, apply
  * tier (now / next session / restart), whether it changes the cache prefix, project-level writability

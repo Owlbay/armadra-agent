@@ -14,7 +14,7 @@
 7. **命令行**：`ama config get <key>`、`set <key> <value>`、`unset <key>`、`list [--json] [前缀]`，`--project` 写项目级；值按 schema 类型解析（`true/false`、数字、枚举、`--json` 传数组/对象）；非法值、项目级放宽一律非零退出（`ExitCode.Config`=3）。`config edit` 保留为「整文件编辑」逃生口。
 8. **RPC / SDK 暂不暴露写入**：嵌入宿主（Armadra）走 profile，宿主不应改用户的全局配置；只考虑以后加只读 `get_config`。
 9. **i18n**：面板标签、分组名、生效档提示放 `i18n/messages/config.ts`；键说明来自 `key-docs`，按 R8 的 D4 方案「schema 固定英文、`ama config show`/面板走 locale」。本批**依赖 R8 B0（`msg()` 与 `ui.language`）先合**，`ui.language` 由 B0 加入后面板自动出现。
-10. **文件所有权**：本批新增文件为主，只在 `commands-core.ts`、`interactive/commands.ts`、`interactive-mode.ts`、`cli/subcommands/config.ts`、`docs/tui.md` 各加少量接线；不碰 `key-docs.ts` 的文案（归 R8 B4）、不碰 Agent 栏 / 子 Agent 视图 / `/trace` / Memory / 登录的文件。
+10. **文件所有权**：本批新增文件为主，只在 `commands-core.ts`、`interactive/commands.ts`、`interactive-mode.ts`、`cli/subcommands/config.ts`、`docs/guides/tui.md` 各加少量接线；不碰 `key-docs.ts` 的文案（归 R8 B4）、不碰 Agent 栏 / 子 Agent 视图 / `/trace` / Memory / 登录的文件。
 
 ---
 
@@ -208,7 +208,7 @@ ama config show / path / edit                  保持现状
 ### 3.5 RPC / SDK
 
 - 不加 `set_config`：Armadra 等宿主以 profile 控制嵌入实例，宿主不该写用户全局文件；面板在 profile 模式下仍可用（写用户级），但 profile 覆盖的项显示锁定。
-- 可选（后续）：只读 `get_config`（生效值 + 来源，`apiKey` 只给种类），契约要进 `docs/rpc.md`。
+- 可选（后续）：只读 `get_config`（生效值 + 来源，`apiKey` 只给种类），契约要进 `docs/reference/rpc.md`。
 - SDK 已有 `CreateSessionOptions.config`（sdk.ts:185）作内存覆盖，不需要写盘接口；`edit.ts` 的函数可以从 `@armadra/agent` 导出给二次开发用，但不进本批。
 
 ### 3.6 i18n
@@ -241,7 +241,7 @@ ama config show / path / edit                  保持现状
 - `src/modes/interactive/interactive-mode.ts`：注入 `ConfigApplier`（拿到 view / loader / area / theme / session）；`MessageView`、`Loader`、`StatusArea` 各加一个 setter（各自文件里几行）。
 - `src/tui/theme.ts`：`PaletteTheme` 加就地换调色板。
 - `src/cli/runtime.ts`：`replaceConfig()`；`src/cli/subcommands/config.ts`：用法串与分派加四个子命令，抽出 flatten / 来源判定给 `edit.ts` 复用；`src/cli/main.ts` 只读名单。
-- `docs/tui.md`（「配置与排错」节加 `/config`）、`docs/providers.md` 或 README 的 `ama config` 用法。
+- `docs/guides/tui.md`（「配置与排错」节加 `/config`）、`docs/guides/providers.md` 或 README 的 `ama config` 用法。
 
 **避开**：`agent-ui.ts`、`agent-panels.ts`、`subagent-view.ts`、`status-bar.ts`/`status-line.ts`（Agent 栏 / 子 Agent 视图批次）；`/trace` 相关新文件；Memory 的 `memory/**` 与其配置键（Memory 批次在 `types-w5`/`schema-w5`/`key-docs` 加键后，自己在 `settings-registry.ts` 追加一行）；`cli/subcommands/auth.ts`（ChatGPT 登录）；`key-docs.ts` 的说明文字（R8 B4）——本批**不新增配置键**，因此不碰 `types.ts`/`schema.ts`/`json-schema.ts`。
 **顺序**：R8 B0 → 本批；与 R8 B2（`modes/interactive/**`）在 `commands.ts`、`interactive-mode.ts` 有交集，建议本批先合或 B2 把这两个文件留到最后。

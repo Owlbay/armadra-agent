@@ -1,5 +1,5 @@
 /**
- * 模型侧隔离守卫（docs/wave6-plan.md §5.4、D18）。[W6-C0]
+ * 模型侧隔离守卫（docs/history/wave6-plan.md §5.4、D18）。[W6-C0]
  *
  * 给模型的文本固定英文、与界面语言无关：下列模块（系统提示、工具描述与结果、Plan 提示、内置子 Agent、
  * Skill、压缩、codemode 声明、Memory 工具）不得 import `src/i18n`。需要给人看的提示请返回码 / 结构，

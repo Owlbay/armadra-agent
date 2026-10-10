@@ -220,7 +220,7 @@ export function finishError(
 }
 
 /**
- * 供应商以安全理由拒答（Anthropic `stop_reason: "refusal"`，docs/acp-plan.md D12）：消息照旧以
+ * 供应商以安全理由拒答（Anthropic `stop_reason: "refusal"`，docs/history/acp-plan.md D12）：消息照旧以
  * `error` 收尾（TUI / print / 重试的口径不变），`rawStopReason` 记原值；需要区分的消费者（ACP 的
  * `refusal` 停止原因）用 {@link stopReasonOf}。这是 `refusal` 的唯一映射处。[ACP-B]
  */

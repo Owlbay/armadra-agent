@@ -1,5 +1,5 @@
 /**
- * 可选的图片缩放（docs/wave5-plan.md §4、D12）。[W5-I]
+ * 可选的图片缩放（docs/history/wave5-plan.md §4、D12）。[W5-I]
  *
  * 零依赖不能解码像素，只能调系统工具：macOS 依次试 `sips`、`magick`、`convert`；Linux 试
  * `magick`、`convert`；Windows 只试 `magick`（`convert.exe` 是系统的磁盘转换工具）。都没有就返回

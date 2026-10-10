@@ -1,5 +1,5 @@
 /**
- * 会话文件流式读取（docs/memory-plan.md D6、[M-C]）的比对参照：改造前的整读实现原样保留在这里，
+ * 会话文件流式读取（docs/history/memory-plan.md D6、[M-C]）的比对参照：改造前的整读实现原样保留在这里，
  * 新实现的测试拿它对 test/fixtures 下全部 `.jsonl` 做口径比对。只给测试用。
  */
 

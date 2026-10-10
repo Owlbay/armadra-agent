@@ -1,5 +1,5 @@
 /**
- * `ama --mode acp`：ama 的会话事件 → ACP `session/update`（docs/wave5-plan.md §5.6、docs/acp-plan.md §2.3）。
+ * `ama --mode acp`：ama 的会话事件 → ACP `session/update`（docs/history/wave5-plan.md §5.6、docs/history/acp-plan.md §2.3）。
  *
  * | ama                                       | ACP                                                              |
  * | ----------------------------------------- | ---------------------------------------------------------------- |

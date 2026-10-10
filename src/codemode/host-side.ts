@@ -3,7 +3,7 @@
  *
  * - 命令行：`<node> --max-old-space-size=<MB> --permission --allow-fs-read=<入口>
  *   --disallow-code-generation-from-strings <入口> --ama-codemode-sandbox`；堆上限取 `codemode.maxHeapMb`
- *   （缺省 256，0 不加），超出时子进程 OOM 退出，映射为脚本错误（docs/memory-plan.md D10）；Node 22.0–22.12 用 `--experimental-permission`。不授予文件写、
+ *   （缺省 256，0 不加），超出时子进程 OOM 退出，映射为脚本错误（docs/history/memory-plan.md D10）；Node 22.0–22.12 用 `--experimental-permission`。不授予文件写、
  *   子进程、worker、addon、inspector 权限；以空环境启动（拿不到密钥与会话路径）；嵌入 Electron
  *   时设 `ELECTRON_RUN_AS_NODE=1` 运行同一可执行文件。
  * - 入口：bundle 里是 ama.cjs 同目录的 `ama-sandbox.cjs`（构建脚本定义 `__AMA_SANDBOX_ENTRY__`）；
@@ -13,7 +13,7 @@
  *   （完整门禁）；名字是 `codemode` 直接拒绝。脚本结束时 abort 仍在跑的调用。
  * - 超时：父进程计时，到点杀子进程树（POSIX 进程组 / Windows taskkill）；外层 abort：先发
  *   `abort`，宽限后杀树。
- * - OS 沙箱（docs/sandbox.md）：有可用的 sandbox-exec / bwrap / unshare 时，整条命令行经它启动，拒绝
+ * - OS 沙箱（docs/guides/sandbox.md）：有可用的 sandbox-exec / bwrap / unshare 时，整条命令行经它启动，拒绝
  *   网络与一切写入（`CODEMODE_OS_POLICY`；子进程本来就没有写权限）。Node 22 / 24 的 strict 依赖这一层
  *   （`requireOsSandbox`），包装不了就报错，不裸跑；Node ≥ 25 是叠加的纵深防御。
  */

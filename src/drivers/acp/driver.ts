@@ -1,5 +1,5 @@
 /**
- * AcpDriver：经 ACP 驱动外部 Agent（docs/wave5-plan.md §5.1–§5.2，D14）。[W5-E]
+ * AcpDriver：经 ACP 驱动外部 Agent（docs/history/wave5-plan.md §5.1–§5.2，D14）。[W5-E]
  *
  * open：起进程 → `initialize` → 续聊优先 `session/resume`（不回放），其次 `session/load`
  * （回放的历史通知在 open 期间丢弃），都不支持则新开并发 notice「已新开」→ 按 ama 模式

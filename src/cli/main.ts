@@ -15,7 +15,7 @@
  * - 签名 `main(argv): Promise<number>` 与「直接执行才自动运行」判定保持不变：
  *   src/bundle.ts 显式调用 `main()`。
  * - [W6-C0] 界面语言在解析参数后、任何输出前定一次：`AMA_LANG` > `--lang` > 用户级 `ui.language` >
- *   `LC_ALL` / `LC_MESSAGES` / `LANG`（docs/i18n.md）；profile / 项目级的 `ui.language` 由 bootstrap 合并后补定。
+ *   `LC_ALL` / `LC_MESSAGES` / `LANG`（docs/guides/i18n.md）；profile / 项目级的 `ui.language` 由 bootstrap 合并后补定。
  */
 
 import { fstatSync, readFileSync, realpathSync } from "node:fs";

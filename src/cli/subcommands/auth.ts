@@ -1,6 +1,6 @@
 /**
  * `ama auth set|list|remove <provider>`（设计 §3.5、§16.2 B5 验收）。[B5]
- * `ama auth login|logout|status chatgpt`（docs/wave6-plan.md §4.2）。[W6-O] 实现在 auth/chatgpt/cli.ts。
+ * `ama auth login|logout|status chatgpt`（docs/history/wave6-plan.md §4.2）。[W6-O] 实现在 auth/chatgpt/cli.ts。
  *
  * - set：key 从 stdin 读取（TTY 下不回显），不经命令行参数，避免进 shell 历史；写 auth.json 0600。
  *   [ACP-A] 不给 provider 且 stdin 是 TTY 时先用方向键选内置的需 key 供应商（ACP 终端登录方法

@@ -15,7 +15,7 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 - **ACP adapters no longer stay in a looser mode**: explicit mode maps for claude-agent-acp (`auto-edit` → `acceptEdits`, `full-auto` → `auto`, so a user default of `bypassPermissions` is replaced), codex-acp (`plan` / `default` → `read-only`, `auto-edit` → `workspace-write`, `auto` / `full-auto` → `agent`; `plan` used to refuse to start) and Copilot (URL mode ids `…#plan` / `…#agent`). Modes that open every permission are never chosen (#198).
 - **`model` reaches ACP agents**: `agents.<id>.model` and the `task` `model` argument are now applied through the agent's `model` session config option (matched by value, name, or the model part of `provider/model`); when nothing matches you get a notice and the agent's default model (#198).
 - **Usage numbers corrected**: Codex (app-server and `exec`) and Copilot report input tokens including cache hits, and Copilot's ACP usage is a session total; ama now subtracts the cached part and takes per-turn differences, so totals no longer count cache reads twice. Claude stream-json now reports context occupancy and window like the other drivers (#198).
-- **Verified ranges updated** after a real-CLI audit on 2026-10-10: claude-agent-acp 0.89, codex-acp 2.2, Copilot 1.0.95, OpenCode 1.18, pi 1.1; capability matrix in docs/agents.md, numbers in docs/benchmarks/external-agents-2026-10.md (#198).
+- **Verified ranges updated** after a real-CLI audit on 2026-10-10: claude-agent-acp 0.89, codex-acp 2.2, Copilot 1.0.95, OpenCode 1.18, pi 1.1; capability matrix in docs/guides/agents.md, numbers in docs/benchmarks/external-agents-2026-10.md (#198).
 - **`model_unavailable` for ChatGPT models the account cannot use**: a codex-backend 400 "model is not supported when using Codex with a ChatGPT account" now fails with `model_unavailable` and tells you to refresh the list with `ama models discover chatgpt` (the backend withdrew `gpt-6-astra`, which an older discovery cache still listed) (#198).
 
 ## 0.7.6 (2026-10-10)
@@ -30,7 +30,7 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 ### Sessions
 
 - **Unreadable session images are reported**: when a downgraded image cannot be read back because the session file was changed by another process, the warning now reaches the session log (`ama: [warn] cannot read session entry …` on stderr, filtered by `AMA_LOG`; a notice in the TUI) instead of being dropped. Warnings raised while the file is being opened are buffered and shown once the session is ready (at most 16, the rest counted); the source session of `--fork` reports through the same log.
-- **`subagents.forkMaxContextRatio`**: the share of (window − `compaction.reserveTokens`) above which a fork sub-agent falls back to fresh is now configurable (0.05–0.95, default 0.5, user level only). Built-in types, `general` included, stay fresh by default; docs/agents.md explains the per-turn cost of re-reading the parent context.
+- **`subagents.forkMaxContextRatio`**: the share of (window − `compaction.reserveTokens`) above which a fork sub-agent falls back to fresh is now configurable (0.05–0.95, default 0.5, user level only). Built-in types, `general` included, stay fresh by default; docs/guides/agents.md explains the per-turn cost of re-reading the parent context.
 - **Fork sub-agents are told `task` / `task_ctl` are unavailable**: the `<task>` message now lists them and asks not to call them (they stay in the tool list and are still rejected by depth). In two DeepSeek retests the sub-agent still made one rejected `task` call each time.
 - **Background fork tasks report their mode right away**: the `running` result of a background `task` now carries `details.context` (`fork` / `fresh`) once the mode is known; a queued task or one waiting for its worktree still gets it later in `TaskInfo.context`.
 - **Background `bash` job output fits the session result limit in one cut**: `{job, action: "wait" | "output" | "stop"}` now tail-truncates to the same byte limit as foreground `bash` (50 KB or `maxToolResultChars` − 512, whichever is smaller) instead of a fixed 2000 lines / 50 KB that the session then cut again in the middle; the note still gives the shown line count and `Full output: <path>`.
@@ -56,7 +56,7 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 
 ### Model efficiency
 
-Fewer full-price re-reads of the prompt prefix and fewer failed requests (docs/model-efficiency-plan.md; measurements in docs/benchmarks/efficiency-2026-10.md). Grouped by area: sub-agents, prompt prefix and compaction, the request layer, then catalog and tools.
+Fewer full-price re-reads of the prompt prefix and fewer failed requests (docs/history/model-efficiency-plan.md; measurements in docs/benchmarks/efficiency-2026-10.md). Grouped by area: sub-agents, prompt prefix and compaction, the request layer, then catalog and tools.
 
 - **Fork-style sub-agents** (`task.context: "fork"`, or `context: fork` in an agent definition; default stays `fresh`): the sub-agent inherits the conversation up to the `task` call, with the same system prompt and tool table as the parent, so its first request reuses the parent's cached prefix (measured on relays: Kimi 97.5% cached, DeepSeek the same as the parent's own next turn). Type tool limits are enforced at execution time instead of changing the tool table. Falls back to `fresh` (logged, `details.context` and `TaskInfo.context` show the actual mode) when another model or thinking level is requested, the parent has not sent a request yet, or the parent context exceeds half of the usable window. The turn-limit final round no longer sends `toolChoice: "none"`, which broke the cached prefix; the report prompt alone asks for no tools.
 - **The head of the prompt is written once per session**: compaction no longer folds mid-session system patches back into the leading system prompt — the checkpoint replays only what was sent before the conversation started and later patches follow the summary as a `<system-reminder>`, so the first request after compaction has the same system + tools bytes as before. Removing a tool mid-session keeps its declaration in the tool table, adds a reminder that it is no longer available and rejects calls with `Tool "X" is not available in this session.` (also the text for unknown tools, which used to be `Tool X not found`); adding it back only says it is available again. The reminder's closing sentence now also mentions tool availability notes.
@@ -74,7 +74,7 @@ Fewer full-price re-reads of the prompt prefix and fewer failed requests (docs/m
 
 ### Memory footprint
 
-Lower peaks with large inputs and long sessions, and closed ACP sessions are freed (docs/memory-plan.md; report in docs/research/memory-2026-10.md, before / after measurements in docs/benchmarks/memory-2026-10.md). Grouped by area: large files and sessions, requests and images, protocol modes, then distribution and limits. Session files, request bytes and tool output are unchanged.
+Lower peaks with large inputs and long sessions, and closed ACP sessions are freed (docs/history/memory-plan.md; report in docs/research/memory-2026-10.md, before / after measurements in docs/benchmarks/memory-2026-10.md). Grouped by area: large files and sessions, requests and images, protocol modes, then distribution and limits. Session files, request bytes and tool output are unchanged.
 
 - **`read` on large files no longer loads the whole file**: text files over 1 MiB are scanned in 64 KiB blocks and only the lines being shown are decoded; reading 100 lines of a 256 MB file peaks at about 103 MB instead of 775 MB. Output (line numbers, total line count, truncation notes) is byte-for-byte the same.
 - **Session list and resume no longer read whole files**: session files are read line by line in chunks. `ama sessions list` (and the resume picker and ACP `session/list`, which share it) only parses each file's header, first entry, renames and first prompt — 4 × 55 MB sessions: about 540 → 88 MB; `--resume` parses line by line without a whole-file string and split array — 55 MB session: about 300 → 218 MB. The listed fields are unchanged.
@@ -132,7 +132,7 @@ Lower peaks with large inputs and long sessions, and closed ACP sessions are fre
   prompt and tool declarations that are about to be sent (stats only; nothing is written to the session and the request
   body is unchanged), so a new session no longer shows `Ctx 0.0%`. `SessionStats.context` (`getStats()`, RPC
   `get_session_stats`) tells where the number comes from (`usage` / `estimate` / `prefix`) and carries the
-  auto-compaction thresholds `autoCompactAt` / `pruneAt`; absent fields mean "unknown" (docs/sessions.md).
+  auto-compaction thresholds `autoCompactAt` / `pruneAt`; absent fields mean "unknown" (docs/guides/sessions.md).
 - **Status bar**: `full` shows `Ctx 3.0% 8.2k/272k auto` (used / window, `auto` while auto-compaction is on; narrow
   screens drop `auto`, then `/window`, then the used tokens); estimates get a leading `≈`; the warning color starts at
   the tier-one pruning threshold; `compact` keeps one decimal below 1%. Ctx refreshes right after a message is submitted
@@ -159,7 +159,7 @@ Lower peaks with large inputs and long sessions, and closed ACP sessions are fre
 ## 0.7.0 (2026-10-04)
 
 ACP completion: `ama --mode acp` as an agent for editors (Zed and other ACP clients) and `AcpClient` / `AcpDriver` as a
-client, checked in-repo against the official ACP v1 schema 1.24.1. Docs: docs/acp.md (English: docs/en/acp.md).
+client, checked in-repo against the official ACP v1 schema 1.24.1. Docs: docs/reference/acp.md (English: docs/en/reference/acp.md).
 
 - **No model, no exit**: without a model `ama --mode acp` no longer exits with code 4. It answers `initialize` (two
   terminal auth methods when the client declares `clientCapabilities.auth.terminal`: their `args`,
@@ -205,7 +205,7 @@ client, checked in-repo against the official ACP v1 schema 1.24.1. Docs: docs/ac
   withdrawing a pending permission request closes the approval and answers `cancelled`. `AcpDriver` falls back to a
   `mode`-category config option when an agent has no `modes`, reports -32000 as `agent_auth_required` listing the
   agent's auth methods (terminal ones with the command to run), treats -32800 after a cancel as `cancelled`, and counts
-  `diff` paths in `filesTouched`. Docs: docs/agents.md.
+  `diff` paths in `filesTouched`. Docs: docs/guides/agents.md.
 - **Types and tests**: the ACP types gain `authenticate`, `$/cancel_request`, -32800, terminal auth methods, client
   `session` / `auth` capabilities, tool call `name` / `_meta`, `config_option_update` and `ACP_META_KEY` (exported from
   `@armadra/agent/acp`); the prompt `usage` is marked UNSTABLE; select config options are either all flat or all grouped
@@ -224,14 +224,14 @@ client, checked in-repo against the official ACP v1 schema 1.24.1. Docs: docs/ac
   to `accept` / `decline` / `cancel`; pending ones resolve `cancel` on `cancel(sessionId)` or connection close). New
   `setConfigOption(sessionId, configId, value)` and `configOptions` on session-open results. `AcpClient.features` gains
   `elicitation` and `configOptions`. Without a handler the wire is unchanged. The fake ACP agent adds `[elicit]`, `[model]`
-  and `[env NAME]` markers and `--config-options`. Docs: docs/acp.md.
+  and `[env NAME]` markers and `--config-options`. Docs: docs/reference/acp.md.
 
 ## 0.6.7 (2026-10-03)
 
 - **A host runner with id `ama` is used**: when the host registers a runner for `ama` via `HostApi.runners.provide`
   (for example another ama node on an Armadra canvas), `task(agent="ama")` now goes to it instead of being unknown; without
   one nothing changes, and the built-in types (`general` / `explore` / `plan`) are always ama sub-sessions. Docs:
-  docs/agents.md.
+  docs/guides/agents.md.
 
 ## 0.6.6 (2026-10-03)
 
@@ -242,15 +242,15 @@ client, checked in-repo against the official ACP v1 schema 1.24.1. Docs: docs/ac
   (e.g. `pattern "src/*"`), otherwise a file inside it. In `-p` with the `minimal` / `coordinator` preset, a denied bash
   `grep` / `rg` / `find` adds one stderr line on how to bring the tools back (`tools.default: ["+grep","+glob"]`). Tools
   get the session's active tool set as the optional, read-only `ToolContext.activeTools`. This changes the `default`
-  prefix (about +35 tokens), so the first request after upgrading misses the cache once. Docs: docs/design.md §5.6,
-  docs/codemode.md.
+  prefix (about +35 tokens), so the first request after upgrading misses the cache once. Docs: docs/design/design.md §5.6,
+  docs/guides/codemode.md.
 
 ## 0.6.5 (2026-10-03)
 
 - **`AcpClient` can pass MCP servers when opening a session**: `newSession`, `resumeSession` and `loadSession` take an
   optional third argument `{ mcpServers }` that is forwarded as-is in `session/new|resume|load` (default still `[]`, the
   wire is unchanged when it is omitted). `AcpClient.features.mcpServers` lets a host detect support. ama itself still
-  sends none. Docs: docs/acp.md "As a client".
+  sends none. Docs: docs/reference/acp.md "As a client".
 
 ## 0.6.4 (2026-10-03)
 
@@ -264,7 +264,7 @@ client, checked in-repo against the official ACP v1 schema 1.24.1. Docs: docs/ac
   external agent is interrupted when its driver can cancel a single turn (ACP, Claude stream-json, Codex) and otherwise the
   message is queued with a hint. Line mode accepts `/interrupt <text>`; RPC `prompt` / `steer` and the SDK take
   `interrupt: true`. The new request keeps the interrupted request as its prefix, so the cache keeps hitting. Docs:
-  docs/tui.md, docs/rpc.md.
+  docs/guides/tui.md, docs/reference/rpc.md.
 - **Status line split into sides; quota labels fixed**: the `full` layout now keeps state and switches on the left and
   metrics and the model on the right. The rate line's left side holds `codemode on` (with `net!`) · sandbox · preset ·
   `→ fallback model` · queue count · host status, and its right side `tps … (avg · ttft) · ↑ ↓ · cache · re-billing · [-]`;
@@ -272,7 +272,7 @@ client, checked in-repo against the official ACP v1 schema 1.24.1. Docs: docs/ac
   narrow, right-side metrics drop before left-side switches; the permission mode, `tps` and `[-]` never drop; the
   single-line `compact` layout keeps its token order. Quota labels follow the window length: a weekly window sent as
   primary reads `Weekly` instead of `7d:`, and the 5-hour window comes first; the all-zero "no such window" the server
-  sends is no longer rendered as `0d: 0.0%` (filtered both when parsing and when rendering). Docs: docs/tui.md.
+  sends is no longer rendered as `0d: 0.0%` (filtered both when parsing and when rendering). Docs: docs/guides/tui.md.
 
 ## 0.6.3 (2026-10-03)
 
@@ -285,7 +285,7 @@ client, checked in-repo against the official ACP v1 schema 1.24.1. Docs: docs/ac
   line (line mode too). Esc interrupts only the foreground and says which background tasks keep running. Approvals of
   background tasks no longer pop up while the main session is busy or the input box has a draft: they dock in the agent bar
   ("needs approval", running line `↓ handle approval`) and pop up once the main session is idle with an empty input, or
-  when you open that task's view; approvals of the main session and of foreground tasks are unchanged. Docs: docs/tui.md.
+  when you open that task's view; approvals of the main session and of foreground tasks are unchanged. Docs: docs/guides/tui.md.
 - **Background sub-agents: config, `-p` and RPC**: new `subagents.background: "auto" | "always" | "never"` (default auto:
   task runs in the background by default in the TUI / RPC / ACP and in the foreground with `-p`; the call argument and the
   agent type's `background:` take precedence) and `subagents.autoBackgroundAfterMs` (move a foreground task to the background
@@ -293,7 +293,7 @@ client, checked in-repo against the official ACP v1 schema 1.24.1. Docs: docs/ac
   tasks are still running after the main turn, `-p` prints one stderr line and waits for them and their notification turns
   before printing the result (bounded by `--max-turns` / `--max-cost`, exit 8 at the limit; Ctrl+C still stops); the json
   result carries `tasks`. RPC adds `background_task { taskId? }` → `{ backgrounded }` and the `subagent_background` event
-  (44 commands), and the SDK `session.backgroundTask(taskId?)`. Docs: docs/agents.md, docs/rpc.md.
+  (44 commands), and the SDK `session.backgroundTask(taskId?)`. Docs: docs/guides/agents.md, docs/reference/rpc.md.
 - **Agent bar is reachable again**: `↓` on an empty input is now the only default key into the agent bar and works whenever
   the session has tasks, even after the bar collapsed (it used to require the bar to be visible). `Ctrl+B` no longer enters
   the bar (tmux's default prefix swallowed it); it is reserved for moving foreground tasks to the background and still moves
@@ -327,7 +327,7 @@ client, checked in-repo against the official ACP v1 schema 1.24.1. Docs: docs/ac
   placeholder until the first request, siwc without data and non-subscription models show nothing). `compact` only appends a
   short `5h 10% wk 31%` item at the end, keeping the existing order. The `full` lines are recolored after the reference (dim
   labels; purple rates, durations and reset times; blue model, thinking level and amounts; green directory and branch; yellow
-  cost; threshold-colored percentages), and the branch shows `↑N` / `↓N` ahead of / behind its upstream. Docs: docs/tui.md
+  cost; threshold-colored percentages), and the branch shows `↑N` / `↓N` ahead of / behind its upstream. Docs: docs/guides/tui.md
   "Layout".
 - **Startup header with an AMA logo and a short light-up animation**: the boxed info block is replaced by a 5-row "AMA" logo
   (block characters, colored letter by letter with the theme's accent → user → tool; a `_ / \ |` version in ASCII mode) with
@@ -335,7 +335,7 @@ client, checked in-repo against the official ACP v1 schema 1.24.1. Docs: docs/ac
   two-line header is shown. On startup a one-off sweep of about a second lights the logo up and settles in place, leaving no
   frames in the scrollback; any key settles it at once and still reaches the input box. It does not play with
   `ui.animation: false`, without colors, outside a TTY, in an embedding host, under `CI`, with a command-line prompt or in a
-  short terminal. New `ui.logo: "auto" | "off"` (off shows only the info lines). Docs: docs/en/tui.md "Startup screen".
+  short terminal. New `ui.logo: "auto" | "off"` (off shows only the info lines). Docs: docs/en/guides/tui.md "Startup screen".
 
 ## 0.6.2 (2026-10-03)
 
@@ -352,7 +352,7 @@ client, checked in-repo against the official ACP v1 schema 1.24.1. Docs: docs/ac
   lists the likely causes (plan, workspace account, region or preview rollout — the most likely one for Pro accounts) and
   suggests `--flavor codex`; a siwc login notes that eligibility is only confirmed on the first request. Also fixed: an
   unlisted slug with an explicit `@channel` (`chatgpt/<slug>@siwc`) kept the default channel's endpoint. Docs:
-  docs/en/providers.md "ChatGPT login".
+  docs/en/guides/providers.md "ChatGPT login".
 
 ## 0.6.1 (2026-10-03)
 
@@ -366,7 +366,7 @@ client, checked in-repo against the official ACP v1 schema 1.24.1. Docs: docs/ac
   (read-only, no usage) into `<dataDir>/models/discovered/chatgpt.json`, `ama models discover chatgpt` rewrites it and
   logout deletes it; the registry merges the cache into providers with an empty model table, so ChatGPT models appear in
   `/model` and `ama models list`. Note: with only a ChatGPT sign-in and no `defaultModel`, the first cached ChatGPT model can
-  now be chosen as the default model. Docs: docs/en/tui.md, docs/en/providers.md "ChatGPT login".
+  now be chosen as the default model. Docs: docs/en/guides/tui.md, docs/en/guides/providers.md "ChatGPT login".
 
 - **`ama auth login chatgpt` explains a refused sign-in**: when the OAuth callback carries `error=access_denied` (or another
   error) the message now lists the likely causes (the authorization page was cancelled or plan usage was not checked; the
@@ -383,7 +383,7 @@ client, checked in-repo against the official ACP v1 schema 1.24.1. Docs: docs/ac
 ## 0.6.0 (2026-10-03)
 
 Wave 6: the agent bar and sub-agent view, traces, memory, ChatGPT login, the `/config` settings panel, and a bilingual
-(Chinese / English) interface. The design and decision table are in docs/wave6-plan.md; current docs per topic are linked below.
+(Chinese / English) interface. The design and decision table are in docs/history/wave6-plan.md; current docs per topic are linked below.
 
 ### Breaking changes and upgrade notes
 
@@ -420,7 +420,7 @@ Wave 6: the agent bar and sub-agent view, traces, memory, ChatGPT login, the `/c
 
 ### Agent bar and sub-agent view
 
-- **Agent bar** ([docs/en/tui.md](docs/en/tui.md) "Agent bar"): sub-agent tasks are listed above the status line (queued /
+- **Agent bar** ([docs/en/guides/tui.md](docs/en/guides/tui.md) "Agent bar"): sub-agent tasks are listed above the status line (queued /
   running · elapsed · turns · latest tool / awaiting approval / done / failed / stopped), at most 3 lines plus "N more"; finished
   tasks stay until viewed, at most 10 minutes. Enter it with `Ctrl+B` or `↓` on an empty input (key action `app.agents.focus`;
   with text `Ctrl+B` still moves the cursor left; use `↓` in tmux), ↑↓ to select, Enter to open. Hidden by default in embedding
@@ -436,23 +436,23 @@ Wave 6: the agent bar and sub-agent view, traces, memory, ChatGPT login, the `/c
 - **Timing on disk**: every model request records an `ama.trace` entry (time to first token, decode, tools, retry waits,
   fallbacks, compaction, auxiliary requests); sub-sessions measure time to first token and throughput too. Ids, times and counts
   only, no content.
-- **`/trace`** ([docs/en/tui.md](docs/en/tui.md) "Traces"): turn → request → tool → sub-call / sub-agent, each row with duration,
+- **`/trace`** ([docs/en/guides/tui.md](docs/en/guides/tui.md) "Traces"): turn → request → tool → sub-call / sub-agent, each row with duration,
   TTFT / decode / tool bars, tokens and cache hits; Enter for details; sub-agents expand into their sub-sessions; long sessions
   load from the tail and follow while running; `/trace <task id>` for one task; line mode prints a text tree. Older sessions
   without timing records are estimated from entry times and marked `≈`, without changing the session file.
-- **`ama sessions trace <id|file>`** ([docs/en/sessions.md](docs/en/sessions.md) "Traces"): exports a self-contained single-file
+- **`ama sessions trace <id|file>`** ([docs/en/guides/sessions.md](docs/en/guides/sessions.md) "Traces"): exports a self-contained single-file
   HTML page (tree + waterfall, TTFT / decode / tool colors, nested sub-agents and external agents, search, jump to turn, zoom,
   details, virtual list, light and dark; inline styles and script with a CSP that blocks all external loads; data and content
   redacted twice and the data block escaped against injection). `--json` prints the same shape as `get_trace`, `--no-content`
   keeps only structure and numbers, `--children` embeds child-session previews, `--open` opens a browser and `--now` pins the
   generation time (byte-for-byte deterministic output).
-- **RPC `get_trace`** ([docs/en/rpc.md](docs/en/rpc.md) "Traces"): tail-first paging (`turnLimit` / `before`), increments by
+- **RPC `get_trace`** ([docs/en/reference/rpc.md](docs/en/reference/rpc.md) "Traces"): tail-first paging (`turnLimit` / `before`), increments by
   `since` (driven by `entry_appended`), `taskId` sub-traces and redacted previews with `content: "preview"`; 43 RPC commands in
   total. SDK `session.trace()`; the pure function `buildTrace()` and the `Trace` type are exported from the package entry.
 
 ### Memory
 
-- Cross-session memory ([docs/memory.md](docs/memory.md), Chinese), **off by default**: enable with `ama memory enable`,
+- Cross-session memory ([docs/guides/memory.md](docs/guides/memory.md), Chinese), **off by default**: enable with `ama memory enable`,
   `--memory` or `AMA_MEMORY=1`. Entries are Markdown files with frontmatter under
   `<data dir>/memory/{user,projects/<dir>-<sha8>}/`, with an auto-rebuilt `MEMORY.md` index; the project scope requires a
   trusted project; when disabled the request body is byte-for-byte unchanged.
@@ -467,7 +467,7 @@ Wave 6: the agent bar and sub-agent view, traces, memory, ChatGPT login, the `/c
 
 ### ChatGPT login
 
-- `ama auth login chatgpt` drives ama with your own ChatGPT Plus / Pro plan ([docs/en/providers.md](docs/en/providers.md)
+- `ama auth login chatgpt` drives ama with your own ChatGPT Plus / Pro plan ([docs/en/guides/providers.md](docs/en/guides/providers.md)
   "ChatGPT login"). By default it uses OpenAI's official Sign in with ChatGPT (dynamic registration, id_token verified against
   JWKS); `--flavor codex` is an opt-in fallback (borrowing the Codex CLI public client after a one-time "unofficial, personal use
   only" confirmation). `--paste` pastes the callback URL (SSH / hosts), `--device` uses a device code (codex only);
@@ -483,7 +483,7 @@ Wave 6: the agent bar and sub-agent view, traces, memory, ChatGPT login, the `/c
 
 ### `/config` and `ama config`
 
-- **`/config` settings panel** ([docs/en/tui.md](docs/en/tui.md) "The `/config` settings panel and `ama config`"): lists scalar
+- **`/config` settings panel** ([docs/en/guides/tui.md](docs/en/guides/tui.md) "The `/config` settings panel and `ama config`"): lists scalar
   settings by group with their effective value, source (default / user / profile / project / cli / env) and when a change takes
   effect (immediately / new session / restart); ↑↓ Enter / Space to change, `/` to search, Tab to switch the target layer
   (project level may only tighten), overridden items marked locked. Changes are written at once (re-read before writing, one key
@@ -505,9 +505,9 @@ Wave 6: the agent bar and sub-agent view, traces, memory, ChatGPT login, the `/c
   validation diagnostics, and `ama init` output all follow it. Chinese output is unchanged word for word; compact status line
   notation (`ctx`, `cache`, `$`, `↑ ↓`) is not translated; JSON fields of RPC and `-p --output-format json` do not change.
   `config.schema.json` descriptions are written in the current language; run `ama init` again after switching.
-- **Hosts decide by `code`** and must never parse the human-readable `error` / `message` ([docs/en/rpc.md](docs/en/rpc.md)).
+- **Hosts decide by `code`** and must never parse the human-readable `error` / `message` ([docs/en/reference/rpc.md](docs/en/reference/rpc.md)).
 - **Bilingual docs**: `docs/en/` adds English versions of `tui`, `permissions`, `providers`, `rpc`, `host-api` and `sessions`
-  (each header records the Chinese commit it translates); development conventions are in [docs/i18n.md](docs/i18n.md) (Chinese).
+  (each header records the Chinese commit it translates); development conventions are in [docs/guides/i18n.md](docs/guides/i18n.md) (Chinese).
 
 ### Other fixes and improvements
 
@@ -523,7 +523,7 @@ Wave 6: the agent bar and sub-agent view, traces, memory, ChatGPT login, the `/c
 
 ### Interfaces, tests and release
 
-- Wave 6 contracts (docs/wave6-plan.md §7, all optional and backward compatible): the `Trace` type and `buildTrace()`, SDK
+- Wave 6 contracts (docs/history/wave6-plan.md §7, all optional and backward compatible): the `Trace` type and `buildTrace()`, SDK
   `session.trace()` and the `memory` option, RPC `get_trace` (optional result fields `task` and `previews`), the `quota_update`
   event, `oauth` in `KeySource`, OAuth entries in `auth.json`, and the config keys `ui.language` / `ui.replyLanguage` /
   `ui.agentBar` / `memory.*` / `auth.chatgpt.*` (written to `config.schema.json`).
@@ -534,7 +534,7 @@ Wave 6: the agent bar and sub-agent view, traces, memory, ChatGPT login, the `/c
 - New bundle-level e2e: `ama auth status` without entries, deterministic `ama sessions trace --html` without external links,
   `AMA_LANG=en -p` requests byte-identical to zh, `ama config set / get / unset` round trips, and a `--memory` write visible in
   `ama memory list`.
-- The npm package now also ships `docs/memory.md` and `docs/en/*.md`.
+- The npm package now also ships `docs/guides/memory.md` and `docs/en/*.md`.
 
 ### Known limitations
 

@@ -1,5 +1,5 @@
 /**
- * 内存回归工具自检（docs/memory-plan.md D13）：GC 可用、WeakRef 可判回收、空操作噪声 < 1 MB、
+ * 内存回归工具自检（docs/history/memory-plan.md D13）：GC 可用、WeakRef 可判回收、空操作噪声 < 1 MB、
  * 生成文件的形状。各批的回归用例放在本目录。[M-C0]
  */
 

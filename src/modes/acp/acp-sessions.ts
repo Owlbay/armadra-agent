@@ -1,5 +1,5 @@
 /**
- * `ama --mode acp` 的多会话：会话池条目、FIFO 提示队列、`session/list` 的分页与标题（docs/acp-plan.md
+ * `ama --mode acp` 的多会话：会话池条目、FIFO 提示队列、`session/list` 的分页与标题（docs/history/acp-plan.md
  * D1、D2、D11、§2.1）。[ACP-B]
  *
  * - 每个 ACP sessionId 一个常驻会话（{@link PooledSession}），各有自己的事件映射器与权限模式；
@@ -216,7 +216,7 @@ export function pageSessions(
 }
 
 /**
- * 跑一个出队的提示（docs/memory-plan.md D4、§2.2，Issue #139）。[M-A]
+ * 跑一个出队的提示（docs/history/memory-plan.md D4、§2.2，Issue #139）。[M-A]
  *
  * 后台子 Agent 的完成通知以 `followUp` 在会话空闲时开回合，不经 {@link PromptQueue}；那一回合在跑时
  * 直接 `prompt` 会报 busy。这里先等它结束；与通知器竞速输了（等到空闲后它抢先开了回合）再等一轮。

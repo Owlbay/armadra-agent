@@ -29,7 +29,7 @@ See .github/CONTRIBUTING.md. Write "无 / None" for sections that do not apply i
 ## 协议变化 / Protocol changes
 
 <!--
-RPC（docs/rpc.md）、宿主适配器（docs/host-api.md）、ACP（docs/acp.md）、会话文件格式（docs/session-format.md）的线上形状是否变了；
+RPC（docs/reference/rpc.md）、宿主适配器（docs/reference/host-api.md）、ACP（docs/reference/acp.md）、会话文件格式（docs/reference/session-format.md）的线上形状是否变了；
 `HOST_API_VERSION`、`RPC_PROTOCOL_VERSION`、`SESSION_FORMAT_VERSION` 变化要求破坏性版本升级（`pnpm release:check` 守住）。
 Whether the wire shape of RPC, the host adapter, ACP or the session file format changed;
 bumping `HOST_API_VERSION`, `RPC_PROTOCOL_VERSION` or `SESSION_FORMAT_VERSION` requires a breaking version bump (enforced by `pnpm release:check`).
@@ -65,7 +65,7 @@ Whether the system prompt, tool descriptions or schemas changed; before / after 
 
 ## 检查清单 / Checklist
 
-<!-- 见 AGENTS.md 与 docs/design.md。 / See AGENTS.md and docs/design.md. -->
+<!-- 见 AGENTS.md 与 docs/design/design.md。 / See AGENTS.md and docs/design/design.md. -->
 
 - [ ] `dependencies` 仍为空，`src/` 只 import `node:*` 与相对路径（`pnpm check:deps`） / `dependencies` stays empty and `src/` imports only `node:*` and relative paths
 - [ ] 源码单文件 ≤ 600 行，测试文件 ≤ 1000 行 / Source files ≤ 600 lines, test files ≤ 1000 lines

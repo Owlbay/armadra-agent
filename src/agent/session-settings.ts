@@ -1,6 +1,6 @@
 /**
  * 会话的可变设置：模型、思考级别、工具表与活动集、系统提示静态部分（从 session.ts 搬出，
- * docs/wave5-plan.md §9「session.ts → session-settings.ts」）。[W5-C0]
+ * docs/history/wave5-plan.md §9「session.ts → session-settings.ts」）。[W5-C0]
  *
  * 纯搬迁：`setModel / setThinkingLevel / setPermissionMode / setActiveTools / addTool /
  * updateSystem / announceStart / getTools` 的行为与事件顺序不变；`AgentSessionImpl` 以同名成员转发。

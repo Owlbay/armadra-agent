@@ -46,7 +46,7 @@ describe("models.dev 快照数据", () => {
     expect(Date.parse(meta["fetchedAt"] ?? "")).not.toBeNaN();
   });
 
-  it("内联数据 ≤ 200 KB（bundle 增量预算，docs/wave5-plan.md §2.4）", () => {
+  it("内联数据 ≤ 200 KB（bundle 增量预算，docs/history/wave5-plan.md §2.4）", () => {
     const bytes = Object.values(MODELS_DEV_SOURCES).reduce(
       (sum, text) => sum + Buffer.byteLength(text),
       0,

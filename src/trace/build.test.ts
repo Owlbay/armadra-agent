@@ -1,5 +1,5 @@
 /**
- * 轨迹构建器（docs/wave6-plan.md §2.3、§2.7 T1）：9 类会话夹具的黄金、确定性、容忍与 live 叠加。
+ * 轨迹构建器（docs/history/wave6-plan.md §2.3、§2.7 T1）：9 类会话夹具的黄金、确定性、容忍与 live 叠加。
  * 夹具 `test/fixtures/trace/*.jsonl`；黄金 `*.trace.json`（整棵树；line 模式文本黄金见 format.test.ts）。
  * 更新：`AMA_UPDATE_GOLDEN=1 pnpm vitest run src/trace/build.test.ts`，逐个审阅 diff。
  */

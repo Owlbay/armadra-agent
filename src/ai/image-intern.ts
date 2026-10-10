@@ -1,5 +1,5 @@
 /**
- * 图片 base64 按内容哈希驻留（docs/memory-plan.md D5、§2.5）。
+ * 图片 base64 按内容哈希驻留（docs/history/memory-plan.md D5、§2.5）。
  *
  * `WeakRef` 的目标不能是字符串，所以驻留单元是 `ImageBlock`：表为 `Map<键, WeakRef<ImageBlock>>`，
  * 键 = `mimeType` + base64 字符串的 sha256；`FinalizationRegistry` 在 block 被回收后清键。命中时返回
@@ -13,7 +13,7 @@ import { createHash } from "node:crypto";
 import type { ImageBlock } from "./types.js";
 
 /**
- * 会话条目的最小形状：ai 不 import session（docs/design.md §1.1），`SessionEntry[]` 可直接传入。
+ * 会话条目的最小形状：ai 不 import session（docs/design/design.md §1.1），`SessionEntry[]` 可直接传入。
  * 只有 `type === "message"` 且 `message.content` 为数组的条目里的 `image` 块参与驻留。
  */
 export interface ImageCarrier {

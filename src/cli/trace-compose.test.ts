@@ -1,5 +1,5 @@
 /**
- * 组装根级：`ama.trace` 写入扩展已装进组装表（docs/wave6-plan.md §2.7、§9 W6-C0 验收）。[W6-C0]
+ * 组装根级：`ama.trace` 写入扩展已装进组装表（docs/history/wave6-plan.md §2.7、§9 W6-C0 验收）。[W6-C0]
  */
 
 import { readFileSync } from "node:fs";

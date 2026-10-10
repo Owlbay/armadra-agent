@@ -7,7 +7,7 @@
  * hooks.json 的形状是 `HookConfig`（hooks/types.ts）。
  * （W3-C0）第三波：`cache` 段（§1.12，只认用户级 / profile）；`ModelConfig` / `ModelOverride`
  * 允许模型级 `api`（§2.3，同一中转的模型走不同协议），由 W3-B12 在注册表里生效。
- * （W5-C0）第五波配置键（docs/wave5-plan.md §9）：新段的形状在 types-w5.ts（`AmaConfigW5` 并入
+ * （W5-C0）第五波配置键（docs/history/wave5-plan.md §9）：新段的形状在 types-w5.ts（`AmaConfigW5` 并入
  * `AmaConfig`），已有段加 `ui.statusLine`、`compaction.prune / pruneExclude`、profile `agentDirs`。
  */
 
@@ -53,13 +53,13 @@ export const CONFIG_FILE_VERSION = 1 as const;
  */
 export type ModelConfig = Partial<Omit<Model, "id" | "provider" | "channel" | "channels">> & {
   id: string;
-  /** 挂载的渠道名，第一个是首选；缺省 `defaultChannel`（docs/providers.md「渠道」）。 */
+  /** 挂载的渠道名，第一个是首选；缺省 `defaultChannel`（docs/guides/providers.md「渠道」）。 */
   channels?: string[];
   /** models.dev 条目 `provider/model`（显式匹配）；false 关闭 models.dev 补全。 */
   modelsDev?: string | false;
   /**
    * [ME-C0] 从内置目录继承模型固有属性：缺省按 id 别名自动匹配；`"provider/id"` 显式指定；false 关闭
-   * （docs/model-efficiency-plan.md D10，实现归 ME-D）。
+   * （docs/history/model-efficiency-plan.md D10，实现归 ME-D）。
    */
   catalog?: string | false;
 };
@@ -93,7 +93,7 @@ export interface ProviderConfig {
   headers?: Record<string, string>;
   compat?: ProviderCompat;
   requiresApiKey?: boolean;
-  /** 多渠道（docs/providers.md「渠道」）；不写时 `api` + `baseUrl` 是隐式的 `default` 渠道。 */
+  /** 多渠道（docs/guides/providers.md「渠道」）；不写时 `api` + `baseUrl` 是隐式的 `default` 渠道。 */
   channels?: Record<string, ChannelConfig>;
   /** 缺省 `channels` 的第一个键。 */
   defaultChannel?: string;
@@ -281,7 +281,7 @@ export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 180_000;
 export const CHECKPOINT_MODES: readonly CheckpointMode[] = ["tools", "shadow-git", "off"];
 
 /**
- * 检查点（docs/rewind-plan.md §5）。环境变量 `AMA_CHECKPOINTS` 覆盖 `mode`；项目级只接受
+ * 检查点（docs/history/rewind-plan.md §5）。环境变量 `AMA_CHECKPOINTS` 覆盖 `mode`；项目级只接受
  * `mode: "off"` 与调小 `maxFileBytes`（只能收紧）。
  */
 export interface CheckpointsConfig {
@@ -304,7 +304,7 @@ export const SANDBOX_ENABLED_MODES: readonly ("auto" | "off")[] = ["auto", "off"
 export const SANDBOX_NETWORK_MODES: readonly ("deny" | "allow")[] = ["deny", "allow"];
 
 /**
- * 操作系统级沙箱（docs/sandbox.md）。只认用户级 / profile；项目级只接受收紧的 `network: "deny"`，其余忽略
+ * 操作系统级沙箱（docs/guides/sandbox.md）。只认用户级 / profile；项目级只接受收紧的 `network: "deny"`，其余忽略
  * 并 warning。环境变量 `AMA_SANDBOX=off` 覆盖 `enabled`。
  */
 export interface SandboxConfig {

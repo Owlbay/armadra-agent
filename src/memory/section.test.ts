@@ -1,5 +1,5 @@
 /**
- * `memory` 节（docs/wave6-plan.md §3.4）：资料非指令包裹、XML 转义、每作用域字节硬顶。
+ * `memory` 节（docs/history/wave6-plan.md §3.4）：资料非指令包裹、XML 转义、每作用域字节硬顶。
  */
 
 import { describe, expect, it } from "vitest";

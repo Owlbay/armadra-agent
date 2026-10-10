@@ -1,5 +1,5 @@
 /**
- * 会话层重试的分类与退避（docs/model-efficiency-plan.md D8）。[ME-C]
+ * 会话层重试的分类与退避（docs/history/model-efficiency-plan.md D8）。[ME-C]
  */
 
 import { describe, expect, it } from "vitest";

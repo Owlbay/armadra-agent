@@ -1,79 +1,55 @@
 /**
- * 双语文档的相对链接都能点（docs/wave6-plan.md §5.5、D21）。[W6-I4]
- *
- * 检查 README.md / README.zh-CN.md、两份 CHANGELOG 与 docs/en/*.md 里的相对链接：目标文件存在；
- * 带 `#锚点` 且目标是 Markdown 时，锚点按 GitHub 的规则能在目标文件的标题里找到。外链不查。
+ * `scripts/check-doc-links.mjs`（Issue #201；双语互链规则见 docs/history/wave6-plan.md §5.5、D21）：
+ * 提取与锚点规则的正反例、临时目录里的断链检测、本仓库全量通过，以及 README / CHANGELOG / docs/en 的顶部互链。
  */
 
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { afterEach, describe, expect, it } from "vitest";
+
+interface DocLinksModule {
+  linkTargets(markdown: string): { target: string; line: number }[];
+  headingAnchors(markdown: string): Set<string>;
+  commentLines(source: string, ext: string): string[];
+  docPaths(text: string): string[];
+  brokenLinksIn(root: string, file: string): string[];
+  brokenCommentPathsIn(root: string, file: string): string[];
+  checkDocLinks(root: string): { problems: string[]; markdown: number; sources: number };
+}
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const SCRIPT = join(ROOT, "scripts", "check-doc-links.mjs");
+const load = (): Promise<DocLinksModule> =>
+  import(pathToFileURL(SCRIPT).href) as Promise<DocLinksModule>;
 
-function docFiles(): string[] {
-  const top = ["README.md", "README.zh-CN.md", "CHANGELOG.md", "CHANGELOG.zh-CN.md"];
-  const en = readdirSync(join(ROOT, "docs", "en"))
-    .filter((name) => name.endsWith(".md"))
-    .map((name) => join("docs", "en", name));
-  return [...top, ...en];
-}
+const temps: string[] = [];
+afterEach(() => {
+  for (const dir of temps.splice(0)) rmSync(dir, { recursive: true, force: true });
+});
 
-/** 去掉围栏代码块与行内代码（里面的方括号不是链接）。 */
-function stripCode(text: string): string {
-  return text.replace(/^```[\s\S]*?^```/gm, "").replace(/`[^`\n]*`/g, "");
-}
-
-/** 行内链接 `](target)` 与引用定义 `[x]: target`。 */
-export function linkTargets(markdown: string): string[] {
-  const text = stripCode(markdown);
-  const out: string[] = [];
-  for (const m of text.matchAll(/\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)/g)) out.push(m[1] ?? "");
-  for (const m of text.matchAll(/^\s*\[[^\]]+\]:\s*(\S+)/gm)) out.push(m[1] ?? "");
-  return out.filter((t) => t !== "");
-}
-
-/** GitHub 的标题锚点：小写、去掉字母数字空格连字符下划线以外的字符、空格换成 `-`，重名加 `-1`… */
-export function headingAnchors(markdown: string): Set<string> {
-  const anchors = new Set<string>();
-  const seen = new Map<string, number>();
-  const text = markdown.replace(/^```[\s\S]*?^```/gm, "");
-  for (const m of text.matchAll(/^#{1,6}\s+(.+?)\s*#*\s*$/gm)) {
-    const base = (m[1] ?? "")
-      .replace(/`/g, "")
-      .toLowerCase()
-      .replace(/[^\p{L}\p{N}\s_-]/gu, "")
-      .replace(/\s/g, "-");
-    const n = seen.get(base) ?? 0;
-    seen.set(base, n + 1);
-    anchors.add(n === 0 ? base : `${base}-${n}`);
+function repo(files: Record<string, string>): string {
+  const dir = mkdtempSync(join(tmpdir(), "ama-doc-links-"));
+  temps.push(dir);
+  for (const [path, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, path)), { recursive: true });
+    writeFileSync(join(dir, path), text);
   }
-  return anchors;
+  return dir;
 }
 
-function brokenLinks(file: string): string[] {
-  const source = readFileSync(join(ROOT, file), "utf8");
-  const broken: string[] = [];
-  for (const target of linkTargets(source)) {
-    if (/^[a-z][a-z0-9+.-]*:/i.test(target)) continue; // http(s)、mailto 等外链
-    const [pathPart = "", anchor] = target.split("#", 2);
-    const resolved = pathPart === "" ? join(ROOT, file) : resolve(ROOT, dirname(file), pathPart);
-    if (!resolved.startsWith(ROOT) || !existsSync(resolved)) {
-      broken.push(`${target}（文件不存在）`);
-      continue;
-    }
-    if (anchor === undefined || anchor === "") continue;
-    if (statSync(resolved).isDirectory() || !resolved.endsWith(".md")) continue;
-    const anchors = headingAnchors(readFileSync(resolved, "utf8"));
-    if (!anchors.has(decodeURIComponent(anchor).toLowerCase()))
-      broken.push(`${target}（${relative(ROOT, resolved)} 没有这个标题）`);
-  }
-  return broken;
-}
-
-describe("双语文档的链接", () => {
-  it("锚点与链接提取规则", () => {
+describe("check-doc-links 规则", () => {
+  it("标题锚点按 GitHub 规则，重名加序号，另收 <a id>", async () => {
+    const { headingAnchors } = await load();
     expect([
       ...headingAnchors(
         "# 为什么做 ama\n## Node 版本、codemode 与沙箱\n## 子 Agent\n## 子 Agent\n",
@@ -82,32 +58,117 @@ describe("双语文档的链接", () => {
     expect([...headingAnchors("## Channels: one provider, several endpoints")]).toEqual([
       "channels-one-provider-several-endpoints",
     ]);
-    expect(
-      linkTargets("[a](x.md#y) `[b](no.md)`\n```\n[c](no.md)\n```\n[d]: https://e.example\n"),
-    ).toEqual(["x.md#y", "https://e.example"]);
+    expect([...headingAnchors('```\n# not a heading\n```\n<a id="x-1"></a>\n')]).toEqual(["x-1"]);
   });
 
-  it.each(docFiles())("%s 的相对链接与锚点都存在", (file) => {
-    expect(brokenLinks(file)).toEqual([]);
+  it("链接提取：行内、引用定义与 HTML 属性；代码里的不算", async () => {
+    const { linkTargets } = await load();
+    const md = [
+      "[a](x.md#y) `[b](no.md)`",
+      "```",
+      "[c](no.md)",
+      "```",
+      "[d]: https://e.example",
+      '<img src="a.svg" alt=""> <source srcset="b.svg 1x, c.svg 2x">',
+    ].join("\n");
+    expect(linkTargets(md)).toEqual([
+      { target: "x.md#y", line: 1 },
+      { target: "https://e.example", line: 5 },
+      { target: "a.svg", line: 6 },
+      { target: "b.svg", line: 6 },
+      { target: "c.svg", line: 6 },
+    ]);
   });
+
+  it("注释提取：行注释、跨行块注释、YAML 的 #；字符串与 URL 不算", async () => {
+    const { commentLines, docPaths } = await load();
+    const ts = [
+      'const a = "// docs/a.md"; // see docs/b.md',
+      "/* docs/c.md",
+      " * docs/d.md */ const u = 'https://x/docs/e.md';",
+    ].join("\n");
+    const lines = commentLines(ts, ".ts");
+    expect(lines.flatMap((line) => docPaths(line))).toEqual([
+      "docs/b.md",
+      "docs/c.md",
+      "docs/d.md",
+    ]);
+    expect(commentLines("# docs/f.md\nrun: cat docs/g.md\n", ".yml").flatMap(docPaths)).toEqual([
+      "docs/f.md",
+    ]);
+    expect(docPaths("x/docs/h.md docs/en/guides/tui.md")).toEqual(["docs/en/guides/tui.md"]);
+  });
+
+  it("临时仓库：报出不存在的文件、锚点与注释路径，带行号", async () => {
+    const { checkDocLinks } = await load();
+    const dir = repo({
+      "README.md": "# Top\n\n[ok](docs/a.md#intro)\n[bad](docs/a.md#nope)\n[gone](docs/b.md)\n",
+      "docs/a.md": "# Intro\n\n[up](../README.md#top) [self](#intro) [dir](./)\n",
+      "src/x.ts": "// docs/a.md and docs/missing.md\nexport const s = 'docs/also-missing.md';\n",
+      "node_modules/pkg/README.md": "[x](nowhere.md)\n",
+    });
+    const result = checkDocLinks(dir);
+    expect(result.problems).toEqual([
+      "README.md:4: docs/a.md#nope（docs/a.md 没有这个标题）",
+      "README.md:5: docs/b.md（文件不存在）",
+      "src/x.ts:1: docs/missing.md（文件不存在）",
+    ]);
+    expect(result.markdown).toBe(2);
+    expect(result.sources).toBe(1);
+  });
+});
+
+describe("本仓库的文档链接", () => {
+  it("全部 Markdown 的相对链接与锚点、源码注释里的 docs 路径都存在", async () => {
+    const { checkDocLinks } = await load();
+    expect(checkDocLinks(ROOT).problems).toEqual([]);
+  });
+
+  const enDocs = (): string[] => {
+    const out: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (entry.name.endsWith(".md") && entry.name !== "README.md") out.push(full);
+      }
+    };
+    walk(join(ROOT, "docs", "en"));
+    return out;
+  };
 
   it("README / CHANGELOG / docs/en 顶部互链", () => {
     const top = (file: string) =>
-      readFileSync(join(ROOT, file), "utf8").split("\n").slice(0, 10).join("\n");
+      readFileSync(resolve(ROOT, file), "utf8").split("\n").slice(0, 10).join("\n");
     expect(top("README.md")).toContain("[简体中文](README.zh-CN.md)");
     expect(top("README.zh-CN.md")).toContain("[English](README.md)");
     expect(top("CHANGELOG.md")).toContain("[简体中文](CHANGELOG.zh-CN.md)");
     expect(top("CHANGELOG.zh-CN.md")).toContain("[English](CHANGELOG.md)");
-    for (const file of docFiles().filter((f) => f.startsWith(join("docs", "en")))) {
-      const name = file.split(/[\\/]/).at(-1) ?? "";
-      expect(top(file), file).toContain(`[简体中文](../${name})`);
-      expect(existsSync(join(ROOT, "docs", name)), file).toBe(true);
+    for (const file of enDocs()) {
+      // docs/en/<分层>/<篇>.md ↔ docs/<分层>/<篇>.md
+      const rel = relative(join(ROOT, "docs", "en"), file)
+        .split(/[\\/]/)
+        .join("/");
+      expect(top(file), rel).toContain(`[简体中文](../../${rel})`);
+      expect(existsSync(join(ROOT, "docs", rel)), rel).toBe(true);
     }
   });
 
-  it("docs/en 含首批六篇与 acp", () => {
-    const names = readdirSync(join(ROOT, "docs", "en"));
-    for (const name of ["acp", "host-api", "permissions", "providers", "rpc", "sessions", "tui"])
-      expect(names, name).toContain(`${name}.md`);
+  it("docs/en 含首批六篇与 acp，按分层放", () => {
+    const names = enDocs().map((file) =>
+      relative(join(ROOT, "docs", "en"), file)
+        .split(/[\\/]/)
+        .join("/"),
+    );
+    for (const name of [
+      "reference/acp.md",
+      "reference/host-api.md",
+      "guides/permissions.md",
+      "guides/providers.md",
+      "reference/rpc.md",
+      "guides/sessions.md",
+      "guides/tui.md",
+    ])
+      expect(names, name).toContain(name);
   });
 });

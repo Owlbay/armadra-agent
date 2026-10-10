@@ -1,5 +1,5 @@
 /**
- * `task` 工具：子 Agent 的统一入口（设计 §5.2、D14；第五波 docs/wave5-plan.md §7.3，D13、D23）。
+ * `task` 工具：子 Agent 的统一入口（设计 §5.2、D14；第五波 docs/history/wave5-plan.md §7.3，D13、D23）。
  * [B3 → W5-G]
  *
  * - `agent`：子 Agent 类型（内置 general / explore / plan、`.ama/agents/*.md`）或外部 Agent；缺省
@@ -96,7 +96,7 @@ export const FOREGROUND_DESCRIPTION =
   `${TASK_CONTEXT_LEAD} Returns its final report. Parallel in one reply; writers use isolation ` +
   "worktree. background: returns a taskId (see task_ctl); taskId: continue it.";
 
-/** [W7-B1] 缺省后台（交互 / RPC / ACP，docs/agents-concurrency-plan.md §2.6）时的描述。 */
+/** [W7-B1] 缺省后台（交互 / RPC / ACP，docs/history/agents-concurrency-plan.md §2.6）时的描述。 */
 export const BACKGROUND_DESCRIPTION =
   `${TASK_CONTEXT_LEAD} Runs in the background by default: returns a taskId; a ` +
   "<task-notification> follows; keep working. background:false waits for the result. " +

@@ -1,5 +1,5 @@
 /**
- * 轨迹与会话的胶水（docs/wave6-plan.md §2.4）：line 模式 `/trace`、live 叠加、子会话读取缓存。[W6-T1]
+ * 轨迹与会话的胶水（docs/history/wave6-plan.md §2.4）：line 模式 `/trace`、live 叠加、子会话读取缓存。[W6-T1]
  */
 
 import { PassThrough } from "node:stream";

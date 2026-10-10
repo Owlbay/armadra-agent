@@ -57,7 +57,7 @@
 - 许可：`LICENSE` 为 MIT（[repo](https://github.com/anomalyco/models.dev)，[README](https://github.com/anomalyco/models.dev/blob/dev/README.md)）。MIT 要求「copies or substantial portions」保留版权与许可声明。建议做到：
   - 快照目录放一份 `LICENSE-models.dev`，或在 `THIRD_PARTY_NOTICES.md` 里写明；
   - 生成文件头注释写上来源 URL、抓取时间和 MIT 声明；
-  - `docs/providers.md` 标注出处。
+  - `docs/guides/providers.md` 标注出处。
   - 不要分发 logo SVG（logo 的权属不明确）。
 
 ### 1.3 覆盖厂商建议清单（models.dev provider id → 实测条目，按「过滤后条数 / 紧凑字节」）
@@ -263,7 +263,7 @@ jobs:
    Kimi 的 `prompt_cache_options.ttl:"1h"` 可以对应 `supportsExplicitPromptCacheMode`，但 Kimi 的形状是 Chat 的 `prompt_cache_options.ttl`，要先核对 ama 在 Chat 线上是否支持这个字段。
 
 5. 目录：新增 `catalog/minimax.json`、`stepfun.json`、`volcengine.json`、`tencent.json`。`catalog.test.ts:58-64` 断言目录集合等于 `BUILTIN_PROVIDERS`，需要同步。
-6. 文档：`docs/providers.md`「内置供应商」表（L76 起）与 `docs/design.md` §3.3 表要同步。
+6. 文档：`docs/guides/providers.md`「内置供应商」表（L76 起）与 `docs/design/design.md` §3.3 表要同步。
 
 ---
 

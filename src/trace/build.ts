@@ -1,5 +1,5 @@
 /**
- * 轨迹构建器（docs/wave6-plan.md §2.3、D6）。[W6-T1]
+ * 轨迹构建器（docs/history/wave6-plan.md §2.3、D6）。[W6-T1]
  *
  * `buildTrace(input, opts)` 把会话条目重建成 `Trace`（Turn → Step → Tool → Subcall / Subagent）：
  * TUI `/trace`、`ama sessions trace`、RPC `get_trace` 三方共用同一棵树。

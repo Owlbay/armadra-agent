@@ -1,5 +1,5 @@
 /**
- * 轨迹查询（RPC `get_trace` / SDK `session.trace()` / `--json` 共用，docs/wave6-plan.md §2.6）：尾部分页、
+ * 轨迹查询（RPC `get_trace` / SDK `session.trace()` / `--json` 共用，docs/history/wave6-plan.md §2.6）：尾部分页、
  * `before` 向前翻页拼回全量、`since` 增量拼接 = 全量（逐条追加条目模拟 `entry_appended`）、`taskId`、
  * 参数校验、预览与脱敏。[W6-T2]
  */

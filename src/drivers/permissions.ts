@@ -1,5 +1,5 @@
 /**
- * 外部 Agent 的权限：交人、不代答（docs/wave5-plan.md §5.3，D15）。[W5-E]
+ * 外部 Agent 的权限：交人、不代答（docs/history/wave5-plan.md §5.3，D15）。[W5-E]
  *
  * 1. 子 Agent 自己的策略先判，它决定要问人的才到 ama；到了以后只走审批通道（宿主 → UI →
  *    无人值守拒绝），auto 分类器与模型都不参与——`approve` 由调用方接到会话的

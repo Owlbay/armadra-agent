@@ -1,5 +1,5 @@
 /**
- * 检查点（docs/rewind-plan.md）的对外入口。[RW-A]
+ * 检查点（docs/history/rewind-plan.md）的对外入口。[RW-A]
  *
  * 会话接线（RW-B）用 `createCheckpointBackendFactory` + `resolveCheckpointSettings`；
  * 其余导出给 CLI（GC、占用）与测试。

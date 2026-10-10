@@ -1,5 +1,5 @@
 /**
- * 会话文件的字节级按行读取（docs/memory-plan.md D6、§2.4）。[M-C0] 实现与单测；调用方由 [M-C] 接入
+ * 会话文件的字节级按行读取（docs/history/memory-plan.md D6、§2.4）。[M-C0] 实现与单测；调用方由 [M-C] 接入
  * （`store.ts readSessionLines`、`scan.ts forEachLine`、`list.ts`）。
  *
  * - fd + 一块复用的缓冲（缺省 64 KiB）顺序 `readSync`，以 `indexOf(0x0a)` 切行；跨块的残片挪到缓冲

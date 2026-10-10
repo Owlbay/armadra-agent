@@ -1,5 +1,5 @@
 /**
- * Claude Code stream-json → DriverEvent 的映射表（docs/wave5-plan.md §5.1 normalize，R2 §3.2）。[W5-E]
+ * Claude Code stream-json → DriverEvent 的映射表（docs/history/wave5-plan.md §5.1 normalize，R2 §3.2）。[W5-E]
  *
  * 线上形状按 Claude Code 2.1.x 的 `--output-format stream-json`（Agent SDK 所用的同一协议；
  * 官方称其不是公开的 CLI 接口，R3），只读用到的字段，其余忽略。

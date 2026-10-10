@@ -1,5 +1,5 @@
 /**
- * 请求体序列化（docs/memory-plan.md D3、§2.3）。
+ * 请求体序列化（docs/history/memory-plan.md D3、§2.3）。
  *
  * 带图请求体里 base64 占绝大部分字节；`JSON.stringify(body)` 会先拼出整份中间字符串，再由 fetch
  * 编码成 UTF-8。这里先廉价扫一遍：没有 ≥ {@link LARGE_STRING_BYTES} 的字符串就照旧走原生；有就只沿

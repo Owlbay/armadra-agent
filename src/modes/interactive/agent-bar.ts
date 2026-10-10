@@ -1,5 +1,5 @@
 /**
- * Agent 栏（docs/wave6-plan.md §1.1–§1.2、D1、D4）。[W6-A]
+ * Agent 栏（docs/history/wave6-plan.md §1.1–§1.2、D1、D4）。[W6-A]
  *
  * 装配在提示行之下、状态行之上。每个任务一行，最多 3 行，多出的给一行「另 N 个」：
  *

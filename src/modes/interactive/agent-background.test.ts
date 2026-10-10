@@ -1,5 +1,5 @@
 /**
- * 前台任务转后台的交互集成与帧黄金（docs/agents-concurrency-plan.md §2.4、§2.8、§4 C 项，W7-C）：
+ * 前台任务转后台的交互集成与帧黄金（docs/history/agents-concurrency-plan.md §2.4、§2.8、§4 C 项，W7-C）：
  * - 前台 task 运行中 `Ctrl+B` → 工具行后台样式、底部提示；主回合立即继续，可以发新消息并得到回复；后台
  *   完成后通知回合；
  * - Agent 栏内 `b` 转后台、`x` 双击停止；

@@ -9,7 +9,7 @@
  * - SDK 追加的供应商（`ProviderData[]`）折成 `config.providers` 条目，走同一条合并路径。
  * - 零配置（设计 §10.0）：没有 `defaultModel`、也没有任何需要 key 的供应商配了 key 时，探测本地
  *   ollama / lmstudio（短超时），把枚举到的模型加进注册表，供 `pickDefaultModel` 选用。
- * - [W6-O] ChatGPT 登录（docs/wave6-plan.md D14）：`chatgpt` 的缺省渠道按 auth.json 条目的 flavor 定（用户写了
+ * - [W6-O] ChatGPT 登录（docs/history/wave6-plan.md D14）：`chatgpt` 的缺省渠道按 auth.json 条目的 flavor 定（用户写了
  *   `defaultChannel` 时不动）；`AMA_CHATGPT_BASE_URL` 改该渠道地址；`auth.chatgpt.originator` 改 codex 渠道的
  *   `originator` 头；OAuth 刷新拿到 `auth.chatgpt` 配置与同一份 env。
  * - 发现缓存（`<dataDir>/models/discovered/<provider>.json`）并入模型表为空的供应商（discovered-cache.ts）；

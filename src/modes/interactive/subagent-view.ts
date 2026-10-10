@@ -1,5 +1,5 @@
 /**
- * 消息区的子 Agent 折叠视图（docs/wave5-plan.md §7.5）。[W5-U]
+ * 消息区的子 Agent 折叠视图（docs/history/wave5-plan.md §7.5）。[W5-U]
  *
  * 消费 `subagent_start / update / end`，按 taskId 记下类型、状态、轮数、最近 3 个工具与用量；task 工具行
  * （tool-view.ts）据 `parentToolCallId` 取来显示一行：

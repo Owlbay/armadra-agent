@@ -1,5 +1,5 @@
 /**
- * 检查点运行时状态（docs/rewind-plan.md §1.3、§2）。[RW-A]
+ * 检查点运行时状态（docs/history/rewind-plan.md §1.3、§2）。[RW-A]
  *
  * - `beforeWrite`：文件在任何检查点里都没出现过 → 备份当前内容、追加 `ama.checkpoint-track`、
  *   加入已跟踪；出现过则什么都不做。失败只 warn，不抛（检查点是辅助，不能让编辑失败）。

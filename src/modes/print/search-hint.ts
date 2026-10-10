@@ -1,5 +1,5 @@
 /**
- * [S-A] `-p` 下 bash 搜索命令被拒时的一行提示（docs/search-plan.md §4.2）。
+ * [S-A] `-p` 下 bash 搜索命令被拒时的一行提示（docs/design/search-plan.md §4.2）。
  *
  * `minimal` / `coordinator` 预设没有 grep / glob，模型常改用 `bash grep` / `rg` / `find`，在无人值守下被拒后
  * 只能猜文件名（§1.3 E3）。这里只在「被拒的 bash 命令形如搜索」且活动集缺 grep 或 glob 时提示怎么加回来；

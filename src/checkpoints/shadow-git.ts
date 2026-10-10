@@ -1,5 +1,5 @@
 /**
- * 影子 git 仓库（docs/rewind-plan.md §6）。[RW-D]
+ * 影子 git 仓库（docs/history/rewind-plan.md §6）。[RW-D]
  *
  * - 位置 `<dataDir>/file-history/shadow/<sha256(cwd) 前 16>/`，用 `--git-dir` 指向它、`--work-tree` 指向 cwd；
  *   不碰用户仓库的对象、索引与引用。git 以子进程调用（零运行时依赖）。

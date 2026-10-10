@@ -1,5 +1,5 @@
 /**
- * `/config` settings panel component (docs/wave6-plan.md §6.3, D24-D26). [W6-S]
+ * `/config` settings panel component (docs/history/wave6-plan.md §6.3, D24-D26). [W6-S]
  *
  * Bottom overlay with the card bar: title + write target (`Tab` switches user / project), a search line,
  * the grouped `SettingsList`, a rule, the selected key's description (key-docs, dim, wrapped), one notice

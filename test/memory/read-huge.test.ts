@@ -1,5 +1,5 @@
 /**
- * [M-E] `read` 大文件按字节窗口读取（docs/memory-plan.md D1、§2.1）：32 MB 文本读 100 行，
+ * [M-E] `read` 大文件按字节窗口读取（docs/history/memory-plan.md D1、§2.1）：32 MB 文本读 100 行，
  * 不再整文件进内存（旧实现 Buffer + 字符串 + 行数组 ≥ 3 × 文件大小）。
  */
 

@@ -1,5 +1,5 @@
 /**
- * 第六波 bundle 级端到端（W6-Z，docs/wave6-plan.md §9 W6-Z 行）：走 `dist/bundle/ama.cjs`，临时 HOME。
+ * 第六波 bundle 级端到端（W6-Z，docs/history/wave6-plan.md §9 W6-Z 行）：走 `dist/bundle/ama.cjs`，临时 HOME。
  *
  * - `ama auth status` 没有 OAuth 条目时的输出（中英），且只读命令不建配置目录；
  * - `ama sessions trace <id> --html --now <ms>` 两次输出逐字节相同、自包含（CSP、无外链）；

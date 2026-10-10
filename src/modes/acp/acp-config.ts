@@ -1,5 +1,5 @@
 /**
- * `ama --mode acp` 的会话配置项与命令表（docs/acp-plan.md §1.6、D8、D9）。[ACP-C0 建壳，ACP-D 实现]
+ * `ama --mode acp` 的会话配置项与命令表（docs/history/acp-plan.md §1.6、D8、D9）。[ACP-C0 建壳，ACP-D 实现]
  *
  * - `buildConfigOptions`：`mode`（select，category `mode`，值是 ama 的权限模式，与 `modes` 同一状态）、
  *   `model`（select，category `model`，按供应商分组，值 `provider/model-id`）与 `thinking`（select，

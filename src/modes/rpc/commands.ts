@@ -371,7 +371,7 @@ export const handlers: RpcHandlers = {
   },
   get_commands: async (_p, ctx) => ({ commands: commands(ctx.runtime) }),
   get_skills: async (_p, ctx) => ({ skills: ctx.runtime.resources.skills }),
-  // [W5-F] 计划 / 任务命令（docs/wave5-plan.md §6.5、§7.5）
+  // [W5-F] 计划 / 任务命令（docs/history/wave5-plan.md §6.5、§7.5）
   plan_response: async (p, ctx) => {
     const result = await plans(ctx).respond(p);
     if (result.freshPrompt !== undefined) {
@@ -386,7 +386,7 @@ export const handlers: RpcHandlers = {
   get_todos: async (_p, ctx) => ({ items: currentTodos(impl(ctx.session()).manager.branch()) }),
   get_tasks: async (_p, ctx) => ({ tasks: [...(ctx.tasks?.()?.list() ?? [])] }),
   get_agents: async (_p, ctx) => ({ agents: [...(ctx.agents?.() ?? [])] }),
-  // [W6-T2] 轨迹（docs/wave6-plan.md §2.6；分页 / 增量 / 脱敏见 trace/query.ts）
+  // [W6-T2] 轨迹（docs/history/wave6-plan.md §2.6；分页 / 增量 / 脱敏见 trace/query.ts）
   get_trace: async (p, ctx) => sessionTrace(ctx.session(), p ?? {}),
   // [W7-B2] 前台任务转后台：工具调用立即返回、任务继续，完成后照常通知
   background_task: async (p, ctx) => {

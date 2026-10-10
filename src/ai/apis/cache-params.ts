@@ -5,7 +5,7 @@
  * - `sendPromptCacheKey`、`supportsLongCacheRetention`：按 `HOST_CACHE_CAPABILITIES`（[W5-M2]，官方
  *   文档写明支持的主机才开；其余主机——含全部中转——缺省关）。`sendPromptCacheKey` 只对 OpenAI 两条线有意义；
  * - `sendSessionAffinityHeaders`、`supportsExplicitPromptCacheMode`：缺省一律关（实测中转都接受
- *   但未见命中提升，OpenRouter 未实测，见 docs/providers.md「缓存」）；
+ *   但未见命中提升，OpenRouter 未实测，见 docs/guides/providers.md「缓存」）；
  * - `cacheReporting`：`auto`。
  * 显式 `model.compat`（registry 已把 provider.compat 合进来）逐字段覆盖推断。
  *

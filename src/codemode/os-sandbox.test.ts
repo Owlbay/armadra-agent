@@ -1,5 +1,5 @@
 /**
- * codemode × 操作系统沙箱（docs/sandbox.md）：能力判定真值表、命令行包装、必须有 OS 沙箱时的失败路径，
+ * codemode × 操作系统沙箱（docs/guides/sandbox.md）：能力判定真值表、命令行包装、必须有 OS 沙箱时的失败路径，
  * 以及真机上经 OS 沙箱启动的子进程联网被拒、vm 逃逸尝试失败。CI 的 Node 22 / 24 矩阵在 macOS 上覆盖
  * 「strict 依赖 OS 沙箱」的路径。
  */

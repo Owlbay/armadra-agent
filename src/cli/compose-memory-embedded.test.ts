@@ -1,5 +1,5 @@
 /**
- * 嵌入宿主的记忆（docs/wave6-plan.md D11、§3.1）：profile / SDK 缺省禁用；开启必须给按工作空间隔离的 dir，
+ * 嵌入宿主的记忆（docs/history/wave6-plan.md D11、§3.1）：profile / SDK 缺省禁用；开启必须给按工作空间隔离的 dir，
  * 只有 workspace 作用域、不读用户级；没有 dir 的 enabled: true 是配置错误。
  */
 

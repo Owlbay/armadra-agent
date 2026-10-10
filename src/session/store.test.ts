@@ -1,5 +1,5 @@
 /**
- * `readSessionLines` 流式实现与旧实现（整读 + split）的口径比对（docs/memory-plan.md §2.4、[M-C] 测试 1、4）。
+ * `readSessionLines` 流式实现与旧实现（整读 + split）的口径比对（docs/history/memory-plan.md §2.4、[M-C] 测试 1、4）。
  */
 
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";

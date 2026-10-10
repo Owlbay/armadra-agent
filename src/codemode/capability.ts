@@ -1,5 +1,5 @@
 /**
- * 沙箱能力探测（设计 §5.5 沙箱第 4 条；docs/sandbox.md「探测与降级」）。[B10][S2]
+ * 沙箱能力探测（设计 §5.5 沙箱第 4 条；docs/guides/sandbox.md「探测与降级」）。[B10][S2]
  *
  * Node 的权限模型（`--permission`）在 Node ≥ 25 同时拒绝网络；Node 22 / 24 只管文件、子进程、
  * worker 与 addon，不管网络——脚本若逃出 `vm` 就能联网。子进程另外经操作系统沙箱（macOS

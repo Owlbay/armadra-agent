@@ -1,5 +1,5 @@
 /**
- * `ama sessions trace`（docs/wave6-plan.md §2.5）：id / 路径定位、HTML 到 stdout 与文件、`--json` 同 get_trace 形状、
+ * `ama sessions trace`（docs/history/wave6-plan.md §2.5）：id / 路径定位、HTML 到 stdout 与文件、`--json` 同 get_trace 形状、
  * `--no-content`、`--children`、`--open` 只测命令构造（不真开浏览器）、参数错误。[W6-T2]
  */
 

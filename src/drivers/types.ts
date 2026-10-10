@@ -1,5 +1,5 @@
 /**
- * 外部 Agent 驱动契约（docs/wave5-plan.md §5.1–§5.3，D14）。[W5-C0] 契约文件，实现归 W5-E。
+ * 外部 Agent 驱动契约（docs/history/wave5-plan.md §5.1–§5.3，D14）。[W5-C0] 契约文件，实现归 W5-E。
  *
  * 内部词汇 = ACP v1 子集：各家原生协议（Claude stream-json、Codex app-server、一次性打印模式）
  * 都映射成 `DriverEvent`；权限请求以 `DriverPermissionRequest` 交给 ama 的 broker 链——**只交给人，

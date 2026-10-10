@@ -1,5 +1,5 @@
 /**
- * 后台任务审批停靠（docs/agents-concurrency-plan.md §2.7，W7-C）：后台任务的请求在不能弹时停靠、条件满足即
+ * 后台任务审批停靠（docs/history/agents-concurrency-plan.md §2.7，W7-C）：后台任务的请求在不能弹时停靠、条件满足即
  * 弹出；前台任务与主会话的请求直通；停靠期间来了不可停靠的请求立即放出停靠的（审批链串行）；abort 撤掉。
  */
 

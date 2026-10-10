@@ -1,5 +1,5 @@
 /**
- * 转后台的按键状态机（docs/agents-concurrency-plan.md §2.4、§4 C 项，W7-C）：`Ctrl+B` 有阻塞中的前台任务时
+ * 转后台的按键状态机（docs/history/agents-concurrency-plan.md §2.4、§4 C 项，W7-C）：`Ctrl+B` 有阻塞中的前台任务时
  * 转后台并提示（不看输入框）、没有时落回编辑器（有字 / 无字）；Esc 中断提示写明后台任务不受影响；栏内 `x`
  * 双击确认；按键标签。
  */

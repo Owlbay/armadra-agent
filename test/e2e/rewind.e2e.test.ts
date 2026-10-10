@@ -1,5 +1,5 @@
 /**
- * [W5-Z] 回滚（docs/rewind-plan.md、docs/rpc.md「回滚」）bundle 级：
+ * [W5-Z] 回滚（docs/history/rewind-plan.md、docs/reference/rpc.md「回滚」）bundle 级：
  * - RPC 同一进程两回合改文件，`rewind{mode:"code"}` 回到第二条消息之前——文件恢复成第一次写入的内容，对话不动；
  * - `-p` 两次（第二次 `-c`）改文件后用 RPC `-c` 回滚：ama 最后写入的内容只记在内存（tracker.lastWritten），
  *   换进程后当前内容不算「已知」，按冲突报告；`onConflict: "overwrite"` 覆盖恢复。

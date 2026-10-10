@@ -1,5 +1,5 @@
 /**
- * `memory` 工具（docs/wave6-plan.md §3.3、D10）。[W6-M] 模型侧模块：不得 import src/i18n。
+ * `memory` 工具（docs/history/wave6-plan.md §3.3、D10）。[W6-M] 模型侧模块：不得 import src/i18n。
  *
  * 自定义工具（不声明供应商原生的 memory 工具类型），四个命令：`view / create / str_replace / delete`，路径限定
  * 在 `/memories/<scope>/`。权限类 `memory`：view 按读放行，写命令按 execute 判定（permissions/memory-class.ts）。

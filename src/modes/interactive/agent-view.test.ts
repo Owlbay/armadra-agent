@@ -1,6 +1,6 @@
 /**
  * Agent 栏键位与子 Agent 视图的交互集成（MemoryTerminal + fake 供应商）与外部 Agent 视图的帧黄金
- * （docs/wave6-plan.md §1.1–§1.4）。[W6-A]
+ * （docs/history/wave6-plan.md §1.1–§1.4）。[W6-A]
  *
  * - 空输入 `↓` 进栏（有任务即可，栏收起也行）、有字时交给编辑器并提示；`Ctrl+B` 不再进栏（W7-A）；
  *   栏里可打印字符回到输入框；Esc 返回不中断。

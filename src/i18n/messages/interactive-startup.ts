@@ -1,5 +1,5 @@
 /**
- * 消息目录：interactive 的启动部分（键名规范见 docs/i18n.md）。[W6-I2]
+ * 消息目录：interactive 的启动部分（键名规范见 docs/guides/i18n.md）。[W6-I2]
  *
  * 单文件 600 行上限，`interactive.ts` 拆出：启动头（`startup-header.ts`）与启动期交互（`startup-ui.ts`：
  * 信任、恢复会话、选模型、工作目录）。经 `msg().interactive.startup` 取用。

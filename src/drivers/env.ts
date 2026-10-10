@@ -1,5 +1,5 @@
 /**
- * 外部 Agent 子进程环境清理（docs/wave5-plan.md §5.4，D16）。[W5-E]
+ * 外部 Agent 子进程环境清理（docs/history/wave5-plan.md §5.4，D16）。[W5-E]
  *
  * ama 分不清「用户 shell 本来就有」与「为 ama 设的」变量，所以缺省全剥、显式放回：
  * - 删：`BUILTIN_PROVIDERS[].envKeys`（各家 API key）、`*_BASE_URL`、`AMA_*`、`CODEX_API_KEY`、

@@ -1,5 +1,5 @@
 /**
- * 内置驱动表（数据，docs/wave5-plan.md §5.1 catalog.ts，D14）。[W5-E]
+ * 内置驱动表（数据，docs/history/wave5-plan.md §5.1 catalog.ts，D14）。[W5-E]
  *
  * agentId → 候选链；按 D14 的优先级排：原生 ACP > 已装 ACP 适配器 > 原生结构化协议 > 一次性打印。
  * 探测时取第一个已安装的候选。`verified` 是实测过的版本区间：越界仍可用，但发一条 warn 提示

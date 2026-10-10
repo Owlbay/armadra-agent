@@ -4,7 +4,7 @@
  * - `message_update` 变成纯增量：去掉累计消息与 `partial`，附最新 `usage`；`done / error`
  *   保留最终 `message`。`tool_execution_end` 去掉 `result.fileChange`（[ACP-C0] 改前 / 改后全文只给
  *   ACP 映射用，不上 RPC / stream-json 线）。其余 `SessionEvent` 原样。
- * - [M-G] `compact`（RPC 客户端声明 `compact_events`，docs/memory-plan.md D9）：`compactEvent()` 去掉
+ * - [M-G] `compact`（RPC 客户端声明 `compact_events`，docs/history/memory-plan.md D9）：`compactEvent()` 去掉
  *   重复的大正文——`turn_end.toolResults[]` 每项只留 `{ toolCallId, toolName, isError, timestamp,
  *   contentOmitted }`；`message_start` 与 `entry_appended`（`message` 条目）里的 toolResult / 带图片的 user
  *   消息 `content` 换成 `""` 并加 `contentOmitted: true`。`message_end` 与 `tool_execution_end` 保持全量。
@@ -46,7 +46,7 @@ export function compactEvent(event: SessionEvent): SessionEvent {
       if (event.toolResults.length === 0) return event;
       return {
         ...event,
-        // 线上形状（docs/rpc.md）不是完整的 ToolResultMessage：正文与 details 都不带
+        // 线上形状（docs/reference/rpc.md）不是完整的 ToolResultMessage：正文与 details 都不带
         toolResults: event.toolResults.map(
           ({ toolCallId, toolName, isError, timestamp }) =>
             ({

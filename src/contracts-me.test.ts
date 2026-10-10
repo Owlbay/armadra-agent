@@ -1,5 +1,5 @@
 /**
- * [ME-C0] 模型调用效率批次的契约（docs/model-efficiency-plan.md §1）：新增的都是可选字段与签名，
+ * [ME-C0] 模型调用效率批次的契约（docs/history/model-efficiency-plan.md §1）：新增的都是可选字段与签名，
  * 编译期断言形状与签名，运行期断言发给模型的固定文案。
  */
 

@@ -1,5 +1,5 @@
 /**
- * PKCE（RFC 7636，S256）与随机串（docs/wave6-plan.md §4.1；R6 §4.3）。[W6-O]
+ * PKCE（RFC 7636，S256）与随机串（docs/history/wave6-plan.md §4.1；R6 §4.3）。[W6-O]
  *
  * verifier 32 字节随机数的 base64url（43 字符），challenge = base64url(SHA-256(verifier)) 无填充；
  * `state` / `nonce` 同样 32 字节随机。只用 `node:crypto`。

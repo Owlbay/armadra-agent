@@ -1,5 +1,5 @@
 /**
- * [W6-I1] CLI 与子命令的英文界面抽样（docs/wave6-plan.md §9 W6-I1 验收）：`ama --help`、`ama providers
+ * [W6-I1] CLI 与子命令的英文界面抽样（docs/history/wave6-plan.md §9 W6-I1 验收）：`ama --help`、`ama providers
  * add / list / channels`、几个用法错误与退出码说明。其余测试缺省钉 zh，zh 断言不在这里。
  */
 

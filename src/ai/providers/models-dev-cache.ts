@@ -1,5 +1,5 @@
 /**
- * models.dev 索引 = 内置快照 ⊕ 用户级覆盖（docs/wave5-plan.md §2.2、docs/providers.md「模型元数据」）。
+ * models.dev 索引 = 内置快照 ⊕ 用户级覆盖（docs/history/wave5-plan.md §2.2、docs/guides/providers.md「模型元数据」）。
  *
  * - 内置快照随 bundle 携带（models-dev-snapshot.ts），**启动与运行都不联网**。
  * - 覆盖文件 `<dataDir>/models-dev.json`：`{ version: 2, url, fetchedAt, providers }`，只有

@@ -1,5 +1,5 @@
 /**
- * 轨迹 HTML 的页面骨架、样式与脚本（docs/wave6-plan.md §2.5）。[W6-T2]
+ * 轨迹 HTML 的页面骨架、样式与脚本（docs/history/wave6-plan.md §2.5）。[W6-T2]
  *
  * 全部静态：页面只插入三样东西——`lang`、转义过的 `<title>`、已做脚本安全转义的 JSON（`html.ts`）。
  * 脚本只用 `textContent` / `createElement` 写 DOM，不用 `innerHTML`；没有任何外部资源（CSP 见 `CSP`）。

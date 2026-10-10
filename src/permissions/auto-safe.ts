@@ -1,5 +1,5 @@
 /**
- * auto 模式下 bash 的规则层与静态判定（§7.4，docs/permissions.md）。
+ * auto 模式下 bash 的规则层与静态判定（§7.4，docs/guides/permissions.md）。
  *
  * 规则层（命中即询问，不调模型）——外层与每层嵌套命令（`sh -c`、`eval`、`xargs`、`find -exec`，
  * 见 dangerous.ts）的每一段都查：

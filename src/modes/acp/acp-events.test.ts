@@ -1,5 +1,5 @@
 /**
- * AcpEventMapper：直接喂 SessionEvent 序列，断言发出的 `session/update`（docs/acp-plan.md §2.3、[ACP-C]）。
+ * AcpEventMapper：直接喂 SessionEvent 序列，断言发出的 `session/update`（docs/history/acp-plan.md §2.3、[ACP-C]）。
  * 每条更新都按官方 schema 的 `SessionNotification` 校验。
  */
 

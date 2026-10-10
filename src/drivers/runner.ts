@@ -1,5 +1,5 @@
 /**
- * ProcessRunner：把 AgentDriver 适配成 SubagentRunner（docs/wave5-plan.md §7.6、§5.3–§5.4）。[W5-E]
+ * ProcessRunner：把 AgentDriver 适配成 SubagentRunner（docs/history/wave5-plan.md §7.6、§5.3–§5.4）。[W5-E]
  *
  * 外部 CLI Agent 由此与 ama 子 Agent 共用 `task(agent=…)` 入口（D13）。`start()`：
  * 1. 只在已信任目录里起（§5.4 信任；`claude -p` 会跳过目录信任对话框并执行项目 hooks）；

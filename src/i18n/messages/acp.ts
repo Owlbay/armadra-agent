@@ -1,5 +1,5 @@
 /**
- * 消息目录：acp（键名规范见 docs/i18n.md）。[ACP-C0 从 print.acp 迁入，docs/acp-plan.md D15]
+ * 消息目录：acp（键名规范见 docs/guides/i18n.md）。[ACP-C0 从 print.acp 迁入，docs/history/acp-plan.md D15]
  *
  * en 是形状源；zh 用 `satisfies Messages<typeof en>`，缺键 / 多键 / 参数不符在 tsc 期报错。
  * 整句一个键、禁止片段拼接；插值写成函数，条件分支写进函数体。

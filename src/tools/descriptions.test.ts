@@ -6,20 +6,20 @@ import { TASK_AGENTS_HEADING, bindTaskBackground, createTaskTool } from "./task.
 /** 设计 §5.6：每个内置工具「名称 + 描述 + 参数 JSON + promptSnippet + promptGuidelines」≤ 150 token。 */
 const BUDGET = 150;
 /**
- * [W5-G] task 是子 Agent 的统一入口（docs/wave5-plan.md §7.3、D13）：契约加了 agent / background /
+ * [W5-G] task 是子 Agent 的统一入口（docs/history/wave5-plan.md §7.3、D13）：契约加了 agent / background /
  * taskId / isolation / budgetUsd 五个参数，单独给 230；[ME-A] 加 `context`（fork / fresh）参数与说明，
  * 描述已整段改写压到 +10 token 以内，放宽到 240 / 255（三档 prompt-budget 仍在原上限内）。
  */
 const BUDGETS: Record<string, number> = { task: 240 };
 /**
- * [W7-B1] 缺省后台（交互 / RPC / ACP）时 task 换成后台版描述（docs/agents-concurrency-plan.md §2.6：要说明
+ * [W7-B1] 缺省后台（交互 / RPC / ACP）时 task 换成后台版描述（docs/history/agents-concurrency-plan.md §2.6：要说明
  * 缺省后台、何时写 background:false、不要轮询），比前台版长约 20 token；规则句已精简到一句。
  */
 const TASK_BACKGROUND_BUDGET = 255;
 
 /**
  * 按 字符数 / 4 估算 token。task 描述末尾的子 Agent 类型清单另有 400 token 预算
- * （docs/wave5-plan.md §7.3，agents/catalog.ts），不计入这里。
+ * （docs/history/wave5-plan.md §7.3，agents/catalog.ts），不计入这里。
  */
 function toolTokenEstimate(tool: ToolDefinition): number {
   const text = [

@@ -1,6 +1,6 @@
 # 模型调用效率实测（2026-10）
 
-> 依据 [model-efficiency-plan.md](../model-efficiency-plan.md) 各批次的真实测量，由收尾批次 `[ME-Z]` 汇总。
+> 依据 [model-efficiency-plan.md](../history/model-efficiency-plan.md) 各批次的真实测量，由收尾批次 `[ME-Z]` 汇总。
 > key 由 ama 自己的供应商注册表解析后只传给协议层，没有读取、打印或记录；会话与数据目录都在 `/tmp` 下的临时目录（`AMA_DATA_DIR`），脚本放在仓库外。
 
 ## 总览
@@ -21,7 +21,7 @@
 ### 环境
 
 - `[ME-A]` 分支 `pnpm build:lib` 的构建，经 SDK `createRuntime` 运行（`--tools read,task`、`full-auto`、无人值守）。
-- 父会话一条 user 消息：`docs/design.md` 前 24 000 字符作参考资料（约 7.3k–7.9k token）+ 指令「用 `context` 调一次 `task`，子任务只回 OK，返回后回 DONE」。每次运行 = 父请求 1（发出 `task`）→ 子会话首请求 → 父请求 2（收尾）。
+- 父会话一条 user 消息：`docs/design/design.md` 前 24 000 字符作参考资料（约 7.3k–7.9k token）+ 指令「用 `context` 调一次 `task`，子任务只回 OK，返回后回 DONE」。每次运行 = 父请求 1（发出 `task`）→ 子会话首请求 → 父请求 2（收尾）。
 - 端点：packy 中转 `deepseek-v4-flash@chat`、`kimi-k2.5@chat`（openai-completions）；本机中转 `astr/gpt-6-luna`（openai-responses，自定义供应商缺省不发 `prompt_cache_key` 与亲和头）。
 - 读数：`ratio = cacheRead / (input + cacheRead + cacheWrite)`。packy 的 DeepSeek 缓存读按 2048 token 一块计（见 [cache-2026-10-02](cache-2026-10-02.md) E1）。
 
@@ -54,7 +54,7 @@
 ### 环境
 
 - `feat/open-subagents` 分支 `pnpm build:lib` 的构建，脚本与 F 节相同（SDK `createRuntime`，`--tools read,task`，`full-auto`，无人值守），`AMA_DATA_DIR` 指向 /tmp。
-- 父消息：`docs/design.md` 前 24 000 字符 + 「用 `context: "fork"` 调一次 `task`，子任务：读 `docs/agents.md` 前 60 行后回 OK；返回后回 DONE」。
+- 父消息：`docs/design/design.md` 前 24 000 字符 + 「用 `context: "fork"` 调一次 `task`，子任务：读 `docs/guides/agents.md` 前 60 行后回 OK；返回后回 DONE」。
 - 判定：子会话 JSONL（首条 `ama.task{context:"fork"}`）里 assistant 的 `task` / `task_ctl` 调用数，0 为通过。
 - `<task>` 两个版本：A = 列出 `Tools not available to you: task, task_ctl`；B = A + 首段末尾 `Do not call task or task_ctl.`。
 
@@ -97,7 +97,7 @@ HTTP 请求 9 次（F2-4 4 次，F2-5 5 次）。结论：串台本身仍会发�
 ### 环境
 
 - 同一组命令分别用已安装的 0.7.3（ME-B 之前）与本分支 `pnpm build` 的 `dist/bundle/ama.cjs` 各跑一遍，各自独立的临时 cwd 与 `AMA_DATA_DIR`。
-- 请求 1：`ama -p "<reference>docs/design.md 前 24 000 字符</reference> … Reply with exactly: OK" --model packy/deepseek-v4-flash`（约 7k token，冷）。
+- 请求 1：`ama -p "<reference>docs/design/design.md 前 24 000 字符</reference> … Reply with exactly: OK" --model packy/deepseek-v4-flash`（约 7k token，冷）。
 - 请求 2：`ama -c --exclude-tools bash -p "Reply with exactly: OK2"`——resume 时少了 `bash`，即「对话开始后移除工具」，转录多一条 `toolsRemoved: [bash]` 的 system 补丁。
 
 ### 数据

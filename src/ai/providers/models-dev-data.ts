@@ -1,5 +1,5 @@
 /**
- * 由 scripts/update-models-dev.mjs 生成，勿手改（docs/providers.md「模型元数据」）。
+ * 由 scripts/update-models-dev.mjs 生成，勿手改（docs/guides/providers.md「模型元数据」）。
  *
  * 数据来自 models.dev（https://models.dev/api.json，github.com/anomalyco/models.dev），MIT 许可：
  * Copyright (c) 2025 models.dev。完整声明见 THIRD_PARTY_NOTICES.md。

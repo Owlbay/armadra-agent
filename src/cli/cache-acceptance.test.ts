@@ -1,5 +1,5 @@
 /**
- * 模型调用效率整体验收（docs/model-efficiency-plan.md §4 第 1 条）：组装后的会话跑
+ * 模型调用效率整体验收（docs/history/model-efficiency-plan.md §4 第 1 条）：组装后的会话跑
  * 「20 回合（中途加工具、删工具）→ 退出 → 改 AGENTS.md → resume → /compact → 再 10 回合」，
  * 发给供应商的 system 全程逐字节相同；工具表只在加工具那一次末尾追加一项，之后（含删工具、
  * resume、压缩）逐字节不变；会话文件里 system 条目只有 1 条全量，其余都是补丁。

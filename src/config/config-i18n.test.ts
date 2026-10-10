@@ -1,5 +1,5 @@
 /**
- * 配置说明与诊断的界面语言（docs/wave6-plan.md §5.5、D21）。[W6-I4]
+ * 配置说明与诊断的界面语言（docs/history/wave6-plan.md §5.5、D21）。[W6-I4]
  *
  * 测试缺省钉 zh（test/helpers/setup.ts）；这里切 en 的用例在 afterEach 改回 zh。
  */

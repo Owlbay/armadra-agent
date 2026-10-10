@@ -1,5 +1,5 @@
 /**
- * fork 式子 Agent（docs/model-efficiency-plan.md §2.1，D1–D3）。[ME-A]
+ * fork 式子 Agent（docs/history/model-efficiency-plan.md §2.1，D1–D3）。[ME-A]
  *
  * - fork 点 = 发出本次 `task` 调用的那条 assistant **之前一条**条目（= 父会话上一次真实请求的转录）；
  *   同一条 assistant 里并行的多个 fork 任务共享同一个 fork 点。

@@ -1,5 +1,5 @@
 /**
- * 计划的持久化：会话条目的读取与计划文件导出（docs/wave5-plan.md §6.3）。[W5-F]
+ * 计划的持久化：会话条目的读取与计划文件导出（docs/history/wave5-plan.md §6.3）。[W5-F]
  *
  * - 权威数据在会话 JSONL：`custom{ama.plan}`（只追加：状态变化再记一条，同 id 取分支上最后一条）、
  *   `custom{ama.plan_state}`（进入 / 退出 plan）。

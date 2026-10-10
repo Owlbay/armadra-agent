@@ -1,6 +1,6 @@
 # 对话中途的 system 消息：DeepSeek 实测（2026-10-09）
 
-> 目的：决定 DeepSeek 是否打开 `supportsMidConvoSystemMessages`，也就是会话中途变化的系统提示节能否以「对话中途的 system 消息」送达而不改写开头。结论：**不打开**，改为通用做法——中途节补丁以 `<system-reminder>` 包裹的 user 消息追加在尾部（[providers.md](../providers.md)「缓存」）。
+> 目的：决定 DeepSeek 是否打开 `supportsMidConvoSystemMessages`，也就是会话中途变化的系统提示节能否以「对话中途的 system 消息」送达而不改写开头。结论：**不打开**，改为通用做法——中途节补丁以 `<system-reminder>` 包裹的 user 消息追加在尾部（[providers.md](../guides/providers.md)「缓存」）。
 > 合计 **6 次请求**，按 deepseek-flash 目录价约 **$0.006**；中转的真实账单未单独核对。key 由 ama 自己的供应商注册表解析后只传给协议层，没有读取、打印或记录。
 
 ## 环境

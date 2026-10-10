@@ -1,5 +1,5 @@
 /**
- * [W6-C0] 不再按中文字面量判断的三处（docs/wave6-plan.md §5.3、D19）：zh 输出字节不变，逻辑走枚举 / 码。
+ * [W6-C0] 不再按中文字面量判断的三处（docs/history/wave6-plan.md §5.3、D19）：zh 输出字节不变，逻辑走枚举 / 码。
  */
 
 import { afterEach, describe, expect, it } from "vitest";

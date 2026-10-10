@@ -1,5 +1,5 @@
 /**
- * 操作系统沙箱的参数生成（docs/sandbox.md「各平台实现」）：纯函数，不探测、不读文件系统。
+ * 操作系统沙箱的参数生成（docs/guides/sandbox.md「各平台实现」）：纯函数，不探测、不读文件系统。
  *
  * - `buildSbplProfile`：macOS `sandbox-exec -p` 的 SBPL 配置；
  * - `buildBwrapArgs`：Linux bubblewrap 的参数（到 `--` 为止）；

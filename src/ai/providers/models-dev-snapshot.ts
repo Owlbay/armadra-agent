@@ -1,5 +1,5 @@
 /**
- * 入库的 models.dev 快照（docs/wave5-plan.md §2.1、docs/providers.md「模型元数据」）。
+ * 入库的 models.dev 快照（docs/history/wave5-plan.md §2.1、docs/guides/providers.md「模型元数据」）。
  *
  * `models-dev/*.json` 由 `scripts/update-models-dev.mjs` 生成并内联进 `models-dev-data.ts`（单 bundle，
  * 运行时不读 JSON 文件、不联网）。本模块解析内联数据，并提供与脚本同一口径的 `buildSnapshot()`

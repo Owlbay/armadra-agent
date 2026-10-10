@@ -243,7 +243,7 @@ function proxySection(report: Report, io: CliIo): void {
   for (const line of describeProxy(inspectProxy(io.env))) report.item(line);
 }
 
-/** 检查点备份占用（docs/rewind-plan.md §1.4）。 */
+/** 检查点备份占用（docs/history/rewind-plan.md §1.4）。 */
 async function fileHistoryLine(report: Report, dataDir: string): Promise<void> {
   try {
     const usage = await blobUsage(dataDir);

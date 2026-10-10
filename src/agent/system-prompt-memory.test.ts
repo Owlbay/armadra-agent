@@ -1,5 +1,5 @@
 /**
- * `SECTION_ORDER` 的 memory 节（docs/wave6-plan.md §3.4；[W6-C0]）：在 skills 之后、hooks 之前；
+ * `SECTION_ORDER` 的 memory 节（docs/history/wave6-plan.md §3.4；[W6-C0]）：在 skills 之后、hooks 之前；
  * 不给时节为 undefined，系统提示字节不变。
  */
 

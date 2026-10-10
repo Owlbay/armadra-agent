@@ -1,5 +1,5 @@
 /**
- * [S2] bash 经 OS 沙箱运行（docs/sandbox.md「第二阶段」）：真机（macOS sandbox-exec；Linux 有 bwrap 时）。
+ * [S2] bash 经 OS 沙箱运行（docs/guides/sandbox.md「第二阶段」）：真机（macOS sandbox-exec；Linux 有 bwrap 时）。
  * 没有能限制写入的沙箱（Windows、Linux 没有 bwrap 或不允许用户命名空间）时整组跳过——那时 bash 不包装，
  * 行为与以前相同（最后一组用假状态验证）。
  *
@@ -95,7 +95,7 @@ describe.skipIf(!usable)(`bash 沙箱真机（${status.kind}）`, () => {
     expect(r.content).toContain("SSH_DENIED");
     expect(existsSync(join(workspace, ".git", "hooks", "pre-commit"))).toBe(false);
     if (status.kind === "sandbox-exec") {
-      // bwrap 只能挂到已存在的路径：不存在的 .ama/ 挡不住（docs/sandbox.md 已知限制）
+      // bwrap 只能挂到已存在的路径：不存在的 .ama/ 挡不住（docs/guides/sandbox.md 已知限制）
       expect(r.content).not.toContain("AMA_WRITTEN");
       expect(existsSync(join(workspace, ".ama"))).toBe(false);
     }

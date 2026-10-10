@@ -1,10 +1,10 @@
 /**
- * 消息目录：print（键名规范见 docs/i18n.md）。[W6-C0 建空壳，W6-I3 迁入 `src/modes/{print,rpc}/**`；
+ * 消息目录：print（键名规范见 docs/guides/i18n.md）。[W6-C0 建空壳，W6-I3 迁入 `src/modes/{print,rpc}/**`；
  * ACP 的文案在 [ACP-C0] 迁到 acp.ts]
  *
  * en 是形状源；zh 用 `satisfies Messages<typeof en>`，缺键 / 多键 / 参数不符在 tsc 期报错。
  * 整句一个键、禁止片段拼接；插值写成函数，条件分支写进函数体。
- * RPC 的 `error` / `message` 是人读文本，宿主按 `code` 判断（docs/rpc.md）；JSON 字段名不在这里。
+ * RPC 的 `error` / `message` 是人读文本，宿主按 `code` 判断（docs/reference/rpc.md）；JSON 字段名不在这里。
  */
 
 import { plural } from "../format.js";

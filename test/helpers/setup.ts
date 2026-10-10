@@ -48,7 +48,7 @@ process.env["AMA_NO_INIT"] = "1";
 // [W5-EG] 不按本机 PATH 登记 claude / codex 进 task 描述、不探测版本（结果随机器变化）；
 // 外部 Agent 的用例显式注入 spawn / env。
 process.env["AMA_NO_AGENT_PROBE"] = "1";
-// [W6-C0] 测试缺省钉 zh（docs/wave6-plan.md D20）
+// [W6-C0] 测试缺省钉 zh（docs/history/wave6-plan.md D20）
 process.env["AMA_LANG"] = "zh";
 setLocale("zh");
 

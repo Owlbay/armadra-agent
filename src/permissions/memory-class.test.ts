@@ -1,5 +1,5 @@
 /**
- * 权限类 `memory`（docs/wave6-plan.md §3.3、D10；[W6-C0]）：view 放行，写命令按 execute 判定。
+ * 权限类 `memory`（docs/history/wave6-plan.md §3.3、D10；[W6-C0]）：view 放行，写命令按 execute 判定。
  */
 
 import { describe, expect, it } from "vitest";

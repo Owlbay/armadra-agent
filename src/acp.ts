@@ -1,5 +1,5 @@
 /**
- * `@armadra/agent/acp` 子路径（docs/wave5-plan.md §5.1，D14）。[W5-C0 / W5-E]
+ * `@armadra/agent/acp` 子路径（docs/history/wave5-plan.md §5.1，D14）。[W5-C0 / W5-E]
  *
  * 供 Armadra 等宿主复用 ama 的 ACP 协议栈（只维护一份）：
  * - 驱动契约（ACP 词汇）与 ACP v1 子集类型；

@@ -1,5 +1,5 @@
 /**
- * `ama --mode acp` 的连接：JSON-RPC 对等端 + `initialize` 协商结果（docs/acp-plan.md §1.6）。[ACP-C0]
+ * `ama --mode acp` 的连接：JSON-RPC 对等端 + `initialize` 协商结果（docs/history/acp-plan.md §1.6）。[ACP-C0]
  *
  * 认证门（无模型时的握手，acp-auth-gate.ts）与服务端（acp-server.ts）共用同一条连接：门控在
  * bootstrap 成功后把它交给 `AcpServer`，客户端不必重新 `initialize`。对等端开着协议级取消

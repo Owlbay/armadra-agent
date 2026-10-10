@@ -1,5 +1,5 @@
 /**
- * anthropic-messages 的 compat 推断（[W5-M2]，docs/wave5-plan.md §3.1、D10）：按请求主机给缺省。
+ * anthropic-messages 的 compat 推断（[W5-M2]，docs/history/wave5-plan.md §3.1、D10）：按请求主机给缺省。
  *
  * 顺序：保守缺省 ← 主机表（`model.baseUrl` 的主机名子串，先命中先用）← `provider.compat` ←
  * `model.compat`（字段级覆盖，undefined 不覆盖）。registry 物化后的模型已把供应商 / 渠道 compat 合进
@@ -14,7 +14,7 @@
  * - OpenRouter：流式 usage 只出现在 `message_delta`，`applyAnthropicUsage` 本就按非 null 字段合并，
  *   不需要开关（anthropic-compat.test.ts 核对）。
  *
- * 表里每一项都对应厂商文档或实测（docs/research/R1-models-protocols.md §2.1、docs/providers.md「渠道实测」）。
+ * 表里每一项都对应厂商文档或实测（docs/research/R1-models-protocols.md §2.1、docs/guides/providers.md「渠道实测」）。
  */
 
 import type { AnthropicMessagesCompat, Model, ProviderCompat, ProviderData } from "../types.js";

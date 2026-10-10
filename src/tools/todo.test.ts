@@ -1,5 +1,5 @@
 /**
- * [W5-F] todo 的 `update` 补丁与 `planStep`（docs/wave5-plan.md §6.1、D20）。
+ * [W5-F] todo 的 `update` 补丁与 `planStep`（docs/history/wave5-plan.md §6.1、D20）。
  */
 
 import { describe, expect, it } from "vitest";

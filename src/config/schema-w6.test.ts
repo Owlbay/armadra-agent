@@ -1,5 +1,5 @@
 /**
- * 第六波配置键（docs/wave6-plan.md §7；[W6-C0]）：形状校验、项目级限制、profile / 命令行、auth.json 联合类型。
+ * 第六波配置键（docs/history/wave6-plan.md §7；[W6-C0]）：形状校验、项目级限制、profile / 命令行、auth.json 联合类型。
  */
 
 import { describe, expect, it } from "vitest";

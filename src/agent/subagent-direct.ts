@@ -1,5 +1,5 @@
 /**
- * 子 Agent 视图的直接对话与实时数据（docs/wave6-plan.md §1.2–§1.3、D3）。[W6-A]
+ * 子 Agent 视图的直接对话与实时数据（docs/history/wave6-plan.md §1.2–§1.3、D3）。[W6-A]
  *
  * 从 subagent-registry.ts 拆出（保持 ≤ 600 行）：
  * - `liveOf`：视图读的快照、是否在并发池排队、ama 子会话的观察钩子与外部 Agent 的环形缓冲；

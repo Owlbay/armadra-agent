@@ -1,5 +1,5 @@
 /**
- * models.dev 模型元数据（docs/providers.md「模型元数据：models.dev」）：裁剪、索引、匹配、映射。
+ * models.dev 模型元数据（docs/guides/providers.md「模型元数据：models.dev」）：裁剪、索引、匹配、映射。
  *
  * 数据源 `https://models.dev/api.json` 是「供应商 → 模型」两层表，同一个模型 id 会在几十家转售商下
  * 重复出现且取值不一。`ModelsDevIndex.match()` 按文档里的顺序挑一条：显式 `provider/model` →
@@ -22,7 +22,7 @@ export interface ModelsDevPrices {
 
 /**
  * 用到的模型字段（models.dev 原名）；其余裁剪时丢掉。快照只多存 family / knowledge /
- * release_date / limit.input / 价格档位 / interleaved / status（docs/wave5-plan.md §2.1）。
+ * release_date / limit.input / 价格档位 / interleaved / status（docs/history/wave5-plan.md §2.1）。
  */
 export interface ModelsDevModel {
   id: string;
@@ -215,7 +215,7 @@ function trimModel(id: string, raw: Record<string, unknown>): ModelsDevModel {
   return out;
 }
 
-/** 快照过滤：丢 deprecated、输出不含文本、上下文为 0 / 缺失、tool_call:false（docs/wave5-plan.md §2.1）。 */
+/** 快照过滤：丢 deprecated、输出不含文本、上下文为 0 / 缺失、tool_call:false（docs/history/wave5-plan.md §2.1）。 */
 export function keepForSnapshot(raw: unknown): boolean {
   if (!isRecord(raw)) return false;
   if (raw["status"] === "deprecated" || raw["tool_call"] === false) return false;
@@ -434,7 +434,7 @@ function toCost(p: ModelsDevPrices, mapping: ModelsDevMapping): Omit<ModelCost, 
   };
 }
 
-/** models.dev 条目 → ama Model 字段（规则见 docs/providers.md「模型元数据」）。 */
+/** models.dev 条目 → ama Model 字段（规则见 docs/guides/providers.md「模型元数据」）。 */
 export function modelsDevFields(
   model: ModelsDevModel,
   mapping: ModelsDevMapping = "custom",

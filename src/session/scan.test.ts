@@ -1,5 +1,5 @@
 /**
- * `forEachLine` 包装 `forEachLineSync`（docs/memory-plan.md D6、[M-C] 测试 1、3）：回调序列与旧实现
+ * `forEachLine` 包装 `forEachLineSync`（docs/history/memory-plan.md D6、[M-C] 测试 1、3）：回调序列与旧实现
  * （整读 + 按 `\n` 切）相同；回调返回 false 时真的停止读盘。
  */
 

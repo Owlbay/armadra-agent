@@ -1,5 +1,5 @@
 /**
- * 子 Agent 类型目录：内置 ⊕ 发现的定义 ⊕ 外部 runner（docs/wave5-plan.md §7.1–§7.3、§7.6）。[W5-G]
+ * 子 Agent 类型目录：内置 ⊕ 发现的定义 ⊕ 外部 runner（docs/history/wave5-plan.md §7.1–§7.3、§7.6）。[W5-G]
  *
  * - 发现的同名定义覆盖内置类型（不 warning）；外部 runner（W5-E 的 ProcessRunner、宿主 runner）以
  *   `add()` 登记，名字已存在时保留先登记者。

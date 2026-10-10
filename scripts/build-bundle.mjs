@@ -4,7 +4,7 @@
 // platform node、format cjs、target node22、全部内联（零运行时依赖，任何非 node: 的外部引用都算失败）。
 // `import.meta.url` 替换为 __filename 的 file URL；`__AMA_VERSION__` / `__AMA_BUNDLED__` 在此定义。
 // [W6-C0] `charset: "utf8"`：中文与符号按 UTF-8 原样输出（缺省 ascii 会转成 \uXXXX，每字 6 字节）；
-// Node 按 UTF-8 读源码，require 无影响（docs/wave6-plan.md §5.1、§5.6）。
+// Node 按 UTF-8 读源码，require 无影响（docs/history/wave6-plan.md §5.1、§5.6）。
 
 import { chmodSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";

@@ -1,5 +1,5 @@
 /**
- * 每作用域一把锁（docs/wave6-plan.md §3.2）。[W6-M]
+ * 每作用域一把锁（docs/history/wave6-plan.md §3.2）。[W6-M]
  *
  * 进程内按目录串行（`tools/file-mutex.ts`）；跨进程用作用域目录里的 `.lock`（`O_EXCL` 创建，写 pid）。
  * 等锁至多 `timeoutMs`（缺省 5 s）；锁文件超过 `staleMs`（缺省 30 s）视为陈旧，删掉重试。

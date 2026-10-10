@@ -1,5 +1,5 @@
 /**
- * 消息目录：report（键名规范见 docs/i18n.md）。[W6-C0 建空壳，W6-I3 迁入]
+ * 消息目录：report（键名规范见 docs/guides/i18n.md）。[W6-C0 建空壳，W6-I3 迁入]
  *
  * 范围：斜杠命令语义层（`modes/commands-core.ts` 的命令说明与回执）、`/session` `/cache` 报告与缓存提示
  * （`modes/session-report.ts`）、启动期文本问答（`modes/startup-ui-text.ts`）、`ama doctor`。

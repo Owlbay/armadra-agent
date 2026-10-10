@@ -1,5 +1,5 @@
 /**
- * [W5-Z] `[DONE:<步骤>]` 文本交接（docs/plan.md「交接」，D20 / R6 的回退）：活动工具集里没有 `todo` 时，
+ * [W5-Z] `[DONE:<步骤>]` 文本交接（docs/guides/plan.md「交接」，D20 / R6 的回退）：活动工具集里没有 `todo` 时，
  * 批准计划的交接消息请模型每完成一步在回复里单独一行写 `[DONE:S1]`；ama 在回合结束时读这些标记，
  * 把计划生成的待办（`planStep`）标为 done、下一个未完成项转 in_progress，照常落 `ama.todo` 与发
  * `todo_updated`，界面与 RPC 的进度显示不依赖 todo 工具。

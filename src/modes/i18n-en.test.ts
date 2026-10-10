@@ -1,5 +1,5 @@
 /**
- * [W6-I3] 其余模式与领域的英文界面抽样（docs/wave6-plan.md §9 W6-I3 验收）：`ama -p` 的 stderr、
+ * [W6-I3] 其余模式与领域的英文界面抽样（docs/history/wave6-plan.md §9 W6-I3 验收）：`ama -p` 的 stderr、
  * `--output-format json` 的机器字段不随语言变、`ama doctor`、斜杠命令与 `/session`、RPC 错误。
  * 其余测试缺省钉 zh，zh 断言不在这里。
  */

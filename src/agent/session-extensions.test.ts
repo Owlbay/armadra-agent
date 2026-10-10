@@ -1,5 +1,5 @@
 /**
- * 会话扩展点（docs/wave5-plan.md §10.1）：调用点、顺序、异常隔离、每个会话实例各自的扩展。[W5-C0]
+ * 会话扩展点（docs/history/wave5-plan.md §10.1）：调用点、顺序、异常隔离、每个会话实例各自的扩展。[W5-C0]
  */
 
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";

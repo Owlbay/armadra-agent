@@ -30,7 +30,7 @@ export type * from "./permissions/types.js";
 export type * from "./host/types.js";
 export type * from "./config/types.js";
 export type * from "./checkpoints/types.js";
-// [W6-C0] 轨迹（docs/wave6-plan.md §2.1）与界面语言
+// [W6-C0] 轨迹（docs/history/wave6-plan.md §2.1）与界面语言
 export type * from "./trace/types.js";
 export { TRACE_CUSTOM_TYPE } from "./trace/types.js";
 export { buildTrace, loadSubagentTrace } from "./trace/build.js"; // [W6-T1]
@@ -49,7 +49,7 @@ export type {
 // SDK（B6 追加）
 export { createAgentSession, createRuntime } from "./sdk.js";
 export type { CreateSessionOptions, RuntimeOptions, SessionAuth } from "./sdk.js";
-// [W5-Z] 计划（docs/plan.md「SDK」）：`createAgentSession({ plan })` 与 `session.plan` 的类型。
+// [W5-Z] 计划（docs/guides/plan.md「SDK」）：`createAgentSession({ plan })` 与 `session.plan` 的类型。
 export type {
   PlanDecision,
   PlanResponse,

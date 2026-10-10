@@ -1,5 +1,5 @@
 /**
- * 写入前的凭据检查（docs/wave6-plan.md D10、§3.3）。[W6-M]
+ * 写入前的凭据检查（docs/history/wave6-plan.md D10、§3.3）。[W6-M]
  *
  * 判定以 `session/redact.ts` 的 `redactSecrets` 为准（脱敏后与原文不同 = 命中）；命中即拒写，不写遮蔽版。
  * 命中类型只用于告诉模型 / 用户「像什么」，按形态粗分。

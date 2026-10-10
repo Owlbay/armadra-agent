@@ -5,7 +5,7 @@
  * 的字符串表（`UPDATE_CATALOG=1 pnpm vitest run src/ai/providers/catalog.test.ts` 重新生成，
  * 测试守住两者一致）。本模块解析并校验它，另提供覆盖合并。
  *
- * [W5-M1] 「快照 ⊕ 覆盖」格式（docs/wave5-plan.md §2.2、D6）：文件级 `modelsDev` 指向 models.dev
+ * [W5-M1] 「快照 ⊕ 覆盖」格式（docs/history/wave5-plan.md §2.2、D6）：文件级 `modelsDev` 指向 models.dev
  * 快照里的供应商 id（`false` = 没有对应），条目按 `<modelsDev>/<id>`（或条目自己的 `modelsDev:
  * "provider/model"`）从快照继承数值事实——name、reasoning、contextWindow、maxTokens、input、cost、
  * family / knowledge / releaseDate / inputLimit / status；目录只写覆盖项与 ama 特有字段（`api`、
@@ -358,7 +358,7 @@ export function catalogInherited(provider: string, modelId: string): readonly st
 }
 
 /**
- * [ME-D] 中转 / 自定义模型按 id 匹配内置目录（docs/model-efficiency-plan.md D10）：小写、去一层
+ * [ME-D] 中转 / 自定义模型按 id 匹配内置目录（docs/history/model-efficiency-plan.md D10）：小写、去一层
  * `vendor/` 前缀与 `:latest` 后精确比较；键是第一方条目的 id（含 `/` 的聚合商条目不进索引）与各条
  * `aliases`。同一个键落在两条上即 ambiguous，不命中。精确不中时再去掉思考档后缀（`-low` 等）试一次。
  */

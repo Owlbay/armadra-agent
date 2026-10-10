@@ -1,5 +1,5 @@
 /**
- * ACP 客户端（docs/wave5-plan.md §5.1，D14）。[W5-E]
+ * ACP 客户端（docs/history/wave5-plan.md §5.1，D14）。[W5-E]
  *
  * JSON-RPC over NDJSON（{@link JsonRpcPeer}），手写零依赖；`@armadra/agent/acp` 导出供 Armadra 复用。
  *

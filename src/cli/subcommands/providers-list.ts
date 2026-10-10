@@ -1,5 +1,5 @@
 /**
- * `ama providers list|channels|remove`（docs/providers.md「一键接入」）：供应商 → 渠道 → 模型数与 key 来源
+ * `ama providers list|channels|remove`（docs/guides/providers.md「一键接入」）：供应商 → 渠道 → 模型数与 key 来源
  * （从不显示 key）；remove 删配置条目（先备份）与 auth.json 里该供应商及其渠道的 key。
  */
 

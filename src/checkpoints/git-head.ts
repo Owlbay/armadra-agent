@@ -1,5 +1,5 @@
 /**
- * 读 git HEAD（docs/rewind-plan.md §1.2、D6）。[RW-A]
+ * 读 git HEAD（docs/history/rewind-plan.md §1.2、D6）。[RW-A]
  *
  * 不起 git 进程：从 cwd 向上找 `.git`（目录，或 worktree / 子模块的 `gitdir: <路径>` 文件），读 `HEAD`；
  * 符号引用先查 gitdir 再查 `commondir`（worktree 的分支引用在主仓库），最后查 `packed-refs`。

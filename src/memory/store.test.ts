@@ -1,5 +1,5 @@
 /**
- * 记忆存储（docs/wave6-plan.md §3.2、§3.3、§3.6）：frontmatter 规范化、索引维护、上限、凭据拒写、并发与锁。
+ * 记忆存储（docs/history/wave6-plan.md §3.2、§3.3、§3.6）：frontmatter 规范化、索引维护、上限、凭据拒写、并发与锁。
  */
 
 import {

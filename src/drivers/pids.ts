@@ -1,5 +1,5 @@
 /**
- * 外部 Agent 进程登记与孤儿清理（docs/wave5-plan.md §5.4 孤儿进程）。[W5-E]
+ * 外部 Agent 进程登记与孤儿清理（docs/history/wave5-plan.md §5.4 孤儿进程）。[W5-E]
  *
  * `<dataDir>/drivers/pids.json` 记 `{ pid, program, owner }`（owner = 起它的 ama 进程）。
  * 正常退出时 `process-tree.ts` 已同步杀掉仍存活的组；这里处理 ama 被 SIGKILL / 崩溃留下的孤儿：

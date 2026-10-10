@@ -1,5 +1,5 @@
 /**
- * 会话预算（docs/wave5-plan.md §8.3 H2，D29）：`--max-turns` / `--max-cost` / config `limits.*`。[W5-H2]
+ * 会话预算（docs/history/wave5-plan.md §8.3 H2，D29）：`--max-turns` / `--max-cost` / config `limits.*`。[W5-H2]
  *
  * 以 `SessionExtension` 实现（只装主会话；task 子会话有自己的 maxTurns）：
  * - **回合**：每个会话周期（`before_agent_start` 起）累计助手回复（error / aborted 不算）；第 N 次回复

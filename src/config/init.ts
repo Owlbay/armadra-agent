@@ -1,5 +1,5 @@
 /**
- * 配置目录初始化（docs/providers.md「配置目录」）：`ama init` 与 CLI 首次运行的自动初始化。
+ * 配置目录初始化（docs/guides/providers.md「配置目录」）：`ama init` 与 CLI 首次运行的自动初始化。
  *
  * - 目录 0700；`config.json` 只在不存在时写最小内容（`--force` 时先备份再重写）：只有 `$schema`、
  *   `version` 与空 `providers`，不写死任何缺省值——缺省值以后调整（例如 codemode 跟随预设）对老用户

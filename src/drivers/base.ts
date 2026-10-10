@@ -1,5 +1,5 @@
 /**
- * 各驱动共用的依赖与看门狗（docs/wave5-plan.md §5.4）。[W5-E]
+ * 各驱动共用的依赖与看门狗（docs/history/wave5-plan.md §5.4）。[W5-E]
  */
 
 import type { PermissionMode } from "../permissions/types.js";

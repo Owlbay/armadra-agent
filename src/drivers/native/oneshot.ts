@@ -1,5 +1,5 @@
 /**
- * 一次性打印模式兜底（docs/wave5-plan.md §5.1 oneshot.ts）。[W5-E]
+ * 一次性打印模式兜底（docs/history/wave5-plan.md §5.1 oneshot.ts）。[W5-E]
  *
  * `claude -p --output-format json`、`codex exec --json`、`gemini -p --output-format stream-json`：
  * **不能审批**（能力 `permissions: "none"`），所以只在只读任务下用——open 时模式不是

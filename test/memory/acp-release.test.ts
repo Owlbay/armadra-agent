@@ -1,5 +1,5 @@
 /**
- * ACP 关闭会话后可回收（docs/memory-plan.md D2、§2.2、§3「[M-A]」测试 1）。[M-A]
+ * ACP 关闭会话后可回收（docs/history/memory-plan.md D2、§2.2、§3「[M-A]」测试 1）。[M-A]
  *
  * fake 下开 6 个会话各跑 2 轮（第一轮读一张图），逐个 `session/close` 后：会话实例全部被回收（含被
  * 第一个 `session/new` 认领的启动会话，#165；只剩关掉最后一个会话时补的待命会话）、子 Agent 控制面

@@ -1,5 +1,5 @@
 /**
- * `/trace` 覆盖层（docs/wave6-plan.md §2.4）。[W6-T1]
+ * `/trace` 覆盖层（docs/history/wave6-plan.md §2.4）。[W6-T1]
  *
  * - `/trace`（当前会话）、`/trace t2`（以任务 t2 为根：ama 子会话的子轨迹，或外部 Agent 骨架）。
  * - 主屏约束下的覆盖层：`anchor: "bottom"`、高度 `rows − 1`（同 rewind 面板）；退出撤掉覆盖层，消息区不变。

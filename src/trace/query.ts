@@ -1,5 +1,5 @@
 /**
- * 轨迹查询：RPC `get_trace`、SDK `session.trace()`、`ama sessions trace --json` 共用（docs/wave6-plan.md §2.6）。
+ * 轨迹查询：RPC `get_trace`、SDK `session.trace()`、`ama sessions trace --json` 共用（docs/history/wave6-plan.md §2.6）。
  * [W6-T2]
  *
  * - **窗口**：在 `Trace.turns` 上切。缺省尾部 `turnLimit`（50，上限 500）个回合；`before`（回合 id）向前翻页；

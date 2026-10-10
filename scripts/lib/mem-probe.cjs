@@ -1,4 +1,4 @@
-// 内存采样探针（docs/memory-plan.md D14）：`node --require scripts/lib/mem-probe.cjs <entry> …` 预加载。
+// 内存采样探针（docs/history/memory-plan.md D14）：`node --require scripts/lib/mem-probe.cjs <entry> …` 预加载。
 // 只用 node:*，dev 工具，不进 npm 包。scripts/bench-memory.mjs 用它采样；也可以单独挂到任何 ama 进程上。
 //
 // 环境变量：

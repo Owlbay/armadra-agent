@@ -294,7 +294,7 @@ export async function runPrintMode(runtime: Runtime, context: ModeContext): Prom
 }
 
 /**
- * [W7-B2] 主回合结束后等后台任务与它们的通知回合（docs/agents-concurrency-plan.md §2.6、§6 Q5）。
+ * [W7-B2] 主回合结束后等后台任务与它们的通知回合（docs/history/agents-concurrency-plan.md §2.6、§6 Q5）。
  * `settled()`（subagent-background.ts）等到没有运行中任务且通知投递链（含通知回合）结束；`stopped`：SIGINT /
  * SIGTERM、stdout 关闭或预算到限时 resolve，立即停止等待。没有子 Agent 注册表时直接返回。
  */

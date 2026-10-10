@@ -1,5 +1,5 @@
 /**
- * 子 Agent 的 git worktree 隔离（docs/wave5-plan.md §7.4，D24）。[W5-G]
+ * 子 Agent 的 git worktree 隔离（docs/history/wave5-plan.md §7.4，D24）。[W5-G]
  *
  * - `git worktree add -b ama/task-<taskId> <repo>/.ama/worktrees/<taskId> HEAD`；子会话 cwd 指向
  *   worktree 里与父 cwd 对应的子目录；

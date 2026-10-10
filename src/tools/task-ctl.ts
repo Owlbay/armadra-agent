@@ -1,6 +1,6 @@
 /**
  * `task_ctl` 工具：查看 / 等待 / 停止后台子 Agent 任务，读输出，向任务追加消息
- * （docs/wave5-plan.md §7.3，D13）。[W5-C0 桩 → W5-G]
+ * （docs/history/wave5-plan.md §7.3，D13）。[W5-C0 桩 → W5-G]
  *
  * - 与 `task` 同进退（预设、`--tools`、`disable("task")`，见 registry.ts 的 `TOOL_COMPANIONS`）；
  * - 控制面按会话 id 取（agents/task-control.ts，注册表登记）；子会话里（depth ≥ 1）不可用——工具表

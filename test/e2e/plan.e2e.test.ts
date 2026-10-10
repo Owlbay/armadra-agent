@@ -1,5 +1,5 @@
 /**
- * [W5-Z] Plan 模式（docs/plan.md「审批」）bundle 级：`-p` 无人值守缺省 stop → 计划落盘、退出码 9；
+ * [W5-Z] Plan 模式（docs/guides/plan.md「审批」）bundle 级：`-p` 无人值守缺省 stop → 计划落盘、退出码 9；
  * 用户级 `plan.unattended: "approve"` 时同一次运行里自动批准并执行。
  */
 

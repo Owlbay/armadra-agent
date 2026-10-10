@@ -1,4 +1,4 @@
-/** 操作系统级沙箱（docs/sandbox.md）：探测、参数生成与命令包装。 */
+/** 操作系统级沙箱（docs/guides/sandbox.md）：探测、参数生成与命令包装。 */
 
 export {
   NO_OS_SANDBOX,

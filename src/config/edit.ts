@@ -1,5 +1,5 @@
 /**
- * Settings edit core (docs/wave6-plan.md §6.2, D24-D26). [W6-S]
+ * Settings edit core (docs/history/wave6-plan.md §6.2, D24-D26). [W6-S]
  *
  * Shared by the `/config` panel, `/config key=value` and `ama config get | set | unset | list`:
  * - `readSnapshot()` reads the user and project files fresh and merges them with the profile / command

@@ -1,5 +1,5 @@
 /**
- * Agent 栏进栏键的分派（docs/agents-concurrency-plan.md §1.4，W7-A）：`↓` 是唯一缺省进栏键；落空给提示
+ * Agent 栏进栏键的分派（docs/history/agents-concurrency-plan.md §1.4，W7-A）：`↓` 是唯一缺省进栏键；落空给提示
  * （有字每段草稿一次、栏关闭、没有任务）；浏览历史时不抢 `↓`；`Ctrl+B` 不再进栏、落回编辑器。
  */
 

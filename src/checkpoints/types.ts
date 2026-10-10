@@ -1,5 +1,5 @@
 /**
- * 检查点与回滚契约（docs/rewind-plan.md §1、§3）。契约文件，实现归 RW-A（`src/checkpoints/**`）
+ * 检查点与回滚契约（docs/history/rewind-plan.md §1、§3）。契约文件，实现归 RW-A（`src/checkpoints/**`）
  * 与 RW-B（`src/agent/session-rewind.ts`）。
  *
  * - 会话条目两类，均为 `custom`（不进上下文）：`ama.checkpoint`（新回合的用户消息之后）与

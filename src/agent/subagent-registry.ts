@@ -1,5 +1,5 @@
 /**
- * 子 Agent 任务注册表（docs/wave5-plan.md §7.3–§7.6，D13、D23–D24）。[W5-G]
+ * 子 Agent 任务注册表（docs/history/wave5-plan.md §7.3–§7.6，D13、D23–D24）。[W5-G]
  *
  * 每个根会话一份（按会话 id 登记；compose-agents.ts 的扩展在会话构造时建，SDK / 测试直接构造的
  * 会话在首次 task 时以缺省环境懒建）。职责：

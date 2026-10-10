@@ -1,6 +1,6 @@
 /**
  * `ama --mode acp` 工具调用的展示字段：title / kind / locations、结果文本（前 4 KB）与 diff 内容。
- * [ACP-C] 从 acp-events.ts 拆出（docs/acp-plan.md §2.3、D5、D6）。
+ * [ACP-C] 从 acp-events.ts 拆出（docs/history/acp-plan.md §2.3、D5、D6）。
  *
  * - codemode 内层调用（带 parentToolCallId）的 title 加前缀 `acp.tools.codemodePrefix`；
  * - `tool_execution_end` 的 `content` = `[diff?, text]`：diff 来自 `ToolResult.fileChange`（edit / write

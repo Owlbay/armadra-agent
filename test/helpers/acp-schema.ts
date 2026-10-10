@@ -1,5 +1,5 @@
 /**
- * ACP 线上形状的 schema 校验（docs/acp-plan.md §1.7、D14）。[ACP-C0]
+ * ACP 线上形状的 schema 校验（docs/history/acp-plan.md §1.7、D14）。[ACP-C0]
  *
  * 官方 v1 schema（1.24.1，`test/fixtures/acp/schema-v1.24.1.json`，原样保存）+ 手写的最小 JSON Schema
  * 校验器：不加 devDependency。只实现这份 schema 用到的关键字——`$ref`（仅本文件 `#/$defs/…`）、

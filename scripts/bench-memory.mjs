@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 内存场景基准（docs/memory-plan.md §1.5、D14；结论见 docs/research/memory-2026-10.md）。
+// 内存场景基准（docs/history/memory-plan.md §1.5、D14；结论见 docs/research/memory-2026-10.md）。
 //
 // 用法：pnpm build && node scripts/bench-memory.mjs [场景…] [选项]
 //   场景：version print read-huge resume list acp-pool rpc-bytes mock-http（缺省全部）

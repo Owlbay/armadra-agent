@@ -1,5 +1,5 @@
 /**
- * 消息目录：session（键名规范见 docs/i18n.md）。[W6-C0 建空壳，W6-I3 迁入]
+ * 消息目录：session（键名规范见 docs/guides/i18n.md）。[W6-C0 建空壳，W6-I3 迁入]
  *
  * 范围：`src/session/**`（含 Markdown 导出）、`src/checkpoints/**`、`src/plan/store.ts`、
  * `src/agent/session-plan.ts` 的待审批提示、`src/sandbox/**` 的状态说明、`src/codemode/capability.ts`

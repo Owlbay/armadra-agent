@@ -1,5 +1,5 @@
 /**
- * `ama init [--force]`（docs/providers.md「配置目录」）：建配置目录与缺省文件，逐个报告状态。
+ * `ama init [--force]`（docs/guides/providers.md「配置目录」）：建配置目录与缺省文件，逐个报告状态。
  */
 
 import { describeInit, initConfigDir, initNextSteps } from "../../config/init.js";
