@@ -11,7 +11,16 @@ import { buildAnthropicRequest } from "./apis/anthropic-request.js";
 import { buildGoogleRequest } from "./apis/google-request.js";
 import { buildOpenAIRequest } from "./apis/openai-request.js";
 import { buildResponsesRequest } from "./apis/openai-responses-request.js";
-import { jsonFetchBody, LARGE_STRING_BYTES, serializeJsonBody } from "./json-body.js";
+import { stripCacheParams } from "./apis/cache-params.js";
+import {
+  jsonFetchBody,
+  LARGE_STRING_BYTES,
+  LargeString,
+  largeString,
+  plainScans,
+  serializeJsonBody,
+  STREAM_CHUNK_CHARS,
+} from "./json-body.js";
 import type { Api, Message, Model, StreamOptions, TranscriptContext } from "./types.js";
 
 const native = (value: unknown): Buffer => Buffer.from(JSON.stringify(value), "utf8");
@@ -85,6 +94,17 @@ class Point {
   ) {}
 }
 
+/** 随机样本里的 LargeString 节点：每个用自己的键（约定同一键的 text 不变）。 */
+const LARGE_NODES: unknown[] = [
+  largeString("data:image/png;base64,", {}, BIG.base64),
+  largeString("", {}, BIG.exact),
+  largeString("data:image/png;base64,", {}, BIG.short), // 不够大：就是拼好的字符串
+  new LargeString("", {}, BIG.quote), // text 需要转义
+  new LargeString('pre"fix\u2028', {}, BIG.base64), // prefix 需要转义（直接构造）
+  new LargeString("中文😀", {}, BIG.cjk),
+  new LargeString("x", {}, "short"),
+];
+
 const SMALL_STRINGS = ["", "a", 'q"uote', "back\\slash", "tab\t", "  ", "\ud800", "😀", "中"];
 
 function randomValue(next: () => number, depth: number): unknown {
@@ -110,7 +130,8 @@ function randomValue(next: () => number, depth: number): unknown {
       ...SMALL_STRINGS,
     ]);
   }
-  if (roll < 0.42) return pick(BIG_VALUES);
+  if (roll < 0.38) return pick(BIG_VALUES);
+  if (roll < 0.42) return pick(LARGE_NODES);
   if (roll < 0.5) {
     return pick<unknown>([
       new Date(0),
@@ -167,6 +188,28 @@ describe("jsonFetchBody", () => {
         ...[BIG.base64, BIG.cjk, BIG.quote].map((v) => Buffer.byteLength(JSON.stringify(v))),
       ) + 64,
     );
+  });
+
+  it("大片段分块发出：切点不拆开成对代理项，每块单独解码无替换字符，拼接逐字节相同", async () => {
+    const emoji = "😀".repeat(STREAM_CHUNK_CHARS); // 两倍块长，切点落在每个码元位置都试一遍
+    for (const head of ["", "x", "中", "xx"]) {
+      for (const body of [
+        { [`k${head}`]: `${head}${emoji}` },
+        [head, emoji],
+        [`${head}${emoji}`],
+      ]) {
+        const { body: stream } = jsonFetchBody(body);
+        expect(stream).toBeInstanceOf(ReadableStream);
+        const chunks: Uint8Array[] = [];
+        for await (const chunk of stream as ReadableStream<Uint8Array>) chunks.push(chunk);
+        expect(chunks.length).toBeGreaterThan(2);
+        for (const chunk of chunks) {
+          expect(Buffer.from(chunk).toString("utf8")).not.toContain("\ufffd");
+          expect(chunk.length).toBeLessThanOrEqual(STREAM_CHUNK_CHARS * 3);
+        }
+        expect(Buffer.concat(chunks).equals(native(body))).toBe(true);
+      }
+    }
   });
 
   it("顶层就是大字符串：需要转义时整体交给原生", async () => {
@@ -226,6 +269,39 @@ describe("serializeJsonBody 字节不变", () => {
     let deep: unknown = { data: BIG.base64 };
     for (let i = 0; i < 100; i++) deep = i % 2 ? { next: deep, i } : [deep, i];
     expectSame(deep);
+  });
+
+  it("LargeString：与 toJSON 的原生结果逐字节相同（转义、短 text、顶层、同块复用），按块只扫一次", async () => {
+    const block = {};
+    const image = largeString("data:image/png;base64,", block, BIG.base64);
+    expect(image).toBeInstanceOf(LargeString);
+    expect(largeString("", {}, BIG.short)).toBe(BIG.short);
+    expect(largeString('a"', {}, BIG.base64)).toBe(`a"${BIG.base64}`);
+    const bodies: unknown[] = [
+      { a: image, b: [image, { c: image }] },
+      image,
+      [new LargeString('q"\u2028', {}, BIG.base64), new LargeString("", {}, BIG.lone)],
+      { short: new LargeString("p", {}, "tiny"), n: 1 },
+    ];
+    for (const body of bodies) {
+      expectSame(body);
+      const sent = await fetchBytes(body);
+      expect(sent.bytes.equals(native(body))).toBe(true);
+      if (sent.declared !== undefined) expect(sent.declared).toBe(sent.bytes.length);
+    }
+    const before = plainScans.count;
+    expectSame({ again: [image, largeString("", block, BIG.base64)] });
+    expect(plainScans.count).toBe(before);
+  });
+
+  it("stripCacheParams 把 LargeString 当叶子原样保留", () => {
+    const image = largeString("", {}, BIG.base64);
+    const body = { messages: [{ content: [{ data: image, cache_control: { type: "x" } }] }] };
+    const stripped = stripCacheParams(body);
+    expect(JSON.stringify(stripped)).toBe(
+      JSON.stringify({ messages: [{ content: [{ data: BIG.base64 }] }] }),
+    );
+    expectSame(stripped);
   });
 
   it("500 个随机 JSON", async () => {
@@ -306,6 +382,15 @@ function goldenContext(): TranscriptContext {
   return { messages: [...golden, ...extra] };
 }
 
+/** 请求体里的大叶子：LargeString 个数与普通大字符串个数。 */
+function countLarge(value: unknown, out = { wrapped: 0, strings: 0 }): typeof out {
+  if (value instanceof LargeString) out.wrapped++;
+  else if (typeof value === "string") out.strings += value.length >= LARGE ? 1 : 0;
+  else if (typeof value === "object" && value !== null)
+    for (const inner of Object.values(value)) countLarge(inner, out);
+  return out;
+}
+
 function model(api: Api, id: string): Model {
   return {
     id,
@@ -352,6 +437,13 @@ describe("serializeJsonBody 与四个协议的请求体", () => {
         expect(sent.declared).toBe(want.length);
         expect(sent.bytes.equals(want)).toBe(true);
       }
+      // 图片是 LargeString；同一转录再建一次请求体，图片不再扫转义
+      const body = build(options("short"));
+      const leaves = countLarge(body);
+      expect(leaves.wrapped).toBe(2);
+      const before = plainScans.count;
+      serializeJsonBody(body);
+      expect(plainScans.count - before).toBe(leaves.strings); // 只有普通大字符串（大段文本）还要扫
     });
   }
 

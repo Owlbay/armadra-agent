@@ -22,6 +22,7 @@
  */
 
 import { contentText, normalizeContext, sanitizeText } from "../context.js";
+import { largeString } from "../json-body.js";
 import { clampThinkingLevel, mappedThinkingValue } from "../thinking.js";
 import type {
   AssistantMessage,
@@ -149,7 +150,7 @@ function imagePart(block: Extract<ContentBlock, { type: "image" }>): Json {
   return {
     type: "input_image",
     detail: "auto",
-    image_url: `data:${block.mimeType};base64,${block.data}`,
+    image_url: largeString(`data:${block.mimeType};base64,`, block, block.data),
   };
 }
 

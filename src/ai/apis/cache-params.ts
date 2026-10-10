@@ -15,6 +15,7 @@
  */
 
 import { HttpError, postJson, type PostOptions } from "../http.js";
+import { LargeString } from "../json-body.js";
 import type { Api, CacheRetention, Model, PromptCacheCompat } from "../types.js";
 import { msg } from "../../i18n/index.js";
 
@@ -170,7 +171,7 @@ export function isCacheParamRejection(error: unknown): string | undefined {
 
 function stripInto(value: unknown, removed: { count: number }): unknown {
   if (Array.isArray(value)) return value.map((item) => stripInto(item, removed));
-  if (typeof value !== "object" || value === null) return value;
+  if (typeof value !== "object" || value === null || value instanceof LargeString) return value;
   const out: Json = {};
   for (const [key, inner] of Object.entries(value as Json)) {
     if (key === "cache_control") removed.count++;

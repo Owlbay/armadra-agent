@@ -18,6 +18,7 @@
  */
 
 import { contentText, normalizeContext, sanitizeText } from "../context.js";
+import { largeString } from "../json-body.js";
 import {
   budgetedMaxTokens,
   clampThinkingLevel,
@@ -109,7 +110,11 @@ function convertBlocks(content: ContentBlock[]): Json[] {
     } else {
       blocks.push({
         type: "image",
-        source: { type: "base64", media_type: block.mimeType, data: block.data },
+        source: {
+          type: "base64",
+          media_type: block.mimeType,
+          data: largeString("", block, block.data),
+        },
       });
     }
   }

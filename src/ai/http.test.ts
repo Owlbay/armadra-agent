@@ -9,7 +9,7 @@ import {
   mergeHeaders,
   postJson,
 } from "./http.js";
-import { LARGE_STRING_BYTES } from "./json-body.js";
+import { STREAM_CHUNK_CHARS } from "./json-body.js";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -59,7 +59,8 @@ describe("http", () => {
     expect(describeErrorJson(42)).toBeUndefined();
   });
 
-  const image = "A".repeat(LARGE_STRING_BYTES * 2);
+  // 比一块长：流式请求体会分多块发出
+  const image = "A".repeat(STREAM_CHUNK_CHARS * 2 + 3);
   const small = { model: "m", input: [{ text: "中文 😀\u2028" }], n: NaN, skip: undefined };
   const large = { ...small, input: [...small.input, { type: "image", data: image }] };
   const post = (url: string, body: unknown) =>

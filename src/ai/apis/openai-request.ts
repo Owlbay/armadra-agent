@@ -48,6 +48,7 @@ import {
   resolveCacheRetention,
   resolvePromptCacheCompat,
 } from "./cache-params.js";
+import { largeString } from "../json-body.js";
 import { detectCompat } from "./openai-compat.js";
 
 type Json = Record<string, unknown>;
@@ -66,7 +67,8 @@ export interface OpenAIRequest {
 }
 
 function imagePart(block: Extract<ContentBlock, { type: "image" }>): Json {
-  return { type: "image_url", image_url: { url: `data:${block.mimeType};base64,${block.data}` } };
+  const url = largeString(`data:${block.mimeType};base64,`, block, block.data);
+  return { type: "image_url", image_url: { url } };
 }
 
 function convertUser(message: UserMessage): Json | undefined {
