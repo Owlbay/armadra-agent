@@ -23,6 +23,37 @@ import { TASK_NOTIFICATION_RULE } from "../agents/result.js";
 import type { SubagentRequest, ToolContext, ToolDefinition, ToolResult } from "./types.js";
 
 export const MAX_TASK_DEPTH = 1;
+/** fork 子会话首条 custom 条目里 <task> 指令首行摘要的上限（字符）。 */
+const TASK_LINE_MAX = 120;
+
+/** <task> 指令首个非空行，超长截断（#191：fork 子会话被拒时提醒模型回到子任务）。 */
+export function taskLine(prompt: string): string {
+  const line =
+    prompt
+      .split("\n")
+      .find((text) => text.trim() !== "")
+      ?.trim() ?? "";
+  return line.length > TASK_LINE_MAX ? `${line.slice(0, TASK_LINE_MAX - 1)}…` : line;
+}
+
+/** fork 子会话的标记条目（custom，不进上下文）：`{ taskLine }`。 */
+export const FORK_CUSTOM_TYPE = "ama.fork";
+
+/**
+ * 子会话里 task / task_ctl 的拒绝文案（固定英文）。#191：fork 子会话（有 `ama.fork` 条目）说明身份并
+ * 附 <task> 首行；其它情况用 `fallback`（fresh 按深度拒绝的原文案）。
+ */
+export function nestedTaskRejection(ctx: ToolContext, tool: string, fallback: string): string {
+  const mark = ctx.session.lastCustom(FORK_CUSTOM_TYPE) as { taskLine?: unknown } | undefined;
+  if (mark === undefined || mark === null) return fallback;
+  const line = typeof mark.taskLine === "string" ? mark.taskLine : "";
+  return (
+    `${tool} rejected: you are a sub-agent forked from the main conversation and cannot start ` +
+    "or manage sub-agents. Do not call task or task_ctl again; complete the sub-task in your " +
+    "<task> block yourself with your other tools, then end with your report." +
+    (line !== "" ? ` Your task begins: "${line}"` : "")
+  );
+}
 export const DEFAULT_TASK_MAX_TURNS = 30;
 const THINKING: readonly ModelThinkingLevel[] = [
   "off",
@@ -165,7 +196,13 @@ export function createTaskTool(_options: TaskToolOptions = {}): ToolDefinition<T
     promptGuidelines: [TASK_NOTIFICATION_RULE],
     async execute(input, ctx): Promise<ToolResult> {
       if (ctx.depth >= MAX_TASK_DEPTH || ctx.spawnSubagent === undefined) {
-        return fail("Sub-agents are not available here (nested tasks are not allowed).");
+        return fail(
+          nestedTaskRejection(
+            ctx,
+            "task",
+            "Sub-agents are not available here (nested tasks are not allowed).",
+          ),
+        );
       }
       const request = buildSubagentRequest(input, ctx);
       if (typeof request === "string") return fail(request);

@@ -15,6 +15,7 @@ import type { Model, ModelThinkingLevel } from "../ai/types.js";
 import type { AgentDefinition } from "../agents/types.js";
 import type { SessionManager } from "../session/manager.js";
 import type { SessionEntry } from "../session/types.js";
+import { FORK_CUSTOM_TYPE, taskLine } from "../tools/task.js";
 import type { SubagentRequest } from "../tools/types.js";
 import type { AgentSessionOptions } from "./session-core.js";
 import { DEFAULT_COMPACTION_SETTINGS } from "./session-compaction.js";
@@ -70,7 +71,7 @@ export interface ForkParent {
 export interface ForkSpec {
   taskId: string;
   agent: Pick<AgentDefinition, "name">;
-  request: Pick<SubagentRequest, "parentToolCallId" | "description">;
+  request: Pick<SubagentRequest, "parentToolCallId" | "description" | "prompt">;
   /** 子会话 cwd（隔离时是 worktree）。 */
   cwd: string;
 }
@@ -120,6 +121,12 @@ export function forkPlan(
         forkedFrom,
       },
     },
+  });
+  // #191：fork 标记（不进上下文）；复制来的父 `ama.task` 快照可能更晚，故不复用那个类型
+  manager.append({
+    type: "custom",
+    customType: FORK_CUSTOM_TYPE,
+    data: { taskLine: taskLine(spec.request.prompt) },
   });
   return { manager, forkedFrom };
 }

@@ -252,10 +252,13 @@ describe("[ME-A] 类型限制与深度", () => {
       toolName: "task_ctl",
       isError: true,
     });
-    // 执行层仍是深度拒绝的文案（task / task_ctl 不进 unavailableTools）
-    expect(JSON.stringify(fork[1]!.context.messages.at(-1))).toContain(
-      "task_ctl is not available inside a sub-agent.",
+    // #191：仍按深度拒绝（task / task_ctl 不进 unavailableTools），文案说明 fork 身份并附 <task> 首行
+    const text = JSON.stringify(fork[1]!.context.messages.at(-1));
+    expect(text).toContain(
+      "task_ctl rejected: you are a sub-agent forked from the main conversation",
     );
+    expect(text).toContain('Your task begins: \\"dig\\"');
+    expect(text).not.toContain("task_ctl is not available inside a sub-agent.");
     const file = of(h.events, "subagent_start")[1]!.sessionFile!;
     const entries = lines(file).filter((l): l is SessionEntry => l.type !== "session");
     // 父的 t1 快照被复制进来了，但索引不计
@@ -269,6 +272,36 @@ describe("[ME-A] 类型限制与深度", () => {
     ).toBe(true);
     expect(buildIndex(entries).tasks.size).toBe(0);
     expect(buildIndex(h.manager.branch()).tasks.size).toBeGreaterThan(0);
+  });
+});
+
+describe("#191 子会话里 task 被拒的文案", () => {
+  const child = (call: ScriptCall): ScriptStep =>
+    lastIsToolResult(call)
+      ? { text: "child report" }
+      : { toolCalls: [{ name: "task", args: { prompt: "nested" } }] };
+
+  it("fork：说明是 fork 出的子 Agent、不能再派生，附 <task> 首行摘要（截断）", async () => {
+    const prompt = `\n  ${"x".repeat(200)}\nsecond line`;
+    const h = subagentHarness({ script: forkScript({ context: "fork", prompt }, child) });
+    const { child: calls } = await runParent(h, 1);
+    expect(calls.every(isFork)).toBe(true);
+    const result = calls[1]!.context.messages.at(-1);
+    expect(result).toMatchObject({ role: "toolResult", toolName: "task", isError: true });
+    const text = JSON.stringify(result);
+    expect(text).toContain("task rejected: you are a sub-agent forked from the main conversation");
+    expect(text).toContain(`Your task begins: \\"${"x".repeat(119)}…\\"`);
+    expect(text).not.toContain("second line");
+    expect(toolResults(h).at(-1)?.details).toMatchObject({ context: "fork" });
+  });
+
+  it("fresh：按深度拒绝的文案不变", async () => {
+    const h = subagentHarness({ script: forkScript({}, child) });
+    const { child: calls } = await runParent(h, 1);
+    expect(calls.some(isFork)).toBe(false);
+    const text = JSON.stringify(calls[1]!.context.messages.at(-1));
+    expect(text).toContain("Sub-agents are not available here (nested tasks are not allowed).");
+    expect(text).not.toContain("forked");
   });
 });
 
@@ -349,7 +382,7 @@ describe("[ME-A] forkPlan / forkPoint / forkBrief", () => {
   const spec = (callId: string) => ({
     taskId: "t1",
     agent: { name: "general" },
-    request: { parentToolCallId: callId },
+    request: { parentToolCallId: callId, prompt: "p" },
     cwd: "/w/tree",
   });
 
@@ -368,7 +401,12 @@ describe("[ME-A] forkPlan / forkPoint / forkBrief", () => {
     const first = manager.branch()[0]!.id;
     expect(plan.forkedFrom).toBe(first);
     expect(plan.manager.cwd).toBe("/w/tree");
-    expect(plan.manager.branch().map((e) => e.type)).toEqual(["custom", "message"]);
+    // #191：复制的分支之后追加 fork 标记（custom，不进上下文）
+    expect(plan.manager.branch().map((e) => e.type)).toEqual(["custom", "message", "custom"]);
+    expect(plan.manager.branch().at(-1)).toMatchObject({
+      customType: "ama.fork",
+      data: { taskLine: "p" },
+    });
   });
 
   it("#149 forkMaxContextRatio：0.2 时刚过线回落、0.9 时放行；非法值按 0.5", () => {
