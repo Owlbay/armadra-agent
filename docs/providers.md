@@ -689,8 +689,10 @@ Anthropic 的 `baseUrl` 以 `/v1` 结尾时请求 `{baseUrl}/messages`，不会�
   上限。Anthropic 的 `input length and max_tokens exceed context limit: X + Y > Z` 按 `Z − X` 重发一次、不记为模型
   上限；`Z − X` 不足 1024 时按上下文溢出处理（压缩后重试）。这条文案按官方文档与公开报告实现，未经官方端点取样。
 
-中转常把目录里的 `maxTokens` 写成与窗口相同，这时第一次请求会被拒一次，之后同一进程里不再出现；长期用的模型可以
-在 `models[]` / `modelOverrides[]` 里把 `maxTokens` 填成端点实际上限，连第一次也省掉。
+中转常把目录里的 `maxTokens` 写成与窗口相同，这时第一次请求会被拒一次。学到的上限记入
+`<dataDir>/models/max-tokens-caps.json`（只有模型引用、上限与时间），之后的进程启动时载回、首个请求直接用上限；
+条目 30 天后过期、重新探测，删掉该文件即重测（中转放宽了上限时）。长期用的模型可以在 `models[]` /
+`modelOverrides[]` 里把 `maxTokens` 填成端点实际上限，连第一次也省掉；写了更小的值时以它为准。
 
 ### 请求超时与重试
 

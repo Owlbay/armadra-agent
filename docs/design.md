@@ -448,7 +448,7 @@ export type ModelThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" |
 | 溢出 | `ai/overflow.ts` 正则表（各家文案）+ `stopReason: "length"` 且无工具调用 → 不重试，走 §9 的压缩后重试一次                                                                                                                                    |
 | 成本 | `calculateCost(model, usage)`：按 `input+cacheRead+cacheWrite` 选阶梯；`Usage.input` 不含缓存部分；1h 缓存写 2×；写回 `usage.cost{input,output,cacheRead,cacheWrite,total}`；无 `cost` 的模型显示 `$?`                                     |
 | 缓存 | Anthropic 四个断点，按优先级消耗 `maxCacheBreakpoints`：最后一条 user → system 末 → **倒数第二条 user**（上一次请求的写入点；并行工具调用多时最后一条 user 离上次写入点太远，回看窗口可能够不到）→ 最后一个工具定义；Completions / Responses：`prompt_cache_key = sessionId`；摘要请求 `cacheRetention: "none"` |
-| 输出上限 | `contextWindow` 已知时主动收紧 `max_tokens = min(请求值, max(1024, 窗口 − 请求体字符/4 − 2048))`（Anthropic 预算型思考、带思考预算的 Gemini 不收紧）；「max_tokens 范围 / 上限」400 解析出上限记入进程级表并在流开始前重发一次；Anthropic `X + Y > Z` 按 `Z − X` 重发，`< 1024` 判溢出（[providers.md](providers.md)「max_tokens」） |
+| 输出上限 | `contextWindow` 已知时主动收紧 `max_tokens = min(请求值, max(1024, 窗口 − 请求体字符/4 − 2048))`（Anthropic 预算型思考、带思考预算的 Gemini 不收紧）；「max_tokens 范围 / 上限」400 解析出上限记入进程级表并在流开始前重发一次，并写入 `<dataDir>/models/max-tokens-caps.json` 跨进程持久化 30 天；Anthropic `X + Y > Z` 按 `Z − X` 重发，`< 1024` 判溢出（[providers.md](providers.md)「max_tokens」） |
 | 超时 | `request.idleTimeoutMs`（300 s）只管等响应头；流中两个数据包之间由 `request.streamIdleTimeoutMs`（缺省 180 s，`AMA_STREAM_IDLE_TIMEOUT_MS`，0 关闭）管 |
 
 ## §4 循环（`agent/`）

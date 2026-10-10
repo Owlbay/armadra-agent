@@ -79,6 +79,8 @@ packy `kimi-k2.5`（openai-completions，目录窗口 262 144），SDK 脚本以
 
 - 主动收紧只按「窗口 − 输入估算 − 2048」算，中转自己的输出上限只能靠 400 得知；修正在流开始之前完成，调用方看不到错误。`maxTokensCaps` 是进程级的，重启后第一次仍会被拒一次，长期使用建议在 `modelOverrides` 写真实 `maxTokens`。
 - 429 `Retry-After` 与限流重试上限无法在中转上可控地触发，只有 fake 用例（`src/agent/fallback.test.ts`「429 带 Retry-After」：`delayMs ∈ [16000, 24000]`、`maxAttempts 5`）。Anthropic 第 4 断点与「`input length and max_tokens exceed context limit`」文案未经官方端点取样。
+- 跨进程（#152，2026-10-10）：同一隔离 `AMA_DATA_DIR`、`modelOverrides` 写 `maxTokens: 262144`，`ama -p` 跑两个进程。进程 1：400（发出 258 544）→ 98 304 重发 200，写出 `models/max-tokens-caps.json`（`packy/kimi-k2.5: 98304`）。
+- 进程 2：启动时载回，首个请求直接发 98 304，200，**0 次 400**。条目 30 天过期，删文件即重测。
 
 ## I：中转模型继承官方目录（`[ME-D]`，2026-10-10）
 
