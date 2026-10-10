@@ -22,6 +22,10 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 - **Background fork tasks report their mode right away**: the `running` result of a background `task` now carries `details.context` (`fork` / `fresh`) once the mode is known; a queued task or one waiting for its worktree still gets it later in `TaskInfo.context`.
 - **Background `bash` job output fits the session result limit in one cut**: `{job, action: "wait" | "output" | "stop"}` now tail-truncates to the same byte limit as foreground `bash` (50 KB or `maxToolResultChars` − 512, whichever is smaller) instead of a fixed 2000 lines / 50 KB that the session then cut again in the middle; the note still gives the shown line count and `Full output: <path>`.
 
+### Checkpoints
+
+- **A slow first shadow snapshot no longer downgrades the session**: the first snapshot (which builds the index) is no longer timed, and the session downgrades to `tools` only after two snapshots in a row exceed 3 seconds (one slow snapshot followed by a normal one keeps shadow-git). The one-time notice now says so (#194).
+
 ## 0.7.5 (2026-10-10)
 
 ### Memory footprint

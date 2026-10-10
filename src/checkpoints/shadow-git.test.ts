@@ -300,18 +300,71 @@ describe("护栏与降级", () => {
     expect(read("a.txt")).toBe("1");
   });
 
-  it("快照超时：这次的提交保留，之后降级", async () => {
+  /** 每次取时钟前进 step 毫秒：一次快照取两次，耗时 = step。 */
+  function slowClock(): { step: number; now: () => number } {
     let clock = 0;
-    const b = backend({ shadow: { maxSnapshotMs: 50, now: () => (clock += 100) } });
+    const c = { step: 0, now: () => (clock += c.step) };
+    return c;
+  }
+
+  it("首次快照慢不计入：之后正常就不降级", async () => {
+    const c = slowClock();
+    const b = backend({ shadow: { maxSnapshotMs: 50, now: c.now } });
+    c.step = 10_000;
     write("a.txt", "1");
     await snap(b, "u1");
-    expect(shadowCommitOf("u1")).toBeDefined();
-    expect(warnings()[0]).toContain("秒");
+    c.step = 10;
     write("a.txt", "2");
     await snap(b, "u2");
-    expect(shadowCommitOf("u2")).toBeUndefined();
-    // u1 的影子提交照样能用（u2 之后的改动以 u1 为基线，算冲突；覆盖即可）
-    const done = await b.restore("u1", { dryRun: false, onConflict: "overwrite" });
+    write("a.txt", "3");
+    await snap(b, "u3");
+    expect(["u1", "u2", "u3"].map((id) => shadowCommitOf(id) !== undefined)).toEqual([
+      true,
+      true,
+      true,
+    ]);
+    expect(warnings()).toEqual([]);
+  });
+
+  it("首次之后单次慢、下一次正常：不降级", async () => {
+    const c = slowClock();
+    const b = backend({ shadow: { maxSnapshotMs: 50, now: c.now } });
+    for (const [id, step] of [
+      ["u1", 10],
+      ["u2", 100],
+      ["u3", 10],
+      ["u4", 100],
+      ["u5", 10],
+    ] as const) {
+      c.step = step;
+      write("a.txt", id);
+      await snap(b, id);
+      expect(shadowCommitOf(id)).toBeDefined();
+    }
+    expect(warnings()).toEqual([]);
+  });
+
+  it("连续两次快照超时：第二次的提交保留，之后降级并只提示一次", async () => {
+    // 原用例「单次超时即降级」按 #194 改为：首次不计、连续两次才降级
+    const c = slowClock();
+    const b = backend({ shadow: { maxSnapshotMs: 50, now: c.now } });
+    c.step = 100;
+    for (const id of ["u1", "u2"]) {
+      write("a.txt", id);
+      await snap(b, id);
+      expect(warnings()).toEqual([]);
+    }
+    write("a.txt", "1");
+    await snap(b, "u3");
+    expect(shadowCommitOf("u3")).toBeDefined();
+    expect(warnings()).toHaveLength(1);
+    expect(warnings()[0]).toContain("连续两次");
+    write("a.txt", "2");
+    await snap(b, "u4");
+    expect(shadowCommitOf("u4")).toBeUndefined();
+    expect(warnings()).toHaveLength(1);
+    // u3 的影子提交照样能用（u4 之后的改动以 u3 为基线，算冲突；覆盖即可）
+    const done = await b.restore("u3", { dryRun: false, onConflict: "overwrite" });
     expect(done.result.restored).toEqual(["a.txt"]);
     expect(read("a.txt")).toBe("1");
   });
