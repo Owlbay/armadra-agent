@@ -225,6 +225,8 @@ const keysEn = {
   "subagents.retainSessions":
     "Finished sub-sessions kept in memory (least recently used first out); others reopen from their session file when continued",
   "subagents.defaultModel": "Default sub-session model provider/model[@channel]",
+  "subagents.forkMaxContextRatio":
+    "Fork sub-agents fall back to fresh when the parent's last request used more than this share of (window − compaction.reserveTokens); 0.05–0.95, default 0.5",
   "subagents.background":
     "Whether task runs in the background by default: auto = background in the TUI / RPC / ACP and foreground with -p; always / never are fixed. The call argument and the agent type's background: override it; user, project and host level",
   "subagents.autoBackgroundAfterMs":
@@ -393,6 +395,8 @@ const keysZh = {
   "subagents.retainSessions":
     "内存中保留的已结束子会话数（最久未用的先释放），其余续聊时从会话文件重开",
   "subagents.defaultModel": "子会话缺省模型 provider/model[@channel]",
+  "subagents.forkMaxContextRatio":
+    "fork 子 Agent 的回落比例：父上一次请求超过（窗口 − compaction.reserveTokens）的这一比例时改为 fresh；0.05–0.95，缺省 0.5",
   "subagents.background":
     "task 缺省是否后台：auto = TUI / RPC / ACP 下后台、-p 下前台；always / never 固定。调用参数与类型定义的 background: 优先；用户、项目、宿主级都认",
   "subagents.autoBackgroundAfterMs": "前台任务运行超过该毫秒数自动转后台；0 关闭；用户、项目级都认",

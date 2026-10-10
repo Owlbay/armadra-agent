@@ -20,6 +20,7 @@ import {
   forkBrief,
   forkPlan,
   forkPoint,
+  forkRatio,
   requestedContext,
   type ForkParent,
 } from "./subagent-fork.js";
@@ -359,6 +360,25 @@ describe("[ME-A] forkPlan / forkPoint / forkBrief", () => {
     expect(plan.forkedFrom).toBe(first);
     expect(plan.manager.cwd).toBe("/w/tree");
     expect(plan.manager.branch().map((e) => e.type)).toEqual(["custom", "message"]);
+  });
+
+  it("#149 forkMaxContextRatio：0.2 时刚过线回落、0.9 时放行；非法值按 0.5", () => {
+    const window = 100_000;
+    const usable = window - 16_384;
+    const model = fakeModel({ contextWindow: window });
+    const at = (tokens: number, ratio: number | undefined) =>
+      forkPlan(parentWith({ promptTokens: tokens }).parent, spec("call-1"), model, "off", ratio);
+    expect(at(Math.floor(0.2 * usable) + 1, 0.2)).toMatchObject({
+      fallback: `parent context ${Math.floor(0.2 * usable) + 1} tokens exceeds ${Math.floor(0.2 * usable)}`,
+    });
+    expect(at(Math.floor(0.2 * usable), 0.2)).toHaveProperty("manager");
+    expect(at(Math.floor(0.9 * usable) - 1, 0.9)).toHaveProperty("manager");
+    expect(at(Math.floor(0.5 * usable) + 1, 0.9)).toHaveProperty("manager");
+    for (const bad of [Number.NaN, 0, 1, -0.3, 2, Number.POSITIVE_INFINITY, undefined]) {
+      expect(forkRatio(bad)).toBe(FORK_MAX_CONTEXT_RATIO);
+      expect(at(Math.floor(0.5 * usable) + 1, bad)).toHaveProperty("fallback");
+    }
+    expect(forkRatio(0.05)).toBe(0.05);
   });
 
   it("forkPoint：assistant 是首条时找不到", () => {

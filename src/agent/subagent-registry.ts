@@ -157,7 +157,7 @@ export class SubagentRegistry implements TaskControl {
 
   constructor(
     private readonly host: RegistryHost,
-    private readonly env: SubagentEnvironment,
+    readonly env: SubagentEnvironment,
   ) {
     this.catalog = env.catalog;
     this.pool = new SubagentPool(env.maxConcurrent ?? DEFAULT_SUBAGENT_CONCURRENCY);

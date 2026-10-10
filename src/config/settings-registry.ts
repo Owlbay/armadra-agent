@@ -148,6 +148,7 @@ const ROWS: readonly Row[] = [
   row("subagents.maxConcurrent", "agents", "nextSession", "deny"),
   row("subagents.maxPending", "agents", "nextSession", "deny"),
   row("subagents.retainSessions", "agents", "nextSession", "deny"),
+  row("subagents.forkMaxContextRatio", "agents", "nextSession", "deny"),
   // [W7-B2] 改 task 工具描述（缺省后台 / 前台两种文案），故 prefix
   row("subagents.background", "agents", "restart", "any", { prefix: true }),
   row("subagents.autoBackgroundAfterMs", "agents", "restart", "any"),

@@ -98,6 +98,11 @@ export interface SubagentsConfig {
   autoBackgroundAfterMs?: number;
   /** [M-F] 已结束子会话保留在内存的句柄数（LRU），缺省 4；超出的续聊时从会话文件重开。只认用户级。 */
   retainSessions?: number;
+  /**
+   * [#149] fork 回落比例：父上一次请求的输入 token 超过（窗口 − compaction.reserveTokens）× 本值时
+   * fork 回落为 fresh；0.05–0.95，缺省 0.5。只认用户级。
+   */
+  forkMaxContextRatio?: number;
 }
 
 /** `models.enabled` 的一项：`provider/model[@channel]` 或 `provider/*`。 */

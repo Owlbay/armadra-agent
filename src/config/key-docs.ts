@@ -72,6 +72,7 @@ const IMPLICIT_DEFAULTS: Partial<AmaConfig> = {
     background: "auto",
     autoBackgroundAfterMs: 0,
     retainSessions: 4,
+    forkMaxContextRatio: 0.5,
   },
   reminders: { todo: true, fileChanges: true, contextPressure: true, budget: true },
   todo: { reminder: 10 },

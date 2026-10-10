@@ -114,6 +114,20 @@ describe("第五波键的层级", () => {
     expect(text).toContain("codemode.maxHeapMb");
   });
 
+  it("[#149] subagents.forkMaxContextRatio：0.05–0.95，只认用户级", () => {
+    expect(validateConfig({ version: 1, subagents: { forkMaxContextRatio: 0.2 } })).toEqual([]);
+    for (const bad of [0, 0.96, "0.5"])
+      expect(
+        validateConfig({ version: 1, subagents: { forkMaxContextRatio: bad } }).map((d) => d.path),
+      ).toEqual(["subagents.forkMaxContextRatio"]);
+    const result = restrictProjectConfig(
+      project({ subagents: { forkMaxContextRatio: 0.9 } }),
+      "default",
+    );
+    expect(result.accepted).toEqual({});
+    expect(result.warnings.join("\n")).toContain("subagents.forkMaxContextRatio");
+  });
+
   it("agents.dirs 跨层累加；plan.bash 收紧以用户级为基准", () => {
     const merged = mergeConfigLayers({
       user: project({ agents: { dirs: ["/u"] }, plan: { bash: "ask" } }),

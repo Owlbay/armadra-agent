@@ -232,7 +232,9 @@ async function startAmaChild(
     spec.request.thinkingLevel ?? spec.agent.thinking ?? base.thinkingLevel ?? "off";
   const wanted =
     spec.resumeFile === undefined && requestedContext(spec.request, spec.agent) === "fork";
-  const plan = wanted ? forkPlan(parent, spec, model, thinkingLevel) : undefined;
+  // #149：比例来自 `subagents.forkMaxContextRatio`（注册表环境里的整段配置）
+  const ratio = subagentRegistryFor(parent).env.modelConfig?.subagents?.forkMaxContextRatio;
+  const plan = wanted ? forkPlan(parent, spec, model, thinkingLevel, ratio) : undefined;
   if (plan !== undefined && "fallback" in plan)
     parent.log("info", `task ${spec.taskId}: fork falls back to fresh (${plan.fallback})`);
   const forked = plan !== undefined && "manager" in plan ? plan.manager : undefined;
