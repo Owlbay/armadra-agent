@@ -14,7 +14,8 @@
  *   `fn` 的返回值在测量后才释放（结果本身计入增长）；`beforeGc` 是 `fn` 刚结束、尚未 GC 时的增长
  *   （含未回收的临时对象，只作诊断）；
  * - `trackInstances(ctor)`：登记的实例里还活着几个；
- * - `makeTextFile` / `makeSessionFile`：生成测试大文件（分块写，生成过程本身不占大内存）。
+ * - `makeTextFile` / `makeSessionFile`：生成测试大文件（分块写，生成过程本身不占大内存）；
+ *   `makeSessionFile` 的 `edits` 给含图消息各追加一条 `context_edit`（#170 图片卸载）。
  */
 
 import { closeSync, mkdirSync, openSync, statSync, writeSync } from "node:fs";
@@ -243,6 +244,8 @@ export interface SessionFileOptions {
   images?: number;
   /** 每张图的原始字节数（落盘为 base64，约 4/3 倍）。 */
   imageBytes?: number;
+  /** 写完消息后给每条含图消息追加一条这种 reason 的 `context_edit`（换成占位文本），#170。 */
+  edits?: "image_budget";
   cwd?: string;
 }
 
@@ -262,6 +265,7 @@ export function makeSessionFile(dir: string, options: SessionFileOptions): Gener
   });
   const textBytes = options.textBytes ?? 1024;
   let images = options.images ?? (options.imageBytes !== undefined ? 1 : 0);
+  const withImages: string[] = [];
   try {
     for (let i = 0; i < options.messages; i++) {
       const text = filler(textBytes, i);
@@ -273,7 +277,11 @@ export function makeSessionFile(dir: string, options: SessionFileOptions): Gener
           const data = Buffer.alloc(options.imageBytes, (i + 1) & 0xff).toString("base64");
           content.push({ type: "image", data, mimeType: "image/png" });
         }
-        manager.append({ type: "message", message: { role: "user", content, timestamp } });
+        const entry = manager.append({
+          type: "message",
+          message: { role: "user", content, timestamp },
+        });
+        if (content.length > 1) withImages.push(entry.id);
       } else {
         manager.append({
           type: "message",
@@ -290,9 +298,20 @@ export function makeSessionFile(dir: string, options: SessionFileOptions): Gener
         });
       }
     }
+    if (options.edits !== undefined) {
+      for (const targetId of withImages) {
+        manager.append({
+          type: "context_edit",
+          targetId,
+          replacement: "[image omitted]",
+          reason: options.edits,
+        });
+      }
+    }
     const path = manager.flush();
     if (path === undefined) throw new Error("makeSessionFile: session was not written");
-    return { path, bytes: statSync(path).size, lines: options.messages + 1 };
+    const edits = options.edits !== undefined ? withImages.length : 0;
+    return { path, bytes: statSync(path).size, lines: options.messages + edits + 1 };
   } finally {
     manager.close();
   }
