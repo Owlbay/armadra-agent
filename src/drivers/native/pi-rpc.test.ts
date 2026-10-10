@@ -1,10 +1,14 @@
 import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { candidateCapabilities, catalogEntry } from "../catalog.js";
 import { memoryTransport, readRecording, replayPeer, spawnRecorder } from "../test-support.js";
 import type { DriverEvent, DriverPermissionRequest, DriverPromptHooks } from "../types.js";
 import { PI_GATE_SOURCE, PI_GATE_TITLE, writePiGate } from "./pi-gate.js";
 import { PiRpcDriver, piArgs, piToolKind } from "./pi-rpc.js";
+
+// 驱动按平台解析路径（Windows 上带盘符）
+const NOTE = resolve("/work", "note.txt");
 
 const candidate = catalogEntry("pi")!.candidates[0]!;
 
@@ -119,11 +123,11 @@ describe("PiRpcDriver（录制回放）", () => {
     expect(asked[0]!.toolCall).toMatchObject({
       title: "write note.txt",
       kind: "edit",
-      locations: ["/work/note.txt"],
+      locations: [NOTE],
     });
     expect(asked[0]!.options.map((o) => o.kind)).toEqual(["allow_once", "reject_once"]);
     expect(r.finalText).toBe("DONE");
-    expect(r.filesTouched).toEqual(["/work/note.txt"]);
+    expect(r.filesTouched).toEqual([NOTE]);
     expect(r.usage).toMatchObject({ input: 2181, output: 27, cacheRead: 1536 });
     expect(peer.mismatches).toEqual([]);
     await session.close();
