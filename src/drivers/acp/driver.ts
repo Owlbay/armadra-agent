@@ -164,6 +164,27 @@ export function pickConfigModeValue(
   return wantedModeIds(mode, candidate).find((id) => values.includes(id));
 }
 
+/**
+ * `agents.<id>.model` / task 的 `model` → configOptions 里 category `model` 的可选值：先精确匹配值，
+ * 再不分大小写匹配值或名称，最后匹配 `provider/model` 的模型部分。没有就返回 undefined（用 Agent 的缺省）。
+ */
+export function pickModelValue(
+  model: string,
+  options: readonly AcpSessionConfigOption[] | null | undefined,
+): { configId: string; value: string; current: boolean } | undefined {
+  const option = options?.find((o) => o.category === "model" && o.type === "select");
+  if (option === undefined) return undefined;
+  const values = option.options.flatMap((o) => ("options" in o ? o.options : [o]));
+  const lower = model.toLowerCase();
+  const hit =
+    values.find((v) => v.value === model) ??
+    values.find((v) => v.value.toLowerCase() === lower || v.name.toLowerCase() === lower) ??
+    values.find((v) => v.value.toLowerCase().split("/").at(-1) === lower);
+  return hit === undefined
+    ? undefined
+    : { configId: option.id, value: hit.value, current: option.currentValue === hit.value };
+}
+
 /** 一条认证方法给人看的样子：terminal 型附上要在终端里跑的命令。 */
 function authMethodText(method: AcpAuthMethod, command: readonly string[]): string {
   if (method.type !== "terminal") return method.name;
@@ -296,6 +317,13 @@ class AcpDriverSession implements DriverSession {
       );
     } else if (modes != null || modeOption !== undefined) {
       this.notices.push(msg().drivers.agent.noMatchingMode(this.agentId, options.mode));
+    }
+    if (options.model !== undefined) {
+      const model = pickModelValue(options.model, opened.configOptions);
+      if (model === undefined)
+        this.notices.push(msg().drivers.agent.noMatchingModel(this.agentId, options.model));
+      else if (!model.current)
+        await this.client.setConfigOption(this.id, model.configId, model.value);
     }
   }
 

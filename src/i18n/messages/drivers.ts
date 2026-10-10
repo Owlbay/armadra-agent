@@ -28,6 +28,8 @@ export const en = {
       `${agent} cannot find session ${id}; started a new one`,
     noMatchingMode: (agent: string, mode: string) =>
       `${agent} has no "${mode}" mode; running in its own default mode (actions that need approval still come to you)`,
+    noMatchingModel: (agent: string, model: string) =>
+      `${agent} does not offer model "${model}"; using its own default model`,
     noImages: (agent: string) => `${agent} does not accept images; omitted`,
     noImagesDriver: (agent: string) => `the ${agent} driver does not pass images yet; omitted`,
     noImagesOneshot: (agent: string) => `${agent} one-shot mode does not pass images; omitted`,
@@ -104,6 +106,7 @@ export const zh = {
     resumeNotFound: (agent, id) => `${agent} 找不到会话 ${id}，已新开`,
     noMatchingMode: (agent, mode) =>
       `${agent} 没有「${mode}」模式，按它自己的缺省模式运行（需要授权的操作仍交给你）`,
+    noMatchingModel: (agent, model) => `${agent} 没有模型「${model}」，按它自己的缺省模型运行`,
     noImages: (agent) => `${agent} 不接受图片，已省略`,
     noImagesDriver: (agent) => `${agent} 驱动暂不传图片，已省略`,
     noImagesOneshot: (agent) => `${agent} 一次性模式不传图片，已省略`,

@@ -46,12 +46,47 @@ const ALL_MODES: readonly PermissionMode[] = [
   "full-auto",
 ];
 
+/**
+ * 模式 id 与 ama 不同名的 ACP Agent 的映射（2026-10 实测）。没有映射时 ama 会留在 Agent 自己的当前模式，
+ * 而它可能比 ama 宽（如用户把 Claude 的缺省设成 bypassPermissions），所以已知的 Agent 一律写全。
+ * 从不映射到放开全部权限的模式（Claude `bypassPermissions`、Codex `agent-full-access`、Copilot autopilot）。
+ */
+const CLAUDE_ACP_MODES: Partial<Record<PermissionMode, string>> = {
+  plan: "plan",
+  default: "default",
+  "auto-edit": "acceptEdits",
+  auto: "auto",
+  "full-auto": "auto",
+};
+/** codex-acp：`read-only` 是只读沙箱、写操作要审批（等同 app-server 的 on-request / read-only）。 */
+const CODEX_ACP_MODES: Partial<Record<PermissionMode, string>> = {
+  plan: "read-only",
+  default: "read-only",
+  "auto-edit": "workspace-write",
+  auto: "agent",
+  "full-auto": "agent",
+};
+const COPILOT_MODE = "https://agentclientprotocol.com/protocol/session-modes#";
+const COPILOT_MODES: Partial<Record<PermissionMode, string>> = {
+  plan: `${COPILOT_MODE}plan`,
+  default: `${COPILOT_MODE}agent`,
+  "auto-edit": `${COPILOT_MODE}agent`,
+  auto: `${COPILOT_MODE}agent`,
+  "full-auto": `${COPILOT_MODE}agent`,
+};
+
 export const DRIVER_CATALOG: readonly CatalogEntry[] = [
   {
     agentId: "claude",
     label: "Claude Code",
     candidates: [
-      { kind: "acp-adapter", program: "claude-agent-acp", args: [], usage: "usd" },
+      {
+        kind: "acp-adapter",
+        program: "claude-agent-acp",
+        args: [],
+        usage: "usd",
+        modes: CLAUDE_ACP_MODES,
+      },
       {
         kind: "claude-stream",
         program: "claude",
@@ -66,7 +101,13 @@ export const DRIVER_CATALOG: readonly CatalogEntry[] = [
     agentId: "codex",
     label: "Codex",
     candidates: [
-      { kind: "acp-adapter", program: "codex-acp", args: [], usage: "tokens" },
+      {
+        kind: "acp-adapter",
+        program: "codex-acp",
+        args: [],
+        usage: "tokens",
+        modes: CODEX_ACP_MODES,
+      },
       {
         kind: "codex-app-server",
         program: "codex",
@@ -105,7 +146,13 @@ export const DRIVER_CATALOG: readonly CatalogEntry[] = [
     agentId: "copilot",
     label: "GitHub Copilot CLI",
     candidates: [
-      { kind: "acp", program: "copilot", args: ["--acp", "--stdio"], usage: "requests" },
+      {
+        kind: "acp",
+        program: "copilot",
+        args: ["--acp", "--stdio"],
+        usage: "requests",
+        modes: COPILOT_MODES,
+      },
     ],
   },
   {
