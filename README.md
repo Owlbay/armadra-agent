@@ -9,7 +9,7 @@ English · [简体中文](README.zh-CN.md)
 
 **A coding agent for your terminal that scripts, editors and hosts can call, and that can hand work to other coding agents.**
 
-[![CI](https://github.com/Owlbay/armadra-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Owlbay/armadra-agent/actions/workflows/ci.yml)
+[![CI](https://github.com/AMA-Link/armadra-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/AMA-Link/armadra-agent/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@armadra/agent)](https://www.npmjs.com/package/@armadra/agent)
 [![license](https://img.shields.io/npm/l/@armadra/agent)](LICENSE)
 [![node](https://img.shields.io/node/v/@armadra/agent)](https://nodejs.org)
@@ -23,7 +23,7 @@ English · [简体中文](README.zh-CN.md)
 ama reads, edits and runs code in your project from a terminal UI, and answers one-shot questions with `ama -p`. It can
 delegate to its own sub-agents or drive external coding agents (Claude Code, Codex, GitHub Copilot CLI, OpenCode, Pi and
 any ACP agent) with the login you already have in each CLI. Use it on its own, from your editor over ACP, embedded through
-RPC or the SDK, or as the coordinator on the [Armadra](https://github.com/Owlbay/Armadra) canvas.
+RPC or the SDK, or as the coordinator on the [Armadra](https://github.com/AMA-Link/Armadra) canvas.
 
 ## Why ama
 
@@ -45,7 +45,7 @@ npm i -g @armadra/agent
 ama --version
 ```
 
-Each [release](https://github.com/Owlbay/armadra-agent/releases) also ships a single-file build (`ama.cjs` plus the
+Each [release](https://github.com/AMA-Link/armadra-agent/releases) also ships a single-file build (`ama.cjs` plus the
 codemode sandbox entry `ama-sandbox.cjs`, kept in the same directory) and `package.tgz` for offline installs.
 
 ## Connect a model
