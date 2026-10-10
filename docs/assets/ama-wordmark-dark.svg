@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="216" height="96" viewBox="0 0 216 96" shape-rendering="crispEdges" role="img" aria-label="ama">
+  <title>ama</title>
+  <g fill="#5fafff">
+    <rect x="24" y="8" width="24" height="8"/>
+    <rect x="16" y="16" width="40" height="8"/>
+    <rect x="8" y="24" width="24" height="8"/>
+    <rect x="40" y="24" width="24" height="8"/>
+    <rect x="8" y="32" width="16" height="8"/>
+    <rect x="48" y="32" width="16" height="8"/>
+    <rect x="8" y="40" width="56" height="16"/>
+    <rect x="8" y="56" width="16" height="24"/>
+    <rect x="48" y="56" width="16" height="24"/>
+  </g>
+  <g fill="#87afff">
+    <rect x="72" y="8" width="16" height="8"/>
+    <rect x="128" y="8" width="16" height="8"/>
+    <rect x="72" y="16" width="24" height="16"/>
+    <rect x="120" y="16" width="24" height="16"/>
+    <rect x="72" y="32" width="32" height="8"/>
+    <rect x="112" y="32" width="32" height="8"/>
+    <rect x="72" y="40" width="16" height="40"/>
+    <rect x="96" y="40" width="24" height="8"/>
+    <rect x="128" y="40" width="16" height="40"/>
+    <rect x="104" y="48" width="8" height="8"/>
+  </g>
+  <g fill="#af87ff">
+    <rect x="168" y="8" width="24" height="8"/>
+    <rect x="160" y="16" width="40" height="8"/>
+    <rect x="152" y="24" width="24" height="8"/>
+    <rect x="184" y="24" width="24" height="8"/>
+    <rect x="152" y="32" width="16" height="8"/>
+    <rect x="192" y="32" width="16" height="8"/>
+    <rect x="152" y="40" width="56" height="16"/>
+    <rect x="152" y="56" width="16" height="24"/>
+    <rect x="192" y="56" width="16" height="24"/>
+  </g>
+</svg>
