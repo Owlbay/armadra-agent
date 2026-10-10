@@ -10,6 +10,8 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 ### Model efficiency
 
 - **The auto-mode classifier picks a small model on relays and custom providers too**: when the session model inherits an official catalog entry by id (e.g. `packy/deepseek-v4-pro`), the classifier uses the same vendor's catalog `small` model if the provider's model table lists it (`packy/deepseek-v4-flash`); only listed models are used, never synthesized ones. `permission.autoModel` still overrides (#153).
+- **Learned `max_tokens` limits persist across processes**: when an endpoint rejects with a 400 stating its output limit, the limit is now also written to `<dataDir>/models/max-tokens-caps.json` and loaded back on startup, so later processes no longer get the first request rejected once per model (packy `kimi-k2.5`: second process 0 rejections, previously 1). Entries expire after 30 days; delete the file to re-probe.
+- **Warning for a wrong `models[].catalog` reference**: `catalog: "provider/id"` that matches no catalog entry now produces a registry warning (startup header count, `ama models list`, `AMA_LOG`) instead of silently inheriting nothing.
 
 ## 0.7.5 (2026-10-10)
 
