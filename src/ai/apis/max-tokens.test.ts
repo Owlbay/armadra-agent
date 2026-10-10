@@ -102,6 +102,46 @@ describe("parseMaxTokensRejection", () => {
   });
 });
 
+describe("Anthropic 官方文案（按官方文档与公开 issue 文本录制，未经官方端点取样，#151）", () => {
+  const tail = ", decrease input length or max_tokens and try again";
+  const official = (input: number, max: number) =>
+    JSON.stringify({
+      type: "error",
+      error: {
+        type: "invalid_request_error",
+        message: `input length and \`max_tokens\` exceed context limit: ${input} + ${max} > 200000${tail}`,
+      },
+    });
+
+  it("带尾句：可用值 1 → 溢出；可用值 50000 → 可重发", () => {
+    const overflow = official(199999, 21333);
+    expect(parseMaxTokensRejection(http400(overflow))).toEqual({ overflow: true });
+    expect(isOverflowErrorText(`400 ${overflow}`)).toBe(true);
+    const plain = `input length and max_tokens exceed context limit: 199999 + 21333 > 200000${tail}`;
+    expect(parseMaxTokensRejection(http400(plain))).toEqual({ overflow: true });
+    expect(parseMaxTokensRejection(http400(official(150000, 60000)))).toEqual({ cap: 50000 });
+  });
+
+  it("可用值 50000：以 50000 重发一次，transient 不记入 maxTokensCaps", async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(official(150000, 60000), { status: 400 }))
+      .mockResolvedValue(new Response("data: {}\n\n", { status: 200 }));
+    vi.stubGlobal("fetch", fetch);
+    await postWithMaxTokensFallback(
+      { provider: "anthropic", id: "claude-sonnet-4-6" },
+      "https://api.anthropic.test/v1/messages",
+      { headers: {}, body: { max_tokens: 60000 }, signal: new AbortController().signal },
+      "max_tokens",
+    );
+    const bodies = fetch.mock.calls.map(([, init]) =>
+      JSON.parse((init as RequestInit).body as string),
+    );
+    expect(bodies.map((b: { max_tokens: number }) => b.max_tokens)).toEqual([60000, 50000]);
+    expect(maxTokensCaps.size).toBe(0);
+  });
+});
+
 describe("postWithMaxTokensFallback", () => {
   const model = { provider: "packy", id: "kimi-k2.5" };
   const ok = () => new Response("data: {}\n\n", { status: 200 });
