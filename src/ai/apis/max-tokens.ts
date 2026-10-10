@@ -8,6 +8,8 @@
  *   以上限重发一次；之后同一模型的请求直接用上限。Anthropic「输入 + max_tokens 超出上下文」只按这次
  *   的输入算出可用值重发、不记上限；可用值不足 `MIN_OUTPUT_TOKENS` 判为溢出（overflow.ts 认得该文案）。
  *   重发只发生在 `start` 之前，流契约不变（与 `postWithCacheFallback` 同模式，包在它外层）。
+ * - 跨进程：学到的上限经 `onMaxTokensCap` 写进 `<dataDir>/models/max-tokens-caps.json`（30 天），
+ *   组装注册表时载回（providers/max-tokens-cache.ts，#152）。
  */
 
 import { HttpError, errorText, type PostOptions } from "../http.js";
@@ -24,6 +26,14 @@ export type MaxTokensField = "max_tokens" | "max_completion_tokens" | "max_outpu
 
 /** `${provider}/${model}` → 已知上限（被动修正时记入，之后的请求直接用）。 */
 export const maxTokensCaps = new Map<string, number>();
+
+const capListeners = new Set<(key: string, cap: number) => void>();
+
+/** 被动修正学到新上限时通知（数据目录持久化用，max-tokens-cache.ts）；返回取消函数。 */
+export function onMaxTokensCap(listener: (key: string, cap: number) => void): () => void {
+  capListeners.add(listener);
+  return () => capListeners.delete(listener);
+}
 
 type Json = Record<string, unknown>;
 
@@ -148,7 +158,10 @@ export async function postWithMaxTokensFallback(
     const sent = (body as Json)[field];
     if (rejection === undefined || !("cap" in rejection) || typeof sent !== "number") throw error;
     if (rejection.cap >= sent || !budgetFits(body, rejection.cap)) throw error;
-    if (!rejection.transient) maxTokensCaps.set(key, rejection.cap);
+    if (!rejection.transient) {
+      maxTokensCaps.set(key, rejection.cap);
+      for (const listener of capListeners) listener(key, rejection.cap);
+    }
     return postWithCacheFallback(model, url, {
       ...options,
       body: withCap(body, field, rejection.cap),
