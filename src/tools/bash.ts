@@ -9,7 +9,8 @@
  * - 注入 `AMA_*` 环境变量（shell.ts）。shell 退出后不等仍占着管道的后台进程。
  * - [W5-H2] 后台命令（§8.3 H6，不加新工具）：`{ command, background: true }` 立即返回
  *   `{ jobId, outputPath, pid }`；`{ job, action: "wait" | "output" | "stop" }` 查询 / 结束
- *   （background-jobs.ts，按会话登记，会话 dispose 时回收进程树；退出经提醒通道通知）。
+ *   （background-jobs.ts，按会话登记，会话 dispose 时回收进程树；退出经提醒通道通知）。查询输出同样按
+ *   会话结果上限尾截断（#155）。
  * - **进程只在 `spawnShell` 里创建**（前台与后台共用）。[S2] `sandbox.bash: auto` 且有能限制写入的
  *   OS 沙箱时在这一处包一层（src/sandbox/bash.ts）；`sandbox: false` 不包装（权限管线照常审批）。
  *   失败输出像是被沙箱拒绝时末尾追加一行说明。
@@ -430,7 +431,7 @@ async function jobAction(
   }
   if (action === "stop") {
     const job = (await jobs.stop(id)) as Job;
-    const out = jobs.output(id);
+    const out = jobs.output(id, { maxBytes: toolOutputBytes(ctx.maxResultChars) });
     const text = out?.content ?? "";
     return {
       content: `${text === "" ? "(no output)" : text}\n\n${jobStatusLine(job)}`,
@@ -443,7 +444,7 @@ async function jobAction(
       return fail(`timeoutMs must be between 1 and ${MAX_BASH_TIMEOUT_MS}`);
     await jobs.wait(id, waitMs, ctx.signal);
   }
-  const out = jobs.output(id);
+  const out = jobs.output(id, { maxBytes: toolOutputBytes(ctx.maxResultChars) });
   if (out === undefined) return fail(`Unknown background job ${id}`);
   const job = out.job;
   if (job.status !== "running") jobs.markSeen(id);
