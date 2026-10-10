@@ -5,6 +5,12 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 > This file is in English starting with 0.6.0. Release notes for 0.1 through 0.5.1 are in Chinese in
 > [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md). New entries go into both files.
 
+## Unreleased
+
+### Memory footprint
+
+- **`read` no longer blocks the event loop on large files**: the byte-window path for text files over 1 MiB now reads 64 KiB chunks asynchronously, awaiting once per chunk, so TUI/RPC/ACP stay responsive while a 256 MB file is scanned. Output is byte-for-byte identical (the sync and async readers share one line parser); peak memory is unchanged (still one chunk buffer).
+
 ## 0.7.4 (2026-10-10)
 
 - **Parallel worktree isolation**: two isolated tasks starting together could fail with `could not read .git/worktrees/<id>/commondir`, because `git worktree add` read the other task's half-created admin directory. Worktree add / remove and branch deletion now run one at a time per repository, and the same transient errors from another ama process are retried briefly.
