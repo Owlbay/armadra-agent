@@ -9,7 +9,7 @@
 
 **在终端里写代码的 Agent：脚本、编辑器和宿主都能调用它，它也能把活交给其它编码 Agent。**
 
-[![CI](https://github.com/Owlbay/armadra-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Owlbay/armadra-agent/actions/workflows/ci.yml)
+[![CI](https://github.com/AMA-Link/armadra-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/AMA-Link/armadra-agent/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@armadra/agent)](https://www.npmjs.com/package/@armadra/agent)
 [![license](https://img.shields.io/npm/l/@armadra/agent)](LICENSE)
 [![node](https://img.shields.io/node/v/@armadra/agent)](https://nodejs.org)
@@ -22,7 +22,7 @@
 
 ama 在终端界面里读代码、改代码、跑命令，也能用 `ama -p` 一次性回答问题。它可以把子任务交给自己的子 Agent，或者以你在各个
 CLI 里已有的登录驱动外部编码 Agent（Claude Code、Codex、GitHub Copilot CLI、OpenCode、Pi 以及任意 ACP Agent）。可以单独
-使用，可以在编辑器里经 ACP 使用，可以经 RPC 或 SDK 嵌入，也可以在 [Armadra](https://github.com/Owlbay/Armadra) 画布上
+使用，可以在编辑器里经 ACP 使用，可以经 RPC 或 SDK 嵌入，也可以在 [Armadra](https://github.com/AMA-Link/Armadra) 画布上
 担任协调者。
 
 ## 为什么用 ama
@@ -44,7 +44,7 @@ npm i -g @armadra/agent
 ama --version
 ```
 
-每个 [Release](https://github.com/Owlbay/armadra-agent/releases) 还附带单文件版（`ama.cjs` 与 codemode 沙箱入口
+每个 [Release](https://github.com/AMA-Link/armadra-agent/releases) 还附带单文件版（`ama.cjs` 与 codemode 沙箱入口
 `ama-sandbox.cjs`，放在同一目录）和离线安装用的 `package.tgz`。
 
 ## 连接模型

@@ -19,15 +19,15 @@
     "sdk",
     "armadra"
   ],
-  "homepage": "https://github.com/Owlbay/armadra-agent#readme",
+  "homepage": "https://github.com/AMA-Link/armadra-agent#readme",
   "bugs": {
-    "url": "https://github.com/Owlbay/armadra-agent/issues"
+    "url": "https://github.com/AMA-Link/armadra-agent/issues"
   },
   "author": "YoVinchen",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Owlbay/armadra-agent.git"
+    "url": "git+https://github.com/AMA-Link/armadra-agent.git"
   },
   "bin": {
     "ama": "dist/bundle/ama.cjs"

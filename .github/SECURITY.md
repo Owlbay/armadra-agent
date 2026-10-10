@@ -6,7 +6,7 @@
 
 Please **do not** describe security problems in public issues, discussions or pull requests. Report them privately through GitHub Security Advisories:
 
-**<https://github.com/Owlbay/armadra-agent/security/advisories/new>**
+**<https://github.com/AMA-Link/armadra-agent/security/advisories/new>**
 
 报告里请写明 / Please include:
 
@@ -35,6 +35,6 @@ Do not include real credentials; use the `fake` provider or test keys when demon
 
 In scope: the `ama` command and the `@armadra/agent` package in this repository, including the permission pipeline and trust, codemode and the OS sandbox, storage of API keys and login tokens, command hooks, the RPC / ACP / host adapter interfaces, and the release artifacts (`ama.cjs`, `ama-sandbox.cjs`, the npm package).
 
-范围外：模型供应商、中转站与 ama 驱动的外部 Agent CLI 自身的问题，请向对应方报告；Armadra 应用本身的问题请报告到 [Owlbay/Armadra](https://github.com/Owlbay/Armadra/security/advisories/new)。
+范围外：模型供应商、中转站与 ama 驱动的外部 Agent CLI 自身的问题，请向对应方报告；Armadra 应用本身的问题请报告到 [AMA-Link/Armadra](https://github.com/AMA-Link/Armadra/security/advisories/new)。
 
-Out of scope: problems in model providers, relays or the external Agent CLIs that ama drives; please report those to the respective parties. Problems in the Armadra app itself belong to [Owlbay/Armadra](https://github.com/Owlbay/Armadra/security/advisories/new).
+Out of scope: problems in model providers, relays or the external Agent CLIs that ama drives; please report those to the respective parties. Problems in the Armadra app itself belong to [AMA-Link/Armadra](https://github.com/AMA-Link/Armadra/security/advisories/new).

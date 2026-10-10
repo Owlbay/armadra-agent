@@ -37,7 +37,7 @@ import { AGENTS_RESERVED_KEYS, SUBAGENT_BACKGROUND_MODES } from "./types-w5.js";
 type Schema = Record<string, unknown>;
 
 export const CONFIG_SCHEMA_FILE = "config.schema.json";
-export const CONFIG_SCHEMA_ID = "https://github.com/Owlbay/armadra-agent/config.schema.json";
+export const CONFIG_SCHEMA_ID = "https://github.com/AMA-Link/armadra-agent/config.schema.json";
 
 const KNOWN_APIS = [
   "openai-completions",

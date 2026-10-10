@@ -155,6 +155,6 @@ jobs:
             sleep 10
           done
           if [ -z "$NPM_TOKEN" ]; then
-            echo "::error::npm publish 失败：请在 npmjs.com 的 $name 包设置 → Trusted Publisher 添加 GitHub Actions（组织 Owlbay、仓库 armadra-agent、工作流 ci.yml、环境留空），或在仓库 secrets 配置 NPM_TOKEN"
+            echo "::error::npm publish 失败：请在 npmjs.com 的 $name 包设置 → Trusted Publisher 添加 GitHub Actions（组织 AMA-Link、仓库 armadra-agent、工作流 ci.yml、环境留空），或在仓库 secrets 配置 NPM_TOKEN"
           fi
           exit 1
