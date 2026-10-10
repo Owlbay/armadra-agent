@@ -13,6 +13,7 @@
 
 import { capTaskText, formatTokens, waitDetachedText } from "../agents/result.js";
 import { taskControl } from "../agents/task-control.js";
+import { nestedTaskRejection } from "./task.js";
 import type { TaskInfo, ToolContext, ToolDefinition, ToolResult } from "./types.js";
 
 export const TASK_CTL_TOOL = "task_ctl";
@@ -77,7 +78,10 @@ export function createTaskCtlTool(): ToolDefinition<TaskCtlInput> {
     executionMode: "parallel",
     annotations: { pollable: true },
     async execute(input, ctx): Promise<ToolResult> {
-      if (ctx.depth >= 1) return fail("task_ctl is not available inside a sub-agent.");
+      if (ctx.depth >= 1)
+        return fail(
+          nestedTaskRejection(ctx, "task_ctl", "task_ctl is not available inside a sub-agent."),
+        );
       const control = taskControl(ctx.sessionId);
       if (input.action === "list") {
         const tasks = control?.list() ?? ctx.tasks?.list() ?? [];
