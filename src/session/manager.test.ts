@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { createTmpHome, type TmpHome } from "../../test/helpers/tmp-home.js";
 import type { AssistantMessage, Message, SystemMessage } from "../ai/types.js";
@@ -101,5 +101,37 @@ describe("[ME-C0] SessionManager.fork(entryId, { head })", () => {
     expect(plain.branch()[0]?.parentId).toBeNull();
     plain.close();
     parent.close();
+  });
+});
+
+describe("#183 SessionManager.setWarn", () => {
+  it("open 的会话：setWarn 之前读不回的图片告警缓冲，接上后恰好 1 条", () => {
+    home = createTmpHome();
+    const dir = sessionDirForCwd(home.path("sessions"), "/work");
+    const created = SessionManager.create(dir, "/work");
+    const image = { type: "image" as const, mimeType: "image/png", data: "aW1n" };
+    const id = created.append({
+      type: "message",
+      message: { role: "user", content: [{ type: "text", text: "x" }, image], timestamp: 1 },
+    }).id;
+    const before = created.leafId()!;
+    created.append({
+      type: "context_edit",
+      targetId: id,
+      replacement: "[image omitted]",
+      reason: "image_budget",
+    });
+    created.flush();
+    const file = created.file()!;
+    created.close();
+    const opened = SessionManager.open(file);
+    expect(opened.offloadedCount()).toBe(1);
+    writeFileSync(file, "{}\n".repeat(4), "utf8");
+    opened.setLeaf(before);
+    const warnings: string[] = [];
+    opened.setWarn((message) => warnings.push(message));
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(new RegExp(`^cannot read session entry ${id} back from `));
+    opened.close();
   });
 });

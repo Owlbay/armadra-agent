@@ -10,7 +10,8 @@
  *   `content` 换新数组，image 块换成 `data: ""` 的占位；
  * - 回读：按行位置 `readSync` 一行、`JSON.parse`，校验 id 与内容块数，图片经 `internImage` 驻留后
  *   **就地**放回占位所在的数组（之前拿到同一消息对象的调用方随之看到原图）；读不回（文件被外部改写）时
- *   保留 `""` 并告警，不再重试；
+ *   保留 `""` 并告警，不再重试；告警通道可后接（`setWarn`）：接上之前的告警先缓冲（最多
+ *   `PENDING_WARNINGS` 条，其余折叠成一条计数），接上时按序冲出（#183）；
  * - `original(entry)`：给 `getEntries` / `fork` 的原文副本，不改内存状态。
  */
 
@@ -85,12 +86,31 @@ export function editTargets(file: string): Set<string> {
 
 const placeholder = (block: ImageBlock): ImageBlock => ({ ...block, data: "" });
 
+/** 告警通道接上之前最多缓冲的条数；超出的只计数，冲出时折叠成一条。 */
+export const PENDING_WARNINGS = 16;
+
 export class ImageOffload {
   /** 含图 message 条目的行位置（只有已落盘的条目才有）。 */
   private readonly locators = new Map<string, LineLocator>();
   private readonly offloaded = new Set<string>();
 
-  constructor(private readonly warn: (message: string) => void = () => {}) {}
+  private warn: ((message: string) => void) | undefined;
+  private readonly pending: string[] = [];
+  private dropped = 0;
+
+  constructor(warn?: (message: string) => void) {
+    this.warn = warn;
+  }
+
+  /** 接上（或换掉）告警通道；之前缓冲的告警按序冲出。 */
+  setWarn(warn: (message: string) => void): void {
+    this.warn = warn;
+    const pending = this.pending.splice(0);
+    if (this.dropped > 0)
+      pending.push(`and ${this.dropped} more session entries could not be read back`);
+    this.dropped = 0;
+    for (const message of pending) warn(message);
+  }
 
   /** 记下条目的行位置；不含图片的条目忽略。 */
   track(entry: SessionEntry, locator: LineLocator): void {
@@ -193,8 +213,14 @@ export class ImageOffload {
     } catch (error) {
       this.locators.delete(entry.id);
       this.offloaded.delete(entry.id);
-      this.warn(`cannot read session entry ${entry.id} back from ${file}: ${String(error)}`);
+      this.report(`cannot read session entry ${entry.id} back from ${file}: ${String(error)}`);
       return undefined;
     }
+  }
+
+  private report(message: string): void {
+    if (this.warn !== undefined) this.warn(message);
+    else if (this.pending.length < PENDING_WARNINGS) this.pending.push(message);
+    else this.dropped++;
   }
 }

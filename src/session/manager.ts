@@ -81,7 +81,7 @@ export class SessionManager implements SessionManagerApi {
   private closed = false;
   private readonly now: () => Date;
   private readonly images: ImageOffload;
-  private readonly warn: ((message: string) => void) | undefined;
+  private warn: ((message: string) => void) | undefined;
   /** 已知的会话文件字节数（新行的行首偏移）。 */
   private fileBytes = 0;
 
@@ -261,6 +261,12 @@ export class SessionManager implements SessionManagerApi {
   private original(entry: SessionEntry): SessionEntry {
     if (this.storage.kind !== "file" || !this.images.isOffloaded(entry.id)) return entry;
     return this.images.original(this.storage.file, entry);
+  }
+
+  /** 接上（或换掉）告警出口（图片读不回等）；`open()` 期间缓冲的告警随即按序冲出（#183）。 */
+  setWarn(warn: (message: string) => void): void {
+    this.warn = warn;
+    this.images.setWarn(warn);
   }
 
   /** 已卸载图片的条目数（测试与诊断用）。 */
