@@ -2,11 +2,16 @@
  * 会话扩展点（docs/wave5-plan.md §10.1）：调用点、顺序、异常隔离、每个会话实例各自的扩展。[W5-C0]
  */
 
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
+import { SessionManager } from "../session/manager.js";
 import type { AgentMessage } from "../session/types.js";
 import type { SessionExtension, SessionExtensionFactory } from "./session-extensions.js";
+import { AgentSessionImpl } from "./session.js";
 import { createHarness, userTexts } from "./testing/harness.js";
-import { stubTool } from "./testing/stubs.js";
+import { fakeModel, stubRegistry, stubTool } from "./testing/stubs.js";
 
 function note(id: string, content: string): AgentMessage {
   return { role: "custom", customType: id, content, display: false, timestamp: 0 };
@@ -148,5 +153,79 @@ describe("SessionExtension 调用点", () => {
     const h = createHarness({ script: [{ text: "ok" }] });
     await h.session.prompt("hi");
     expect(h.manager.branch().some((entry) => entry.type === "custom_message")).toBe(false);
+  });
+});
+
+describe("#183 manager 告警接到会话日志", () => {
+  const root = mkdtempSync(join(tmpdir(), "ama-ext-warn-"));
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+  let seq = 0;
+  type Logged = [string, string];
+  const READ_BACK = /^cannot read session entry \S+ back from /;
+
+  /** 落盘：含图消息被 context_edit 改写（已卸载）；返回编辑之前的叶子。 */
+  function withOffloadedImage(manager: SessionManager): string {
+    const id = manager.append({
+      type: "message",
+      message: {
+        role: "user",
+        content: [
+          { type: "text", text: "x" },
+          { type: "image", mimeType: "image/png", data: "aW1n" },
+        ],
+        timestamp: 1,
+      },
+    }).id;
+    const before = manager.leafId()!;
+    manager.append({
+      type: "context_edit",
+      targetId: id,
+      replacement: "[image omitted]",
+      reason: "image_budget",
+    });
+    manager.flush();
+    return before;
+  }
+
+  it("会话构造后：文件被外部改写，getEntries 回读失败 → options.log(warn) 恰好 1 次；运行时换掉的 log 也生效", () => {
+    const logged: Logged[] = [];
+    const h = createHarness({ script: [], dir: join(root, `h${seq++}`), log: () => undefined });
+    withOffloadedImage(h.manager);
+    expect(h.manager.offloadedCount()).toBe(1);
+    // TUI 的 routeNotices 在运行时替换 options.log
+    (h.session as unknown as { options: { log: (l: string, m: string) => void } }).options.log = (
+      level,
+      message,
+    ) => logged.push([level, message]);
+    writeFileSync(h.manager.file()!, "{}\n".repeat(4), "utf8");
+    h.manager.getEntries();
+    h.manager.getEntries();
+    expect(logged).toHaveLength(1);
+    expect(logged[0]![0]).toBe("warn");
+    expect(logged[0]![1]).toMatch(READ_BACK);
+  });
+
+  it("resume / 子会话续聊：会话构造前（open 之后）的告警在构造时冲出，恰好 1 次", () => {
+    const dir = join(root, `r${seq++}`);
+    const created = SessionManager.create(dir, "/work");
+    const before = withOffloadedImage(created);
+    const file = created.file()!;
+    created.close();
+    const opened = SessionManager.open(file);
+    writeFileSync(file, "{}\n".repeat(4), "utf8");
+    opened.setLeaf(before);
+    const logged: Logged[] = [];
+    const model = fakeModel();
+    const session = new AgentSessionImpl({
+      model,
+      sessionManager: opened,
+      providers: stubRegistry([model], []),
+      depth: 1,
+      log: (level, message) => logged.push([level, message]),
+    });
+    expect(logged).toHaveLength(1);
+    expect(logged[0]![0]).toBe("warn");
+    expect(logged[0]![1]).toMatch(READ_BACK);
+    void session.dispose();
   });
 });
