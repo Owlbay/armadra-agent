@@ -7,12 +7,14 @@
 //         --runs <n>          每个场景跑 n 次取中位数，缺省 1
 //         --huge-mb <n>       read-huge 的文件大小，缺省 256
 //         --session-mb <n>    resume / list 的单个会话大小，缺省 55
+//         --edited <n>        resume 会话里 n 张 3 MB 图各带一条 image_budget 编辑（#170），缺省 0
 //         --steps <n>         mock-http / rpc-bytes 的工具步数，缺省 300 / 100
 //         --images <n>        mock-http 的读图次数，缺省 15
 //         --sessions <n>      acp-pool 会话数，缺省 8；--rounds <n> 每会话轮数，缺省 4
 //         --compact           rpc-bytes 先声明 compact_events 能力
 //         --node-arg <flag>   传给被测 node 进程的参数，可重复（如 --max-old-space-size=128、--trace-gc）
 //         --keep              保留临时目录（打印路径）
+//   环境：AMA_MEM_VMMAP_AT / AMA_MEM_ALLOC（见 mem-probe.cjs）与 macOS 的 MallocLargeCache 原样传给被测进程
 //
 // 约束：零依赖，只用 node:*；只读写 os.tmpdir() 下的临时目录——HOME / AMA_CONFIG_DIR / AMA_DATA_DIR 全部
 // 指向临时目录，子进程环境从零构造（不带任何 API key），绝不触碰真实的配置与会话。只用 fake 供应商或
@@ -35,6 +37,7 @@ import {
   parseJsonLine,
   samplePeaks,
   startMockResponses,
+  writeSession as writeSessionFile,
   writeTextFile,
 } from "./lib/bench-memory-fixtures.mjs";
 
@@ -62,6 +65,7 @@ function parseArgs(argv) {
     "runs",
     "huge-mb",
     "session-mb",
+    "edited",
     "steps",
     "images",
     "sessions",
@@ -113,7 +117,8 @@ function isolatedEnv(name) {
     AMA_LANG: "en",
     TERM: "xterm-256color",
   };
-  for (const key of ["PATH", "Path", "SystemRoot", "TEMP", "TMP", "TMPDIR"]) {
+  const pass = ["PATH", "Path", "SystemRoot", "TEMP", "TMP", "TMPDIR"];
+  for (const key of [...pass, "AMA_MEM_VMMAP_AT", "AMA_MEM_ALLOC", "MallocLargeCache"]) {
     if (process.env[key] !== undefined) env[key] = process.env[key];
   }
   return { ...dirs, env };
@@ -242,53 +247,11 @@ async function gcSample(run) {
   return lastSample(run.log, run.child.pid);
 }
 
-// ---------------------------------------------------------------------------
-// 会话文件（经构建产物里的真实 SessionManager 写，格式与运行时一致）
-// ---------------------------------------------------------------------------
-
-async function writeSession(ctx, bytes, label) {
+/** 会话文件写进隔离环境的会话目录（夹具经构建产物里的真实 SessionManager 写）。 */
+function writeSession(ctx, bytes, label, edited = 0) {
   const managerUrl = pathToFileURL(join(ROOT, "dist", "session", "manager.js")).href;
-  const { SessionManager } = await import(managerUrl);
-  const manager = SessionManager.createForCwd(join(ctx.data, "sessions"), ctx.work);
-  const chunk = `${label} ${"tool output line 0123456789 abcdefghij\n".repeat(1600)}`;
-  const zero = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 };
-  let written = 0;
-  manager.append({
-    type: "message",
-    message: { role: "user", content: `${label}: start`, timestamp: Date.now() },
-  });
-  for (let i = 0; written < bytes; i++) {
-    const timestamp = Date.now();
-    manager.append({
-      type: "message",
-      message: {
-        role: "assistant",
-        content: [{ type: "toolCall", id: `call_${i}`, name: "read", arguments: { path: "x" } }],
-        api: "openai-responses",
-        provider: "fake",
-        model: "echo",
-        usage: zero,
-        stopReason: "toolUse",
-        timestamp,
-      },
-    });
-    manager.append({
-      type: "message",
-      message: {
-        role: "toolResult",
-        toolCallId: `call_${i}`,
-        toolName: "read",
-        content: [{ type: "text", text: chunk }],
-        isError: false,
-        timestamp,
-      },
-    });
-    written += chunk.length + 400;
-  }
-  manager.flush();
-  const id = manager.header().id;
-  manager.close();
-  return id;
+  const dir = join(ctx.data, "sessions");
+  return writeSessionFile({ managerUrl, dir, cwd: ctx.work, bytes, label, edited });
 }
 
 // ---------------------------------------------------------------------------
@@ -333,12 +296,14 @@ const scenarios = {
   async resume(opts) {
     const ctx = isolatedEnv("resume");
     const mb = opts["session-mb"] ?? 55;
-    const id = await writeSession(ctx, mb * MB, "resume");
+    const edited = opts.edited ?? 0;
+    const id = await writeSession(ctx, mb * MB, "resume", edited);
     const script = writeScript(ctx, { version: 1, responses: [{ text: "ok" }] });
     const r = await runOnce(ctx, opts.entry, [...FAKE, "-p", "--resume", id, "go"], {
       env: { AMA_FAKE_SCRIPT: script },
     });
-    return { ...r, note: `-p --resume, ${mb} MB session` };
+    const images = edited > 0 ? `, ${edited} × 3 MB images edited out` : "";
+    return { ...r, note: `-p --resume, ${mb} MB session${images}` };
   },
 
   async list(opts) {
@@ -553,7 +518,7 @@ async function main() {
     const text = readFileSync(fileURLToPath(import.meta.url), "utf8").split("\n");
     process.stdout.write(
       `${text
-        .slice(1, 16)
+        .slice(1, 18)
         .map((l) => l.replace(/^\/\/ ?/, ""))
         .join("\n")}\n`,
     );

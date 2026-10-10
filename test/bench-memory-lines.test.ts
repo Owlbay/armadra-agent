@@ -1,15 +1,26 @@
 /**
  * `scripts/lib/bench-memory-fixtures.mjs` 的 `parseJsonLine`（#173）：被测进程中途退出时的截断行、
  * 混入的非 JSON 输出都返回 `undefined`（由基准脚本计为坏行），完整行返回对象；`samplePeaks`（#172 探针
- * 细分）给出 heapTotal / other 峰值。
+ * 细分）给出 heapTotal / other 峰值；`writeSession` 的 `edited`（resume `--edited`，#170 测量口径）。
  */
 
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
 interface FixturesModule {
   parseJsonLine(line: string): Record<string, unknown> | undefined;
   samplePeaks(samples: Record<string, unknown>[]): Record<string, number>;
+  writeSession(options: {
+    managerUrl: string;
+    dir: string;
+    cwd: string;
+    bytes: number;
+    label: string;
+    edited?: number;
+  }): Promise<string>;
 }
 
 const SCRIPT = fileURLToPath(new URL("../scripts/lib/bench-memory-fixtures.mjs", import.meta.url));
@@ -63,5 +74,43 @@ describe("bench-memory parseJsonLine", () => {
     ]);
     expect(peaks).toEqual({ rss: 400, heapUsed: 50, heapTotal: 90, external: 30, other: 180 });
     expect(samplePeaks([])).toEqual({ rss: 0, heapUsed: 0, heapTotal: 0, external: 0, other: 0 });
+  });
+
+  it("writeSession：edited 个 toolResult 各带一张图，并各有一条 image_budget 编辑指向它", async () => {
+    const { writeSession } = await load();
+    const root = mkdtempSync(join(tmpdir(), "ama-bench-fixture-"));
+    try {
+      const managerUrl = pathToFileURL(
+        fileURLToPath(new URL("../src/session/manager.ts", import.meta.url)),
+      ).href;
+      const options = { managerUrl, dir: root, cwd: root, label: "t" };
+      const id = await writeSession({ ...options, bytes: 8 * 1024 * 1024, edited: 2 });
+      const find = (sid: string): string =>
+        join(
+          root,
+          (readdirSync(root, { recursive: true }) as string[]).find((n) => n.includes(sid))!,
+        );
+      const lines = readFileSync(find(id), "utf8")
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+      const withImage = lines.filter(
+        (l) => l.type === "message" && l.message.content.some?.((b: any) => b.type === "image"),
+      );
+      const edits = lines.filter((l) => l.type === "context_edit");
+      expect(withImage).toHaveLength(2);
+      expect(edits.map((e) => [e.targetId, e.reason])).toEqual(
+        withImage.map((l) => [l.id, "image_budget"]),
+      );
+      expect(withImage[0]?.message.content[1].data.length).toBe(
+        4 * Math.ceil((2.25 * 1024 * 1024) / 3),
+      );
+      const plainId = await writeSession({ ...options, bytes: 1024 * 1024 });
+      const plain = readFileSync(find(plainId), "utf8");
+      expect(plain).not.toContain('"context_edit"');
+      expect(plain).not.toContain('"image"');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

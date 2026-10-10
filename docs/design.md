@@ -858,22 +858,24 @@ tool_call（模型产出）
 
 ### §9.2 内存预算
 
-2026-10 内存批次（[memory-plan.md](memory-plan.md)，实测见 [benchmarks/memory-2026-10.md](benchmarks/memory-2026-10.md)）之后的上限。CI 不以 RSS 作硬断言（D13）：守护测试用 `WeakRef` + 显式 GC、堆增长上限与字节比对，RSS 数字由 `node scripts/bench-memory.mjs` 在本地复测（macOS / Node 26，3 次中位数）。改动下列路径时先跑对应守护测试，涉及峰值的再跑一次 bench 并更新 benchmarks。
+2026-10 内存批次（[memory-plan.md](memory-plan.md)，实测见 [benchmarks/memory-2026-10.md](benchmarks/memory-2026-10.md)）与遗留项批次（#165–#173，benchmarks「R」，2026-10-10 复测）之后的上限。CI 不以 RSS 作硬断言（D13）：守护测试用 `WeakRef` + 显式 GC、堆增长上限与字节比对，RSS 数字由 `node scripts/bench-memory.mjs` 在本地复测（macOS / Node 26，3 次中位数）。改动下列路径时先跑对应守护测试，涉及峰值的再跑一次 bench 并更新 benchmarks。
 
 | 场景 | 上限（bench 峰值 RSS 等） | 守护测试 |
 | --- | --- | --- |
 | 全局 `ama --version` | ≤ 82 MB，≤ 0.10 s（实测 76.7） | `test/release-check.test.ts`（`bin.ama` 是 bundle、与 `exports["./bundle"]` 相同、首行 shebang）；e2e `npm pack` 装包后 `.bin/ama --version`；`src/tui/ansi.test.ts`（载入 TUI 模块不构造 `Intl.Segmenter`） |
-| `-p` 一轮（fake） | ≤ 98 MB（实测 92.7） | 同上 |
-| `read` 256 MB 文件前 100 行 | ≤ 110 MB（实测 103.2） | `test/memory/read-huge.test.ts`（32 MB 文件读开头 / 近尾部 100 行，GC 前后增长都 < 2 MB）；`src/tools/read-lines.test.ts`（两条路径逐字节相同） |
+| `-p` 一轮（fake） | ≤ 98 MB（实测 93.2） | 同上 |
+| `read` 256 MB 文件前 100 行 | ≤ 110 MB、≤ 0.55 s（实测 101.1、0.40 s）；扫描期间事件循环最大停顿 < 20 ms（实测 3.8–15.8 ms，原同步版 172–316） | `test/memory/read-huge.test.ts`（32 MB 文件读开头 / 近尾部 100 行，GC 前后增长都 < 2 MB；读 32 MB 尾部期间 `setImmediate` 轮数 ≥ 32）；`src/tools/read-lines.test.ts`（整读与字节窗口、同步与异步逐字节相同） |
 | `sessions list` 4 × 55 MB | ≤ 110 MB（实测 88.2） | `test/memory/session-files.test.ts`（24 MB 会话：GC 后增长 < 2 MB，过程中 heap < 0.2 × 文件、external < 0.5 × 文件）；`src/session/list.test.ts`（新旧口径深度相等） |
-| `-p --resume` 55 MB | ≤ 220 MB（实测 217.9；剩余是转录本身约 66 MB 与堆余量） | `test/memory/session-files.test.ts`（`readSessionLines` 只留解析结果 ≤ 旧实现 + 2 MB，过程中 external < 0.5 × 文件）；`src/session/store.test.ts` |
-| mock HTTP 300 步 + 15 次读图 | ≤ 720 MB（实测 720.2） | `test/memory/json-body.test.ts`（36 MB 图片请求体：heap 增长 < 3 MB，external ≈ 结果长度；流式请求体读完不留增长）；`src/ai/json-body.test.ts`（四协议请求体与 500 个随机 JSON 与 `JSON.stringify` 逐字节相同） |
+| `-p --resume` 55 MB | ≤ 220 MB（实测 219.7；剩余是转录本身约 66 MB 与堆余量） | `test/memory/session-files.test.ts`（`readSessionLines` 只留解析结果 ≤ 旧实现 + 2 MB，过程中 external < 0.5 × 文件）；`src/session/store.test.ts` |
+| `-p --resume` 55 MB，含 10 张被 `image_budget` 降级的 3 MB 图（bench `--edited 10`） | ≤ 215 MB（实测 209.9，v0.7.4 为 254.5） | `test/memory/session-offload.test.ts`（编辑后 block 可回收、heap+external 降 ≥ 5 份 base64；`getEntries` / fork 原文；`setLeaf` 回读 sha256 相同；带编辑会话 `open` 增长 < 文本字节 + 2 MB）；`src/session/offload.test.ts` |
+| mock HTTP 300 步 + 15 次读图 | ≤ 650 MB、heapUsed 峰值 ≤ 180 MB（实测 386.0–399.0、81–87） | `test/memory/json-body.test.ts`（36 MB 图片请求体：heap 增长 < 3 MB，external ≈ 结果长度；流式每块 ≤ 256 KiB + 4、读完不留增长；转换器建的 6 × 3 MB 图请求体读完 `heapUsed` < 2 MB、同块不再扫）；`src/ai/json-body.test.ts`（四协议请求体、含 `LargeString` 的 500 个随机 JSON 与 `JSON.stringify` 逐字节相同） |
+| mock HTTP 300 步无图 | ≤ 730 MB（实测 706.5–714.1；约 330 MB 是 macOS 分配器缓存的已释放大块，`MallocLargeCache=0` 下 ≈ 380 MB，非留存，见 benchmarks「#172 归因」） | 同上 |
 | 同一张图多次出现 | 内存里一份 base64 | `test/memory/image-intern.test.ts`（`read` 5 次同一 block、附图与 `read` 同一 block、会话里 4 处同一 block；第 2–5 次增长 < 200 KB） |
-| ACP 8 会话 × 4 轮全部 close + GC | heap ≤ 20 MB、external ≤ 20 MB（fake；实测 16.1 / 16.3，剩余是启动会话） | `test/memory/acp-release.test.ts`（关闭后实例回收、`taskControl` 注销、端点摘要不含回调、external 回到基线） |
+| ACP 8 会话 × 4 轮全部 close + GC | heap ≤ 16 MB、external ≤ 10 MB（fake；实测 14.9 / 7.0，启动会话也回收） | `test/memory/acp-release.test.ts`（含启动会话在内全部实例回收、`taskControl` 注销、端点摘要不含回调、heap+external 不高于基线）；`src/modes/acp/acp-mode.test.ts`（通知回合在跑时 close 成功且实例回收） |
 | RPC 100 步事件字节 | 声明 `compact_events` 后 ≤ 原来的 45%（实测 0.40） | `test/memory/rpc-bytes.test.ts`（1 MB 结果：未声明 5 份、声明后 2 份，字节比 < 0.45；`stream-json` 不变） |
 | codemode 子进程 | 堆 ≤ `codemode.maxHeapMb`（缺省 256 MB） | `src/codemode/host-side.test.ts`（参数首位；32 MB 上限下真实子进程 OOM → 脚本错误，宿主 heap 增长 < 5 MB） |
 | 已结束子 Agent 会话 | 内存里至多 `subagents.retainSessions` 个（缺省 4） | `src/agent/subagent-registry.test.ts`（6 个任务后前 2 个句柄释放、仍可续聊） |
-| 真实 TUI 带图会话 | ≤ 300 MB（astr，4 提示 3 图实测 218.4） | —（benchmarks 记录） |
+| 真实 TUI 带图会话 | ≤ 300 MB（astr，4 提示 3 图实测 218.4；2 提示 2 图 165.5，v0.7.4 为 168.0） | —（benchmarks 记录） |
 
 ## §10 配置、密钥、profile
 
@@ -955,7 +957,7 @@ tool_call（模型产出）
 | 11 | 供应商与模型：`ProviderRegistry.build(builtin, config.providers)` → 解析模型（`--model` > 续会话最后 `model_change` > `config.defaultModel` > 第一个有 key 的供应商的目录首条）→ `auth.resolveApiKey(provider)`（§3.5）                                                   | 模型不存在 → **4** 并列出候选；`--provider` 不带 `--model` → **2**（不回退到别家缺省模型）；无 key 且 `requiresApiKey` → **4** 并提示 `ama auth set <provider>` 与环境变量名；交互模式改为弹模型选择器而非退出 |
 | 12 | 工具注册表：内置 → `config.tools.disabled` → `--tools` / `--exclude-tools`                                                                                                                                                                                                 | 未知工具名 → **2**                                                                                            |
 | 13 | 宿主适配器：`--host` / profile.host → `loader.load()`（版本校验）→ `create(api)`（超时 10 s）→ `undefined` 则不激活；激活后它注册工具、追加指令、设 broker                                                                                                                | 模块加载失败 → **6**；`hostApi` 版本不等 → **78**；`create` 抛错 / 超时 → **6**                               |
-| 14 | 组装 `AgentSession`（系统提示装配、权限管线、HookDispatcher、broker 链）；发 `session_start`；跑 `SessionStart` Hook（可追加上下文）                                                                                                                                       | Hook 退出码 2 → **6**；其它 Hook 错误 → warning                                                               |
+| 14 | 组装 `AgentSession`（系统提示装配、权限管线、HookDispatcher、broker 链）；发 `session_start`；跑 `SessionStart` Hook（可追加上下文）。`Runtime.session` / `Runtime.sessionManager` 跟随当前会话（`switchSession`、ACP 换前台后指向新会话；启动会话被关闭后可回收，#165）                                                                                                                                       | Hook 退出码 2 → **6**；其它 Hook 错误 → warning                                                               |
 | 15 | 模式分派：interactive → 初始化终端（raw、括号粘贴开、能力探测）→ 渲染首帧；line → readline；print → 读 stdin 管道 + 参数拼首条提示；rpc → 发 `hello`                                                                                                                      | 终端初始化失败 → 自动降级 line + warning                                                                      |
 | 16 | 首条提示：`UserPromptSubmit` Hook → 模板 / `/skill:` 展开 → `before_agent_start` → 首次请求前把系统提示 + 工具表作为首条 `system` 消息落盘（此时才创建会话文件）→ `Agent.prompt` → `api.stream`                                                                           | 供应商错误走重试 / 溢出 → 压缩；最终失败 print 模式退出 **1**，交互模式显示错误留在 REPL                       |
 

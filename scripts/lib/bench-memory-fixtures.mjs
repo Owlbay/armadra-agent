@@ -61,6 +61,71 @@ export function writeTextFile(path, bytes) {
   }
 }
 
+/**
+ * 写一个约 `bytes` 字节的会话文件（经构建产物里的真实 SessionManager 写，格式与运行时一致），返回会话 id。
+ * `edited` > 0 时前 `edited` 个 toolResult 各带一张 3 MB base64 图，并各追加一条 `image_budget` 的
+ * `context_edit`（#170 卸载的测量口径）；图片字节计入 `bytes`。
+ */
+export async function writeSession({ managerUrl, dir, cwd, bytes, label, edited = 0 }) {
+  const { SessionManager } = await import(managerUrl);
+  const manager = SessionManager.createForCwd(dir, cwd);
+  const chunk = `${label} ${"tool output line 0123456789 abcdefghij\n".repeat(1600)}`;
+  const zero = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 };
+  const targets = [];
+  let written = 0;
+  manager.append({
+    type: "message",
+    message: { role: "user", content: `${label}: start`, timestamp: Date.now() },
+  });
+  for (let i = 0; written < bytes; i++) {
+    const timestamp = Date.now();
+    manager.append({
+      type: "message",
+      message: {
+        role: "assistant",
+        content: [{ type: "toolCall", id: `call_${i}`, name: "read", arguments: { path: "x" } }],
+        api: "openai-responses",
+        provider: "fake",
+        model: "echo",
+        usage: zero,
+        stopReason: "toolUse",
+        timestamp,
+      },
+    });
+    const content = [{ type: "text", text: chunk }];
+    if (i < edited) {
+      const data = Buffer.alloc(2.25 * MB, i + 1).toString("base64");
+      content.push({ type: "image", data, mimeType: "image/png" });
+      written += data.length;
+    }
+    const result = manager.append({
+      type: "message",
+      message: {
+        role: "toolResult",
+        toolCallId: `call_${i}`,
+        toolName: "read",
+        content,
+        isError: false,
+        timestamp,
+      },
+    });
+    if (i < edited) targets.push(result.id);
+    written += chunk.length + 400;
+  }
+  for (const targetId of targets) {
+    manager.append({
+      type: "context_edit",
+      targetId,
+      replacement: "[image omitted]",
+      reason: "image_budget",
+    });
+  }
+  manager.flush();
+  const id = manager.header().id;
+  manager.close();
+  return id;
+}
+
 const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
   let c = n;
   for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
