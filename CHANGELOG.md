@@ -5,6 +5,13 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 > This file is in English starting with 0.6.0. Release notes for 0.1 through 0.5.1 are in Chinese in
 > [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md). New entries go into both files.
 
+## Unreleased
+
+### Maintenance
+
+- **Repository moved to the AMA-Link organization**: the source, issues and releases now live at github.com/AMA-Link/armadra-agent; the package metadata, the built-in docs link, the OpenRouter `HTTP-Referer` and the config schema `$id` point there. Old links redirect (#206, #207).
+- **Toolchain**: development uses pnpm 12.8.1 and CI runs single-version jobs on Node 24; the published package still supports Node ≥ 22 and is tested on 22 and 24 (#205).
+
 ## 0.8.0 (2026-10-10)
 
 ### External agents

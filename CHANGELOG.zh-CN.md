@@ -4,6 +4,13 @@
 
 > 从 0.6.0 起 [CHANGELOG.md](CHANGELOG.md) 为英文，本文件保留中文记录（0.1–0.5.1 的完整历史在此）。新条目两份都要加。
 
+## 未发布
+
+### 维护
+
+- **仓库迁到 AMA-Link 组织**：源码、Issue 与发布改在 github.com/AMA-Link/armadra-agent；包元数据、内置文档链接、OpenRouter 的 `HTTP-Referer` 与配置 schema 的 `$id` 都指向新地址，旧链接自动跳转（#206、#207）。
+- **工具链**：开发改用 pnpm 12.8.1，CI 的单版本作业改用 Node 24；发布的包仍支持 Node ≥ 22，并在 22 / 24 上测试（#205）。
+
 ## 0.8.0（2026-10-10）
 
 ### 外部 Agent
