@@ -424,7 +424,7 @@ export type ModelThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" |
 
 第五波起目录只写覆盖项与 ama 特有字段，数值事实从入库的 models.dev 快照继承，运行时不联网，`ama models refresh` 显式刷新（[wave5-plan.md](wave5-plan.md) §2）。
 
-中转模型继承官方目录（[model-efficiency-plan.md](model-efficiency-plan.md) D10）：目录条目可写 `aliases`；中转模型 id 规范化（小写、去一层 `vendor/`、去 `:latest`）后与第一方条目 id 或别名**唯一命中**才继承，精确不中时去掉思考档后缀（`-low`、`-tiered` 等）再试一次。只继承模型固有属性 `reasoning`、`input`、`thinkingLevelMap`、`promptCache.minTokens`、`compat.requiresReasoningContentOnAssistantMessages`（思考档后缀命中不继承思考），不继承价格、缓存 TTL 与 `thinkingFormat`；用户写了的不覆盖。`models[]` 条目 `catalog: false` 关闭、`catalog: "provider/id"` 显式指定；`ama models list` 来源显示 `catalog (via id)`。目录文件级 `small` 指定该家的小模型，供 auto 分类器使用（§7.4）。
+中转模型继承官方目录（[model-efficiency-plan.md](model-efficiency-plan.md) D10）：目录条目可写 `aliases`；中转模型 id 规范化（小写、去一层 `vendor/`、去 `:latest`）后与第一方条目 id 或别名**唯一命中**才继承，精确不中时去掉思考档后缀（`-low`、`-tiered` 等）再试一次。只继承模型固有属性 `reasoning`、`input`、`thinkingLevelMap`、`promptCache.minTokens`、`compat.requiresReasoningContentOnAssistantMessages`（思考档后缀命中不继承思考），不继承价格、缓存 TTL 与 `thinkingFormat`；用户写了的不覆盖。`models[]` 条目 `catalog: false` 关闭、`catalog: "provider/id"` 显式指定（不命中时注册表给 warning、不继承）；`ama models list` 来源显示 `catalog (via id)`。目录文件级 `small` 指定该家的小模型，供 auto 分类器使用（§7.4）。
 
 ### §3.5 API Key 发现顺序（`ai/providers/auth.ts`）
 

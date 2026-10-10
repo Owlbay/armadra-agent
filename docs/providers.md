@@ -540,7 +540,8 @@ src/ai/providers/catalog.test.ts` 自动删除并重新生成 `catalog-data.ts`�
   `-xhigh` / `-tiered`）试一次：这类 id 由中转按名字决定思考档，所以只继承图片、窗口与缓存门槛，`reasoning` 不打开，
   ama 不再发思考参数。例：`gemini-3.8-flash-low` → `google/gemini-3.8-flash`，带图片输入、1M 窗口。
 - 开关：`models[]` 条目写 `"catalog": false` 关闭；`"catalog": "deepseek/deepseek-v4-pro"` 显式指定目录条目（id
-  对不上时）。目录别名写在 `catalog/*.json` 条目的 `aliases` 里（如 `deepseek-flash` 的 `deepseek-v4-flash`）。
+  对不上时）；指定的条目不存在时记一条 warning（启动头部计数、`ama models list`、`AMA_LOG`），该模型不继承、也不回落
+  按 id 继承。目录别名写在 `catalog/*.json` 条目的 `aliases` 里（如 `deepseek-flash` 的 `deepseek-v4-flash`）。
 - 中转把同名 id 指到别的上游时会误配：`ama models list` 的来源列能看出继承了哪条，用 `catalog: false` 关掉。
   `requiresReasoningContentOnAssistantMessages` 经中转是否成立取决于中转是否透传 `reasoning_content`，不成立时用
   `modelOverrides` 的 `compat` 写 `false`。
