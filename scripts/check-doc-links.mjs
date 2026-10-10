@@ -179,7 +179,9 @@ export function brokenLinksIn(root, file) {
     if (anchor === undefined || anchor === "") continue;
     if (statSync(resolved).isDirectory() || extname(resolved) !== ".md") continue;
     if (!anchorsOf(resolved).has(decodeURIComponent(anchor).toLowerCase()))
-      broken.push(`${where}: ${target}（${relative(root, resolved).split(sep).join("/")} 没有这个标题）`);
+      broken.push(
+        `${where}: ${target}（${relative(root, resolved).split(sep).join("/")} 没有这个标题）`,
+      );
   }
   return broken;
 }
