@@ -451,13 +451,14 @@ describe("[ACP-D] 客户端侧", () => {
     const states = {
       "claude-agent-acp": ["default", "acceptEdits", "plan", "auto", "bypassPermissions"],
       "codex-acp": ["read-only", "workspace-write", "agent", "agent-full-access"],
+      "cursor-agent": ["agent", "plan", "ask"],
       copilot: ["agent", "plan", "autopilot"].map(
         (m) => `https://agentclientprotocol.com/protocol/session-modes#${m}`,
       ),
     };
     const loose = /bypassPermissions|full-access|autopilot/;
     for (const [program, ids] of Object.entries(states)) {
-      const c = ["claude", "codex", "copilot"]
+      const c = ["claude", "codex", "copilot", "cursor"]
         .flatMap((id) => catalogEntry(id)!.candidates)
         .find((x) => x.program === program)!;
       const state = {

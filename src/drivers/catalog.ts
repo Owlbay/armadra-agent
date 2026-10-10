@@ -77,6 +77,15 @@ const COPILOT_MODES: Partial<Record<PermissionMode, string>> = {
   "full-auto": `${COPILOT_MODE}agent`,
 };
 
+/** Cursor CLI（官方 ACP 文档）：`plan` 只读，`agent` 是完整工具权限（需要授权的仍发 request_permission）。 */
+const CURSOR_MODES: Partial<Record<PermissionMode, string>> = {
+  plan: "plan",
+  default: "agent",
+  "auto-edit": "agent",
+  auto: "agent",
+  "full-auto": "agent",
+};
+
 export const DRIVER_CATALOG: readonly CatalogEntry[] = [
   {
     agentId: "claude",
@@ -171,6 +180,13 @@ export const DRIVER_CATALOG: readonly CatalogEntry[] = [
         usage: "usd",
       },
     ],
+  },
+  {
+    agentId: "cursor",
+    label: "Cursor CLI",
+    // 未实测（本机未装）：按官方文档 `cursor-agent acp`，模式 agent / plan / ask；`cursor/ask_question`
+    // 等阻塞式扩展方法 ama 不实现（回 method not found，不代答）
+    candidates: [{ kind: "acp", program: "cursor-agent", args: ["acp"], modes: CURSOR_MODES }],
   },
   {
     agentId: "goose",
