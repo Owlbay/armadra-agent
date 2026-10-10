@@ -655,6 +655,33 @@ describe("ama --mode acp 多会话 [ACP-B]", () => {
     await t.finish();
   });
 
+  it("#166：排队等通知回合的 prompt，usage 只算本回合（不混入通知回合）", async () => {
+    const t = await start(
+      [
+        bgTask,
+        { delayMs: 100, text: "child report" },
+        { text: "parent done. ", usage: { input: 1, output: 1 } },
+        { delayMs: 400, text: "notified. ", usage: { input: 500, output: 50 } },
+        { text: "second", usage: { input: 7, output: 3, cacheRead: 2 } },
+      ],
+      undefined,
+      { argv: BG_ARGV },
+    );
+    await t.client.initialize();
+    const s1 = (await t.client.newSession(t.runtime.paths.cwd)).sessionId;
+    await t.client.prompt(s1, [{ type: "text", text: "go" }]);
+    await callsReach(4);
+    const r = await t.client.prompt(s1, [{ type: "text", text: "next" }]);
+    expect(text(t, s1)).toBe("parent done. notified. second");
+    expect(r.usage).toMatchObject({
+      inputTokens: 7,
+      outputTokens: 3,
+      cachedReadTokens: 2,
+      cachedWriteTokens: 0,
+    });
+    await t.finish();
+  });
+
   it("stdin 关闭：排队的回 cancelled，在跑的跑完，兄弟会话全部释放", async () => {
     const dispose = vi.spyOn(AgentSessionImpl.prototype, "dispose");
     try {

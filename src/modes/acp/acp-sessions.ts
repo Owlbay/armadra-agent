@@ -220,11 +220,17 @@ export function pageSessions(
  * 不用 `streamingBehavior: "followUp"` 入队：`abort()` 不清队列，等待期间的 `session/cancel`
  * 会让这条提示在之后的周期里冒出来。`job.cancelRequested`（cancel / close / 撤回）→ 不再发，直接返回。
  */
-export async function promptWhenIdle(session: AgentSessionImpl, job: PromptJob): Promise<void> {
+export async function promptWhenIdle(
+  session: AgentSessionImpl,
+  job: PromptJob,
+  onStart?: () => void,
+): Promise<void> {
   for (;;) {
     // 等周期而不是看 `state.isStreaming`：busy 以周期为准，周期的收尾阶段 isStreaming 已是 false
     await session.waitForIdle();
     if (job.cancelRequested) return;
+    // [#166] 每次真正发起前回调（busy 重试时再调，最后一次为准）：usage 的起点不含之前的通知回合
+    onStart?.();
     try {
       await session.prompt(job.text, job.images.length > 0 ? { images: job.images } : {});
       return;

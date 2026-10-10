@@ -209,30 +209,35 @@ describe("promptWhenIdle [M-A]（#139）", () => {
     expect(f.prompt).toHaveBeenCalledTimes(1);
   });
 
-  it("与通知器竞速输了（空闲后它先开了回合）：busy 后再等一轮", async () => {
+  it("与通知器竞速输了（空闲后它先开了回合）：busy 后再等一轮；onStart 每次发起前都调（#166）", async () => {
     const f = fakeSession();
+    const onStart = vi.fn();
     let raced: { end: () => void } | undefined;
     f.prompt.mockImplementationOnce(async () => {
       raced = f.startCycle();
       throw new AmaError("busy", "a run is in progress");
     });
-    const done = promptWhenIdle(f.session, job());
+    const done = promptWhenIdle(f.session, job(), onStart);
     await new Promise((r) => setTimeout(r, 10));
     expect(f.prompt).toHaveBeenCalledTimes(1);
+    expect(onStart).toHaveBeenCalledTimes(1);
     raced!.end();
     await done;
     expect(f.prompt).toHaveBeenCalledTimes(2);
+    expect(onStart).toHaveBeenCalledTimes(2);
   });
 
   it("等待中被取消：不再发；其它错误原样抛出", async () => {
     const f = fakeSession();
     const notification = f.startCycle();
     const j = job();
-    const done = promptWhenIdle(f.session, j);
+    const onStart = vi.fn();
+    const done = promptWhenIdle(f.session, j, onStart);
     j.cancelRequested = true;
     notification.end();
     await done;
     expect(f.prompt).not.toHaveBeenCalled();
+    expect(onStart).not.toHaveBeenCalled();
     f.prompt.mockRejectedValueOnce(new AmaError("session_closed", "session is disposed"));
     await expect(promptWhenIdle(f.session, job())).rejects.toMatchObject({
       code: "session_closed",

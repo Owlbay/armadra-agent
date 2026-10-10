@@ -442,15 +442,16 @@ export class AcpServer {
     const { session } = entry;
     setForegroundSession(this.runtime, session);
     if (this.runtime.permission.mode !== entry.mode) session.setPermissionMode(entry.mode);
-    const before = session.getStats().tokens;
+    let before = session.getStats().tokens;
     let failure: unknown;
     try {
-      await promptWhenIdle(session, job);
+      // [#166] 起点取在真正发起时：等待期间结束的通知回合不计入本次 usage
+      await promptWhenIdle(session, job, () => void (before = session.getStats().tokens));
     } catch (error) {
       failure = error;
     }
-    await this.peer.flush();
     const after = session.getStats().tokens;
+    await this.peer.flush();
     const usage = {
       inputTokens: after.input - before.input,
       outputTokens: after.output - before.output,
