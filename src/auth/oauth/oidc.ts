@@ -1,5 +1,5 @@
 /**
- * OIDC discovery、JWKS 与 id_token 校验（docs/wave6-plan.md §4.1 id_token 行；R6 §1.1）。[W6-O]
+ * OIDC discovery、JWKS 与 id_token 校验（docs/history/wave6-plan.md §4.1 id_token 行；R6 §1.1）。[W6-O]
  *
  * SIWC 必须：JWKS 验签 + `iss` = issuer、`aud` 含签发的 client id、`nonce` = 本次登录的、`exp` 未过
  * （允许 60 s 时钟偏差）。discovery 与 JWKS 每进程按 issuer 缓存一次。

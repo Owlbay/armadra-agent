@@ -1,5 +1,5 @@
 /**
- * ChatGPT 登录预设表（docs/wave6-plan.md §4.1、D13–D16；R6 §1.1、§1.2、§4.10）。[W6-O]
+ * ChatGPT 登录预设表（docs/history/wave6-plan.md §4.1、D13–D16；R6 §1.1、§1.2、§4.10）。[W6-O]
  *
  * 两条路径共用 PKCE / 回调 / 存储 / 锁 / 配额框架，差异全部在这张表里：
  * - `siwc`（缺省，官方动态注册）：`/api/accounts/*`，首次 `client_id=dynamic_agent_client`，回调带回签发的

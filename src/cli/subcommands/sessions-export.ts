@@ -3,7 +3,7 @@
  *
  * - `--format md|json|jsonl`（缺省 md）；`--branch leaf|all`（缺省 leaf = 当前分支）；
  * - `--output <文件>`：写文件（0600，已存在则覆盖），否则写 stdout；
- * - 导出内容先脱敏（session/redact.ts），格式说明见 docs/sessions.md「导出」。
+ * - 导出内容先脱敏（session/redact.ts），格式说明见 docs/guides/sessions.md「导出」。
  */
 
 import { writeFileSync } from "node:fs";

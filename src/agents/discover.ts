@@ -1,5 +1,5 @@
 /**
- * 子 Agent 定义发现（docs/wave5-plan.md §7.1，D22）。[W5-G]
+ * 子 Agent 定义发现（docs/history/wave5-plan.md §7.1，D22）。[W5-G]
  *
  * 顺序：`--agent-dir`（可重复，profile `agentDirs` 由启动步骤并在其后）→ config `agents.dirs` →
  * `<configDir>/agents/*.md`（用户级）→ `<cwd>/.ama/agents/*.md`（项目级，需信任；未信任跳过并记入

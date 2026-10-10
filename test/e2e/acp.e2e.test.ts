@@ -1,8 +1,8 @@
 /**
- * [W5-Z] ACP（docs/acp.md、docs/agents.md「在 task 里使用」）bundle 级：ama 驱动 ama。
+ * [W5-Z] ACP（docs/reference/acp.md、docs/guides/agents.md「在 task 里使用」）bundle 级：ama 驱动 ama。
  * 父 `ama -p` 调 `task(agent="acp:ama")`，ama 按目录表在 PATH 上找 `ama` 并以 `--mode acp` 启动。
  * PATH 前面放一个 `ama` 垫片（POSIX sh / Windows .cmd）转到同一个 bundle，并给子 ama 自己的 fake 脚本
- * 与模型——父起子进程时剥离 `AMA_*`（docs/agents.md「环境与账户」），所以这些只能由垫片设置；
+ * 与模型——父起子进程时剥离 `AMA_*`（docs/guides/agents.md「环境与账户」），所以这些只能由垫片设置；
  * 配置与数据目录也由垫片指回临时 HOME（Windows 的 LOCALAPPDATA 不在临时 HOME 里）。
  */
 

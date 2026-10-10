@@ -1,7 +1,7 @@
 # Agent 切换修复与主会话并行交流设计
 
 > 针对两条用户反馈：① 「`Ctrl+B` / `↓` 进 Agent 栏、Enter 开子 Agent 视图没有效果」；② 「ama 运行其它 Agent 时主会话应该还能继续交流」。
-> 本文是设计稿（目标），现状以 [tui.md](tui.md)「子 Agent」与 [agents.md](agents.md) 为准；实施完成后把本文结论回写到那两份文档，本文留作依据。
+> 本文是设计稿（目标），现状以 [tui.md](../guides/tui.md)「子 Agent」与 [agents.md](../guides/agents.md) 为准；实施完成后把本文结论回写到那两份文档，本文留作依据。
 > 复现基于 main `98edd83`（0.6.2 + 未发布修复）的打包产物 `dist/bundle/ama.cjs`，2026-10-03。
 
 ## §0 结论
@@ -62,7 +62,7 @@
 3. **嵌入宿主缺省关闭**：`PROFILE_DEFAULTS.ui.agentBar = "off"`（`src/config/merge.ts:60`）。带 profile 启动（Armadra 画布等）时 `barEnabled()` 为 false，`focusFromKey` 直接返回 false，两个键都落回编辑器，`/tasks` 退回旧选择器——与反馈完全吻合的「全部不能用」。
 4. **零反馈**：三种落空（有字、栏关闭、无任务）都无声；运行提示行只写 `Esc 中断`，未聚焦的栏不显示任何按键提示，用户无从得知「要先清空输入」或「在 tmux 里换键」。
 
-次要：`docs/tui.md` 键位表把 `Ctrl+B / ↓` 写成等价，没有说明 `↓` 的附加条件。
+次要：`docs/guides/tui.md` 键位表把 `Ctrl+B / ↓` 写成等价，没有说明 `↓` 的附加条件。
 
 ### §1.4 修复（批次 A）
 
@@ -72,8 +72,8 @@
 | 栏聚焦时 `Ctrl+B` 不再是「返回」（`agent-ui.ts:322` 去掉 `app.agents.focus` 的 blur 分支里对它的依赖——用 `tui.select.cancel` 与 `app.agents.focus` 本身即可，自动随键位表变化）。                                                                | `agent-ui.ts`                                                                                                                          |
 | 落空反馈：进栏键在输入有字时提示「输入框有字；清空后再按 ↓ 进 Agent 栏」；`ui.agentBar: off` 时提示「Agent 栏已关闭（ui.agentBar），用 /tasks」；无任务时提示现有 `agents.bar.empty`。提示走 `showHint`（底部提示行，3 s）。                     | `key-dispatch.ts`（`agents.focus` 返回 `true \| "busy-input" \| "disabled" \| "empty"`）、`agent-ui.ts`、`src/i18n/messages/agents.ts` |
 | 运行提示行：有子 Agent 任务时追加 `↓ Agent 栏`（`⠏ 运行 task · 4s · Esc 中断 · ↓ Agent 栏`），窄屏先丢它。未聚焦的栏末行不加（省行）。                                                                                                           | `src/modes/interactive/run-indicator.ts`、`src/i18n/messages/interactive.ts`                                                           |
-| 嵌入宿主：`PROFILE_DEFAULTS` 不再强制 `agentBar: "off"`，改为由宿主 profile 显式写（Armadra 若自己展示节点再关）。见 §6 Q3。                                                                                                                     | `src/config/merge.ts`、`docs/host-api.md`（profile 字段说明）                                                                          |
-| 文档：键位表与「Agent 栏」节改写（`↓` 唯一缺省进栏键；tmux 说明改为「`Ctrl+B` 在 tmux 里要按两次 `C-b C-b`（send-prefix）才能透传」挪到 §2 的转后台键）。                                                                                        | `docs/tui.md`、`docs/en/tui.md`、CHANGELOG 未发布段                                                                                    |
+| 嵌入宿主：`PROFILE_DEFAULTS` 不再强制 `agentBar: "off"`，改为由宿主 profile 显式写（Armadra 若自己展示节点再关）。见 §6 Q3。                                                                                                                     | `src/config/merge.ts`、`docs/reference/host-api.md`（profile 字段说明）                                                                |
+| 文档：键位表与「Agent 栏」节改写（`↓` 唯一缺省进栏键；tmux 说明改为「`Ctrl+B` 在 tmux 里要按两次 `C-b C-b`（send-prefix）才能透传」挪到 §2 的转后台键）。                                                                                        | `docs/guides/tui.md`、`docs/en/guides/tui.md`、CHANGELOG 未发布段                                                                      |
 | 测试：`keybindings.test.ts` 缺省表；`agent-ui.test.ts`：空输入 `↓` 在栏不可见但有任务时进栏、有字时返回提示码、`off` 时提示；`key-dispatch` 测试：`Ctrl+B` 空输入时落回编辑器；帧黄金 `test/fixtures/tui/agent-bar-*.txt` 重拍（末行文案变化）。 | 对应 `*.test.ts`                                                                                                                       |
 
 ## §2 问题 2：主会话在子 Agent 运行时继续交流
@@ -185,7 +185,7 @@ export interface SubagentBackgroundEvent {
 }
 ```
 
-RPC（`src/rpc.ts`、`docs/rpc.md`，44 条）：`background_task { taskId?: string } → { backgrounded: string[] }`；事件表加 `subagent_background`。SDK：`session.backgroundTask(taskId?)`。ACP：无独立入口（宿主用 RPC），任务仍按 ACP 的 tool call 进度呈现。
+RPC（`src/rpc.ts`、`docs/reference/rpc.md`，44 条）：`background_task { taskId?: string } → { backgrounded: string[] }`；事件表加 `subagent_background`。SDK：`session.backgroundTask(taskId?)`。ACP：无独立入口（宿主用 RPC），任务仍按 ACP 的 tool call 进度呈现。
 
 ### §2.6 缺省后台与提示文本
 
@@ -224,7 +224,7 @@ RPC（`src/rpc.ts`、`docs/rpc.md`，44 条）：`background_task { taskId?: str
 | `subagents.autoBackgroundAfterMs` | 整数 ≥ 0，`0`                             | 前台任务运行超过该毫秒数自动转后台；0 关闭  | 用户 / 项目        |
 | `ui.agentBar`                     | 不变                                      | 不再被 `PROFILE_DEFAULTS` 置 `off`（§6 Q3） |                    |
 
-登记：`src/config/types-w5.ts`（`SubagentsConfig`）、`schema-w5.ts`、`json-schema.ts`、`settings-registry.ts`（`/config` 面板，`restart` 生效）、`i18n/messages/config-keys.ts`、`docs/agents.md`「配置」表。
+登记：`src/config/types-w5.ts`（`SubagentsConfig`）、`schema-w5.ts`、`json-schema.ts`、`settings-registry.ts`（`/config` 面板，`restart` 生效）、`i18n/messages/config-keys.ts`、`docs/guides/agents.md`「配置」表。
 
 ### §2.10 风险与对策
 
@@ -277,10 +277,10 @@ KeyDispatchDeps.backgroundTasks?(): string[];   // 有前台任务时 Ctrl+B 调
 
 | 批次 | 内容                                                                             | 文件所有权（互不重叠）                                                                                                                                                                                                                                                                                                                                    | 依赖                                   | 验收                                                                                                             |
 | ---- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| A    | Agent 栏可达性（§1.4）：键位、门控、落空提示、运行提示行、profile 缺省、文档     | `src/tui/keybindings.ts`、`src/modes/interactive/{key-dispatch,agent-ui,agent-bar,run-indicator}.ts` 及其测试、`src/i18n/messages/{agents,interactive}.ts`、`src/config/merge.ts`、`docs/tui.md`、`docs/en/tui.md`、`docs/host-api.md`、`test/fixtures/tui/agent-*`                                                                                       | 无                                     | §1.4 测试全绿；`pnpm typecheck`；手工 tmux 内 `↓` 进栏                                                           |
+| A    | Agent 栏可达性（§1.4）：键位、门控、落空提示、运行提示行、profile 缺省、文档     | `src/tui/keybindings.ts`、`src/modes/interactive/{key-dispatch,agent-ui,agent-bar,run-indicator}.ts` 及其测试、`src/i18n/messages/{agents,interactive}.ts`、`src/config/merge.ts`、`docs/guides/tui.md`、`docs/en/guides/tui.md`、`docs/reference/host-api.md`、`test/fixtures/tui/agent-*`                                                               | 无                                     | §1.4 测试全绿；`pnpm typecheck`；手工 tmux 内 `↓` 进栏                                                           |
 | B1   | core 转后台原语与缺省后台（§2.5、§2.6 的工具 / 规则部分）                        | `src/agent/subagent-registry.ts`、`src/agent/subagent-direct.ts`、`src/agents/{task-record,task-control,result,builtin,types}.ts`、`src/tools/{task,task-ctl,types}.ts`、`src/agent/types-w5.ts`、`src/agent/session.ts`（`backgroundTask`）、对应测试、`src/cli/prompt-budget.test.ts`                                                                   | 无                                     | 单元全绿；预算测试通过；`AgentDefinition.background` 可选后 catalog 测试通过                                     |
 | B2   | 配置键、`-p` 行为、RPC 命令与事件、SDK 导出、文档                                | `src/config/{types-w5,schema-w5,json-schema,settings-registry}.ts`、`src/i18n/messages/config-keys.ts`、`src/modes/print/print-mode.ts`、`src/rpc.ts`、`src/modes/rpc/commands.ts`、`src/index.ts`、`test/e2e/subagent.e2e.test.ts`、`test/fixtures/rpc/background.out.jsonl`、`docs/{agents,rpc,sessions}.md` 与 `docs/en/` 同名、CHANGELOG 两份未发布段 | B1 的接口（按 §3 先写，B1 合入后联调） | RPC 黄金；e2e；`ama config list` 显示新键                                                                        |
-| C    | TUI 接入（§2.4 的 `Ctrl+B` / `b` / `x` / `/tasks bg`、§2.7 审批停靠、§2.8 呈现） | `src/modes/interactive/{key-dispatch,agent-ui,agent-bar,agent-view,tool-view,subagent-view,approval-dialog,approval-merge,event-notices,commands}.ts`、`src/modes/commands-core.ts`、`src/modes/interactive/tasks-report.ts`、`src/i18n/messages/{agents,interactive}.ts`、`docs/tui.md`、`docs/en/tui.md`、帧黄金                                        | A、B1                                  | §4 的 C 项；手工：前台 task 运行中 `Ctrl+B` → 工具行转后台样式、主回合继续、通知到达；后台任务审批停靠与自动弹出 |
+| C    | TUI 接入（§2.4 的 `Ctrl+B` / `b` / `x` / `/tasks bg`、§2.7 审批停靠、§2.8 呈现） | `src/modes/interactive/{key-dispatch,agent-ui,agent-bar,agent-view,tool-view,subagent-view,approval-dialog,approval-merge,event-notices,commands}.ts`、`src/modes/commands-core.ts`、`src/modes/interactive/tasks-report.ts`、`src/i18n/messages/{agents,interactive}.ts`、`docs/guides/tui.md`、`docs/en/guides/tui.md`、帧黄金                          | A、B1                                  | §4 的 C 项；手工：前台 task 运行中 `Ctrl+B` → 工具行转后台样式、主回合继续、通知到达；后台任务审批停靠与自动弹出 |
 
 A ∥ B1 ∥ B2 可三代理并行；C 在 A 与 B1 合入后由一个代理做。A 与 C 都碰 `key-dispatch.ts` / `agent-ui.ts`，所以 C 必须等 A 合入再开分支，不能并行。另一代理正在改 `startup-header.ts` / `startup-screen.ts`，各批次都不碰它们。
 

@@ -1,6 +1,6 @@
 # 内存占用优化设计（read 流式、ACP 释放、请求体序列化、图片驻留、会话流式读取）
 
-> 状态：**已实施**（Issue #136；M-C0 #145、M-D #157、M-G #158、M-F #159、M-C #160、M-A #161、M-E #162、M-B #163，收尾 M-Z；验收与修正后的目标见 §4，实测见 [benchmarks/memory-2026-10.md](benchmarks/memory-2026-10.md)）。基线 `main` = `599fc11`（0.7.3 + #133 + #134 ME-C0）。依据：内存测量报告（C0 整理为 [research/memory-2026-10.md](research/memory-2026-10.md)，去掉外部项目名与 `/tmp` 路径）、[design.md](design.md) §9.1（前缀字节稳定）、[session-format.md](session-format.md)、[model-efficiency-plan.md](model-efficiency-plan.md)（#135，**并行实施中**，交集见 §3.0）。批次写法沿用 [acp-plan.md](acp-plan.md)。
+> 状态：**已实施**（Issue #136；M-C0 #145、M-D #157、M-G #158、M-F #159、M-C #160、M-A #161、M-E #162、M-B #163，收尾 M-Z；验收与修正后的目标见 §4，实测见 [benchmarks/memory-2026-10.md](../benchmarks/memory-2026-10.md)）。基线 `main` = `599fc11`（0.7.3 + #133 + #134 ME-C0）。依据：内存测量报告（C0 整理为 [research/memory-2026-10.md](../research/memory-2026-10.md)，去掉外部项目名与 `/tmp` 路径）、[design.md](../design/design.md) §9.1（前缀字节稳定）、[session-format.md](../reference/session-format.md)、[model-efficiency-plan.md](model-efficiency-plan.md)（#135，**并行实施中**，交集见 §3.0）。批次写法沿用 [acp-plan.md](acp-plan.md)。
 > 硬约束不变：零运行时依赖；源码 ≤ 600 行 / 测试 ≤ 1000 行（**`src/agent/session.ts`、`src/agent/subagent-registry.ts`、`src/ai/providers/registry.ts`、`src/cli/compose-session.ts` 不得加行**；`src/modes/acp/acp-server.ts` 已 587 行，本计划只允许它 +≤ 8 行，新逻辑放 `acp-sessions.ts`）；i18n en / zh；**首个请求与相邻回合的请求体逐字节不变**（本计划不改任何请求体内容，只改序列化方式，并以字节比对守住）；`prompt-budget` 三档不变（不碰工具描述与系统提示）；会话文件格式向后兼容，rewind / resume / fork 语义不变；RPC / ACP 新增字段与能力一律可选；测试只用 fake 供应商；真实测量只用 astr 上便宜的 GPT 模型（`astr/gpt-6-luna`），每批 ≤ 15 次请求；代码与文档不出现参考项目名。
 > 范围：报告 P0-1 / P0-2 / P0-3 全部；P1-1…P1-6 全部；P2 中 P2-2（惰性 `Intl.Segmenter`）、P2-3（codemode 子进程堆上限）、P2-7（fake 供应商不留上下文）纳入；P2-1、P2-4、P2-5、P2-6 本波不做，理由见 §7。附带：Issue #139（ACP 后台子 Agent 通知回合进行中时 `session/prompt` 报 busy）并入 M-A，理由见 D4。
 
@@ -11,7 +11,7 @@
 | D1  | **`read` 的文本路径改为"按字节窗口"读取，不再整文件进内存**（P0-1）。新文件 `src/tools/read-lines.ts`：用 `fs.openSync` + 64 KiB 块 `readSync`，以 `Buffer.indexOf(0x0a)` 定行，只解码 `[offset, offset+limit)` 范围且累计不超过 `DEFAULT_MAX_BYTES`（50 KB）+ 1 行的字节；`totalLines` 继续扫完全文只计换行、不建字符串；BOM 只看前 3 字节、二进制嗅探只看前 `SNIFF_BYTES`（8000）；CRLF 按行去 `\r`（与现有 `normalizeToLF` 口径一致：`\r\n` → `\n`，孤立 `\r` 也视为换行——见 R1）；UTF-8 跨块边界靠按行解码天然避开（行尾是 `\n`，不会切在多字节内）。**小文件（≤ 1 MiB）保留现有路径**（`readFile` → split），两条路径对同一输入的 `content` / `details` **逐字节相同**，用黄金 fixture 守住。阈值 1 MiB 而不是报告建议的 8 MB：小于 1 MiB 的文件两条路径峰值差异可忽略，大于它就应避开 3× 复制。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | D2  | **ACP 关闭会话必须能被 GC**（P0-2，L1 / L2 / L3）。① `acp-server.ts prompt()` 的 abort 监听改为有引用、`await result` 之后 `removeEventListener`（放在 `try/finally`）；② `reporting.ts` 的 `EndpointState.last` 从整条 `RequestRecord` 改为只存比较需要的 `{ at, promptTokens, fingerprint }`（新类型 `LastRequest`），不再持有 `options.onQuota` / `contextRef`；③ L3 **按报告的推测核对而不是改代码**：`session/close` → `disposeSessionAlongside` → `session.dispose()` → `extensions.dispose()` → `createSubagentExtension.dispose()` → `registry.dispose()` → `unregisterTaskControl` 这条链已成立（`compose-agents.ts:122`、`subagent-registry.ts:598`），快照里残留的那一个 `SubagentRegistry` 极可能是**待命会话**（`standby`，close 唯一会话时新建）而非泄漏；用测试断言 `taskControl(closedId) === undefined` 与 `_AgentSessionImpl` 可回收，若断言失败再修。`jsonrpc.ts` 不改（合成信号在监听移除后自然可回收）。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | D3  | **请求体序列化分两步，第一步不碰转换器**（P0-3）。对报告「按消息 WeakMap 缓存片段」的异议：四个协议的 `convertMessages` 每次请求都新建 item 对象（`anthropic-request.ts` / `openai-request.ts` / `openai-responses-request.ts` / `google-request.ts`），`transform.ts downgradeBlocks` 也对每条 assistant 返回新对象——消息身份在请求层不稳定，WeakMap 命中率为 0；要缓存必须改四个转换器（全部是 #135 ME-C 的文件），且缓存的 Buffer 会让图片**常驻**再多一份。**步骤一（本波 M-B）**：新文件 `src/ai/json-body.ts` 的 `serializeJsonBody(body): Buffer`——分块序列化器：先一次廉价遍历找有没有 ≥ 64 KiB 的字符串（图片 base64），没有就 `Buffer.from(JSON.stringify(body))` 照旧；有则按对象 / 数组结构逐键拼片段，小子树交给原生 `JSON.stringify`，**大字符串**经 `/["\\\u0000-\u001f\ud800-\udfff]/` 检查无需转义时直接 `Buffer.from(str, "utf8")` 夹双引号写出（否则回落原生），最后 `Buffer.concat`。`postJson` 的 `body: JSON.stringify(options.body)` 改为 `body: serializeJsonBody(options.body)`（fetch 接 `Uint8Array`，undici 自动算 `Content-Length`，不走 chunked）。结果与 `JSON.stringify(body)` 的 UTF-8 编码**逐字节相同**（含 `toJSON`、`undefined` 跳过、数组内 `undefined` → `null`、`NaN` → `null`、孤立代理项的 `\udXXX` 转义——全部交给原生处理，自写部分只有"结构 + 已验证无转义字符的大字符串"）。瞬时内存从约 3×（UTF-16 字符串 + fetch 的 UTF-8 编码 + 拷贝）降到约 1.1×。**步骤二（可选，§7）**：ME-C 合入并实测后若 CPU / 分配仍以序列化为主，再做按消息片段缓存，那时需要 `downgradeBlocks` 保持身份。 |
-| D4  | **#139 并入 M-A**：根因是 ACP 的 `PromptQueue` 只串行化 ACP 自己的 prompt，`TaskNotifier` 以 `followUp` 在父会话空闲时开的通知回合不在队列里，`runPrompt` 调 `session.prompt(text)` 不带 `streamingBehavior` → `busy`（`session.ts:346`）。修法放 `acp-sessions.ts`：`promptWhenIdle(session, text, images, job)`——`while (session.state.isStreaming) await session.waitForIdle()`，再 `prompt`；捕获 `AmaError("busy")`（与通知器竞速输了）就再等一轮，`job.cancelRequested` 时退出回 `cancelled`。**不用 `streamingBehavior: "followUp"` 入队**：`abort()` 不清队列，客户端在等待期间 `session/cancel` 会让这条提示在下一个周期冒出来。文档 `docs/acp.md` 的「排队」语义因此对后台通知也成立；`Closes #139`。它与 P0-2 同文件、同测试驱动，分开做反而要两次改 `prompt()`。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| D4  | **#139 并入 M-A**：根因是 ACP 的 `PromptQueue` 只串行化 ACP 自己的 prompt，`TaskNotifier` 以 `followUp` 在父会话空闲时开的通知回合不在队列里，`runPrompt` 调 `session.prompt(text)` 不带 `streamingBehavior` → `busy`（`session.ts:346`）。修法放 `acp-sessions.ts`：`promptWhenIdle(session, text, images, job)`——`while (session.state.isStreaming) await session.waitForIdle()`，再 `prompt`；捕获 `AmaError("busy")`（与通知器竞速输了）就再等一轮，`job.cancelRequested` 时退出回 `cancelled`。**不用 `streamingBehavior: "followUp"` 入队**：`abort()` 不清队列，客户端在等待期间 `session/cancel` 会让这条提示在下一个周期冒出来。文档 `docs/reference/acp.md` 的「排队」语义因此对后台通知也成立；`Closes #139`。它与 P0-2 同文件、同测试驱动，分开做反而要两次改 `prompt()`。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | D5  | **图片 base64 按内容哈希驻留**（P1-1）。对报告「`WeakRef` 表 sha256 → 字符串」的修正：`WeakRef` 的目标不能是字符串原始值。新文件 `src/ai/image-intern.ts`：`internImage(block: ImageBlock, hash?: string): ImageBlock`——表为 `Map<sha256hex, WeakRef<ImageBlock>>` + `FinalizationRegistry` 清键；命中时返回**已驻留的那个 block 对象**（调用方把它放进内容数组，字符串随之共享），未命中登记并返回入参。哈希：`read` / `loadImageFile` 用 `fit.buf`（缩放后的原始字节）算 sha256（native，快）；会话加载时只能对 base64 字符串算 sha256（55 MB 约 100 ms，可接受）。三个入口：`read.ts readImage`（1 行）、`image-file.ts loadImageFile`（1 行）、`SessionManager.open` 之后对 `message` 条目的 `content` 数组做一次 `internSessionImages(entries)`（manager.ts +3 行；条目对象就地替换 block 引用，JSONL 不变）。驻留对象只在仍被某条消息引用时存活，不增加常驻。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | D6  | **会话文件改为字节级分块读取**（P1-2 / P1-3）。新文件 `src/session/line-reader.ts`：`forEachLineSync(file, visit(lineBuf: Buffer, index, last, byteOffset): boolean \| void)` 用 fd + 64 KiB 块、`indexOf(0x0a)`、跨块残片 `Buffer.concat`，回调返回 `false` 立即 `closeSync` 返回；提供 `lineTypeOf(buf)`（只解码前 96 字节后复用 `scan.ts lineType`）。`store.ts readSessionLines` 改为逐行 `JSON.parse(buf.toString("utf8"))`，不再生成全文字符串与 `split` 数组；修复半行用回调给的 `byteOffset` 直接 `truncateSync(file, offset)`（比现在的 `Buffer.byteLength(join)` 更便宜且相同）。`scan.ts forEachLine` 改为包装 `forEachLineSync`，签名不变（`line: string`），提前返回真的停止读盘。`SessionManager.list` 的实现搬到新文件 `src/session/list.ts`（`listSessionItems(dir)`，manager.ts 只留一行委托）：头 + 首条条目解析，其余行只看 `lineTypeOf`：`message` 且 role ≠ system → `messageCount++`；首个 `user` 行与每个 `session_info` 行才 `JSON.parse`；口径与现状一致（`migrateSessionLines` 对 v1 只做校验与 leaf 剥离，`leaf` 行不算条目；损坏文件照旧跳过——中间坏行只影响该文件）。                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | D7  | **全局 `ama` 命令指向 bundle**（P1-4）：`package.json` `bin.ama` → `dist/bundle/ama.cjs`（已带 shebang、`chmod 755`、`__AMA_VERSION__` 内联，`version.ts` 不再读 package.json；`import.meta.url` 由构建替换；`ama-sandbox.cjs` 按同目录查找）。库导出（`.`、`./host`、`./rpc`、`./tui`、`./acp`）仍是 ESM `dist/*.js`。`scripts/release-check.mjs` 加一条：`bin.ama` 指向的文件存在、首行是 shebang、`exports["./bundle"]` 与之相同。`AMA_E2E=1 pnpm test:e2e` 已全程跑 bundle，再补一条「`node_modules/.bin/ama --version`（`pnpm pack` 后在临时目录安装）」的端到端。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -108,8 +108,8 @@ export async function promptWhenIdle(session: AgentSessionImpl, job: PromptJob):
 
 ### §1.6 文档与记录（C0）
 
-- `docs/memory-plan.md`（本文）；`docs/research/memory-2026-10.md`（报告整理稿：去掉 §7 外部项目名与所有 `/tmp` 路径，复现脚本改指向 `scripts/bench-memory.mjs`）。
-- `docs/rpc.md` / `docs/en/rpc.md`：`set_client_capabilities` 能力表加 `compact_events`（标「M-G 起生效」）。
+- `docs/history/memory-plan.md`（本文）；`docs/research/memory-2026-10.md`（报告整理稿：去掉 §7 外部项目名与所有 `/tmp` 路径，复现脚本改指向 `scripts/bench-memory.mjs`）。
+- `docs/reference/rpc.md` / `docs/en/reference/rpc.md`：`set_client_capabilities` 能力表加 `compact_events`（标「M-G 起生效」）。
 - `CHANGELOG.md` / `CHANGELOG.zh-CN.md` 未发布段建子标题「Memory footprint」/「内存占用」。
 - Issue #136 回填：方案链接、label `ready`。
 
@@ -214,7 +214,7 @@ forEachLineSync(file, (buf, index, last, offset) => {
 
 ### §2.7 RPC 精简事件（M-G；D9）
 
-`rpc-mode.ts`：`subscribe` 的 `write(toWireEvent(event, { compact: ctx.capabilities.has("compact_events") }))`；`json-event.ts` 新增 `compactEvent()`，`stream-json` 输出格式不受影响（不传 compact）。`docs/rpc.md` 事件表三行加「声明 `compact_events` 时」列。
+`rpc-mode.ts`：`subscribe` 的 `write(toWireEvent(event, { compact: ctx.capabilities.has("compact_events") }))`；`json-event.ts` 新增 `compactEvent()`，`stream-json` 输出格式不受影响（不传 compact）。`docs/reference/rpc.md` 事件表三行加「声明 `compact_events` 时」列。
 
 验收数字：fake 100 步、单个 1 MB 结果，stdout 事件字节 86 MB → **≤ 30 MB**（−65%）；单元测试断言 compact 下三类事件不含该结果文本且 `message_end` / `tool_execution_end` 仍含。
 
@@ -234,7 +234,7 @@ forEachLineSync(file, (buf, index, last, offset) => {
 | `src/modes/acp/*`、`drivers/jsonrpc.ts`                                              | 不在 ME                         | M-A              | 自由                                                                          |
 | `src/session/store.ts`、`scan.ts`、`manager.ts`                                      | 不在 ME（ME-C0 的 `fork` 已合） | M-C              | 自由                                                                          |
 | `src/modes/rpc/*`、`src/rpc.ts`、`json-event.ts`                                     | 不在 ME                         | M-G              | 自由                                                                          |
-| `CHANGELOG ×2`、`docs/rpc.md`、`docs/design.md`                                      | 各批追加 / Z 统稿               | 同规则           | 两计划各自子标题；`design.md` 都只在 Z 合入                                   |
+| `CHANGELOG ×2`、`docs/reference/rpc.md`、`docs/design/design.md`                     | 各批追加 / Z 统稿               | 同规则           | 两计划各自子标题；`design.md` 都只在 Z 合入                                   |
 
 结论：**M-C0、M-A、M-C、M-D（除 read.ts 一行）、M-G 可与 #135 的 A–D 完全并行**；**M-B、M-E、M-F 等 ME-C / ME-D 合入后开始**（M-E 的 `read-lines.ts` 与其单测可先写，只有 `read.ts` 接线等）。
 
@@ -246,7 +246,7 @@ forEachLineSync(file, (buf, index, last, offset) => {
 | `src/config/types.ts`、`schema.ts`、`json-schema.ts`、`settings-registry.ts`、`key-docs.ts`、`src/i18n/messages/config-keys.ts`、各测试                                                                                                                            | §1.3       |
 | `src/ai/json-body.ts`、`src/ai/image-intern.ts`、`src/session/line-reader.ts`（含实现 + `line-reader.test.ts`）、`src/session/list.ts`、`src/session/manager.ts`（list 搬迁）、`src/tools/read-lines.ts`、`src/modes/acp/acp-sessions.ts`（`promptWhenIdle` 直通） | §1.4       |
 | `vitest.config.ts`、`test/helpers/memory.ts`、`test/memory/helpers.test.ts`、`scripts/lib/mem-probe.cjs`、`scripts/bench-memory.mjs`                                                                                                                               | §1.5       |
-| `docs/memory-plan.md`、`docs/research/memory-2026-10.md`、`docs/rpc.md`、`docs/en/rpc.md`、CHANGELOG ×2                                                                                                                                                            | §1.6       |
+| `docs/history/memory-plan.md`、`docs/research/memory-2026-10.md`、`docs/reference/rpc.md`、`docs/en/reference/rpc.md`、CHANGELOG ×2                                                                                                                                | §1.6       |
 
 完成标准：`pnpm run ci` 绿；rpc / acp 黄金字节不变；`prompt-budget` 不变；`SessionManager.list` 搬迁前后 `manager.test.ts` 不改断言。
 
@@ -256,7 +256,7 @@ forEachLineSync(file, (buf, index, last, offset) => {
 | ----------------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | `src/modes/acp/acp-server.ts`（+≤ 8 行）、`acp-sessions.ts`、`acp-sessions.test.ts` | §2.2                                                        |
 | `src/modes/acp/acp-mode.test.ts`、新 `test/memory/acp-release.test.ts`              | 见下                                                        |
-| `docs/acp.md`「多会话」节、`docs/en/acp.md` 同节                                    | close 后内存释放；后台子 Agent 通知回合进行中的 prompt 排队 |
+| `docs/reference/acp.md`「多会话」节、`docs/en/reference/acp.md` 同节                | close 后内存释放；后台子 Agent 通知回合进行中的 prompt 排队 |
 | CHANGELOG ×2                                                                        | 两条（泄漏；#139）                                          |
 
 测试：
@@ -275,7 +275,7 @@ forEachLineSync(file, (buf, index, last, offset) => {
 | `src/ai/json-body.ts`、`json-body.test.ts`（新） | §2.3                           |
 | `src/ai/http.ts`（1 行）、`http.test.ts`         | `body: serializeJsonBody(...)` |
 | `test/memory/json-body.test.ts`                  | 见下                           |
-| `docs/design.md` §3.1 一行（经 Z）               | 文档                           |
+| `docs/design/design.md` §3.1 一行（经 Z）        | 文档                           |
 | CHANGELOG ×2                                     | 一条                           |
 
 测试：
@@ -295,7 +295,7 @@ forEachLineSync(file, (buf, index, last, offset) => {
 | `src/session/scan.ts`（`forEachLine` 包装）、`scan.test.ts`   | 提前返回真的停读 |
 | `src/session/list.ts`、`list.test.ts`（新）                   | 流式列表         |
 | `test/memory/session-files.test.ts`                           | 见下             |
-| `docs/sessions.md` 一句、`docs/en/sessions.md`                | 列表不再整读文件 |
+| `docs/guides/sessions.md` 一句、`docs/en/guides/sessions.md`  | 列表不再整读文件 |
 | CHANGELOG ×2                                                  | 一条             |
 
 测试：
@@ -333,7 +333,7 @@ forEachLineSync(file, (buf, index, last, offset) => {
 | `src/tools/read-lines.ts`、`read-lines.test.ts`（新）   | §2.1 |
 | `src/tools/read.ts`（文本分支 ≈ 12 行）、`read.test.ts` | 接线 |
 | `test/memory/read-huge.test.ts`                         | 见下 |
-| `docs/design.md` §5.2 read 行（经 Z）                   | 文档 |
+| `docs/design/design.md` §5.2 read 行（经 Z）            | 文档 |
 | CHANGELOG ×2                                            | 一条 |
 
 测试：
@@ -354,7 +354,7 @@ forEachLineSync(file, (buf, index, last, offset) => {
 | `src/codemode/host-side.ts`、`host-side.test.ts`、`os-sandbox.test.ts`、`src/codemode/types.ts`（`maxHeapMb`）、`src/cli/compose-*`（配置带入处 1 行） | D10  |
 | `src/tui/ansi.ts`、`ansi.test.ts`                                                                                                                      | D11  |
 | `src/ai/fake/fake-provider.ts`、`fake-provider.test.ts`                                                                                                | D12  |
-| `docs/agents.md`（保留数 + 配置键）、`docs/codemode.md`（堆上限）、`docs/en/*` 无对应（这两篇无英文版）、README 两份「安装」不变                       | 文档 |
+| `docs/guides/agents.md`（保留数 + 配置键）、`docs/guides/codemode.md`（堆上限）、`docs/en/*` 无对应（这两篇无英文版）、README 两份「安装」不变         | 文档 |
 | CHANGELOG ×2                                                                                                                                           | 四条 |
 
 测试：`sandboxArgs(entry, cap)[0] === "--max-old-space-size=256"`、`maxHeapMb: 0` 时不含；真实子进程跑 `new Array(5e7).fill("x".repeat(16))` 的脚本 → `ok: false` 且错误含 `memory limit`、宿主进程 `heapUsed` 增长 < 5 MB；注册表 6 个任务后前 2 个 `handle` 被 dispose（`retain` 缺省 4）；`ansi.ts` 首次 `stringWidth` 之前 `Intl.Segmenter` 未构造（用 `vi.spyOn(Intl, "Segmenter")`）；`defaultFakeProvider.calls[i].context === undefined` 而 `new FakeProvider()` 仍有；`release:check` 对 `bin` 的三条断言。
@@ -368,14 +368,14 @@ forEachLineSync(file, (buf, index, last, offset) => {
 | `src/modes/print/json-event.ts`、`json-event.test.ts`（新或现有）                           | `compactEvent`                   |
 | `src/modes/rpc/rpc-mode.ts`、`commands.ts`（`RPC_CAPABILITIES` 加一项）、`rpc-mode.test.ts` | 能力位接线；黄金重录（只多一项） |
 | `test/memory/rpc-bytes.test.ts`                                                             | 见下                             |
-| `docs/rpc.md`、`docs/en/rpc.md`                                                             | 事件表三行、能力说明             |
+| `docs/reference/rpc.md`、`docs/en/reference/rpc.md`                                         | 事件表三行、能力说明             |
 | CHANGELOG ×2                                                                                | 一条                             |
 
 测试：fake 脚本一次 `read` 返回 1 MB 文本：未声明时 stdout 含该文本的事件恰 5 条（现状基线，守住不变）；声明 `compact_events` 后恰 2 条（`message_end`、`tool_execution_end`），`turn_end.toolResults[0].contentOmitted === true`，`entry_appended` 的 `message.content === ""`；总字节比 < 0.45；`stream-json` 输出不变。
 
 ### `[M-Z]` 收尾（A–G 合入后）
 
-- `docs/design.md`：§3.1（请求体序列化一行）、§5.2（read 行）、§5.5（codemode 堆上限）、§13.2（`compact_events`）、§14（`bin` → bundle）、新增 §9.2「内存预算」表（场景 → 上限 → 守护测试）。
+- `docs/design/design.md`：§3.1（请求体序列化一行）、§5.2（read 行）、§5.5（codemode 堆上限）、§13.2（`compact_events`）、§14（`bin` → bundle）、新增 §9.2「内存预算」表（场景 → 上限 → 守护测试）。
 - `docs/benchmarks/memory-2026-10.md`：A / B / D 的真实测量 + `bench-memory.mjs` 全场景本地复测（与报告 §2 同表对照，前后两列）；Z 复测 ≤ 10 次真实请求。
 - `docs/en/` 七篇与中文版通读对齐；CHANGELOG 两份归并到发版号；Issue #136 / #139 关闭。
 - 全量 `pnpm run ci`、`AMA_E2E=1 pnpm test:e2e`。
@@ -385,9 +385,9 @@ forEachLineSync(file, (buf, index, last, offset) => {
 | 文件                                                                                                             | 规则                                                      |
 | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
 | `src/i18n/messages/config-keys.ts`                                                                               | C0 加键；之后不改                                         |
-| `docs/rpc.md` / `docs/en/rpc.md`                                                                                 | C0 加能力行；G 填事件表；Z 统稿                           |
-| `docs/acp.md` / `docs/en/acp.md`                                                                                 | 只有 A 改                                                 |
-| `docs/design.md`                                                                                                 | 各批把要改的行写在 PR 描述里，Z 一次合入                  |
+| `docs/reference/rpc.md` / `docs/en/reference/rpc.md`                                                             | C0 加能力行；G 填事件表；Z 统稿                           |
+| `docs/reference/acp.md` / `docs/en/reference/acp.md`                                                             | 只有 A 改                                                 |
+| `docs/design/design.md`                                                                                          | 各批把要改的行写在 PR 描述里，Z 一次合入                  |
 | `CHANGELOG ×2`                                                                                                   | C0 建子标题，各批只追加自己的条目（与 #135 的子标题并列） |
 | `src/tools/read.ts`                                                                                              | D 一行、E 文本分支；都在 ME-D 之后，D 先 E 后             |
 | `src/session/manager.ts`                                                                                         | C0 搬 list；D 加 3 行；其它批不碰                         |
@@ -397,7 +397,7 @@ forEachLineSync(file, (buf, index, last, offset) => {
 
 每批：`pnpm run ci` 绿；本批 `test/memory/*` 用例在三平台 × Node 22 / 24 稳定通过（上界按 D13 留余量）；rpc / acp 黄金除 G 的 `hello` 一项外字节不变；`prompt-budget` 三档不变；`cache-stability.test.ts` 不改断言；受影响文件 ≤ 600 行。
 
-整体（Z，用 `scripts/bench-memory.mjs` 复测，前 → 后）。目标按各批实测与 Z 复测修正（2026-10-10，[benchmarks/memory-2026-10.md](benchmarks/memory-2026-10.md)「Z」；「之前」= `04c7bc2`，「之后」= `8ac3b20`，3 次中位数）；被修正的原目标写在括号里。遗留项 #165–#173 合入后（`53ce1ed` v0.7.4 → `699720b`）再复测一次，见 benchmarks「R」，写在「遗留批次」后：
+整体（Z，用 `scripts/bench-memory.mjs` 复测，前 → 后）。目标按各批实测与 Z 复测修正（2026-10-10，[benchmarks/memory-2026-10.md](../benchmarks/memory-2026-10.md)「Z」；「之前」= `04c7bc2`，「之后」= `8ac3b20`，3 次中位数）；被修正的原目标写在括号里。遗留项 #165–#173 合入后（`53ce1ed` v0.7.4 → `699720b`）再复测一次，见 benchmarks「R」，写在「遗留批次」后：
 
 | 场景                            | 报告基线        | 目标                                                     | Z 实测（前 → 后）                                            | CI 守护                             |
 | ------------------------------- | --------------- | -------------------------------------------------------- | ------------------------------------------------------------ | ----------------------------------- |
@@ -421,30 +421,30 @@ forEachLineSync(file, (buf, index, last, offset) => {
 
 ## §5 文档与 CHANGELOG
 
-- 中文：`docs/acp.md`（A）、`docs/rpc.md`（C0、G）、`docs/sessions.md`（C）、`docs/agents.md`、`docs/codemode.md`（F）、`docs/design.md`（Z）、`docs/benchmarks/memory-2026-10.md`（Z）、`docs/research/memory-2026-10.md`（C0）。
-- 英文同步：`docs/en/acp.md`、`docs/en/rpc.md`、`docs/en/sessions.md`（agents / codemode 无英文版）。
+- 中文：`docs/reference/acp.md`（A）、`docs/reference/rpc.md`（C0、G）、`docs/guides/sessions.md`（C）、`docs/guides/agents.md`、`docs/guides/codemode.md`（F）、`docs/design/design.md`（Z）、`docs/benchmarks/memory-2026-10.md`（Z）、`docs/research/memory-2026-10.md`（C0）。
+- 英文同步：`docs/en/reference/acp.md`、`docs/en/reference/rpc.md`、`docs/en/guides/sessions.md`（agents / codemode 无英文版）。
 - CHANGELOG（两份，子标题「Memory footprint」/「内存占用」）条目：ACP 关闭会话后内存释放；ACP 后台子 Agent 通知回合进行中的提示排队（#139）；请求体不再经整串字符串序列化（峰值内存约降一半，请求字节不变）；`read` 大文件按需读取；图片按内容去重；会话列表与恢复不再整读文件；全局 `ama` 走单文件 bundle（更快、更省）；子 Agent 会话保留数 16 → 4（`subagents.retainSessions`）；codemode 子进程堆上限 256 MB（`codemode.maxHeapMb`）；RPC `compact_events` 能力。
 - 用户可见但不写 CHANGELOG：Segmenter 惰性、fake 不留上下文（测试基建）。
 
 ## §6 风险与未决问题
 
-| #   | 风险 / 问题                                                                                                                                                                                                     | 处置                                                                                                                           |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| R1  | D1 口径细节：现路径 `normalizeToLF` 把孤立 `\r` 也当换行、`splitBom` 只去 UTF-8 BOM；字节窗口必须逐项对齐，否则 `totalLines` / 行号变化会改变工具输出（影响缓存前缀之外的 toolResult 内容，但不影响系统提示）。 | fixture 两路径逐字节比对（含孤立 `\r`、BOM + CRLF 组合）；阈值可注入让所有既有 `read.test.ts` 用例在流式路径再跑一遍。         |
-| R2  | D3 `Buffer.concat` 瞬时仍有「片段 + 结果」约 2× 的短暂峰值；想到 1× 需以 `ReadableStream` 流式发送（chunked 传输），部分中转可能拒收。                                                                          | 本波用 Buffer；流式发送列为 §7 后续项，先在 `bench-memory mock-http` 上验证收益再议。                                          |
-| R3  | D3 自写序列化若与原生在某个边角（如 `toJSON` 返回 `undefined`、`Symbol.toPrimitive`）不一致会破坏字节稳定。                                                                                                     | 结构遍历只在"普通对象 / 数组且含大字符串"时介入，其余一律原生；随机测试 + 黄金；`cache-stability` 守相邻回合。                 |
-| R4  | D4 等待后台通知回合会让 ACP `session/prompt` 的响应变慢（通知回合通常几秒）；等待期间客户端看到的是另一回合的 `session/update`。                                                                                | 文档写明；Zed 侧本来就按 sessionId 显示；`session/cancel` 可随时打断。                                                         |
-| R5  | D5 以 base64 字符串为键算 sha256（恢复大会话时约 2 MB/ms 量级，55 MB ≈ 30–100 ms）。                                                                                                                            | 只对 `content` 为数组且含 `image` 块的条目算；可接受；benchmarks 记录 resume 耗时前后。                                        |
-| R6  | D6 `list` 不再经 `migrateSessionLines`：将来格式 v2 需要同时改 `list.ts`。                                                                                                                                      | `list.ts` 头部注释写明，并在 `migrate.ts` 的版本常量处留交叉引用；测试「`version !== 1` 的文件被跳过」。                       |
-| R7  | D7 `bin` 指向 bundle：开发者 `pnpm link` 后要先 `pnpm build:bundle`；`--host` 加载用户 ESM 模块从 CJS 经 `import()` 已在 e2e 覆盖，但 Windows 下 `node_modules/.bin` 的 cmd shim 需实测一次。                   | CI Windows 作业已跑 `node dist/bundle/ama.cjs`；e2e 装包用例在三平台跑 `.bin/ama --version`；docs/design.md §14 写明开发流程。 |
-| R8  | D8 保留 4 个子会话：频繁续聊 5 个以上任务时多一次磁盘重开（55 MB 子会话 ≈ 0.5 s）。                                                                                                                             | 可配 `subagents.retainSessions`；文档写明。                                                                                    |
-| R9  | D9 需要宿主（Armadra）适配后才有收益；`hello.capabilities` 变化重录黄金。                                                                                                                                       | 可选能力，未声明时线路不变；PR 说明。                                                                                          |
-| R10 | D10 256 MB 对处理大数据的 codemode 脚本可能不够；OOM 报错文案要能被模型理解并改用分片。                                                                                                                         | 可配 `codemode.maxHeapMb`（0 关闭）；错误文案含上限与建议「process in smaller pieces」。                                       |
-| R11 | D13 GC 测试在 CI 慢机器上的时序：`gcUntil` 10 轮仍未回收会误报。                                                                                                                                                | 轮数可调（缺省 10，CI 环境变量可放宽到 30）；失败时打印仍存活的持有链提示（`v8.getHeapSnapshot` 只在本地调试开启）。           |
-| R12 | L3 若不是待命会话而是真泄漏（例如 `registries` Map 在 `dispose` 之前被替换）。                                                                                                                                  | M-A 测试 1 直接断言 `taskControl(closedId) === undefined` 与实例可回收；失败再查 `registries` / `controls` 的替换逻辑。        |
-| Q1  | M-B 步骤二（按消息片段缓存）是否做：取决于 M-B 后 mock 300 步的 CPU / 分配数据。推荐：Z 测完再决定，另开 Issue。                                                                                                |                                                                                                                                |
-| Q2  | `compact_events` 是否也精简 `message_end` 里 toolResult 的 `content`（只留 `tool_execution_end`）：再省一份，但客户端重建消息列表要多一步。推荐：本波不精简，听 Armadra 反馈。                                  |                                                                                                                                |
-| Q3  | `subagents.retainSessions` 缺省 4 还是 8。推荐 4：真实子会话转录常达数十 MB；续聊重开成本低。                                                                                                                   |                                                                                                                                |
+| #   | 风险 / 问题                                                                                                                                                                                                     | 处置                                                                                                                                  |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| R1  | D1 口径细节：现路径 `normalizeToLF` 把孤立 `\r` 也当换行、`splitBom` 只去 UTF-8 BOM；字节窗口必须逐项对齐，否则 `totalLines` / 行号变化会改变工具输出（影响缓存前缀之外的 toolResult 内容，但不影响系统提示）。 | fixture 两路径逐字节比对（含孤立 `\r`、BOM + CRLF 组合）；阈值可注入让所有既有 `read.test.ts` 用例在流式路径再跑一遍。                |
+| R2  | D3 `Buffer.concat` 瞬时仍有「片段 + 结果」约 2× 的短暂峰值；想到 1× 需以 `ReadableStream` 流式发送（chunked 传输），部分中转可能拒收。                                                                          | 本波用 Buffer；流式发送列为 §7 后续项，先在 `bench-memory mock-http` 上验证收益再议。                                                 |
+| R3  | D3 自写序列化若与原生在某个边角（如 `toJSON` 返回 `undefined`、`Symbol.toPrimitive`）不一致会破坏字节稳定。                                                                                                     | 结构遍历只在"普通对象 / 数组且含大字符串"时介入，其余一律原生；随机测试 + 黄金；`cache-stability` 守相邻回合。                        |
+| R4  | D4 等待后台通知回合会让 ACP `session/prompt` 的响应变慢（通知回合通常几秒）；等待期间客户端看到的是另一回合的 `session/update`。                                                                                | 文档写明；Zed 侧本来就按 sessionId 显示；`session/cancel` 可随时打断。                                                                |
+| R5  | D5 以 base64 字符串为键算 sha256（恢复大会话时约 2 MB/ms 量级，55 MB ≈ 30–100 ms）。                                                                                                                            | 只对 `content` 为数组且含 `image` 块的条目算；可接受；benchmarks 记录 resume 耗时前后。                                               |
+| R6  | D6 `list` 不再经 `migrateSessionLines`：将来格式 v2 需要同时改 `list.ts`。                                                                                                                                      | `list.ts` 头部注释写明，并在 `migrate.ts` 的版本常量处留交叉引用；测试「`version !== 1` 的文件被跳过」。                              |
+| R7  | D7 `bin` 指向 bundle：开发者 `pnpm link` 后要先 `pnpm build:bundle`；`--host` 加载用户 ESM 模块从 CJS 经 `import()` 已在 e2e 覆盖，但 Windows 下 `node_modules/.bin` 的 cmd shim 需实测一次。                   | CI Windows 作业已跑 `node dist/bundle/ama.cjs`；e2e 装包用例在三平台跑 `.bin/ama --version`；docs/design/design.md §14 写明开发流程。 |
+| R8  | D8 保留 4 个子会话：频繁续聊 5 个以上任务时多一次磁盘重开（55 MB 子会话 ≈ 0.5 s）。                                                                                                                             | 可配 `subagents.retainSessions`；文档写明。                                                                                           |
+| R9  | D9 需要宿主（Armadra）适配后才有收益；`hello.capabilities` 变化重录黄金。                                                                                                                                       | 可选能力，未声明时线路不变；PR 说明。                                                                                                 |
+| R10 | D10 256 MB 对处理大数据的 codemode 脚本可能不够；OOM 报错文案要能被模型理解并改用分片。                                                                                                                         | 可配 `codemode.maxHeapMb`（0 关闭）；错误文案含上限与建议「process in smaller pieces」。                                              |
+| R11 | D13 GC 测试在 CI 慢机器上的时序：`gcUntil` 10 轮仍未回收会误报。                                                                                                                                                | 轮数可调（缺省 10，CI 环境变量可放宽到 30）；失败时打印仍存活的持有链提示（`v8.getHeapSnapshot` 只在本地调试开启）。                  |
+| R12 | L3 若不是待命会话而是真泄漏（例如 `registries` Map 在 `dispose` 之前被替换）。                                                                                                                                  | M-A 测试 1 直接断言 `taskControl(closedId) === undefined` 与实例可回收；失败再查 `registries` / `controls` 的替换逻辑。               |
+| Q1  | M-B 步骤二（按消息片段缓存）是否做：取决于 M-B 后 mock 300 步的 CPU / 分配数据。推荐：Z 测完再决定，另开 Issue。                                                                                                |                                                                                                                                       |
+| Q2  | `compact_events` 是否也精简 `message_end` 里 toolResult 的 `content`（只留 `tool_execution_end`）：再省一份，但客户端重建消息列表要多一步。推荐：本波不精简，听 Armadra 反馈。                                  |                                                                                                                                       |
+| Q3  | `subagents.retainSessions` 缺省 4 还是 8。推荐 4：真实子会话转录常达数十 MB；续聊重开成本低。                                                                                                                   |                                                                                                                                       |
 
 ## §7 有意不做（写进文档）
 

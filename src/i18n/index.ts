@@ -1,5 +1,5 @@
 /**
- * 界面语言（docs/wave6-plan.md §5.1、§5.2、D18；docs/i18n.md）。[W6-C0]
+ * 界面语言（docs/history/wave6-plan.md §5.1、§5.2、D18；docs/guides/i18n.md）。[W6-C0]
  *
  * - 语言优先级：`AMA_LANG` > `--lang` > `ui.language`（`auto` 视为未设）> `LC_ALL` / `LC_MESSAGES` /
  *   `LANG` 第一个非空值；`/^zh/i` → zh，其余（含 `C` / `POSIX` / 空 / 判断不出）→ en。

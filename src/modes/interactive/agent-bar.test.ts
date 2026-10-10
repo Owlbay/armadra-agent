@@ -1,5 +1,5 @@
 /**
- * Agent 栏（docs/wave6-plan.md §1.1–§1.2、D4）：各状态、最多 3 行 +「另 N 个」、聚焦与滚动、保留规则
+ * Agent 栏（docs/history/wave6-plan.md §1.1–§1.2、D4）：各状态、最多 3 行 +「另 N 个」、聚焦与滚动、保留规则
  * （查看过或 10 分钟）、`ui.agentBar: "off"`；帧黄金 80 / 40 列、ASCII、en。[W6-A]
  */
 

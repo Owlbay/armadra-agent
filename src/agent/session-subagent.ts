@@ -1,5 +1,5 @@
 /**
- * 子 Agent（设计 §5.2 task、D14；第五波 docs/wave5-plan.md §7，D22–D24）：`ToolContext.spawnSubagent`
+ * 子 Agent（设计 §5.2 task、D14；第五波 docs/history/wave5-plan.md §7，D22–D24）：`ToolContext.spawnSubagent`
  * 的实现与 ama 自己的 runner（`AmaRunner`）。[B2 → W5-G]
  *
  * - `runSubagent`：交给会话的任务注册表（subagent-registry.ts）——类型解析、并发池、前台 / 后台、

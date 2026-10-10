@@ -1,5 +1,5 @@
 /**
- * 消息目录：interactive 的行式界面部分（键名规范见 docs/i18n.md）。[W6-I2]
+ * 消息目录：interactive 的行式界面部分（键名规范见 docs/guides/i18n.md）。[W6-I2]
  *
  * 单文件 600 行上限，`interactive.ts` 拆出：`modes/interactive/line/**`（行式审批问句、事件行、选择列表、
  * 启动行与中断提示）。经 `msg().interactive.line` 取用。en 是形状源；zh 用 `satisfies Messages<typeof en>`。

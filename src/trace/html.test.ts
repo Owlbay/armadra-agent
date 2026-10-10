@@ -1,5 +1,5 @@
 /**
- * 轨迹 HTML（docs/wave6-plan.md §2.5、§2.7 T2）：9 类夹具的整页黄金、确定性、注入与脱敏、`--no-content`、
+ * 轨迹 HTML（docs/history/wave6-plan.md §2.5、§2.7 T2）：9 类夹具的整页黄金、确定性、注入与脱敏、`--no-content`、
  * 子会话预览开关、预览预算、空闲压缩、体积与脚本可解析。[W6-T2]
  * 更新黄金：`AMA_UPDATE_GOLDEN=1 pnpm vitest run src/trace/html.test.ts`。
  */

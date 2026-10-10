@@ -1,5 +1,5 @@
 /**
- * [W7-B2] `-p` 与后台子 Agent（docs/agents-concurrency-plan.md §2.6、§6 Q5）：缺省前台；后台任务（显式、
+ * [W7-B2] `-p` 与后台子 Agent（docs/history/agents-concurrency-plan.md §2.6、§6 Q5）：缺省前台；后台任务（显式、
  * `subagents.background: always` 或 `autoBackgroundAfterMs` 到时转后台）在主回合结束后被等待，通知回合跑完
  * 才输出；到达预算不等。fake 供应商在进程内父子共用一份脚本，用例按请求先后编排。
  */

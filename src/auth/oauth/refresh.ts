@@ -1,5 +1,5 @@
 /**
- * OAuth access token 的取用与刷新（docs/wave6-plan.md §4.3、D15）。[W6-O]
+ * OAuth access token 的取用与刷新（docs/history/wave6-plan.md §4.3、D15）。[W6-O]
  *
  * - 触发：`expiresAt − now < 5 min`，或协议层 401 后 `force`；
  * - 进程内：同一 (auth.json, 供应商) 共用一个刷新 Promise；

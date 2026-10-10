@@ -1,5 +1,5 @@
 /**
- * 记忆的组装（docs/wave6-plan.md §3、D8、D9、D11、D12）。[W6-M]
+ * 记忆的组装（docs/history/wave6-plan.md §3、D8、D9、D11、D12）。[W6-M]
  *
  * - 开关：独立终端看合并后的 `memory.enabled`（用户级 / profile.config；项目级只能设 false；`--memory` /
  *   `--no-memory`；`AMA_MEMORY=0|1` 经 bootstrap 并入命令行覆盖，命令行优先）。缺省关闭：不建运行期、不读盘、

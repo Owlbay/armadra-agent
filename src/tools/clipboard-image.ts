@@ -1,5 +1,5 @@
 /**
- * 剪贴板图片（docs/wave5-plan.md §4、D12）。[W5-I] 界面接线（`Ctrl+V`、`/paste`）归 W5-U。
+ * 剪贴板图片（docs/history/wave5-plan.md §4、D12）。[W5-I] 界面接线（`Ctrl+V`、`/paste`）归 W5-U。
  *
  * 零依赖读不了剪贴板位图，按平台依次调系统命令，成功写 `<dataDir>/clipboard/<时间戳>.png` 并返回
  * 路径（编辑器插入 `@<路径>`，之后走 loadImageFile）；没有工具或剪贴板里没有图返回 undefined：

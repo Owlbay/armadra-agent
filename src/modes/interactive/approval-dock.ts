@@ -1,5 +1,5 @@
 /**
- * 后台任务的审批停靠（docs/agents-concurrency-plan.md §2.7、D6）。[W7-C]
+ * 后台任务的审批停靠（docs/history/agents-concurrency-plan.md §2.7、D6）。[W7-C]
  *
  * 套在审批对话框 broker 外面：请求带 `context.taskId` 且该任务在后台运行（含转后台）时，主会话忙、输入框有
  * 草稿或已有覆盖层就不弹框，先「停靠」——Agent 栏该任务行显示「等待审批」（agent-ui.ts 按

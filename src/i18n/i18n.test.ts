@@ -1,5 +1,5 @@
 /**
- * i18n 核心（docs/wave6-plan.md §5.1、§5.2）。[W6-C0]
+ * i18n 核心（docs/history/wave6-plan.md §5.1、§5.2）。[W6-C0]
  */
 
 import { afterEach, describe, expect, expectTypeOf, it } from "vitest";

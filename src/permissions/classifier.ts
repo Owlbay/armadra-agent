@@ -1,5 +1,5 @@
 /**
- * auto 模式的模型分类器（§7.4 第 3 层，docs/permissions.md「模型分类器」）。
+ * auto 模式的模型分类器（§7.4 第 3 层，docs/guides/permissions.md「模型分类器」）。
  *
  * 只处理规则层与静态判定都没决定的调用（管线 verdict 带 `classify: true`）。这里只管提示、解析、
  * 超时与缓存；真正发请求的 `complete` 由会话注入（agent/session-classifier.ts：独立请求、不进转录、

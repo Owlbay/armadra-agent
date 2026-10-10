@@ -1,11 +1,11 @@
 # RPC protocol (stdio JSONL)
 
-English · [简体中文](../rpc.md)
+English · [简体中文](../../reference/rpc.md)
 
-> Translated from the Chinese [docs/rpc.md](../rpc.md) as of commit `a567833`. When the two differ, the Chinese version is
+> Translated from the Chinese [docs/reference/rpc.md](../../reference/rpc.md) as of commit `a567833`. When the two differ, the Chinese version is
 > authoritative.
 
-`ama --mode rpc` reads commands from stdin and writes responses and events to stdout, one JSON value per line. The types are defined in `@armadra/agent/rpc` (`src/rpc.ts`) and implemented in `src/modes/rpc/`. The events printed by `ama -p --output-format stream-json` have the same shapes. The design rationale is in [design.md](../design.md) §13.2 (Chinese).
+`ama --mode rpc` reads commands from stdin and writes responses and events to stdout, one JSON value per line. The types are defined in `@armadra/agent/rpc` (`src/rpc.ts`) and implemented in `src/modes/rpc/`. The events printed by `ama -p --output-format stream-json` have the same shapes. The design rationale is in [design.md](../../design/design.md) §13.2 (Chinese).
 
 ## Wire
 
@@ -35,7 +35,7 @@ A command has the shape `{ "id"?: string, "type": <command name>, ...parameters 
 
 - A response carries the request's `id` back (only string ids). Commands are processed concurrently: `prompt` does not block later commands, so responses may arrive in a different order than requests; match them by `id`.
 - On failure `error` is human-readable text and `code` is the `AmaError.code` (when there is one). Unknown commands → `code: "invalid_arguments"`.
-  **Hosts must decide by `code` and never parse `error` / `message`**: human-readable text follows the interface language (`AMA_LANG`, `--lang`, `ui.language`; bilingual since wave 6, see [i18n.md](../i18n.md), Chinese). The same holds for the `message` of `notification` events.
+  **Hosts must decide by `code` and never parse `error` / `message`**: human-readable text follows the interface language (`AMA_LANG`, `--lang`, `ui.language`; bilingual since wave 6, see [i18n.md](../../guides/i18n.md), Chinese). The same holds for the `message` of `notification` events.
 - A line that is not valid JSON or lacks `type` → `{ "type": "response", "command": "parse", "success": false, "error": … }`, without `id`.
 - Commands that need extension methods of the session implementation (marked † below) return `code: "not_implemented"` on sessions that are not `AgentSessionImpl`; sessions created by the CLI and the SDK are all `AgentSessionImpl`.
 
@@ -100,7 +100,7 @@ Prompt commands **do not wait for the run to finish**: they are answered as soon
 
 ### Rewind
 
-Details in [rewind-plan.md](../rewind-plan.md) §3 (Chinese). Rewind points are the user messages on the active path that start new turns (steers and queued messages belong to the current turn and are not listed). Calling while running returns `busy`.
+Details in [rewind-plan.md](../../history/rewind-plan.md) §3 (Chinese). Rewind points are the user messages on the active path that start new turns (steers and queued messages belong to the current turn and are not listed). Calling while running returns `busy`.
 
 | Command             | Parameters                                                                                                | `data`                                                                                                                                                                                            |
 | ------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -111,7 +111,7 @@ Details in [rewind-plan.md](../rewind-plan.md) §3 (Chinese). Rewind points are 
 
 `CodeRestoreResult`: `restored` / `deleted` / `conflicts` (left untouched with `skip`, overwritten with `overwrite`) / `skipped: { path, reason }[]` (`symlink` / `hardlink` / `not_regular` / `parent_moved` / `too_large` / `backup_missing`) / `failed: { path, message }[]` / `insertions` / `deletions`; paths inside cwd are relative (`/`-separated). Error codes: restoring code without a checkpoint → `no_checkpoint`; everything failed and nothing was restored → `rewind_failed` (the conversation is left alone); the entry is not a rewind point on the active path → `invalid_arguments`. For conversation-only or code-only rewinds, a `custom_message{customType: "ama.rewind-note"}` is appended to the end of the context before the next prompt, telling the model which files disagree with the conversation.
 
-After a session switch the server re-subscribes to events and sends `session_start` for the new session (`reason` `new` / `resume` / `fork`). `new_session` does not use the `parentSession` parameter yet. Entry shapes are in [session-format.md](../session-format.md) (Chinese).
+After a session switch the server re-subscribes to events and sends `session_start` for the new session (`reason` `new` / `resume` / `fork`). `new_session` does not use the `parentSession` parameter yet. Entry shapes are in [session-format.md](../../reference/session-format.md) (Chinese).
 
 ### Approvals
 
@@ -120,7 +120,7 @@ After a session switch the server re-subscribes to events and sends `session_sta
 | `set_client_capabilities` | `capabilities: ("approvals" \| "images" \| "hooks" \| "plans" \| "compact_events")[]` | `{ capabilities }`                                                                                               |
 | `permission_response`     | `requestId: string`, `decision: "allow" \| "deny" \| "allow_session"`                 | `{ accepted: boolean }` (false = not currently waiting for this id; kept and applied when that request is asked) |
 
-`compact_events` (docs/memory-plan.md D9, Chinese): once declared, `turn_end.toolResults`, `message_start` and `entry_appended` no longer repeat the body of tool results and of user messages with images (marked `contentOmitted: true`); the body is sent only in `message_end` and `tool_execution_end`. Without it the event shapes are byte-for-byte unchanged. Shapes are in [Compact events](#compact-events-compact_events). `stream-json` has no such switch and always emits the full shapes.
+`compact_events` (docs/history/memory-plan.md D9, Chinese): once declared, `turn_end.toolResults`, `message_start` and `entry_appended` no longer repeat the body of tool results and of user messages with images (marked `contentOmitted: true`); the body is sent only in `message_end` and `tool_execution_end`. Without it the event shapes are byte-for-byte unchanged. Shapes are in [Compact events](#compact-events-compact_events). `stream-json` has no such switch and always emits the full shapes.
 
 ### Tools, permissions, discovery
 
@@ -144,7 +144,7 @@ After a session switch the server re-subscribes to events and sends `session_sta
 
 ### Traces (wave 6)
 
-`get_trace` returns the session trace (the same tree as the TUI `/trace` and `ama sessions trace`, see [tui.md](tui.md)
+`get_trace` returns the session trace (the same tree as the TUI `/trace` and `ama sessions trace`, see [tui.md](../guides/tui.md)
 "Traces"). There is no new event: after `entry_appended`, fetch again with the previous `cursor.since` to refresh incrementally.
 
 | Parameter    | Meaning                                                                                                                                                                                   |
@@ -227,7 +227,7 @@ There is also the non-session event `{"type":"notification","level":"info"|"warn
 
 `parentToolCallId` appears only on inner calls made through `tools.*` inside codemode scripts; its value is the id of the outer `codemode` call, which clients use to fold the display. Inner calls do not enter the transcript.
 
-Assistant messages in `message_end`, `turn_end`, `done` / `error` and in replays (`get_messages`, `get_entries`) may carry two optional fields (model efficiency batch, docs/model-efficiency-plan.md §1.10, Chinese): `retryAfterMs` on failed messages (`Retry-After`, in ms) and `rawArguments` on tool-call blocks (the raw argument string the model produced). `subagent_*` events are unchanged; `TaskInfo` from `get_tasks` may carry `context?: "fork" | "fresh"` (the sub-session's actual context mode). All are new optional fields, `RPC_PROTOCOL_VERSION` is unchanged, and clients can ignore fields they do not know.
+Assistant messages in `message_end`, `turn_end`, `done` / `error` and in replays (`get_messages`, `get_entries`) may carry two optional fields (model efficiency batch, docs/history/model-efficiency-plan.md §1.10, Chinese): `retryAfterMs` on failed messages (`Retry-After`, in ms) and `rawArguments` on tool-call blocks (the raw argument string the model produced). `subagent_*` events are unchanged; `TaskInfo` from `get_tasks` may carry `context?: "fork" | "fresh"` (the sub-session's actual context mode). All are new optional fields, `RPC_PROTOCOL_VERSION` is unchanged, and clients can ignore fields they do not know.
 
 ### Compact events (`compact_events`)
 
@@ -243,7 +243,7 @@ In the full shapes, the result of one tool call appears once each in `message_st
 
 ### Sub-agent events (wave 5)
 
-Sub-agents started by `task` / `task_ctl` (ama sub-sessions and external agents share the same events, see [agents.md](../agents.md), Chinese):
+Sub-agents started by `task` / `task_ctl` (ama sub-sessions and external agents share the same events, see [agents.md](../../guides/agents.md), Chinese):
 
 | Event                 | Fields                                                                                                                                                                                                                      |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -349,7 +349,7 @@ The `data` of `get_session_stats` is `SessionStats`:
 {"type":"context_pressure","percent":71,"threshold":70,"remainingTokens":57990,"estimatedTurnsLeft":6}
 ```
 
-`cache_miss` gives `detail` only for `prefix_changed` (`tools`, `system`, or `system:<section,…>` naming the changed sections, such as `system:hooks,memory`). The values and meanings of `reason` for `cache_warm{stopped}` are in [tui.md](tui.md) "Cache and context". The result object of `ama -p --output-format json` also has a `cache` field of the same shape.
+`cache_miss` gives `detail` only for `prefix_changed` (`tools`, `system`, or `system:<section,…>` naming the changed sections, such as `system:hooks,memory`). The values and meanings of `reason` for `cache_warm{stopped}` are in [tui.md](../guides/tui.md) "Cache and context". The result object of `ama -p --output-format json` also has a `cache` field of the same shape.
 
 It also carries `context: { tokens, window, percent }` (context used, window size and usage 0–100, defined like `contextTokens` / `contextWindow` / `contextPercent` in the table above); an unknown item is omitted (for a model without a window only `tokens` is present), and when all are unknown there is no `context`.
 
@@ -363,7 +363,7 @@ It also carries `context: { tokens, window, percent }` (context used, window siz
 
 ## Plan approval
 
-Plan mode and the plan format are described in [plan.md](../plan.md) (Chinese).
+Plan mode and the plan format are described in [plan.md](../../guides/plan.md) (Chinese).
 
 1. When a turn ends in plan mode with plain text and the reply contains a `<proposed_plan>` block, the server saves the plan and sends `plan_proposed{ planId, version, markdown, steps, filePath? }` (`steps[]`: `{ id, text, dependsOn?, agent? }`), followed by `agent_settled` as usual.
 2. The client answers only if it declared `set_client_capabilities{capabilities:["plans"]}`; otherwise the config `plan.unattended` applies: `stop` by default (the plan stays proposed, no mode switch, no execution; the client can still answer later with `plan_response`), and `approve` approves and executes within the same run.
@@ -381,7 +381,7 @@ Plan mode and the plan format are described in [plan.md](../plan.md) (Chinese).
 
 - stdin closed: no more commands are accepted and approvals are withdrawn (later asks resolve as unanswered → deny); in-flight commands and started runs finish and their responses are written, then the exit code is 0. So `printf '{"type":"prompt","message":"hi"}\n' | ama --mode rpc` gets a complete reply; to stop early, send `abort` first.
 - SIGINT / SIGTERM: the current run is interrupted and the process exits in order, with exit code 130 / 143.
-- Startup failures use the CLI exit codes ([design.md](../design.md) §11.3, Chinese): config error 3, no model or key 4, session error 5, host / hook startup failure 6, host API version mismatch 78.
+- Startup failures use the CLI exit codes ([design.md](../../design/design.md) §11.3, Chinese): config error 3, no model or key 4, session error 5, host / hook startup failure 6, host API version mismatch 78.
 
 ## Examples
 

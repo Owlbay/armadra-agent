@@ -1,6 +1,6 @@
 # 会话文件格式（JSONL 条目树）
 
-会话是一个只追加的 JSONL 文件：首行是头，其后每行一个条目（以及可选的 `leaf` 行）。条目经 `parentId` 连成树，「当前分支」是从根到叶子的一条路径；发给模型的上下文由当前分支**投影**得到。类型定义在 `src/session/types.ts`（经 `@armadra/agent` 导出），格式版本 `SESSION_FORMAT_VERSION = 1`。设计依据见 [design.md](design.md) §8、§9。
+会话是一个只追加的 JSONL 文件：首行是头，其后每行一个条目（以及可选的 `leaf` 行）。条目经 `parentId` 连成树，「当前分支」是从根到叶子的一条路径；发给模型的上下文由当前分支**投影**得到。类型定义在 `src/session/types.ts`（经 `@armadra/agent` 导出），格式版本 `SESSION_FORMAT_VERSION = 1`。设计依据见 [design.md](../design/design.md) §8、§9。
 
 ## 位置与文件
 
@@ -47,14 +47,14 @@
 
 ### 消息
 
-- `system`：`{ role: "system", sections, toolsAdded?, toolsRemoved?, timestamp }`。首条是全量：系统提示的命名节（固定顺序 `preamble → tools → rules → project_context → skills → memory → hooks → cwd → host → role`；`memory` 是第六波的记忆索引节，未开启记忆时不出现）与工具声明表；之后只落**补丁**——节名级替换、值为 `null` 表示删除该节，`toolsAdded` / `toolsRemoved` 增删工具。依次重放得到当前系统提示；请求时由协议层重装：首条非 system 消息之前的部分折进开头，之后的节补丁作为尾部上下文送达、不改写开头（移除工具的补丁除外，见 [providers.md](providers.md)「缓存」）。首条 system 消息在首次请求前落盘，也就是建文件的时刻。
+- `system`：`{ role: "system", sections, toolsAdded?, toolsRemoved?, timestamp }`。首条是全量：系统提示的命名节（固定顺序 `preamble → tools → rules → project_context → skills → memory → hooks → cwd → host → role`；`memory` 是第六波的记忆索引节，未开启记忆时不出现）与工具声明表；之后只落**补丁**——节名级替换、值为 `null` 表示删除该节，`toolsAdded` / `toolsRemoved` 增删工具。依次重放得到当前系统提示；请求时由协议层重装：首条非 system 消息之前的部分折进开头，之后的节补丁作为尾部上下文送达、不改写开头（移除工具的补丁除外，见 [providers.md](../guides/providers.md)「缓存」）。首条 system 消息在首次请求前落盘，也就是建文件的时刻。
 - `user`：`content`、`origin?`（缺省 = 普通用户输入；`steer` / `followUp` 是运行中插话与排队，`host` 是宿主 `sendUser` 注入，`interrupt` 是打断并立即发送开的新回合（TUI `Ctrl+X`、line 模式 `/interrupt`、RPC / SDK 的 `interrupt: true`；投影与普通 user 消息相同），`direct` 是用户在子 Agent 视图里直接发给该子 Agent 的消息（第六波 W6-A，写在子会话里；投影与普通 user 消息相同），其它字符串原样记录）。
 - `assistant`：`content`（文本 / 思考 / 工具调用块）、`api`、`provider`、`model`、`usage`、`stopReason`，以及可选的 `responseId`、`thinkingLevel`、`providerThinkingLevel`、`rawStopReason`、`errorMessage`、`retryAfterMs`（失败响应的 `Retry-After`，毫秒；会话层退避取它与指数退避中的较大值）。工具调用块是 `{ type: "toolCall", id, name, arguments, thoughtSignature?, rawArguments? }`：`rawArguments` 是模型输出的原始参数字符串（能严格解析为 JSON 时才记），同协议回放时原样发回，没有时回落 `JSON.stringify(arguments)`。两者都是可选字段，格式版本不变，旧文件照常读取。`usage` 是 `{ input, output, cacheRead, cacheWrite, cacheWrite1h?, reasoning?, totalTokens, cost?, cacheReported? }`：`input` 不含缓存部分，`cost` 是 `{ input, output, cacheRead, cacheWrite, total }`（美元，模型无价格时缺省），`cacheReported` 表示原始响应里出现过缓存字段。
 - `toolResult`：对应工具调用的结果（`toolCallId`、`toolName`、`content`、`isError`、`details?`）。
 
 ### `usage` 条目
 
-不进上下文的请求用量，计入 `/session` 费用与 RPC 统计，投影时跳过。`kind` 目前有 `"cache_warm"`（缓存保温请求，见 [providers.md](providers.md)「缓存」）与 `"permission_classify"`（auto 权限模式的分类请求，见 [permissions.md](permissions.md)）：
+不进上下文的请求用量，计入 `/session` 费用与 RPC 统计，投影时跳过。`kind` 目前有 `"cache_warm"`（缓存保温请求，见 [providers.md](../guides/providers.md)「缓存」）与 `"permission_classify"`（auto 权限模式的分类请求，见 [permissions.md](../guides/permissions.md)）：
 
 ```json
 {
@@ -127,9 +127,9 @@
 `data` = `TaskInfo`（`taskId, agent, runner, description, background, status, startedAt, endedAt?, turns?, usage?, costUsd?,
 contextTokens?, contextWindow?, outputFile?, sessionRef?`；`contextTokens / contextWindow` 只有外部 Agent 报告时才有）+ `parentToolCallId`、`cwd`。同一 `taskId` 取分支上最后一条；resume 时据此重建任务注册表，
 `status: "running"` 视为 `interrupted`（`taskId` 续聊重开 `sessionRef.sessionFile`）。没有 `status` 的是子会话自己的首条。
-模型调用效率批次（docs/model-efficiency-plan.md）起，两处的 `data` 可带 `context?: "fork" | "fresh"`（子会话的实际上下文模式，fork 回落为 fresh 时记 `fresh`；缺省即 `fresh`），子会话首条另可带 `forkedFrom?`（fork 点的父条目 id）。都是可选字段，格式版本不变。
+模型调用效率批次（docs/history/model-efficiency-plan.md）起，两处的 `data` 可带 `context?: "fork" | "fresh"`（子会话的实际上下文模式，fork 回落为 fresh 时记 `fresh`；缺省即 `fresh`），子会话首条另可带 `forkedFrom?`（fork 点的父条目 id）。都是可选字段，格式版本不变。
 
-第五波登记的类型（docs/wave5-plan.md；括号里是开始写入的批次，之前的版本不会产生，读到未知 `customType` 一律忽略）。`custom_message` 类都是 `display: false`，经扩展点 `beforePrompts` 追加在末尾，不改缓存前缀：
+第五波登记的类型（docs/history/wave5-plan.md；括号里是开始写入的批次，之前的版本不会产生，读到未知 `customType` 一律忽略）。`custom_message` 类都是 `display: false`，经扩展点 `beforePrompts` 追加在末尾，不改缓存前缀：
 
 | `customType`         | 条目类型         | 内容                                                                                                                                     | 写入时机                                                                                                                        |
 | -------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
@@ -143,7 +143,7 @@ contextTokens?, contextWindow?, outputFile?, sessionRef?`；`contextTokens / con
 | `ama.agent-session`  | `custom`         | `data: { agent, runner, sessionId, cwd?, taskId? }`：外部 Agent 自己的会话引用（不含原始事件与转录）                                     | 外部 Agent 会话建立 / 续聊时（W5-E）                                                                                            |
 | `ama.agent-usage`    | `custom`         | `data: { agent, sessionId, unit: usd \| tokens \| requests, amount, tokens?, contextTokens?, contextWindow? }`（上下文只记数字）         | 外部 Agent 每个回合结束（W5-E）；`SessionStats.external` 据此汇总                                                               |
 
-第六波登记的类型（docs/wave6-plan.md §2.2；之前的版本不会产生）：
+第六波登记的类型（docs/history/wave6-plan.md §2.2；之前的版本不会产生）：
 
 | `customType` | 条目类型 | 内容                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | 写入时机                                                                                                                                                                                                                                              |
 | ------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -154,5 +154,5 @@ contextTokens?, contextWindow?, outputFile?, sessionRef?`；`contextTokens / con
 ## 读取方
 
 - `ama sessions list|show`、交互模式 `/resume`、RPC `get_entries{since}`（以 entry id 为游标返回 `{ entries, leafId }`）、`get_tree`。
-- 只读扫描（不加锁、不修复）：`ama stats`、`ama sessions search|export`、`--from`，见 [sessions.md](sessions.md)。
+- 只读扫描（不加锁、不修复）：`ama stats`、`ama sessions search|export`、`--from`，见 [sessions.md](../guides/sessions.md)。
 - 嵌入方可以直接读文件：按行解析，首行为头，跳过 `type: "leaf"` 的行后按 `parentId` 建树；遇到不认识的条目类型保留但不进上下文。

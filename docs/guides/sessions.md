@@ -1,6 +1,6 @@
 # 会话统计、检索、复用、导出与检查点
 
-这几条命令都只读会话目录（`<数据目录>/sessions`，`--session-dir` 可改；文件格式见 [session-format.md](session-format.md)）：不加锁、不修复半行、不改文件，正在运行的会话也能读。会话文件按块逐行读取，不整份读进内存：`ama sessions list` 只解析每个文件的头、首条条目、改名与首条提示，其余行只看类型，几十 MB 的会话也不会让内存随文件大小上涨；`--resume` 打开会话同样逐行解析。范围缺省是**当前目录**的会话，`--all` 看全部。
+这几条命令都只读会话目录（`<数据目录>/sessions`，`--session-dir` 可改；文件格式见 [session-format.md](../reference/session-format.md)）：不加锁、不修复半行、不改文件，正在运行的会话也能读。会话文件按块逐行读取，不整份读进内存：`ama sessions list` 只解析每个文件的头、首条条目、改名与首条提示，其余行只看类型，几十 MB 的会话也不会让内存随文件大小上涨；`--resume` 打开会话同样逐行解析。范围缺省是**当前目录**的会话，`--all` 看全部。
 
 ## 统计：`ama stats`
 
@@ -154,7 +154,7 @@ ama sessions trace <id|文件> [--html [文件]] [--json] [--output <文件>] [-
 - `--no-content`：只留结构、时间与数字（没有提示、参数、结果，也没有错误原文），适合只想分享性能问题时。
 - `--children`：内嵌 ama 子 Agent 子会话里节点的预览；缺省只嵌它们的结构与数字。外部 Agent 本来就只有骨架。
 - 预览按条截断（参数 500、其余 2000 字符），整份预览上限 4 MB 字符，超出后更早的预览置空并在详情里注明。
-- `--json`（或 `--format json`）：与 RPC `get_trace` 同形的 JSON（[rpc.md](rpc.md)「轨迹」），包含全部回合、已加载的子会话轨迹与本会话节点的 `previews`
+- `--json`（或 `--format json`）：与 RPC `get_trace` 同形的 JSON（[rpc.md](../reference/rpc.md)「轨迹」），包含全部回合、已加载的子会话轨迹与本会话节点的 `previews`
   （`--no-content` 时没有）。
 - 输出：`--html <文件>`（文件名以 `.html` / `.htm` 结尾时才当作值，否则用 `--output`）或 `--output <文件>` 写文件（0600），否则写 stdout。
   `--open` 写好后用系统浏览器打开（没给文件时写到临时目录）。
@@ -163,7 +163,7 @@ ama sessions trace <id|文件> [--html [文件]] [--json] [--output <文件>] [-
 
 ## 检查点与文件备份
 
-回滚代码（`/rewind`，设计见 [rewind-plan.md](rewind-plan.md)）依赖检查点：每个新回合开始时，ama 记下 edit / write 改过的文件当时的内容。
+回滚代码（`/rewind`，设计见 [rewind-plan.md](../history/rewind-plan.md)）依赖检查点：每个新回合开始时，ama 记下 edit / write 改过的文件当时的内容。
 
 - **存储位置**：备份按内容 sha256 存在 `<数据目录>/file-history/blobs/<前 2 位>/<sha256>`，原字节、不压缩；多个会话、多个检查点共用，同内容只存一份。会话文件里只有 `ama.checkpoint` / `ama.checkpoint-track` 两类 `custom` 条目（记哈希，不进上下文）。会话目录不在缺省位置时（`--session-dir`、宿主 profile 的 `sessionDir`），目录登记在 `file-history/roots.json`，清理时一并扫描。
 - **跟踪范围**：edit / write（含 codemode 内层调用与 task 子会话）第一次写某文件之前备份它；之后每个新回合按当前磁盘内容重拍已跟踪的文件，所以 bash 或手动对这些文件的改动也会进下一个检查点。bash 新建或改动的其它文件不跟踪。
@@ -192,7 +192,7 @@ ama sessions trace <id|文件> [--html [文件]] [--json] [--output <文件>] [-
 
 ## 回滚（会话内）
 
-`/rewind`、RPC `rewind`、SDK `session.rewind()` 回到某条用户消息之前（设计见 [rewind-plan.md](rewind-plan.md)）：
+`/rewind`、RPC `rewind`、SDK `session.rewind()` 回到某条用户消息之前（设计见 [rewind-plan.md](../history/rewind-plan.md)）：
 
 - 回滚点是活动路径上开启新回合的用户消息，从旧到新；运行中插话、排队消息与 Stop Hook 续跑的消息并入当前回合，不单列。运行中回滚报 `busy`。
 - 对话回滚复用 `/tree` 换叶子：离开的分支留在文件里，可以再从 `/tree` 回去；模型、思考级别与权限模式保持当前，不随回滚改变。之后第一次请求的 system、工具表与落点之前的消息和回滚前逐字节相同，提示缓存照常命中。
@@ -200,7 +200,7 @@ ama sessions trace <id|文件> [--html [文件]] [--json] [--output <文件>] [-
 - 仅对话或仅代码时，下一次提示前在末尾追加一条 `ama.rewind-note` 告诉模型哪些文件与对话不一致；对话 + 代码不追加。
 - 内存会话与 `checkpoints.mode: "off"` 不建检查点，只能仅对话。
 - 运行中 Esc 中断、本回合还没有任何回复或工具调用时，撤回该回合并回填原消息（`ui.restoreOnCancel`，缺省 true）。
-- 回到图片被降级之前时图片从会话文件回读；文件已被外部改写、读不回时图片保留为空，并告警一次（`AMA_LOG`，TUI 显示在通知区；见 [session-format.md](session-format.md)「内存表示」）。
+- 回到图片被降级之前时图片从会话文件回读；文件已被外部改写、读不回时图片保留为空，并告警一次（`AMA_LOG`，TUI 显示在通知区；见 [session-format.md](../reference/session-format.md)「内存表示」）。
 
 ## 请求明细（设计，未实现）
 

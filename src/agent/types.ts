@@ -463,7 +463,7 @@ export interface AgentSession {
   waitForIdle(): Promise<void>;
   clearQueue(): { steering: string[]; followUp: string[] };
   /**
-   * [W7-B1] 阻塞中的前台子 Agent 任务转后台（不给 taskId = 全部；docs/agents-concurrency-plan.md §2.5）。
+   * [W7-B1] 阻塞中的前台子 Agent 任务转后台（不给 taskId = 全部；docs/history/agents-concurrency-plan.md §2.5）。
    * `reason` 缺省 `"host"`（宿主 / SDK）；TUI 的人工操作传 `"user"`。返回被转后台或被打断等待的 taskId。
    */
   backgroundTask(taskId?: string, reason?: "user" | "timeout" | "host"): string[];

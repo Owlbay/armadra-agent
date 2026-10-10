@@ -408,7 +408,7 @@
 
 **一手**
 
-- ama：`docs/design.md` §3.6、§4、§9、§9.1；`docs/wave3-plan.md` §1.8–§1.9；`docs/gap-audit-2026-10.md` §1；源码行号见正文。
+- ama：`docs/design/design.md` §3.6、§4、§9、§9.1；`docs/history/wave3-plan.md` §1.8–§1.9；`docs/history/gap-audit-2026-10.md` §1；源码行号见正文。
 - 工具 A 2.1.285 打包文本 `本机材料`。关键词：`DISABLE_AUTO_COMPACT`、`rapid-refill breaker`、`compaction cannot help`、`tengu_compact_cache_sharing_success`、`cacheSafeParams`、`[KEEP-RECENT MC]`、`Vdn=20000`、`context-hint-2026-04-09`、`prompt_cache_likely_expired`、`compact_file_reference`、`invoked_skills`、`todo_reminder`、`edited_text_file`、`error_max_budget_usd`。
 - 工具 B 0.160.0 二进制字符串 `本机材料`。关键词：`CONTEXT CHECKPOINT COMPACTION`、`compact_remote_v2.rs`、`ResponseItem::Compaction`、`model_auto_compact_token_limit`、`tool_output_token_limit`。
 - 工具 C：`本机材料`。

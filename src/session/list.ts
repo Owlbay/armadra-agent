@@ -1,5 +1,5 @@
 /**
- * 会话列表（`SessionManager.list` 的实现）。[M-C] 按块逐行读（docs/memory-plan.md D6、§2.4）：
+ * 会话列表（`SessionManager.list` 的实现）。[M-C] 按块逐行读（docs/history/memory-plan.md D6、§2.4）：
  * 只解析头、第一条条目、`leaf` / `session_info` 行、要取 `firstPrompt` 的那一条 user 消息与末行；
  * 其余 ama 写的行只看行首的 type / role（`lineTypeOf`），不生成全文字符串、不留条目对象。
  *

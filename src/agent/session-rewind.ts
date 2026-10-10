@@ -1,5 +1,5 @@
 /**
- * 会话回滚编排（docs/rewind-plan.md §2、§3.1、§3.3–§3.6）。[RW-B]
+ * 会话回滚编排（docs/history/rewind-plan.md §2、§3.1、§3.3–§3.6）。[RW-B]
  *
  * - 回合起点：`runPrompt` 开启新回合的那条用户消息（steer / followUp 并入当前回合、Stop Hook 续跑
  *   的 `hook` 消息都不算）。本进程内落盘的按记录判断；恢复的会话以 `ama.checkpoint` 条目为准，

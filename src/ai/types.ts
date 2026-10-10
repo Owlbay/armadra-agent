@@ -15,7 +15,7 @@
  * - [W3-C0] 第三波 §1.3 的五个缓存兼容开关单列为 `PromptCacheCompat`（各协议共用），只并入
  *   `ProviderCompat`（全部可选），不改各协议 compat 接口——`detectCompat` 的返回形状不变，
  *   缺省值由 C1a 在协议层按端点推断。
- * - [W5-C0] 第五波（docs/wave5-plan.md §2.1、§3.1）：`Model` 加 models.dev 元数据字段
+ * - [W5-C0] 第五波（docs/history/wave5-plan.md §2.1、§3.1）：`Model` 加 models.dev 元数据字段
  *   （`family / knowledge / releaseDate / inputLimit / status`）；`AnthropicMessagesCompat` 加
  *   `sendInterleavedThinkingBeta / sendCacheControl`、`OpenAIResponsesCompat` 加
  *   `explicitCacheField`，全部可选（缺省由 W5-M2 的主机推断表给出）；`ProviderData.channels /
@@ -392,7 +392,7 @@ export interface Model {
   channelPinned?: boolean;
   /** 该模型挂载的全部渠道，首个为首选（多渠道供应商才有）。 */
   channels?: string[];
-  // [W5-C0] models.dev 元数据（docs/wave5-plan.md §2.1；快照与目录物化时填入，缺省 = 未知）
+  // [W5-C0] models.dev 元数据（docs/history/wave5-plan.md §2.1；快照与目录物化时填入，缺省 = 未知）
   /** 模型家族（如 `claude-sonnet`）。 */
   family?: string;
   /** 知识截止（`YYYY-MM` 或 `YYYY-MM-DD`）。 */
@@ -405,7 +405,7 @@ export interface Model {
   status?: "beta";
 }
 
-/** 物化后的渠道（docs/providers.md「渠道」）；key 不在这里，经 `resolveApiKey(provider, channel)` 取。 */
+/** 物化后的渠道（docs/guides/providers.md「渠道」）；key 不在这里，经 `resolveApiKey(provider, channel)` 取。 */
 export interface ProviderChannel {
   name: string;
   api: Api;

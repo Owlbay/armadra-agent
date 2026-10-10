@@ -75,7 +75,7 @@ export function isBlankLine(line: Buffer): boolean {
 
 /**
  * 读并解析 JSONL。`repair: true` 时把末尾半行从文件里截掉（只截最后一行，且只在它无法解析时）。
- * 按块逐行读（line-reader.ts，docs/memory-plan.md §2.4）：不生成全文字符串与 split 数组。
+ * 按块逐行读（line-reader.ts，docs/history/memory-plan.md §2.4）：不生成全文字符串与 split 数组。
  */
 export function readSessionLines(
   file: string,

@@ -6,7 +6,7 @@
  *   不相邻的组之间 `--`；匹配行截 500 字符；
  * - 匹配数到 limit（缺省 100）即停并提示；整体输出再按 50 KB 头截断。
  * - [S-A] `filesOnly`：只列命中文件（去重、按路径排序，每个文件命中一行即停），limit 按文件数计；
- *   给模型在大仓库里先缩范围（docs/search-plan.md §4.2）。
+ *   给模型在大仓库里先缩范围（docs/design/search-plan.md §4.2）。
  */
 
 import { readFile, stat } from "node:fs/promises";

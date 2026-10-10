@@ -68,8 +68,8 @@ const keysEn = {
   defaultModel:
     "Default model provider/model or provider/model@channel; when unset it is picked automatically (ama config show shows which one and why)",
   thinkingLevel: "Thinking level",
-  providers: "Custom providers and overrides of built-in providers (docs/providers.md)",
-  permission: "Permissions (docs/permissions.md)",
+  providers: "Custom providers and overrides of built-in providers (docs/guides/providers.md)",
+  permission: "Permissions (docs/guides/permissions.md)",
   "permission.mode": "Permission mode; project level can only make it stricter",
   "permission.allow": "Allow rules, e.g. bash(npm test); cannot be added at project level",
   "permission.deny": "Deny rules, e.g. write(**/.env); accumulated across levels",
@@ -108,7 +108,8 @@ const keysEn = {
     "Character limit for one tool result in the context; beyond it head and tail are kept",
   "tools.bashTimeoutMs": "Default bash timeout (ms; overridable per call, max 600000)",
   "tools.disabled": "Disabled tool names; accumulated across levels",
-  codemode: "codemode: the model writes scripts that call tools in batches (docs/codemode.md)",
+  codemode:
+    "codemode: the model writes scripts that call tools in batches (docs/guides/codemode.md)",
   "codemode.mode":
     "off | on | only; when unset it follows the preset: default → on (Node ≥ 25; Node 22 / 24 → off), codemode-only → only, minimal / coordinator → off; project level only accepts off",
   "codemode.inlineBudget":
@@ -148,7 +149,7 @@ const keysEn = {
   "ui.agentBar":
     "Agent bar (sub-agent list above the status line): auto shows it while tasks exist, off hides it; press ↓ on an empty input to enter it",
   memory:
-    "Cross-session memory (docs/memory.md): off by default, requests are byte-identical while off; project level can only set enabled: false (effective from wave 6 W6-M)",
+    "Cross-session memory (docs/guides/memory.md): off by default, requests are byte-identical while off; project level can only set enabled: false (effective from wave 6 W6-M)",
   "memory.enabled": "Master switch; --memory / --no-memory and AMA_MEMORY=0|1 override",
   "memory.scopes":
     "Enabled scopes: user (data directory, across projects), project (keyed by a hash of the repository path)",
@@ -183,7 +184,7 @@ const keysEn = {
   "cache.missNotices": "Show cache misses and remaining context in the message area",
   "cache.warmSubagents": "Also warm sub-sessions (task)",
   checkpoints:
-    'Checkpoints: file backups used to roll back code (docs/sessions.md "Checkpoints and file backups")',
+    'Checkpoints: file backups used to roll back code (docs/guides/sessions.md "Checkpoints and file backups")',
   "checkpoints.mode":
     "tools: track files changed by edit / write; shadow-git: also snapshot the whole working directory with a shadow git so direct changes (bash etc.) can be rolled back too (needs git; large directories fall back to tools); off: disabled; AMA_CHECKPOINTS overrides; project level only accepts off",
   "checkpoints.maxFileBytes":
@@ -191,7 +192,7 @@ const keysEn = {
   "checkpoints.keep":
     "Number of recent checkpoints available for rollback; older ones are no longer listed; user level / profile only",
   sandbox:
-    'OS-level sandbox (docs/sandbox.md); user level / profile only, project level only accepts network: "deny"',
+    'OS-level sandbox (docs/guides/sandbox.md); user level / profile only, project level only accepts network: "deny"',
   "sandbox.enabled":
     "auto: use macOS sandbox-exec / Linux bwrap or unshare when available (codemode child processes are denied network and writes; this isolates codemode's network on Node 22 / 24); off: not used; AMA_SANDBOX=off overrides",
   "sandbox.bash":
@@ -261,8 +262,8 @@ const keysZh = {
   defaultModel:
     "缺省模型 provider/model 或 provider/model@channel；不写时零配置自动选择（ama config show 显示选了谁、为什么）",
   thinkingLevel: "思考强度",
-  providers: "自定义供应商与对内置供应商的覆盖（docs/providers.md）",
-  permission: "权限（docs/permissions.md）",
+  providers: "自定义供应商与对内置供应商的覆盖（docs/guides/providers.md）",
+  permission: "权限（docs/guides/permissions.md）",
   "permission.mode": "权限模式；项目级只能更严",
   "permission.allow": "放行规则，如 bash(npm test)；项目级不能加",
   "permission.deny": "拒绝规则，如 write(**/.env)；各层累加",
@@ -294,7 +295,7 @@ const keysZh = {
   "tools.maxToolResultChars": "单条工具结果进上下文的字符上限，超出保留首尾",
   "tools.bashTimeoutMs": "bash 缺省超时（毫秒，单次调用可覆盖，最大 600000）",
   "tools.disabled": "禁用的工具名；各层累加",
-  codemode: "codemode：模型写脚本批量调用工具（docs/codemode.md）",
+  codemode: "codemode：模型写脚本批量调用工具（docs/guides/codemode.md）",
   "codemode.mode":
     "off | on | only；不写时跟随预设：default → on（Node ≥ 25；Node 22 / 24 → off）、codemode-only → only、minimal / coordinator → off；项目级只接受 off",
   "codemode.inlineBudget": "only 模式在描述里内联工具声明的预算（估算 token），超出只列名字",
@@ -328,7 +329,7 @@ const keysZh = {
   "ui.agentBar":
     "Agent 栏（状态行上方的子 Agent 列表）：auto 有任务时显示，off 不显示；空输入时按 ↓ 进入",
   memory:
-    "跨会话记忆（docs/memory.md）：缺省关闭，关闭时请求逐字节不变；项目级只能设 enabled: false（第六波 W6-M 起生效）",
+    "跨会话记忆（docs/guides/memory.md）：缺省关闭，关闭时请求逐字节不变；项目级只能设 enabled: false（第六波 W6-M 起生效）",
   "memory.enabled": "总开关；--memory / --no-memory、AMA_MEMORY=0|1 覆盖",
   "memory.scopes": "启用的作用域：user（数据目录，跨项目）、project（按仓库路径哈希）",
   "memory.indexMaxBytes": "每作用域索引进系统提示的上限（字节），超出按更新时间截断",
@@ -358,13 +359,14 @@ const keysZh = {
   "cache.minSavingsUsd": "保温的最低期望节省（美元）",
   "cache.missNotices": "在消息区提示缓存未命中与上下文余量",
   "cache.warmSubagents": "子会话（task）也保温",
-  checkpoints: "检查点：回滚代码用的文件备份（docs/sessions.md「检查点与文件备份」）",
+  checkpoints: "检查点：回滚代码用的文件备份（docs/guides/sessions.md「检查点与文件备份」）",
   "checkpoints.mode":
     "tools：跟踪 edit / write 改过的文件；shadow-git：另用影子 git 快照整个工作目录，bash 等直接改动也能回滚（需要 git，大目录自动降级为 tools）；off：关闭；AMA_CHECKPOINTS 覆盖；项目级只接受 off",
   "checkpoints.maxFileBytes":
     "单个文件的备份上限（字节），超出不备份、回滚时报告无法恢复；项目级只能调小",
   "checkpoints.keep": "可回滚的最近检查点数，更早的不再列为回滚点；只认用户级 / profile",
-  sandbox: '操作系统级沙箱（docs/sandbox.md）；只认用户级 / profile，项目级只接受 network: "deny"',
+  sandbox:
+    '操作系统级沙箱（docs/guides/sandbox.md）；只认用户级 / profile，项目级只接受 network: "deny"',
   "sandbox.enabled":
     "auto：探测到可用的 macOS sandbox-exec / Linux bwrap、unshare 就用（codemode 子进程拒绝网络与写入；Node 22 / 24 上 codemode 因此网络隔离）；off：不用；AMA_SANDBOX=off 覆盖",
   "sandbox.bash":

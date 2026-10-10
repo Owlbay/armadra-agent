@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 渠道实测门（docs/wave5-plan.md §3.2，[W5-M2]）：对 `<provider>/<model>@<channel>` 跑四项，每个模型
+ * 渠道实测门（docs/history/wave5-plan.md §3.2，[W5-M2]）：对 `<provider>/<model>@<channel>` 跑四项，每个模型
  * ≤ 8 个请求，输出结果表。本地跑真实 key（CI 不跑；先 `pnpm build:lib`）。
  *
  *   node scripts/channel-probe.mjs --model deepseek/deepseek-v4-pro@messages

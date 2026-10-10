@@ -1,5 +1,5 @@
 /**
- * 宿主注入的 runner（`HostApi.runners.provide` 的底座，docs/wave5-plan.md §5.5，D17）。[W5-E → W5-EG]
+ * 宿主注入的 runner（`HostApi.runners.provide` 的底座，docs/history/wave5-plan.md §5.5，D17）。[W5-E → W5-EG]
  *
  * 一个宿主适配器一份（host/api-impl.ts 建，经 {@link ExternalAgents} 的 `hostRunners` 选项交给每个
  * 主会话）：宿主可以在 `create()` 里或之后任何时候 `provide`，同名替换；返回的函数注销。

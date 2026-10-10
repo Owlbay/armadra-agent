@@ -1,5 +1,5 @@
 /**
- * 消息目录的类型（docs/wave6-plan.md §5.1；docs/i18n.md）。[W6-C0]
+ * 消息目录的类型（docs/history/wave6-plan.md §5.1；docs/guides/i18n.md）。[W6-C0]
  *
  * 每个领域文件导出 `en`（形状源）与 `zh`（`satisfies Messages<typeof en>`）：缺键、多键、函数参数个数 /
  * 类型不符都在 `tsc --noEmit` 期报错——这就是覆盖率检查，不需要运行期脚本。

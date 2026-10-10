@@ -1,5 +1,5 @@
 /**
- * 流式会话列表（docs/memory-plan.md D6、§2.4、[M-C] 测试 1）：对 test/fixtures 下全部 `.jsonl` 与真实写出的
+ * 流式会话列表（docs/history/memory-plan.md D6、§2.4、[M-C] 测试 1）：对 test/fixtures 下全部 `.jsonl` 与真实写出的
  * 大会话，新旧实现返回的 `SessionListItem[]` 深度相等；并钉住几条具体口径。
  */
 

@@ -1,5 +1,5 @@
 /**
- * 备份清理（docs/rewind-plan.md §1.4）。[RW-A]
+ * 备份清理（docs/history/rewind-plan.md §1.4）。[RW-A]
  *
  * - 标记：递归扫描会话根目录下全部 `*.jsonl`（含 `.trash/`，trash 里的会话还能找回），凡含
  *   `ama.checkpoint` 的行，取其中所有 64 位十六进制串作为引用。不解析 JSON：损坏或未来格式的行也只会

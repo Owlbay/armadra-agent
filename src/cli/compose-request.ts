@@ -1,5 +1,5 @@
 /**
- * 模型请求的流中空闲超时（docs/model-efficiency-plan.md D18）。[ME-C]
+ * 模型请求的流中空闲超时（docs/history/model-efficiency-plan.md D18）。[ME-C]
  *
  * 等响应头仍由 `request.idleTimeoutMs` / `AMA_IDLE_TIMEOUT_MS`（compose-session.ts `idleTimeoutFrom`）
  * 决定；流开始后两块数据之间的上限读 `AMA_STREAM_IDLE_TIMEOUT_MS` > config

@@ -1,5 +1,5 @@
 /**
- * 重复调用检测（docs/wave5-plan.md §8.3 H1，D29）。[W5-H2]
+ * 重复调用检测（docs/history/wave5-plan.md §8.3 H1，D29）。[W5-H2]
  *
  * - 指纹 = `sha256(工具名 + 规范化 JSON 参数)`（对象键排序，数组保持顺序）；同一 run 内**累计**计数。
  * - 第 `LOOP_REMIND_AT`（3）次起：照常执行，在该次 toolResult 末尾追加提醒（只改这条结果，缓存安全）。

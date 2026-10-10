@@ -1,5 +1,5 @@
 /**
- * 黄金记录用的假 ACP Agent（docs/wave5-plan.md §5.1、§5.7）。[W5-E]
+ * 黄金记录用的假 ACP Agent（docs/history/wave5-plan.md §5.1、§5.7）。[W5-E]
  *
  * 零依赖、不联网、不碰文件系统；行为由提示文本里的标记决定，供 ama 自己的测试与 Armadra 复用
  * （`@armadra/agent/acp` 导出 {@link runFakeAcpAgent} 与可执行入口路径）：

@@ -15,7 +15,7 @@
 
 1. **按门撤出 default**：18 对完整配对里，含 todo 组成功 17/18、对照 18/18（成功数下降）；统一估价 **+4.6%**（门内），但输入 token +15.8%、保守计价 +11.3%。门的定义是「估价涨幅 ≤ 5% 且成功数不降」，成功数一项未过。
 2. **todo 很少被用**：36 次运行里只有 1 次（kimi · string-kit 第 1 次）调用了 todo（4 次调用），那一次用了 10 轮，同组其余两次是 5–8 轮；deepseek 一次也没用。唯一的失败（kimi · string-kit 第 3 次，`padCenter` 未通过）发生在没有调用 todo 的运行里，更像任务本身的波动；但 todo 在工具表里的固定开销（每请求约 140 token）与偶尔多出来的轮数是实打实的，收益没有显出来。
-3. **撤回后的做法**：`default` 预设回到六个工具；计划批准后的进度改用 `[DONE:<步骤>]` 文本标记（docs/plan.md「进度记法」），ama 读标记推进计划待办，界面与 RPC 的进度显示不变。需要 todo 的用户用 `tools.default: ["+todo"]`。
+3. **撤回后的做法**：`default` 预设回到六个工具；计划批准后的进度改用 `[DONE:<步骤>]` 文本标记（docs/guides/plan.md「进度记法」），ama 读标记推进计划待办，界面与 RPC 的进度显示不变。需要 todo 的用户用 `tools.default: ["+todo"]`。
 
 > 由 `scripts/bench-presets.mjs` 生成的表格如下（标题行略）。
 > 由 `scripts/bench-presets.mjs` 生成。模型：packy/kimi-k2.5、packy/deepseek-v4-flash；预设：default、default-todo；任务：multi-bug-hunt、string-kit、inventory-feature；每组 3 次。

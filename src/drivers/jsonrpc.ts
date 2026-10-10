@@ -1,5 +1,5 @@
 /**
- * JSON-RPC 2.0 over NDJSON 的对等端（docs/wave5-plan.md §5.1）。[W5-E]
+ * JSON-RPC 2.0 over NDJSON 的对等端（docs/history/wave5-plan.md §5.1）。[W5-E]
  *
  * ACP 客户端 / 服务端与 Codex app-server 驱动共用：
  * - 分帧复用 `modes/rpc/jsonl.ts`（只按 `\n` 切行、64 KiB 分片写、背压等 drain），写入串行；

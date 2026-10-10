@@ -1,5 +1,5 @@
 /**
- * openai-responses 的 ChatGPT 订阅后端（compat `chatgptBackend`；docs/wave6-plan.md §4.1、§4.6、D14、D17）。[W6-O]
+ * openai-responses 的 ChatGPT 订阅后端（compat `chatgptBackend`；docs/history/wave6-plan.md §4.1、§4.6、D14、D17）。[W6-O]
  *
  * - 请求体：强制 `store:false`、`stream:true`、`input` 数组；按后端删禁用字段（SIWC 15 个；codex 5 个，保留
  *   `prompt_cache_key`）；SIWC 不发 `role:"system"` item（改 developer）；`instructionsMode: "developer-message"`

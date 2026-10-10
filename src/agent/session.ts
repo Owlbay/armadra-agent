@@ -446,7 +446,7 @@ export class AgentSessionImpl implements AgentSession, SessionCore {
     return this.startCycle((signal) => this.compaction.compactManual(instructions, signal, cutAt));
   }
 
-  // [RW-B] 回滚（docs/rewind-plan.md §3；编排与校验在 session-rewind.ts）
+  // [RW-B] 回滚（docs/history/rewind-plan.md §3；编排与校验在 session-rewind.ts）
   readonly rewindPoints = (): CP.RewindPoint[] => this.rewinder.points();
   readonly rewind = (request: CP.RewindRequest): Promise<CP.RewindResult> =>
     this.rewinder.rewind(request);

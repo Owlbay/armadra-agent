@@ -30,7 +30,7 @@ const STRICT = detectSandboxCapability("25.0.0", new Set(["--permission"]));
 
 /** 上限（token，字符 / 4）。codemode-only 取实测当前值 +15%。 */
 const PROMPT_BUDGETS = { default: 2000, minimal: 800, "codemode-only": 1775 } as const;
-/** [W6-M] 记忆开启时 default 预设的上限（docs/wave6-plan.md §3.6、§10）。 */
+/** [W6-M] 记忆开启时 default 预设的上限（docs/history/wave6-plan.md §3.6、§10）。 */
 const MEMORY_BUDGET = 2350;
 
 interface PromptBreakdown {

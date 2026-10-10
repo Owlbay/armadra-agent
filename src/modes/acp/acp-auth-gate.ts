@@ -1,5 +1,5 @@
 /**
- * `ama --mode acp` 的认证门（docs/acp-plan.md §2.2、D3、D4）。[ACP-A]
+ * `ama --mode acp` 的认证门（docs/history/acp-plan.md §2.2、D3、D4）。[ACP-A]
  *
  * bootstrap 因没有可用模型（退出码 4）失败时不退出，改为在同一条 stdio 上应答 ACP：
  * - `initialize` → 正常握手；客户端声明 `clientCapabilities.auth.terminal` 时给两条 terminal 型

@@ -1,5 +1,5 @@
 /**
- * 第五波会话契约（docs/wave5-plan.md §1.3、§5.4、§6.3、§6.5、§7.5、§8.3；[W5-C0]）。
+ * 第五波会话契约（docs/history/wave5-plan.md §1.3、§5.4、§6.3、§6.5、§7.5、§8.3；[W5-C0]）。
  *
  * 这里放新增事件的载荷与 `SessionStats` 的扩展形状，由 agent/types.ts 并入 `SessionEvent` /
  * `SessionStats` 并再导出（agent/types.ts 已接近 600 行）。全部是新增事件与可选字段：
@@ -88,7 +88,7 @@ export interface SubagentEndEvent {
 }
 
 /**
- * [W7-B1] 前台任务转后台（docs/agents-concurrency-plan.md §2.5）：`user` = 人（TUI `Ctrl+B` 等），
+ * [W7-B1] 前台任务转后台（docs/history/agents-concurrency-plan.md §2.5）：`user` = 人（TUI `Ctrl+B` 等），
  * `timeout` = `subagents.autoBackgroundAfterMs` 到时，`host` = 宿主 / SDK（`session.backgroundTask`）。
  */
 export interface SubagentBackgroundEvent {

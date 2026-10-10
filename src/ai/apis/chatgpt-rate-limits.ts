@@ -1,5 +1,5 @@
 /**
- * ChatGPT 订阅配额解析（docs/wave6-plan.md §4.1 配额行、D17；R6 §1.2 配额三行）。[W6-O]
+ * ChatGPT 订阅配额解析（docs/history/wave6-plan.md §4.1 配额行、D17；R6 §1.2 配额三行）。[W6-O]
  *
  * - 响应头（codex flavor）：`x-codex-primary-used-percent` / `-window-minutes` / `-reset-at`（epoch 秒），
  *   `secondary` 同形；

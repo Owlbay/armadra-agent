@@ -14,7 +14,7 @@
 - **ACP 适配器不再停在更宽的模式**：claude-agent-acp（`auto-edit` → `acceptEdits`、`full-auto` → `auto`，用户缺省为 `bypassPermissions` 时也会改回）、codex-acp（`plan` / `default` → `read-only`、`auto-edit` → `workspace-write`、`auto` / `full-auto` → `agent`；此前 `plan` 拒绝启动）、Copilot（URL 形式的模式 id `…#plan` / `…#agent`）写入显式映射，从不选放开全部权限的模式（#198）。
 - **`model` 交给 ACP Agent**：`agents.<id>.model` 与 `task` 的 `model` 参数经 Agent 的 `model` 会话配置项设置（按值、名称或 `provider/model` 的模型部分匹配）；没有匹配时提示并用它的缺省模型（#198）。
 - **用量口径修正**：Codex（app-server 与 `exec`）和 Copilot 报的 input 含缓存命中，Copilot 的 ACP usage 还是会话累计；ama 现在扣掉缓存部分、按回合取差值，总量不再把缓存读算两次。Claude stream-json 也像其它驱动一样上报上下文占用与窗口（#198）。
-- **已验证区间更新**：2026-10-10 用真实 CLI 实测，claude-agent-acp 0.89、codex-acp 2.2、Copilot 1.0.95、OpenCode 1.18、pi 1.1；能力矩阵见 docs/agents.md，数字见 docs/benchmarks/external-agents-2026-10.md（#198）。
+- **已验证区间更新**：2026-10-10 用真实 CLI 实测，claude-agent-acp 0.89、codex-acp 2.2、Copilot 1.0.95、OpenCode 1.18、pi 1.1；能力矩阵见 docs/guides/agents.md，数字见 docs/benchmarks/external-agents-2026-10.md（#198）。
 - **ChatGPT 账户不可用的模型报 `model_unavailable`**：codex 后端以 400「model is not supported when using Codex with a ChatGPT account」拒绝时，报 `model_unavailable` 并提示用 `ama models discover chatgpt` 刷新模型表（后端已撤下 `gpt-6-astra`，旧的发现缓存里还有它）（#198）。
 
 ## 0.7.6（2026-10-10）
@@ -29,7 +29,7 @@
 ### 会话
 
 - **会话图片读不回时有提示**：降级图片因会话文件被其它进程改写而读不回时，告警进会话日志（stderr 一行 `ama: [warn] cannot read session entry …`，受 `AMA_LOG` 过滤；TUI 显示在通知区），不再被丢弃。打开文件期间的告警先缓冲、会话建好时补出（最多 16 条，其余计数）；`--fork` 的源会话走同一日志。
-- **`subagents.forkMaxContextRatio`**：fork 子 Agent 回落为 fresh 的比例（父上一次请求占（窗口 − `compaction.reserveTokens`）的份额）可配置，0.05–0.95，缺省 0.5，只认用户级。内置类型（包括 `general`）仍缺省 fresh；docs/agents.md 说明了每回合重读父上下文的成本。
+- **`subagents.forkMaxContextRatio`**：fork 子 Agent 回落为 fresh 的比例（父上一次请求占（窗口 − `compaction.reserveTokens`）的份额）可配置，0.05–0.95，缺省 0.5，只认用户级。内置类型（包括 `general`）仍缺省 fresh；docs/guides/agents.md 说明了每回合重读父上下文的成本。
 - **fork 子 Agent 被告知 `task` / `task_ctl` 不可用**：`<task>` 消息列出这两个工具并要求不要调用（它们仍在工具表里、按深度拒绝）。两次 DeepSeek 复测里子 Agent 仍各调了一次被拒的 `task`。
 - **后台 fork 任务立即给出模式**：后台 `task` 的 `running` 结果在模式已知时带 `details.context`（`fork` / `fresh`）；排队或等待 worktree 的任务仍在之后的 `TaskInfo.context` 里给出。
 - **后台 `bash` 任务输出按会话结果上限一次截到位**：`{job, action: "wait" | "output" | "stop"}` 改为按与前台 `bash` 相同的字节上限（50 KB 与 `maxToolResultChars` − 512 取小）尾截断，不再固定 2000 行 / 50 KB 再被会话层截掉中段；说明行照旧写显示行数与 `Full output: <路径>`。
@@ -55,7 +55,7 @@
 
 ### 模型调用效率
 
-少按全价重读提示前缀、少一些失败请求（docs/model-efficiency-plan.md；实测见 docs/benchmarks/efficiency-2026-10.md）。按子 Agent、提示前缀与压缩、请求层、目录与工具的顺序排列。
+少按全价重读提示前缀、少一些失败请求（docs/history/model-efficiency-plan.md；实测见 docs/benchmarks/efficiency-2026-10.md）。按子 Agent、提示前缀与压缩、请求层、目录与工具的顺序排列。
 
 - **fork 式子 Agent**（`task.context: "fork"`，或类型定义里写 `context: fork`；缺省仍是 `fresh`）：子会话继承父会话到这次 `task` 调用之前的对话，系统提示与工具表与父相同，首个请求直接复用父的缓存前缀（中转实测：Kimi 命中 97.5%，DeepSeek 与父自己的下一回合相同）。类型限制的工具改为在执行层拒绝，不再改工具表。指定了不同的模型或思考级别、父还没发过请求、或父上下文超过可用窗口一半时回落为 `fresh`（记日志，`details.context` 与 `TaskInfo.context` 标实际模式）。轮数用尽的收尾一轮不再发 `toolChoice: "none"`（它会断开缓存前缀），只靠报告提示要求不调用工具。
 - **提示开头在会话内只写一次**：压缩不再把会话中途的 system 补丁折回开头——检查点只重放对话开始前发过的内容，之后的补丁以 `<system-reminder>` 跟在摘要后面，压缩后首个请求的 system + tools 与压缩前逐字节相同。会话中途移除工具时工具表保留其声明、尾部提醒「已不可用」，调用一律以 `Tool "X" is not available in this session.` 拒绝（未知工具也改用这句，原为 `Tool X not found`）；再加回只提醒「又可用」。提醒的收尾句同时说明工具可用性。
@@ -73,7 +73,7 @@
 
 ### 内存占用
 
-大输入与长会话的峰值降下来，ACP 关掉的会话能释放（docs/memory-plan.md；测量报告见 docs/research/memory-2026-10.md，前后实测见 docs/benchmarks/memory-2026-10.md）。按大文件与会话、请求与图片、协议模式、分发与上限分组。会话文件、请求字节与工具输出都不变。
+大输入与长会话的峰值降下来，ACP 关掉的会话能释放（docs/history/memory-plan.md；测量报告见 docs/research/memory-2026-10.md，前后实测见 docs/benchmarks/memory-2026-10.md）。按大文件与会话、请求与图片、协议模式、分发与上限分组。会话文件、请求字节与工具输出都不变。
 
 - **`read` 读大文件不再整文件进内存**：超过 1 MiB 的文本按 64 KiB 块扫描，只解码要显示的行；读 256 MB 文件的 100 行峰值约 103 MB（原来 775 MB）。输出（行号、总行数、截断说明）与之前逐字节相同。
 - **会话列表与恢复不再整读文件**：会话文件按块逐行读取。`ama sessions list`（恢复选择器与 ACP `session/list` 走同一条路径）只解析每个文件的头、首条条目、改名与首条提示——4 个 55 MB 会话：约 540 → 88 MB；`--resume` 逐行解析，不再生成整份字符串与 split 数组——55 MB 会话：约 300 → 218 MB。列表各字段不变。
@@ -115,7 +115,7 @@
   line 模式是纯文本。统计只读，不改请求体与缓存前缀。
 - **上下文一开始就有数**：第一次请求前，`contextTokens` 改为按即将发送的系统提示 + 工具声明估算的基线（只统计，不写会话、不改请求体），
   新会话不再显示 `Ctx 0.0%`。`SessionStats.context`（`getStats()`、RPC `get_session_stats`）标明数字来源（`usage` / `estimate` /
-  `prefix`）并给出自动压缩阈值 `autoCompactAt` / `pruneAt`；字段缺省表示「不知道」（docs/sessions.md）。
+  `prefix`）并给出自动压缩阈值 `autoCompactAt` / `pruneAt`；字段缺省表示「不知道」（docs/guides/sessions.md）。
 - **状态栏**：`full` 显示 `Ctx 3.0% 8.2k/272k auto`（已用量 / 窗口，自动压缩开着时有 `auto`；窄屏先丢 `auto`，再丢 `/窗口`，最后丢已用量）；
   估算值前加 `≈`；黄色从档一裁剪阈值开始；`compact` 占用 < 1% 时保留一位小数。提交消息后立刻刷新 Ctx，流式中按回复带回的 usage 更新
   （每秒至多 2 次）。速率行用 `Σ↑ ↓` 标明是会话累计计费量，缓存读写另列 `R` / `W`。模型没有上下文窗口时提示一次怎么补。
@@ -134,7 +134,7 @@
 ## 0.7.0（2026-10-04）
 
 ACP 补全：`ama --mode acp` 作为编辑器（Zed 等 ACP 客户端）的 Agent，`AcpClient` / `AcpDriver` 作为客户端，仓库内对照官方 ACP v1
-schema 1.24.1 逐条校验。文档：docs/acp.md（英文：docs/en/acp.md）。
+schema 1.24.1 逐条校验。文档：docs/reference/acp.md（英文：docs/en/reference/acp.md）。
 
 - **没有模型不退出**：`ama --mode acp` 没有模型时不再以退出码 4 结束，照常回 `initialize`（客户端声明
   `clientCapabilities.auth.terminal` 时给两条 terminal 型认证方法：按规范其 `args`（`--acp-terminal-auth chatgpt` / `api-key`）
@@ -165,7 +165,7 @@ schema 1.24.1 逐条校验。文档：docs/acp.md（英文：docs/en/acp.md）�
   -32800；不再需要的权限请求由 Agent 撤回，客户端可以关掉对话框。
 - **客户端侧（`task(agent="acp:…")`）**：`AcpClient` 声明 `clientCapabilities.session.configOptions: {}`；Agent 撤回挂起的权限请求时
   审批关掉、答 `cancelled`。`AcpDriver` 在 Agent 没有 `modes` 时退到 category `mode` 的配置项，-32000 报 `agent_auth_required` 并列出
-  Agent 的认证方法（terminal 型附命令），取消后的 -32800 视为 `cancelled`，`diff` 的路径计入 `filesTouched`。文档：docs/agents.md。
+  Agent 的认证方法（terminal 型附命令），取消后的 -32800 视为 `cancelled`，`diff` 的路径计入 `filesTouched`。文档：docs/guides/agents.md。
 - **类型与测试**：ACP 类型补 `authenticate`、`$/cancel_request`、-32800、terminal 型认证方法、客户端 `session` / `auth` 能力、
   tool call 的 `name` / `_meta`、`config_option_update` 与 `ACP_META_KEY`（`@armadra/agent/acp` 导出）；回合 `usage` 注明 UNSTABLE；
   select 配置项的选项须全部平铺或全部分组（假 Agent 的 `model` 项改为分组）。假 ACP Agent 加 `--config-only`、`--auth-required` 与
@@ -180,13 +180,13 @@ schema 1.24.1 逐条校验。文档：docs/acp.md（英文：docs/en/acp.md）�
   声明 `clientCapabilities.elicitation` 并把 `elicitation/create` 交给它（答复收成 `accept` / `decline` / `cancel`；
   `cancel(sessionId)` 或连接关闭时挂起的回 `cancel`）。新增 `setConfigOption(sessionId, configId, value)`，开会话答复带
   `configOptions`。`AcpClient.features` 多 `elicitation` 与 `configOptions`。不给处理器时线路不变。假 ACP Agent 加
-  `[elicit]`、`[model]`、`[env NAME]` 标记与 `--config-options`。文档：docs/acp.md。
+  `[elicit]`、`[model]`、`[env NAME]` 标记与 `--config-options`。文档：docs/reference/acp.md。
 
 ## 0.6.7（2026-10-03）
 
 - **宿主注入的 `ama` runner 生效**：宿主经 `HostApi.runners.provide` 注入 id 为 `ama` 的 runner（如 Armadra 画布上另一个
   ama 节点）时，`task(agent="ama")` 交给它；没注入时行为不变，内置类型（`general` / `explore` / `plan`）始终是 ama 子会话。
-  文档：docs/agents.md。
+  文档：docs/guides/agents.md。
 
 ## 0.6.6（2026-10-03）
 
@@ -195,13 +195,13 @@ schema 1.24.1 逐条校验。文档：docs/acp.md（英文：docs/en/acp.md）�
   指向模型当前真能调用的工具：有 `ls` 说用 ls，否则有 `glob` 说用 glob（例如 `pattern "src/*"`），都没有则说读目录里的文件。`-p`
   下 `minimal` / `coordinator` 预设里 bash 的 `grep` / `rg` / `find` 被拒时，stderr 补一行怎么加回
   （`tools.default: ["+grep","+glob"]`）。工具经可选、只读的 `ToolContext.activeTools` 拿到会话活动集。`default` 前缀因此
-  变化（约 +35 token），升级后首个请求缓存未命中一次。文档：docs/design.md §5.6、docs/codemode.md。
+  变化（约 +35 token），升级后首个请求缓存未命中一次。文档：docs/design/design.md §5.6、docs/guides/codemode.md。
 
 ## 0.6.5（2026-10-03）
 
 - **`AcpClient` 开会话可传 MCP 服务器**：`newSession`、`resumeSession`、`loadSession` 新增可选的第三个参数
   `{ mcpServers }`，原样随 `session/new|resume|load` 发出（缺省仍是 `[]`，不传时线路不变）；宿主用
-  `AcpClient.features.mcpServers` 检测是否支持。ama 自己仍不传。文档：docs/acp.md「作为客户端」。
+  `AcpClient.features.mcpServers` 检测是否支持。ama 自己仍不传。文档：docs/reference/acp.md「作为客户端」。
 
 ## 0.6.4（2026-10-03）
 
@@ -211,12 +211,12 @@ schema 1.24.1 逐条校验。文档：docs/acp.md（英文：docs/en/acp.md）�
   `ui.enterWhileRunning: "queue" | "interrupt"`（缺省 queue，`/config` 可改）互换 Enter 与 `Ctrl+X`。输入框有字时运行提示行显示
   `Enter 排队 · Ctrl+X 打断并发送`。子 Agent 视图同样可用：ama 子 Agent 中止本轮后立即以这条消息开新一轮；外部 Agent 的驱动能中断
   单个回合（ACP、Claude stream-json、Codex）时中断后发送，否则退回排队并提示。line 模式认 `/interrupt <文本>`；RPC `prompt` /
-  `steer` 与 SDK 增 `interrupt: true`。新请求以被打断的那次请求为前缀，缓存照常命中。文档：docs/tui.md、docs/rpc.md。
+  `steer` 与 SDK 增 `interrupt: true`。新请求以被打断的那次请求为前缀，缓存照常命中。文档：docs/guides/tui.md、docs/reference/rpc.md。
 - **状态栏左右分区与配额标签修正**：`full` 布局改为左列「状态 / 开关」、右列「度量与模型」——速率行左区是 `codemode on`（含
   `net!`）· 沙箱 · 预设 · `→ 回退模型` · 排队数 · 宿主状态，右区是 `tps … (avg · ttft) · ↑ ↓ · cache · 重计费 · [-]`；状态栏
   左区仍是权限模式与 `shift+tab` 提示；配额行右对齐。窄屏先丢右区度量、再丢左区开关，权限模式、`tps` 与 `[-]` 不丢；`compact`
   单行的记号顺序不变。配额标签按窗口时长认：周窗口放在 primary 时显示「本周 / Weekly」而不是 `7d:`，5 小时窗口排在前面；
-  服务端用全 0 表示的空窗口不再渲染成 `0d: 0.0%`（解析与显示两层都过滤）。文档：docs/tui.md。
+  服务端用全 0 表示的空窗口不再渲染成 `0d: 0.0%`（解析与显示两层都过滤）。文档：docs/guides/tui.md。
 
 ## 0.6.3（2026-10-03）
 
@@ -225,13 +225,13 @@ schema 1.24.1 逐条校验。文档：docs/acp.md（英文：docs/en/acp.md）�
   `<task-notification>` 回合报告。没有可转的任务时 `Ctrl+B` 仍是光标左移。运行提示行带 `Ctrl+B 转后台`；tmux 里按 `C-b C-b`。
   Agent 栏内 `b` 转后台选中的任务、`x` 连按两次停止；命令 `/tasks bg [id]` 同样可用（line 模式也认）。Esc 只中断前台，提示
   里写明哪些后台任务仍在运行。后台任务的审批在主会话忙或输入框有草稿时不再弹框，停靠在 Agent 栏（「等待审批」，运行提示行
-  `↓ 处理审批`），主会话空闲且输入为空时自动弹出，打开该任务的视图时立即弹出；主会话与前台任务的审批不变。文档：docs/tui.md。
+  `↓ 处理审批`），主会话空闲且输入为空时自动弹出，打开该任务的视图时立即弹出；主会话与前台任务的审批不变。文档：docs/guides/tui.md。
 - **后台子 Agent 的配置、`-p` 与 RPC**：新增 `subagents.background: "auto" | "always" | "never"`（缺省 auto：交互界面 / RPC / ACP
   下 task 缺省后台，`-p` 下前台；调用参数与类型定义的 `background:` 优先）与 `subagents.autoBackgroundAfterMs`（前台任务运行超过
   该毫秒数自动转后台，缺省 0 关闭），两键项目级也认、`/config` 面板可改。`-p` 主回合结束后若还有后台任务在跑，stderr 一行提示并
   等它们结束、跑完通知回合再输出（受 `--max-turns` / `--max-cost` 约束，到限退出 8；Ctrl+C 照常中止），json 结果带 `tasks`。
   RPC 新增 `background_task { taskId? }` → `{ backgrounded }` 与事件 `subagent_background`（共 44 条命令），SDK 为
-  `session.backgroundTask(taskId?)`。文档：docs/agents.md「前台与后台」、docs/rpc.md。
+  `session.backgroundTask(taskId?)`。文档：docs/guides/agents.md「前台与后台」、docs/reference/rpc.md。
 - **Agent 栏重新可达**：空输入时的 `↓` 成为唯一缺省进栏键，本会话有任务即可进栏，栏收起后也行（以前要求栏可见）。`Ctrl+B`
   不再进栏（tmux 缺省前缀会吃掉它），留给「前台任务转后台」，目前仍是光标左移（想要原来的键位写
   `"app.agents.focus": ["down", "ctrl+b"]`）。输入框有字、`ui.agentBar: "off"` 或没有任务时按 `↓` 给一行提示，不再无声落空；
@@ -255,12 +255,12 @@ schema 1.24.1 逐条校验。文档：docs/acp.md（英文：docs/en/acp.md）�
   `5 小时：10.0% | 重置：2h 18m | 本周：31.0% | 本周重置：6d 5h`（来自 `quota_update`，每分钟刷新；窄于 80 列压缩为
   `5h 10% ↻2h18m · 周 31% ↻6d5h`；codex 方式首次请求前显示占位，siwc 无数据与非订阅模型不显示）。`compact` 只在行尾追加短项
   `5h 10% 周 31%`，既有顺序不变。`full` 三行按参考配色（标签暗灰；速率、时长与重置时间紫；模型、思考级别与输出量蓝；目录与分支绿；
-  费用黄；百分比按阈值），分支后显示领先 / 落后上游 `↑N` / `↓N`。文档：docs/tui.md「布局」。
+  费用黄；百分比按阈值），分支后显示领先 / 落后上游 `↑N` / `↓N`。文档：docs/guides/tui.md「布局」。
 - **启动头换成 AMA 字符画与简短的点亮动画**：原来带框的信息块改为 5 行「AMA」字符画（块字符，按字母取主题的 accent → user → tool
   三色；ASCII 模式用 `_ / \ |` 拼的字形），版本、模型、目录、模式与按键提示放在右侧（≥ 72 列）或下方（48–71 列）；窄于 48 列
   退回两行简洁头。启动时播放一次约 1 秒的扫描点亮，原地定格、不在回滚里留帧；按任意键立即定格，按键照常进入输入框。
   `ui.animation: false`、无色、非 TTY、嵌入宿主、`CI`、命令行带提示、终端过矮时不播放。新增 `ui.logo: "auto" | "off"`（off 只显示
-  信息行）。文档：docs/tui.md「启动画面」。
+  信息行）。文档：docs/guides/tui.md「启动画面」。
 
 ## 0.6.2（2026-10-03）
 
@@ -272,7 +272,7 @@ schema 1.24.1 逐条校验。文档：docs/acp.md（英文：docs/en/acp.md）�
   才报 `chatgpt_flavor_mismatch`，文案更清楚。登录先删旧发现缓存再重写（0 个也写空表），缓存 flavor 与当前登录不符视为过期。
   `not_eligible` 改为列出可能原因（套餐、工作空间账户、地区受限或预览期未开放——Pro 账户最可能是这一条）并提示
   `--flavor codex`；siwc 登录成功后说明能否共享额度要到首次请求才能确认。另修复：表外 slug 显式写 `@渠道`
-  （`chatgpt/<slug>@siwc`）时仍用缺省渠道的地址。文档：docs/providers.md「ChatGPT 登录」。
+  （`chatgpt/<slug>@siwc`）时仍用缺省渠道的地址。文档：docs/guides/providers.md「ChatGPT 登录」。
 
 ## 0.6.1（2026-10-03）
 
@@ -283,7 +283,7 @@ schema 1.24.1 逐条校验。文档：docs/acp.md（英文：docs/en/acp.md）�
 disable` 与 `ama models list --enabled` 在命令行编辑和查看。`ama auth login chatgpt` 成功后拉取账户可用的模型（只读、不消耗
   额度）缓存到 `<dataDir>/models/discovered/chatgpt.json`，`ama models discover chatgpt` 重写、logout 删除；注册表把缓存并入模型
   表为空的供应商，ChatGPT 模型因此出现在 `/model` 与 `ama models list` 里。注意：只登录了 ChatGPT、没设 `defaultModel` 时，
-  缺省模型现在可能选中缓存里的第一个 ChatGPT 模型。文档：docs/tui.md、docs/providers.md「ChatGPT 登录」。
+  缺省模型现在可能选中缓存里的第一个 ChatGPT 模型。文档：docs/guides/tui.md、docs/guides/providers.md「ChatGPT 登录」。
 
 - **`ama auth login chatgpt` 授权被拒时说明原因**：OAuth 回调带 `error=access_denied`（或其它 error）时，提示改为列出可能原因
   （在授权页取消或没勾选使用 ChatGPT 套餐额度；账户 / 套餐不符合——额度共享只对 Plus / Pro 开放，Team / Enterprise 工作空间可能
@@ -297,7 +297,7 @@ disable` 与 `ama models list --enabled` 在命令行编辑和查看。`ama auth
 ## 0.6.0（2026-10-03）
 
 第六波：Agent 栏与子 Agent 视图、轨迹、记忆（Memory）、ChatGPT 登录、`/config` 设置面板、中英双语界面。设计依据与决定表见
-docs/wave6-plan.md，各主题的现状文档见下文链接。
+docs/history/wave6-plan.md，各主题的现状文档见下文链接。
 
 ### 破坏性变更与升级注意
 
@@ -329,7 +329,7 @@ docs/wave6-plan.md，各主题的现状文档见下文链接。
 
 ### Agent 栏与子 Agent 视图
 
-- **Agent 栏**（[docs/tui.md](docs/tui.md)「Agent 栏」）：状态行上方列出子 Agent 任务（排队 / 运行中 · 用时 · 轮数 · 最近工具 /
+- **Agent 栏**（[docs/guides/tui.md](docs/guides/tui.md)「Agent 栏」）：状态行上方列出子 Agent 任务（排队 / 运行中 · 用时 · 轮数 · 最近工具 /
   等待审批 / 完成 / 失败 / 已停止），最多 3 行 +「另 N 个」；结束后保留到在视图里看过为止，最多 10 分钟。输入为空时 `Ctrl+B` 或 `↓`
   进入（键位动作 `app.agents.focus`；有字时 `Ctrl+B` 仍是光标左移，tmux 里用 `↓`），↑↓ 选、Enter 打开。嵌入宿主缺省不显示
   （`ui.agentBar: "off"`）。
@@ -341,20 +341,20 @@ docs/wave6-plan.md，各主题的现状文档见下文链接。
 
 - **计时落盘**：每次模型请求记一条 `ama.trace`（首 token 延迟、解码、工具、重试等待、回退、压缩、辅助请求），子会话同样测量首
   token 延迟与速率；只有 id、时间与计数，不含正文。
-- **`/trace`**（[docs/tui.md](docs/tui.md)「轨迹」）：回合 → 请求 → 工具 → 子调用 / 子 Agent，每行耗时、TTFT / 解码 / 工具条形、
+- **`/trace`**（[docs/guides/tui.md](docs/guides/tui.md)「轨迹」）：回合 → 请求 → 工具 → 子调用 / 子 Agent，每行耗时、TTFT / 解码 / 工具条形、
   token 与缓存命中，Enter 看详情，子 Agent 可展开到子会话，长会话尾部先加载、运行中自动跟随；`/trace <任务 id>` 看单个任务；
   line 模式打印文本树。老会话没有计时记录时按条目时间推算并标 `≈`，不改会话文件。
-- **`ama sessions trace <id|文件>`**（[docs/sessions.md](docs/sessions.md)「轨迹」）：导出自包含单文件 HTML（树 + 瀑布图、
+- **`ama sessions trace <id|文件>`**（[docs/guides/sessions.md](docs/guides/sessions.md)「轨迹」）：导出自包含单文件 HTML（树 + 瀑布图、
   TTFT / 解码 / 工具分色、子 Agent 与外部 Agent 嵌套、搜索、按回合跳转、缩放、详情、虚拟列表、深浅色；内联样式与脚本，CSP
   禁外联；数据与正文双重脱敏、数据块转义防注入）。`--json` 输出与 `get_trace` 同形，`--no-content` 只留结构与数字，`--children`
   内嵌子会话预览，`--open` 用浏览器打开，`--now` 固定生成时间（输出逐字节确定）。
-- **RPC `get_trace`**（[docs/rpc.md](docs/rpc.md)「轨迹」）：尾部分页（`turnLimit` / `before`）、按 `since` 增量（配合
+- **RPC `get_trace`**（[docs/reference/rpc.md](docs/reference/rpc.md)「轨迹」）：尾部分页（`turnLimit` / `before`）、按 `since` 增量（配合
   `entry_appended`）、`taskId` 子轨迹、`content: "preview"` 附脱敏预览；RPC 合计 43 条命令。SDK `session.trace()`，纯函数
   `buildTrace()` 与 `Trace` 类型从包入口导出。
 
 ### 记忆（Memory）
 
-- 跨会话记忆（[docs/memory.md](docs/memory.md)），**缺省关闭**：`ama memory enable` / `--memory` / `AMA_MEMORY=1` 开启。条目是
+- 跨会话记忆（[docs/guides/memory.md](docs/guides/memory.md)），**缺省关闭**：`ama memory enable` / `--memory` / `AMA_MEMORY=1` 开启。条目是
   `<数据目录>/memory/{user,projects/<目录名>-<sha8>}/` 下带 frontmatter 的 Markdown，`MEMORY.md` 索引自动重建；项目作用域需项目已受信任；
   关闭时请求体逐字节不变。
 - 新工具 `memory`（`view` / `create` / `str_replace` / `delete`，路径限定 `/memories/<作用域>/`）与权限类 `memory`：default 下写入首次询问、
@@ -366,7 +366,7 @@ docs/wave6-plan.md，各主题的现状文档见下文链接。
 
 ### ChatGPT 登录
 
-- `ama auth login chatgpt` 用自己的 ChatGPT Plus / Pro 订阅驱动 ama（[docs/providers.md](docs/providers.md)「ChatGPT 登录」）。缺省走
+- `ama auth login chatgpt` 用自己的 ChatGPT Plus / Pro 订阅驱动 ama（[docs/guides/providers.md](docs/guides/providers.md)「ChatGPT 登录」）。缺省走
   OpenAI 官方 Sign in with ChatGPT（动态注册、JWKS 验签 id_token）；`--flavor codex` 是显式开启的备用路径（借用 Codex CLI 公开客户端，
   首次确认「非官方、仅个人使用」）。`--paste` 粘贴回调 URL（SSH / 宿主），`--device` 设备码（只 codex）；`ama auth status` /
   `logout chatgpt`；`ama auth list` 显示 `oauth · <flavor> · <计划>`。
@@ -378,7 +378,7 @@ docs/wave6-plan.md，各主题的现状文档见下文链接。
 
 ### `/config` 与 `ama config`
 
-- **`/config` 设置面板**（[docs/tui.md](docs/tui.md)「`/config` 设置面板与 `ama config`」）：分组列出标量设置与生效值、来源（default /
+- **`/config` 设置面板**（[docs/guides/tui.md](docs/guides/tui.md)「`/config` 设置面板与 `ama config`」）：分组列出标量设置与生效值、来源（default /
   user / profile / project / cli / env）和生效档（即时 / 新会话 / 重启），↑↓ Enter / 空格修改、`/` 搜索、Tab 切写入层（项目级只许收紧）、
   被覆盖的项标锁定；改动立即写盘（写前重读、只改一项、留 `.bak`），即时项当场作用于本会话，关闭时汇总。`/config key=value` 直接改一项
   （line 模式也可用）。
@@ -393,9 +393,9 @@ docs/wave6-plan.md，各主题的现状文档见下文链接。
   RPC 人读 `error` 与 ACP 错误 / 审批选项名、`permission_request` 的审批预览、斜杠命令说明与回执、`ama doctor`（新增「界面语言」一行）、
   会话 Markdown 导出、配置键说明与校验诊断、`ama init` 输出都随界面语言；中文输出逐字不变，compact 状态行记号（`ctx`、`cache`、`$`、
   `↑ ↓`）不译，RPC 与 `-p --output-format json` 的 JSON 字段不变。`config.schema.json` 的说明按当前语言写，切换后再跑 `ama init` 重写。
-- **宿主按 `code` 判断**，不要解析人读的 `error` / `message`（[docs/rpc.md](docs/rpc.md)）。
+- **宿主按 `code` 判断**，不要解析人读的 `error` / `message`（[docs/reference/rpc.md](docs/reference/rpc.md)）。
 - **双语文档**：`docs/en/` 新增 `tui`、`permissions`、`providers`、`rpc`、`host-api`、`sessions` 六篇英文版（头部记着对应的中文版提交）；
-  开发约定见 [docs/i18n.md](docs/i18n.md)。
+  开发约定见 [docs/guides/i18n.md](docs/guides/i18n.md)。
 
 ### 其它修复与改进
 
@@ -409,7 +409,7 @@ docs/wave6-plan.md，各主题的现状文档见下文链接。
 
 ### 接口、测试与发布
 
-- 第六波契约（docs/wave6-plan.md §7，全部可选、向后兼容）：`Trace` 类型与 `buildTrace()`、SDK `session.trace()` 与 `memory` 选项、RPC
+- 第六波契约（docs/history/wave6-plan.md §7，全部可选、向后兼容）：`Trace` 类型与 `buildTrace()`、SDK `session.trace()` 与 `memory` 选项、RPC
   `get_trace`（结果可选字段 `task`、`previews`）、事件 `quota_update`、`KeySource` 的 `oauth`、`auth.json` 的 OAuth 条目、配置键
   `ui.language` / `ui.replyLanguage` / `ui.agentBar` / `memory.*` / `auth.chatgpt.*`（已写进 `config.schema.json`）。
 - `pnpm check:i18n` 进 CI 且为严格模式：`src/**` 出现中文行即失败，保留的几处（输入别名、粘贴标记、价格数据的 `_reason`）逐条写明理由；
@@ -417,7 +417,7 @@ docs/wave6-plan.md，各主题的现状文档见下文链接。
 - `release-check` 认双语 CHANGELOG（两份都要有当前版本段），并在中文文档比 `docs/en/` 译本的基准提交多改 5 次以上时提示（不失败）。
 - bundle 级 e2e 新增：`ama auth status` 无条目、`ama sessions trace --html` 确定且无外链、`AMA_LANG=en -p` 请求与 zh 逐字节相同、
   `ama config set / get / unset` 往返、`--memory` 写入后 `ama memory list` 可见。
-- npm 包增带 `docs/memory.md` 与 `docs/en/*.md`。
+- npm 包增带 `docs/guides/memory.md` 与 `docs/en/*.md`。
 
 ### 已知限制
 
@@ -441,7 +441,7 @@ docs/wave6-plan.md，各主题的现状文档见下文链接。
 ## 0.5.0（2026-10-03）
 
 第五波：回滚与检查点、操作系统沙箱、子 Agent、外部 Agent 与 ACP、Plan 模式、压缩与 harness 修订、模型元数据快照与内置渠道、
-图像、状态行与界面集成。设计依据见 docs/wave5-plan.md，各主题的现状文档见下文链接。
+图像、状态行与界面集成。设计依据见 docs/history/wave5-plan.md，各主题的现状文档见下文链接。
 
 ### 破坏性变更与升级注意
 
@@ -465,7 +465,7 @@ docs/wave6-plan.md，各主题的现状文档见下文链接。
 
 ### 回滚与检查点
 
-- **检查点**（docs/rewind-plan.md、docs/sessions.md）：edit / write 第一次写文件前备份，每个新回合重拍已跟踪文件；备份按内容 sha256
+- **检查点**（docs/history/rewind-plan.md、docs/guides/sessions.md）：edit / write 第一次写文件前备份，每个新回合重拍已跟踪文件；备份按内容 sha256
   存 `<数据目录>/file-history/blobs/`。`checkpoints.mode: "shadow-git"` 把工作目录快照进独立的影子仓库，bash 与手动改动也能回滚（尊重
   `.gitignore`，不碰用户仓库；git 不在 PATH、超过 20 000 个文件或快照超过 3 秒时本会话降级为 `tools`）。新配置 `checkpoints.mode`
   （`AMA_CHECKPOINTS`）、`checkpoints.maxFileBytes`、`checkpoints.keep`；`ama sessions prune` 清理未引用备份，`ama doctor` 显示占用。
@@ -480,7 +480,7 @@ docs/wave6-plan.md，各主题的现状文档见下文链接。
 
 ### 操作系统沙箱
 
-- docs/sandbox.md。新模块探测 macOS `sandbox-exec`、Linux bubblewrap（退而 `unshare -r -n`），用目标配置跑最小探针确认可用。
+- docs/guides/sandbox.md。新模块探测 macOS `sandbox-exec`、Linux bubblewrap（退而 `unshare -r -n`），用目标配置跑最小探针确认可用。
 - **codemode** 子进程经沙箱启动，内核拒绝网络（含 DNS）与一切写入：Node 22 / 24 有沙箱时与 Node ≥ 25 一样按只读类处理、
   `default` 预设缺省开启、状态栏不再标 `net!`。新配置 `sandbox.enabled`（`AMA_SANDBOX=off`）。
 - **bash 沙箱**（缺省关闭）：`sandbox.bash: "auto"`、`sandbox.network`、`sandbox.writable`。bash（含后台 bash）只能写工作区、临时目录
@@ -490,7 +490,7 @@ docs/wave6-plan.md，各主题的现状文档见下文链接。
 
 ### 子 Agent
 
-- docs/agents.md「子 Agent」。定义文件 `~/.config/ama/agents/*.md`、`.ama/agents/*.md`（需信任）、`--agent-dir` / profile `agentDirs` /
+- docs/guides/agents.md「子 Agent」。定义文件 `~/.config/ama/agents/*.md`、`.ama/agents/*.md`（需信任）、`--agent-dir` / profile `agentDirs` /
   `agents.dirs`；内置 `general`、`explore`、`plan`（后两者强制只读、不弹审批）。
 - `task` 新增 `agent`、`background`、`taskId`（续聊）、`isolation: "worktree"`、`budgetUsd`；同一回复里的多个 task 并行
   （`subagents.maxConcurrent` / `maxPending`）；结果超过 50 KB 保留头尾、全文落 `outputs/`；轮数用尽以 `toolChoice:"none"` 收尾一轮。
@@ -502,7 +502,7 @@ docs/wave6-plan.md，各主题的现状文档见下文链接。
 
 ### 外部 Agent 与 ACP
 
-- docs/agents.md「外部 Agent」、docs/acp.md。`task(agent="claude" | "codex" | "acp:<程序>")` 经各 CLI 自己的登录运行：Claude Code
+- docs/guides/agents.md「外部 Agent」、docs/reference/acp.md。`task(agent="claude" | "codex" | "acp:<程序>")` 经各 CLI 自己的登录运行：Claude Code
   （stream-json 原生协议）、Codex（`app-server`）、任意 ACP Agent（零依赖客户端）与一次性打印模式（只读兜底）；前台 / 后台通知 /
   `taskId` 续聊（被停止过的以外部会话 id `resume` 重开）/ `task_ctl` 与 ama 子会话一致；PATH 上的 claude / codex 写进 task 描述。
 - **审批只交给人**（宿主 → 界面 → 无人值守拒绝，分类器与模型不参与，提问类请求不代答）；每个会话首次以某个外部 Agent 运行时确认
@@ -519,7 +519,7 @@ docs/wave6-plan.md，各主题的现状文档见下文链接。
 
 ### Plan 模式
 
-- docs/plan.md。plan 下模式说明以 `custom_message{ama.plan_mode}` 追加在尾部（前缀不变），`ama.plan_state` 让 resume 回到 plan。
+- docs/guides/plan.md。plan 下模式说明以 `custom_message{ama.plan_mode}` 追加在尾部（前缀不变），`ama.plan_state` 让 resume 回到 plan。
   模型输出 `<proposed_plan>` 块，ama 提取步骤、落 `ama.plan` 与 `<数据目录>/plans/<会话>-v<N>.md`（`plan.directory`），发 `plan_proposed`。
 - **审批**：交互界面是底部对话框——批准并执行 / 批准后在新上下文执行（新建会话，以计划全文开场）/ 继续修改（框内或外部编辑器写意见）/
   放弃并退出 Plan；批准时选执行模式（回到进入前的模式 / Accept edits / Auto），`e` 在 `$VISUAL` / `$EDITOR` 里改计划，Esc 放弃但留在
@@ -527,7 +527,7 @@ docs/wave6-plan.md，各主题的现状文档见下文链接。
   `/plan`、`/plan approve [模式|fresh]`、`/plan reject`（也接受回复 1 / 2 / 3）；`/plan <目标>` 进入 Plan。
 - 无人值守缺省 `plan.unattended: stop`（落盘后停下，`-p` 退出 9，`json` 带 `planPending`），`approve` 自动批准执行。可选
   `plan.model` / `plan.thinkingLevel` 分模型规划。
-- **权限细化**（docs/permissions.md）：plan 放行只读命令子集（`ls`、`cat`、`rg`、`git log / diff / show` 等，`plan.bash`）与 `task`；
+- **权限细化**（docs/guides/permissions.md）：plan 放行只读命令子集（`ls`、`cat`、`rg`、`git log / diff / show` 等，`plan.bash`）与 `task`；
   `todo set / update` 在 plan 下拒绝；`allowlist` 同步放行同一子集与 `task`，`plan ⊆ allowlist ⊆ default` 不变。模式选择器里 Plan 的
   说明改为「只读调研，只跑只读命令，出计划后审批执行」。
 - RPC `plan_response` / `get_plan` / `get_todos` / `get_tasks` / `get_agents` 与能力 `plans`（`hello.capabilities` 列出；声明后计划审批
@@ -538,7 +538,7 @@ docs/wave6-plan.md，各主题的现状文档见下文链接。
 
 ### 压缩与 harness
 
-- **自动压缩修订**（docs/design.md §9）：档一按工具结果新旧计边界（保留最近 `compaction.prune.keepResults` 个与最近
+- **自动压缩修订**（docs/design/design.md §9）：档一按工具结果新旧计边界（保留最近 `compaction.prune.keepResults` 个与最近
   min(40k, 0.2×预算) token 的工具输出），修好「只有一条用户消息的长任务永不裁剪」；可省不足 `compaction.prune.clearAtLeast`
   不动，动就一次清到 0.5×预算；缓存已冷时提前裁；Skill 文件、AGENTS.md、todo、`keepInContext` 工具与 `compaction.pruneExclude`
   的结果不裁。熔断改为连续 3 次失败或连续 3 次快速回填才停。摘要模板补用户原话、错误与修复、文件与代码三节，压缩后不变小判失败；
@@ -554,23 +554,23 @@ docs/wave6-plan.md，各主题的现状文档见下文链接。
 
 ### 模型元数据与渠道
 
-- **models.dev 快照入库**（docs/providers.md「模型元数据」）：22 家主流厂商的裁剪快照随包携带（内联约 180 KB，MIT 声明见
+- **models.dev 快照入库**（docs/guides/providers.md「模型元数据」）：22 家主流厂商的裁剪快照随包携带（内联约 180 KB，MIT 声明见
   `THIRD_PARTY_NOTICES.md`），**启动与运行都不联网**；`ama models refresh [--provider <id>]` 显式联网刷新到数据目录（晚于快照才叠加）。
   内置目录改为「快照 ⊕ 覆盖」，与快照相同的值由测试报冗余；dashscope、gemini 2.5 / 3.1 pro、openrouter 部分模型补上价格 / 阶梯价；
   模型新增 `family` / `knowledge` / `releaseDate` / `inputLimit` / `status`。每周的 `.github/workflows/models-dev.yml` 刷新快照并开 PR，
   CI 在每个 PR 上校验这个 workflow 并以 fixture 跑刷新脚本的 dry-run。
-- **内置渠道与缺省协议**（docs/providers.md「内置供应商」）：多协议的内置供应商带内置渠道，`provider/model@channel` 直接可选；缺省
+- **内置渠道与缺省协议**（docs/guides/providers.md「内置供应商」）：多协议的内置供应商带内置渠道，`provider/model@channel` 直接可选；缺省
   Messages / Responses 优先、Chat 回落（OpenAI、xAI、火山方舟 Responses；通义、MiniMax、阶跃、腾讯 Messages；DeepSeek、智谱、Kimi 暂
   维持 Chat）。用户 `channels` 同名字段级覆盖、新名追加；改了供应商级 `baseUrl` 时内置渠道作废、按单渠道回落。新增内置供应商
   MiniMax、阶跃、火山方舟、腾讯 TokenHub（共 17 家）；Coding Plan 类订阅端点只给配置示例。
 - Anthropic 兼容端点按主机推断 compat（交错思考 beta 头只发给官方端点与中转上的 Claude 模型，DeepSeek 不再打 `cache_control`），
   新开关 `sendInterleavedThinkingBeta`、`sendCacheControl`；缓存能力按主机（xAI、Mistral、Kimi 官方端点发 `prompt_cache_key`，
   腾讯 TokenHub 另支持 1h 保留）。价格核对：OpenRouter 的 kimi-k3、glm-5.3 改用现价。
-- `scripts/channel-probe.mjs`：渠道实测门（每模型 ≤ 8 请求），中转上五家对比见 docs/providers.md「渠道实测」。
+- `scripts/channel-probe.mjs`：渠道实测门（每模型 ≤ 8 请求），中转上五家对比见 docs/guides/providers.md「渠道实测」。
 
 ### 图像
 
-- docs/providers.md「图像输入」。单图上限按 base64 后计算并按端点分档（官方 Anthropic 10 MB、Gemini / OpenAI 20 MB、中转与未知 5 MB），
+- docs/guides/providers.md「图像输入」。单图上限按 base64 后计算并按端点分档（官方 Anthropic 10 MB、Gemini / OpenAI 20 MB、中转与未知 5 MB），
   任一边超 8000 px 拒绝；超限时按 `images.resize`（缺省 `auto`）用 `sips` / ImageMagick 缩放（`--image`、`@图片`、粘贴的图片都适用）。
   请求图片总量超预算（Anthropic 32 MB、其它 20 MB）时把最旧的图换成占位文本（`context_edit{reason:"image_budget"}`），提示一次。
 - 剪贴板图片：`Ctrl+V` / `/paste` 存进 `<数据目录>/clipboard/` 并插入 `@<路径>`（新键位动作 `app.paste.image`）；
@@ -578,7 +578,7 @@ docs/wave6-plan.md，各主题的现状文档见下文链接。
 
 ### 状态行与界面
 
-- **底部信息行**（docs/tui.md「状态栏」）：独立终端缺省两行——上方速率行 `tps: 100 tok/s • 546 tok / 5.5s (avg 100 · ttft 1.4s)`
+- **底部信息行**（docs/guides/tui.md「状态栏」）：独立终端缺省两行——上方速率行 `tps: 100 tok/s • 546 tok / 5.5s (avg 100 · ttft 1.4s)`
   与用量项，下方 `模式 | 模型 思考 | Ctx 3.0% | 目录 ⎇ 分支 短提交 (+a,-d) | $费用 | 会话时长`（git 直接读 `.git/HEAD`，增删行在
   回合边界后台跑 `git diff --numstat`，≥ 10 s 一次、2 s 超时即停用，`AMA_STATUS_GIT=0` 关闭）。嵌入宿主缺省一行
   （`ui.statusLine: "compact"`）。`Ctrl+G` 或 `/statusline [full|compact]` 本会话内切换。费用计入外部 Agent 的美元用量。RPC 新增
@@ -588,11 +588,11 @@ docs/wave6-plan.md，各主题的现状文档见下文链接。
 
 ### 接口、测试与发布
 
-- 第五波契约（docs/wave5-plan.md §9–§10，全部可选、向后兼容）：会话扩展点 `SessionExtension`（`cli/compose-extensions.ts` 组装表）；
+- 第五波契约（docs/history/wave5-plan.md §9–§10，全部可选、向后兼容）：会话扩展点 `SessionExtension`（`cli/compose-extensions.ts` 组装表）；
   RPC 命令表 42 条；`HostApi.runners` 可选面；子路径 `@armadra/agent/acp`；第五波配置键的校验、说明与 JSON Schema。
 - bundle 级 e2e 新增 ACP（ama 经 `task(agent="acp:ama")` 驱动另一个 ama）、Plan（`-p` 退出 9 与 `unattended: approve`）、子 Agent
   （前台与后台通知）、回滚（RPC 与跨进程）。
-- npm 包增带 `docs/plan.md`、`docs/agents.md`、`docs/acp.md`、`docs/rewind-plan.md`、`docs/tui-design.md`；README 里其余设计文档改用
+- npm 包增带 `docs/guides/plan.md`、`docs/guides/agents.md`、`docs/reference/acp.md`、`docs/history/rewind-plan.md`、`docs/design/tui-design.md`；README 里其余设计文档改用
   GitHub 链接。
 - `scripts/bench-presets.mjs` 新增三个多步长任务（`--tasks long`）；对照组名 `default+todo` 改为显式 `tools.default: ["+todo"]`
   （原来是 `default` 的别名），`default-todo` 不变。
@@ -615,7 +615,7 @@ docs/wave6-plan.md，各主题的现状文档见下文链接。
 
 ## 0.4.0（2026-10-02）
 
-- **终端界面重做**（视觉规格见 docs/tui-design.md）：带框启动头（模型 / 目录 / 模式 / 已加载资源，窄屏去框）；
+- **终端界面重做**（视觉规格见 docs/design/tui-design.md）：带框启动头（模型 / 目录 / 模式 / 已加载资源，窄屏去框）；
   工具调用改 `⏺ 工具名 摘要` + `⎿ 一行结果摘要` + 缩进正文三级层级，相邻调用不空行，运行中摘要行带 spinner 与秒数，
   diff 带行号；思考块 `✻ 思考 · N token`，`Ctrl+O` 同时展开思考；运行中动词（思考中 / 回复中 · ↓≈N / 运行 bash /
   等待确认 / 重试 / 压缩上下文）；输入框 `›` 提示符与占位；状态栏两区（左模式 + `shift+tab 切换`，右用量，
@@ -653,7 +653,7 @@ docs/wave6-plan.md，各主题的现状文档见下文链接。
   网络命令、删除类命令、机密文件与项目外写入一律询问；静态判定放行只读工具、项目内写入与安全名单里的命令
   （`ls`、`grep`、`git status/diff/log`、`npm test`、`tsc --noEmit`、`cargo test` 等，`permission.autoSafeCommands` 追加）；
   其余交给一次独立的模型分类器（`permission.autoModel`，不影响主会话缓存，用量记 `permission_classify`）。
-  事件带 `autoDecision`，`/permissions` 显示最近判定。见 docs/permissions.md。
+  事件带 `autoDecision`，`/permissions` 显示最近判定。见 docs/guides/permissions.md。
 - **allowlist 模式**：只放行只读工具与 allow 规则命中的调用，其余直接拒绝、从不询问，适合 CI。
 - **模式选择器**：`/permission` 打开 Mode 列表（显示名 + 说明、数字 1–6、当前打勾、Default / Recommended），
   `Shift+Tab` 循环 Manual → Accept edits → Plan → Auto → Bypass permissions，状态栏显示显示名。
@@ -691,7 +691,7 @@ docs/wave6-plan.md，各主题的现状文档见下文链接。
 - **会话检索与导出**：`ama sessions search <关键词|/正则/>`（`--role`、`--since`、`--limit`，TTY 高亮）；
   `ama sessions export <id> --format md|json|jsonl [--branch leaf|all] [--output]`，导出前脱敏 key / token。
 - **复用**：`ama sessions show` 列出用户消息编号；`--from <id>[#编号]` 用那条消息作新提示（`-p` 时连图片），
-  可配合 `--model` 换模型重问。见 docs/sessions.md。
+  可配合 `--model` 换模型重问。见 docs/guides/sessions.md。
 - **发布**：release job 优先用 npm 可信发布（OIDC，npm ≥ 11.5.1），`NPM_TOKEN` 只作回退；需要在 npmjs.com
   为 `@armadra/agent` 添加 Trusted Publisher（Owlbay / armadra-agent / ci.yml）。
 

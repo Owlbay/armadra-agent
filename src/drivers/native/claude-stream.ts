@@ -1,5 +1,5 @@
 /**
- * Claude Code 原生驱动：stream-json 长驻进程（docs/wave5-plan.md §5.1，R2 §1.2）。[W5-E]
+ * Claude Code 原生驱动：stream-json 长驻进程（docs/history/wave5-plan.md §5.1，R2 §1.2）。[W5-E]
  *
  * `claude -p --input-format stream-json --output-format stream-json --verbose
  *  --include-partial-messages --permission-prompt-tool stdio --permission-mode <m> --session-id <uuid>`

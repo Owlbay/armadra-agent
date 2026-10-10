@@ -5,7 +5,7 @@
  * - 时间：`--since` / `--until` 接受 `7d`（含今天的最近 7 天）、`today`、`YYYY-MM-DD`（本地日期，含当天）。
  * - 分组：`--by day|week|month|provider|channel|model|project`。
  * - 缓存：`<数据目录>/stats-index.json`，按文件 mtime / size 失效；`--no-cache` 不读也不写。
- * - 口径见 session/stats-aggregate.ts 与 docs/sessions.md「统计」。
+ * - 口径见 session/stats-aggregate.ts 与 docs/guides/sessions.md「统计」。
  */
 
 import { join, resolve } from "node:path";

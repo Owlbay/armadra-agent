@@ -1,11 +1,11 @@
 # Session stats, search, reuse, export and checkpoints
 
-English · [简体中文](../sessions.md)
+English · [简体中文](../../guides/sessions.md)
 
-> Translated from the Chinese [docs/sessions.md](../sessions.md) as of commit `e57b54f`. When the two differ, the Chinese
+> Translated from the Chinese [docs/guides/sessions.md](../../guides/sessions.md) as of commit `e57b54f`. When the two differ, the Chinese
 > version is authoritative. Sample command output below is illustrative; exact wording follows the interface language.
 
-These commands only read the session directory (`<data dir>/sessions`, changeable with `--session-dir`; the file format is in [session-format.md](../session-format.md), Chinese): no locks, no repair of half-written lines, no file changes, so sessions that are still running can be read too. Session files are read line by line in chunks rather than loaded whole: `ama sessions list` parses only each file's header, first entry, renames and first prompt and looks at just the type of every other line, so sessions of tens of MB do not make memory grow with file size; `--resume` likewise parses a session line by line. By default the scope is the sessions of the **current directory**; `--all` covers everything.
+These commands only read the session directory (`<data dir>/sessions`, changeable with `--session-dir`; the file format is in [session-format.md](../../reference/session-format.md), Chinese): no locks, no repair of half-written lines, no file changes, so sessions that are still running can be read too. Session files are read line by line in chunks rather than loaded whole: `ama sessions list` parses only each file's header, first entry, renames and first prompt and looks at just the type of every other line, so sessions of tens of MB do not make memory grow with file size; `--resume` likewise parses a session line by line. By default the scope is the sessions of the **current directory**; `--all` covers everything.
 
 ## Stats: `ama stats`
 
@@ -171,7 +171,7 @@ running sessions can be exported too.
   embedded. External agents only have skeletons anyway.
 - Previews are truncated per item (arguments 500, others 2000 characters) with a 4 M-character budget for the whole file; past
   the budget, earlier previews are dropped and the details say so.
-- `--json` (or `--format json`): JSON in the same shape as RPC `get_trace` ([rpc.md](rpc.md) "Traces"), with every turn, the
+- `--json` (or `--format json`): JSON in the same shape as RPC `get_trace` ([rpc.md](../reference/rpc.md) "Traces"), with every turn, the
   loaded child-session traces and `previews` for this session's nodes (none with `--no-content`).
 - Output: `--html <file>` (taken as the value only when the name ends in `.html` / `.htm`; otherwise use `--output`) or
   `--output <file>` writes a file (mode 0600), otherwise stdout. `--open` opens the written file in the system browser (a
@@ -182,7 +182,7 @@ running sessions can be exported too.
 
 ## Checkpoints and file backups
 
-Rolling back code (`/rewind`, design in [rewind-plan.md](../rewind-plan.md), Chinese) relies on checkpoints: at the start of each new turn, ama records the contents of the files changed by edit / write at that moment.
+Rolling back code (`/rewind`, design in [rewind-plan.md](../../history/rewind-plan.md), Chinese) relies on checkpoints: at the start of each new turn, ama records the contents of the files changed by edit / write at that moment.
 
 - **Storage**: backups are stored by content sha256 at `<data dir>/file-history/blobs/<first 2 chars>/<sha256>`, raw bytes, uncompressed; shared across sessions and checkpoints, so identical content is stored once. Session files only hold two kinds of `custom` entries, `ama.checkpoint` / `ama.checkpoint-track` (hashes only, never in the context). When the session directory is not in the default location (`--session-dir`, the host profile's `sessionDir`), the directory is registered in `file-history/roots.json` and scanned during cleanup as well.
 - **What is tracked**: edit / write (including codemode inner calls and task sub-sessions) back up a file before writing it the first time; afterwards each new turn re-snapshots the tracked files from the current disk contents, so bash or manual changes to those files also enter the next checkpoint. Other files created or changed by bash are not tracked.
@@ -211,7 +211,7 @@ Rolling back code (`/rewind`, design in [rewind-plan.md](../rewind-plan.md), Chi
 
 ## Rewind (within a session)
 
-`/rewind`, RPC `rewind` and SDK `session.rewind()` return to before a user message (design in [rewind-plan.md](../rewind-plan.md), Chinese):
+`/rewind`, RPC `rewind` and SDK `session.rewind()` return to before a user message (design in [rewind-plan.md](../../history/rewind-plan.md), Chinese):
 
 - Rewind points are the user messages on the active path that start new turns, oldest first; steers, queued messages and messages continued by the Stop hook belong to the current turn and are not listed separately. Rewinding while running reports `busy`.
 - Conversation rewind reuses the `/tree` leaf switch: the abandoned branch stays in the file and can be revisited from `/tree`; the model, thinking level and permission mode stay as they are and do not change with the rewind. The system prompt, tool table and messages before the target of the next request are byte-identical to before the rewind, so the prompt cache hits as usual.

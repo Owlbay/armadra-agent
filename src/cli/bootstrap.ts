@@ -467,7 +467,7 @@ export async function runCli(
     runtime = await bootstrap(args, deps, io);
   } catch (error) {
     try {
-      // [ACP-A] --mode acp 没有可用模型：认证门照常握手，会话方法重试 bootstrap（docs/acp-plan.md §2.2）
+      // [ACP-A] --mode acp 没有可用模型：认证门照常握手，会话方法重试 bootstrap（docs/history/acp-plan.md §2.2）
       if (acp && error instanceof StartupError && error.exitCode === ExitCode.NoModel)
         return await (
           await import("../modes/acp/acp-auth-gate.js")

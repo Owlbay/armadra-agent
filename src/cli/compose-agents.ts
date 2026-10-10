@@ -1,5 +1,5 @@
 /**
- * 子 Agent 的组装（docs/wave5-plan.md §7.1、§7.4，D22–D24）。[W5-G]
+ * 子 Agent 的组装（docs/history/wave5-plan.md §7.1、§7.4，D22–D24）。[W5-G]
  *
  * 由 compose-extensions.ts 的一行接入：每次装配会话时发现定义文件（`--agent-dir` / profile
  * `agentDirs` → config `agents.dirs` → 用户级 → 项目级（需信任）），建类型目录并绑到 task 工具

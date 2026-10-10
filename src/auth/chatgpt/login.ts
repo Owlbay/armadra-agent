@@ -1,5 +1,5 @@
 /**
- * ChatGPT 登录 / 登出编排（docs/wave6-plan.md §4.1–§4.3、D13–D16）。[W6-O]
+ * ChatGPT 登录 / 登出编排（docs/history/wave6-plan.md §4.1–§4.3、D13–D16）。[W6-O]
  *
  * 登录：预设 → 授权码（browser / paste / device）→ 换 token（表单编码；SIWC 带 `resource`，client id 用
  * 回调带回的签发 id）→ 校验（SIWC：JWKS 验签 iss / aud / nonce / exp + 授予 scope 含

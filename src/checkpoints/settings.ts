@@ -1,5 +1,5 @@
 /**
- * 检查点配置解析（docs/rewind-plan.md §5）。[RW-A]
+ * 检查点配置解析（docs/history/rewind-plan.md §5）。[RW-A]
  *
  * `AMA_CHECKPOINTS`（tools | shadow-git | off）> config `checkpoints.mode` > 缺省 tools；
  * 无效的环境变量值 warn 后忽略。`maxFileBytes` / `keep` 取配置，缺省 5 MiB / 100。

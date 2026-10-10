@@ -1,7 +1,7 @@
 # Agent：子 Agent 与外部 Agent
 
 模型只认识两个工具：`task`（委派）与 `task_ctl`（管理后台任务）。`task(agent=…)` 的 `agent` 既可以是 ama 自己的子 Agent
-类型，也可以是外部 CLI Agent（外部部分见下文「外部 Agent」节）。设计依据：[wave5-plan.md](wave5-plan.md) §7、D13、D22–D24。
+类型，也可以是外部 CLI Agent（外部部分见下文「外部 Agent」节）。设计依据：[wave5-plan.md](../history/wave5-plan.md) §7、D13、D22–D24。
 
 ## 子 Agent
 
@@ -92,7 +92,7 @@ ama 再跑一轮、在消息里要求「不要调用工具、直接给最终报�
 `<task-notification>`：
 
 - 交互界面：`Ctrl+B` / `/tasks bg [id]` / Agent 栏里按 `b`（见 [tui.md](tui.md)「子 Agent」）；
-- RPC：`background_task { taskId? }`（[rpc.md](rpc.md)），SDK：`session.backgroundTask(taskId?)`，返回实际转了的 `taskId`；
+- RPC：`background_task { taskId? }`（[rpc.md](../reference/rpc.md)），SDK：`session.backgroundTask(taskId?)`，返回实际转了的 `taskId`；
   不给 `taskId` 时转全部前台运行中任务，正在 `task_ctl wait` 的等待也一并打断；
 - 自动：`subagents.autoBackgroundAfterMs` 大于 0 时，前台任务运行超过该毫秒数自动转后台（缺省 0 关闭）。
 
@@ -133,7 +133,7 @@ ama 再跑一轮、在消息里要求「不要调用工具、直接给最终报�
 每个任务有会话内唯一的 `taskId`（`t1`、`t2` …）。子会话结束后不立即释放，最多保留 4 个（`subagents.retainSessions`；
 最久未用的先释放内存，JSONL 一直在）。`task{taskId}` / `task_ctl send` 续聊时，保留中的直接追加消息，已释放的按会话文件重新打开再追加——
 同一个任务始终写同一个 JSONL。父会话在任务开始、每次续聊与结束时写一条 `custom{ama.task}`
-（[session-format.md](session-format.md)）；`--resume` 时据此重建任务列表，当时还在运行的标 `interrupted`，仍可续聊。
+（[session-format.md](../reference/session-format.md)）；`--resume` 时据此重建任务列表，当时还在运行的标 `interrupted`，仍可续聊。
 内存会话（`--no-session`）的任务被释放后不能续聊。子会话转录常达数十 MB，保留得越多常驻内存越大；频繁轮换续聊
 5 个以上任务时可调大保留数，代价只是被释放的任务续聊时多一次从磁盘重开。
 
@@ -159,7 +159,7 @@ worktree 里与父 cwd 对应的目录。结束时没有改动（工作区干净
 - 类型声明了 `tools` / `disallowed-tools`（或参数给了 `tools`）时，工具表不变，不可用的工具在执行层拒绝
   （`Tool "X" is not available in this session.`），并在 `<task>` 里列出。只读类型照旧走只读管线。
 - `<task>` 同时列出按深度拒绝的 `task` / `task_ctl` 并要求不要调用它们（执行层仍是深度拒绝的文案）。实测仍有模型把父消息里
-  「调用 task」的指令当成自己的：调一次被拒，多一轮请求，有时随后只回报失败、不做子任务（见 [benchmarks](benchmarks/efficiency-2026-10.md)「F2」）。
+  「调用 task」的指令当成自己的：调一次被拒，多一轮请求，有时随后只回报失败、不做子任务（见 [benchmarks](../benchmarks/efficiency-2026-10.md)「F2」）。
 - `isolation: "worktree"` 时子会话的 cwd 是 worktree，`<task>` 里说明上文的相对路径指父目录；cwd 节变化以尾部补丁发送，
   不影响已缓存的前缀。
 
@@ -171,12 +171,12 @@ worktree 里与父 cwd 对应的目录。结束时没有改动（工作区干净
 何时用 fork：子任务需要你已经读过、讨论过的内容时。fork 的首个请求把父上下文整段带上，按命中价计费；fresh 只发系统提示、
 工具表与任务说明，但你得在 `prompt` 里写清全部背景，子 Agent 往往还要重新读文件。
 
-| 供应商（命中价 / 未命中价）     | 8k 父上下文 fork 一次（实测，见 [benchmarks](benchmarks/efficiency-2026-10.md)「F」） | 适合                         |
-| ------------------------------- | ------------------------------------------------------------------------------------- | ---------------------------- |
-| DeepSeek（约 1/50）             | 命中 77%，与父自己的下一回合相同；折合约 1.9k 全价 token                              | 需要父上下文时几乎总划算     |
-| Kimi（约 1/4–1/10）             | 命中 97.5%                                                                            | 需要父上下文、且要重读较多时 |
-| OpenAI 系（经中转，不发路由键） | 两次分别 0% 与 85%，取决于中转把请求路由到哪个上游                                    | 视中转而定                   |
-| Anthropic（1/10，写入 1.25×）   | 未实测；前缀相同，命中应与父的下一回合相同                                            | 需要父上下文时               |
+| 供应商（命中价 / 未命中价）     | 8k 父上下文 fork 一次（实测，见 [benchmarks](../benchmarks/efficiency-2026-10.md)「F」） | 适合                         |
+| ------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------- |
+| DeepSeek（约 1/50）             | 命中 77%，与父自己的下一回合相同；折合约 1.9k 全价 token                                 | 需要父上下文时几乎总划算     |
+| Kimi（约 1/4–1/10）             | 命中 97.5%                                                                               | 需要父上下文、且要重读较多时 |
+| OpenAI 系（经中转，不发路由键） | 两次分别 0% 与 85%，取决于中转把请求路由到哪个上游                                       | 视中转而定                   |
+| Anthropic（1/10，写入 1.25×）   | 未实测；前缀相同，命中应与父的下一回合相同                                               | 需要父上下文时               |
 
 fork 的成本不止首请求：子会话**每一回合**都重读整段父前缀。按命中价折算，8k 父上下文 × 30 回合在 DeepSeek（1/50）上约
 4.8k 全价 token，在 Kimi / Anthropic（1/4–1/10）上约 24k–60k，中转落空时全价。所以 DeepSeek 上子任务只要重读 ≥ 1 份
@@ -189,7 +189,7 @@ fork 的成本不止首请求：子会话**每一回合**都重读整段父前�
 
 ### 事件与统计
 
-RPC / SDK 事件 `subagent_start` / `subagent_update` / `subagent_background` / `subagent_end` 见 [rpc.md](rpc.md)「子 Agent 事件」。
+RPC / SDK 事件 `subagent_start` / `subagent_update` / `subagent_background` / `subagent_end` 见 [rpc.md](../reference/rpc.md)「子 Agent 事件」。
 `getStats().tasks` 给出任务总数、运行中数量与按状态的计数；子会话的缓存命中与重计费仍汇总在 `cache.subagents`。
 RPC `get_tasks` / `get_agents` 返回任务快照与可用类型（来源、定义文件路径）。交互界面的 `/tasks`、`/agents` 与 task 工具行的折叠显示见 [tui.md](tui.md)「子 Agent」。
 
@@ -245,7 +245,7 @@ ama 改为直接驱动 `pi --mode rpc`，并以 `-e` 给这一次运行加载一
 
 每条路径在临时目录各跑两个会话：非 git 目录里两轮「只回 OK」+ 一次触发审批的写文件（`default` 模式）；git 目录里长输出时中断，再续一轮。
 模型用各家最便宜的：Claude `haiku`、Codex `gpt-6-luna`、Copilot `gpt-5-mini`、OpenCode `opencode/mimo-v2.6-flash-free`、pi `openai-codex/gpt-6-luna`。
-记录与原始数字见 [benchmarks/external-agents-2026-10.md](benchmarks/external-agents-2026-10.md)。
+记录与原始数字见 [benchmarks/external-agents-2026-10.md](../benchmarks/external-agents-2026-10.md)。
 
 | 路径                       | 两轮续聊 | 审批写文件                                        | 中断后续聊    | 用量 / 上下文                     | 非 git 目录    |
 | -------------------------- | -------- | ------------------------------------------------- | ------------- | --------------------------------- | -------------- |
@@ -313,7 +313,7 @@ ama 改为直接驱动 `pi --mode rpc`，并以 `-e` 给这一次运行加载一
 | `full-auto` | `auto`（从不给 `bypassPermissions`） | `never` / `workspace-write`（从不给 `danger-full-access`） | 同上                                                     |
 
 上表 ACP 一列是缺省规则；模式 id 与 ama 不同名的 Agent 在驱动表里有显式映射（见上文「实测能力矩阵」后的说明）。
-ACP Agent 不给 `modes`、改用 category `mode` 的配置项表达模式时，按上表同一映射在配置项的可选值里找，经 `session/set_config_option` 设置（见 [acp.md](acp.md)「作为客户端」）。
+ACP Agent 不给 `modes`、改用 category `mode` 的配置项表达模式时，按上表同一映射在配置项的可选值里找，经 `session/set_config_option` 设置（见 [acp.md](../reference/acp.md)「作为客户端」）。
 
 一次性打印模式不能审批，只在只读任务下用。
 

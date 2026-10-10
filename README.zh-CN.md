@@ -93,13 +93,13 @@ ama -p "列出 TODO" --output-format json
 | `/config`                 | 设置面板                                               |
 | 连按两次 Ctrl+C           | 退出（恢复命令留在终端回滚区）                         |
 
-`/help` 列出全部命令。按键可在 `~/.config/ama/keybindings.json` 里改，见 [docs/tui.md](docs/tui.md#按键)。
+`/help` 列出全部命令。按键可在 `~/.config/ama/keybindings.json` 里改，见 [docs/guides/tui.md](docs/guides/tui.md#按键)。
 
 ## 核心能力
 
 ### 模型与供应商
 
-四条协议线（Anthropic Messages、OpenAI Responses、OpenAI Chat Completions、Google Generative AI），18 家内置供应商：Anthropic、OpenAI、Google、DeepSeek、Moonshot（Kimi）、智谱、通义千问（DashScope）、OpenRouter、Groq、xAI、Mistral、MiniMax、阶跃星辰、火山方舟、腾讯、ChatGPT（订阅登录）、Ollama、LM Studio。一家供应商可以挂多个渠道，优先 Messages / Responses，Chat 兜底；`provider/model@channel` 显式指定渠道。中转站用 `ama providers add` 接入：列模型、探测渠道、写回配置。上下文窗口、输出上限、图像输入、推理与价格来自内置的 models.dev 快照，启动不联网（`ama models refresh` 按需更新）。`models.enabled`（`ama models enable|disable`，或在 `/model` 里按 Space）让选择器只列常用模型。见 [docs/providers.md](docs/providers.md) 与 [ChatGPT 登录](docs/providers.md#chatgpt-登录)。
+四条协议线（Anthropic Messages、OpenAI Responses、OpenAI Chat Completions、Google Generative AI），18 家内置供应商：Anthropic、OpenAI、Google、DeepSeek、Moonshot（Kimi）、智谱、通义千问（DashScope）、OpenRouter、Groq、xAI、Mistral、MiniMax、阶跃星辰、火山方舟、腾讯、ChatGPT（订阅登录）、Ollama、LM Studio。一家供应商可以挂多个渠道，优先 Messages / Responses，Chat 兜底；`provider/model@channel` 显式指定渠道。中转站用 `ama providers add` 接入：列模型、探测渠道、写回配置。上下文窗口、输出上限、图像输入、推理与价格来自内置的 models.dev 快照，启动不联网（`ama models refresh` 按需更新）。`models.enabled`（`ama models enable|disable`，或在 `/model` 里按 Space）让选择器只列常用模型。见 [docs/guides/providers.md](docs/guides/providers.md) 与 [ChatGPT 登录](docs/guides/providers.md#chatgpt-登录)。
 
 ### 权限与沙箱
 
@@ -112,35 +112,35 @@ ama -p "列出 TODO" --output-format json
 | `full-auto` | Bypass permissions | 放行          | 放行（危险命令仍询问）   |
 | `allowlist` | Allowlist only     | 按 allow 规则 | 按 allow 规则（适合 CI） |
 
-¹ 凭据文件、`.git/`、`.ama/` 与项目外路径仍询问。`auto` 分三档判断：规则档、静态安全名单、最后由模型分类器单独发一次请求判断。allow / deny 规则（`bash(git push*)`、`write(src/**)`）、能看穿 `sh -c` / `eval` / `xargs` 的危险命令识别、项目信任在所有模式下都生效；项目级配置只能收紧。macOS（`sandbox-exec`）与 Linux（bubblewrap）上用 OS 沙箱隔离 codemode，bash 可选（`sandbox.bash: "auto"`）。见 [docs/permissions.md](docs/permissions.md) 与 [docs/sandbox.md](docs/sandbox.md)。
+¹ 凭据文件、`.git/`、`.ama/` 与项目外路径仍询问。`auto` 分三档判断：规则档、静态安全名单、最后由模型分类器单独发一次请求判断。allow / deny 规则（`bash(git push*)`、`write(src/**)`）、能看穿 `sh -c` / `eval` / `xargs` 的危险命令识别、项目信任在所有模式下都生效；项目级配置只能收紧。macOS（`sandbox-exec`）与 Linux（bubblewrap）上用 OS 沙箱隔离 codemode，bash 可选（`sandbox.bash: "auto"`）。见 [docs/guides/permissions.md](docs/guides/permissions.md) 与 [docs/guides/sandbox.md](docs/guides/sandbox.md)。
 
 ### 子 Agent 与外部 Agent
 
-`task` 工具把子任务交给一个全新上下文的子 Agent：内置 `general`、`explore`、`plan`，也可以在 `~/.config/ama/agents/*.md`、`.ama/agents/*.md`（需信任项目）或 `--agent-dir` 里定义自己的类型。`default` 预设下 `task` 在 codemode 脚本里可调用，`tools.default: ["+task"]` 直接暴露。终端界面、RPC 与 ACP 下任务缺省在后台运行，完成后发通知；`-p` 会等它结束。运行中的任务列在状态行上方的 Agent 栏里，可以打开实时视图直接和子 Agent 对话。`task(agent="claude" | "codex" | "acp:<程序>")` 用你在该 CLI 里已有的登录驱动外部 Agent，审批只交给人，模式不会比 ama 当前的宽。`ama --mode acp` 把 ama 自己作为 ACP Agent 提供出去。见 [docs/agents.md](docs/agents.md) 与 [docs/tui.md](docs/tui.md#agent-栏)。
+`task` 工具把子任务交给一个全新上下文的子 Agent：内置 `general`、`explore`、`plan`，也可以在 `~/.config/ama/agents/*.md`、`.ama/agents/*.md`（需信任项目）或 `--agent-dir` 里定义自己的类型。`default` 预设下 `task` 在 codemode 脚本里可调用，`tools.default: ["+task"]` 直接暴露。终端界面、RPC 与 ACP 下任务缺省在后台运行，完成后发通知；`-p` 会等它结束。运行中的任务列在状态行上方的 Agent 栏里，可以打开实时视图直接和子 Agent 对话。`task(agent="claude" | "codex" | "acp:<程序>")` 用你在该 CLI 里已有的登录驱动外部 Agent，审批只交给人，模式不会比 ama 当前的宽。`ama --mode acp` 把 ama 自己作为 ACP Agent 提供出去。见 [docs/guides/agents.md](docs/guides/agents.md) 与 [docs/guides/tui.md](docs/guides/tui.md#agent-栏)。
 
 ### Plan 模式
 
-Plan 模式（`Shift+Tab`、`/plan <目标>`、`--permission-mode plan`）下模型只读调研，最后给出计划。ama 把计划落盘并弹出审批框：批准执行（可选在全新上下文里执行，并选择执行模式）、继续修改或放弃。步骤会变成 todo 逐条推进。无人值守的 `-p` 不会代为批准，以退出码 9 停下；`plan.model` 可以让规划和执行用不同模型。见 [docs/plan.md](docs/plan.md)。
+Plan 模式（`Shift+Tab`、`/plan <目标>`、`--permission-mode plan`）下模型只读调研，最后给出计划。ama 把计划落盘并弹出审批框：批准执行（可选在全新上下文里执行，并选择执行模式）、继续修改或放弃。步骤会变成 todo 逐条推进。无人值守的 `-p` 不会代为批准，以退出码 9 停下；`plan.model` 可以让规划和执行用不同模型。见 [docs/guides/plan.md](docs/guides/plan.md)。
 
 ### 回滚与检查点
 
-每个回合是一个检查点：文件在第一次被写之前先备份；`checkpoints.mode: "shadow-git"` 把整个工作目录快照进影子仓库，bash 的改动也能撤回。双击 Esc（或 `/rewind`）回到任意一条消息之前，可恢复代码、对话或两者，也可以从该处开始摘要。手动改过的文件列为冲突，缺省跳过。见 [docs/tui.md](docs/tui.md#回滚) 与 [docs/sessions.md](docs/sessions.md)。
+每个回合是一个检查点：文件在第一次被写之前先备份；`checkpoints.mode: "shadow-git"` 把整个工作目录快照进影子仓库，bash 的改动也能撤回。双击 Esc（或 `/rewind`）回到任意一条消息之前，可恢复代码、对话或两者，也可以从该处开始摘要。手动改过的文件列为冲突，缺省跳过。见 [docs/guides/tui.md](docs/guides/tui.md#回滚) 与 [docs/guides/sessions.md](docs/guides/sessions.md)。
 
 ### 上下文与缓存
 
-长会话自动分两档压缩：先裁掉旧的大块工具结果，再对历史做摘要，摘要请求沿用已缓存的前缀。ama 保持前缀逐字节稳定，识别并解释缓存未命中，区分「报告缓存用量」与「不报告」的端点，长时间跑工具时还能给缓存保温（`cache.warming`）。跨会话 Memory 缺省关闭，`ama memory enable` 开启；关闭时请求逐字节不变。见 [docs/providers.md](docs/providers.md#缓存) 与 [docs/memory.md](docs/memory.md)。
+长会话自动分两档压缩：先裁掉旧的大块工具结果，再对历史做摘要，摘要请求沿用已缓存的前缀。ama 保持前缀逐字节稳定，识别并解释缓存未命中，区分「报告缓存用量」与「不报告」的端点，长时间跑工具时还能给缓存保温（`cache.warming`）。跨会话 Memory 缺省关闭，`ama memory enable` 开启；关闭时请求逐字节不变。见 [docs/guides/providers.md](docs/guides/providers.md#缓存) 与 [docs/guides/memory.md](docs/guides/memory.md)。
 
 ### 可观测性
 
-状态栏第一行是吞吐（tok/s、首 token 耗时）、用量与缓存命中率；第二行是模式、模型、上下文、git 分支、费用与时长；用 ChatGPT 订阅时还有第三行，显示额度用量与重置时间。`Ctrl+G` 折成一行。`/trace` 打开回合 → 请求 → 工具 → 子 Agent 的耗时树；`ama sessions trace <id> --html` 输出同样内容的脱敏单文件页面。`ama stats` 跨会话汇总请求数、token、缓存命中率与费用。见 [docs/tui.md](docs/tui.md#布局) 与 [docs/sessions.md](docs/sessions.md)。
+状态栏第一行是吞吐（tok/s、首 token 耗时）、用量与缓存命中率；第二行是模式、模型、上下文、git 分支、费用与时长；用 ChatGPT 订阅时还有第三行，显示额度用量与重置时间。`Ctrl+G` 折成一行。`/trace` 打开回合 → 请求 → 工具 → 子 Agent 的耗时树；`ama sessions trace <id> --html` 输出同样内容的脱敏单文件页面。`ama stats` 跨会话汇总请求数、token、缓存命中率与费用。见 [docs/guides/tui.md](docs/guides/tui.md#布局) 与 [docs/guides/sessions.md](docs/guides/sessions.md)。
 
 ### codemode 与工具预设
 
-codemode 让模型写一小段 JavaScript 编排多次工具调用，脚本在 `node --permission` 子进程里运行（可用时套 OS 沙箱），只有输出回到模型；每次内部调用照样经过 Hook 与权限。工具预设：`default`（read、edit、write、bash、grep、glob，网络隔离时加上 codemode）、`minimal`、`codemode-only`、`coordinator`。见 [docs/codemode.md](docs/codemode.md)。
+codemode 让模型写一小段 JavaScript 编排多次工具调用，脚本在 `node --permission` 子进程里运行（可用时套 OS 沙箱），只有输出回到模型；每次内部调用照样经过 Hook 与权限。工具预设：`default`（read、edit、write、bash、grep、glob，网络隔离时加上 codemode）、`minimal`、`codemode-only`、`coordinator`。见 [docs/guides/codemode.md](docs/guides/codemode.md)。
 
 ### 配置
 
-用户级只有一个文件 `~/.config/ama/config.json`，首次使用时创建，附带给编辑器用的 JSON schema。层级按「内置缺省 ← 用户级 ← profile ← 项目级 ← 命令行」合并，项目级（`.ama/config.json`）只能收紧。`/config` 打开设置面板；命令行用 `ama config get|set|unset|list`，`ama config show` 列出每个键的生效值与来源。项目里的 `AGENTS.md` 自动读入。`ama doctor` 检查配置层级、信任、key 来源、Hook 与沙箱。见 [docs/tui.md](docs/tui.md#config-设置面板与-ama-config)。
+用户级只有一个文件 `~/.config/ama/config.json`，首次使用时创建，附带给编辑器用的 JSON schema。层级按「内置缺省 ← 用户级 ← profile ← 项目级 ← 命令行」合并，项目级（`.ama/config.json`）只能收紧。`/config` 打开设置面板；命令行用 `ama config get|set|unset|list`，`ama config show` 列出每个键的生效值与来源。项目里的 `AGENTS.md` 自动读入。`ama doctor` 检查配置层级、信任、key 来源、Hook 与沙箱。见 [docs/guides/tui.md](docs/guides/tui.md#config-设置面板与-ama-config)。
 
 ### 界面语言
 
@@ -169,12 +169,12 @@ await session.dispose();
 
 `createAgentSession` 不读配置文件；`createRuntime({ argv })` 走和 `ama` 命令相同的启动流程。更完整的例子见 [examples/sdk-demo.ts](https://github.com/Owlbay/armadra-agent/blob/main/examples/sdk-demo.ts)。
 
-| 入口                 | 用途                                                           | 文档                                 |
-| -------------------- | -------------------------------------------------------------- | ------------------------------------ |
-| `ama --mode rpc`     | stdio 上的 JSONL，供宿主驱动；类型在 `@armadra/agent/rpc`      | [docs/rpc.md](docs/rpc.md)           |
-| `ama --mode acp`     | 给编辑器与 Armadra 的 ACP Agent；客户端在 `@armadra/agent/acp` | [docs/acp.md](docs/acp.md)           |
-| `--profile <文件>`   | 宿主适配器：画布工具、审批、注入消息、状态展示                 | [docs/host-api.md](docs/host-api.md) |
-| `@armadra/agent/tui` | 终端组件库                                                     | [docs/tui.md](docs/tui.md)           |
+| 入口                 | 用途                                                           | 文档                                                     |
+| -------------------- | -------------------------------------------------------------- | -------------------------------------------------------- |
+| `ama --mode rpc`     | stdio 上的 JSONL，供宿主驱动；类型在 `@armadra/agent/rpc`      | [docs/reference/rpc.md](docs/reference/rpc.md)           |
+| `ama --mode acp`     | 给编辑器与 Armadra 的 ACP Agent；客户端在 `@armadra/agent/acp` | [docs/reference/acp.md](docs/reference/acp.md)           |
+| `--profile <文件>`   | 宿主适配器：画布工具、审批、注入消息、状态展示                 | [docs/reference/host-api.md](docs/reference/host-api.md) |
+| `@armadra/agent/tui` | 终端组件库                                                     | [docs/guides/tui.md](docs/guides/tui.md)                 |
 
 Armadra 用 `ama --profile <路径>` 加 `coordinator` 预设启动 ama：协调者只读文件、调用画布工具，自己不改代码。
 
@@ -220,20 +220,20 @@ Armadra 用 `ama --profile <路径>` 加 `coordinator` 预设启动 ama：协调
 
 **用户文档**
 
-- [供应商与模型](docs/providers.md)（[English](docs/en/providers.md)）：供应商、渠道、key、ChatGPT 登录、中转站、models.dev、图像、缓存
-- [终端界面](docs/tui.md)（[English](docs/en/tui.md)）：布局、状态栏、按键、命令、回滚、审批、Agent 栏、轨迹、`/config`
-- [权限](docs/permissions.md)（[English](docs/en/permissions.md)）：模式、判定顺序、auto 的三档
-- [会话](docs/sessions.md)（[English](docs/en/sessions.md)）：统计、搜索、`--from`、导出、轨迹、检查点
-- [子 Agent 与外部 Agent](docs/agents.md)、[Plan 模式](docs/plan.md)、[Memory](docs/memory.md)、[沙箱](docs/sandbox.md)、[codemode](docs/codemode.md)、[命令式 Hook](docs/hooks.md)
+- [供应商与模型](docs/guides/providers.md)（[English](docs/en/guides/providers.md)）：供应商、渠道、key、ChatGPT 登录、中转站、models.dev、图像、缓存
+- [终端界面](docs/guides/tui.md)（[English](docs/en/guides/tui.md)）：布局、状态栏、按键、命令、回滚、审批、Agent 栏、轨迹、`/config`
+- [权限](docs/guides/permissions.md)（[English](docs/en/guides/permissions.md)）：模式、判定顺序、auto 的三档
+- [会话](docs/guides/sessions.md)（[English](docs/en/guides/sessions.md)）：统计、搜索、`--from`、导出、轨迹、检查点
+- [子 Agent 与外部 Agent](docs/guides/agents.md)、[Plan 模式](docs/guides/plan.md)、[Memory](docs/guides/memory.md)、[沙箱](docs/guides/sandbox.md)、[codemode](docs/guides/codemode.md)、[命令式 Hook](docs/guides/hooks.md)
 
 **集成文档**
 
-- [RPC 协议](docs/rpc.md)（[English](docs/en/rpc.md)）、[宿主适配器 API](docs/host-api.md)（[English](docs/en/host-api.md)）
-- [ACP](docs/acp.md)（[English](docs/en/acp.md)）、[会话文件格式](docs/session-format.md)
+- [RPC 协议](docs/reference/rpc.md)（[English](docs/en/reference/rpc.md)）、[宿主适配器 API](docs/reference/host-api.md)（[English](docs/en/reference/host-api.md)）
+- [ACP](docs/reference/acp.md)（[English](docs/en/reference/acp.md)）、[会话文件格式](docs/reference/session-format.md)
 
 **设计与研究**
 
-- [总体设计与决策记录][design]、[终端界面视觉规范](docs/tui-design.md)、[回滚设计](docs/rewind-plan.md)、[双语开发约定][i18n]
+- [总体设计与决策记录][design]、[终端界面视觉规范](docs/design/tui-design.md)、[回滚设计](docs/history/rewind-plan.md)、[双语开发约定][i18n]
 - [本地扩展（设计草案，未实现）][extensions]、[基准测试][benchmarks]、[调研报告][research]
 - 各波设计：[第三波][w3]、[第五波][wave5]、[第六波][wave6]、[早期实现计划][impl]
 

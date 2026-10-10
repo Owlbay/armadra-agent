@@ -1,5 +1,5 @@
 /**
- * 包装命令行（docs/sandbox.md「分层」）：输入命令、参数与策略 → 输出经 OS 沙箱启动的命令行。使用方自己
+ * 包装命令行（docs/guides/sandbox.md「分层」）：输入命令、参数与策略 → 输出经 OS 沙箱启动的命令行。使用方自己
  * spawn（进程组、stdio、环境都不变）。
  *
  * - 可写目录取 realpath（SBPL 按真实路径匹配，macOS 的 /tmp、/var 是符号链接；bwrap 绑定也要求存在），

@@ -1,5 +1,5 @@
 /**
- * 统一提醒通道 `ama.reminder`（docs/wave5-plan.md §8.3 H3，D29）。[W5-H2]
+ * 统一提醒通道 `ama.reminder`（docs/history/wave5-plan.md §8.3 H3，D29）。[W5-H2]
  *
  * 以 `SessionExtension` 实现，两个投递点，都只追加在尾部（design §9.1，缓存前缀不动）：
  * - **新提示**：`beforePrompts` 追加一条 `custom_message{customType:"ama.reminder", display:false}`；

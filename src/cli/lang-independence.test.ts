@@ -1,5 +1,5 @@
 /**
- * 语言无关（docs/wave6-plan.md §5.4、D18、D20）：同一脚本在 `AMA_LANG=zh` 与 `en` 下各跑一遍，发给供应商的
+ * 语言无关（docs/history/wave6-plan.md §5.4、D18、D20）：同一脚本在 `AMA_LANG=zh` 与 `en` 下各跑一遍，发给供应商的
  * system + tools + messages 逐字节相同。脚本覆盖会把文本送进模型的路径：工具结果截断标记、读图失败、
  * 拒绝理由、普通工具结果。[W6-C0]
  */

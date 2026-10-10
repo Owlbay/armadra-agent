@@ -1,5 +1,5 @@
 /**
- * 外部 Agent 的会话引用与记账（docs/wave5-plan.md §5.4 记账 / 敏感数据，session-format 登记）。[W5-E]
+ * 外部 Agent 的会话引用与记账（docs/history/wave5-plan.md §5.4 记账 / 敏感数据，session-format 登记）。[W5-E]
  *
  * - `custom{ama.agent-session}`：`{ agent, runner, sessionId, cwd?, taskId? }`——外部 CLI 自己的
  *   会话 id，续聊（`taskId` / resume）用；不含原始事件与转录。

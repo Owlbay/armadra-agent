@@ -1,12 +1,12 @@
 /**
- * 第六波配置键的形状（docs/wave6-plan.md §7、§1.3、§3.1、§4.3、§4.4、§5.2）。[W6-C0] 契约文件：C0 只定形状、
+ * 第六波配置键的形状（docs/history/wave6-plan.md §7、§1.3、§3.1、§4.3、§4.4、§5.2）。[W6-C0] 契约文件：C0 只定形状、
  * 校验（schema-w6.ts）、说明与缺省（key-docs.ts）、JSON Schema；行为由各批次实现，未实现前这些键被接受但不起作用。
  *
  * 层级（merge.ts）：项目级可设 `ui.language`、`ui.agentBar`，`memory` 只接受 `enabled: false`；`ui.replyLanguage`、
  * `memory` 其余键、`auth` 只认用户级 / profile（项目级忽略并 warning）。
  */
 
-/** `ui.language`：auto 按 `LC_ALL` / `LC_MESSAGES` / `LANG` 判断，判断不出用 en（docs/i18n.md）。 */
+/** `ui.language`：auto 按 `LC_ALL` / `LC_MESSAGES` / `LANG` 判断，判断不出用 en（docs/guides/i18n.md）。 */
 export type LanguageSetting = "auto" | "zh" | "en";
 export const LANGUAGE_SETTINGS: readonly LanguageSetting[] = ["auto", "zh", "en"];
 
@@ -32,7 +32,7 @@ export type MemoryScopeName = "user" | "project";
 export const MEMORY_SCOPES: readonly MemoryScopeName[] = ["user", "project"];
 export const MEMORY_SUBAGENT_MODES = ["off", "read"] as const;
 
-/** [W6-M] `memory` 段（docs/wave6-plan.md §3.1）。缺省关闭；关闭时系统提示、工具表、请求体逐字节不变。 */
+/** [W6-M] `memory` 段（docs/history/wave6-plan.md §3.1）。缺省关闭；关闭时系统提示、工具表、请求体逐字节不变。 */
 export interface MemoryConfig {
   /** 总开关，缺省 false；项目级只能设为 false；`--memory` / `--no-memory`、`AMA_MEMORY=0|1` 覆盖。 */
   enabled?: boolean;
@@ -48,7 +48,7 @@ export interface MemoryConfig {
   subagents?: (typeof MEMORY_SUBAGENT_MODES)[number];
 }
 
-/** [W6-O] ChatGPT 登录的两条路径（docs/wave6-plan.md §4.1、D13）。 */
+/** [W6-O] ChatGPT 登录的两条路径（docs/history/wave6-plan.md §4.1、D13）。 */
 export type ChatGptFlavor = "siwc" | "codex";
 export const CHATGPT_FLAVORS: readonly ChatGptFlavor[] = ["siwc", "codex"];
 
@@ -97,7 +97,7 @@ export interface ApiKeyAuthEntry {
 }
 
 /**
- * [W6-O] auth.json 里的 OAuth 条目（docs/wave6-plan.md §4.3、D15）。token 与 id_token 原文绝不进日志、错误、
+ * [W6-O] auth.json 里的 OAuth 条目（docs/history/wave6-plan.md §4.3、D15）。token 与 id_token 原文绝不进日志、错误、
  * 事件、会话；`describeAuthFile` 只给 `{ kind: "oauth", flavor, plan, expiresIn, needsLogin }`。
  */
 export interface OAuthAuthEntry {

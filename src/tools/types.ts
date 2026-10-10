@@ -12,7 +12,7 @@
  * - `defineTool()` 是恒等函数，只为推断 `I`；放在契约文件里供 SDK 再导出。
  * - `ToolRegistryApi` 是 Runtime 需要的最小接口，B3 的 `ToolRegistry` 实现它。
  * - （W3-C0）`SubagentResult.cache` 可选：子会话的命中率与重计费 token。
- * - （W5-C0）第五波（docs/wave5-plan.md §7.3–§7.6、§8.2 C4、§8.3 H1）：`annotations.pollable /
+ * - （W5-C0）第五波（docs/history/wave5-plan.md §7.3–§7.6、§8.2 C4、§8.3 H1）：`annotations.pollable /
  *   keepInContext`；`SubagentRequest` 加 `agent / background / taskId / isolation / budgetUsd`；
  *   `SubagentResult` 加 `taskId / status / outputFile / sessionRef`（契约要求向后兼容，全部可选）；
  *   统一入口 `SubagentRunner / RunnerHandle / SubagentEvent`（ama 子会话、外部 CLI、宿主 runner）；
@@ -149,7 +149,7 @@ export interface SubagentResult {
 }
 
 // ---------------------------------------------------------------------------
-// [W5-C0] 统一的子 Agent 运行入口（docs/wave5-plan.md §7.6）
+// [W5-C0] 统一的子 Agent 运行入口（docs/history/wave5-plan.md §7.6）
 // ---------------------------------------------------------------------------
 
 /** runner 上报的进度（由注册表转成 `subagent_update` 事件）。 */
@@ -167,7 +167,7 @@ export type SubagentEvent =
     }
   | { type: "turn"; turn: number }
   /**
-   * [W6-C0] 外部 Agent 一个回合结束时的骨架（docs/wave6-plan.md §2.2）：任务注册表写成父会话的
+   * [W6-C0] 外部 Agent 一个回合结束时的骨架（docs/history/wave6-plan.md §2.2）：任务注册表写成父会话的
    * `ama.trace{kind:"external_turn"}`。只有种类、状态、时间与计数——不含工具标题、命令行、路径。
    */
   | { type: "turn_trace"; trace: Omit<TraceExternalTurnData, "kind" | "taskId" | "agent"> }
@@ -290,7 +290,7 @@ export interface ToolContext {
     /** 活动分支上最近一条该类型 custom 条目的 data。 */
     lastCustom(customType: string): unknown;
   };
-  /** 检查点（docs/rewind-plan.md §2）：edit / write 写文件前后调用；未启用时为 undefined。 */
+  /** 检查点（docs/history/rewind-plan.md §2）：edit / write 写文件前后调用；未启用时为 undefined。 */
   readonly checkpoint?: CheckpointHooks;
   /** 仅 depth 0 且 task 可用时存在。 */
   readonly spawnSubagent?: (request: SubagentRequest) => Promise<SubagentResult>;

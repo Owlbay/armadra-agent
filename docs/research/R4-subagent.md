@@ -113,27 +113,27 @@
 | 中断        | 父 signal abort → `child.abort()`                                                                                 | `session-subagent.ts:253-254`                                      |
 | 进度        | 只把子会话 `tool_execution_start` 变成一行 `[task] <toolName>` 的 `onUpdate`                                      | `session-subagent.ts:255-256`                                      |
 | 结果        | 子会话最后一条助手文本**全文**；`details{sessionFile, usage, stopReason}`                                         | `task.ts:103-110`、`session-subagent.ts:280-307`                   |
-| 缓存        | 子会话有自己的缓存控制器，缺省不保温（`cache.warmSubagents`），命中与重计费汇总进父 `stats.cache.subagents`       | `session-cache.ts:136,163,292-338`、`docs/rpc.md:216`              |
-| 未命中归因  | 父在 task 运行期间空转超 TTL 归为 `subtask`                                                                       | `docs/wave3-plan.md:121`                                           |
-| 暴露        | `default` 预设里 task 只能在 codemode 脚本里调用；`+task` 才直接暴露；嵌入 Armadra 时 `disable("task")`           | `docs/design.md` §5.6、§5.4                                        |
+| 缓存        | 子会话有自己的缓存控制器，缺省不保温（`cache.warmSubagents`），命中与重计费汇总进父 `stats.cache.subagents`       | `session-cache.ts:136,163,292-338`、`docs/reference/rpc.md:216`    |
+| 未命中归因  | 父在 task 运行期间空转超 TTL 归为 `subtask`                                                                       | `docs/history/wave3-plan.md:121`                                   |
+| 暴露        | `default` 预设里 task 只能在 codemode 脚本里调用；`+task` 才直接暴露；嵌入 Armadra 时 `disable("task")`           | `docs/design/design.md` §5.6、§5.4                                 |
 | 界面        | TUI 显示「子 Agent · 运行中 1m05s」，完成摘要 `完成 · 耗时 · ↑in ↓out`                                            | `src/modes/interactive/tool-view.ts:197`、`tool-summary.ts:64,225` |
 
 ### 2.2 限制与缺口
 
-| #   | 缺口                                                                                                                                                | 影响                                                                                                                    | 业界对照                                               |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| G1  | **没有定义文件 / 类型**，每次都要模型把角色、工具、模型写进参数                                                                                     | 模型不会稳定地给「只读探索」配只读工具；用户无法沉淀 reviewer / tester 等角色；`docs/gap-audit-2026-10.md:32` 已列为 P2 | 6 家里 6 家有                                          |
-| G2  | **只读不是强制的**：`tools` 由模型填，缺省继承全部（含 edit / write / bash）                                                                        | 探索型子 Agent 可能改文件；审批串到父，用户难判断是谁在写                                                               | 工具 A Explore/Plan、工具 E explore、工具 F `readonly` |
-| G3  | **同轮多个 task 串行**：`executionMode: "sequential"`（`task.ts:92`），tool-runner 只要批中有一个 sequential 就整批串行（`tool-runner.ts:330-334`） | 直接暴露时「并行 3 个探索」退化成顺序跑；pool=4 只在 codemode `Promise.all` 时起作用                                    | 工具 A / 工具 C / 工具 N 同轮并行                      |
-| G4  | **没有后台**：task 阻塞父回合直到子结束                                                                                                             | 父不能边等边和用户聊；长子任务期间父缓存过期（已有 `subtask` 归因，说明真实发生过）                                     | 工具 A、工具 B、工具 E、工具 F                         |
-| G5  | **不能续聊**：子会话结束即 `dispose()`（`session-subagent.ts:308`）                                                                                 | 追问「再查一下 X」要重新起子 Agent、重读文件                                                                            | 工具 A SendMessage、工具 B send_input、工具 E task_id  |
-| G6  | **结果无上限**：最后助手文本原样进父上下文                                                                                                          | 子 Agent 若贴大段代码会撑爆父上下文；没有全文落盘路径                                                                   | 工具 C 50 KB、工具 A output_file                       |
-| G7  | 只取「最后一条助手文本」：若最后一轮是工具调用后被 maxTurns 截断，结果为空 / 上一段                                                                 | 用户看到「(the sub-agent returned no text)」；`stopReason` 有但不会提示「轮数耗尽，部分结果如下」                       | 工具 A 系统提示要求最后给报告                          |
-| G8  | **无 worktree 隔离**                                                                                                                                | 两个写型子 Agent 并行改同一仓库会互相覆盖；readFiles 先读后写检查是每会话独立的，挡不住                                 | 工具 A `isolation: worktree`                           |
-| G9  | 子 Agent 的系统提示与父完全相同，没有「你是子 Agent，最后给精简报告、不要再委派」这段角色说明，也不能加类型自己的提示                               | 输出风格不可控                                                                                                          | 工具 A、工具 C worker.md 都规定输出格式                |
-| G10 | **缓存前缀不对齐**：`+task` 时父工具表含 task、子不含 → 工具表字节不同，子会话首请求连「tools+system」前缀都未命中；换模型时当然也不命中            | 每个子 Agent 多付一次完整前缀写入                                                                                       | 工具 A fork 强制同模型、共享缓存                       |
-| G11 | 事件太薄：RPC / TUI 只有一行 `[task] toolName`，看不到子会话的流式文本、轮数、用量；无法进入子会话查看                                              | 用户只能等结果；Armadra 嵌入时无法渲染子任务                                                                            | 工具 E 子会话导航、工具 C 折叠 / 展开                  |
-| G12 | 不能把外部 CLI Agent 当子 Agent；外部 Agent 只在嵌入 Armadra 时经 `canvas_*` 工具调用，接口与 task 不同                                             | 独立模式下无法「让 工具 B 审一下」；两套心智模型                                                                        | 工具 D `kind: remote`（A2A）                           |
+| #   | 缺口                                                                                                                                                | 影响                                                                                                                            | 业界对照                                               |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| G1  | **没有定义文件 / 类型**，每次都要模型把角色、工具、模型写进参数                                                                                     | 模型不会稳定地给「只读探索」配只读工具；用户无法沉淀 reviewer / tester 等角色；`docs/history/gap-audit-2026-10.md:32` 已列为 P2 | 6 家里 6 家有                                          |
+| G2  | **只读不是强制的**：`tools` 由模型填，缺省继承全部（含 edit / write / bash）                                                                        | 探索型子 Agent 可能改文件；审批串到父，用户难判断是谁在写                                                                       | 工具 A Explore/Plan、工具 E explore、工具 F `readonly` |
+| G3  | **同轮多个 task 串行**：`executionMode: "sequential"`（`task.ts:92`），tool-runner 只要批中有一个 sequential 就整批串行（`tool-runner.ts:330-334`） | 直接暴露时「并行 3 个探索」退化成顺序跑；pool=4 只在 codemode `Promise.all` 时起作用                                            | 工具 A / 工具 C / 工具 N 同轮并行                      |
+| G4  | **没有后台**：task 阻塞父回合直到子结束                                                                                                             | 父不能边等边和用户聊；长子任务期间父缓存过期（已有 `subtask` 归因，说明真实发生过）                                             | 工具 A、工具 B、工具 E、工具 F                         |
+| G5  | **不能续聊**：子会话结束即 `dispose()`（`session-subagent.ts:308`）                                                                                 | 追问「再查一下 X」要重新起子 Agent、重读文件                                                                                    | 工具 A SendMessage、工具 B send_input、工具 E task_id  |
+| G6  | **结果无上限**：最后助手文本原样进父上下文                                                                                                          | 子 Agent 若贴大段代码会撑爆父上下文；没有全文落盘路径                                                                           | 工具 C 50 KB、工具 A output_file                       |
+| G7  | 只取「最后一条助手文本」：若最后一轮是工具调用后被 maxTurns 截断，结果为空 / 上一段                                                                 | 用户看到「(the sub-agent returned no text)」；`stopReason` 有但不会提示「轮数耗尽，部分结果如下」                               | 工具 A 系统提示要求最后给报告                          |
+| G8  | **无 worktree 隔离**                                                                                                                                | 两个写型子 Agent 并行改同一仓库会互相覆盖；readFiles 先读后写检查是每会话独立的，挡不住                                         | 工具 A `isolation: worktree`                           |
+| G9  | 子 Agent 的系统提示与父完全相同，没有「你是子 Agent，最后给精简报告、不要再委派」这段角色说明，也不能加类型自己的提示                               | 输出风格不可控                                                                                                                  | 工具 A、工具 C worker.md 都规定输出格式                |
+| G10 | **缓存前缀不对齐**：`+task` 时父工具表含 task、子不含 → 工具表字节不同，子会话首请求连「tools+system」前缀都未命中；换模型时当然也不命中            | 每个子 Agent 多付一次完整前缀写入                                                                                               | 工具 A fork 强制同模型、共享缓存                       |
+| G11 | 事件太薄：RPC / TUI 只有一行 `[task] toolName`，看不到子会话的流式文本、轮数、用量；无法进入子会话查看                                              | 用户只能等结果；Armadra 嵌入时无法渲染子任务                                                                                    | 工具 E 子会话导航、工具 C 折叠 / 展开                  |
+| G12 | 不能把外部 CLI Agent 当子 Agent；外部 Agent 只在嵌入 Armadra 时经 `canvas_*` 工具调用，接口与 task 不同                                             | 独立模式下无法「让 工具 B 审一下」；两套心智模型                                                                                | 工具 D `kind: remote`（A2A）                           |
 
 ---
 
@@ -279,7 +279,7 @@ interface TaskInput {
 
 ### 3.9 界面与 RPC 事件
 
-新增会话事件（`SessionEvent`，RPC 原样透传，`docs/rpc.md` 登记）：
+新增会话事件（`SessionEvent`，RPC 原样透传，`docs/reference/rpc.md` 登记）：
 
 | 事件              | 字段                                                                                                                  |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------- |
@@ -326,4 +326,4 @@ interface TaskInput {
 - 工具 D：Subagents 文档。
 - 工具 N：The Dial、Modes & Models、Manual。
 - 工具 F：Subagents 文档、2.4 Changelog、Background / Cloud Agents 指南。
-- ama：`src/tools/task.ts`、`src/agent/session-subagent.ts`、`src/agent/session.ts:578-600`、`src/agent/session-cache.ts:136-338`、`src/agent/tool-runner.ts:330-334`、`src/skills/discover.ts`、`docs/design.md` §5.2 / §5.4–§5.6、`docs/wave3-plan.md` §1.9、`docs/gap-audit-2026-10.md:32`。
+- ama：`src/tools/task.ts`、`src/agent/session-subagent.ts`、`src/agent/session.ts:578-600`、`src/agent/session-cache.ts:136-338`、`src/agent/tool-runner.ts:330-334`、`src/skills/discover.ts`、`docs/design/design.md` §5.2 / §5.4–§5.6、`docs/history/wave3-plan.md` §1.9、`docs/history/gap-audit-2026-10.md:32`。

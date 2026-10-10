@@ -1,5 +1,5 @@
 /**
- * 轨迹写入（docs/wave6-plan.md §2.2、D5）。[W6-C0]
+ * 轨迹写入（docs/history/wave6-plan.md §2.2、D5）。[W6-C0]
  *
  * 会话扩展：订阅事件，把计时写成 `custom{customType:"ama.trace"}` 条目（`trace/types.ts` 的 `TraceEntryData`）。
  * - `step`：每个 turn 请求一条（成功、失败、被重试掉的都写），在 `turn_end` 时写——此时 assistant 与该批

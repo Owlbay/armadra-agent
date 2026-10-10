@@ -1,13 +1,13 @@
 # ACP（Agent Client Protocol）
 
-[English](en/acp.md) · 简体中文
+[English](../en/reference/acp.md) · 简体中文
 
 ama 在 ACP 两侧都能用：
 
 - **服务端**：`ama --mode acp` 把 ama 暴露为 ACP Agent，供 Zed、JetBrains、Armadra 的 ACP 节点驱动；
-- **客户端**：ama 经 ACP 驱动外部 Agent（Gemini CLI、OpenCode、Kimi、Copilot 等原生 ACP，或装了适配器的 Claude Code / Codex），见 [agents.md](agents.md)。
+- **客户端**：ama 经 ACP 驱动外部 Agent（Gemini CLI、OpenCode、Kimi、Copilot 等原生 ACP，或装了适配器的 Claude Code / Codex），见 [agents.md](../guides/agents.md)。
 
-协议栈零依赖、手写，只维护一份：`@armadra/agent/acp` 导出类型、分帧、客户端与假 Agent，Armadra 直接复用。设计依据见 [wave5-plan.md](wave5-plan.md) §5（D14）。
+协议栈零依赖、手写，只维护一份：`@armadra/agent/acp` 导出类型、分帧、客户端与假 Agent，Armadra 直接复用。设计依据见 [wave5-plan.md](../history/wave5-plan.md) §5（D14）。
 
 ## 线路
 
@@ -79,7 +79,7 @@ diff 的改前 / 改后全文只随实时事件走，不写进会话文件：任
 
 ### 审批
 
-ama 需要询问的调用经 `session/request_permission` 交给客户端，三个选项：`allow_once`（允许）、`allow_always`（本会话允许）、`reject_once`（拒绝）。`toolCall.toolCallId` 关联到先前 `tool_call` 的 id——codemode 内层调用也是，指向那条内层 `tool_call`，不是外层 `codemode`。询问期间该调用的状态回到 `pending`，允许后再 `in_progress`（所以有审批的调用依次是 `pending → in_progress → pending → in_progress → completed`）；拒绝时直接 `failed`。客户端回 `cancelled`、连接断开或回合被中断时，按无人作答处理（拒绝）。ama 这边不再需要答复时（回合被 `session/cancel` / `$/cancel_request` 中断、审批 10 分钟超时），以 `$/cancel_request { requestId }` 撤回挂起的 `session/request_permission`，客户端可以关掉对话框。auto 模式下 ama 自己的分类器照常工作——这只影响 ama 自己的工具；ama 驱动的外部 Agent 发来的请求只交给人（见 [agents.md](agents.md)）。
+ama 需要询问的调用经 `session/request_permission` 交给客户端，三个选项：`allow_once`（允许）、`allow_always`（本会话允许）、`reject_once`（拒绝）。`toolCall.toolCallId` 关联到先前 `tool_call` 的 id——codemode 内层调用也是，指向那条内层 `tool_call`，不是外层 `codemode`。询问期间该调用的状态回到 `pending`，允许后再 `in_progress`（所以有审批的调用依次是 `pending → in_progress → pending → in_progress → completed`）；拒绝时直接 `failed`。客户端回 `cancelled`、连接断开或回合被中断时，按无人作答处理（拒绝）。ama 这边不再需要答复时（回合被 `session/cancel` / `$/cancel_request` 中断、审批 10 分钟超时），以 `$/cancel_request { requestId }` 撤回挂起的 `session/request_permission`，客户端可以关掉对话框。auto 模式下 ama 自己的分类器照常工作——这只影响 ama 自己的工具；ama 驱动的外部 Agent 发来的请求只交给人（见 [agents.md](../guides/agents.md)）。
 
 ### 无模型时
 
@@ -151,7 +151,7 @@ stdin 关闭后等已开始的运行结束再退出（0）；`ama` 进程的 std
 
 ## 作为客户端
 
-模型经 `task(agent="acp:<程序>")` 使用 ACP Agent（ama 自己是 `task(agent="acp:ama")`，见 [agents.md](agents.md)「在 task 里使用」）。
+模型经 `task(agent="acp:<程序>")` 使用 ACP Agent（ama 自己是 `task(agent="acp:ama")`，见 [agents.md](../guides/agents.md)「在 task 里使用」）。
 
 `AcpClient`（`@armadra/agent/acp`）：`initialize`、`newSession`、`resumeSession`（优先，不回放）、`loadSession`、`listSessions`、`closeSession`、`prompt`、`setMode`、`cancel`。
 

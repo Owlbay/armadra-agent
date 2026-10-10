@@ -1,6 +1,6 @@
 # 权限模式与 auto 判定
 
-本文写 ama 的六种权限模式、每次工具调用的判定顺序，以及 `auto` 模式「规则层 → 静态判定 → 模型分类器」三层怎样决定放行还是询问。总体设计见 [design.md](design.md) §6.3、§7；Hook 的输入输出见 [hooks.md](hooks.md)。
+本文写 ama 的六种权限模式、每次工具调用的判定顺序，以及 `auto` 模式「规则层 → 静态判定 → 模型分类器」三层怎样决定放行还是询问。总体设计见 [design.md](../design/design.md) §6.3、§7；Hook 的输入输出见 [hooks.md](hooks.md)。
 
 ## 模式
 
@@ -42,7 +42,7 @@
 | 外部 Agent（claude / codex / ACP）请求权限 | `[claude · 会话 abc12345]`                | 外部 Agent 给的标题、种类、涉及路径与输入摘要 | 只交给人：宿主 → 界面 → 无人值守拒绝，auto 分类器与模型不参与              |
 | 外部 Agent 本会话首次运行                  | 标题「首次运行外部 Agent」                | 说明（以你在该 CLI 的登录运行）与模式         | allow / deny 规则 `task(<id>)`、`full-auto` 放行，其余交给人（不经分类器） |
 
-外部 Agent 的「本会话允许」由它自己记住。Manual 模式下 `task(agent=…)` 的 task 调用审批与首次运行确认合并为一次（见 [agents.md](agents.md)「在 task 里使用」）。RPC 的 `context` 是 `{ depth, taskId, origin }`（[rpc.md](rpc.md)「审批」）。
+外部 Agent 的「本会话允许」由它自己记住。Manual 模式下 `task(agent=…)` 的 task 调用审批与首次运行确认合并为一次（见 [agents.md](agents.md)「在 task 里使用」）。RPC 的 `context` 是 `{ depth, taskId, origin }`（[rpc.md](../reference/rpc.md)「审批」）。
 
 ## plan 模式与只读命令
 

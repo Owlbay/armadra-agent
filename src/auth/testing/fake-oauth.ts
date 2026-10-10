@@ -1,5 +1,5 @@
 /**
- * 测试用 fake OAuth / ChatGPT 后端（docs/wave6-plan.md §4.6）。`node:http` 随机端口；不进 bundle。
+ * 测试用 fake OAuth / ChatGPT 后端（docs/history/wave6-plan.md §4.6）。`node:http` 随机端口；不进 bundle。
  *
  * OAuth：authorize（记参数、302 回 redirect_uri；SIWC 注册时带签发的 client_id 与 scope）、token（校验 PKCE；
  * 授权码 / 刷新；刷新轮换，旧 refresh token 再用 → `refresh_token_reused`）、deviceauth、discovery + JWKS

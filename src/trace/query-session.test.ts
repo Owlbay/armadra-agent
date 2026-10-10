@@ -1,5 +1,5 @@
 /**
- * [W6-T2] SDK `session.trace()`（docs/wave6-plan.md §2.6、D29）：缺省全部回合、`turnLimit` 尾部、`taskId` 不存在
+ * [W6-T2] SDK `session.trace()`（docs/history/wave6-plan.md §2.6、D29）：缺省全部回合、`turnLimit` 尾部、`taskId` 不存在
  * 抛 task_not_found；与 RPC 同一查询（`sessionTrace`）。
  */
 

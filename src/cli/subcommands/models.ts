@@ -137,7 +137,7 @@ async function check(io: CliIo, registry: ProviderRegistryApi, ref: string): Pro
 
 /**
  * `ama models refresh [--provider <id>[,<id>…]]`：显式联网拉 models.dev，按内置快照的清单裁剪，
- * 写用户级覆盖 `<dataDir>/models-dev.json`（docs/providers.md「模型元数据」）。启动与其它命令不联网。
+ * 写用户级覆盖 `<dataDir>/models-dev.json`（docs/guides/providers.md「模型元数据」）。启动与其它命令不联网。
  */
 const REFRESH_ACTION: ModelsAction = {
   usage: "ama models refresh [--provider <id>[,<id>…]]",

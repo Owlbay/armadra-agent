@@ -1,5 +1,5 @@
 /**
- * 子 Agent 视图的正文（docs/wave6-plan.md §1.2、D2）。[W6-A]
+ * 子 Agent 视图的正文（docs/history/wave6-plan.md §1.2、D2）。[W6-A]
  *
  * - `AmaTranscript`：ama 子会话的全量消息，复用消息区的 `MessageView` / `ToolTracker` 渲染；先按条目重放
  *   （句柄在内存时读 `entries()`，被 LRU 释放或 resume 后只读加载子会话文件），运行中再跟随子会话事件。

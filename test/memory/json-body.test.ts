@@ -1,5 +1,5 @@
 /**
- * 请求体序列化的增长上限（docs/memory-plan.md D3、D13、[M-B] 测试 2）：6 张 3 MB base64 的请求体
+ * 请求体序列化的增长上限（docs/history/memory-plan.md D3、D13、[M-B] 测试 2）：6 张 3 MB base64 的请求体
  * （每张以 data URL 与裸 base64 各出现一次，≈ 36 MB）序列化后，堆只多出零头，堆外只多出结果 Buffer 本身；字节与原生一致。
  */
 

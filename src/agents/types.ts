@@ -1,5 +1,5 @@
 /**
- * 子 Agent 定义契约（docs/wave5-plan.md §7.1–§7.2，D22）。[W5-C0] 契约文件，发现与解析归 W5-G。
+ * 子 Agent 定义契约（docs/history/wave5-plan.md §7.1–§7.2，D22）。[W5-C0] 契约文件，发现与解析归 W5-G。
  *
  * 定义文件：`--agent-dir`（可重复）→ profile `agentDirs` → `~/.config/ama/agents/*.md` →
  * `<cwd>/.ama/agents/*.md`（需信任）；frontmatter 与 Skill 同风格（kebab-case），正文追加到子会话

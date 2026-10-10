@@ -1,5 +1,5 @@
 /**
- * [W5-F] SDK 计划：`plan.onProposed` 审批回调与 `session.plan`（docs/wave5-plan.md §6.5）。
+ * [W5-F] SDK 计划：`plan.onProposed` 审批回调与 `session.plan`（docs/history/wave5-plan.md §6.5）。
  */
 
 import { describe, expect, it } from "vitest";

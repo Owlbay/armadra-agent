@@ -1,5 +1,5 @@
 /**
- * [W6-T2] RPC `get_trace`（docs/wave6-plan.md §2.6）：黄金记录 trace.out.jsonl（两轮对话 → 全量 → 预览 →
+ * [W6-T2] RPC `get_trace`（docs/history/wave6-plan.md §2.6）：黄金记录 trace.out.jsonl（两轮对话 → 全量 → 预览 →
  * 带 since 的增量 → before 翻页 → 错误码），以及 `entry_appended` 驱动的增量拼接 = 全量。
  */
 

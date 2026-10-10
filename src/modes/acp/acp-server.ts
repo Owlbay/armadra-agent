@@ -1,6 +1,6 @@
 /**
- * `ama --mode acp`：把 ama 的会话暴露为 ACP Agent（docs/wave5-plan.md §5.6，D14；多会话见
- * docs/acp-plan.md D1、D2、D11、D12、§2.1）。[W5-E，ACP-B]
+ * `ama --mode acp`：把 ama 的会话暴露为 ACP Agent（docs/history/wave5-plan.md §5.6，D14；多会话见
+ * docs/history/acp-plan.md D1、D2、D11、D12、§2.1）。[W5-E，ACP-B]
  *
  * 与 `--mode rpc` 同一引擎（Runtime + 组装根）。多会话：
  * - 每个 ACP sessionId 一个常驻会话（会话池，acp-sessions.ts），各有自己的事件映射器与权限模式；

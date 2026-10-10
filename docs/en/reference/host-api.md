@@ -1,11 +1,11 @@
 # Host adapter API (@armadra/agent/host)
 
-English · [简体中文](../host-api.md)
+English · [简体中文](../../reference/host-api.md)
 
-> Translated from the Chinese [docs/host-api.md](../host-api.md) as of commit `979608b`. When the two differ, the Chinese
+> Translated from the Chinese [docs/reference/host-api.md](../../reference/host-api.md) as of commit `979608b`. When the two differ, the Chinese
 > version is authoritative.
 
-A host adapter is a local JS module that ama loads at startup and hands a `HostApi`. With it the adapter can register tools, append to the system prompt, observe events, answer approvals, inject user messages and show notifications and status in the interface. The Armadra canvas plugs in as a host adapter (the canvas tools `canvas_*` / `context_*` are all registered by the adapter). The types are defined in `src/host/types.ts` and exported from `@armadra/agent/host`; `HOST_API_VERSION = 1`. The design rationale is in [design.md](../design.md) §6.2, §6.3 and §11.1 step 13 (Chinese).
+A host adapter is a local JS module that ama loads at startup and hands a `HostApi`. With it the adapter can register tools, append to the system prompt, observe events, answer approvals, inject user messages and show notifications and status in the interface. The Armadra canvas plugs in as a host adapter (the canvas tools `canvas_*` / `context_*` are all registered by the adapter). The types are defined in `src/host/types.ts` and exported from `@armadra/agent/host`; `HOST_API_VERSION = 1`. The design rationale is in [design.md](../../design/design.md) §6.2, §6.3 and §11.1 step 13 (Chinese).
 
 ## Module shape
 
@@ -100,7 +100,7 @@ interface ToolResult {
 }
 ```
 
-`ToolContext` provides `toolCallId`, `cwd`, `sessionId`, `sessionFile?`, `signal`, `depth`, `model?`, `thinkingLevel?`, `outputDir?`, `onUpdate(partial)` (output while running), `readFiles` / `markRead`, `activeTools?` (read-only snapshot of the session's active tool set, so tools can give actionable hints), `tools.executeTool(name, input)` (nested calls through the same pipeline), `session.appendCustom` / `lastCustom` (custom entries that never enter the context, see [session-format.md](../session-format.md), Chinese), `spawnSubagent?` and `log`.
+`ToolContext` provides `toolCallId`, `cwd`, `sessionId`, `sessionFile?`, `signal`, `depth`, `model?`, `thinkingLevel?`, `outputDir?`, `onUpdate(partial)` (output while running), `readFiles` / `markRead`, `activeTools?` (read-only snapshot of the session's active tool set, so tools can give actionable hints), `tools.executeTool(name, input)` (nested calls through the same pipeline), `session.appendCustom` / `lastCustom` (custom entries that never enter the context, see [session-format.md](../../reference/session-format.md), Chinese), `spawnSubagent?` and `log`.
 
 Host tools take the same path as built-in tools: schema validation → command hook PreToolUse → permission pipeline (classified by `permission`) → approval → execution → PostToolUse. They can also be called from codemode scripts as `tools.<name>()`.
 
@@ -137,7 +137,7 @@ For token-level streaming content or the full event stream, use RPC or the SDK's
 - `request`: `requestId`, `toolName`, `input`, `reason: "mode" | "dangerous" | "hook"`, `hookReason?`, `preview?` (the pre-execution preview, see [rpc.md](rpc.md) "Approvals"), `context?` (`depth > 0` means it comes from a `task` sub-agent; codemode inner calls carry `parentToolCallId`).
 - On timeout (10 minutes by default, `AMA_APPROVAL_TIMEOUT_MS`) or when the run is interrupted, `signal` aborts and the decision is deny. Approvals are serial: only one request waits at a time.
 - Timing: the broker is looked up at each approval, so it can be set in `create()` or set / replaced at any later time; the last `setBroker` wins.
-- The host broker only decides "who answers an ask"; it cannot loosen deny rules, command hook denies or dangerous-command detection ([design.md](../design.md) §6.3, Chinese).
+- The host broker only decides "who answers an ask"; it cannot loosen deny rules, command hook denies or dangerous-command detection ([design.md](../../design/design.md) §6.3, Chinese).
 
 ## Cache warming
 
@@ -155,7 +155,7 @@ interface WarmDecision {
 }
 ```
 
-Return `"warm"` / `"stop"` (a Promise is fine). `"stop"` skips the request and stops this warming round (when the built-in decision was warm, the stop reason is recorded as `declined`); `"warm"` can override a built-in stop. If the handler fails, the built-in decision applies. With several handlers, the last one registered and not unsubscribed wins; the return value is an unsubscribe function. The warming mechanism itself is described in [providers.md](providers.md) "Caching".
+Return `"warm"` / `"stop"` (a Promise is fine). `"stop"` skips the request and stops this warming round (when the built-in decision was warm, the stop reason is recorded as `declined`); `"warm"` can override a built-in stop. If the handler fails, the built-in decision applies. With several handlers, the last one registered and not unsubscribed wins; the return value is an unsubscribe function. The warming mechanism itself is described in [providers.md](../guides/providers.md) "Caching".
 
 ## Exit
 

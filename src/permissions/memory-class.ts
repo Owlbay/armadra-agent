@@ -1,5 +1,5 @@
 /**
- * 权限类 `memory`（docs/wave6-plan.md §3.3、D10）。[W6-C0] 管线判定；`memory` 工具本身由 W6-M 实现。
+ * 权限类 `memory`（docs/history/wave6-plan.md §3.3、D10）。[W6-C0] 管线判定；`memory` 工具本身由 W6-M 实现。
  *
  * 管线按命令把它折成已有的类再走通常的真值表：
  * - `view` → `read`：所有模式放行；

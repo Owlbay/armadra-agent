@@ -1,5 +1,5 @@
 /**
- * 本地 OAuth 回调服务（docs/wave6-plan.md §4.1 回调行；R6 §4.3）。[W6-O]
+ * 本地 OAuth 回调服务（docs/history/wave6-plan.md §4.1 回调行；R6 §4.3）。[W6-O]
  *
  * - 只监听 `127.0.0.1`；端口按 `ports` 依次尝试（0 = 任意空闲端口），被占用就试下一个；全被占用报
  *   `oauth_ports_busy`（**不**像别的客户端那样发 `/cancel` 抢占他人的监听）；

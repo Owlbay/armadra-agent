@@ -110,7 +110,7 @@ export interface AgentEvents {
   /** [W5-C0] 计划提出 / 审批结果。 */
   plan_proposed: Omit<PlanProposedEvent, "type">;
   plan_resolved: Omit<PlanResolvedEvent, "type">;
-  /** [W6-O] ChatGPT 订阅配额更新（docs/wave6-plan.md §4.5）。 */
+  /** [W6-O] ChatGPT 订阅配额更新（docs/history/wave6-plan.md §4.5）。 */
   quota_update: Omit<QuotaUpdateEvent, "type">;
 }
 
@@ -166,7 +166,7 @@ export interface HostApi {
     onWarmingDecision(handler: WarmingDecisionHandler): () => void;
   };
   /**
-   * [W5-C0] 宿主注入的子 Agent runner（画布节点等，docs/wave5-plan.md §5.5）：注入后同名的内置
+   * [W5-C0] 宿主注入的子 Agent runner（画布节点等，docs/history/wave5-plan.md §5.5）：注入后同名的内置
    * 外部 runner 被替换；返回值用于注销。可选面：旧版本运行时没有它（实现归 W5-E / W5-G）。
    */
   readonly runners?: {

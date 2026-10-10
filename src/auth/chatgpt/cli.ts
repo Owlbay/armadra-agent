@@ -1,5 +1,5 @@
 /**
- * `ama auth login | logout | status chatgpt`（docs/wave6-plan.md §4.2、D16）。[W6-O]
+ * `ama auth login | logout | status chatgpt`（docs/history/wave6-plan.md §4.2、D16）。[W6-O]
  *
  * - login：flavor 取 `--flavor` > 用户级 `auth.chatgpt.flavor` > siwc；`--paste` / `--device`（只 codex）/ 缺省
  *   浏览器；codex 首次在 TTY 下一次性确认「非官方、仅个人使用」（非 TTY 需 `--yes`），`acknowledgedAt` 入条目；

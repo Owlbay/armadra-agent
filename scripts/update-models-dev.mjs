@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 刷新入库的 models.dev 快照（docs/wave5-plan.md §2.3、docs/providers.md「模型元数据」）。零依赖。
+// 刷新入库的 models.dev 快照（docs/history/wave5-plan.md §2.3、docs/guides/providers.md「模型元数据」）。零依赖。
 //
 //   node scripts/update-models-dev.mjs [--url <url>] [--input <api.json>] [--out <dir>]
 //        [--data-out <file>] [--list <_providers.json>] [--now <ISO>] [--min-providers <n>] [--dry-run]
@@ -266,7 +266,7 @@ async function main() {
   ];
   const data = inlineJsonModule({
     header: [
-      "由 scripts/update-models-dev.mjs 生成，勿手改（docs/providers.md「模型元数据」）。",
+      "由 scripts/update-models-dev.mjs 生成，勿手改（docs/guides/providers.md「模型元数据」）。",
       "",
       `数据来自 models.dev（${meta.source}，github.com/${meta.upstream}），MIT 许可：`,
       "Copyright (c) 2025 models.dev。完整声明见 THIRD_PARTY_NOTICES.md。",

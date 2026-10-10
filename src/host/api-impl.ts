@@ -6,7 +6,7 @@
  * 事件总线 `AgentEventBus` 由 bootstrap 创建并交给 AgentSession 发事件；处理器只观察，
  * 抛错记日志；`emit` 等待全部处理器（`session_shutdown` 需要被 await）。
  *
- * [W5-EG] `runners.provide`（docs/wave5-plan.md §5.5，D17）：宿主注入的 runner 进本适配器的
+ * [W5-EG] `runners.provide`（docs/history/wave5-plan.md §5.5，D17）：宿主注入的 runner 进本适配器的
  * {@link HostRunnerRegistry}（跨会话共享），每个主会话的外部 Agent 入口（agents/external.ts）经
  * {@link hostRunnersOf} 取到它；有宿主时 ama 不自 spawn 外部 CLI，只认这里注入的。
  */

@@ -1,5 +1,5 @@
 /**
- * 记忆条目的 frontmatter（docs/wave6-plan.md §3.2）。[W6-M]
+ * 记忆条目的 frontmatter（docs/history/wave6-plan.md §3.2）。[W6-M]
  *
  * ```markdown
  * ---

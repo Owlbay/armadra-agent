@@ -1,5 +1,5 @@
 /**
- * `ama memory list|show|edit|rm|path|enable|disable`（docs/wave6-plan.md §3.5）。[W6-M]
+ * `ama memory list|show|edit|rm|path|enable|disable`（docs/history/wave6-plan.md §3.5）。[W6-M]
  *
  * - 作用域按用户级配置（`memory.scopes`，缺省 user + project）；项目作用域以 cwd 定位，需项目已受信任
  *   （trust.json 记录），否则跳过并提示。`memory.enabled` 为 false 时照样能看、能改（条目保留但不使用）。

@@ -1,5 +1,5 @@
 /**
- * [W5-F] 组装后的端到端（docs/wave5-plan.md §6.6）：
+ * [W5-F] 组装后的端到端（docs/history/wave5-plan.md §6.6）：
  * - 缓存前缀：20 回合里 plan ↔ default 切换 3 次，system + tools 逐字节不变，`cache_miss` 没有 prefix_changed；
  * - 交接：`-p` + `plan.unattended: approve` 在一次运行里 plan → 批准 → todo → 执行模式；缺省 stop 只落盘。
  * - [W5-Z] default 预设不含 todo 时交接改用 `[DONE:n]`：回复里的标记把计划待办推进；`+todo` 时仍用 todo update。

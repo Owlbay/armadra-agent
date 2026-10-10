@@ -1,5 +1,5 @@
 /**
- * [W7-B1] 转后台原语与缺省后台（docs/agents-concurrency-plan.md §2.3、§2.5、§2.6、§4 B1 项）。
+ * [W7-B1] 转后台原语与缺省后台（docs/history/agents-concurrency-plan.md §2.3、§2.5、§2.6、§4 B1 项）。
  */
 
 import { describe, expect, it } from "vitest";

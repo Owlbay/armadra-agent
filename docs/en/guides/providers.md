@@ -1,11 +1,11 @@
 # Providers and models
 
-English · [简体中文](../providers.md)
+English · [简体中文](../../guides/providers.md)
 
-> Translated from the Chinese [docs/providers.md](../providers.md) as of commit `514202f`. When the two differ, the
+> Translated from the Chinese [docs/guides/providers.md](../../guides/providers.md) as of commit `514202f`. When the two differ, the
 > Chinese version is authoritative.
 
-Built-in providers, model references, API keys, custom providers and relays, the compat switches of each protocol, and caching. The design rationale is in [design.md](../design.md) §3 and §9.1 (Chinese).
+Built-in providers, model references, API keys, custom providers and relays, the compat switches of each protocol, and caching. The design rationale is in [design.md](../../design/design.md) §3 and §9.1 (Chinese).
 
 ## Config directory
 
@@ -449,9 +449,9 @@ OpenRouter's Messages endpoint only gives cache usage in `message_delta`; parsin
 
 Most usage in long tasks is cache reads: once the prefix changes, every later request re-reads it at full price. ama handles caching in three layers: the **protocol layer** places breakpoints, sends cache keys and retention tiers the way each provider expects, and marks whether a response had cache fields; the **session layer** records each request's prefix fingerprint, detects misses, decides whether the endpoint reports cache usage and warms the cache during long tool runs; the **display layer** is the status bar, `/session`, RPC stats and `ama models cache-probe` (how to read the interface is in [tui.md](tui.md) "Cache and context").
 
-Prefix stability is guaranteed by assembly: the system prompt sections have a fixed order without timestamps, tools are sorted by name, and mid-session changes are only appended at the end as system patches ([session-format.md](../session-format.md), Chinese).
+Prefix stability is guaranteed by assembly: the system prompt sections have a fixed order without timestamps, tools are sorted by name, and mid-session changes are only appended at the end as system patches ([session-format.md](../../reference/session-format.md), Chinese).
 
-**The leading system prompt and the tool declarations are written once per session.** Section patches after the conversation has started (AGENTS.md, Skills or SessionStart hook output changed on resume, host instructions refreshed, the memory section re-rendered after compaction) do not rewrite the head: protocols without `supportsMidConvoSystemMessages` render them as a user message wrapped in `<system-reminder>` at the patch's position, so the previous request stays a byte-for-byte prefix. Measured on DeepSeek, a mid-conversation system message is accepted and the prefix cache holds, but the model still answers from the leading one, so DeepSeek keeps the switch off ([cache-midconvo-2026-10-09](../benchmarks/cache-midconvo-2026-10-09.md), Chinese).
+**The leading system prompt and the tool declarations are written once per session.** Section patches after the conversation has started (AGENTS.md, Skills or SessionStart hook output changed on resume, host instructions refreshed, the memory section re-rendered after compaction) do not rewrite the head: protocols without `supportsMidConvoSystemMessages` render them as a user message wrapped in `<system-reminder>` at the patch's position, so the previous request stays a byte-for-byte prefix. Measured on DeepSeek, a mid-conversation system message is accepted and the prefix cache holds, but the model still answers from the leading one, so DeepSeek keeps the switch off ([cache-midconvo-2026-10-09](../../benchmarks/cache-midconvo-2026-10-09.md), Chinese).
 
 The tool table works the same way: tools added after the conversation started are appended at the end of the table; **removing a tool keeps its declaration**, and the reminder says `Tool "X" is no longer available in this session; calls to it are rejected.` — if the model still calls it, the execution layer rejects the call (`Tool "X" is not available in this session.`); adding it back only says `Tool "X" is available again.` and keeps the declaration that was sent first. The `tools` / `rules` sections of the system prompt are also frozen to the text already sent once the conversation has started.
 
@@ -538,7 +538,7 @@ While a tool runs for a long time (long tests, `task` sub-tasks, codemode script
 | Cancellation  | Cancelled on model switch, thinking level change, compaction, `/tree` and exit; restarts with the next real request                                                                                                                                                        |
 | Accounting    | A successful warming appends a `usage{kind:"cache_warm"}` entry (never in the context), counted in `/session` cost and RPC stats; events `cache_warm{scheduled｜sent｜stopped}`                                                                                            |
 
-Hosts can veto or force every warming through `api.cache.onWarmingDecision` ([host-api.md](host-api.md) "Cache warming"). Sub-sessions do not warm by default (`cache.warmSubagents: true` turns it on). By catalog prices, warming during long tool runs almost always pays off; idle warming only pays off for expensive models with long prefixes.
+Hosts can veto or force every warming through `api.cache.onWarmingDecision` ([host-api.md](../reference/host-api.md) "Cache warming"). Sub-sessions do not warm by default (`cache.warmSubagents: true` turns it on). By catalog prices, warming during long tool runs almost always pays off; idle warming only pays off for expensive models with long prefixes.
 
 ### Compaction summary continuation
 

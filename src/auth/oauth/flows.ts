@@ -1,5 +1,5 @@
 /**
- * 授权流程（docs/wave6-plan.md §4.2、D16；R6 §4.2、§4.3、§1.2 设备码行）。[W6-O]
+ * 授权流程（docs/history/wave6-plan.md §4.2、D16；R6 §4.2、§4.3、§1.2 设备码行）。[W6-O]
  *
  * 三种拿授权码的方式，产出同一个 `AuthorizationResult`，由各预设的登录模块去换 token：
  * - `browser`：本地回调服务 + 打开浏览器（打不开就只给 URL）；

@@ -1,5 +1,5 @@
 /**
- * `ama providers add|list|channels|remove|refresh`（docs/providers.md「一键接入」「渠道」）。
+ * `ama providers add|list|channels|remove|refresh`（docs/guides/providers.md「一键接入」「渠道」）。
  *
  * - add：只给 baseUrl 与 key，列出中转的模型（`GET /models`）、用 models.dev 补元数据、可选逐渠道
  *   探测，把渠道与模型追加进用户级 config.json（先备份）；key 从 stdin 读（不回显）存 auth.json，

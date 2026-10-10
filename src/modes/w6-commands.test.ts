@@ -1,5 +1,5 @@
 /**
- * 第六波命令登记与面板钩子（docs/wave6-plan.md §7 commands 行；[W6-C0]）。
+ * 第六波命令登记与面板钩子（docs/history/wave6-plan.md §7 commands 行；[W6-C0]）。
  */
 
 import { describe, expect, it } from "vitest";

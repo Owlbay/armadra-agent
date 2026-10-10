@@ -1,5 +1,5 @@
 /**
- * 检查点备份存储（docs/rewind-plan.md §1.1）。[RW-A]
+ * 检查点备份存储（docs/history/rewind-plan.md §1.1）。[RW-A]
  *
  * - 位置 `<dataDir>/file-history/blobs/<sha256 前 2 位>/<sha256>`，内容为文件原字节；
  *   先写 `<name>.tmp-<pid>-<序号>` 再 rename，已存在即跳过（内容寻址，同内容只存一份）。

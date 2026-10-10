@@ -1,6 +1,6 @@
 # 模型调用与使用效率改进设计（缓存、用量、重试、元数据）
 
-> 状态：**已实施**（C0 #134、A #143、B #141、C #142、D #140，Z 收尾 #135；实测汇总见 [benchmarks/efficiency-2026-10.md](benchmarks/efficiency-2026-10.md)）。基线 `main` = `0a98418`（0.7.3 + #133）。依据：效率审计报告（C0 整理为 [research/model-efficiency-audit-2026-10.md](research/model-efficiency-audit-2026-10.md)，去掉外部项目名）、[benchmarks/cache-midconvo-2026-10-09.md](benchmarks/cache-midconvo-2026-10-09.md)、[benchmarks/cache-2026-10-02.md](benchmarks/cache-2026-10-02.md)、[design.md](design.md) §3.6 / §9 / §9.1、`src/cli/prompt-budget.test.ts`。批次写法沿用 [acp-plan.md](acp-plan.md)。
+> 状态：**已实施**（C0 #134、A #143、B #141、C #142、D #140，Z 收尾 #135；实测汇总见 [benchmarks/efficiency-2026-10.md](../benchmarks/efficiency-2026-10.md)）。基线 `main` = `0a98418`（0.7.3 + #133）。依据：效率审计报告（C0 整理为 [research/model-efficiency-audit-2026-10.md](../research/model-efficiency-audit-2026-10.md)，去掉外部项目名）、[benchmarks/cache-midconvo-2026-10-09.md](../benchmarks/cache-midconvo-2026-10-09.md)、[benchmarks/cache-2026-10-02.md](../benchmarks/cache-2026-10-02.md)、[design.md](../design/design.md) §3.6 / §9 / §9.1、`src/cli/prompt-budget.test.ts`。批次写法沿用 [acp-plan.md](acp-plan.md)。
 > 硬约束不变：零运行时依赖；源码 ≤ 600 行 / 测试 ≤ 1000 行（**`src/agent/session.ts` 已 596 行、`src/agent/subagent-registry.ts` 600 行、`src/ai/providers/registry.ts` 599 行、`src/cli/compose-session.ts` 608 行：本计划不得向这四个文件加行**）；i18n en / zh；**首个请求与相邻回合的 system + tools 逐字节不变**；`prompt-budget` 三档不突破（现值 default ≈ 1446 / 2000、minimal ≈ 740 / 800、codemode-only ≈ 1767 / 1775，`default+memory` ≤ 2350、`default+task` ≤ 2000）；RPC / ACP / TUI 既有语义不变，新增字段一律可选；测试只用 fake 供应商；真实测量只经中转 packy 的 deepseek / kimi，每批 ≤ 10 次请求；代码与文档不出现参考项目名。
 > 范围：报告 P1-1…P1-7 全部；P2 中 P2-1、2、4、5、6、7、8、9、11 纳入；P2-3、P2-10、P2-12 与 P1-2(c) 本波不做，理由见 §6。
 
@@ -155,9 +155,9 @@ export async function postWithMaxTokensFallback(
 
 ### §1.10 文档与记录（C0）
 
-- `docs/model-efficiency-plan.md`（本文）；`docs/research/model-efficiency-audit-2026-10.md`（审计报告整理稿，去掉外部项目名与 `/tmp` 路径）。
-- `docs/session-format.md`：`ama.task` 的 `data` 增加 `context?`、`forkedFrom?`；assistant 消息块可带 `rawArguments`、失败消息可带 `retryAfterMs`（都是可选字段，格式版本不变）。
-- `docs/rpc.md`：`message_end` / 回放里的 assistant 消息可能出现上述可选字段；`subagent_*` 的 TaskInfo 可带 `context`。
+- `docs/history/model-efficiency-plan.md`（本文）；`docs/research/model-efficiency-audit-2026-10.md`（审计报告整理稿，去掉外部项目名与 `/tmp` 路径）。
+- `docs/reference/session-format.md`：`ama.task` 的 `data` 增加 `context?`、`forkedFrom?`；assistant 消息块可带 `rawArguments`、失败消息可带 `retryAfterMs`（都是可选字段，格式版本不变）。
+- `docs/reference/rpc.md`：`message_end` / 回放里的 assistant 消息可能出现上述可选字段；`subagent_*` 的 TaskInfo 可带 `context`。
 - `CHANGELOG.md` / `CHANGELOG.zh-CN.md` 未发布段建子标题「Model efficiency」/「模型调用效率」，各批次往里加条目。
 
 ## §2 行为细节
@@ -261,16 +261,16 @@ C0 先合；A、B、C、D 之后**并行**，文件互不重叠；Z 收尾。
 
 ### `[ME-C0]` 契约与无行为搬迁（§1 全部）
 
-| 文件（唯一属主 C0）                                                                                                                                                | 内容                                                  |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
-| `src/ai/types.ts`、`src/ai/cache/types.ts`、`src/tools/types.ts`、`src/agents/types.ts`、`src/agents/task-record.ts`（TaskInfo 一行）、`src/agent/session-core.ts` | §1.1、§1.2、§1.6、§1.4 字段                           |
-| `src/agent/tool-availability.ts`（新）、`src/agent/session-tools.ts`（gate 两行）、`session-tools.test.ts`                                                         | §1.4；测试：`unavailableTools` 里的工具被拒且文案固定 |
-| `src/session/manager.ts`、`manager.test.ts`                                                                                                                        | §1.5；测试：`head` 成为根、复制条目重挂、投影消息不变 |
-| `src/agent/session-cache-key.ts`（新）、`src/agent/session-cache.ts`（只删搬走的 35 行并 import）、`session-cache.test.ts`（import 路径）                          | §1.8                                                  |
-| `src/ai/apis/max-tokens.ts`（新，空壳：签名 + `clampMaxTokens` 直接返回 requested、`parse` 返回 undefined）                                                        | §1.9                                                  |
-| `src/ai/providers/catalog.ts`（类型 + 校验 `aliases` 为字符串数组、`small` 为字符串；不建索引）、`catalog.test.ts`                                                 | §1.3                                                  |
-| `src/config/types.ts`、`schema.ts`、`json-schema.ts`、`settings-registry.ts`、`key-docs.ts`、`src/i18n/messages/config-keys.ts`、`errors.ts`                       | §1.7                                                  |
-| `docs/model-efficiency-plan.md`、`docs/research/model-efficiency-audit-2026-10.md`、`docs/session-format.md`、`docs/rpc.md`、CHANGELOG ×2                          | §1.10                                                 |
+| 文件（唯一属主 C0）                                                                                                                                                   | 内容                                                  |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `src/ai/types.ts`、`src/ai/cache/types.ts`、`src/tools/types.ts`、`src/agents/types.ts`、`src/agents/task-record.ts`（TaskInfo 一行）、`src/agent/session-core.ts`    | §1.1、§1.2、§1.6、§1.4 字段                           |
+| `src/agent/tool-availability.ts`（新）、`src/agent/session-tools.ts`（gate 两行）、`session-tools.test.ts`                                                            | §1.4；测试：`unavailableTools` 里的工具被拒且文案固定 |
+| `src/session/manager.ts`、`manager.test.ts`                                                                                                                           | §1.5；测试：`head` 成为根、复制条目重挂、投影消息不变 |
+| `src/agent/session-cache-key.ts`（新）、`src/agent/session-cache.ts`（只删搬走的 35 行并 import）、`session-cache.test.ts`（import 路径）                             | §1.8                                                  |
+| `src/ai/apis/max-tokens.ts`（新，空壳：签名 + `clampMaxTokens` 直接返回 requested、`parse` 返回 undefined）                                                           | §1.9                                                  |
+| `src/ai/providers/catalog.ts`（类型 + 校验 `aliases` 为字符串数组、`small` 为字符串；不建索引）、`catalog.test.ts`                                                    | §1.3                                                  |
+| `src/config/types.ts`、`schema.ts`、`json-schema.ts`、`settings-registry.ts`、`key-docs.ts`、`src/i18n/messages/config-keys.ts`、`errors.ts`                          | §1.7                                                  |
+| `docs/history/model-efficiency-plan.md`、`docs/research/model-efficiency-audit-2026-10.md`、`docs/reference/session-format.md`、`docs/reference/rpc.md`、CHANGELOG ×2 | §1.10                                                 |
 
 完成标准：`pnpm run ci` 绿；`prompt-budget` 三档数值不变；`cache-stability.test.ts`、rpc / acp 黄金字节不变。
 
@@ -283,7 +283,7 @@ C0 先合；A、B、C、D 之后**并行**，文件互不重叠；Z 收尾。
 | `src/agent/session-cache-key.ts`                                                                                                                                              | `cacheKeyOf`：`ama.task` 的 `data.context === "fork"` 不排除，沿用父链根 id |
 | `src/tools/task.ts`、`task.test.ts`                                                                                                                                           | `context` 参数、描述、`details.context`                                     |
 | `src/agents/parse.ts`、`parse.test.ts`、`src/agents/catalog.ts`（`describe()` 不列 context，保住 400 token 清单预算）                                                         | frontmatter `context:`                                                      |
-| `docs/agents.md`（「限制」改写、新「fork 模式」节含经济性表）、`docs/design.md` §5.2 `task` 行（经 Z 合入）                                                                   | 文档                                                                        |
+| `docs/guides/agents.md`（「限制」改写、新「fork 模式」节含经济性表）、`docs/design/design.md` §5.2 `task` 行（经 Z 合入）                                                     | 文档                                                                        |
 | CHANGELOG ×2                                                                                                                                                                  | 一条                                                                        |
 
 测试（fake）：
@@ -300,18 +300,18 @@ C0 先合；A、B、C、D 之后**并行**，文件互不重叠；Z 收尾。
 
 ### `[ME-B]` 前缀不变量、压缩与可观测（P1-2、P1-3、P2-7、P2-8、P2-9；D4–D6、D15–D17）
 
-| 文件所有权                                                                                                                                                                                                                                                                                                                | 改动                                                                          |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `src/session/projection.ts`、`projection.test.ts`                                                                                                                                                                                                                                                                         | §2.2 检查点与合成补丁、`set` 不删                                             |
-| `src/ai/context.ts`、`context.test.ts`                                                                                                                                                                                                                                                                                    | §2.2 `apply(started)`、reminder 文案、删折回                                  |
-| `src/agent/session-sync.ts`、`session-sync.test.ts`（新或现有）                                                                                                                                                                                                                                                           | `keepSectionsAfterStart`                                                      |
-| `src/agent/session-compaction.ts`、`session-compaction.test.ts`                                                                                                                                                                                                                                                           | §2.3 干跑与顺序；`contextBudget` 软窗口                                       |
-| `src/agent/session-cache.ts`、`session-cache.test.ts`                                                                                                                                                                                                                                                                     | `summaryContinuation` 冷判、思考 maxTokens；`replay` 用 `warmReplayMaxTokens` |
-| `src/ai/cache/warmer.ts`（`warmReplayMaxTokens`）、`fingerprint.ts`、`miss.ts`、三者测试                                                                                                                                                                                                                                  | D15、D17                                                                      |
-| `src/compaction/continuation.test.ts`                                                                                                                                                                                                                                                                                     | 思考开启时续写 `maxTokens`                                                    |
-| `src/cli/cache-stability.test.ts`（271 → ≈ 520）                                                                                                                                                                                                                                                                          | 见下                                                                          |
-| `docs/design.md` §9 表「缓存」行、§9.1 表（「只有移除工具的补丁折回开头」→「开头永不改写；移除工具保留声明 + 尾部提醒」、新增「压缩后首个请求的 system + tools 与压缩前逐字节相同」、「档一 / 档二顺序」）、`docs/providers.md`「缓存」节、`docs/sessions.md` 压缩段、`docs/en/providers.md` / `docs/en/sessions.md` 同节 | 文档                                                                          |
-| CHANGELOG ×2                                                                                                                                                                                                                                                                                                              | 三条（不变量、续写、软窗口 / 指纹）                                           |
+| 文件所有权                                                                                                                                                                                                                                                                                                                                                   | 改动                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| `src/session/projection.ts`、`projection.test.ts`                                                                                                                                                                                                                                                                                                            | §2.2 检查点与合成补丁、`set` 不删                                             |
+| `src/ai/context.ts`、`context.test.ts`                                                                                                                                                                                                                                                                                                                       | §2.2 `apply(started)`、reminder 文案、删折回                                  |
+| `src/agent/session-sync.ts`、`session-sync.test.ts`（新或现有）                                                                                                                                                                                                                                                                                              | `keepSectionsAfterStart`                                                      |
+| `src/agent/session-compaction.ts`、`session-compaction.test.ts`                                                                                                                                                                                                                                                                                              | §2.3 干跑与顺序；`contextBudget` 软窗口                                       |
+| `src/agent/session-cache.ts`、`session-cache.test.ts`                                                                                                                                                                                                                                                                                                        | `summaryContinuation` 冷判、思考 maxTokens；`replay` 用 `warmReplayMaxTokens` |
+| `src/ai/cache/warmer.ts`（`warmReplayMaxTokens`）、`fingerprint.ts`、`miss.ts`、三者测试                                                                                                                                                                                                                                                                     | D15、D17                                                                      |
+| `src/compaction/continuation.test.ts`                                                                                                                                                                                                                                                                                                                        | 思考开启时续写 `maxTokens`                                                    |
+| `src/cli/cache-stability.test.ts`（271 → ≈ 520）                                                                                                                                                                                                                                                                                                             | 见下                                                                          |
+| `docs/design/design.md` §9 表「缓存」行、§9.1 表（「只有移除工具的补丁折回开头」→「开头永不改写；移除工具保留声明 + 尾部提醒」、新增「压缩后首个请求的 system + tools 与压缩前逐字节相同」、「档一 / 档二顺序」）、`docs/guides/providers.md`「缓存」节、`docs/guides/sessions.md` 压缩段、`docs/en/guides/providers.md` / `docs/en/guides/sessions.md` 同节 | 文档                                                                          |
+| CHANGELOG ×2                                                                                                                                                                                                                                                                                                                                                 | 三条（不变量、续写、软窗口 / 指纹）                                           |
 
 测试（fake，`cache-stability.test.ts` 新增）：
 
@@ -327,19 +327,19 @@ C0 先合；A、B、C、D 之后**并行**，文件互不重叠；Z 收尾。
 
 ### `[ME-C]` 请求层：断点、重试、max_tokens、原始参数、超时（P1-4、P1-5、P1-6、P2-6、P2-11；D7–D9、D14、D18）
 
-| 文件所有权                                                                                                                                                      | 改动                                                           |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `src/ai/apis/anthropic-request.ts`、`anthropic-messages.test.ts`、`cache-request.test.ts`                                                                       | 第 4 断点、clamp                                               |
-| `src/ai/apis/shared.ts`、`stream-contract.test.ts`                                                                                                              | `retryAfterMs`、`rawArguments`                                 |
-| `src/ai/apis/openai-request.ts`、`openai-responses-request.ts`、`openai-completions.ts`、`openai-responses.ts`、`google-generative-ai.ts`（clamp 一行）、各测试 | `rawArguments`、clamp、`postWithMaxTokensFallback`             |
-| `src/ai/apis/max-tokens.ts`、`max-tokens.test.ts`（新）                                                                                                         | §1.9 实现                                                      |
-| `src/ai/overflow.ts`、`overflow.test.ts`                                                                                                                        | Anthropic 文案                                                 |
-| `src/ai/http.ts`、`sse.ts`、`http.test.ts`、`sse.test.ts`                                                                                                       | 两段超时                                                       |
-| `src/agent/retry.ts`、`retry.test.ts`（新）、`session-run.ts`、`fallback.test.ts`                                                                               | D8                                                             |
-| `src/ai/fake/fake-provider.ts`                                                                                                                                  | 录 `rawArguments`；脚本可给 `retryAfterMs` / `status` 模拟 429 |
-| `src/cli/compose-request.ts`（新）、`compose-session.ts`（**替换 1 行、不加行**）                                                                               | `request.streamIdleTimeoutMs`                                  |
-| `docs/design.md` §3.6 重试 / 缓存两行（经 Z）、`docs/providers.md`「缓存」请求字段表 Anthropic 行与新「max_tokens」小节、`docs/en/providers.md` 同节            | 文档                                                           |
-| CHANGELOG ×2                                                                                                                                                    | 四条                                                           |
+| 文件所有权                                                                                                                                                                | 改动                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `src/ai/apis/anthropic-request.ts`、`anthropic-messages.test.ts`、`cache-request.test.ts`                                                                                 | 第 4 断点、clamp                                               |
+| `src/ai/apis/shared.ts`、`stream-contract.test.ts`                                                                                                                        | `retryAfterMs`、`rawArguments`                                 |
+| `src/ai/apis/openai-request.ts`、`openai-responses-request.ts`、`openai-completions.ts`、`openai-responses.ts`、`google-generative-ai.ts`（clamp 一行）、各测试           | `rawArguments`、clamp、`postWithMaxTokensFallback`             |
+| `src/ai/apis/max-tokens.ts`、`max-tokens.test.ts`（新）                                                                                                                   | §1.9 实现                                                      |
+| `src/ai/overflow.ts`、`overflow.test.ts`                                                                                                                                  | Anthropic 文案                                                 |
+| `src/ai/http.ts`、`sse.ts`、`http.test.ts`、`sse.test.ts`                                                                                                                 | 两段超时                                                       |
+| `src/agent/retry.ts`、`retry.test.ts`（新）、`session-run.ts`、`fallback.test.ts`                                                                                         | D8                                                             |
+| `src/ai/fake/fake-provider.ts`                                                                                                                                            | 录 `rawArguments`；脚本可给 `retryAfterMs` / `status` 模拟 429 |
+| `src/cli/compose-request.ts`（新）、`compose-session.ts`（**替换 1 行、不加行**）                                                                                         | `request.streamIdleTimeoutMs`                                  |
+| `docs/design/design.md` §3.6 重试 / 缓存两行（经 Z）、`docs/guides/providers.md`「缓存」请求字段表 Anthropic 行与新「max_tokens」小节、`docs/en/guides/providers.md` 同节 | 文档                                                           |
+| CHANGELOG ×2                                                                                                                                                              | 四条                                                           |
 
 测试：
 
@@ -353,16 +353,16 @@ C0 先合；A、B、C、D 之后**并行**，文件互不重叠；Z 收尾。
 
 ### `[ME-D]` 目录、工具与分类器（P1-7、P2-1、P2-2、P2-4；D10–D12）
 
-| 文件所有权                                                                                                                                                                                           | 改动                         |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| `src/ai/providers/catalog.ts`（别名索引，≈ +40 行）、`catalog.test.ts`、`catalog-data.ts`（`UPDATE_CATALOG=1` 重生成）                                                                               | D10                          |
-| `src/ai/providers/catalog/*.json`                                                                                                                                                                    | `aliases`、`small`           |
-| `src/ai/providers/enrich.ts`、`enrich.test.ts`（新）、`models-dev.test.ts`                                                                                                                           | D10 继承；`registry.ts` 不改 |
-| `src/cli/subcommands/models.ts`、`models.test.ts`、`src/i18n/messages/subcommands-models.ts`                                                                                                         | 来源列                       |
-| `src/tools/read.ts`、`grep.ts`、`bash.ts`、`glob.ts`、各测试、`src/agent/tool-runner.ts`（+2 行）、`tool-runner.test.ts`                                                                             | D11                          |
-| `src/agent/session-classifier.ts`、`session-classifier.test.ts`                                                                                                                                      | D12                          |
-| `docs/providers.md`「模型元数据」「接中转」节与新「从官方目录继承」小节、`docs/permissions.md` auto 一节、`docs/design.md` §5.2 四行（经 Z）、`docs/en/providers.md` / `docs/en/permissions.md` 同节 | 文档                         |
-| CHANGELOG ×2                                                                                                                                                                                         | 三条                         |
+| 文件所有权                                                                                                                                                                                                                              | 改动                         |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `src/ai/providers/catalog.ts`（别名索引，≈ +40 行）、`catalog.test.ts`、`catalog-data.ts`（`UPDATE_CATALOG=1` 重生成）                                                                                                                  | D10                          |
+| `src/ai/providers/catalog/*.json`                                                                                                                                                                                                       | `aliases`、`small`           |
+| `src/ai/providers/enrich.ts`、`enrich.test.ts`（新）、`models-dev.test.ts`                                                                                                                                                              | D10 继承；`registry.ts` 不改 |
+| `src/cli/subcommands/models.ts`、`models.test.ts`、`src/i18n/messages/subcommands-models.ts`                                                                                                                                            | 来源列                       |
+| `src/tools/read.ts`、`grep.ts`、`bash.ts`、`glob.ts`、各测试、`src/agent/tool-runner.ts`（+2 行）、`tool-runner.test.ts`                                                                                                                | D11                          |
+| `src/agent/session-classifier.ts`、`session-classifier.test.ts`                                                                                                                                                                         | D12                          |
+| `docs/guides/providers.md`「模型元数据」「接中转」节与新「从官方目录继承」小节、`docs/guides/permissions.md` auto 一节、`docs/design/design.md` §5.2 四行（经 Z）、`docs/en/guides/providers.md` / `docs/en/guides/permissions.md` 同节 | 文档                         |
+| CHANGELOG ×2                                                                                                                                                                                                                            | 三条                         |
 
 测试：
 
@@ -375,7 +375,7 @@ C0 先合；A、B、C、D 之后**并行**，文件互不重叠；Z 收尾。
 
 ### `[ME-Z]` 收尾（A–D 合入后）
 
-- `docs/design.md`：§3.6（重试、缓存两行）、§5.2（task / read / grep / glob / bash 行）、§9 / §9.1 定稿；§17 风险表若引用缓存现状则更新。
+- `docs/design/design.md`：§3.6（重试、缓存两行）、§5.2（task / read / grep / glob / bash 行）、§9 / §9.1 定稿；§17 风险表若引用缓存现状则更新。
 - `docs/benchmarks/efficiency-2026-10.md`：汇总 A / B / C 的实测表（合计 ≤ 8 次），写明中转、粒度与局限。
 - `docs/en/` 七篇与中文版通读对齐；CHANGELOG 两份把「Model efficiency」条目归并到发版号。
 - 全量 `pnpm run ci`、`AMA_E2E=1 pnpm test:e2e`。
@@ -385,8 +385,8 @@ C0 先合；A、B、C、D 之后**并行**，文件互不重叠；Z 收尾。
 | 文件                                                                       | 规则                                                                                                              |
 | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | `src/i18n/messages/*.ts`                                                   | C0 加键；各批只在自己的键下改文案，后合者 rebase                                                                  |
-| `docs/providers.md`、`docs/en/providers.md`                                | B 只改「缓存」节；C 在「缓存」节下只加「max_tokens」小节与 Anthropic 行；D 只改「模型元数据」「接中转」节；Z 统稿 |
-| `docs/design.md`                                                           | 各批把要改的行写在 PR 描述里，Z 一次合入；C0 不动                                                                 |
+| `docs/guides/providers.md`、`docs/en/guides/providers.md`                  | B 只改「缓存」节；C 在「缓存」节下只加「max_tokens」小节与 Anthropic 行；D 只改「模型元数据」「接中转」节；Z 统稿 |
+| `docs/design/design.md`                                                    | 各批把要改的行写在 PR 描述里，Z 一次合入；C0 不动                                                                 |
 | `CHANGELOG.md` / `CHANGELOG.zh-CN.md`                                      | C0 建子标题，各批只追加自己的条目                                                                                 |
 | `src/agent/session-compaction.ts`、`session-cache.ts`                      | 唯一属主 B（D 的 `contextBudget`、P2-9 都由 B 实现）                                                              |
 | `src/agent/session-tools.ts`                                               | 唯一属主 C0（gate + 文案）；B 不碰                                                                                |

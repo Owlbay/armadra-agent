@@ -1,6 +1,6 @@
 # 供应商与模型
 
-内置供应商、模型引用、API Key、自定义供应商与中转站、各协议的 compat 开关，以及缓存。设计依据见 [design.md](design.md) §3、§9.1。
+内置供应商、模型引用、API Key、自定义供应商与中转站、各协议的 compat 开关，以及缓存。设计依据见 [design.md](../design/design.md) §3、§9.1。
 
 ## 配置目录
 
@@ -629,9 +629,9 @@ OpenRouter 的 Messages 接口只在 `message_delta` 里给缓存 usage，解析
 
 长任务的主要用量是缓存读取：前缀一旦变化，此后每次请求都要按全价重读。ama 分三层处理缓存：**协议层**按各家写法打断点、发缓存键与保留层级，并标记响应里有没有缓存字段；**会话层**记录每次请求的前缀指纹，检测未命中、判定端点报不报缓存、在长工具运行期间保温；**展示层**是状态栏、`/session`、RPC 统计与 `ama models cache-probe`（界面怎么读见 [tui.md](tui.md)「缓存与上下文」）。
 
-前缀稳定由组装保证：系统提示节顺序固定、不含时间戳，工具按名排序，会话中途的变化只以 system 补丁追加在末尾（[session-format.md](session-format.md)「消息」）。
+前缀稳定由组装保证：系统提示节顺序固定、不含时间戳，工具按名排序，会话中途的变化只以 system 补丁追加在末尾（[session-format.md](../reference/session-format.md)「消息」）。
 
-**开头的 system 与工具声明在会话内只写一次。** 对话开始之后的节补丁（resume 时 AGENTS.md、Skills 或 SessionStart Hook 输出变了，宿主 instructions 刷新，压缩后记忆节重新渲染）不改写开头：没有打开 `supportsMidConvoSystemMessages` 的协议把它渲染成 `<system-reminder>` 包裹的 user 消息，插在补丁所在的位置，之前的请求仍是逐字节前缀。实测 DeepSeek 接受对话中途的 system 消息、前缀缓存也保持，但模型仍按开头那条回答，所以 DeepSeek 不打开这个开关（[cache-midconvo-2026-10-09](benchmarks/cache-midconvo-2026-10-09.md)）。
+**开头的 system 与工具声明在会话内只写一次。** 对话开始之后的节补丁（resume 时 AGENTS.md、Skills 或 SessionStart Hook 输出变了，宿主 instructions 刷新，压缩后记忆节重新渲染）不改写开头：没有打开 `supportsMidConvoSystemMessages` 的协议把它渲染成 `<system-reminder>` 包裹的 user 消息，插在补丁所在的位置，之前的请求仍是逐字节前缀。实测 DeepSeek 接受对话中途的 system 消息、前缀缓存也保持，但模型仍按开头那条回答，所以 DeepSeek 不打开这个开关（[cache-midconvo-2026-10-09](../benchmarks/cache-midconvo-2026-10-09.md)）。
 
 工具表同理：对话开始后新加的工具追加在工具表末尾；**移除工具不删声明**，提醒里写一句 `Tool "X" is no longer available in this session; calls to it are rejected.`，模型仍去调用时执行层拒绝（`Tool "X" is not available in this session.`）；再加回只提醒 `Tool "X" is available again.`，声明沿用第一次发送的版本。系统提示的 `tools` / `rules` 两节在对话开始后也冻结为已发送的文本。
 
@@ -748,7 +748,7 @@ xAI、Mistral、OpenRouter、Google 没有承诺的 TTL，留空：不保温、�
 | 取消   | 换模型、换思考级别、压缩、`/tree`、退出时取消，下一次真实请求再开始                                                                                                                        |
 | 记账   | 成功的保温追加 `usage{kind:"cache_warm"}` 条目（不进上下文），计入 `/session` 费用与 RPC 统计；事件 `cache_warm{scheduled｜sent｜stopped}`                                                 |
 
-宿主可以经 `api.cache.onWarmingDecision` 否决或强制每一次保温（[host-api.md](host-api.md)「缓存保温」）。子会话缺省不保温（`cache.warmSubagents: true` 打开）。按目录价格估算，长工具运行期间几乎总是划算；空闲保温只对贵模型、长前缀划算。
+宿主可以经 `api.cache.onWarmingDecision` 否决或强制每一次保温（[host-api.md](../reference/host-api.md)「缓存保温」）。子会话缺省不保温（`cache.warmSubagents: true` 打开）。按目录价格估算，长工具运行期间几乎总是划算；空闲保温只对贵模型、长前缀划算。
 
 ### 压缩摘要续写
 

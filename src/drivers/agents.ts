@@ -1,5 +1,5 @@
 /**
- * 外部 Agent 的入口（W5-G 的 `task(agent=…)` 经它拿 runner，docs/wave5-plan.md §5.5、§7.6、D13、D17）。[W5-E]
+ * 外部 Agent 的入口（W5-G 的 `task(agent=…)` 经它拿 runner，docs/history/wave5-plan.md §5.5、§7.6、D13、D17）。[W5-E]
  *
  * - `resolve("claude" | "codex" | "acp:<program>" | 表里的 id)` → {@link ProcessRunner}（按驱动表候选链，
  *   每次 `start` 时按模式与安装情况选驱动）；同一 spec 复用同一个 runner。

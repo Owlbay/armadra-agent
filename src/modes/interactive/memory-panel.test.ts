@@ -1,5 +1,5 @@
 /**
- * `/memory`（docs/wave6-plan.md §3.5）：参数解析、行式命令、交互面板（帧黄金）、删除确认、编辑器存回。
+ * `/memory`（docs/history/wave6-plan.md §3.5）：参数解析、行式命令、交互面板（帧黄金）、删除确认、编辑器存回。
  */
 
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";

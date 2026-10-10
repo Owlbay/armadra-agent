@@ -1,6 +1,6 @@
 # 记忆（Memory）
 
-> 第六波 W6-M（设计见 [wave6-plan.md](wave6-plan.md) §3、D8–D12；调研 [research/wave6/R7-memory.md](research/wave6/R7-memory.md)）。
+> 第六波 W6-M（设计见 [wave6-plan.md](../history/wave6-plan.md) §3、D8–D12；调研 [research/wave6/R7-memory.md](../research/wave6/R7-memory.md)）。
 
 跨会话的个人笔记：你说「记住……」，模型把它写成一条 Markdown，下次会话开始时索引进系统提示，正文按需读取。
 **缺省关闭**；关闭时不读盘、不注册工具、不渲染节，发给模型的请求与没有这个功能时逐字节相同。

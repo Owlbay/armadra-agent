@@ -1,5 +1,5 @@
 /**
- * 会话遥测：输出速率与首 token 延迟（docs/wave5-plan.md §1.3，D2）。[W5-A]
+ * 会话遥测：输出速率与首 token 延迟（docs/history/wave5-plan.md §1.3，D2）。[W5-A]
  *
  * 以 `SessionExtension.wrapStream` 包一层流，只观察不改事件：
  * - 只统计 `purpose: "turn"`（缺省即 turn）；summary / warm / probe / classify 原样透传、不计入；

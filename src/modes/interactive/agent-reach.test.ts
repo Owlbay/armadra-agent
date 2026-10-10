@@ -1,5 +1,5 @@
 /**
- * Agent 栏可达性的帧黄金（docs/agents-concurrency-plan.md §1.4，W7-A）：前台 task 运行中，运行提示行带
+ * Agent 栏可达性的帧黄金（docs/history/agents-concurrency-plan.md §1.4，W7-A）：前台 task 运行中，运行提示行带
  * `↓ Agent 栏`（窄屏放不下就整项丢掉），`↓` 进栏；输入框有字时 `↓` 给一行提示。zh 80 / 32 列与 en 80 列。
  */
 

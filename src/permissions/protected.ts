@@ -1,5 +1,5 @@
 /**
- * auto 模式规则层的受保护路径（§7.4，docs/permissions.md「规则层」）。
+ * auto 模式规则层的受保护路径（§7.4，docs/guides/permissions.md「规则层」）。
  *
  * - **机密路径**（读写都询问）：`.env` / `.env.*`（`.example` / `.sample` / `.template` / `.dist` 除外）、
  *   `*.env`、`.ssh/`、`.gnupg/`、`.aws/`、`.kube/config`、`.docker/config.json`、`.config/gcloud/`、

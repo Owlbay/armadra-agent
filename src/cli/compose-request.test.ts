@@ -1,5 +1,5 @@
 /**
- * 流中空闲超时的读取与下发（docs/model-efficiency-plan.md D18）。[ME-C]
+ * 流中空闲超时的读取与下发（docs/history/model-efficiency-plan.md D18）。[ME-C]
  */
 
 import { describe, expect, it } from "vitest";

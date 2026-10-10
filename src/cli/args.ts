@@ -98,7 +98,7 @@ export interface ParsedArgs {
   prompt?: string;
   /** 原始位置参数。 */
   positionals: string[];
-  /** [W6-C0] `--lang zh|en`：界面语言（`AMA_LANG` 优先，docs/i18n.md）。 */
+  /** [W6-C0] `--lang zh|en`：界面语言（`AMA_LANG` 优先，docs/guides/i18n.md）。 */
   lang?: Locale;
   /** [W6-C0] `--memory` → true、`--no-memory` → false：覆盖 `memory.enabled`（W6-M）。 */
   memory?: boolean;
@@ -428,7 +428,7 @@ function validate(args: ParsedArgs): void {
 }
 
 /**
- * ACP terminal 型认证方法的入口（docs/acp.md「无模型时」）：客户端把方法的 `args` **追加**到配置好的
+ * ACP terminal 型认证方法的入口（docs/reference/acp.md「无模型时」）：客户端把方法的 `args` **追加**到配置好的
  * Agent 启动命令后面（规范原文 append），实际得到 `ama --mode acp … --acp-terminal-auth <id>`。
  * 见到这个标志就不再按启动参数解析，转成对应的 `auth` 子命令；同一条命令里的 `--auth-file`、`--lang` 一并带上。
  */

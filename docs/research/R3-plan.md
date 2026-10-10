@@ -83,23 +83,23 @@
 
 ### 2.1 plan 模式做了什么
 
-| 项           | 现状                                                                                                                                                              | 证据                                                            |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| 定义         | 六种权限模式之一，界面名 Plan，说明为「只读，不改文件、不跑命令」                                                                                                 | `src/permissions/modes.ts:15-25`                                |
-| 进入         | Shift+Tab 循环（Manual → Accept edits → Plan → Auto → Bypass）、`/permission`、`--permission-mode plan`、配置项、RPC `set_permission_mode`、SDK `permission.mode` | `modes.ts:38-44`、`docs/permissions.md`、`docs/rpc.md:108`      |
-| 约束         | 管线第 ③ 步：read 放行，write / execute 拒绝，拒绝消息是 `Permission mode "plan" allows only read-only tools`                                                     | `src/permissions/pipeline.ts:71-76, 251-258`                    |
-| bash         | execute 类，全部拒绝（包括 `ls`、`git log`、`rg`）                                                                                                                | 同上                                                            |
-| task         | `permission: "execute"`，被拒，plan 下不能派子 Agent 探索                                                                                                         | `src/tools/task.ts:91`                                          |
-| codemode     | strict（Node ≥ 25）时是 read 类，可以调用；脚本里嵌套的写调用仍走管线被拒                                                                                         | `src/codemode/tool.ts:290`                                      |
-| 模型是否知道 | **不知道**：系统提示里没有模式信息，也没有注入任何消息；`setPermissionMode` 只改 broker 并发出事件                                                                | `src/agent/session.ts:468-471`                                  |
-| 持久化       | 模式切换不写会话条目，resume 后回到配置里的缺省模式                                                                                                               | 同上；`src/session/types.ts` 没有 `permission_mode_change` 条目 |
-| 界面         | 状态栏里 Plan 用 accent 色                                                                                                                                        | `src/modes/interactive/status-bar.ts:126`                       |
-| 文档残留     | `/permission` 的命令说明还写着旧值 `plan                                                                                                                          | default                                                         | auto-edit | full-auto` | `src/modes/commands-core.ts:64`，`docs/gap-audit-2026-10.md:120` 已经记录 |
+| 项           | 现状                                                                                                                                                              | 证据                                                                        |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| 定义         | 六种权限模式之一，界面名 Plan，说明为「只读，不改文件、不跑命令」                                                                                                 | `src/permissions/modes.ts:15-25`                                            |
+| 进入         | Shift+Tab 循环（Manual → Accept edits → Plan → Auto → Bypass）、`/permission`、`--permission-mode plan`、配置项、RPC `set_permission_mode`、SDK `permission.mode` | `modes.ts:38-44`、`docs/guides/permissions.md`、`docs/reference/rpc.md:108` |
+| 约束         | 管线第 ③ 步：read 放行，write / execute 拒绝，拒绝消息是 `Permission mode "plan" allows only read-only tools`                                                     | `src/permissions/pipeline.ts:71-76, 251-258`                                |
+| bash         | execute 类，全部拒绝（包括 `ls`、`git log`、`rg`）                                                                                                                | 同上                                                                        |
+| task         | `permission: "execute"`，被拒，plan 下不能派子 Agent 探索                                                                                                         | `src/tools/task.ts:91`                                                      |
+| codemode     | strict（Node ≥ 25）时是 read 类，可以调用；脚本里嵌套的写调用仍走管线被拒                                                                                         | `src/codemode/tool.ts:290`                                                  |
+| 模型是否知道 | **不知道**：系统提示里没有模式信息，也没有注入任何消息；`setPermissionMode` 只改 broker 并发出事件                                                                | `src/agent/session.ts:468-471`                                              |
+| 持久化       | 模式切换不写会话条目，resume 后回到配置里的缺省模式                                                                                                               | 同上；`src/session/types.ts` 没有 `permission_mode_change` 条目             |
+| 界面         | 状态栏里 Plan 用 accent 色                                                                                                                                        | `src/modes/interactive/status-bar.ts:126`                                   |
+| 文档残留     | `/permission` 的命令说明还写着旧值 `plan                                                                                                                          | default                                                                     | auto-edit | full-auto` | `src/modes/commands-core.ts:64`，`docs/history/gap-audit-2026-10.md:120` 已经记录 |
 
 ### 2.2 todo 工具
 
-- `action: set | get`；`set` 整表替换，条目为 `{id, text, status: pending|in_progress|done}`，写进 `custom{customType:"ama.todo"}`（不进上下文）；`get` 取活动分支上最近一条。`permission: "read"`，`executionMode: "parallel"`。见 `src/tools/todo.ts`、`docs/session-format.md:108`。
-- **default 预设里没有它**（D19：多一次更新就多一次往返）。只有 `codemode on` 时能在脚本里调用（`src/tools/presets.ts:40-45`、`docs/design.md:568`）。
+- `action: set | get`；`set` 整表替换，条目为 `{id, text, status: pending|in_progress|done}`，写进 `custom{customType:"ama.todo"}`（不进上下文）；`get` 取活动分支上最近一条。`permission: "read"`，`executionMode: "parallel"`。见 `src/tools/todo.ts`、`docs/reference/session-format.md:108`。
+- **default 预设里没有它**（D19：多一次更新就多一次往返）。只有 `codemode on` 时能在脚本里调用（`src/tools/presets.ts:40-45`、`docs/design/design.md:568`）。
 - 不进系统提示，也没有提醒机制，没有 TUI 面板（gap-audit P2）。
 
 ### 2.3 和推荐设计相关的现成基础设施
@@ -176,7 +176,7 @@
 | 宿主工具                            | 按 `permission` 分类 | 不变；宿主可以把「只读的画布工具」标成 read                                                                                                                                                                                              |
 | deny 规则、危险命令、Hook           | 先于模式判定         | 不变                                                                                                                                                                                                                                     |
 
-严格度排序 `plan < allowlist` 要重新核对：plan 放行了只读 bash 之后，`plan ⊆ allowlist` 不再成立（allowlist 只放行 allow 规则命中的 bash）。建议在 `docs/permissions.md` 里把严格度改成「plan 与 allowlist 不可比」，或者让 allowlist 也放行同一个只读子集。这一点要先定（见 §4 待定项）。
+严格度排序 `plan < allowlist` 要重新核对：plan 放行了只读 bash 之后，`plan ⊆ allowlist` 不再成立（allowlist 只放行 allow 规则命中的 bash）。建议在 `docs/guides/permissions.md` 里把严格度改成「plan 与 allowlist 不可比」，或者让 allowlist 也放行同一个只读子集。这一点要先定（见 §4 待定项）。
 
 ### 3.4 计划产物：格式与持久化
 
@@ -212,7 +212,7 @@
 
 **持久化**
 
-- 权威数据在会话 JSONL 里：`custom{customType:"ama.plan"}`，`data: { id, version, status: proposed|approved|rejected|superseded, markdown, steps:[{id,text,dependsOn?,agent?}], sourceEntryId, filePath? }`，不进上下文（计划正文已经在助手回复里）。另有 `custom{customType:"ama.plan_state"}`，`data: { active, prePlanMode, planId? }`，用来在 resume 时恢复 plan 模式，同时补上 §2.4 第 5 条。两种条目都要写进 `docs/session-format.md`。
+- 权威数据在会话 JSONL 里：`custom{customType:"ama.plan"}`，`data: { id, version, status: proposed|approved|rejected|superseded, markdown, steps:[{id,text,dependsOn?,agent?}], sourceEntryId, filePath? }`，不进上下文（计划正文已经在助手回复里）。另有 `custom{customType:"ama.plan_state"}`，`data: { active, prePlanMode, planId? }`，用来在 resume 时恢复 plan 模式，同时补上 §2.4 第 5 条。两种条目都要写进 `docs/reference/session-format.md`。
 - 文件只作为导出：缺省写到 `<数据目录>/plans/<sessionId>-v<N>.md`（不污染仓库，和 工具 A 默认的 `~/.<工具A>/plans/` 一致）；配置 `plan.directory` 可以指到项目内（例如 `.ama/plans/`，必须在项目根之内，照抄 工具 A 对 `plansDirectory` 的校验）。文件由 ama 进程写，不经过模型的工具调用，所以不受 plan 模式只读限制，也不触发 auto 规则层对 `.ama/` 的保护。
 - 用户编辑：审批框里提供「在外部编辑器里改」（依赖 gap-audit 里的外部编辑器项）。改过之后版本号加一，交接消息里放修改后的全文（对应 工具 A 的 `planWasEdited`）。
 
@@ -260,7 +260,7 @@
 
 ### 3.8 RPC / SDK 暴露
 
-**RPC（增量，写进 `docs/rpc.md`）**
+**RPC（增量，写进 `docs/reference/rpc.md`）**
 
 | 类型 | 名称                                   | 形状                                                                                                   |
 | ---- | -------------------------------------- | ------------------------------------------------------------------------------------------------------ |
@@ -282,10 +282,10 @@
 | 批次 | 内容                                                                                                 | 主要文件                                                                                   | 验证                                             |
 | ---- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------ |
 | P1   | plan 模式的提醒注入（完整版 / 简版 / 退出）、带指引的被拒消息、`ama.plan_state` 持久化与 resume 恢复 | `src/agent/session-run.ts`、新文件 `src/agent/plan-mode.ts`、`src/permissions/pipeline.ts` | 前缀稳定测试（切换 3 次）、resume 测试           |
-| P2   | 只读 bash 与 plan 子 Agent 放行；`todo set` 在 plan 下拒绝；修订严格度文档                           | `pipeline.ts`、`auto-safe.ts`、`task.ts`、`docs/permissions.md`                            | 权限真值表                                       |
+| P2   | 只读 bash 与 plan 子 Agent 放行；`todo set` 在 plan 下拒绝；修订严格度文档                           | `pipeline.ts`、`auto-safe.ts`、`task.ts`、`docs/guides/permissions.md`                     | 权限真值表                                       |
 | P3   | `<proposed_plan>` 提取、`ama.plan` 条目、文件导出、TUI 审批框、`/plan` 命令                          | 新文件 `src/plan/*`、`src/modes/interactive/*`                                             | 提取的边界用例（不闭合、多个块、代码块里的标签） |
 | P4   | 交接：转换成 todo、`ama.plan_approved`、切模式、新上下文执行选项；todo 加 `update` 与提醒；预设调整  | `src/tools/todo.ts`、`presets.ts`、D19 修订                                                | 端到端：plan → 批准 → todo 推进                  |
-| P5   | RPC / SDK 接口与文档；`plan.model` 分离                                                              | `src/modes/rpc/*`、`src/sdk.ts`、`docs/rpc.md`                                             | 契约测试                                         |
+| P5   | RPC / SDK 接口与文档；`plan.model` 分离                                                              | `src/modes/rpc/*`、`src/sdk.ts`、`docs/reference/rpc.md`                                   | 契约测试                                         |
 
 ---
 
@@ -310,7 +310,7 @@
 
 ## 附：主要证据位置
 
-- ama：`src/permissions/pipeline.ts:71-76, 251-258`；`src/permissions/modes.ts`；`src/tools/todo.ts`；`src/tools/presets.ts:40-45`；`src/tools/task.ts:91`；`src/codemode/tool.ts:290`；`src/agent/session.ts:468-491`；`src/agent/system-prompt.ts:1-10`；`src/agent/transform.ts:42-70`；`src/agent/session-run.ts:100-107`；`docs/design.md` §5.6、§9.1；`docs/permissions.md`；`docs/gap-audit-2026-10.md:31,120`。
+- ama：`src/permissions/pipeline.ts:71-76, 251-258`；`src/permissions/modes.ts`；`src/tools/todo.ts`；`src/tools/presets.ts:40-45`；`src/tools/task.ts:91`；`src/codemode/tool.ts:290`；`src/agent/session.ts:468-491`；`src/agent/system-prompt.ts:1-10`；`src/agent/transform.ts:42-70`；`src/agent/session-run.ts:100-107`；`docs/design/design.md` §5.6、§9.1；`docs/guides/permissions.md`；`docs/history/gap-audit-2026-10.md:31,120`。
 - 工具 A：`本机材料` 偏移约 13 275 000–13 284 000（plan 模式附件文本）、12 604 300（提醒节奏常量）、12 617 000（附件生成）、16 453 500–16 459 500（ExitPlanMode）、16 598 600（EnterPlanMode）、9 003 500（plan_approval_request / response）、5 575 100（plansDirectory 校验）、5 084 200（规划专用模型别名）；本机 `~/.<工具A>/plans/`（16 个文件，只看了标题结构）。
 - 工具 B：本机 `工具 B 0.160.0` 二进制 strings（Plan Mode (Conversational) 提示词、`<collaboration_mode>`、`update_plan` 在 Plan 模式下报错、`plan_mode_reasoning_effort`、`ProposedPlanCell`）。
 - 工具 C：本机材料（README 与扩展示例源码）。

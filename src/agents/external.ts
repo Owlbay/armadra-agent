@@ -1,5 +1,5 @@
 /**
- * 外部 Agent 接入 `task(agent=…)`（docs/wave5-plan.md §5.3–§5.5、§7.3、§7.6，D13、D15、D17）。[W5-EG]
+ * 外部 Agent 接入 `task(agent=…)`（docs/history/wave5-plan.md §5.3–§5.5、§7.3、§7.6，D13、D15、D17）。[W5-EG]
  *
  * - 名字：`claude` / `codex` / `acp:<program>` / 驱动表里的其它 id（`gemini` …，`ama` 除外——那是子会话
  *   类型的 runner 名；ama 自己经 ACP 用 `acp:ama`）/ 宿主注入的 runner id（宿主注入的 `ama` 在类型里的 runner

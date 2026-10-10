@@ -1,5 +1,5 @@
 /**
- * Grouped settings list (docs/wave6-plan.md §6.3). [W6-S]
+ * Grouped settings list (docs/history/wave6-plan.md §6.3). [W6-S]
  *
  * Rows `› label  value  tag  note` under muted group headers; the selected row uses the prompt glyph,
  * accent + bold and the `selection` background (same look as ChoiceDialog). A query filters rows by id,

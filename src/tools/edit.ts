@@ -235,7 +235,7 @@ export function fileChangeOf(
 // 工具
 // ---------------------------------------------------------------------------
 
-/** 检查点：写前备份（docs/rewind-plan.md §2）；钩子按约定不抛，这里再兜一层，不让编辑失败。 */
+/** 检查点：写前备份（docs/history/rewind-plan.md §2）；钩子按约定不抛，这里再兜一层，不让编辑失败。 */
 export async function beforeWrite(ctx: ToolContext, abs: string): Promise<void> {
   if (ctx.checkpoint === undefined) return;
   try {

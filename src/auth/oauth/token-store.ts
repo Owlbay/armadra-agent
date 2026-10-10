@@ -1,5 +1,5 @@
 /**
- * OAuth 条目的存取与跨进程刷新锁（docs/wave6-plan.md §4.3、D15）。[W6-O]
+ * OAuth 条目的存取与跨进程刷新锁（docs/history/wave6-plan.md §4.3、D15）。[W6-O]
  *
  * - 读：每次都从磁盘读（绕过 `ApiKeyResolver.fileCache`，长会话才能看到别的进程刷新后的 token）；文件不存在 /
  *   坏掉 / 不是 oauth 条目 → undefined；

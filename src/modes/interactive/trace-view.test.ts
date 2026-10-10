@@ -1,5 +1,5 @@
 /**
- * `/trace` 覆盖层（docs/wave6-plan.md §2.4、§2.7 T1）：帧黄金 120 / 60 / 40 列与 NO_COLOR、详情、子 Agent 钻入、
+ * `/trace` 覆盖层（docs/history/wave6-plan.md §2.4、§2.7 T1）：帧黄金 120 / 60 / 40 列与 NO_COLOR、详情、子 Agent 钻入、
  * 任务视图、跟随与暂停、刷新、10k 节点只渲染可见行。
  * 更新黄金：`AMA_UPDATE_GOLDEN=1 pnpm vitest run src/modes/interactive/trace-view.test.ts`，逐个审阅 diff。
  */

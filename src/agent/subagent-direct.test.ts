@@ -1,5 +1,5 @@
 /**
- * 子 Agent 视图的直接对话与实时数据（docs/wave6-plan.md §1.3、D3）。[W6-A]
+ * 子 Agent 视图的直接对话与实时数据（docs/history/wave6-plan.md §1.3、D3）。[W6-A]
  *
  * `registry.message()`：ama 运行中 → followUp（steered）、结束后 → 后台续聊（resumed）、句柄被 LRU 释放后
  * 按会话文件重开；外部 Agent 运行中 → 排队到运行结束再续聊（queued）；子会话 user 消息 `origin:"direct"`。

@@ -1,5 +1,5 @@
 /**
- * [M-D] 图片按内容驻留（docs/memory-plan.md D5、§2.5）：`read` 反复读同一张图、附图与读图、恢复会话里
+ * [M-D] 图片按内容驻留（docs/history/memory-plan.md D5、§2.5）：`read` 反复读同一张图、附图与读图、恢复会话里
  * 重复出现的图，都只留一份 base64；会话文件字节、fork / getEntries 不受影响。
  */
 

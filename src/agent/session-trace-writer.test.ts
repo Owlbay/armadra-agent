@@ -1,5 +1,5 @@
 /**
- * `ama.trace` 写入扩展（docs/wave6-plan.md §2.2、§2.7 C0 测试）。[W6-C0]
+ * `ama.trace` 写入扩展（docs/history/wave6-plan.md §2.2、§2.7 C0 测试）。[W6-C0]
  */
 
 import { describe, expect, it } from "vitest";

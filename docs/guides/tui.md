@@ -1,12 +1,12 @@
 # 终端界面
 
-交互模式的使用说明，以及终端组件库 `@armadra/agent/tui` 的 API。设计依据见 [design.md](design.md) §12。
+交互模式的使用说明，以及终端组件库 `@armadra/agent/tui` 的 API。设计依据见 [design.md](../design/design.md) §12。
 
 `ama` 在终端里直接运行（stdin / stdout 都是 TTY、`TERM` 不是 `dumb`、没有 `--no-tui`）时进入交互模式。界面只用**主屏**：对话历史滚进终端回滚，不切备用屏，所以在 tmux 里 `capture-pane` 能读到完整对话，退出后对话也留在屏幕上。
 
 ## 布局
 
-视觉规格（配色、字形、逐屏样稿）见 [tui-design.md](tui-design.md)。层级用缩进表达：第 0 列是用户 `›`、工具 `⏺` 与提示符号，第 2 列是结果连接符 `⎿`，第 4 列是工具输出；去掉颜色（`NO_COLOR`、`capture-pane` 不带 `-e`）也读得出结构。
+视觉规格（配色、字形、逐屏样稿）见 [tui-design.md](../design/tui-design.md)。层级用缩进表达：第 0 列是用户 `›`、工具 `⏺` 与提示符号，第 2 列是结果连接符 `⎿`，第 4 列是工具输出；去掉颜色（`NO_COLOR`、`capture-pane` 不带 `-e`）也读得出结构。
 
 ```
  ▄███▄  ██▄   ▄██  ▄███▄    ama 0.6.2                     ← 启动头（normal 档）
@@ -148,11 +148,11 @@ Accept edits | shift+tab 切换    claude-opus-5-5 medium | Ctx 3.0% 8.2k/272k a
 
 缺省键选 `Ctrl+X` 的原因：macOS Terminal、iTerm2、tmux、Windows Terminal 都原样送达，且没有别的绑定；`Ctrl+Enter` 不开 kitty 键盘协议时与 Enter 无法区分，`Ctrl+S` 可能被 XOFF 流控吃掉，`Alt+Enter` 已是 followUp，`Alt+字母` 在 macOS 缺省不送 Meta，`Ctrl+]` 在非美式键盘上难按。可在 `keybindings.json` 改。
 
-line 模式（`--no-tui`）运行中输入 `/interrupt <文本>` 效果相同（空闲时就是普通提示）；交互界面里也认这条命令。RPC 是 `prompt` / `steer` 的 `interrupt: true`，见 [rpc.md](rpc.md)。
+line 模式（`--no-tui`）运行中输入 `/interrupt <文本>` 效果相同（空闲时就是普通提示）；交互界面里也认这条命令。RPC 是 `prompt` / `steer` 的 `interrupt: true`，见 [rpc.md](../reference/rpc.md)。
 
 ## 回滚
 
-设计见 [rewind-plan.md](rewind-plan.md)。每条开启新回合的用户消息都是一个回滚点；edit / write 改过的文件在消息发出前有检查点（`checkpoints.mode`，bash 改动只在下一回合重拍已跟踪文件时收进来）。
+设计见 [rewind-plan.md](../history/rewind-plan.md)。每条开启新回合的用户消息都是一个回滚点；edit / write 改过的文件在消息发出前有检查点（`checkpoints.mode`，bash 改动只在下一回合重拍已跟踪文件时收进来）。
 
 - **入口**：`/rewind`，或空闲且输入框为空时双击 Esc——第一次底部提示「再按 Esc 回滚」（1 秒消失），800 ms 内再按打开列表。输入框有字时双击 Esc 是清空（提示「再按 Esc 清空」），文字存进输入历史，↑ 取回。运行中 Esc 仍是中断；审批对话框、选择器打开时 Esc 归它们。
 - **中断即撤回**：运行中按 Esc 中断，若这一回合还没有任何回复文字或工具调用、输入框为空（`ui.restoreOnCancel`，缺省 true），自动撤回这条消息并把原文放回输入框，消息区一行「已撤回被中断的消息」。
@@ -319,7 +319,7 @@ CLI 子命令（`ama providers add` / `refresh` 的写入与 `--probe` 计费确
 - write：目标是否存在、现有行数与大小 → 新内容；覆盖本会话没读过的文件标黄。
 - edit：对原文干跑一遍，列出每处 −n/+m 行与总变化；匹配不到或不唯一时提前说明。
 
-预览按严重度着色（危险红、警告黄、其余暗色），只读、有上限：每个目录最多计 2000 项，整次预览 200 ms 预算，超出只给提示、不降低严重度；超过 2 MiB 的文件只报大小。预览失败不影响审批。line 模式在问句之前逐行打印同样的预览；RPC 客户端从 `permission_request.preview` 拿到它（[rpc.md](rpc.md)「审批」）。
+预览按严重度着色（危险红、警告黄、其余暗色），只读、有上限：每个目录最多计 2000 项，整次预览 200 ms 预算，超出只给提示、不降低严重度；超过 2 MiB 的文件只报大小。预览失败不影响审批。line 模式在问句之前逐行打印同样的预览；RPC 客户端从 `permission_request.preview` 拿到它（[rpc.md](../reference/rpc.md)「审批」）。
 
 ## Plan 审批
 
@@ -389,7 +389,7 @@ Plan 模式（Shift+Tab、`/permission plan`、`/plan <目标>`、`--permission-
 - 按了没进去时底部提示一行（3 秒）：输入框有字——「输入框有字；清空后再按 ↓ 进 Agent 栏」（每段草稿一次，光标在末行时；`↓` 照常下移）；栏关闭——「Agent 栏已关闭（ui.agentBar），用 /tasks」；没有任务——「还没有子 Agent 任务」。在用 `↑` `↓` 浏览输入历史时 `↓` 只翻历史。
 - `Ctrl+B` 不进栏，是「前台任务转后台」（见上）。想要原来的「`Ctrl+B` 进栏」可在 `keybindings.json` 写 `"app.agents.focus": ["down", "ctrl+b"]` 并把 `app.tasks.background` 改成别的键。
 - 栏里：`↑` `↓` 选（列出本会话全部任务，窗口跟着滚；在第一项再按 `↑` 回到输入框），Enter 打开子 Agent 视图（选中的任务有停靠的审批时随即弹出），`b` / `Ctrl+B` 把选中的前台任务转后台（不是前台运行中的给一行提示），`x` 停止选中的任务（第一次提示「再按 x 停止 t2」，1.5 秒内再按才停），Esc 回到输入框；其它字母回到输入框并把字填进去。末行是按键提示 `↑↓ 选择 · Enter 打开 · b 转后台 · x 停止 · Esc 返回`，窄屏丢掉 `b` / `x` 两项。
-- 嵌入宿主（有 profile）不再缺省关闭栏；宿主自己展示子任务、不要栏时在 profile 里写 `ui.agentBar: "off"`（见 [host-api.md](host-api.md)「嵌入 Armadra」）。关闭后栏不显示，`↓` 在有任务时提示改用 `/tasks`。
+- 嵌入宿主（有 profile）不再缺省关闭栏；宿主自己展示子任务、不要栏时在 profile 里写 `ui.agentBar: "off"`（见 [host-api.md](../reference/host-api.md)「嵌入 Armadra」）。关闭后栏不显示，`↓` 在有任务时提示改用 `/tasks`。
 
 ### 子 Agent 视图
 
@@ -409,7 +409,7 @@ t2 explore · 运行中 1m05s · 3 轮 · ↑12k ↓3.4k · Esc 返回 · /tasks
 
 - 正文实时跟随：ama 子 Agent 显示子会话的全部消息与工具调用（与消息区同样的渲染）；子会话句柄已被释放（保留上限 16 个）或会话是 resume 进来的，就只读加载子会话文件，任务再次运行时接上实时事件。外部 Agent（claude / codex / ACP）显示本进程内存里的实时输出（文本、思考、工具起止、回合、提示；最多 2000 条 / 1 MB，不落盘）；ama 重启后只剩一行说明「用原 CLI resume <会话 id> 查看全文」。
 - 输入框为空时：`↑` / PgUp 上翻（暂停跟随，底部提示「已暂停跟随 · End 继续」），`↓` / PgDn 下翻，End（暂停时也可按 `f`）回到跟随；`←` `→` 切到上一个 / 下一个任务；Esc 返回主界面。输入框有字时 Esc 先清空。
-- Enter 把输入发给这个子 Agent（会话里记为 `origin: "direct"` 的 user 消息，见 [session-format.md](session-format.md)）：ama 子 Agent 运行中 → 排到它本轮结束时送达；外部 Agent 运行中或任务还在排队 → 等本次运行结束后续聊；已结束 → 后台续聊（同 `task_ctl send`，完成后主会话照常收到 `<task-notification>`）。底部一行提示发送结果。父会话的模型不知道你直接和子 Agent 说过话，结果经结束通知自然带回。
+- Enter 把输入发给这个子 Agent（会话里记为 `origin: "direct"` 的 user 消息，见 [session-format.md](../reference/session-format.md)）：ama 子 Agent 运行中 → 排到它本轮结束时送达；外部 Agent 运行中或任务还在排队 → 等本次运行结束后续聊；已结束 → 后台续聊（同 `task_ctl send`，完成后主会话照常收到 `<task-notification>`）。底部一行提示发送结果。父会话的模型不知道你直接和子 Agent 说过话，结果经结束通知自然带回。
 - `Ctrl+X` 打断并发送给这个子 Agent：ama 子 Agent 运行中 → 中止它当前这一轮（工具按中断收尾）并立即以这条消息开新一轮，任务照常完成、照常通知主会话；外部 Agent 的驱动能中断单个回合（ACP `session/cancel`、Claude stream-json interrupt、Codex `turn/interrupt`）→ 中断后立即以它（连同之前排着的消息）开下一回合；不能（oneshot、宿主驱动）或任务还在并发池排队 → 退回排队并提示「不支持打断，已排队」；已结束 → 同 Enter 的后台续聊。`ui.enterWhileRunning: "interrupt"` 时与 Enter 互换。主会话不受影响。
 - 视图里 Esc 不中断任何东西：Esc 只是返回。停止子任务用 `/tasks stop <id>`，转后台用 `Ctrl+B` 或 `/tasks bg [id]`——在视图输入框里也能用（视图里只认这两条命令）。
 - 正在看的任务等审批时标题显示「等待审批」，审批框照常弹在视图上面（带 `[task:<类型>]` 来源）；它的审批停靠在栏里时，打开视图即弹出。
@@ -467,7 +467,7 @@ t2 explore · 运行中 1m05s · 3 轮 · ↑12k ↓3.4k · Esc 返回 · /tasks
 - 保温与权限分类等辅助请求收在末尾「辅助请求 N 次」一组，缺省折叠。
 - line 模式（`--ui line`、管道）里 `/trace [任务 id]` 打印同一棵树的文本（全部展开、不画条形）。
 
-计时来自会话文件里的 `custom{customType:"ama.trace"}` 条目（[session-format.md](session-format.md)），只有 id、时间与计数；
+计时来自会话文件里的 `custom{customType:"ama.trace"}` 条目（[session-format.md](../reference/session-format.md)），只有 id、时间与计数；
 提示、参数、结果的预览从会话条目按需读取，不进轨迹本身。
 
 ## Memory

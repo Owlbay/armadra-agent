@@ -1,5 +1,5 @@
 /**
- * Codex app-server（0.160.x，`[experimental]`）↔ ama 的映射（docs/wave5-plan.md §5.1 normalize，
+ * Codex app-server（0.160.x，`[experimental]`）↔ ama 的映射（docs/history/wave5-plan.md §5.1 normalize，
  * R2 §1.3）。[W5-E]
  *
  * 只依赖 `test/fixtures/drivers/codex-schema/shapes.json` 锁住的方法与字段（12 个方法 + 5 类审批

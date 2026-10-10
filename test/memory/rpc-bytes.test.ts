@@ -1,5 +1,5 @@
 /**
- * RPC 精简事件的字节回归（docs/memory-plan.md D9、§2.7、§3「[M-G]」）。[M-G]
+ * RPC 精简事件的字节回归（docs/history/memory-plan.md D9、§2.7、§3「[M-G]」）。[M-G]
  *
  * 一次工具调用返回 1 MB 文本：未声明 `compact_events` 时 stdout 上含该文本的事件恰 5 条（message_start /
  * message_end / tool_execution_end / turn_end / entry_appended，现状基线）；声明后恰 2 条（message_end、

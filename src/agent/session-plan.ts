@@ -1,5 +1,5 @@
 /**
- * Plan 扩展：模式说明注入、`plan_state` 持久化、计划提取与审批编排、交接（docs/wave5-plan.md §6、
+ * Plan 扩展：模式说明注入、`plan_state` 持久化、计划提取与审批编排、交接（docs/history/wave5-plan.md §6、
  * D18–D21）。[W5-F] 只装在根会话（task 子会话的计划块作为 task 结果返回给父会话）。
  *
  * - 进入 plan（任何来源的 `permission_mode_changed`，或会话以 plan 启动 / resume 回到 plan）：记

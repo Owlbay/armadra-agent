@@ -1,5 +1,5 @@
 /**
- * 运行中会话的轨迹查询：RPC `get_trace` 与 SDK `session.trace()`（docs/wave6-plan.md §2.6、D29）。[W6-T2]
+ * 运行中会话的轨迹查询：RPC `get_trace` 与 SDK `session.trace()`（docs/history/wave6-plan.md §2.6、D29）。[W6-T2]
  *
  * 构建器输入取自会话（`traceInputOf`）；运行中时叠一层 `{ running: true }`（没有结果的工具算 running 而不是
  * interrupted，不编造时长）；子会话读取按会话缓存（mtime + 大小没变就不重读）。

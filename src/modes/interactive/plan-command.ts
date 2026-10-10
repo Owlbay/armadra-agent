@@ -2,7 +2,7 @@
  * `/plan` 的语义（line 模式与交互模式共用，经 commands-core）。[W5-U]
  *
  * - `/plan`：当前计划与状态（版本、状态、文件、步骤、待办进度、所处模式）；
- * - `/plan approve [模式|fresh]`：批准待审批的计划（没有计划块时把上一条回复当作计划，docs/wave5-plan.md
+ * - `/plan approve [模式|fresh]`：批准待审批的计划（没有计划块时把上一条回复当作计划，docs/history/wave5-plan.md
  *   §6.3）；模式缺省回到进入 plan 前的模式，`fresh` 在新会话里执行（新建会话 → `adopt(plan)` → 发计划
  *   全文）；
  * - `/plan reject`：放弃待审批的计划（留在 Plan 模式）；

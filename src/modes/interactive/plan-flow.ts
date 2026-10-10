@@ -1,5 +1,5 @@
 /**
- * 交互界面的计划审批编排（docs/wave5-plan.md §6.1）：把会话的计划审批交给对话框。[W5-U]
+ * 交互界面的计划审批编排（docs/history/wave5-plan.md §6.1）：把会话的计划审批交给对话框。[W5-U]
  *
  * - `attach(session)`：`planController(session).setAttendance("callback", …)`——计划提出后（会话空闲时）
  *   打开审批框；同时关掉 W5-F 的文本回复审批与 `ama.plan_notice` 提示行（两者只在 `text` 时生效）。

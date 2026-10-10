@@ -1,6 +1,6 @@
 /**
  * `Usage.cacheReported` 真值表（第三波 §1.6）：字段缺失 → false；出现但为 0 → true；> 0 → true。
- * 用例里的 usage 形状取自 2026-10-02 对中转的实测（docs/providers.md「缓存」）。
+ * 用例里的 usage 形状取自 2026-10-02 对中转的实测（docs/guides/providers.md「缓存」）。
  */
 
 import { describe, expect, it } from "vitest";

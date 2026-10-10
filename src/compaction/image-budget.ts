@@ -1,5 +1,5 @@
 /**
- * 单请求图片总量预算（docs/wave5-plan.md §4、D11）。[W5-I] 纯函数，无模型调用。
+ * 单请求图片总量预算（docs/history/wave5-plan.md §4、D11）。[W5-I] 纯函数，无模型调用。
  *
  * base64 图片在历史里每轮重发，几张截图就可能撞上 Anthropic 32 MB / Gemini 20 MB 的请求上限。
  * `planImageBudget` 给出要降级的消息：调用方把每条写成 `context_edit{reason:"image_budget"}`，

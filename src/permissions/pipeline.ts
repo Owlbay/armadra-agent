@@ -25,7 +25,7 @@
  * 命中；带 path 的工具记文件所在目录，之后该目录下的路径命中；其它工具只记工具名。
  * 记忆只作用于第 ③ 步模式产生的 ask（auto 里只作用于规则层之后）。
  *
- * [S2] bash 沙箱（docs/permissions.md「判定顺序」）：default / auto-edit 下，bash 调用若将在 OS 沙箱内
+ * [S2] bash 沙箱（docs/guides/permissions.md「判定顺序」）：default / auto-edit 下，bash 调用若将在 OS 沙箱内
  * 运行且沙箱拒绝网络、没请求 `sandbox: false`、命令文本不碰机密路径、嵌套不超深，第 ③ 步的 ask 变
  * allow（`sandboxed: true`）；①② 与 Hook ask 照旧优先。auto 下沙箱不直接放行，只作为分类器输入；
  * 请求 `sandbox: false` 越出沙箱时规则层询问（allow 规则 / Hook allow / 会话记忆仍可放行）。
@@ -96,7 +96,7 @@ export const PLAN_TODO_MESSAGE =
   "Plan mode is active: the todo list is created from the approved plan. Write the steps in a <proposed_plan> block instead.";
 
 /**
- * [W5-F] plan 模式第 ③ 步（输入可见，docs/wave5-plan.md §6.2）：
+ * [W5-F] plan 模式第 ③ 步（输入可见，docs/history/wave5-plan.md §6.2）：
  * read 放行（`todo` 只放行 get）；bash 按 `plan.bash`（readonly：只读子集放行其余拒绝；ask：其余询问；
  * deny：全拒）；task 放行（子会话共用同一管线，同样处在 plan）；其余 write / execute 拒绝。
  * 返回 undefined = 交给通常的模式真值表。

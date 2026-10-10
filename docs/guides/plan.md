@@ -1,6 +1,6 @@
 # Plan 模式
 
-plan 模式让 ama 先只读调研、写出一份结构化的计划，经人批准后再切回执行模式按计划推进。本文写流程、计划格式、审批的几种入口、配置与持久化；权限细节见 [permissions.md](permissions.md)「plan 模式与只读命令」，设计依据见 [wave5-plan.md](wave5-plan.md) §6。
+plan 模式让 ama 先只读调研、写出一份结构化的计划，经人批准后再切回执行模式按计划推进。本文写流程、计划格式、审批的几种入口、配置与持久化；权限细节见 [permissions.md](permissions.md)「plan 模式与只读命令」，设计依据见 [wave5-plan.md](../history/wave5-plan.md) §6。
 
 ## 流程
 
@@ -54,7 +54,7 @@ plan 模式让 ama 先只读调研、写出一份结构化的计划，经人批�
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 交互（TUI）                          | 用户在底部审批框里选：批准并执行 / 批准，在新上下文执行（两者接着选执行模式：回到进入前的模式 / Accept edits / Auto）/ 继续修改（框内或外部编辑器写意见）/ 放弃并退出 Plan；`e` 在 `$VISUAL` / `$EDITOR` 里改计划，Esc 放弃但留在 Plan。见 [tui.md](tui.md)「Plan 审批」 |
 | 交互（line，`--no-tui`）             | `/plan approve [模式\|fresh]`、`/plan reject`；回复 `1` / `2` / `3` 也能批准（进入前的模式 / Accept edits / Auto），其它内容作为修改意见、留在 plan                                                                                                                      |
-| RPC，声明了 `plans` 能力             | 客户端：`plan_proposed` → `plan_response`（见 [rpc.md](rpc.md)「计划审批」）                                                                                                                                                                                             |
+| RPC，声明了 `plans` 能力             | 客户端：`plan_proposed` → `plan_response`（见 [rpc.md](../reference/rpc.md)「计划审批」）                                                                                                                                                                                |
 | SDK，给了 `plan.onProposed`          | 回调：运行结束后调用，返回 `{ decision, mode?, feedback?, editedMarkdown? }`；返回 undefined 留待 `session.plan.respond()`                                                                                                                                               |
 | `-p`、未声明能力的 RPC、无回调的 SDK | 配置 `plan.unattended`：`stop`（缺省）落盘计划后停下，不切模式、不执行；`approve` 在同一次运行里自动批准并执行                                                                                                                                                           |
 
@@ -100,7 +100,7 @@ plan 模式让 ama 先只读调研、写出一份结构化的计划，经人批�
 
 ## 接口
 
-- RPC：命令 `plan_response` / `get_plan` / `get_todos`，能力 `plans`，事件 `plan_proposed` / `plan_resolved` / `todo_updated`，见 [rpc.md](rpc.md)。
+- RPC：命令 `plan_response` / `get_plan` / `get_todos`，能力 `plans`，事件 `plan_proposed` / `plan_resolved` / `todo_updated`，见 [rpc.md](../reference/rpc.md)。
 - SDK：`createAgentSession({ plan: { bash?, directory?, unattended?, model?, thinkingLevel?, onProposed? } })`；返回的会话有 `session.plan.current()`、`session.plan.respond(response)`、`session.plan.todos()`。
 - 进程内：`planController(session)`（`src/agent/session-plan.ts`）给界面用——`pending()`、`respond()`、`proposeFromLastReply()`、`adopt()`、`setAttendance()`。
 - 交互界面：底部审批框（四个选项 + 执行模式、`e` 编辑计划、Esc 留在 Plan）、`/plan` 面板，`/plan <目标>` 进入 Plan 并发出目标，`/plan approve [模式|fresh]` / `/plan reject` 不开对话框直接作答；见 [tui.md](tui.md)「Plan 审批」。

@@ -1,5 +1,5 @@
 /**
- * 内置子 Agent 类型（docs/wave5-plan.md §7.2，D22–D23）。[W5-G]
+ * 内置子 Agent 类型（docs/history/wave5-plan.md §7.2，D22–D23）。[W5-G]
  *
  * 三个类型都用父会话的活动工具集（工具表与父字节一致，缓存前缀可复用）；只读靠权限层：
  * `explore` / `plan` 的 `permissionMode: "plan"` 让子会话用 plan 模式的管线，写类工具与非只读 bash

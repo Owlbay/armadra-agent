@@ -1,5 +1,5 @@
 /**
- * `scripts/check-i18n.mjs`（docs/wave6-plan.md §5.4）：注释剥离、严格检查（[W6-I5]：出现即失败）、白名单理由、
+ * `scripts/check-i18n.mjs`（docs/history/wave6-plan.md §5.4）：注释剥离、严格检查（[W6-I5]：出现即失败）、白名单理由、
  * 目录检查、顶层 msg() 检查。[W6-C0]
  */
 

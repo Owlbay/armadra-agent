@@ -1,5 +1,5 @@
 /**
- * 前台子 Agent 任务转后台与栏内停止的界面接线（docs/agents-concurrency-plan.md §2.4、§2.8）。[W7-C]
+ * 前台子 Agent 任务转后台与栏内停止的界面接线（docs/history/agents-concurrency-plan.md §2.4、§2.8）。[W7-C]
  *
  * - `Ctrl+B`（`app.tasks.background`）：有阻塞中的前台任务（`registry.blocking()`，含 `task_ctl wait`）时
  *   全部转后台（`session.backgroundTask(undefined, "user")`），不看输入框；没有时落回编辑器。

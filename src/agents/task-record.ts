@@ -1,6 +1,6 @@
 /**
  * 子 Agent 任务记录：并发池、单条任务的状态、runner 进度 → `subagent_update`、父会话
- * `custom{ama.task}` 快照的写入形状与 resume 重建（docs/wave5-plan.md §7.4–§7.5）。[W5-G]
+ * `custom{ama.task}` 快照的写入形状与 resume 重建（docs/history/wave5-plan.md §7.4–§7.5）。[W5-G]
  * 编排在 agent/subagent-registry.ts。
  */
 
@@ -83,7 +83,7 @@ export interface AmaRunnerSpec {
 
 /**
  * [W6-C0] 外部 Agent 的展示事件（`DriverEvent` 派生，子 Agent 视图用）：只在内存环形缓冲里（≤ 2000 条 /
- * 1 MB），不落盘（docs/wave6-plan.md §1.2、D2）。
+ * 1 MB），不落盘（docs/history/wave6-plan.md §1.2、D2）。
  */
 export interface ExternalDisplayEvent {
   at: number;
@@ -115,7 +115,7 @@ export type TaskHandle = RunnerHandle & {
   message?(text: string, when: "followUp" | "send" | "interrupt"): Promise<void>;
 };
 
-/** [W6-A] 外部 Agent 环形缓冲的上限（docs/wave6-plan.md D2）。 */
+/** [W6-A] 外部 Agent 环形缓冲的上限（docs/history/wave6-plan.md D2）。 */
 export const RING_MAX_EVENTS = 2000;
 export const RING_MAX_BYTES = 1024 * 1024;
 

@@ -1,5 +1,5 @@
 /**
- * [W5-F] RPC 计划命令（docs/wave5-plan.md §6.5）：黄金记录 plan.out.jsonl（声明 plans → plan 模式 →
+ * [W5-F] RPC 计划命令（docs/history/wave5-plan.md §6.5）：黄金记录 plan.out.jsonl（声明 plans → plan 模式 →
  * plan_proposed → get_plan → plan_response approve → 执行回合 → get_todos）；未声明能力时按
  * plan.unattended；approve_fresh 新建会话；get_tasks / get_agents 读只读视图（桩）。
  */

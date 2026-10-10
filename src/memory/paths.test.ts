@@ -1,5 +1,5 @@
 /**
- * 记忆路径（docs/wave6-plan.md §3.2、D9）：逻辑路径安全全表、项目根与分桶。
+ * 记忆路径（docs/history/wave6-plan.md §3.2、D9）：逻辑路径安全全表、项目根与分桶。
  */
 
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";

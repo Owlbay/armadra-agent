@@ -1,6 +1,6 @@
 # RPC 协议（stdio JSONL）
 
-`ama --mode rpc` 从 stdin 读命令、向 stdout 写响应与事件，每行一个 JSON。类型定义在 `@armadra/agent/rpc`（`src/rpc.ts`），实现在 `src/modes/rpc/`。`ama -p --output-format stream-json` 输出的事件与这里同形状。设计依据见 [design.md](design.md) §13.2。
+`ama --mode rpc` 从 stdin 读命令、向 stdout 写响应与事件，每行一个 JSON。类型定义在 `@armadra/agent/rpc`（`src/rpc.ts`），实现在 `src/modes/rpc/`。`ama -p --output-format stream-json` 输出的事件与这里同形状。设计依据见 [design.md](../design/design.md) §13.2。
 
 ## 线路
 
@@ -30,7 +30,7 @@
 
 - 响应带回请求的 `id`（字符串才带）。命令并发处理：`prompt` 不阻塞后续命令，所以响应顺序不一定与请求顺序相同，用 `id` 对应。
 - 失败时 `error` 是人读文本，`code` 是 `AmaError.code`（若有）。未知命令 → `code: "invalid_arguments"`。
-  **宿主按 `code` 判断，不得解析 `error` / `message`**：人读文本随界面语言（`AMA_LANG`、`--lang`、`ui.language`）变化（第六波起中英双语，见 [i18n.md](i18n.md)）；`notification` 事件的 `message` 同理。
+  **宿主按 `code` 判断，不得解析 `error` / `message`**：人读文本随界面语言（`AMA_LANG`、`--lang`、`ui.language`）变化（第六波起中英双语，见 [i18n.md](../guides/i18n.md)）；`notification` 事件的 `message` 同理。
 - 一行不是合法 JSON 或缺 `type` → `{ "type": "response", "command": "parse", "success": false, "error": … }`，没有 `id`。
 - 需要会话实现扩展方法的命令（下表标 †）在非 `AgentSessionImpl` 会话上返回 `code: "not_implemented"`；CLI 与 SDK 建出的会话都是 `AgentSessionImpl`。
 
@@ -95,7 +95,7 @@
 
 ### 回滚
 
-详见 [rewind-plan.md](rewind-plan.md) §3。回滚点是活动路径上开启新回合的用户消息（运行中插话、排队消息并入当前回合，不单列）。运行中调用回 `busy`。
+详见 [rewind-plan.md](../history/rewind-plan.md) §3。回滚点是活动路径上开启新回合的用户消息（运行中插话、排队消息并入当前回合，不单列）。运行中调用回 `busy`。
 
 | 命令                | 参数                                                                                                      | `data`                                                                                                                                                                          |
 | ------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -115,7 +115,7 @@
 | `set_client_capabilities` | `capabilities: ("approvals" \| "images" \| "hooks" \| "plans" \| "compact_events")[]` | `{ capabilities }`                                                             |
 | `permission_response`     | `requestId: string`、`decision: "allow" \| "deny" \| "allow_session"`                 | `{ accepted: boolean }`（false = 当前没在等这个 id，已暂存，稍后被问到时生效） |
 
-`compact_events`（docs/memory-plan.md D9）：声明后，`turn_end.toolResults`、`message_start` 与 `entry_appended` 不再重复携带工具结果与带图用户消息的正文（以 `contentOmitted: true` 标记），正文只在 `message_end` 与 `tool_execution_end` 里发；不声明时事件形状逐字节不变。形状见「[精简事件](#精简事件compact_events)」。`stream-json` 没有这个开关，输出始终是全量形状。
+`compact_events`（docs/history/memory-plan.md D9）：声明后，`turn_end.toolResults`、`message_start` 与 `entry_appended` 不再重复携带工具结果与带图用户消息的正文（以 `contentOmitted: true` 标记），正文只在 `message_end` 与 `tool_execution_end` 里发；不声明时事件形状逐字节不变。形状见「[精简事件](#精简事件compact_events)」。`stream-json` 没有这个开关，输出始终是全量形状。
 
 ### 工具、权限、发现
 
@@ -139,7 +139,7 @@
 
 ### 轨迹（第六波）
 
-`get_trace` 返回会话轨迹（与 TUI `/trace`、`ama sessions trace` 同一棵树，见 [tui.md](tui.md)「轨迹」）。不新增事件：客户端收到
+`get_trace` 返回会话轨迹（与 TUI `/trace`、`ama sessions trace` 同一棵树，见 [tui.md](../guides/tui.md)「轨迹」）。不新增事件：客户端收到
 `entry_appended` 后用上次的 `cursor.since` 再取一次即可增量刷新。
 
 | 参数         | 说明                                                                                                                       |
@@ -171,7 +171,7 @@
 
 被转的前台任务不中断，其 `task` 调用立即以 `tool_execution_end` 返回（结果文本以 `[task tN] Moved to the background` 开头，
 `details.status: "running"`），随后发 `subagent_background`；任务结束时照常 `subagent_end`，父会话空闲后收到 `origin: "task"`
-的通知消息。语义与交互界面的 `Ctrl+B` 相同，见 [agents.md](agents.md)「前台与后台」。
+的通知消息。语义与交互界面的 `Ctrl+B` 相同，见 [agents.md](../guides/agents.md)「前台与后台」。
 
 合计 44 条命令，名字即 `RpcCommandMap` 的键。
 
@@ -214,7 +214,7 @@
 
 `parentToolCallId` 只出现在 codemode 脚本里经 `tools.*` 发起的内层调用上，值是外层 `codemode` 调用的 id；客户端据此折叠显示。内层调用不进转录。
 
-`message_end`、`turn_end`、`done` / `error` 与回放（`get_messages`、`get_entries`）里的助手消息可能带两个可选字段（模型调用效率批次，docs/model-efficiency-plan.md §1.10）：失败消息的 `retryAfterMs`（`Retry-After`，毫秒），工具调用块的 `rawArguments`（模型输出的原始参数字符串）。`subagent_*` 事件不变；`get_tasks` 的 `TaskInfo` 可带 `context?: "fork" | "fresh"`（子会话的实际上下文模式）。都是新增的可选字段，`RPC_PROTOCOL_VERSION` 不变，客户端忽略不认识的字段即可。
+`message_end`、`turn_end`、`done` / `error` 与回放（`get_messages`、`get_entries`）里的助手消息可能带两个可选字段（模型调用效率批次，docs/history/model-efficiency-plan.md §1.10）：失败消息的 `retryAfterMs`（`Retry-After`，毫秒），工具调用块的 `rawArguments`（模型输出的原始参数字符串）。`subagent_*` 事件不变；`get_tasks` 的 `TaskInfo` 可带 `context?: "fork" | "fresh"`（子会话的实际上下文模式）。都是新增的可选字段，`RPC_PROTOCOL_VERSION` 不变，客户端忽略不认识的字段即可。
 
 ### 精简事件（`compact_events`）
 
@@ -230,7 +230,7 @@
 
 ### 子 Agent 事件（第五波）
 
-`task` / `task_ctl` 起的子 Agent（ama 子会话与外部 Agent 同一组事件，见 [agents.md](agents.md)「子 Agent」）：
+`task` / `task_ctl` 起的子 Agent（ama 子会话与外部 Agent 同一组事件，见 [agents.md](../guides/agents.md)「子 Agent」）：
 
 | 事件                  | 字段                                                                                                                                                                                     |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -356,7 +356,7 @@
 {"type":"context_pressure","percent":71,"threshold":70,"remainingTokens":57990,"estimatedTurnsLeft":6}
 ```
 
-`cache_miss` 的 `detail` 只在 `prefix_changed` 时给出（`tools`、`system`，或带变化节名的 `system:<节名,…>`，如 `system:hooks,memory`）。`cache_warm{stopped}` 的 `reason` 取值与含义见 [tui.md](tui.md)「缓存与上下文」。`ama -p --output-format json` 的结果对象另有 `cache` 字段，形状同上。
+`cache_miss` 的 `detail` 只在 `prefix_changed` 时给出（`tools`、`system`，或带变化节名的 `system:<节名,…>`，如 `system:hooks,memory`）。`cache_warm{stopped}` 的 `reason` 取值与含义见 [tui.md](../guides/tui.md)「缓存与上下文」。`ama -p --output-format json` 的结果对象另有 `cache` 字段，形状同上。
 
 ## 审批
 
@@ -368,7 +368,7 @@
 
 ## 计划审批
 
-plan 模式与计划的格式见 [plan.md](plan.md)。
+plan 模式与计划的格式见 [plan.md](../guides/plan.md)。
 
 1. 回合在 plan 模式下以纯文本结束、回复里有 `<proposed_plan>` 块时，服务端落盘计划并发 `plan_proposed{ planId, version, markdown, steps, filePath? }`（`steps[]`：`{ id, text, dependsOn?, agent? }`），随后照常 `agent_settled`。
 2. 客户端声明过 `set_client_capabilities{capabilities:["plans"]}` 才由它回答；没声明时按配置 `plan.unattended`：缺省 `stop`（计划留在 proposed，不切模式、不执行，客户端之后仍可用 `plan_response` 作答），`approve` 时同一次运行里自动批准并执行。
@@ -386,7 +386,7 @@ plan 模式与计划的格式见 [plan.md](plan.md)。
 
 - stdin 关闭：不再接收命令，撤下审批（之后的 ask 按无人作答 deny），等在途命令与已开始的运行结束、响应写完，退出码 0。所以 `printf '{"type":"prompt","message":"hi"}\n' | ama --mode rpc` 能拿到完整回复；要提前停止，先发 `abort`。
 - SIGINT / SIGTERM：中断当前运行后有序退出，退出码 130 / 143。
-- 启动阶段的失败按 CLI 退出码（[design.md](design.md) §11.3）：配置错误 3、无模型或 key 4、会话错误 5、宿主 / Hook 启动失败 6、宿主 API 版本不匹配 78。
+- 启动阶段的失败按 CLI 退出码（[design.md](../design/design.md) §11.3）：配置错误 3、无模型或 key 4、会话错误 5、宿主 / Hook 启动失败 6、宿主 API 版本不匹配 78。
 
 ## 示例
 

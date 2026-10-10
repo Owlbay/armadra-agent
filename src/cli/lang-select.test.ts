@@ -1,5 +1,5 @@
 /**
- * 界面语言的选择与接入（docs/wave6-plan.md §5.2；[W6-C0]）：`--lang`、`AMA_LANG`、用户级 / 项目级 /
+ * 界面语言的选择与接入（docs/history/wave6-plan.md §5.2；[W6-C0]）：`--lang`、`AMA_LANG`、用户级 / 项目级 /
  * profile 的 `ui.language`、SDK `language`。
  */
 

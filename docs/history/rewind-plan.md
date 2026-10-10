@@ -1,7 +1,7 @@
 # 检查点与回滚：设计与实施计划
 
 > 状态：实施设计（2026-10-02）。基线：`main` = `95c0435`（0.4.0）。
-> 设计依据：`docs/design.md` §8 会话树、§9 压缩、§9.1 缓存保证、§13 SDK / RPC；对照同类终端 Agent 的检查点实现（只借鉴行为与边界，不复制代码）。
+> 设计依据：`docs/design/design.md` §8 会话树、§9 压缩、§9.1 缓存保证、§13 SDK / RPC；对照同类终端 Agent 的检查点实现（只借鉴行为与边界，不复制代码）。
 > 路径相对仓库根；`[RW-x]` 为本计划的批次编号（§6）。
 
 ## §0 结论
@@ -142,9 +142,9 @@ rewind(request: RewindRequest): Promise<RewindResult>;
 
 ## §5 RPC / SDK / Hook / 配置
 
-- RPC：`get_rewind_points` → `{ points }`；`rewind { entryId, mode, dryRun?, onConflict? }` → `RewindResult`；事件 `session_rewound { entryId, mode, restored, deleted, conflicts, skipped }`。写进 `docs/rpc.md`。
+- RPC：`get_rewind_points` → `{ points }`；`rewind { entryId, mode, dryRun?, onConflict? }` → `RewindResult`；事件 `session_rewound { entryId, mode, restored, deleted, conflicts, skipped }`。写进 `docs/reference/rpc.md`。
 - SDK：`session.rewindPoints()`、`session.rewind()`。
-- Hook：新增命令式事件 `PostRewind`（payload `{ entryId, mode, files }`，不可阻止）；`docs/hooks.md` 同步。
+- Hook：新增命令式事件 `PostRewind`（payload `{ entryId, mode, files }`，不可阻止）；`docs/guides/hooks.md` 同步。
 - 配置（`key-docs.ts` 每项要说明与缺省值）：
   - `checkpoints.mode`: `"tools"`（缺省）/ `"shadow-git"` / `"off"`；`AMA_CHECKPOINTS=off` 覆盖。
   - `checkpoints.maxFileBytes`: 5 242 880。
@@ -173,7 +173,7 @@ rewind(request: RewindRequest): Promise<RewindResult>;
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | RW-A 检查点核心 | blob 存储、tracker、条目重放、恢复与安全检查、冲突检测、dry-run diff、GC、doctor 占用；edit / write 调 `ctx.checkpoint`                                                   | `src/checkpoints/**`（除 types.ts）、`src/tools/{edit,write}.ts` 的两处调用、`src/cli/subcommands/{sessions,doctor}.ts` 的 GC / 占用                                                                     | 契约                                          | 单测覆盖 §3.2 每条分支（符号链接、硬链接、父目录移动、删除、新建、冲突 skip / overwrite、too_large）；三平台 CI 绿（Windows 无 O_NOFOLLOW 分支）                                  |
 | RW-B 会话与接口 | `session-rewind.ts`（编排、readFiles 重算、rewind-note、摘要两项、中断即撤回）、检查点接线（runPrompt 后建检查点、子会话指向父 tracker）、RPC / SDK / `PostRewind` / 文档 | `src/agent/session-rewind.ts`（新）、`src/agent/{session,session-run,session-tools,session-subagent}.ts` 的接线、`src/modes/rpc/**`、`src/sdk.ts`、`src/hooks/**` 的事件、`docs/{rpc,hooks,sessions}.md` | 契约；RW-A 的实现可先用内存桩，合入顺序 A → B | fake 供应商端到端：edit 两个文件 → rewind both → 文件与对话都回到之前、readFiles 不含被恢复文件、下一请求前缀逐字节不变；仅对话 / 仅代码各自的 note；子会话编辑可回滚；中断即撤回 |
-| RW-C 交互界面   | 双击 Esc、回滚列表、确认面板、预览、git 提示、结果通知、line 模式 `/rewind`                                                                                               | `src/modes/interactive/**`、`src/modes/commands-core.ts`、`docs/tui.md`                                                                                                                                  | RW-B                                          | 帧黄金：列表、面板（有 / 无代码改动、冲突、git 提示）、ASCII；tmux 手测双击 Esc 两种行为                                                                                          |
+| RW-C 交互界面   | 双击 Esc、回滚列表、确认面板、预览、git 提示、结果通知、line 模式 `/rewind`                                                                                               | `src/modes/interactive/**`、`src/modes/commands-core.ts`、`docs/guides/tui.md`                                                                                                                           | RW-B                                          | 帧黄金：列表、面板（有 / 无代码改动、冲突、git 提示）、ASCII；tmux 手测双击 Esc 两种行为                                                                                          |
 | RW-D 影子 git   | §6                                                                                                                                                                        | `src/checkpoints/shadow-git.ts`（新）及其测试                                                                                                                                                            | RW-A                                          | 临时 git 仓库里 bash 改动可回滚；护栏降级；无 git 时提示                                                                                                                          |
 
 - A 与 B 并行开发（B 用桩），A 先合；C 与 D 在 B / A 合入后并行。

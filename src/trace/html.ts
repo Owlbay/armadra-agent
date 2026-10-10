@@ -1,5 +1,5 @@
 /**
- * 轨迹 HTML 导出：`ama sessions trace --html`（docs/wave6-plan.md §2.5、D7）。[W6-T2]
+ * 轨迹 HTML 导出：`ama sessions trace --html`（docs/history/wave6-plan.md §2.5、D7）。[W6-T2]
  *
  * 产物是**单文件、零依赖**的页面：样式与脚本内联（`html-template.ts`），数据放
  * `<script type="application/json">`，`<meta>` CSP 禁止一切外联。页面在浏览器里只用 `textContent` 写字，

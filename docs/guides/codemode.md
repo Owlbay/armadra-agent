@@ -1,6 +1,6 @@
 # codemode
 
-设计依据见 [design.md](design.md) §5.5、§5.6、§9.1。
+设计依据见 [design.md](../design/design.md) §5.5、§5.6、§9.1。
 
 `codemode` 工具让模型写一段 JavaScript，在脚本里经 `tools.*` 编排多次工具调用，只有脚本输出回到模型。长流程、工具密集的任务里，它把多次往返合成一次，减少往返次数与缓存读取；短任务里模型照常直接调用工具，codemode 只多占约 400 token 前缀，所以 `default` 预设在网络隔离的运行时上缺省开着它。
 
@@ -24,7 +24,7 @@
 
 缺省配置里不写 `codemode.mode`（`ama init` 生成的 `config.json` 也不写），所以这张映射以后调整时老用户同样生效。`ama config show` / `ama doctor` 显示生效模式与原因（跟随哪个预设、网络由 Node 还是操作系统沙箱隔离）；`ama doctor` 另列操作系统沙箱能力。
 
-`minimal` / `coordinator` 预设缺省不带 codemode，也没有 grep / glob：模型找代码只能用 bash（`default` 权限模式下每次审批、`-p` 下被拒）。要检索就 `tools.default: ["+grep","+glob"]` 直接加上，比为了检索打开 codemode 便宜（见 [design.md](design.md) §5.6）；`codemode-only` 的脚本里 `tools.grep()` / `tools.glob()` / `tools.ls()` 都可调用。
+`minimal` / `coordinator` 预设缺省不带 codemode，也没有 grep / glob：模型找代码只能用 bash（`default` 权限模式下每次审批、`-p` 下被拒）。要检索就 `tools.default: ["+grep","+glob"]` 直接加上，比为了检索打开 codemode 便宜（见 [design.md](../design/design.md) §5.6）；`codemode-only` 的脚本里 `tools.grep()` / `tools.glob()` / `tools.ls()` 都可调用。
 
 `coordinator` 预设即使显式 `on`，脚本里能调用的工具也只限它的活动集（read 与宿主工具）：`tools.bash`、`tools.write` 在脚本里同样不存在，协调者「不写文件、不跑 bash」的约定不能经 codemode 绕过。
 
@@ -87,7 +87,7 @@
 
 - `codemode` 本身作为一次工具调用经过 PreToolUse、权限与 PostToolUse。
 - 脚本里的每次 `tools.*` 再各自经过完整流程，Hook 按**真实工具名**匹配（`bash`，不是 `codemode`）；Hook 输入多两个字段：`viaCodemode: true` 与 `parentToolCallId`（外层 `codemode` 调用的 id）。
-- 事件：`tool_execution_update` 透传脚本输出（最近 4000 字符）；内层调用发 `tool_execution_start / end`，带 `parentToolCallId`，不进转录、不进模型上下文。`ama --mode acp` 把每次内层调用单列为一条 `tool_call`（标题前缀 `codemode › `，`_meta.ama.parentToolCallId` 指向外层），其权限请求关联到这条内层调用（见 [acp.md](acp.md)）。
+- 事件：`tool_execution_update` 透传脚本输出（最近 4000 字符）；内层调用发 `tool_execution_start / end`，带 `parentToolCallId`，不进转录、不进模型上下文。`ama --mode acp` 把每次内层调用单列为一条 `tool_call`（标题前缀 `codemode › `，`_meta.ama.parentToolCallId` 指向外层），其权限请求关联到这条内层调用（见 [acp.md](../reference/acp.md)）。
 
 ## 沙箱
 

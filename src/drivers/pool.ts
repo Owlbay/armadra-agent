@@ -1,5 +1,5 @@
 /**
- * 外部 Agent 并发池（docs/wave5-plan.md §5.4 并发）。[W5-E]
+ * 外部 Agent 并发池（docs/history/wave5-plan.md §5.4 并发）。[W5-E]
  *
  * 总并发 `agents.maxConcurrent`（缺省 3）+ 每个 Agent 的上限 `agents.<id>.maxConcurrent`
  * （claude 缺省 2：订阅有速率限制）；超出排队（先来先得），排队可被 abort。与 ama 自己的

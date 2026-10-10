@@ -1,6 +1,6 @@
 /**
  * 工具运行器：`ToolResult.fileChange` 只随 `tool_execution_end` 走，不进 toolResult 消息（不落盘）。
- * [ACP-C] 守住 docs/acp-plan.md D6。
+ * [ACP-C] 守住 docs/history/acp-plan.md D6。
  */
 
 import { writeFileSync } from "node:fs";

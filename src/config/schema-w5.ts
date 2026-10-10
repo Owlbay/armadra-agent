@@ -1,5 +1,5 @@
 /**
- * 第五波配置键的校验（docs/wave5-plan.md §9；schema.ts 已近 600 行，新键放这里）。[W5-C0]
+ * 第五波配置键的校验（docs/history/wave5-plan.md §9；schema.ts 已近 600 行，新键放这里）。[W5-C0]
  *
  * 规则与 json-schema.ts 一一对应（json-schema.test.ts 的正反例守住）：类型 / 取值错误是 error，
  * 未知字段是 warning。只校验形状；行为由各批次实现。

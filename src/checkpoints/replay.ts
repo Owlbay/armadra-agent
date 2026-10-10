@@ -1,5 +1,5 @@
 /**
- * 从会话条目重建检查点（docs/rewind-plan.md §1.2）。[RW-A]
+ * 从会话条目重建检查点（docs/history/rewind-plan.md §1.2）。[RW-A]
  *
  * - 按文件顺序重放全部条目（不限活动分支）里的 `ama.checkpoint` 与 `ama.checkpoint-track`；
  *   track 并入对应 userEntryId 的检查点（检查点里已有该文件时不覆盖）。

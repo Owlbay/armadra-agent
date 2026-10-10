@@ -1,5 +1,5 @@
 /**
- * 作用域条目列表与 `MEMORY.md` 索引（docs/wave6-plan.md §3.2）。[W6-M]
+ * 作用域条目列表与 `MEMORY.md` 索引（docs/history/wave6-plan.md §3.2）。[W6-M]
  *
  * - 条目 = 作用域目录（含子目录）里的 `*.md`，跳过 `MEMORY.md`、隐藏文件 / 目录与符号链接；
  * - 排序：`updated` 降序，同日按文件路径；

@@ -1,5 +1,5 @@
 /**
- * [W6-C0] 外部 Agent 回合骨架（docs/wave6-plan.md §2.2 `external_turn`）：ProcessRunner 每回合发 `turn_trace`
+ * [W6-C0] 外部 Agent 回合骨架（docs/history/wave6-plan.md §2.2 `external_turn`）：ProcessRunner 每回合发 `turn_trace`
  * （不含工具标题 / 命令行 / 路径），工具事件带 id 与时刻；任务注册表据此写父会话的 `ama.trace`。
  */
 

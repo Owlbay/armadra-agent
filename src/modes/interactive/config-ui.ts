@@ -1,5 +1,5 @@
 /**
- * `/config` controller (docs/wave6-plan.md §6.3, D24-D26). [W6-S]
+ * `/config` controller (docs/history/wave6-plan.md §6.3, D24-D26). [W6-S]
  *
  * - `open("")` shows the panel (config-panel.ts); `open("key=value")` / `open("key value")` sets one key
  *   in the user config without the panel (same path as `ama config set`).

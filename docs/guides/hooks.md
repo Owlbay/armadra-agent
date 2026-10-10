@@ -1,6 +1,6 @@
 # 命令式 Hook（hooks.json）
 
-命令式 Hook 是在固定时机运行的 shell 命令：ama 把事件写成 JSON 交给命令的 stdin，按退出码与 stdout JSON 决定放行、阻止或改写。它是**用户策略**层——可以改工具输入、一票否决工具调用、给提示追加上下文、让运行再跑一轮。类型定义在 `src/hooks/types.ts`（经 `@armadra/agent` 导出 `HookInput`、`HookOutput`、`HookConfig` 等）。设计依据见 [design.md](design.md) §6.1、§6.3、§7.3。
+命令式 Hook 是在固定时机运行的 shell 命令：ama 把事件写成 JSON 交给命令的 stdin，按退出码与 stdout JSON 决定放行、阻止或改写。它是**用户策略**层——可以改工具输入、一票否决工具调用、给提示追加上下文、让运行再跑一轮。类型定义在 `src/hooks/types.ts`（经 `@armadra/agent` 导出 `HookInput`、`HookOutput`、`HookConfig` 等）。设计依据见 [design.md](../design/design.md) §6.1、§6.3、§7.3。
 
 ## 配置
 
@@ -125,7 +125,7 @@ interface HookOutput {
 - `additionalContext` / `customInstructions` 按配置顺序拼接。
 - 任一 Hook 返回 `continue: false` 即请求结束运行。
 
-一次工具调用的完整顺序（[design.md](design.md) §6.3）：
+一次工具调用的完整顺序（[design.md](../design/design.md) §6.3）：
 
 ```text
 模型产出工具调用

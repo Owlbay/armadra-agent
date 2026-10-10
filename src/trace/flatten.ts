@@ -1,5 +1,5 @@
 /**
- * 轨迹树扁平化（docs/wave6-plan.md §2.4）。[W6-T1]
+ * 轨迹树扁平化（docs/history/wave6-plan.md §2.4）。[W6-T1]
  *
  * 把 `Trace` 按展开状态摊成行数组（列表模型），TUI 只渲染可见窗口、line 模式整表输出。
  * - 行 key 是从根开始的路径（`t:<turnId>/s:<stepId>/x:<toolCallId>/a:<taskId>/…`），刷新后仍稳定，

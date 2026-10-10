@@ -1,22 +1,22 @@
 # Permission modes and auto decisions
 
-English · [简体中文](../permissions.md)
+English · [简体中文](../../guides/permissions.md)
 
-> Translated from the Chinese [docs/permissions.md](../permissions.md) as of commit `6b5455a`. When the two differ, the
+> Translated from the Chinese [docs/guides/permissions.md](../../guides/permissions.md) as of commit `6b5455a`. When the two differ, the
 > Chinese version is authoritative.
 
-This document covers ama's six permission modes, the decision order for every tool call, and how the three tiers of `auto` mode, "rule tier → static judgement → model classifier", decide between allowing and asking. The overall design is in [design.md](../design.md) §6.3 and §7 (Chinese); hook input and output are in [hooks.md](../hooks.md) (Chinese).
+This document covers ama's six permission modes, the decision order for every tool call, and how the three tiers of `auto` mode, "rule tier → static judgement → model classifier", decide between allowing and asking. The overall design is in [design.md](../../design/design.md) §6.3 and §7 (Chinese); hook input and output are in [hooks.md](../../guides/hooks.md) (Chinese).
 
 ## Modes
 
-| Value       | Display name       | Read | Write (inside the project)                      | Execute (bash etc.)                                         | When to use                                                                   |
-| ----------- | ------------------ | ---- | ----------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `default`   | Manual             | ✓    | ask                                             | ask                                                         | Default                                                                       |
-| `auto-edit` | Accept edits       | ✓    | ✓                                               | ask                                                         | You trust it to edit code but want to see each command                        |
-| `plan`      | Plan               | ✓    | deny                                            | read-only commands allowed, everything else denied          | Read-only research, then a plan for approval ([plan.md](../plan.md), Chinese) |
-| `auto`      | Auto               | ✓    | ✓ (protected paths and outside the project ask) | safe-list commands allowed, the rest judged by a classifier | Recommended: routine work is not interrupted, only risky steps ask            |
-| `full-auto` | Bypass permissions | ✓    | ✓                                               | ✓                                                           | Throwaway sandboxes, containers                                               |
-| `allowlist` | Allowlist only     | ✓    | only calls matching allow rules                 | read-only commands and calls matching allow rules           | CI: never asks; anything not listed is denied                                 |
+| Value       | Display name       | Read | Write (inside the project)                      | Execute (bash etc.)                                         | When to use                                                                             |
+| ----------- | ------------------ | ---- | ----------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `default`   | Manual             | ✓    | ask                                             | ask                                                         | Default                                                                                 |
+| `auto-edit` | Accept edits       | ✓    | ✓                                               | ask                                                         | You trust it to edit code but want to see each command                                  |
+| `plan`      | Plan               | ✓    | deny                                            | read-only commands allowed, everything else denied          | Read-only research, then a plan for approval ([plan.md](../../guides/plan.md), Chinese) |
+| `auto`      | Auto               | ✓    | ✓ (protected paths and outside the project ask) | safe-list commands allowed, the rest judged by a classifier | Recommended: routine work is not interrupted, only risky steps ask                      |
+| `full-auto` | Bypass permissions | ✓    | ✓                                               | ✓                                                           | Throwaway sandboxes, containers                                                         |
+| `allowlist` | Allowlist only     | ✓    | only calls matching allow rules                 | read-only commands and calls matching allow rules           | CI: never asks; anything not listed is denied                                           |
 
 In every mode, deny rules and hook denies are checked first and deny outright; the dangerous-command list (`rm -rf /`, `git push --force`, `curl … | sh` and so on, see the README "Safety" section) always asks, which becomes deny under `allowlist` and when unattended.
 
@@ -47,11 +47,11 @@ Approvals do not only come from the main session. The dialog (and RPC `permissio
 | Permission requests from external agents (claude / codex / ACP) | `[claude · session abc12345]`                        | The title, kind, paths involved and input summary given by the external agent | A human only: host → interface → deny when unattended; neither the auto classifier nor the model takes part |
 | First run of an external agent in this session                  | Title "first run of an external agent"               | An explanation (runs with your login in that CLI) and the mode                | allow / deny rules `task(<id>)` and `full-auto` let it through; otherwise a human decides (no classifier)   |
 
-"Allow for this session" of an external agent is remembered by that agent itself. In Manual mode the approval of a `task(agent=…)` call and the first-run confirmation are merged into one (see [agents.md](../agents.md), Chinese). The RPC `context` is `{ depth, taskId, origin }` ([rpc.md](rpc.md) "Approvals").
+"Allow for this session" of an external agent is remembered by that agent itself. In Manual mode the approval of a `task(agent=…)` call and the first-run confirmation are merged into one (see [agents.md](../../guides/agents.md), Chinese). The RPC `context` is `{ depth, taskId, origin }` ([rpc.md](../reference/rpc.md) "Approvals").
 
 ## Plan mode and read-only commands
 
-Step ③ of plan mode looks at the input (implemented by `planDecision` in `src/permissions/pipeline.ts`); the flow and plan approval are in [plan.md](../plan.md) (Chinese):
+Step ③ of plan mode looks at the input (implemented by `planDecision` in `src/permissions/pipeline.ts`); the flow and plan approval are in [plan.md](../../guides/plan.md) (Chinese):
 
 | Call                                  | Under plan                                                                                                                                               |
 | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -105,7 +105,7 @@ schema validation
 
 ### Approval-free commands inside the sandbox
 
-With `sandbox.bash: auto` and an OS sandbox on the machine that can restrict writes ([sandbox.md](../sandbox.md) "phase two", Chinese), bash runs through the sandbox. Under default / auto-edit, a bash call needs no approval (`PermissionVerdict.sandboxed: true`) when all of the following hold:
+With `sandbox.bash: auto` and an OS sandbox on the machine that can restrict writes ([sandbox.md](../../guides/sandbox.md) "phase two", Chinese), bash runs through the sandbox. Under default / auto-edit, a bash call needs no approval (`PermissionVerdict.sandboxed: true`) when all of the following hold:
 
 1. It will run inside the sandbox: no `sandbox: false`;
 2. `sandbox.network: deny` (network access can exfiltrate data, so `allow` asks as usual);

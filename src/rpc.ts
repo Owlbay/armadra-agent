@@ -12,14 +12,14 @@
  * - 线上事件 = 进程内 `SessionEvent`，但 `message_update` 换成纯增量（去掉 partial / 累计消息，
  *   附最新 usage）；stream-json 输出同一形状。
  * - 类型定义直接放在本文件（B6 实现 import 它），避免子路径入口依赖实现文件。
- * - [W5-C0] 第五波（docs/wave5-plan.md §6.5、§7.5）：命令 `plan_response / get_plan / get_todos /
+ * - [W5-C0] 第五波（docs/history/wave5-plan.md §6.5、§7.5）：命令 `plan_response / get_plan / get_todos /
  *   get_tasks / get_agents`（返回形状见 `RpcW5Results`），客户端能力 `plans`（声明后计划审批交客户端）；
  *   新事件由 `SessionEvent` 派生自动包含。命令实现归 W5-F（C0 时返回 `not_implemented`），
  *   `RPC_PROTOCOL_VERSION` 不变。
- * - [W6-C0] 第六波（docs/wave6-plan.md §2.6、§4.4）：命令 `get_trace`（参数 `RpcGetTraceParams`、返回
+ * - [W6-C0] 第六波（docs/history/wave6-plan.md §2.6、§4.4）：命令 `get_trace`（参数 `RpcGetTraceParams`、返回
  *   `RpcW6Results`，W6-T2 实现，之前回 `not_implemented`）；事件 `quota_update`；`permission_request.context`
  *   可带 `toolCallId`；`keySource` 可为 `oauth`。`RPC_PROTOCOL_VERSION` 不变。
- * - [W7-B2] 后台子 Agent（docs/agents-concurrency-plan.md §2.5）：命令 `background_task { taskId? }` →
+ * - [W7-B2] 后台子 Agent（docs/history/agents-concurrency-plan.md §2.5）：命令 `background_task { taskId? }` →
  *   `RpcW7Results`（无 taskId = 全部前台运行中任务；对已结束 / 已在后台的任务回空表）；事件
  *   `subagent_background` 由 `SessionEvent` 派生。`RPC_PROTOCOL_VERSION` 不变。
  */
@@ -109,7 +109,7 @@ export interface RpcCommandMap {
   get_tree: NoParams;
   set_session_name: { name: string };
   get_fork_messages: NoParams;
-  // 回滚（docs/rewind-plan.md §5）
+  // 回滚（docs/history/rewind-plan.md §5）
   get_rewind_points: NoParams;
   rewind: RewindRequest;
   summarize_from: { entryId: string; instructions?: string };
@@ -123,15 +123,15 @@ export interface RpcCommandMap {
   set_permission_mode: { mode: PermissionMode };
   get_commands: NoParams;
   get_skills: NoParams;
-  // [W5-C0] 计划 / 任务（docs/wave5-plan.md §6.5、§7.5）
+  // [W5-C0] 计划 / 任务（docs/history/wave5-plan.md §6.5、§7.5）
   plan_response: RpcPlanResponse;
   get_plan: { planId?: string };
   get_todos: NoParams;
   get_tasks: NoParams;
   get_agents: NoParams;
-  // [W6-C0] 轨迹（docs/wave6-plan.md §2.6；W6-T2 实现，之前回 not_implemented）
+  // [W6-C0] 轨迹（docs/history/wave6-plan.md §2.6；W6-T2 实现，之前回 not_implemented）
   get_trace: RpcGetTraceParams;
-  // [W7-B2] 前台任务转后台（docs/agents-concurrency-plan.md §2.5）
+  // [W7-B2] 前台任务转后台（docs/history/agents-concurrency-plan.md §2.5）
   background_task: { taskId?: string };
 }
 

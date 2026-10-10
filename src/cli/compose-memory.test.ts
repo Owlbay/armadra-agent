@@ -1,5 +1,5 @@
 /**
- * 记忆的组装（docs/wave6-plan.md §3.1、§3.4、§3.6、D8、D9、D11、D12）：开关与作用域、系统节、前缀稳定、
+ * 记忆的组装（docs/history/wave6-plan.md §3.1、§3.4、§3.6、D8、D9、D11、D12）：开关与作用域、系统节、前缀稳定、
  * reload / 压缩只产生 memory 节补丁、resume 沿用、AMA_MEMORY。
  */
 

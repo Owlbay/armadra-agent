@@ -1,5 +1,5 @@
 /**
- * `read` 大文件的字节窗口读取（docs/memory-plan.md D1、§2.1）。[M-E]
+ * `read` 大文件的字节窗口读取（docs/history/memory-plan.md D1、§2.1）。[M-E]
  *
  * fd + 64 KiB 块顺序扫描，只解码 `[offset, offset + limit)` 内且累计不超过 `maxBytes`（多收一行）
  * 的行，其余行只计数；口径与小文件路径（`splitBom` + `normalizeToLF` + 去末尾一个换行再 `split`）

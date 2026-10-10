@@ -1,5 +1,5 @@
 /**
- * `ama providers add|refresh` 的纯计算部分（docs/providers.md「一键接入」）：候选渠道、模型列表的
+ * `ama providers add|refresh` 的纯计算部分（docs/guides/providers.md「一键接入」）：候选渠道、模型列表的
  * 协议提示、探测结果 → 模型渠道、渠道收敛、追加式合并进配置、表格。
  *
  * 不读写文件、不联网（`fetchModelList` 除外，它只是一次 GET）；命令流程在 providers.ts。

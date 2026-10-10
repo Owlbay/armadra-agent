@@ -1,5 +1,5 @@
 /**
- * 图片预算扩展（docs/wave5-plan.md §4、D11、D30）。[W5-I]
+ * 图片预算扩展（docs/history/wave5-plan.md §4、D11、D30）。[W5-I]
  *
  * 每次请求前检查图片总量：超预算（或有超单图上限的旧图、> 20 张时的大图）就按
  * `planImageBudget` 把旧图换成占位文本，写成 `context_edit{reason:"image_budget"}` 持久化、

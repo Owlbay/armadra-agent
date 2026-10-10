@@ -5,7 +5,7 @@
  *   Esc / Ctrl+C / stdin 结束 = 取消；
  * - 结束后把列表收成一行「? 问题 答案」，恢复 raw 状态与光标，暂停 stdin；进程意外退出时也恢复；
  * - 颜色与字形按环境：`NO_COLOR` / 非 TTY 输出无色，`AMA_ASCII` / 区域设置决定 ASCII 字形（字形表见
- *   docs/tui-design.md §2.2）；
+ *   docs/design/tui-design.md §2.2）；
  * - 输入不是可开 raw 的 TTY（管道、CI）时 {@link confirmContinue} 回落为原来的文本 `[y/N]` 问答。
  */
 

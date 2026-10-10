@@ -1,5 +1,5 @@
 /**
- * 后台命令（docs/wave5-plan.md §8.3 H6，D29：不加新工具，`bash{background}` + `bash{job, action}`）。[W5-H2]
+ * 后台命令（docs/history/wave5-plan.md §8.3 H6，D29：不加新工具，`bash{background}` + `bash{job, action}`）。[W5-H2]
  *
  * - `start`：调用方（bash.ts）给出 `spawn(stdout)`——**进程只在 bash.ts 的 `spawnShell` 里创建**，
  *   这里只拿到 ChildProcess；stdout / stderr 直接写进 `outputPath`（文件描述符交给子进程，ama 退出也不

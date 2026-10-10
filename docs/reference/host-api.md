@@ -1,6 +1,6 @@
 # 宿主适配器 API（@armadra/agent/host）
 
-宿主适配器是一个本地 JS 模块，ama 启动时加载它并交给它一个 `HostApi`：它可以注册工具、追加系统提示、观察事件、回答审批、注入用户消息、在界面上显示通知与状态。Armadra 画布就是以宿主适配器的形式接入的（画布工具 `canvas_*` / `context_*` 都由适配器注册）。类型定义在 `src/host/types.ts`，从 `@armadra/agent/host` 导出，`HOST_API_VERSION = 1`。设计依据见 [design.md](design.md) §6.2、§6.3、§11.1 第 13 步。
+宿主适配器是一个本地 JS 模块，ama 启动时加载它并交给它一个 `HostApi`：它可以注册工具、追加系统提示、观察事件、回答审批、注入用户消息、在界面上显示通知与状态。Armadra 画布就是以宿主适配器的形式接入的（画布工具 `canvas_*` / `context_*` 都由适配器注册）。类型定义在 `src/host/types.ts`，从 `@armadra/agent/host` 导出，`HOST_API_VERSION = 1`。设计依据见 [design.md](../design/design.md) §6.2、§6.3、§11.1 第 13 步。
 
 ## 模块形状
 
@@ -132,7 +132,7 @@ interface ToolResult {
 - `request`：`requestId`、`toolName`、`input`、`reason: "mode" | "dangerous" | "hook"`、`hookReason?`、`preview?`（执行前预览，见 [rpc.md](rpc.md)「审批」）、`context?`（`depth > 0` 表示来自 `task` 子 Agent；codemode 内层调用带 `parentToolCallId`）。
 - 超时（缺省 10 分钟，`AMA_APPROVAL_TIMEOUT_MS`）或运行被中断时 `signal` abort，结论为 deny。审批串行，同一时刻只有一个请求在等。
 - 时机：broker 每次审批时现取，可以在 `create()` 里设，也可以之后任何时候设或替换；最后一次 `setBroker` 生效。
-- 宿主 broker 只决定「谁来回答 ask」，不能放宽 deny 规则、命令式 Hook 的 deny 与危险命令识别（[design.md](design.md) §6.3）。
+- 宿主 broker 只决定「谁来回答 ask」，不能放宽 deny 规则、命令式 Hook 的 deny 与危险命令识别（[design.md](../design/design.md) §6.3）。
 
 ## 缓存保温
 
@@ -150,7 +150,7 @@ interface WarmDecision {
 }
 ```
 
-返回 `"warm"` / `"stop"`（可以是 Promise）。返回 `"stop"` 即不发并停止本轮保温（内置决策本是 warm 时，停止原因记为 `declined`）；返回 `"warm"` 可以覆盖内置的 stop。处理器出错回落内置决策。注册多个时最后注册且未注销的那个生效；返回值是注销函数。保温机制本身见 [providers.md](providers.md)「缓存」。
+返回 `"warm"` / `"stop"`（可以是 Promise）。返回 `"stop"` 即不发并停止本轮保温（内置决策本是 warm 时，停止原因记为 `declined`）；返回 `"warm"` 可以覆盖内置的 stop。处理器出错回落内置决策。注册多个时最后注册且未注销的那个生效；返回值是注销函数。保温机制本身见 [providers.md](../guides/providers.md)「缓存」。
 
 ## 退出
 

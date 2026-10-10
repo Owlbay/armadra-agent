@@ -1,5 +1,5 @@
 /**
- * plan 模式注入给模型的文本（docs/wave5-plan.md §6.2、D18）。[W5-F]
+ * plan 模式注入给模型的文本（docs/history/wave5-plan.md §6.2、D18）。[W5-F]
  *
  * 全部以 `custom_message`（`display:false`）追加在尾部，投影成 user 消息，不碰 system 节与工具表
  * （design §9.1）。文本是给模型看的，用英文；界面文案不在这里。

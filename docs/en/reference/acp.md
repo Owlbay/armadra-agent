@@ -1,16 +1,16 @@
 # ACP (Agent Client Protocol)
 
-English · [简体中文](../acp.md)
+English · [简体中文](../../reference/acp.md)
 
-> Translated from the Chinese [docs/acp.md](../acp.md) as of commit `f6419be`. When the two differ, the Chinese version is
+> Translated from the Chinese [docs/reference/acp.md](../../reference/acp.md) as of commit `f6419be`. When the two differ, the Chinese version is
 > authoritative.
 
 ama works on both sides of ACP:
 
 - **Agent**: `ama --mode acp` exposes ama as an ACP agent for Zed, JetBrains and Armadra's ACP nodes;
-- **Client**: ama drives external agents over ACP (native ACP agents such as Gemini CLI, OpenCode, Kimi and Copilot, or Claude Code / Codex with an adapter installed); see [agents.md](../agents.md) (Chinese).
+- **Client**: ama drives external agents over ACP (native ACP agents such as Gemini CLI, OpenCode, Kimi and Copilot, or Claude Code / Codex with an adapter installed); see [agents.md](../../guides/agents.md) (Chinese).
 
-The protocol stack is hand-written with no dependencies and maintained in one place: `@armadra/agent/acp` exports the types, framing, client and fake agent, and Armadra reuses them directly. The design rationale is in [wave5-plan.md](../wave5-plan.md) §5 (D14, Chinese).
+The protocol stack is hand-written with no dependencies and maintained in one place: `@armadra/agent/acp` exports the types, framing, client and fake agent, and Armadra reuses them directly. The design rationale is in [wave5-plan.md](../../history/wave5-plan.md) §5 (D14, Chinese).
 
 ## Wire
 
@@ -73,7 +73,7 @@ The full before / after text of a diff only travels with live events and is neve
 
 ### Approvals
 
-Calls that ama needs to ask about go to the client as `session/request_permission` with three options: `allow_once` (Allow), `allow_always` (Allow for this session) and `reject_once` (Deny). `toolCall.toolCallId` refers to the id of an earlier `tool_call` — including calls inside codemode, which point at the inner `tool_call`, not the outer `codemode` one. While the question is open the call goes back to `pending`, then `in_progress` once allowed (so an approved call goes `pending → in_progress → pending → in_progress → completed`); a denied call goes straight to `failed`. When the client answers `cancelled`, the connection drops or the turn is interrupted, it counts as unanswered (denied). When ama no longer needs an answer (the turn was interrupted by `session/cancel` / `$/cancel_request`, or the 10-minute approval timeout passed), it withdraws the pending `session/request_permission` with `$/cancel_request { requestId }` so the client can close its dialog. In auto mode ama's own classifier still works — this only applies to ama's own tools; requests from external agents that ama drives go to a human only (see [agents.md](../agents.md), Chinese).
+Calls that ama needs to ask about go to the client as `session/request_permission` with three options: `allow_once` (Allow), `allow_always` (Allow for this session) and `reject_once` (Deny). `toolCall.toolCallId` refers to the id of an earlier `tool_call` — including calls inside codemode, which point at the inner `tool_call`, not the outer `codemode` one. While the question is open the call goes back to `pending`, then `in_progress` once allowed (so an approved call goes `pending → in_progress → pending → in_progress → completed`); a denied call goes straight to `failed`. When the client answers `cancelled`, the connection drops or the turn is interrupted, it counts as unanswered (denied). When ama no longer needs an answer (the turn was interrupted by `session/cancel` / `$/cancel_request`, or the 10-minute approval timeout passed), it withdraws the pending `session/request_permission` with `$/cancel_request { requestId }` so the client can close its dialog. In auto mode ama's own classifier still works — this only applies to ama's own tools; requests from external agents that ama drives go to a human only (see [agents.md](../../guides/agents.md), Chinese).
 
 ### Without a model
 
@@ -145,7 +145,7 @@ These are deliberate choices, not omissions:
 
 ## As a client
 
-The model uses ACP agents through `task(agent="acp:<program>")` (ama itself is `task(agent="acp:ama")`; see "Using them in task" in [agents.md](../agents.md), Chinese).
+The model uses ACP agents through `task(agent="acp:<program>")` (ama itself is `task(agent="acp:ama")`; see "Using them in task" in [agents.md](../../guides/agents.md), Chinese).
 
 `AcpClient` (`@armadra/agent/acp`): `initialize`, `newSession`, `resumeSession` (preferred, no replay), `loadSession`, `listSessions`, `closeSession`, `prompt`, `setMode`, `cancel`.
 

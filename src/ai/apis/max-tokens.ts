@@ -1,5 +1,5 @@
 /**
- * `max_tokens` 的主动收紧与被动修正（docs/model-efficiency-plan.md §1.9、D9）。[ME-C]
+ * `max_tokens` 的主动收紧与被动修正（docs/history/model-efficiency-plan.md §1.9、D9）。[ME-C]
  *
  * - 主动收紧：窗口已知时 `max_tokens = min(请求值, max(MIN_OUTPUT_TOKENS, 窗口 − 估算输入 − 余量))`，
  *   输入按请求体字符 / 4 估算（本模块自带，不依赖 compaction/）。预算型思考（`fixed`）不收紧：

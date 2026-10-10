@@ -1,7 +1,7 @@
 /**
  * OAuth 端点的 HTTP 调用（token 交换 / 刷新 / 撤销 / discovery）。[W6-O]
  *
- * 日志红线（docs/wave6-plan.md §4.3）：错误只带 HTTP 状态与 `error` 码（截断到 64 字符），从不带响应
+ * 日志红线（docs/history/wave6-plan.md §4.3）：错误只带 HTTP 状态与 `error` 码（截断到 64 字符），从不带响应
  * 原文、请求参数、code 或任何 token。
  */
 

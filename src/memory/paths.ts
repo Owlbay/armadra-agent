@@ -1,5 +1,5 @@
 /**
- * 记忆的目录与逻辑路径（docs/wave6-plan.md §3.2、D9、D11）。[W6-M]
+ * 记忆的目录与逻辑路径（docs/history/wave6-plan.md §3.2、D9、D11）。[W6-M]
  *
  * - 独立终端：`<dataDir>/memory/user/` 与 `<dataDir>/memory/projects/<slug>-<sha8>/`；sha8 = 项目根真实路径的
  *   sha256 前 8 位。项目根：git 顶层（worktree 取主仓库，经 `commondir`）；子模块取子模块自己的检出；

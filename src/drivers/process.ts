@@ -1,5 +1,5 @@
 /**
- * 外部 Agent 子进程（docs/wave5-plan.md §5.4 看门狗 / 孤儿进程）。[W5-E]
+ * 外部 Agent 子进程（docs/history/wave5-plan.md §5.4 看门狗 / 孤儿进程）。[W5-E]
  *
  * - POSIX 以 `detached` 自成进程组，结束时 `killProcessTree`（SIGTERM → 宽限 → SIGKILL）；
  *   登记到 `tools/process-tree.ts`，ama 退出时同步清掉仍存活的组。

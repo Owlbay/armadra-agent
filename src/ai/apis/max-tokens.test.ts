@@ -1,5 +1,5 @@
 /**
- * max_tokens 主动收紧与被动修正（docs/model-efficiency-plan.md D9）。[ME-C]
+ * max_tokens 主动收紧与被动修正（docs/history/model-efficiency-plan.md D9）。[ME-C]
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";

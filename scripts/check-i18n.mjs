@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 中英双语检查（docs/wave6-plan.md §5.4、D20；docs/i18n.md）。零依赖，进 `pnpm ci`（`pnpm check:i18n`）。
+// 中英双语检查（docs/history/wave6-plan.md §5.4、D20；docs/guides/i18n.md）。零依赖，进 `pnpm ci`（`pnpm check:i18n`）。
 //
 // [W6-I5] 严格模式（基线已清零并删除）：出现即失败。
 //   1. src/** 源码里「代码与字符串中」含汉字的行（注释不算）一律报错；界面文案写进 src/i18n/messages/<领域>.ts。
@@ -300,7 +300,7 @@ function run() {
   const all = [
     ...problems,
     ...lines.map(
-      (line) => `${line}\n      ↑ 界面文案写进 src/i18n/messages/<领域>.ts（docs/i18n.md）`,
+      (line) => `${line}\n      ↑ 界面文案写进 src/i18n/messages/<领域>.ts（docs/guides/i18n.md）`,
     ),
   ];
   if (all.length > 0) {

@@ -1,8 +1,8 @@
 # 贡献指南 / Contributing
 
-硬约束、检查命令与评审规则见 [AGENTS.md](../AGENTS.md)，设计依据见 [docs/design.md](../docs/design.md)。
+硬约束、检查命令与评审规则见 [AGENTS.md](../AGENTS.md)，设计依据见 [docs/design/design.md](../docs/design/design.md)。
 
-For the hard constraints, check commands and review rules, see [AGENTS.md](../AGENTS.md); the design rationale is in [docs/design.md](../docs/design.md).
+For the hard constraints, check commands and review rules, see [AGENTS.md](../AGENTS.md); the design rationale is in [docs/design/design.md](../docs/design/design.md).
 
 ## 需求流程 / Workflow
 
@@ -49,5 +49,5 @@ docs(providers): 渠道节补中转实测
 - 合并前 `pnpm run ci` 与 CI（macOS / Linux / Windows × Node 22 / 24）全部通过；合并使用 merge commit，保留逐个提交。 / `pnpm run ci` and CI (macOS / Linux / Windows × Node 22 / 24) must pass before merging; merges use a merge commit and keep individual commits.
 - 不新增运行时依赖；`devDependencies` 新增要在 PR 里说明理由。 / No new runtime dependencies; explain any new `devDependencies` in the PR.
 - 用户可见的变化写进 [CHANGELOG.md](../CHANGELOG.md) 与 [CHANGELOG.zh-CN.md](../CHANGELOG.zh-CN.md) 的未发布段，两份都加。 / User-visible changes go into the Unreleased section of both changelogs.
-- 改了协议形状要同步 `docs/rpc.md`、`docs/host-api.md`、`docs/acp.md` 或 `docs/session-format.md` 及 `docs/en/` 的英文版。 / Protocol shape changes must update the matching docs and their English versions in `docs/en/`.
+- 改了协议形状要同步 `docs/reference/rpc.md`、`docs/reference/host-api.md`、`docs/reference/acp.md` 或 `docs/reference/session-format.md` 及 `docs/en/` 的英文版。 / Protocol shape changes must update the matching docs and their English versions in `docs/en/`.
 - 发布由维护者执行：改版本号、定稿两份更新记录、推送 `v<版本>` tag，CI 创建 Release 并通过 npm 可信发布（OIDC）推送；不要在本地 `npm publish`。 / Releases are done by maintainers: bump the version, finalize both changelogs and push a `v<version>` tag; CI creates the Release and publishes to npm through trusted publishing (OIDC). Never run `npm publish` locally.

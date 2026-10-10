@@ -5,7 +5,7 @@ import { isReadonlyBash, readonlyBashReason } from "./readonly-bash.js";
 const cwd = resolve("/work/proj");
 const ro = (command: string): boolean => isReadonlyBash(command, { cwd });
 
-describe("READONLY_BASH（docs/wave5-plan.md §6.2）", () => {
+describe("READONLY_BASH（docs/history/wave5-plan.md §6.2）", () => {
   it.each([
     "ls -la",
     "ls src | wc -l",

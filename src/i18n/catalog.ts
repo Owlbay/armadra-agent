@@ -1,10 +1,10 @@
 /**
- * 全部领域的汇总（docs/wave6-plan.md §5.1、D23）。[W6-C0] 一次登记全部领域，之后无人再改本文件：
+ * 全部领域的汇总（docs/history/wave6-plan.md §5.1、D23）。[W6-C0] 一次登记全部领域，之后无人再改本文件：
  * 各批次只改自己的 `messages/<领域>.ts`。
  *
  * 领域 → 所有者：cli / subcommands（I1）；interactive / approval / plan / rewind / panels / permissions（I2）；
  * report / print / drivers / session / errors（I3）；config（I4）；agents（A）；trace（T1 / T2）；
- * memory（M）；auth（O）；settings（S）；acp（ACP-C0 新增，docs/acp-plan.md D15）。
+ * memory（M）；auth（O）；settings（S）；acp（ACP-C0 新增，docs/history/acp-plan.md D15）。
  */
 
 import type { Messages } from "./types.js";

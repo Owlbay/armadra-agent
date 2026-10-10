@@ -1,5 +1,5 @@
 /**
- * bash 的 OS 沙箱（docs/sandbox.md「第二阶段」）：配置 → 会话内固定的沙箱设定，以及每次调用的策略。
+ * bash 的 OS 沙箱（docs/guides/sandbox.md「第二阶段」）：配置 → 会话内固定的沙箱设定，以及每次调用的策略。
  *
  * - 生效条件：`sandbox.bash: auto` 且探测到能限制写入的沙箱（sandbox-exec / bwrap；`unshare` 只隔离网络，
  *   不算）。不生效时 bash 原样运行、权限照旧；

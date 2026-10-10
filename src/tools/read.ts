@@ -59,7 +59,7 @@ function error(message: string): ToolResult {
 }
 
 /**
- * [S-A] read 收到目录时的下一步提示：只指向模型当前真能调用的工具（docs/search-plan.md §4.2）。
+ * [S-A] read 收到目录时的下一步提示：只指向模型当前真能调用的工具（docs/design/search-plan.md §4.2）。
  * 活动集未知（宿主自建上下文）时沿用旧文案。
  */
 export function directoryHint(shown: string, ctx: Pick<ToolContext, "activeTools">): string {

@@ -1,5 +1,5 @@
 /**
- * 子 Agent 定义文件解析（docs/wave5-plan.md §7.1，D22）。[W5-G]
+ * 子 Agent 定义文件解析（docs/history/wave5-plan.md §7.1，D22）。[W5-G]
  *
  * 一个 `*.md` = 一个类型：frontmatter 与 Skill 同一套 YAML 子集（skills/frontmatter.ts），字段名
  * kebab-case；正文 = 追加到子会话系统提示末尾的角色说明。不合格的文件不加载并给出 warning（拼错的

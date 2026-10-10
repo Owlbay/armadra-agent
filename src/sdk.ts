@@ -10,10 +10,10 @@
  *   summarizeFrom / summarizeUpTo / undoAbortedTurn`，内存会话只能仅对话）。
  *
  * 两者共用组装根（cli/compose*.ts），审批链、系统提示装配、工具预设与缓存行为与 CLI 一致。
- * - [W5-F] 计划（docs/plan.md）：`CreateSessionOptions.plan`（plan.* 配置 + `onProposed` 审批回调）；
+ * - [W5-F] 计划（docs/guides/plan.md）：`CreateSessionOptions.plan`（plan.* 配置 + `onProposed` 审批回调）；
  *   返回的会话带 `plan.current() / respond() / todos()`。没有 `onProposed` 时按 `plan.unattended`
  *   （缺省 stop：计划落盘后停下，不替人批准）。
- * - [W6-C0] `language`（两个入口都有）：界面语言，跟随宿主界面（docs/i18n.md）；进程级，`AMA_LANG` 仍优先。
+ * - [W6-C0] `language`（两个入口都有）：界面语言，跟随宿主界面（docs/guides/i18n.md）；进程级，`AMA_LANG` 仍优先。
  */
 
 import { resolve } from "node:path";
@@ -204,7 +204,7 @@ export interface CreateSessionOptions {
   /** 命令式 Hook（缺省不加载文件系统里的 hooks.json）。 */
   hooks?: HookConfig | false;
   config?: Partial<AmaConfig>;
-  /** [W5-F] 计划（plan.* 配置与审批回调），见 docs/plan.md。 */
+  /** [W5-F] 计划（plan.* 配置与审批回调），见 docs/guides/plan.md。 */
   plan?: SessionPlanOptions;
   unattended?: boolean;
   onWarning?: (message: string) => void;

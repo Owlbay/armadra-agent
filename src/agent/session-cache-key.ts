@@ -1,5 +1,5 @@
 /**
- * `prompt_cache_key` 的取值（docs/model-efficiency-plan.md §1.8，从 session-cache.ts 搬出）：
+ * `prompt_cache_key` 的取值（docs/history/model-efficiency-plan.md §1.8，从 session-cache.ts 搬出）：
  * fork 出的会话沿用 fork 链上的根会话 id（只是路由提示）；task 子会话与非 fork 会话用自己的 id。
  * [ME-A] fork 式子会话（首条 `ama.task{context:"fork"}`）继承父的前缀，不当作 task 子会话：沿用父链根 id。
  */

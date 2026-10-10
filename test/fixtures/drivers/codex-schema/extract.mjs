@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // 从 `codex app-server generate-json-schema --out <dir>` 的产物里抽出驱动依赖的形状，写成 shapes.json。
 // 用法：node extract.mjs <schema-dir> [out.json]（缺省写到本目录 shapes.json）。不联网、不涉及账户。
-// 只锁 Codex 驱动用到的方法与字段（docs/wave5-plan.md §5.2：12 个方法 + 5 类审批请求）。
+// 只锁 Codex 驱动用到的方法与字段（docs/history/wave5-plan.md §5.2：12 个方法 + 5 类审批请求）。
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";

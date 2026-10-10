@@ -1,5 +1,5 @@
 /**
- * 子 Agent 结果的上限、落盘与通知文本（docs/wave5-plan.md §7.4，D23–D24）。[W5-G]
+ * 子 Agent 结果的上限、落盘与通知文本（docs/history/wave5-plan.md §7.4，D23–D24）。[W5-G]
  *
  * - 结果 > 50 KB（UTF-8 字节）保留头 70% + 尾 30%，中间一行说明省略了多少、全文在哪；
  * - 后台任务完成后以 `<task-notification>` 作为 followUp 投递给父会话（系统提示 rules 里由 task
@@ -83,7 +83,7 @@ export function taskNotification(input: NotificationInput): string {
   return `<task-notification ${attrs.join(" ")}>\n${input.report}\n</task-notification>`;
 }
 
-// [W7-B1] 后台任务的固定英文文案（docs/agents-concurrency-plan.md §2.5；工具结果不进缓存前缀，但要
+// [W7-B1] 后台任务的固定英文文案（docs/history/agents-concurrency-plan.md §2.5；工具结果不进缓存前缀，但要
 // 稳定，便于测试与模型学习）。
 
 export const NOTIFY_HINT =

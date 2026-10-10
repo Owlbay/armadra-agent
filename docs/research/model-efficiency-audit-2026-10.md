@@ -2,7 +2,7 @@
 
 > 范围：缓存命中、token 用量、请求次数与延迟、失败与重试。只读调研：仓库没有改动；构建产物与实验脚本都放在仓库外的临时目录，不随仓库保存。
 > 实测共 **12 次**真实请求，都经中转 `packy`，单次输出 ≤ 64 token，合计按目录价或保守价估算 < $0.02。key 由 ama 的注册表在内部解析，没有读取或打印。其中 2 次是 `ama models check` 发出的可用性请求：本想只看元数据，没注意到它会发请求，也计在内。另外用 fake 供应商录制了 3 种预设的请求体和一次「中途加工具」，这部分不花钱。
-> 本文是 [model-efficiency-plan.md](../model-efficiency-plan.md) 的依据，只用于追溯；代码行号对应写作时的 `main`，现状以代码与 `docs/` 其余文档为准。
+> 本文是 [model-efficiency-plan.md](../history/model-efficiency-plan.md) 的依据，只用于追溯；代码行号对应写作时的 `main`，现状以代码与 `docs/` 其余文档为准。
 
 ## 结论
 
@@ -35,7 +35,7 @@
 
 - **问题**：子会话的 system 是「父会话的静态节 + `role` 节」，历史为空（`src/agent/session-subagent.ts:236`）。子会话只能和父会话共享 system + tools 这一段，大约 1–2k；在 2048 粒度的端点上读数恒为 0。子任务要了解父会话已经知道的内容，只能重新读文件，按全价计费，还要多跑几个回合。
 - **证据**：
-  - `docs/agents.md:168`：「不支持 fork 模式」；
+  - `docs/guides/agents.md:168`：「不支持 fork 模式」；
   - `src/agent/session-cache.ts:92`：task 子会话不沿用父会话的 `prompt_cache_key`；
   - 实测数据见文末表格中的 F1–F3。
 - **方案**：
@@ -49,7 +49,7 @@
   8. **经济性**：fork 子会话的每个回合都要多读 P 个缓存 token（P 为父会话前缀）。
      - DeepSeek：命中价约为未命中价的 1/50，16k 缓存约等于 330 个全价 token，基本总是划算；
      - Kimi / Anthropic：比值约 1/4–1/10，只有子任务真的依赖父会话上下文（否则要重读文件或重问）时才划算。所以 `explore` 缺省用 `fresh`，`general` 是否缺省用 `fork` 由基准决定。
-- **涉及文件**：`src/agent/session-subagent.ts`、`subagent-registry.ts`（`rebuildRecords` 目前按首条条目识别 task，fork 后 task 条目不再是首条，需要调整）、`src/agents/builtin.ts`、`src/agents/parse.ts`（frontmatter 的 `context`）、`src/tools/task.ts`（参数与描述）、`src/agent/session-cache.ts`（`cacheKeyOf`）、`docs/agents.md`、`docs/design.md` §5.2 / §9.1、`docs/session-format.md`（`ama.task` 的 data 增加可选字段，不涉及版本号）。
+- **涉及文件**：`src/agent/session-subagent.ts`、`subagent-registry.ts`（`rebuildRecords` 目前按首条条目识别 task，fork 后 task 条目不再是首条，需要调整）、`src/agents/builtin.ts`、`src/agents/parse.ts`（frontmatter 的 `context`）、`src/tools/task.ts`（参数与描述）、`src/agent/session-cache.ts`（`cacheKeyOf`）、`docs/guides/agents.md`、`docs/design/design.md` §5.2 / §9.1、`docs/reference/session-format.md`（`ama.task` 的 data 增加可选字段，不涉及版本号）。
 - **规模**：L。
 - **预期收益**：子任务首个请求从「0 读 + 后续重读文件」变为「≈100% 读」。在 DeepSeek 上，需要父会话上下文的子任务，输入费用可降一个数量级。另外能少几个「重新定位」的回合。
 - **风险**：
@@ -89,7 +89,7 @@
   - 宿主在 `create()` 阶段注册完工具（§9.1 已有这条要求）；
   - 或者在 codemode 开启时，把晚到的工具作为「仅脚本可调用」：工具表不变，用一条 reminder 给出 TypeScript 声明，`describeTool()` 照常可用。
 
-- **涉及文件**：`src/session/projection.ts`、`src/ai/context.ts`、`src/agent/session-sync.ts`（`keepSectionsOnToolAppend` 可以同时保留被移除工具的 tools / rules 节）、`src/agent/session-tools.ts`（拒绝文案）、`src/cli/cache-stability.test.ts`（增加两条：压缩前有补丁时，压缩后首个请求的 system + tools 与压缩前逐字节相同；移除工具后 system + tools 不变，上一次请求的消息是前缀）、`docs/design.md` §9.1（把「只有移除工具的补丁折回开头」改为「开头永不改写」）、`docs/providers.md`「缓存」。
+- **涉及文件**：`src/session/projection.ts`、`src/ai/context.ts`、`src/agent/session-sync.ts`（`keepSectionsOnToolAppend` 可以同时保留被移除工具的 tools / rules 节）、`src/agent/session-tools.ts`（拒绝文案）、`src/cli/cache-stability.test.ts`（增加两条：压缩前有补丁时，压缩后首个请求的 system + tools 与压缩前逐字节相同；移除工具后 system + tools 不变，上一次请求的消息是前缀）、`docs/design/design.md` §9.1（把「只有移除工具的补丁折回开头」改为「开头永不改写」）、`docs/guides/providers.md`「缓存」。
 - **规模**：M。
 - **预期收益**：
   - 每次压缩少全价重读一次 S（S = system + tools，1.5k–10k+，带 AGENTS.md、Skills 和记忆时更大）；
@@ -118,7 +118,7 @@
 
 - **问题**：现在用 3 个断点：最后一条 user、system 末尾、最后一个工具（`src/ai/apis/anthropic-request.ts:283-292`），上限是 4 个。Anthropic 命中时只在断点前回看 20 个内容块。一个回合如果并行 N 个工具调用，两次请求的断点之间大约有 2N + 3 个块（thinking、text、N 个 tool_use，再加 N 个 tool_result）。N ≥ 9 时超出回看范围，整段上下文按 1.25 倍重写。规则里有「把独立的只读调用合并到一个回合」，codemode 的场景下这种情况并不少见。
 - **方案**：第 4 个断点打在**上一次请求最后一条 user 消息的末块**，也就是上一次的写入点，保证一定能接上。P1-2 完成后，开头不再变化，工具断点就是多余的（system 末尾的断点已经覆盖 tools → system），可以腾给它。
-- **涉及文件**：`src/ai/apis/anthropic-request.ts`（`markLastUser` 增加「倒数第二个 user 回合」）、请求体快照测试、`docs/design.md` §3.6 和 §9.1「Anthropic 显式断点」一行。
+- **涉及文件**：`src/ai/apis/anthropic-request.ts`（`markLastUser` 增加「倒数第二个 user 回合」）、请求体快照测试、`docs/design/design.md` §3.6 和 §9.1「Anthropic 显式断点」一行。
 - **规模**：S。**收益**：消除大批并行调用之后的整段重写，每次省约 1.25 × 上下文 的写入费。**风险**：只能在官方端点上实测；中转缺省也发 `cache_control`，行为相同。不影响前缀。
 
 ### P1-5 重试与退避
@@ -132,7 +132,7 @@
   - 429 / 529 的重试次数单独放宽到 5 次。
   - 5xx 只匹配 `status` 或开头的状态码。
   - overloaded 先快速重试一次（1–2 s 抖动）。只有当估算的回退代价 `promptTokens × 回退模型输入价` 低于阈值，或者已经重试过，才切换。
-- **涉及文件**：`src/ai/apis/shared.ts`、`src/ai/types.ts`（AssistantMessage 加可选字段，需要确认不进 RPC 形状，或者在 docs/rpc.md 里注明）、`src/agent/retry.ts`、`src/agent/session-run.ts`、`src/agent/fallback.test.ts`。
+- **涉及文件**：`src/ai/apis/shared.ts`、`src/ai/types.ts`（AssistantMessage 加可选字段，需要确认不进 RPC 形状，或者在 docs/reference/rpc.md 里注明）、`src/agent/retry.ts`、`src/agent/session-run.ts`、`src/agent/fallback.test.ts`。
 - **规模**：S–M。**收益**：限流时失败和回退更少；回退一次（100k 上下文）在 Anthropic 级别的价格下约 $0.3–1.5。**风险**：重试的总等待变长，TUI 已经有 `auto_retry_start{delayMs}` 展示。
 
 ### P1-6 `max_tokens`：按端点范围与窗口收紧，越界自动修正
@@ -167,7 +167,7 @@
      - `sendPromptCacheKey`、长保留这类主机能力；
      - `thinkingFormat`：这是请求形状，中转是否透传 `thinking` 字段要实测，可以经 `ama models discover --probe` 确认后写进 `modelOverrides`。
   4. 来源标为 `catalog (via id)`，`models list` 中显示；可以用 `inherit: false` 关闭。用户写的 `modelOverrides` 优先级最高。
-- **涉及文件**：`src/ai/providers/enrich.ts`、`catalog.ts`、`catalog/*.json`（aliases）、`registry.ts`、`docs/providers.md`、`i18n/messages/*`（来源文案，中英文）。
+- **涉及文件**：`src/ai/providers/enrich.ts`、`catalog.ts`、`catalog/*.json`（aliases）、`registry.ts`、`docs/guides/providers.md`、`i18n/messages/*`（来源文案，中英文）。
 - **规模**：M。
 - **收益**：
   - 中转 DeepSeek 首批请求的未命中噪声下限一开始就正确，不必等粒度推断攒够两个样本；

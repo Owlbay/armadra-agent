@@ -1,6 +1,6 @@
 /**
  * codemode 缺省关闭的一次性提示（设计 §5.5「默认开放」）：`default` 预设跟随预设时只在沙箱 strict
- * （Node ≥ 25，或有可用的操作系统沙箱，docs/sandbox.md）开 codemode；否则缺省关闭，启动时提示一次
+ * （Node ≥ 25，或有可用的操作系统沙箱，docs/guides/sandbox.md）开 codemode；否则缺省关闭，启动时提示一次
  * 怎么显式开启。
  *
  * - 只在「跟随预设」且预设是 `default`、运行时不是 strict 时提示；显式写了 `codemode.mode`（含 off）

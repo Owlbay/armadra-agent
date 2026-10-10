@@ -453,7 +453,7 @@ describe("包装里的命令逐层核对 allow / deny 规则与会话记忆", ()
   });
 });
 
-describe("[W5-F] plan 模式细化与 allowlist 同步（docs/wave5-plan.md §6.2、D21）", () => {
+describe("[W5-F] plan 模式细化与 allowlist 同步（docs/history/wave5-plan.md §6.2、D21）", () => {
   const call = (toolName: string, permission: ToolPermission, input: unknown) => ({
     toolName,
     permission,

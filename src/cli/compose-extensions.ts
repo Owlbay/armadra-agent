@@ -1,5 +1,5 @@
 /**
- * 会话扩展的组装表（docs/wave5-plan.md §10.1，D30）。[W5-C0]
+ * 会话扩展的组装表（docs/history/wave5-plan.md §10.1，D30）。[W5-C0]
  *
  * 唯一允许多个批次各加一行的文件：每个批次在 `composeExtensions` 的数组里追加**一行**自己的工厂，
  * 实现放在各自文件（`src/agent/session-<名>.ts` 等）。表顺序即调用顺序：

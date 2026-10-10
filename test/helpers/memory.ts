@@ -1,5 +1,5 @@
 /**
- * 内存回归测试的工具（docs/memory-plan.md D13、§1.5）。[M-C0]
+ * 内存回归测试的工具（docs/history/memory-plan.md D13、§1.5）。[M-C0]
  *
  * 断言只用确定性的量：`WeakRef` + 显式 GC 判可回收、GC 之后的堆增长上限、`FinalizationRegistry`
  * 计数存活实例；不以 RSS 作硬断言。vitest 以 `--expose-gc` 启动 worker（vitest.config.ts），

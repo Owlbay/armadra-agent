@@ -1,5 +1,5 @@
 /**
- * 外部 Agent 的探测（docs/wave5-plan.md §5.1 probe.ts）。[W5-E]
+ * 外部 Agent 的探测（docs/history/wave5-plan.md §5.1 probe.ts）。[W5-E]
  *
  * - PATH 查找不起 shell：逐个目录拼程序名（Windows 加 PATHEXT 后缀）；绝对 / 相对路径直接认。
  * - 版本：`<program> --version` 取第一个 `x.y.z`，5 s 超时，不联网、不计费。

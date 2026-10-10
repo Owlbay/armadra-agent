@@ -1,5 +1,5 @@
 /**
- * 进入 Bypass permissions（`full-auto`）前的确认（docs/permissions.md「进入 Bypass」）。
+ * 进入 Bypass permissions（`full-auto`）前的确认（docs/guides/permissions.md「进入 Bypass」）。
  *
  * - 交互界面里的切换（Tab / Shift+Tab 循环、`/permission` 选择器、`/permission full-auto` 命令）
  *   进入 Bypass 前问一次；本次运行内确认过之后不再问；启动时已是 Bypass（命令行

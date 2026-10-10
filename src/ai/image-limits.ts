@@ -1,5 +1,5 @@
 /**
- * 图片大小上限（docs/wave5-plan.md §4、D11；R1 §3.2）。[W5-I]
+ * 图片大小上限（docs/history/wave5-plan.md §4、D11；R1 §3.2）。[W5-I]
  *
  * 各家的上限都按 **base64 后**的字节数计算：`base64Bytes = ceil(bytes / 3) * 4`。
  *

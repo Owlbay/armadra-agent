@@ -1,5 +1,5 @@
 /**
- * plan 模式与 allowlist 放行的只读 bash 子集 `READONLY_BASH`（docs/wave5-plan.md §6.2、D21）。[W5-F]
+ * plan 模式与 allowlist 放行的只读 bash 子集 `READONLY_BASH`（docs/history/wave5-plan.md §6.2、D21）。[W5-F]
  *
  * 判定 = auto 的静态判定（`analyzeBashForAuto`：分词、嵌套展开、规则层的网络 / 删除 / 写入目标 /
  * 机密路径、命令替换、变量展开、点文件通配）**全部通过**，再加四条更窄的限制：

@@ -1,5 +1,5 @@
 /**
- * [W5-Z] 子 Agent（docs/agents.md「子 Agent」）bundle 级：`-p` 前台 task（explore 类型）结果回到父；
+ * [W5-Z] 子 Agent（docs/guides/agents.md「子 Agent」）bundle 级：`-p` 前台 task（explore 类型）结果回到父；
  * RPC 后台 task 立即返回，完成后以 `<task-notification>` 开新回合。fake 供应商在进程内共用一份脚本，
  * 后台用例里父与子并发取用，所以那几条回复都是不带工具调用的纯文本，先后不影响断言。
  * [W7-B2] 转后台：前台 task 的子会话首个请求带延迟（父阻塞在 task 上，请求先后确定），RPC `background_task` 后

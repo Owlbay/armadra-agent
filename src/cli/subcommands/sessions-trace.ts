@@ -1,5 +1,5 @@
 /**
- * `ama sessions trace <id|文件>`：会话轨迹导出（docs/wave6-plan.md §2.5、D7）。[W6-T2]
+ * `ama sessions trace <id|文件>`：会话轨迹导出（docs/history/wave6-plan.md §2.5、D7）。[W6-T2]
  *
  * - 缺省 / `--html [文件]` / `--format html`：自包含 HTML（`trace/html.ts`）；`--json` / `--format json`：与 RPC
  *   `get_trace` 同形的 JSON（全部回合、已加载子会话、`previews` 只含本会话节点；`--no-content` 时没有）。

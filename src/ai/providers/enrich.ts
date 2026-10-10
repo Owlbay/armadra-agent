@@ -1,5 +1,5 @@
 /**
- * 用 models.dev 缓存给自定义模型补元数据（docs/providers.md「模型元数据：models.dev」）。
+ * 用 models.dev 缓存给自定义模型补元数据（docs/guides/providers.md「模型元数据：models.dev」）。
  *
  * 优先级：用户配置写了的字段 > models.dev > 自定义缺省（maxTokens 8192、input ["text"]、
  * reasoning false、不猜 contextWindow）。内置目录的模型不经过这里：目录在 catalog.ts 里已经

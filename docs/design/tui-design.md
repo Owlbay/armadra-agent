@@ -150,7 +150,7 @@ ASCII（`ui.ascii` / `AMA_ASCII=1`）字形，同样着色：
 差分渲染的规则
 
 我先看一下 src/tui/tui.ts 的 diff() 逻辑，然后只改必要的部分。
-见 差分渲染说明 (docs/tui.md#差分渲染)。
+见 差分渲染说明 (docs/guides/tui.md#差分渲染)。
 
 1. 首帧全量输出
 2. 修改 diff()：首变化行在视口之上时全量重画
@@ -351,7 +351,7 @@ resize    一屏
 
 ```
   ↳ 插话  继续：再加一个 resize 的测试
-  ↳ 之后  顺便更新 docs/tui.md
+  ↳ 之后  顺便更新 docs/guides/tui.md
     Alt+↑ 取回 · Esc 回填并中断
 ⠋ 运行 bash · 38s · Esc 中断
 ```
@@ -528,7 +528,7 @@ tmux 节点里宿主要解析最后一行：嵌入缺省 `compact`，字段顺�
 
 Manual 模式下 `task(agent="claude")` 的 task 调用审批正文多一行「以你在 claude CLI 的登录运行（含本会话首次运行确认）」，允许后紧接着的首次运行确认自动通过（消息区一行「已允许 task（随上一次确认）」）。
 
-**计划审批框**（第五波 W5-U，[plan.md](plan.md)、[tui.md](tui.md)「Plan 审批」）：同一个底部覆盖层与 `Box`，标题 `计划待审批`；帧黄金 `test/fixtures/tui/plan-dialog-*.txt`。
+**计划审批框**（第五波 W5-U，[plan.md](../guides/plan.md)、[tui.md](../guides/tui.md)「Plan 审批」）：同一个底部覆盖层与 `Box`，标题 `计划待审批`；帧黄金 `test/fixtures/tui/plan-dialog-*.txt`。
 
 ```
 ╭─ 计划待审批 ─────────────────────────────────────────────────────────────────╮
@@ -668,7 +668,7 @@ Manual 模式下 `task(agent="claude")` 的 task 调用审批正文多一行「�
 | `ui.logo`      | `"auto" \| "off"`             | `auto`   | off → 启动头不画字符画           |
 | `ui.animation` | boolean                       | `true`   | false → spinner 与启动字符画静态 |
 
-改 `src/config/types.ts`（`UiConfig`）、`src/config/schema.ts`（`checkSection("ui", …)` 加键）、`src/config/json-schema.ts`、`docs/design.md §10.2`。`AMA_ASCII` 加进 `src/config/paths.ts` 旁的环境变量表（有文档的话）。
+改 `src/config/types.ts`（`UiConfig`）、`src/config/schema.ts`（`checkSection("ui", …)` 加键）、`src/config/json-schema.ts`、`docs/design/design.md §10.2`。`AMA_ASCII` 加进 `src/config/paths.ts` 旁的环境变量表（有文档的话）。
 
 ### 5.2 按文件改动
 
@@ -702,7 +702,7 @@ Manual 模式下 `task(agent="claude")` 的 task 调用审批正文多一行「�
 
 **文档与示例**
 
-- `docs/tui.md`：布局图、按键表、配置项、ASCII 模式与排错；`docs/design.md §12.5–§12.7` 同步（语义色 14 个、glyphs）。
+- `docs/guides/tui.md`：布局图、按键表、配置项、ASCII 模式与排错；`docs/design/design.md §12.5–§12.7` 同步（语义色 14 个、glyphs）。
 - `examples/tui-demo.ts`：加 Card、新 Loader API、审批编号选项演示。
 
 ### 5.3 新增 / 更新的帧黄金

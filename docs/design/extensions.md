@@ -1,6 +1,6 @@
 # 本地扩展（设计草案）
 
-> 状态：**设计草案，尚未实现**。本文描述的目录、配置键、HostApi 新面与 `ama doctor` 输出目前都不存在；实现前以本文为讨论基础，实现时以代码为准并改写本文。现行可用的扩展点是命令式 Hook（[hooks.md](hooks.md)）与单个宿主适配器（[host-api.md](host-api.md)）。
+> 状态：**设计草案，尚未实现**。本文描述的目录、配置键、HostApi 新面与 `ama doctor` 输出目前都不存在；实现前以本文为讨论基础，实现时以代码为准并改写本文。现行可用的扩展点是命令式 Hook（[hooks.md](../guides/hooks.md)）与单个宿主适配器（[host-api.md](../reference/host-api.md)）。
 
 ## 动机
 

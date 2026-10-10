@@ -1,5 +1,5 @@
 /**
- * 渠道（docs/providers.md「渠道」）：一个供应商下的多种接口（协议 + 地址 + 可选 key / headers / compat）。
+ * 渠道（docs/guides/providers.md「渠道」）：一个供应商下的多种接口（协议 + 地址 + 可选 key / headers / compat）。
  *
  * - 没有 `channels` 的供应商按单渠道处理：供应商级 `api` + `baseUrl` 就是隐式的 `default` 渠道，
  *   模型上不出现 `channel` / `channels` 字段，行为与引入渠道之前完全相同。

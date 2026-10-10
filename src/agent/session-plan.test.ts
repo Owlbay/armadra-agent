@@ -1,5 +1,5 @@
 /**
- * [W5-F] plan 扩展：提醒节奏、plan_state 持久化与恢复、退出提示、子会话不装（docs/wave5-plan.md §6.1–§6.3、
+ * [W5-F] plan 扩展：提醒节奏、plan_state 持久化与恢复、退出提示、子会话不装（docs/history/wave5-plan.md §6.1–§6.3、
  * §6.6）。审批与交接见 session-plan-approval.test.ts。
  */
 

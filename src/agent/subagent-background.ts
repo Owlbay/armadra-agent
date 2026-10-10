@@ -1,5 +1,5 @@
 /**
- * 子 Agent 的后台化（docs/agents-concurrency-plan.md §2.3、§2.5–§2.6）。[W7-B1]
+ * 子 Agent 的后台化（docs/history/agents-concurrency-plan.md §2.3、§2.5–§2.6）。[W7-B1]
  *
  * 从 subagent-registry.ts 拆出（保持 ≤ 600 行）：
  * - `resolveTaskBackground`：`subagents.background`（auto / always / never）→ 本会话 `task` 的缺省；

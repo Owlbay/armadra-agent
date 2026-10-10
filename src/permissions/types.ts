@@ -94,7 +94,7 @@ export interface ApprovalRequestContext {
   /** [W5-C0] 子 Agent 任务 id（对话框标注 `[task:<agent>]`）。 */
   taskId?: string;
   /**
-   * [W5-C0] 来自外部 Agent 的权限请求（docs/wave5-plan.md §5.3）：只走 broker 链（宿主 → UI →
+   * [W5-C0] 来自外部 Agent 的权限请求（docs/history/wave5-plan.md §5.3）：只走 broker 链（宿主 → UI →
    * 无人值守拒绝），auto 分类器与模型都不参与；RPC `permission_request` 原样带出。
    */
   origin?: ExternalPermissionOrigin;
@@ -200,7 +200,7 @@ export interface PermissionVerdict {
    */
   classify?: boolean;
   /**
-   * [S2] 这次 bash 调用将经 OS 沙箱运行（docs/sandbox.md「第二阶段」）。default / auto-edit 下因此免审批时
+   * [S2] 这次 bash 调用将经 OS 沙箱运行（docs/guides/sandbox.md「第二阶段」）。default / auto-edit 下因此免审批时
    * 为真；auto 下随 `classify` 一起交给分类器作为输入。
    */
   sandboxed?: boolean;

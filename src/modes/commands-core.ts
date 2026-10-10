@@ -89,7 +89,7 @@ export interface CommandInfo {
 type CommandKey = keyof Catalog["report"]["commands"];
 
 /**
- * 说明与需要翻译的参数占位按界面语言取（getter，不在 import 时定死，docs/i18n.md）；
+ * 说明与需要翻译的参数占位按界面语言取（getter，不在 import 时定死，docs/guides/i18n.md）；
  * `args` 是字符串时原样（不含要翻译的词），是 `{ key }` 时取目录里的占位。
  */
 function command(name: string, key: CommandKey, args?: string | { key: CommandKey }): CommandInfo {

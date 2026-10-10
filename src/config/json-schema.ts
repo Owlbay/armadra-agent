@@ -1,6 +1,6 @@
 /**
  * config.json 的 JSON Schema（draft-07 子集），写到配置目录的 `config.schema.json` 给编辑器补全与校验
- * （docs/providers.md「配置目录」）。规则与 schema.ts 的 `validateConfig` 一一对应：未知字段在那里是
+ * （docs/guides/providers.md「配置目录」）。规则与 schema.ts 的 `validateConfig` 一一对应：未知字段在那里是
  * warning、这里是 `additionalProperties: false`；渠道引用（模型 `channels` 指向已定义的渠道）这类跨字段
  * 规则 JSON Schema 表达不了，只在 `validateConfig` 里查。一致性由 json-schema.test.ts 的正反例守住。
  * 顶层与各段的键（供应商内部除外）的 description / default 来自 key-docs.ts（`annotate`）；说明跟随界面

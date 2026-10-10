@@ -1,5 +1,5 @@
 /**
- * 记忆存储（docs/wave6-plan.md §3.2、§3.3）。[W6-M]
+ * 记忆存储（docs/history/wave6-plan.md §3.2、§3.3）。[W6-M]
  *
  * `MemoryStore` 管一组作用域根（`ScopeRoots`）：
  * - `view(path, range?)`：根 → 各作用域条目数；目录 → 条目列表（名、大小、description）；文件 → 带行号正文

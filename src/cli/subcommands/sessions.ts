@@ -6,7 +6,7 @@
  * - show <id>：头信息 + 条目类型统计 + 首条提示 + 用户消息编号（`--from <id>#<编号>` 复用）。
  * - search / export / trace：见 sessions-search.ts、sessions-export.ts、sessions-trace.ts（只读扫描，不经会话存储）。
  * - prune [--older-than <天>] [--dry-run]：缺省 30 天，移到 trash（不删除）；之后清理检查点备份
- *   （未被任何会话引用且超过 1 天的 blob，docs/rewind-plan.md §1.4）与超过 7 天的剪贴板图片
+ *   （未被任何会话引用且超过 1 天的 blob，docs/history/rewind-plan.md §1.4）与超过 7 天的剪贴板图片
  *   （`<数据目录>/clipboard/`，W5-I），`--dry-run` 时只报告。
  */
 

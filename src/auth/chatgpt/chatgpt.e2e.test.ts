@@ -1,5 +1,5 @@
 /**
- * [W6-O] ChatGPT 真账户端到端（docs/wave6-plan.md §12-1）。**CI 永不运行**：只在 `AMA_E2E_CHATGPT=1` 时执行，
+ * [W6-O] ChatGPT 真账户端到端（docs/history/wave6-plan.md §12-1）。**CI 永不运行**：只在 `AMA_E2E_CHATGPT=1` 时执行，
  * 且要求先在本机 `ama auth login chatgpt [--flavor codex]` 登录（读用户级 auth.json；不读任何其它应用的凭据）。
  *
  *   AMA_E2E_CHATGPT=1 pnpm vitest run src/auth/chatgpt/chatgpt.e2e.test.ts

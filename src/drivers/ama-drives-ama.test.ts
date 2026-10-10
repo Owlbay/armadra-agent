@@ -1,5 +1,5 @@
 /**
- * ama 驱动 ama（零费用端到端，docs/wave5-plan.md §5.6–§5.7）：父侧 ProcessRunner + AcpDriver，
+ * ama 驱动 ama（零费用端到端，docs/history/wave5-plan.md §5.6–§5.7）：父侧 ProcessRunner + AcpDriver，
  * 子侧是真实组装的 ama（`--mode acp` 服务端 + 脚本化 fake 供应商），中间只有内存管道。
  * 子 ama 的 bash 要审批 → ACP session/request_permission → 父侧 askHuman → approve（模拟人）。
  */

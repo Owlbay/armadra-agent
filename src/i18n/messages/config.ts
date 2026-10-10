@@ -1,5 +1,5 @@
 /**
- * 消息目录：config（键名规范见 docs/i18n.md）。[W6-C0 建空壳，W6-I4 迁入]
+ * 消息目录：config（键名规范见 docs/guides/i18n.md）。[W6-C0 建空壳，W6-I4 迁入]
  *
  * en 是形状源；zh 用 `satisfies Messages<typeof en>`，缺键 / 多键 / 参数不符在 tsc 期报错。
  * 整句一个键、禁止片段拼接；插值写成函数，条件分支写进函数体。
@@ -133,7 +133,7 @@ export const en = {
   /** config.schema.json 里供应商内部字段的说明（顶层与各段的键用 `keys`）。 */
   jsonSchema: {
     api: "Protocol",
-    compat: 'Protocol compatibility switches (docs/providers.md "compat")',
+    compat: 'Protocol compatibility switches (docs/guides/providers.md "compat")',
     modelId: "Model id (the name sent upstream)",
     modelBaseUrl: "Overrides the channel / provider address",
     contextWindow:
@@ -263,7 +263,7 @@ export const zh = {
   },
   jsonSchema: {
     api: "协议",
-    compat: "协议兼容开关（docs/providers.md「compat」）",
+    compat: "协议兼容开关（docs/guides/providers.md「compat」）",
     modelId: "模型 id（发给上游的名字）",
     modelBaseUrl: "覆盖渠道 / 供应商的地址",
     contextWindow: "上下文 token；缺省从 models.dev 补，匹配不到不猜",
