@@ -54,6 +54,7 @@ describe("oneshotArgs", () => {
       "resume",
       "t",
       "--json",
+      "--skip-git-repo-check",
       "-c",
       'sandbox_mode="read-only"',
       "-c",
@@ -61,6 +62,12 @@ describe("oneshotArgs", () => {
       "-m",
       "m",
       "-",
+    ]);
+    // ama 只在已信任目录里起：非 git 目录也不能被 codex 的仓库检查挡住（#198）
+    expect(oneshotArgs("codex", {}, { id: "", resume: false }, "p").slice(0, 3)).toEqual([
+      "exec",
+      "--json",
+      "--skip-git-repo-check",
     ]);
     expect(oneshotArgs("gemini", {}, { id: "", resume: false }, "hello")).toEqual([
       "--output-format",
@@ -119,7 +126,7 @@ describe("OneshotDriver（录制回放）", () => {
     expect(result).toMatchObject({
       finalText: "foo is in a.ts",
       toolSummary: ["✓ execute $ rg foo"],
-      usage: { input: 500, output: 20, cacheRead: 100 },
+      usage: { input: 400, output: 20, cacheRead: 100 },
     });
     expect(session.sessionId).toBe("019a0000-0000-7000-8000-0000000000aa");
     await session.prompt([{ type: "text", text: "again" }], hooks([]));

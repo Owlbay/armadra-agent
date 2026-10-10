@@ -54,7 +54,15 @@ export function oneshotArgs(
       return args;
     }
     case "codex": {
-      const common = ["--json", "-c", 'sandbox_mode="read-only"', "-c", 'approval_policy="never"'];
+      // ama 只在自己已信任的目录里起外部 Agent：跳过 codex 自己的 git 仓库检查（非 git 目录否则直接失败）
+      const common = [
+        "--json",
+        "--skip-git-repo-check",
+        "-c",
+        'sandbox_mode="read-only"',
+        "-c",
+        'approval_policy="never"',
+      ];
       if (options.model !== undefined) common.push("-m", options.model);
       return session.resume
         ? ["exec", "resume", session.id, ...common, "-"]
@@ -278,9 +286,11 @@ class OneshotSession implements DriverSession {
       }
       case "turn.completed": {
         const u = (msg["usage"] ?? {}) as Record<string, number | undefined>;
+        // input_tokens 含缓存命中部分；ama 的 input 不含
+        const input = u["input_tokens"];
         turn.push({
           type: "usage",
-          ...(u["input_tokens"] !== undefined ? { input: u["input_tokens"] } : {}),
+          ...(input !== undefined ? { input: input - (u["cached_input_tokens"] ?? 0) } : {}),
           ...(u["output_tokens"] !== undefined ? { output: u["output_tokens"] } : {}),
           ...(u["cached_input_tokens"] !== undefined
             ? { cacheRead: u["cached_input_tokens"] }
