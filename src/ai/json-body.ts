@@ -11,6 +11,10 @@
  * 键、`[`）与已验证无需转义的大字符串（需要转义的大字符串整个交给原生）；`toJSON`、`undefined` /
  * 函数 / symbol 的跳过与 `null`、数字格式、转义全部由原生处理（带 `toJSON` 的值经单键容器序列化，
  * 保证 `toJSON(key)` 收到与原生相同的键）。
+ *
+ * 图片由转换器包成 {@link LargeString}（`prefix + text`）：片段路径直接写转录里的原字符串，不经模板串
+ * 拼接后的扁平化；无需转义的结论与字节数按 ImageBlock 缓存，同一张图每进程只扫一次。流式发送时大片段
+ * 按 {@link STREAM_CHUNK_CHARS} 切块编码。
  */
 
 /** 达到这个长度（UTF-16 码元）的字符串才走片段路径。 */
@@ -26,11 +30,60 @@ const CHECK_CHUNK = 16 * 1024;
  * 每个大字符串每次序列化只查这一次。
  */
 function isPlain(value: string): boolean {
+  plainScans.count++;
   for (let i = 0; i < value.length; i += CHECK_CHUNK) {
     const chunk = value.slice(i, i + CHECK_CHUNK);
     if (JSON.stringify(chunk).length !== chunk.length + 2) return false;
   }
   return true;
+}
+
+/** 短字符串无需转义（`LargeString.prefix` 用）。 */
+const isShortPlain = (value: string): boolean => JSON.stringify(value).length === value.length + 2;
+
+/** `isPlain` 的调用次数（测试用：同一块图片第二次序列化不应再扫）。 */
+export const plainScans = { count: 0 };
+
+/**
+ * 请求体里的大字符串叶子 `prefix + text`（data URL 或裸 base64），用来代替模板串拼接：拼接得到的
+ * cons string 在每次序列化时都会被扁平化成一份新的整图字符串。片段路径直接写 `prefix` 与 `text`
+ * （`text` 是转录里的原字符串，不拷贝）；`text` 无需转义的结论按 `key`（转录里身份稳定的 ImageBlock）
+ * 缓存，同一块每进程只扫一次。约定：同一 `key` 的 `text` 不变。其它遍历者看到的是一个带 `toJSON`
+ * 的对象，原生 `JSON.stringify` 得到相同字符串。由 {@link largeString} 构造。
+ */
+export class LargeString {
+  constructor(
+    readonly prefix: string,
+    readonly key: object,
+    readonly text: string,
+  ) {}
+
+  toJSON(): string {
+    return this.prefix + this.text;
+  }
+}
+
+/**
+ * `prefix + text` 作为请求体的值：`text` 够大且 `prefix` 自身无需转义时给 {@link LargeString}，
+ * 否则就是拼好的字符串（小图与以前完全相同）。
+ */
+export function largeString(prefix: string, key: object, text: string): string | LargeString {
+  if (text.length < LARGE_STRING_BYTES || !isShortPlain(prefix)) return prefix + text;
+  return new LargeString(prefix, key, text);
+}
+
+/** 已确认无需转义的 `LargeString.text`：键是 `key`，值是当时的 UTF-8 字节数（同时省掉再数一遍）。 */
+const plainBytes = new WeakMap<object, { length: number; bytes: number }>();
+
+/** `LargeString.text` 可原样写入时返回其 UTF-8 字节数，否则 undefined。 */
+function plainLargeBytes(value: LargeString): number | undefined {
+  if (!isShortPlain(value.prefix)) return undefined;
+  const known = plainBytes.get(value.key);
+  if (known !== undefined && known.length === value.text.length) return known.bytes;
+  if (!isPlain(value.text)) return undefined;
+  const bytes = Buffer.byteLength(value.text, "utf8");
+  plainBytes.set(value.key, { length: value.text.length, bytes });
+  return bytes;
 }
 
 /** 结构遍历的深度上限：更深（或有环）时整棵子树交给原生，环由原生照常抛 TypeError。 */
@@ -53,6 +106,7 @@ function isContainer(value: unknown): value is Container {
 /** 收集含大字符串的容器（片段路径只深入这些容器）；返回 `value` 本身是否含大字符串。 */
 function collectLarge(value: unknown, marked: Set<Container>, depth: number): boolean {
   if (isLargeString(value)) return true;
+  if (value instanceof LargeString) return value.text.length >= LARGE_STRING_BYTES;
   if (depth >= MAX_DEPTH || !isContainer(value)) return false;
   let found = false;
   if (Array.isArray(value)) {
@@ -82,20 +136,27 @@ function nativeValue(key: string, value: unknown): string | undefined {
 /** 片段：已拼好的 JSON 文本与大字符串交替；连续的小文本先在字符串里累积。 */
 class Pieces {
   readonly parts: string[] = [];
+  /** 已推入 `parts` 的 UTF-8 字节数。 */
+  bytes = 0;
   private pending = "";
 
   text(chunk: string): void {
     this.pending += chunk;
   }
 
-  /** 大字符串原样写入（引号进相邻的小片段）。 */
-  large(value: string): void {
-    this.parts.push(`${this.pending}"`, value);
+  /** 大字符串原样写入（引号与 `head` 进前一个小片段）；`bytes` 已知时不再数一遍。 */
+  large(value: string, head = "", bytes = Buffer.byteLength(value, "utf8")): void {
+    const before = `${this.pending}"${head}`;
+    this.parts.push(before, value);
+    this.bytes += Buffer.byteLength(before, "utf8") + bytes;
     this.pending = '"';
   }
 
   finish(): string[] {
-    if (this.pending.length > 0) this.parts.push(this.pending);
+    if (this.pending.length > 0) {
+      this.parts.push(this.pending);
+      this.bytes += Buffer.byteLength(this.pending, "utf8");
+    }
     this.pending = "";
     return this.parts;
   }
@@ -117,6 +178,13 @@ function writeEntry(
     } else {
       out.text(prefix + JSON.stringify(value)); // 需要转义：只有这一个字符串交给原生
     }
+    return true;
+  }
+  if (value instanceof LargeString && value.text.length >= LARGE_STRING_BYTES) {
+    const bytes = plainLargeBytes(value);
+    out.text(prefix);
+    if (bytes !== undefined) out.large(value.text, value.prefix, bytes);
+    else out.text(JSON.stringify(value.toJSON())); // 需要转义：交给原生
     return true;
   }
   // 深度与 collectLarge 一致；有环时越过上限交给原生，由它抛 TypeError
@@ -164,14 +232,9 @@ function jsonParts(body: unknown): { parts: string[]; length: number } | undefin
   const marked = new Set<Container>();
   if (!collectLarge(body, marked, 0)) return undefined;
   const out = new Pieces();
-  if (isLargeString(body)) {
-    if (!isPlain(body)) return undefined;
-    out.large(body);
-  } else writeContainer(body as Container, marked, out, 0);
+  writeEntry("", body, marked, out, "", 0); // 顶层：键为 ""，与原生调用 toJSON 的键相同
   const parts = out.finish();
-  let length = 0;
-  for (const part of parts) length += Buffer.byteLength(part, "utf8");
-  return { parts, length };
+  return { parts, length: out.bytes };
 }
 
 /** 与 `Buffer.from(JSON.stringify(body), "utf8")` 逐字节相同；大字符串不经中间字符串。 */

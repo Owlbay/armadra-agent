@@ -14,6 +14,7 @@
  */
 
 import { contentText, normalizeContext, sanitizeText } from "../context.js";
+import { largeString } from "../json-body.js";
 import {
   DEFAULT_THINKING_BUDGETS,
   clampBudgetToAnswerRoom,
@@ -98,7 +99,7 @@ function validSignature(signature: string | undefined): signature is string {
 }
 
 function inlineData(block: Extract<ContentBlock, { type: "image" }>): Json {
-  return { inlineData: { mimeType: block.mimeType, data: block.data } };
+  return { inlineData: { mimeType: block.mimeType, data: largeString("", block, block.data) } };
 }
 
 function convertUser(message: UserMessage): Json | undefined {
