@@ -123,7 +123,8 @@ export const en = {
     gitNotFound: "git not found",
     tooManyFiles: (files: number, max: number) =>
       `the working directory has ${plural(files, "file")} (limit ${max})`,
-    tooSlow: (seconds: string, max: number) => `the snapshot took ${seconds} s (limit ${max} s)`,
+    tooSlow: (seconds: string, max: number) =>
+      `snapshots took longer than ${max} s twice in a row (latest ${seconds} s)`,
     gitFailed: (command: string, code: string, detail: string) =>
       `git ${command} failed (${code})${detail === "" ? "" : `: ${detail}`}`,
     noShadowCommit: "the checkpoint has no shadow commit",
@@ -265,7 +266,7 @@ export const zh = {
     cwdIsHome: "工作目录是家目录",
     gitNotFound: "找不到 git",
     tooManyFiles: (files, max) => `工作目录有 ${files} 个文件（上限 ${max}）`,
-    tooSlow: (seconds, max) => `快照用了 ${seconds} 秒（上限 ${max} 秒）`,
+    tooSlow: (seconds, max) => `连续两次快照超过 ${max} 秒（最近一次 ${seconds} 秒）`,
     gitFailed: (command, code, detail) =>
       `git ${command} 失败（${code}）${detail === "" ? "" : `：${detail}`}`,
     noShadowCommit: "检查点没有影子提交",

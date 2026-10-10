@@ -25,8 +25,10 @@ import { msg } from "../i18n/index.js";
 export const SHADOW_DIR = "shadow";
 /** cwd 下（不含忽略的）文件数上限，超出本会话降级为 tools。 */
 export const SHADOW_MAX_FILES = 20_000;
-/** 单次快照耗时上限（毫秒），超出本会话降级为 tools。 */
+/** 单次快照耗时上限（毫秒），连续 `SHADOW_SLOW_STREAK` 次超出本会话降级为 tools。 */
 export const SHADOW_MAX_SNAPSHOT_MS = 3_000;
+/** 连续这么多次快照超时才降级（首次快照不计）。 */
+export const SHADOW_SLOW_STREAK = 2;
 /** 单个 git 进程的硬上限，防止卡死。 */
 const GIT_TIMEOUT_MS = 60_000;
 /** 本地配置的版本；改了配置项就加一，旧仓库会补写。 */
@@ -133,6 +135,8 @@ export class ShadowRepo {
   private readonly indexFile: string;
   private initialized: Promise<void> | undefined;
   private counted = false;
+  /** 连续超时的快照数（首次快照不计），到 `SHADOW_SLOW_STREAK` 才降级。 */
+  private slowStreak = 0;
 
   constructor(dataDir: string, cwd: string, options: ShadowGitOptions = {}) {
     this.cwd = resolve(cwd);
@@ -265,6 +269,8 @@ export class ShadowRepo {
       await this.init();
       // 计时不含一次性的建仓与本地配置（十来个 git 子进程，Windows 上可达数秒），只量快照本身
       const started = this.now();
+      // 首次快照要把整个工作区读进索引，天然偏慢，不计入超时
+      const first = !this.counted;
       await this.writeExcludes();
       if (!this.counted) {
         const out = await this.run([
@@ -290,7 +296,9 @@ export class ShadowRepo {
       if (parent !== undefined && (await this.hasCommitUnlocked(parent))) args.push("-p", parent);
       const commit = await this.text(args);
       const elapsed = this.now() - started;
-      if (elapsed > this.maxSnapshotMs) {
+      if (first) return { commit };
+      this.slowStreak = elapsed > this.maxSnapshotMs ? this.slowStreak + 1 : 0;
+      if (this.slowStreak >= SHADOW_SLOW_STREAK) {
         return {
           commit,
           degrade: {
