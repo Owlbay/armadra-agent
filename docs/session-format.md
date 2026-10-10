@@ -117,6 +117,7 @@
 | -------------------- | ---------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | `ama.todo`           | `custom`         | `data: { items: { id, text, status: pending \| in_progress \| done, planStep? }[] }`，整表快照 | `todo` 工具 `set` / `update`、计划获批时由步骤生成（W5-F）；`get` 取分支上最近一条 |
 | `ama.task`           | `custom`         | `data: { parentToolCallId, description, parentSession? }`；第五波见表后说明                    | `task` 子会话的首条条目；第五波起父会话也写                                        |
+| `ama.fork`           | `custom`         | `data: { taskLine }`：`<task>` 指令首个非空行（≤ 120 字符）                                    | fork 子会话复制分支后追加；`task` / `task_ctl` 被拒时据此说明身份并附摘要（#191）  |
 | `ama.codemode-store` | `custom`         | `data: { entries }`，`store()` 的完整快照                                                      | codemode 脚本成功结束且写过 store；读取取分支上最近一条                            |
 | `ama.aborted`        | `custom_message` | `content`：告诉模型上一条回复被用户中断；`display: false`                                      | 用户中断运行                                                                       |
 | `ama.hook_context`   | `custom_message` | `content`：UserPromptSubmit Hook 的 `additionalContext`；`display: false`                      | 随用户提示进上下文                                                                 |

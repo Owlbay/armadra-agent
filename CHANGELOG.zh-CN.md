@@ -9,6 +9,7 @@
 ### 模型调用效率
 
 - **中转 / 自定义供应商的 auto 分类器也用小模型**：会话模型按 id 继承了官方目录条目时（如 `packy/deepseek-v4-pro`），若该供应商模型表里列有同厂商目录的 `small` 模型（`packy/deepseek-v4-flash`）就用它分类；只认模型表里列出的条目，不用合成模型。`permission.autoModel` 仍优先（#153）。
+- **fork 子 Agent 调 `task` / `task_ctl` 被拒后回到子任务**：拒绝文案说明它是 fork 出的子 Agent、不能再派生，要求自己完成子任务并附 `<task>` 指令首行（fresh 子 Agent 文案不变；工具表与首请求不变）。DeepSeek 复测：一次没调 `task`，另一次调了一次被拒后读文件并给出报告（#191）。
 - **学到的 `max_tokens` 上限跨进程保留**：端点以 400 说出输出上限时，上限同时写入 `<dataDir>/models/max-tokens-caps.json`，启动时载回，之后的进程不再每个模型首个请求被拒一次（packy `kimi-k2.5`：第二个进程 0 次 400，原为 1 次）。条目 30 天过期，删掉该文件即重测。
 - **`models[].catalog` 写错时给 warning**：`catalog: "provider/id"` 不命中任何目录条目时，注册表记一条 warning（启动头部计数、`ama models list`、`AMA_LOG`），不再静默不继承。
 
