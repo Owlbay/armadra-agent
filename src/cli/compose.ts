@@ -51,6 +51,7 @@ import { buildProviderRegistry } from "./compose-providers.js";
 import {
   composeSession,
   emptyComposeState,
+  stderrLog,
   type ComposeState,
   type LogFn,
 } from "./compose-session.js";
@@ -300,7 +301,7 @@ export function createRuntimeDeps(
         return registry;
       },
     },
-    sessions: createSessionStore(),
+    sessions: createSessionStore(options.log ?? stderrLog()),
     tools: { create: (input) => createTools(input, options, state) },
     permissions: {
       create: (input) =>

@@ -6,7 +6,8 @@
  * - `resume{id}` / `fork{id}`：先在本目录、再在全部子目录里按 id 或唯一前缀找文件；找不到 →
  *   `session_not_found`，前缀不唯一 → `invalid_arguments` 并列出候选；
  * - `session-id{id}`：找到则打开，否则以该 id 新建；
- * - `fork{id}`：打开后从叶子复制出新文件，原会话立即关闭（释放锁）。
+ * - `fork{id}`：打开后从叶子复制出新文件，原会话立即关闭（释放锁）；源会话不属于任何 AgentSession，
+ *   它的告警（图片读不回，#183）显式交给 `context.log`。
  */
 
 import { existsSync, readdirSync, statSync } from "node:fs";
@@ -24,6 +25,7 @@ import {
   trashSession,
 } from "../session/store.js";
 import type { SessionListItem } from "../session/types.js";
+import type { LogFn } from "./compose-session.js";
 import type { RuntimeDeps, SessionRequest } from "./deps.js";
 import { msg } from "../i18n/index.js";
 
@@ -74,7 +76,7 @@ function requireFile(root: string, id: string, cwd?: string): string {
 
 export function openSession(
   request: SessionRequest,
-  context: { sessionDir: string; cwd: string },
+  context: { sessionDir: string; cwd: string; log?: LogFn | undefined },
 ): SessionManager {
   const { sessionDir: root, cwd } = context;
   const dir = sessionDirForCwd(root, cwd);
@@ -94,7 +96,9 @@ export function openSession(
         : SessionManager.open(file);
     }
     case "fork": {
-      const source = SessionManager.open(requireFile(root, request.id, cwd));
+      const source = SessionManager.open(requireFile(root, request.id, cwd), {
+        warn: (message) => context.log?.("warn", message),
+      });
       try {
         const leaf = source.leafId();
         if (leaf === null)
@@ -123,9 +127,10 @@ export function listSessions(context: {
     .sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
 }
 
-export function createSessionStore(): RuntimeDeps["sessions"] {
+/** `log`：`--fork` 源会话的告警出口（通常是会话的 `options.log`）。 */
+export function createSessionStore(log?: LogFn): RuntimeDeps["sessions"] {
   return {
-    open: (request, context) => openSession(request, context),
+    open: (request, context) => openSession(request, { ...context, log }),
     list: async (context) => listSessions(context),
     show: async (id, context) => {
       const file = requireFile(context.sessionDir, id);
