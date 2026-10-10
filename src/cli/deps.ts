@@ -105,7 +105,7 @@ export interface SessionAssembly {
   /**
    * 模式层把当前会话换成另一个（`/new`、`/resume`、`/fork`、RPC `switch_session`）后调用：
    * bootstrap 让 HostApi.session.*、宿主 sendUser、Hook 公共字段与退出时的 dispose 跟随 `next`。
-   * 旧会话由调用方自行 dispose；`Runtime.session` 仍指初始会话。
+   * 旧会话由调用方自行 dispose；`Runtime.session` / `sessionManager` 也随之指向 `next`（#165）。
    */
   onSessionReplaced(next: AgentSession): void;
   /** SessionStart Hook 的 additionalContext（系统提示 hooks 节）；首次装配系统提示时读取。 */

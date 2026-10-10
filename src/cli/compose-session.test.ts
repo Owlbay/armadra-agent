@@ -74,12 +74,16 @@ describe("switchSession", () => {
     const host = recordingHost(h.home);
     const runtime = await h.boot(["--model", "fake/echo", "--host", host.path]);
     await runtime.session.prompt("one");
+    const first = runtime.session;
     const firstId = hostApi().session.id();
     const next = await switchSession(runtime, { kind: "new" });
     expect(currentSession(runtime)).toBe(next);
     expect(hostApi().session.id()).toBe(next.state.sessionId);
     expect(next.state.sessionId).not.toBe(firstId);
-    await expect(runtime.session.prompt("x")).rejects.toMatchObject({ code: "session_closed" });
+    await expect(first.prompt("x")).rejects.toMatchObject({ code: "session_closed" });
+    // [#165] Runtime.session / sessionManager 跟随当前会话（不再常驻启动会话）
+    expect(runtime.session).toBe(next);
+    expect(runtime.sessionManager.id).toBe(next.state.sessionId);
     await next.prompt("two");
     expect(next.getLastAssistantText()).toBe("two");
     const starts = host.events().filter((e) => e.name === "session_start");
@@ -151,6 +155,7 @@ describe("[ACP-C0] 兄弟会话", () => {
     expect(currentSession(runtime)).toBe(sibling);
     expect(hostApi().session.id()).toBe(sibling.state.sessionId);
     expect(factory?.session()).toBe(sibling);
+    expect(runtime.sessionManager.id).toBe(sibling.state.sessionId);
     await sibling.prompt("two");
     const context = JSON.stringify(h.fake.calls.at(-1)?.context);
     expect(context).toContain(`ctx:${sibling.state.sessionId}`);
@@ -196,10 +201,12 @@ describe("[ACP-C0] 兄弟会话", () => {
   it("switchSession 行为不变：兄弟会话之后仍 dispose 前台并换新", async () => {
     h = composeHarness();
     const runtime = await h.boot(["--model", "fake/echo"]);
+    const first = runtime.session;
     const sibling = await createSessionAlongside(runtime, { kind: "new" });
     const next = await switchSession(runtime, { kind: "new" });
     expect(currentSession(runtime)).toBe(next);
-    await expect(runtime.session.prompt("x")).rejects.toMatchObject({ code: "session_closed" });
+    expect(runtime.session).toBe(next);
+    await expect(first.prompt("x")).rejects.toMatchObject({ code: "session_closed" });
     await sibling.prompt("alive");
     expect(sibling.getLastAssistantText()).toBe("alive");
     await sibling.dispose();

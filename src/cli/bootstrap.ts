@@ -101,7 +101,8 @@ export async function bootstrap(
     request = { kind: "resume", id };
   }
   const sessionRequest = request;
-  const sessionManager = await step(ExitCode.Session, m().steps.session, () =>
+  // [#165] 会话替换后跟随当前会话（闭包只经它取，启动会话的 manager 不被常驻）
+  let sessionManager = await step(ExitCode.Session, m().steps.session, () =>
     deps.sessions.open(sessionRequest, { sessionDir: paths.sessionDir, cwd: paths.cwd }),
   );
   let sessionCwd = sessionManager.cwd;
@@ -330,6 +331,8 @@ export async function bootstrap(
       uiBroker: () => uiBroker,
       onSessionReplaced: (next) => {
         session = next;
+        sessionManager = (next as { manager?: typeof sessionManager }).manager ?? sessionManager;
+        assembly.sessionManager = sessionManager;
       },
       sessionStartContext: () => sessionStartContext,
       unattended,
@@ -349,7 +352,7 @@ export async function bootstrap(
     session = await step(ExitCode.RuntimeError, m().steps.assembly, () =>
       deps.session.create(assembly),
     );
-    const active = session;
+    const active = session; // 只同步使用：闭包捕获它会让启动会话常驻（#165）
     let disposed: Promise<void> | undefined;
     shutdown = (reason) => {
       disposed ??= (async () => {
@@ -357,7 +360,7 @@ export async function bootstrap(
         await hooks.run("SessionEnd", { reason }).catch(() => undefined);
         await disposeHost(host, (e) => warn(m().hostDisposeFailed(String(e))));
         // 会话被替换过时 dispose 当前那个（旧会话由替换方负责）
-        await (session ?? active).dispose();
+        await session?.dispose();
       })();
       return disposed;
     };
@@ -390,8 +393,13 @@ export async function bootstrap(
       providers,
       model,
       thinkingLevel,
-      sessionManager,
-      session: active,
+      // [#165] 跟随当前会话（ACP 关掉启动会话后它可被回收）
+      get sessionManager() {
+        return sessionManager;
+      },
+      get session() {
+        return session as AgentSession;
+      },
       hooks,
       host,
       permission,
