@@ -8,6 +8,40 @@ import { deflateSync } from "node:zlib";
 
 const MB = 1024 * 1024;
 
+/**
+ * 解析一行 JSON（stdout 的 JSONL 协议行、探针日志行）。被测进程中途退出时最后一行可能被截断，
+ * 或者混入非 JSON 输出（如 `--trace-gc`）：这些情况返回 `undefined`，由调用方计入「坏行」，不抛错。
+ */
+export function parseJsonLine(line) {
+  const text = line.trim();
+  if (text === "") return undefined;
+  try {
+    const value = JSON.parse(text);
+    return value !== null && typeof value === "object" && !Array.isArray(value) ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * 探针样本（mem-probe.cjs 的 JSONL 行）的峰值。rss 同时取 exit 行的 maxRss（进程生命周期峰值）；
+ * other = rss − heapTotal − external，旧探针没有 other 字段时按同式现算。
+ */
+export function samplePeaks(samples) {
+  const max = (pick) => Math.max(0, ...samples.map((s) => pick(s) || 0));
+  const exit = samples.find((s) => s.ev === "exit");
+  return {
+    rss: Math.max(
+      max((s) => s.rss),
+      exit?.maxRss ?? 0,
+    ),
+    heapUsed: max((s) => s.heapUsed),
+    heapTotal: max((s) => s.heapTotal),
+    external: max((s) => s.external),
+    other: max((s) => s.other ?? s.rss - s.heapTotal - s.external),
+  };
+}
+
 /** 至少 `bytes` 字节的文本文件，按 1 MB 批量写。 */
 export function writeTextFile(path, bytes) {
   const fd = openSync(path, "w");
