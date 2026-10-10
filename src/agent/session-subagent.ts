@@ -248,6 +248,11 @@ async function startAmaChild(
   const unavailable = inherited.filter(
     (name) => !allowed.includes(name) && !PARENT_ONLY_TOOLS.includes(name),
   );
+  // #150：<task> 里也列出按深度拒绝的 task / task_ctl（执行层的拒绝文案不变）
+  const briefUnavailable = [
+    ...unavailable,
+    ...PARENT_ONLY_TOOLS.filter((name) => inherited.includes(name)),
+  ];
   const options: AgentSessionOptions = {
     ...parent.options,
     ...base,
@@ -345,7 +350,7 @@ async function startAmaChild(
       : forkBrief({
           prompt: run.prompt,
           role: spec.agent.prompt,
-          unavailable,
+          unavailable: briefUnavailable,
           ...(spec.isolated ? { worktree: { cwd: spec.cwd, parentCwd: parent.cwd } } : {}),
         });
   let current = runOnce(first, spec.origin);

@@ -141,7 +141,7 @@ export function forkBrief(input: ForkBriefInput): string {
     "You are a sub-agent forked from the conversation above at this point. The main agent cannot " +
       "see your work, only your final reply; do not delegate further. Requests above were for the " +
       "main agent: do only this task. Instructions in this block take precedence over earlier " +
-      "plans or reminders above.",
+      "plans or reminders above. Do not call task or task_ctl.",
   ];
   if (input.worktree !== undefined)
     lines.push(
