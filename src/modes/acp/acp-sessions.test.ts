@@ -9,10 +9,12 @@ import {
   encodeCursor,
   pageSessions,
   promptWhenIdle,
+  quiesce,
   sessionTitle,
   type PromptJob,
 } from "./acp-sessions.js";
 import type { AgentSessionImpl } from "../../agent/session.js";
+import type { TaskControl } from "../../agents/task-control.js";
 import { AmaError } from "../../errors.js";
 
 describe("标题清洗", () => {
@@ -209,33 +211,98 @@ describe("promptWhenIdle [M-A]（#139）", () => {
     expect(f.prompt).toHaveBeenCalledTimes(1);
   });
 
-  it("与通知器竞速输了（空闲后它先开了回合）：busy 后再等一轮", async () => {
+  it("与通知器竞速输了（空闲后它先开了回合）：busy 后再等一轮；onStart 每次发起前都调（#166）", async () => {
     const f = fakeSession();
+    const onStart = vi.fn();
     let raced: { end: () => void } | undefined;
     f.prompt.mockImplementationOnce(async () => {
       raced = f.startCycle();
       throw new AmaError("busy", "a run is in progress");
     });
-    const done = promptWhenIdle(f.session, job());
+    const done = promptWhenIdle(f.session, job(), onStart);
     await new Promise((r) => setTimeout(r, 10));
     expect(f.prompt).toHaveBeenCalledTimes(1);
+    expect(onStart).toHaveBeenCalledTimes(1);
     raced!.end();
     await done;
     expect(f.prompt).toHaveBeenCalledTimes(2);
+    expect(onStart).toHaveBeenCalledTimes(2);
   });
 
   it("等待中被取消：不再发；其它错误原样抛出", async () => {
     const f = fakeSession();
     const notification = f.startCycle();
     const j = job();
-    const done = promptWhenIdle(f.session, j);
+    const onStart = vi.fn();
+    const done = promptWhenIdle(f.session, j, onStart);
     j.cancelRequested = true;
     notification.end();
     await done;
     expect(f.prompt).not.toHaveBeenCalled();
+    expect(onStart).not.toHaveBeenCalled();
     f.prompt.mockRejectedValueOnce(new AmaError("session_closed", "session is disposed"));
     await expect(promptWhenIdle(f.session, job())).rejects.toMatchObject({
       code: "session_closed",
     });
+  });
+});
+
+describe("quiesce（#167）", () => {
+  /** 周期 + abort；`restarts` 次 abort 后由「通知器」在周期结算后的微任务里再开一轮。 */
+  function busySession(running: boolean, restarts: number) {
+    let cycle: Promise<void> | undefined;
+    let end: (() => void) | undefined;
+    const start = (): void => {
+      cycle = new Promise<void>((resolve) => {
+        end = () => {
+          cycle = undefined;
+          resolve();
+        };
+      });
+    };
+    if (running) start();
+    const abort = vi.fn(async () => {
+      const current = cycle;
+      if (current === undefined) return;
+      end!();
+      await current;
+      if (restarts-- > 0) queueMicrotask(start);
+    });
+    const session = {
+      abort,
+      waitForIdle: () => cycle ?? Promise.resolve(),
+    } as unknown as AgentSessionImpl;
+    return { session, abort, busy: () => cycle !== undefined };
+  }
+
+  it("已空闲：一轮即返回 true；先停在跑的后台任务（结束的不动）", async () => {
+    const f = busySession(false, 0);
+    const stop = vi.fn(async () => undefined);
+    const control = {
+      list: () => [
+        { taskId: "a", status: "running" },
+        { taskId: "b", status: "completed" },
+      ],
+      stop,
+    } as unknown as TaskControl;
+    await expect(quiesce(f.session, control)).resolves.toBe(true);
+    expect(stop.mock.calls).toEqual([["a"]]);
+    expect(f.abort).toHaveBeenCalledTimes(1);
+  });
+
+  it("在跑 / 结算后又开了一轮：反复 abort 直到隔一个宏任务仍空闲", async () => {
+    const once = busySession(true, 0);
+    await expect(quiesce(once.session, undefined)).resolves.toBe(true);
+    expect(once.abort).toHaveBeenCalledTimes(1);
+    const twice = busySession(true, 2);
+    await expect(quiesce(twice.session, undefined)).resolves.toBe(true);
+    expect(twice.abort).toHaveBeenCalledTimes(3);
+    expect(twice.busy()).toBe(false);
+  });
+
+  it("超过 rounds 仍不空闲：返回 false", async () => {
+    const f = busySession(true, Infinity);
+    await expect(quiesce(f.session, undefined, 3)).resolves.toBe(false);
+    expect(f.abort).toHaveBeenCalledTimes(3);
   });
 });

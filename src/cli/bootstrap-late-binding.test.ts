@@ -123,7 +123,8 @@ describe("SessionAssembly.onSessionReplaced 与 permissions.create 入参（契�
       return 0;
     };
     expect(await run(["--host", "host.cjs"])).toBe(0);
-    expect(seen).toEqual(["sess-1", "sess-2", `${home.cwd}/sess-2.jsonl`, "queued", "sess-1"]);
+    // [#165] Runtime.session 也跟随新会话
+    expect(seen).toEqual(["sess-1", "sess-2", `${home.cwd}/sess-2.jsonl`, "queued", "sess-2"]);
     expect(JSON.parse(home.read("stop-input.json"))).toMatchObject({
       hookEventName: "Stop",
       sessionId: "sess-2",

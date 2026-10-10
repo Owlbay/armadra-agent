@@ -9,6 +9,9 @@
 ### 内存占用
 
 - **`read` 读大文件不再阻塞事件循环**：超过 1 MiB 的文本走的字节窗口改为异步按 64 KiB 分块读，每块一次 `await`，扫描 256 MB 文件期间 TUI / RPC / ACP 仍能响应。输出逐字节不变（同步与异步共用同一个行解析器），峰值内存不变（仍只有一块缓冲）。
+- **ACP 关掉的启动会话也能回收**：`Runtime.session` 与 `Runtime.sessionManager` 改为跟随当前会话（原先固定指向启动时建的会话），`session/close` 之后它的转录与图片和其它会话一样被回收。SDK 代码在切换会话后读 `runtime.session` 得到的是新会话。
+- **ACP `session/prompt` 的 usage 只算本回合**：等过后台子 Agent 通知回合的提示，`usage` 不再计入那一回合的 token。
+- **通知回合在跑时 `session/close`**：原先以 -32603 失败且会话留在内存；现在先停在跑的后台子 Agent、中断在跑的回合（含通知回合）、已排着的通知不再开回合，然后释放会话，之后不再有 `session/update`。stdin 关闭时同样这样收尾。
 
 ## 0.7.4（2026-10-10）
 
