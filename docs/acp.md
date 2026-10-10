@@ -49,10 +49,13 @@ ama --mode acp                      # 与 -p 互斥；其余参数（--model、-
   再应用到权限管线，并再发一条 `current_mode_update`。所以对排队中的会话改模式不会影响正在跑的那个。
 - 后台子 Agent 完成后的通知回合不经这个队列，在会话空闲时自己开始；它在跑时，对同一会话的 `session/prompt` 也等它
   结束再开始（不报 busy），等待期间客户端先收到通知回合的 `session/update`。等待中 `session/cancel` 会中断通知回合，
-  这条提示回 `cancelled`，之后也不会再被发出。
+  这条提示回 `cancelled`，之后也不会再被发出。这条提示答复里的 `usage` 只算它自己的回合，不含之前的通知回合。
 - 每个回合结束后发 `session_info_update`（`updatedAt`，标题变了才带 `title`）。
-- 关掉一个会话只释放它（跑 SessionEnd Hook），它的转录、图片与子 Agent 句柄随之可被回收；进程启动时建的那个会话
-  对象由进程持有到退出。stdin 关闭时排队的提示回 `cancelled`，等在跑的结束，再依次释放全部会话。
+- 关掉一个会话只释放它（跑 SessionEnd Hook），它的转录、图片与子 Agent 句柄随之可被回收，进程启动时建的那个会话
+  也一样。关闭前先让它安静下来：它的排队提示回 `cancelled`、在跑的后台子 Agent 停掉（不再发完成通知）、在跑的回合
+  （含通知回合）被中断，已排着的通知也不再开回合；`session/close` 之后该会话不再有 `session/update`。被中断的
+  通知回合与 `session/cancel` 一样在会话文件里留下中断标记。stdin 关闭时排队的提示回 `cancelled`，等在跑的提示结束，
+  通知回合与后台子 Agent 按上面的方式停下，再依次释放全部会话。
 
 ### 事件映射
 
