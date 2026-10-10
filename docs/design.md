@@ -424,7 +424,7 @@ export type ModelThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" |
 
 第五波起目录只写覆盖项与 ama 特有字段，数值事实从入库的 models.dev 快照继承，运行时不联网，`ama models refresh` 显式刷新（[wave5-plan.md](wave5-plan.md) §2）。
 
-中转模型继承官方目录（[model-efficiency-plan.md](model-efficiency-plan.md) D10）：目录条目可写 `aliases`；中转模型 id 规范化（小写、去一层 `vendor/`、去 `:latest`）后与第一方条目 id 或别名**唯一命中**才继承，精确不中时去掉思考档后缀（`-low`、`-tiered` 等）再试一次。只继承模型固有属性 `reasoning`、`input`、`thinkingLevelMap`、`promptCache.minTokens`、`compat.requiresReasoningContentOnAssistantMessages`（思考档后缀命中不继承思考），不继承价格、缓存 TTL 与 `thinkingFormat`；用户写了的不覆盖。`models[]` 条目 `catalog: false` 关闭、`catalog: "provider/id"` 显式指定；`ama models list` 来源显示 `catalog (via id)`。目录文件级 `small` 指定该家的小模型，供 auto 分类器使用（§7.4）。
+中转模型继承官方目录（[model-efficiency-plan.md](model-efficiency-plan.md) D10）：目录条目可写 `aliases`；中转模型 id 规范化（小写、去一层 `vendor/`、去 `:latest`）后与第一方条目 id 或别名**唯一命中**才继承，精确不中时去掉思考档后缀（`-low`、`-tiered` 等）再试一次。只继承模型固有属性 `reasoning`、`input`、`thinkingLevelMap`、`promptCache.minTokens`、`compat.requiresReasoningContentOnAssistantMessages`（思考档后缀命中不继承思考），不继承价格、缓存 TTL 与 `thinkingFormat`；用户写了的不覆盖。`models[]` 条目 `catalog: false` 关闭、`catalog: "provider/id"` 显式指定（不命中时注册表给 warning、不继承）；`ama models list` 来源显示 `catalog (via id)`。目录文件级 `small` 指定该家的小模型，供 auto 分类器使用（§7.4）。
 
 ### §3.5 API Key 发现顺序（`ai/providers/auth.ts`）
 
@@ -448,7 +448,7 @@ export type ModelThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" |
 | 溢出 | `ai/overflow.ts` 正则表（各家文案）+ `stopReason: "length"` 且无工具调用 → 不重试，走 §9 的压缩后重试一次                                                                                                                                    |
 | 成本 | `calculateCost(model, usage)`：按 `input+cacheRead+cacheWrite` 选阶梯；`Usage.input` 不含缓存部分；1h 缓存写 2×；写回 `usage.cost{input,output,cacheRead,cacheWrite,total}`；无 `cost` 的模型显示 `$?`                                     |
 | 缓存 | Anthropic 四个断点，按优先级消耗 `maxCacheBreakpoints`：最后一条 user → system 末 → **倒数第二条 user**（上一次请求的写入点；并行工具调用多时最后一条 user 离上次写入点太远，回看窗口可能够不到）→ 最后一个工具定义；Completions / Responses：`prompt_cache_key = sessionId`；摘要请求 `cacheRetention: "none"` |
-| 输出上限 | `contextWindow` 已知时主动收紧 `max_tokens = min(请求值, max(1024, 窗口 − 请求体字符/4 − 2048))`（Anthropic 预算型思考、带思考预算的 Gemini 不收紧）；「max_tokens 范围 / 上限」400 解析出上限记入进程级表并在流开始前重发一次；Anthropic `X + Y > Z` 按 `Z − X` 重发，`< 1024` 判溢出（[providers.md](providers.md)「max_tokens」） |
+| 输出上限 | `contextWindow` 已知时主动收紧 `max_tokens = min(请求值, max(1024, 窗口 − 请求体字符/4 − 2048))`（Anthropic 预算型思考、带思考预算的 Gemini 不收紧）；「max_tokens 范围 / 上限」400 解析出上限记入进程级表并在流开始前重发一次，并写入 `<dataDir>/models/max-tokens-caps.json` 跨进程持久化 30 天；Anthropic `X + Y > Z` 按 `Z − X` 重发，`< 1024` 判溢出（[providers.md](providers.md)「max_tokens」） |
 | 超时 | `request.idleTimeoutMs`（300 s）只管等响应头；流中两个数据包之间由 `request.streamIdleTimeoutMs`（缺省 180 s，`AMA_STREAM_IDLE_TIMEOUT_MS`，0 关闭）管 |
 
 ## §4 循环（`agent/`）

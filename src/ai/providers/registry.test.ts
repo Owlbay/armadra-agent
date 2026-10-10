@@ -156,6 +156,22 @@ describe("ProviderRegistry", () => {
     ]);
   });
 
+  it("models[].catalog 写错 → registry.warnings 一条，模型照常可用、不继承（#154）", () => {
+    const r = registry({
+      version: 1,
+      providers: {
+        x: {
+          baseUrl: "https://relay.example/v1",
+          models: [{ id: "m", catalog: "deepseek/nope" }, { id: "deepseek-v4-flash" }],
+        },
+      },
+    });
+    expect(r.warnings).toEqual(['catalog "deepseek/nope" for "x/m" not found; ignored']);
+    expect(r.findModel("x/m").ok).toBe(true);
+    expect(r.modelMetadata("x", "m")?.catalog).toBeUndefined();
+    expect(r.modelMetadata("x", "deepseek-v4-flash")?.catalog).toBe("deepseek/deepseek-flash");
+  });
+
   it("模型级 api：同一中转下的模型各走各的协议，缺省沿用供应商；modelOverrides 也可改协议", () => {
     const r = registry({
       version: 1,

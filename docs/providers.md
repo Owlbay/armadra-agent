@@ -540,7 +540,8 @@ src/ai/providers/catalog.test.ts` 自动删除并重新生成 `catalog-data.ts`�
   `-xhigh` / `-tiered`）试一次：这类 id 由中转按名字决定思考档，所以只继承图片、窗口与缓存门槛，`reasoning` 不打开，
   ama 不再发思考参数。例：`gemini-3.8-flash-low` → `google/gemini-3.8-flash`，带图片输入、1M 窗口。
 - 开关：`models[]` 条目写 `"catalog": false` 关闭；`"catalog": "deepseek/deepseek-v4-pro"` 显式指定目录条目（id
-  对不上时）。目录别名写在 `catalog/*.json` 条目的 `aliases` 里（如 `deepseek-flash` 的 `deepseek-v4-flash`）。
+  对不上时）；指定的条目不存在时记一条 warning（启动头部计数、`ama models list`、`AMA_LOG`），该模型不继承、也不回落
+  按 id 继承。目录别名写在 `catalog/*.json` 条目的 `aliases` 里（如 `deepseek-flash` 的 `deepseek-v4-flash`）。
 - 中转把同名 id 指到别的上游时会误配：`ama models list` 的来源列能看出继承了哪条，用 `catalog: false` 关掉。
   `requiresReasoningContentOnAssistantMessages` 经中转是否成立取决于中转是否透传 `reasoning_content`，不成立时用
   `modelOverrides` 的 `compat` 写 `false`。
@@ -672,7 +673,8 @@ Anthropic 的 `baseUrl` 以 `/v1` 结尾时请求 `{baseUrl}/messages`，不会�
 （仍只有一个终止事件），提示一次建议写哪个开关；同一进程里之后的请求直接不带。
 
 倒数第二条 user 的断点：一次回合里并行工具结果很多时，最后一条 user 离上一次请求的写入点可能超出官方文档说的
-回看窗口（约 20 个块），没有它就要整段重写；断点本身不计费。回看窗口没法经中转实测，这一条按官方文档实现。
+回看窗口（约 20 个块），没有它就要整段重写；断点本身不计费。回看窗口没法经中转实测，这一条按官方文档与公开报告实现，
+未经官方端点取样。
 
 ### max_tokens
 
@@ -686,10 +688,12 @@ Anthropic 的 `baseUrl` 以 `/v1` 结尾时请求 `{baseUrl}/messages`，不会�
   `max_tokens … must be / at most / less than or equal to N` 一类文案），把 `provider/model` 的上限记入进程内的表、
   以上限重发一次（与上面的 400 自动剥离一样只发生在流开始之前，仍只有一个终止事件），同一进程里之后的请求直接用
   上限。Anthropic 的 `input length and max_tokens exceed context limit: X + Y > Z` 按 `Z − X` 重发一次、不记为模型
-  上限；`Z − X` 不足 1024 时按上下文溢出处理（压缩后重试）。
+  上限；`Z − X` 不足 1024 时按上下文溢出处理（压缩后重试）。这条文案按官方文档与公开报告实现，未经官方端点取样。
 
-中转常把目录里的 `maxTokens` 写成与窗口相同，这时第一次请求会被拒一次，之后同一进程里不再出现；长期用的模型可以
-在 `models[]` / `modelOverrides[]` 里把 `maxTokens` 填成端点实际上限，连第一次也省掉。
+中转常把目录里的 `maxTokens` 写成与窗口相同，这时第一次请求会被拒一次。学到的上限记入
+`<dataDir>/models/max-tokens-caps.json`（只有模型引用、上限与时间），之后的进程启动时载回、首个请求直接用上限；
+条目 30 天后过期、重新探测，删掉该文件即重测（中转放宽了上限时）。长期用的模型可以在 `models[]` /
+`modelOverrides[]` 里把 `maxTokens` 填成端点实际上限，连第一次也省掉；写了更小的值时以它为准。
 
 ### 请求超时与重试
 

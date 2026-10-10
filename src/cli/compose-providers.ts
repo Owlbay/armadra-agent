@@ -14,12 +14,14 @@
  *   `originator` 头；OAuth 刷新拿到 `auth.chatgpt` 配置与同一份 env。
  * - 发现缓存（`<dataDir>/models/discovered/<provider>.json`）并入模型表为空的供应商（discovered-cache.ts）；
  *   chatgpt 的缓存 flavor 与当前登录不符时视为过期、不并入。
+ * - max_tokens 上限缓存（`<dataDir>/models/max-tokens-caps.json`，30 天）载回进程内的表并订阅写回（#152）。
  */
 
 import type { ApiRegistry } from "../ai/apis/api.js";
 import { loadModelsDevIndex } from "../ai/providers/models-dev-cache.js";
 import { ProviderRegistry, discoverLocalModels } from "../ai/providers/registry.js";
 import { mergeDiscoveredModels } from "../ai/providers/discovered-cache.js";
+import { attachMaxTokensCache } from "../ai/providers/max-tokens-cache.js";
 import { lazyIndex } from "../ai/providers/enrich.js";
 import type { ProviderData } from "../ai/types.js";
 import { readOAuthEntry } from "../auth/oauth/token-store.js";
@@ -142,6 +144,7 @@ export async function buildProviderRegistry(
   }
   // 发现缓存（`ama auth login chatgpt` / `ama models discover chatgpt`）并入模型表为空的供应商
   if (dataDir !== undefined) {
+    attachMaxTokensCache(dataDir);
     const flavor = readOAuthEntry(input.authFile, CHATGPT_PROVIDER_ID)?.flavor;
     mergeDiscoveredModels(
       registry,

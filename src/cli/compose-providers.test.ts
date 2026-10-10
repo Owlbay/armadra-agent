@@ -125,3 +125,33 @@ describe("[W6-O] chatgpt 渠道", () => {
     expect(kept.providers?.["chatgpt"]?.defaultChannel).toBe("siwc");
   });
 });
+
+describe("max_tokens 上限缓存（#152）", () => {
+  it("给了 dataDir 时载回 <dataDir>/models/max-tokens-caps.json", async () => {
+    const { mkdirSync, mkdtempSync, writeFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { maxTokensCaps } = await import("../ai/apis/max-tokens.js");
+    const dataDir = mkdtempSync(join(tmpdir(), "ama-cp-caps-"));
+    mkdirSync(join(dataDir, "models"));
+    writeFileSync(
+      join(dataDir, "models", "max-tokens-caps.json"),
+      JSON.stringify({ version: 1, caps: { "relay/a": { cap: 4096, learnedAt: Date.now() } } }),
+    );
+    maxTokensCaps.clear();
+    await buildProviderRegistry(
+      {
+        config: { version: 1 },
+        cwd: "/w",
+        authFile: join(dataDir, "auth.json"),
+        authEnv: false,
+        dataDir,
+      },
+      { includeFake: false, probeLocal: false },
+    );
+    expect(maxTokensCaps.get("relay/a")).toBe(4096);
+    maxTokensCaps.clear();
+    const { attachMaxTokensCache } = await import("../ai/providers/max-tokens-cache.js");
+    attachMaxTokensCache(dataDir)();
+  });
+});
