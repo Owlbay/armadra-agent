@@ -3,7 +3,13 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeTmpDir, makeToolContext } from "../../test/helpers/tool-context.js";
 import { normalizeToLF, splitBom } from "./edit-fuzzy.js";
-import { STREAM_READ_THRESHOLD, readHead, readLineWindow } from "./read-lines.js";
+import {
+  STREAM_READ_THRESHOLD,
+  readHead,
+  readHeadAsync,
+  readLineWindow,
+  readLineWindowAsync,
+} from "./read-lines.js";
 import { executeRead, type ReadInput } from "./read.js";
 
 let tmp: { dir: string; cleanup(): void };
@@ -90,7 +96,36 @@ describe("[M-E] read 字节窗口", () => {
     }
   });
 
-  it("readLineWindow 与整读口径一致：随机内容 × 块大小 × 窗口", () => {
+  it("同步版与异步版结果深度相等：fixture × 块大小 × 窗口（#171）", async () => {
+    const windows: [number, number | undefined, number][] = [
+      [1, undefined, 1_000_000],
+      [2, 1, 1_000_000],
+      [3, 2, 1_000_000],
+      [2400, 50, 1_000_000],
+      [1, 0, 1_000_000],
+      [1, undefined, 4000],
+      [1, undefined, 15],
+    ];
+    for (const [i, [name, data]] of FIXTURES.entries()) {
+      const path = write(`sa-${i}.txt`, data);
+      const chunks = data.length > 4 * KB ? [1000, BLOCK] : [3, 4, 7, 64, BLOCK]; // 小块只用于小文件，免得几万次 await
+      for (const chunk of chunks) {
+        for (const [offset, limit, maxBytes] of windows) {
+          const label = `${name} chunk=${chunk} ${offset}/${limit}/${maxBytes}`;
+          expect(await readLineWindowAsync(path, offset, limit, maxBytes, chunk), label).toEqual(
+            readLineWindow(path, offset, limit, maxBytes, chunk),
+          );
+        }
+      }
+      for (const bytes of [0, 2, 3, 8000]) {
+        expect(await readHeadAsync(path, bytes), `${name} head ${bytes}`).toEqual(
+          readHead(path, bytes),
+        );
+      }
+    }
+  });
+
+  it("readLineWindow 与整读口径一致：随机内容 × 块大小 × 窗口", async () => {
     const pieces = ["a", "bc", "\n", "\r", "\r\n", "中", "🙂", "\uFEFF", "\u00e9"];
     let seed = 7;
     const rand = (n: number): number => {
@@ -110,6 +145,7 @@ describe("[M-E] read 字节窗口", () => {
         const offset = 1 + rand(Math.max(1, expected.length + 1));
         const limit = rand(4) === 0 ? undefined : rand(6);
         const win = readLineWindow(path, offset, limit, 1_000_000, chunk);
+        expect(await readLineWindowAsync(path, offset, limit, 1_000_000, chunk)).toEqual(win);
         const label = `${JSON.stringify(buf.toString("latin1"))} chunk=${chunk}`;
         expect(win.totalLines, label).toBe(expected.length);
         const end = limit === undefined ? undefined : offset - 1 + limit;
