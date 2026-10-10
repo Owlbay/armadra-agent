@@ -10,6 +10,9 @@ English · [简体中文](CHANGELOG.zh-CN.md)
 ### Memory footprint
 
 - **`read` no longer blocks the event loop on large files**: the byte-window path for text files over 1 MiB now reads 64 KiB chunks asynchronously, awaiting once per chunk, so TUI/RPC/ACP stay responsive while a 256 MB file is scanned. Output is byte-for-byte identical (the sync and async readers share one line parser); peak memory is unchanged (still one chunk buffer).
+- **Closed ACP sessions free the startup session too**: `Runtime.session` and `Runtime.sessionManager` now follow the current session instead of staying on the one created at startup, so after `session/close` its transcript and images are garbage-collected like any other session's. SDK code that reads `runtime.session` after a session switch now gets the new session.
+- **ACP `session/prompt` usage covers only its own turn**: a prompt that waited for a background subagent's notification turn no longer counts that turn's tokens in `usage`.
+- **`session/close` during a notification turn**: it used to fail with -32603 and keep the session in memory; now running background subagents are stopped, the running turn (notification turns included) is interrupted, already queued notifications no longer start a turn, and the session is released with no further `session/update`. Closing stdin quiets sessions the same way.
 
 ## 0.7.4 (2026-10-10)
 
