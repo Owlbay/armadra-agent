@@ -163,4 +163,4 @@ Armadra 用 profile 启动 ama：`ama --profile <path>`，profile 的 `host` 指
 
 有 profile 时的界面缺省：`ui.quietStartup: "header"`、`ui.statusLine: "compact"`（最后一行是状态栏，宿主按 `·` 解析）。Agent 栏（`ui.agentBar`）不再缺省关闭，与独立终端一样是 `auto`；宿主自己展示子任务、不要栏时在 profile 的 `config` 指向的配置文件里写 `{ "ui": { "agentBar": "off" } }`。
 
-契约细节见 Armadra 仓库 [docs/design/coordinator-agent.md](https://github.com/yovinchen/Armadra/blob/main/docs/design/coordinator-agent.md)。
+契约细节见 Armadra 仓库 [docs/design/coordinator-agent.md](https://github.com/AMA-Link/Armadra/blob/main/docs/design/coordinator-agent.md)。

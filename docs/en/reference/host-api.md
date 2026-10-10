@@ -168,4 +168,4 @@ Armadra starts ama with a profile: `ama --profile <path>`. The profile's `host` 
 
 Interface defaults with a profile: `ui.quietStartup: "header"` and `ui.statusLine: "compact"` (the last line is the status bar, which the host parses by `·`). The agent bar (`ui.agentBar`) is no longer off by default; it is `auto` as in a standalone terminal. A host that shows sub-tasks itself and does not want the bar writes `{ "ui": { "agentBar": "off" } }` into the config file its profile's `config` points to.
 
-Contract details are in [docs/design/coordinator-agent.md](https://github.com/yovinchen/Armadra/blob/main/docs/design/coordinator-agent.md) in the Armadra repository.
+Contract details are in [docs/design/coordinator-agent.md](https://github.com/AMA-Link/Armadra/blob/main/docs/design/coordinator-agent.md) in the Armadra repository.
