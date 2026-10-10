@@ -92,10 +92,11 @@
     "fmt:check": "prettier --check .",
     "check:deps": "node scripts/check-no-deps.mjs",
     "check:i18n": "node scripts/check-i18n.mjs",
+    "check:docs": "node scripts/check-doc-links.mjs",
     "release:check": "node scripts/release-check.mjs",
     "bench:presets": "node scripts/bench-presets.mjs",
     "bench:cache": "node scripts/cache-experiment.mjs",
-    "ci": "pnpm typecheck && pnpm fmt:check && pnpm check:deps && pnpm check:i18n && pnpm release:check && pnpm test && pnpm build && node dist/bundle/ama.cjs --version"
+    "ci": "pnpm typecheck && pnpm fmt:check && pnpm check:deps && pnpm check:i18n && pnpm check:docs && pnpm release:check && pnpm test && pnpm build && node dist/bundle/ama.cjs --version"
   },
   "dependencies": {},
   "devDependencies": {
